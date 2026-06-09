@@ -1,7 +1,7 @@
 {
   "name": "timesheet",
   "version": "1.0.0",
-  "description": "Cooperation Tools — an offline Electron desktop app for tracking daily timesheets, subscriptions, licenses, and insurance policies. Data is stored as local JSON files (no server, no database).",
+  "description": "Cooperation Tools — an offline Electron desktop app for tracking daily timesheets, subscriptions, licenses, and insurance policies. Data is stored in a self-contained, zero-config embedded SQLite database (Node's built-in node:sqlite, bundled with Electron — no server, no separate install, no native build).",
   "main": "main.js",
   "scripts": {
     "start": "electron ."
@@ -12,7 +12,10 @@
     "subscriptions",
     "licenses",
     "insurance",
-    "desktop"
+    "desktop",
+    "sqlite",
+    "node:sqlite",
+    "offline"
   ],
   "author": "Moustafa Baraka",
   "license": "ISC",
