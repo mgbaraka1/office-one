@@ -3,6 +3,7 @@ contextBridge.exposeInMainWorld('api', {
   saveDay:        (dateStr, data) => ipcRenderer.invoke('saveDay', dateStr, data),
   loadDay:        (dateStr)       => ipcRenderer.invoke('loadDay', dateStr),
   listDays:       ()              => ipcRenderer.invoke('listDays'),
+  getCarryOver:   (excludeDate)   => ipcRenderer.invoke('getCarryOver', excludeDate),
   loadLookups:    ()              => ipcRenderer.invoke('loadLookups'),
   saveLookups:    (data)          => ipcRenderer.invoke('saveLookups', data),
   loadSubscriptions: ()           => ipcRenderer.invoke('loadSubscriptions'),

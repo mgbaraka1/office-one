@@ -2321,7 +2321,13 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('ins-modal-overlay').classList.contains('open')) submitInsModal();
   }
   if (!anyOpen && !inputFocused) {
-    if (e.ctrlKey && !e.shiftKey && e.key === 'n') { e.preventDefault(); openModal(); }
+    if (e.ctrlKey && !e.shiftKey && e.key === 'n') {
+      e.preventDefault();
+      if      (activeModule === 'subscriptions') openSubModal();
+      else if (activeModule === 'licenses')      openLicModal();
+      else if (activeModule === 'insurance')     openInsModal();
+      else                                       openModal();
+    }
     // Day navigation: Ctrl+Left = earlier day, Ctrl+Right = later day
     if (e.ctrlKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
       e.preventDefault();
@@ -2534,22 +2540,9 @@ async function renderCarryOver() {
     return;
   }
 
-  for (const d of [...savedDays]) {
-    if (d !== activeDate && !dayCache[d]) {
-      const data = await window.api.loadDay(d);
-      if (data) dayCache[d] = data;
-    }
-  }
-
-  const items = [];
-  for (const d of [...savedDays].sort((a,b) => b.localeCompare(a))) {
-    if (d === activeDate) continue;
-    const entry = dayCache[d];
-    if (!entry?.rows) continue;
-    entry.rows.forEach((row, i) => {
-      if (row.status === 'Not Yet') items.push({ date: d, row, idx: i });
-    });
-  }
+  // One indexed query in the main process instead of loading every past day
+  // into the renderer — returns [{ date, idx, row }] newest-first.
+  const items = await window.api.getCarryOver(activeDate);
 
   if (items.length === 0) { section.style.display = 'none'; return; }
 
@@ -2754,7 +2747,9 @@ async function runExportRange() {
 }
 
 function downloadCSV(csv, filename) {
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  // Prepend a UTF-8 BOM so Excel (Windows) detects the encoding and renders
+  // Arabic/RTL text correctly instead of mojibake.
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = filename;
