@@ -1,0 +1,17 @@
+const { contextBridge, ipcRenderer } = require('electron');
+contextBridge.exposeInMainWorld('api', {
+  saveDay:        (dateStr, data) => ipcRenderer.invoke('saveDay', dateStr, data),
+  loadDay:        (dateStr)       => ipcRenderer.invoke('loadDay', dateStr),
+  listDays:       ()              => ipcRenderer.invoke('listDays'),
+  loadLookups:    ()              => ipcRenderer.invoke('loadLookups'),
+  saveLookups:    (data)          => ipcRenderer.invoke('saveLookups', data),
+  loadSubscriptions: ()           => ipcRenderer.invoke('loadSubscriptions'),
+  saveSubscriptions: (data)       => ipcRenderer.invoke('saveSubscriptions', data),
+  loadLicenses:      ()           => ipcRenderer.invoke('loadLicenses'),
+  saveLicenses:      (data)       => ipcRenderer.invoke('saveLicenses', data),
+  loadInsurance:     ()           => ipcRenderer.invoke('loadInsurance'),
+  saveInsurance:     (data)       => ipcRenderer.invoke('saveInsurance', data),
+  setTitle:       (title)         => ipcRenderer.invoke('setTitle', title),
+  setAlwaysOnTop: (flag)          => ipcRenderer.invoke('setAlwaysOnTop', flag),
+  openExternal:   (url)           => ipcRenderer.invoke('openExternal', url),
+});
