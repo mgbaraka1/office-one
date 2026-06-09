@@ -177,8 +177,8 @@ function init(dir) {
 
 // ── Days ──────────────────────────────────────────────────────────────────────
 function saveDay(dateStr, data) {
-  const name = (data && data.name) || '';
-  const rows = JSON.stringify((data && data.rows) || []);
+  const name = data?.name || '';
+  const rows = JSON.stringify(data?.rows || []);
   db.prepare(`INSERT INTO days(date, name, rows) VALUES(?, ?, ?)
               ON CONFLICT(date) DO UPDATE SET name = excluded.name, rows = excluded.rows`)
     .run(dateStr, name, rows);
@@ -297,8 +297,30 @@ function savePrefs(prefs) {
   try { metaSet('window_prefs', JSON.stringify(prefs)); } catch { /* non-critical */ }
 }
 
+// ── Lifecycle / backup ──────────────────────────────────────────────────────
+// Checkpoint the WAL into the main DB file and close the handle cleanly. Called
+// on app quit so we don't leave a large -wal file behind.
+function close() {
+  if (!db) return;
+  try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch { /* best effort */ }
+  try { db.close(); } catch { /* already closing */ }
+  db = undefined;
+}
+
+// Copy the live database to `destPath`. Checkpoints first so the single .db file
+// is complete and self-contained (no need to also copy -wal/-shm).
+function backup(destPath) {
+  if (!db) throw new Error('database not open');
+  db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+  fs.copyFileSync(path.join(userDataDir, 'cooperation-tools.db'), destPath);
+}
+
+function dbPath() {
+  return path.join(userDataDir, 'cooperation-tools.db');
+}
+
 module.exports = {
-  init,
+  init, close, backup, dbPath,
   saveDay, loadDay, listDays,
   loadLookups, saveLookups,
   loadSubscriptions, saveSubscriptions,

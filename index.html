@@ -336,6 +336,17 @@
       color: var(--muted); border: 1px solid var(--border); white-space: nowrap;
     }
 
+    /* Search input for the dark module top bars (Subscriptions/Licenses/Insurance) */
+    .mod-search {
+      width: 200px; border: 1px solid rgba(255,255,255,.15); border-radius: 8px;
+      padding: 5px 10px; font-size: 13px; font-family: inherit;
+      background: rgba(255,255,255,.08); color: #cdd6f4; outline: none;
+      transition: background .15s, border-color .15s;
+    }
+    .mod-search::placeholder { color: #6c7086; }
+    .mod-search:focus { background: rgba(255,255,255,.14); border-color: var(--accent); }
+    td.no-matches { text-align: center; padding: 22px; color: var(--muted); }
+
     /* ══ MODAL ══ */
     #modal-overlay {
       display: none; position: fixed; inset: 0;
@@ -884,6 +895,9 @@
       <span class="nav-icon">🛡️</span>Insurance
     </button>
   </nav>
+  <button id="backup-btn" class="nav-item" style="margin-top:auto" onclick="backupDatabase()" title="Save a copy of your database to a file">
+    <span class="nav-icon">💾</span>Backup Data
+  </button>
 </div>
 
 <!-- ══ TIMESHEET MODULE ══ -->
@@ -1155,6 +1169,7 @@
   <div id="sub-topbar">
     <span class="sub-title">💳 Subscriptions</span>
     <div class="topbar-right">
+      <input type="text" id="sub-filter" class="mod-search" placeholder="🔍 Search subscriptions…" oninput="applySubFilter()">
       <button class="btn" onclick="openSubSettings()" title="Settings">⚙ Settings</button>
       <button class="btn primary" onclick="openSubModal()">+ Add Subscription</button>
     </div>
@@ -1269,6 +1284,7 @@
   <div id="lic-topbar">
     <span class="lic-title">📜 Licenses</span>
     <div class="topbar-right">
+      <input type="text" id="lic-filter" class="mod-search" placeholder="🔍 Search licenses…" oninput="applyLicFilter()">
       <button class="btn primary" onclick="openLicModal()">+ Add License</button>
     </div>
   </div>
@@ -1384,6 +1400,7 @@
   <div id="ins-topbar">
     <span class="ins-title">🛡️ Insurance</span>
     <div class="topbar-right">
+      <input type="text" id="ins-filter" class="mod-search" placeholder="🔍 Search insurance…" oninput="applyInsFilter()">
       <button class="btn primary" onclick="openInsModal()">+ Add Insurance</button>
     </div>
   </div>
@@ -1493,7 +1510,9 @@ let lookups = {
 let lookupsDraft = {};
 
 // ── Timer state ──
-let activeTimer = { rowIdx: null, startMs: null, intervalId: null };
+// Track the timed row by object reference (rowRef), not by array index — the
+// index drifts if a row above it is deleted/duplicated/moved while running.
+let activeTimer = { rowRef: null, startMs: null, intervalId: null };
 
 // ── Undo state ──
 let undoRecord   = null;  // { row, idx }
@@ -1501,6 +1520,9 @@ let _undoTimer   = null;
 
 // ── Module state ──
 let activeModule = 'timesheet';
+
+// ── Module search filters ──
+let subFilter = '', licFilter = '', insFilter = '';
 
 // ── Subscriptions state ──
 let subscriptions = [];
@@ -1548,6 +1570,19 @@ function esc(s) {
 }
 function isURL(s) {
   return /^https?:\/\//i.test(s || '');
+}
+// Quote a value for CSV and neutralize spreadsheet formula injection: a cell
+// that starts with = + - @ (or tab/CR) is prefixed with ' so Excel/Sheets treats
+// it as text instead of executing it as a formula.
+function csvCell(v) {
+  let s = String(v ?? '');
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+// True if any of `values` contains the (already-lowercased) query `q`. Empty q matches all.
+function textMatch(values, q) {
+  if (!q) return true;
+  return values.some(v => String(v ?? '').toLowerCase().includes(q));
 }
 
 // ── Lookup helpers ──
@@ -1721,7 +1756,7 @@ document.getElementById('cal-next').addEventListener('click', (e) => {
 // ── Switch day ──
 async function switchDay(dateStr) {
   // Stop any running timer before leaving the day
-  if (activeTimer.rowIdx !== null) stopTimer();
+  if (activeTimer.rowRef !== null) stopTimer();
 
   activeDate = dateStr;
 
@@ -1797,7 +1832,7 @@ function renderTable() {
 
     const tr = document.createElement('tr');
     if (row.status === 'Not Yet' || row.status === 'Pending') tr.classList.add('notyet-row');
-    if (activeTimer.rowIdx === origIdx) tr.classList.add('timer-running');
+    if (activeTimer.rowRef === row) tr.classList.add('timer-running');
 
     // #
     const num = document.createElement('span');
@@ -1898,7 +1933,7 @@ function renderTable() {
       minCell.replaceChild(inp, minSpan);
       inp.focus(); inp.select();
       const commit = () => {
-        const val = parseInt(inp.value);
+        const val = parseInt(inp.value, 10);
         if (!isNaN(val) && val >= 1 && val <= 1440) rows[origIdx].minutes = val;
         renderTable(); setUnsaved();
       };
@@ -1926,7 +1961,7 @@ function renderTable() {
 
     // Timer button
     const timerBtn = document.createElement('button');
-    if (activeTimer.rowIdx === origIdx) {
+    if (activeTimer.rowRef === row) {
       timerBtn.className = 'row-btn timer-stop';
       timerBtn.textContent = '■';
       timerBtn.title = 'Stop timer';
@@ -1981,21 +2016,11 @@ function renderTable() {
     const delBtn = document.createElement('button');
     delBtn.className = 'row-btn del'; delBtn.textContent = '🗑️';
     delBtn.title = 'Delete';
-    delBtn.addEventListener('click', () => {
-      acts.innerHTML = '';
-      const conf = document.createElement('div'); conf.className = 'del-confirm';
-      const lbl = document.createElement('span'); lbl.textContent = 'Delete?';
-      const yes = document.createElement('button'); yes.className = 'row-btn del-yes'; yes.textContent = 'Yes';
-      yes.addEventListener('click', () => {
-        const removed = rows.splice(origIdx, 1)[0];
-        showUndoToast(removed, origIdx);
-        renderTable(); setUnsaved();
-      });
-      const no = document.createElement('button'); no.className = 'row-btn del-no'; no.textContent = 'No';
-      no.addEventListener('click', restoreActs);
-      conf.appendChild(lbl); conf.appendChild(yes); conf.appendChild(no);
-      acts.appendChild(conf);
-    });
+    delBtn.addEventListener('click', () => showDeleteConfirm(acts, () => {
+      const removed = rows.splice(origIdx, 1)[0];
+      showUndoToast(removed, origIdx);
+      renderTable(); setUnsaved();
+    }, restoreActs));
 
     acts.appendChild(timerBtn); acts.appendChild(editBtn); acts.appendChild(dupBtn); acts.appendChild(moveBtn); acts.appendChild(delBtn);
     actDiv.appendChild(acts); actTd.appendChild(actDiv);
@@ -2019,6 +2044,21 @@ function textCell(val) {
   return cellWrap(span, 'cell');
 }
 
+// Shared inline "Delete?" confirm used by every module's row delete button.
+// Replaces the action buttons in `actsEl` with a Delete?/Yes/No prompt;
+// `onYes` performs the deletion, `restore` puts the original buttons back.
+function showDeleteConfirm(actsEl, onYes, restore) {
+  actsEl.innerHTML = '';
+  const conf = document.createElement('div'); conf.className = 'del-confirm';
+  const lbl  = document.createElement('span'); lbl.textContent = 'Delete?';
+  const yes  = document.createElement('button'); yes.className = 'row-btn del-yes'; yes.textContent = 'Yes';
+  yes.addEventListener('click', onYes);
+  const no   = document.createElement('button'); no.className = 'row-btn del-no'; no.textContent = 'No';
+  no.addEventListener('click', restore);
+  conf.appendChild(lbl); conf.appendChild(yes); conf.appendChild(no);
+  actsEl.appendChild(conf);
+}
+
 function updateTotals() {
   const workedRows = rows.filter(r => r.status !== 'Not Yet' && r.status !== 'Pending');
   const t = totalMins(workedRows);
@@ -2028,9 +2068,9 @@ function updateTotals() {
 
 // ── Live Timer ──
 function startTimer(rowIdx) {
-  if (activeTimer.rowIdx !== null) stopTimer();
+  if (activeTimer.rowRef !== null) stopTimer();
   activeTimer = {
-    rowIdx,
+    rowRef: rows[rowIdx],
     startMs: Date.now(),
     intervalId: setInterval(updateTimerDisplay, 1000),
   };
@@ -2040,14 +2080,16 @@ function startTimer(rowIdx) {
 }
 
 function stopTimer() {
-  if (activeTimer.rowIdx === null) return;
+  if (activeTimer.rowRef === null) return;
   clearInterval(activeTimer.intervalId);
   const elapsed = Math.max(1, Math.round((Date.now() - activeTimer.startMs) / 60000));
-  const idx = activeTimer.rowIdx;
-  activeTimer = { rowIdx: null, startMs: null, intervalId: null };
+  const rowRef = activeTimer.rowRef;
+  activeTimer = { rowRef: null, startMs: null, intervalId: null };
   document.getElementById('timer-chip').classList.remove('running');
 
-  if (idx < rows.length) {
+  // Locate the row by reference — it may have shifted position (or be gone).
+  const idx = rows.indexOf(rowRef);
+  if (idx !== -1) {
     rows[idx].minutes = String((parseInt(rows[idx].minutes, 10) || 0) + elapsed);
     renderTable();
     setUnsaved();
@@ -2225,8 +2267,12 @@ function submitModal() {
     minutes:     minRaw,
   };
 
-  if (editIdx !== null) { rows[editIdx] = record; }
-  else { rows.push(record); }
+  if (editIdx !== null) {
+    // If a timer is running on the row being edited, keep it attached to the
+    // new record object (we replace the object, not mutate it).
+    if (activeTimer.rowRef === rows[editIdx]) activeTimer.rowRef = record;
+    rows[editIdx] = record;
+  } else { rows.push(record); }
 
   closeModal();
 
@@ -2246,15 +2292,17 @@ function submitModal() {
   }
 }
 
+// Shared field-error helpers (used by every module's form validation).
 function markError(id) {
   const el = document.getElementById(id);
   el.classList.add('field-error');
   el.addEventListener('input',  () => el.classList.remove('field-error'), { once: true });
   el.addEventListener('change', () => el.classList.remove('field-error'), { once: true });
 }
-function clearErrors() {
-  document.querySelectorAll('.field-error').forEach(el => el.classList.remove('field-error'));
+function clearErrorsIn(scope) {
+  document.querySelectorAll(scope + ' .field-error').forEach(el => el.classList.remove('field-error'));
 }
+function clearErrors() { clearErrorsIn('body'); }
 
 // ── Keyboard shortcuts ──
 document.addEventListener('keydown', e => {
@@ -2333,8 +2381,12 @@ function openPrint() {
     byType[k] = (byType[k] || 0) + (parseFloat(r.minutes) || 0);
   });
 
-  const workHrs = ((byType['Work Time'] || byType['Work'] || 0) / 60).toFixed(2);
-  const otHrs   = ((byType['Over Time'] || byType['Part Time'] || 0) / 60).toFixed(2);
+  const workMin  = byType['Work Time'] || byType['Work'] || 0;
+  const otMin    = byType['Over Time'] || byType['Part Time'] || 0;
+  const otherMin = Math.max(0, totalMin - workMin - otMin);   // Training/Leave/Holiday/etc.
+  const workHrs  = (workMin / 60).toFixed(2);
+  const otHrs    = (otMin / 60).toFixed(2);
+  const otherHrs = (otherMin / 60).toFixed(2);
 
   // Each record pair wrapped in a <tbody> for page-break-inside:avoid
   const rowsHTML = printRows.map((r, i) => `
@@ -2421,7 +2473,7 @@ function openPrint() {
     </table>
     <div class="rpt-footer">
       <span>MOS TA FA COOPERATION TOOLS — ${esc(name)}</span>
-      <span>Work: ${workHrs}h &nbsp;|&nbsp; Overtime: ${otHrs}h &nbsp;|&nbsp; Printed ${printedOn}</span>
+      <span>Work: ${workHrs}h &nbsp;|&nbsp; Overtime: ${otHrs}h${otherMin > 0 ? ` &nbsp;|&nbsp; Other: ${otherHrs}h` : ''} &nbsp;|&nbsp; Printed ${printedOn}</span>
     </div>`;
 
   document.getElementById('print-overlay').classList.add('open');
@@ -2633,7 +2685,7 @@ function exportCSV() {
       r.description, r.source, r.status,
       r.minutes || '',
       mins ? (mins / 60).toFixed(2) : '',
-    ].map(v => `"${String(v || '').replace(/"/g, '""')}"`);
+    ].map(csvCell);
     lines.push(cols.join(','));
   });
   downloadCSV(lines.join('\r\n'), `timesheet-${activeDate || 'export'}.csv`);
@@ -2692,7 +2744,7 @@ async function runExportRange() {
         r.description, r.source, r.status,
         r.minutes || '',
         mins ? (mins / 60).toFixed(2) : '',
-      ].map(v => `"${String(v || '').replace(/"/g, '""')}"`);
+      ].map(csvCell);
       lines.push(cols.join(','));
     });
   }
@@ -2759,6 +2811,23 @@ function autoSaveSubscriptions() {
   _subSaveTimer = setTimeout(saveSubscriptionsData, 300);
 }
 
+// ── Module search filters ──
+function applySubFilter() { subFilter = document.getElementById('sub-filter').value.toLowerCase().trim(); renderSubscriptions(); }
+function applyLicFilter() { licFilter = document.getElementById('lic-filter').value.toLowerCase().trim(); renderLicenses(); }
+function applyInsFilter() { insFilter = document.getElementById('ins-filter').value.toLowerCase().trim(); renderInsurance(); }
+
+// ── Database backup ──
+async function backupDatabase() {
+  const btn = document.getElementById('backup-btn');
+  const orig = btn.innerHTML;
+  let res;
+  try { res = await window.api.backupDatabase(); } catch { res = { ok: false, error: 'failed' }; }
+  if (res?.ok) btn.innerHTML = '<span class="nav-icon">✅</span>Backed up';
+  else if (res?.error) btn.innerHTML = '<span class="nav-icon">⚠️</span>Failed';
+  else return;   // user canceled the save dialog
+  setTimeout(() => { btn.innerHTML = orig; }, 2200);
+}
+
 // ── Subscriptions: helpers ──
 function daysUntil(dateStr) {
   if (!dateStr) return null;
@@ -2809,7 +2878,12 @@ function renderSubscriptions() {
     if (da === null) return 1;
     if (db === null) return -1;
     return da - db;
-  });
+  }).filter(s => textMatch([s.name, s.cost, s.currency, s.billingCycle, s.endDate, s.renewalDate], subFilter));
+
+  if (sorted.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="no-matches">No matches</td></tr>';
+    return;
+  }
 
   sorted.forEach(sub => {
     const tr = document.createElement('tr');
@@ -2843,25 +2917,13 @@ function renderSubscriptions() {
     const delBtn = document.createElement('button');
     delBtn.className = 'row-btn del'; delBtn.textContent = '🗑️';
     delBtn.title = 'Delete';
-    delBtn.addEventListener('click', () => {
-      acts.innerHTML = '';
-      const conf = document.createElement('div'); conf.className = 'del-confirm';
-      const lbl = document.createElement('span'); lbl.textContent = 'Delete?';
-      const yes = document.createElement('button'); yes.className = 'row-btn del-yes'; yes.textContent = 'Yes';
-      yes.addEventListener('click', () => {
-        const removeIdx = subscriptions.indexOf(sub);
-        const removed = subscriptions.splice(removeIdx, 1)[0];
-        showSubUndoToast(removed, removeIdx);
-        renderSubscriptions(); autoSaveSubscriptions();
-      });
-      const no = document.createElement('button'); no.className = 'row-btn del-no'; no.textContent = 'No';
-      no.addEventListener('click', () => {
-        acts.innerHTML = '';
-        acts.appendChild(editBtn); acts.appendChild(delBtn);
-      });
-      conf.appendChild(lbl); conf.appendChild(yes); conf.appendChild(no);
-      acts.appendChild(conf);
-    });
+    const restore = () => { acts.innerHTML = ''; acts.appendChild(editBtn); acts.appendChild(delBtn); };
+    delBtn.addEventListener('click', () => showDeleteConfirm(acts, () => {
+      const removeIdx = subscriptions.indexOf(sub);
+      const removed = subscriptions.splice(removeIdx, 1)[0];
+      showSubUndoToast(removed, removeIdx);
+      renderSubscriptions(); autoSaveSubscriptions();
+    }, restore));
 
     acts.appendChild(editBtn); acts.appendChild(delBtn);
     tr.appendChild(cellWrap(acts, 'cell'));
@@ -3004,15 +3066,8 @@ function submitSubModal() {
   autoSaveSubscriptions();
 }
 
-function markSubError(id) {
-  const el = document.getElementById(id);
-  el.classList.add('field-error');
-  el.addEventListener('input',  () => el.classList.remove('field-error'), { once: true });
-  el.addEventListener('change', () => el.classList.remove('field-error'), { once: true });
-}
-function clearSubErrors() {
-  document.querySelectorAll('#sub-modal .field-error').forEach(el => el.classList.remove('field-error'));
-}
+function markSubError(id)  { markError(id); }
+function clearSubErrors()  { clearErrorsIn('#sub-modal'); }
 
 // ── Licenses: type-specific suggested detail fields (only applied when extras list is empty) ──
 const LICENSE_TYPE_PRESETS = {
@@ -3060,7 +3115,15 @@ function renderLicenses() {
     if (da === null) return 1;
     if (db === null) return -1;
     return da - db;
-  });
+  }).filter(l => textMatch([
+    l.item, l.type, l.docNumber, l.issueDateHijri, l.expiryDateHijri, l.issueDate, l.expiryDate, l.notes,
+    ...(l.extras || []).flatMap(e => [e.label, e.value]),
+  ], licFilter));
+
+  if (sorted.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="11" class="no-matches">No matches</td></tr>';
+    return;
+  }
 
   sorted.forEach(lic => {
     const tr = document.createElement('tr');
@@ -3127,25 +3190,13 @@ function renderLicenses() {
     const delBtn = document.createElement('button');
     delBtn.className = 'row-btn del'; delBtn.textContent = '🗑️';
     delBtn.title = 'Delete';
-    delBtn.addEventListener('click', () => {
-      acts.innerHTML = '';
-      const conf = document.createElement('div'); conf.className = 'del-confirm';
-      const lbl = document.createElement('span'); lbl.textContent = 'Delete?';
-      const yes = document.createElement('button'); yes.className = 'row-btn del-yes'; yes.textContent = 'Yes';
-      yes.addEventListener('click', () => {
-        const removeIdx = licenses.indexOf(lic);
-        const removed = licenses.splice(removeIdx, 1)[0];
-        showLicUndoToast(removed, removeIdx);
-        renderLicenses(); autoSaveLicenses();
-      });
-      const no = document.createElement('button'); no.className = 'row-btn del-no'; no.textContent = 'No';
-      no.addEventListener('click', () => {
-        acts.innerHTML = '';
-        acts.appendChild(editBtn); acts.appendChild(delBtn);
-      });
-      conf.appendChild(lbl); conf.appendChild(yes); conf.appendChild(no);
-      acts.appendChild(conf);
-    });
+    const restore = () => { acts.innerHTML = ''; acts.appendChild(editBtn); acts.appendChild(delBtn); };
+    delBtn.addEventListener('click', () => showDeleteConfirm(acts, () => {
+      const removeIdx = licenses.indexOf(lic);
+      const removed = licenses.splice(removeIdx, 1)[0];
+      showLicUndoToast(removed, removeIdx);
+      renderLicenses(); autoSaveLicenses();
+    }, restore));
 
     acts.appendChild(editBtn); acts.appendChild(delBtn);
     tr.appendChild(cellWrap(acts, 'cell'));
@@ -3284,15 +3335,8 @@ function submitLicModal() {
   autoSaveLicenses();
 }
 
-function markLicError(id) {
-  const el = document.getElementById(id);
-  el.classList.add('field-error');
-  el.addEventListener('input',  () => el.classList.remove('field-error'), { once: true });
-  el.addEventListener('change', () => el.classList.remove('field-error'), { once: true });
-}
-function clearLicErrors() {
-  document.querySelectorAll('#lic-modal .field-error').forEach(el => el.classList.remove('field-error'));
-}
+function markLicError(id)  { markError(id); }
+function clearLicErrors()  { clearErrorsIn('#lic-modal'); }
 
 // ── Insurance: category-specific suggested detail fields (only applied when extras list is empty) ──
 const INSURANCE_CATEGORY_PRESETS = {
@@ -3338,7 +3382,15 @@ function renderInsurance() {
     if (da === null) return 1;
     if (db === null) return -1;
     return da - db;
-  });
+  }).filter(n => textMatch([
+    n.item, n.category, n.provider, n.policyNumber, n.issueDate, n.expiryDate,
+    ...(n.extras || []).flatMap(e => [e.label, e.value]),
+  ], insFilter));
+
+  if (sorted.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" class="no-matches">No matches</td></tr>';
+    return;
+  }
 
   sorted.forEach(ins => {
     const tr = document.createElement('tr');
@@ -3406,25 +3458,13 @@ function renderInsurance() {
     const delBtn = document.createElement('button');
     delBtn.className = 'row-btn del'; delBtn.textContent = '🗑️';
     delBtn.title = 'Delete';
-    delBtn.addEventListener('click', () => {
-      acts.innerHTML = '';
-      const conf = document.createElement('div'); conf.className = 'del-confirm';
-      const lbl = document.createElement('span'); lbl.textContent = 'Delete?';
-      const yes = document.createElement('button'); yes.className = 'row-btn del-yes'; yes.textContent = 'Yes';
-      yes.addEventListener('click', () => {
-        const removeIdx = insurance.indexOf(ins);
-        const removed = insurance.splice(removeIdx, 1)[0];
-        showInsUndoToast(removed, removeIdx);
-        renderInsurance(); autoSaveInsurance();
-      });
-      const no = document.createElement('button'); no.className = 'row-btn del-no'; no.textContent = 'No';
-      no.addEventListener('click', () => {
-        acts.innerHTML = '';
-        acts.appendChild(editBtn); acts.appendChild(delBtn);
-      });
-      conf.appendChild(lbl); conf.appendChild(yes); conf.appendChild(no);
-      acts.appendChild(conf);
-    });
+    const restore = () => { acts.innerHTML = ''; acts.appendChild(editBtn); acts.appendChild(delBtn); };
+    delBtn.addEventListener('click', () => showDeleteConfirm(acts, () => {
+      const removeIdx = insurance.indexOf(ins);
+      const removed = insurance.splice(removeIdx, 1)[0];
+      showInsUndoToast(removed, removeIdx);
+      renderInsurance(); autoSaveInsurance();
+    }, restore));
 
     acts.appendChild(editBtn); acts.appendChild(delBtn);
     tr.appendChild(cellWrap(acts, 'cell'));
@@ -3559,15 +3599,31 @@ function submitInsModal() {
   autoSaveInsurance();
 }
 
-function markInsError(id) {
-  const el = document.getElementById(id);
-  el.classList.add('field-error');
-  el.addEventListener('input',  () => el.classList.remove('field-error'), { once: true });
-  el.addEventListener('change', () => el.classList.remove('field-error'), { once: true });
+function markInsError(id)  { markError(id); }
+function clearInsErrors()  { clearErrorsIn('#ins-modal'); }
+
+// ── Flush pending saves before the window closes ──
+// Saves are 300 ms-debounced; on close we cancel the timers and persist
+// immediately so a just-made edit can't be lost. Only modules that have been
+// loaded are saved (avoids overwriting an unloaded module with an empty array).
+async function flushPending() {
+  clearTimeout(_saveTimer);
+  clearTimeout(_nameSaveTimer);
+  clearTimeout(_subSaveTimer);
+  clearTimeout(_licSaveTimer);
+  clearTimeout(_insSaveTimer);
+  const tasks = [];
+  if (activeDate)  tasks.push(saveDay());
+  if (subsLoaded)  tasks.push(saveSubscriptionsData());
+  if (licsLoaded)  tasks.push(saveLicensesData());
+  if (insLoaded)   tasks.push(saveInsuranceData());
+  try { await Promise.all(tasks); } catch { /* best effort */ }
 }
-function clearInsErrors() {
-  document.querySelectorAll('#ins-modal .field-error').forEach(el => el.classList.remove('field-error'));
-}
+
+window.api.onBeforeClose(async () => {
+  await flushPending();
+  window.api.flushComplete();
+});
 
 // ── Init ──
 async function init() {
