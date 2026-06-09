@@ -60,10 +60,13 @@ timesheet/
 ├── cooperation-tools.db        # the embedded SQLite database (all your data)
 ├── cooperation-tools.db-wal    # write-ahead log (SQLite working files —
 ├── cooperation-tools.db-shm    #   created/managed automatically)
+├── backups/                    # automatic rotating snapshots (newest 5 kept)
 └── …                           # legacy *.json files from older versions, if any
 ```
 
-The app uses **Node's built-in `node:sqlite`** (which ships inside Electron — there is no native module to compile and nothing extra to `npm install`). Writes run in transactions with SQLite's write-ahead log enabled, so a save is atomic and crash-safe. To **back up** your data, copy `cooperation-tools.db` (or the whole `timesheet` folder). To **migrate** to another machine, copy it into the same location there.
+The app uses **Node's built-in `node:sqlite`** (which ships inside Electron — there is no native module to compile and nothing extra to `npm install`). Writes run in transactions with SQLite's write-ahead log enabled, so a save is atomic and crash-safe.
+
+**Backups happen two ways:** the app keeps automatic rotating snapshots in the `backups/` folder (one per launch, newest 5 kept), and you can make one on demand any time with the **💾 Backup Data** button at the bottom of the sidebar (it writes a single self-contained `.db` file wherever you choose). To **migrate** to another machine, copy `cooperation-tools.db` into the same location there.
 
 > **Upgrading from the old JSON-file version?** On the first launch after the upgrade, the app detects your existing `days/*.json`, `lookups.json`, `subscriptions.json`, `licenses.json`, `insurance.json`, and `prefs.json` files and imports them into the new database automatically. **The original JSON files are left completely untouched** as a safety backup — nothing is moved or deleted.
 
@@ -94,11 +97,12 @@ The renderer never touches the database directly; it calls typed IPC methods on 
 
 ## Usage notes
 
-- **Auto-save** — every change is saved automatically (300 ms debounce); no Save button.
-- **Keyboard** — `Ctrl+N` add record · `Ctrl+Enter` submit modal · `Esc` close modal · `Ctrl+←/→` move between saved days.
+- **Auto-save** — every change is saved automatically (300 ms debounce); no Save button. Pending saves are also flushed when you close the window, so nothing is lost.
+- **Keyboard** — `Ctrl+N` add record (opens the Add dialog for whichever module you're in) · `Ctrl+Enter` submit modal · `Esc` close modal · `Ctrl+←/→` move between saved days.
+- **Search** — Subscriptions, Licenses, and Insurance each have a search box that filters across every field.
 - **Calendar** — days with data are highlighted green; click any day to open it.
 - **Carry-over** — unfinished ("Not Yet") items from past days surface on today's view so nothing is lost.
-- **Export** — per-day CSV, a date-range CSV, or a print/PDF daily report.
+- **Export** — per-day CSV, a date-range CSV (both UTF-8 with a BOM so Arabic opens correctly in Excel), or a print/PDF daily report.
 - **Undo** — deletes show a 5-second undo toast; there are no hard, unrecoverable deletes.
 
 ---

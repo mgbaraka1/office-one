@@ -3,7 +3,8 @@ const path = require('node:path');
 const db   = require('./db');
 
 let win;
-let allowClose = false;   // set once the renderer has flushed pending saves
+let allowClose = false;       // set once the renderer has flushed pending saves
+let closeFallback = null;     // safety timer for the close handshake
 
 function createWindow() {
   const prefs = db.loadPrefs();
@@ -20,12 +21,14 @@ function createWindow() {
     },
     title: 'Cooperation Tools',
   });
+  if (prefs.maximized) win.maximize();
   win.loadFile('index.html');
 
   win.on('close', (e) => {
-    // Persist window bounds on every close attempt.
-    const b = win.getBounds();
-    db.savePrefs({ width: b.width, height: b.height, x: b.x, y: b.y });
+    // Persist window state on every close attempt. Use getNormalBounds() so the
+    // restored (un-maximized) size is saved even while maximized.
+    const b = win.getNormalBounds();
+    db.savePrefs({ width: b.width, height: b.height, x: b.x, y: b.y, maximized: win.isMaximized() });
 
     // First close attempt: give the renderer a chance to flush any debounced
     // (300 ms) auto-saves before the window tears down, so no edit is lost.
@@ -33,7 +36,10 @@ function createWindow() {
       e.preventDefault();
       win.webContents.send('before-close');
       // Safety net: if the renderer never reports back, close anyway.
-      setTimeout(() => { allowClose = true; if (win) win.close(); }, 1500);
+      closeFallback = setTimeout(() => {
+        allowClose = true;
+        if (win && !win.isDestroyed()) win.close();
+      }, 1500);
     }
   });
 }
@@ -73,7 +79,14 @@ ipcMain.handle('backupDatabase', async () => {
 });
 
 // ── Close handshake ──
-ipcMain.handle('flushComplete', () => { allowClose = true; if (win) win.close(); });
+ipcMain.handle('flushComplete', () => {
+  clearTimeout(closeFallback);
+  allowClose = true;
+  if (win && !win.isDestroyed()) win.close();
+});
+
+// ── Carry-over (all "Not Yet" rows across days, except the active day) ──
+ipcMain.handle('getCarryOver', (_e, excludeDate) => db.getCarryOver(excludeDate));
 
 // ── Window controls ──
 ipcMain.handle('setTitle',       (_e, title) => { if (win) win.setTitle(title); });

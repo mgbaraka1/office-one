@@ -172,7 +172,25 @@ function init(dir) {
   createSchema();
 
   // First run only: import any legacy JSON data / seed the licenses module.
+  // On later runs, snapshot the existing DB into the rotating backups folder.
   if (isNew) tx(migrateFromJson);
+  else rotateBackups();
+}
+
+// Snapshot the current DB into <userData>/backups/, keeping the newest `keep`.
+// Best-effort: never blocks startup if it fails.
+function rotateBackups(keep = 5) {
+  try {
+    const dir = path.join(userDataDir, 'backups');
+    fs.mkdirSync(dir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
+    db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+    fs.copyFileSync(dbPath(), path.join(dir, `cooperation-tools-${stamp}.db`));
+    const files = fs.readdirSync(dir)
+      .filter(f => /^cooperation-tools-.*\.db$/.test(f))
+      .sort();   // lexicographic === chronological for this stamp format
+    while (files.length > keep) fs.rmSync(path.join(dir, files.shift()), { force: true });
+  } catch { /* non-critical */ }
 }
 
 // ── Days ──────────────────────────────────────────────────────────────────────
@@ -194,6 +212,20 @@ function loadDay(dateStr) {
 
 function listDays() {
   return db.prepare('SELECT date FROM days ORDER BY date DESC').all().map(r => r.date);
+}
+
+// All "Not Yet" rows across every day (except `excludeDate`), newest day first.
+// Returns [{ date, idx, row }] — `idx` is the row's position within that day.
+function getCarryOver(excludeDate) {
+  const days = db.prepare('SELECT date, rows FROM days ORDER BY date DESC').all();
+  const items = [];
+  for (const d of days) {
+    if (d.date === excludeDate) continue;
+    let arr = [];
+    try { arr = JSON.parse(d.rows); } catch { arr = []; }
+    arr.forEach((row, idx) => { if (row.status === 'Not Yet') items.push({ date: d.date, idx, row }); });
+  }
+  return items;
 }
 
 // ── Lookups ────────────────────────────────────────────────────────────────────
@@ -321,7 +353,7 @@ function dbPath() {
 
 module.exports = {
   init, close, backup, dbPath,
-  saveDay, loadDay, listDays,
+  saveDay, loadDay, listDays, getCarryOver,
   loadLookups, saveLookups,
   loadSubscriptions, saveSubscriptions,
   loadLicenses, saveLicenses,
