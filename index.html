@@ -83,13 +83,6 @@
     }
     #topbar > * { -webkit-app-region: no-drag; }
 
-    .brand {
-      font-size: 11px; font-weight: 900; color: #fff;
-      letter-spacing: 3px; white-space: nowrap; margin-right: 4px;
-      text-transform: uppercase; line-height: 1.5;
-    }
-    .brand span { color: var(--accent); font-size: 13px; letter-spacing: 4px; }
-
     /* Calendar trigger */
     #cal-trigger {
       display: flex; align-items: center; gap: 6px;
@@ -599,9 +592,6 @@
     /* ══ TODAY BUTTON ══ */
     #btn-today { transition: all .15s; }
     #btn-today.is-today { background: rgba(108,99,255,.25); border-color: var(--accent); color: #a89fff; }
-
-    /* ══ PIN BUTTON ══ */
-    #btn-pin.pinned { background: rgba(108,99,255,.3); border-color: var(--accent); color: #a89fff; }
 
     /* ══ CARRY-OVER SECTION ══ */
     .carryover-header {
@@ -1509,9 +1499,6 @@ let activeTimer = { rowIdx: null, startMs: null, intervalId: null };
 let undoRecord   = null;  // { row, idx }
 let _undoTimer   = null;
 
-// ── Pin state ──
-let isPinned = false;
-
 // ── Module state ──
 let activeModule = 'timesheet';
 
@@ -1541,7 +1528,14 @@ let undoInsurance  = null; // { ins, idx }
 let _undoInsTimer  = null;
 
 // ── Helpers ──
-function fmt(date) { return date.toISOString().split('T')[0]; }
+// Format a Date as a local YYYY-MM-DD string. Uses local calendar components
+// (NOT toISOString, which is UTC and can roll "today" back a day in +tz zones).
+function fmt(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
 function dayLabel(d) {
   const [y,m,day] = d.split('-');
   return new Date(+y, +m-1, +day).toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
@@ -1561,21 +1555,21 @@ function populateSelect(id, key, currentVal) {
   const el = document.getElementById(id);
   if (!el) return;
   el.innerHTML = '';
-  lookups[key].forEach(v => {
+  const opts = lookups[key] || [];
+  // Preserve a value that's no longer in the lookups list, so editing a row
+  // doesn't silently rewrite it to the first option when saved.
+  if (currentVal && !opts.includes(currentVal)) {
+    const o = document.createElement('option');
+    o.value = currentVal; o.textContent = currentVal + ' (removed)';
+    o.selected = true;
+    el.appendChild(o);
+  }
+  opts.forEach(v => {
     const o = document.createElement('option');
     o.value = v; o.textContent = v;
     if (v === currentVal) o.selected = true;
     el.appendChild(o);
   });
-}
-
-// ── Always-on-top ──
-function toggleAlwaysOnTop() {
-  isPinned = !isPinned;
-  window.api.setAlwaysOnTop(isPinned);
-  const btn = document.getElementById('btn-pin');
-  btn.classList.toggle('pinned', isPinned);
-  btn.title = isPinned ? 'Unpin window' : 'Keep window on top';
 }
 
 // ── Settings ──
@@ -1751,8 +1745,6 @@ async function switchDay(dateStr) {
 }
 
 // ── Table ──
-const STATUS_CYCLE = { 'Done': 'In Progress', 'In Progress': 'Not Yet', 'Not Yet': 'Done' };
-
 function statusClass(s) {
   if (s === 'Done')        return 'status-done';
   if (s === 'In Progress') return 'status-progress';
@@ -2271,7 +2263,7 @@ document.addEventListener('keydown', e => {
     .some(id => document.getElementById(id).classList.contains('open'));
 
   if (e.key === 'Escape') {
-    closeModal(); closePrint(); closeExport(); closeSubModal(); closeSubSettings(); closeLicModal(); closeInsModal();
+    closeModal(); closeSettings(); closePrint(); closeExport(); closeSubModal(); closeSubSettings(); closeLicModal(); closeInsModal();
   }
   if (e.ctrlKey && e.key === 'Enter') {
     e.preventDefault();

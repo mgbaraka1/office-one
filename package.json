@@ -1,16 +1,25 @@
 {
   "name": "timesheet",
   "version": "1.0.0",
-  "description": "Cooperation Tools — Electron app",
+  "description": "Cooperation Tools — an offline Electron desktop app for tracking daily timesheets, subscriptions, licenses, and insurance policies. Data is stored as local JSON files (no server, no database).",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "electron ."
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "electron",
+    "timesheet",
+    "subscriptions",
+    "licenses",
+    "insurance",
+    "desktop"
+  ],
+  "author": "Moustafa Baraka",
   "license": "ISC",
   "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
   "devDependencies": {
     "electron": "^42.3.3"
   }
