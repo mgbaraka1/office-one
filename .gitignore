@@ -1,0 +1,23 @@
+# Dependencies (reinstalled via `npm install`)
+node_modules/
+
+# Packaged builds
+dist/
+out/
+build/
+*.exe
+*.dmg
+*.AppImage
+
+# Logs & OS cruft
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Local app data is stored under %APPDATA%\timesheet (outside the repo) and is
+# never committed — listed here only as a reminder.
