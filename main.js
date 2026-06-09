@@ -1,8 +1,9 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('node:path');
 const db   = require('./db');
 
 let win;
+let allowClose = false;   // set once the renderer has flushed pending saves
 
 function createWindow() {
   const prefs = db.loadPrefs();
@@ -21,9 +22,19 @@ function createWindow() {
   });
   win.loadFile('index.html');
 
-  win.on('close', () => {
+  win.on('close', (e) => {
+    // Persist window bounds on every close attempt.
     const b = win.getBounds();
     db.savePrefs({ width: b.width, height: b.height, x: b.x, y: b.y });
+
+    // First close attempt: give the renderer a chance to flush any debounced
+    // (300 ms) auto-saves before the window tears down, so no edit is lost.
+    if (!allowClose) {
+      e.preventDefault();
+      win.webContents.send('before-close');
+      // Safety net: if the renderer never reports back, close anyway.
+      setTimeout(() => { allowClose = true; if (win) win.close(); }, 1500);
+    }
   });
 }
 
@@ -48,10 +59,32 @@ ipcMain.handle('saveLicenses', (_e, data) => db.saveLicenses(data));
 ipcMain.handle('loadInsurance', ()         => db.loadInsurance());
 ipcMain.handle('saveInsurance', (_e, data) => db.saveInsurance(data));
 
+// ── Backup ──
+ipcMain.handle('backupDatabase', async () => {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    title: 'Back up database',
+    defaultPath: `cooperation-tools-backup-${stamp}.db`,
+    filters: [{ name: 'SQLite database', extensions: ['db'] }],
+  });
+  if (canceled || !filePath) return { ok: false };
+  try { db.backup(filePath); return { ok: true, path: filePath }; }
+  catch (err) { return { ok: false, error: String(err?.message || err) }; }
+});
+
+// ── Close handshake ──
+ipcMain.handle('flushComplete', () => { allowClose = true; if (win) win.close(); });
+
 // ── Window controls ──
 ipcMain.handle('setTitle',       (_e, title) => { if (win) win.setTitle(title); });
 ipcMain.handle('setAlwaysOnTop', (_e, flag)  => { if (win) win.setAlwaysOnTop(flag); });
-ipcMain.handle('openExternal',   (_e, url)   => { shell.openExternal(url); });
+ipcMain.handle('openExternal',   (_e, url)   => {
+  // Only ever hand off real web links to the OS — never file:, javascript:, etc.
+  try {
+    const u = new URL(String(url));
+    if (u.protocol === 'http:' || u.protocol === 'https:') shell.openExternal(u.href);
+  } catch { /* not a valid URL — ignore */ }
+});
 
 app.whenReady().then(() => {
   // Open/create the embedded SQLite database, apply the schema, and (on first
@@ -59,4 +92,7 @@ app.whenReady().then(() => {
   db.init(app.getPath('userData'));
   createWindow();
 });
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+app.on('window-all-closed', () => {
+  db.close();   // checkpoint WAL + close handle cleanly
+  if (process.platform !== 'darwin') app.quit();
+});
