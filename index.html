@@ -1,0 +1,3596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <title>Cooperation Tools</title>
+  <style>
+    :root {
+      --bg:         #f4f4f6;
+      --sidebar-bg: #1e1e2e;
+      --sidebar-fg: #cdd6f4;
+      --sidebar-muted: #6c7086;
+      --sidebar-hover: #313244;
+      --sidebar-active: #6c63ff;
+      --surface:    #ffffff;
+      --surface2:   #f0f0f3;
+      --border:     #e4e4e8;
+      --text:       #18181b;
+      --muted:      #71717a;
+      --accent:     #6c63ff;
+      --accent-bg:  #ede9fe;
+      --done:       #dcfce7; --done-text: #16a34a;
+      --prog:       #fef9c3; --prog-text: #a16207;
+      --notyet:     #f1f0f9; --notyet-text: #7c6fd6;
+      --renew-ok:   #dcfce7; --renew-ok-text: #16a34a;
+      --renew-soon: #fef9c3; --renew-soon-text: #a16207;
+      --renew-urgent: #fee2e2; --renew-urgent-text: #dc2626;
+      --radius:     10px;
+      --shadow:     0 1px 4px rgba(0,0,0,.07), 0 4px 16px rgba(0,0,0,.04);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Quicksand', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      font-size: 14px; background: var(--bg); color: var(--text);
+      height: 100vh; display: flex; overflow: hidden;
+    }
+
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 2px; }
+
+    /* ══ LAYOUT ══ */
+    body { flex-direction: row; }
+    #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* ══ SIDEBAR ══ */
+    #sidebar {
+      width: 196px; flex-shrink: 0; display: flex; flex-direction: column;
+      background: var(--sidebar-bg); padding: 16px 12px; gap: 18px;
+    }
+    .sidebar-brand {
+      font-size: 11px; font-weight: 900; color: #fff;
+      letter-spacing: 3px; text-transform: uppercase; line-height: 1.5;
+      padding: 0 6px;
+    }
+    .sidebar-brand span { color: var(--accent); font-size: 12px; letter-spacing: 3px; }
+    .sidebar-nav { display: flex; flex-direction: column; gap: 3px; }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px; border-radius: 8px; border: none; cursor: pointer;
+      background: none; color: var(--sidebar-fg); font-size: 13px; font-weight: 500;
+      font-family: inherit; text-align: left; width: 100%;
+      transition: background .12s, color .12s;
+    }
+    .nav-item:hover { background: var(--sidebar-hover); color: #fff; }
+    .nav-item.active { background: var(--sidebar-active); color: #fff; font-weight: 600; }
+    .nav-icon { font-size: 15px; }
+
+    /* ══ MODULES ══ */
+    .app-module { flex: 1; display: none; flex-direction: column; overflow: hidden; }
+    .app-module.active { display: flex; }
+
+    /* ══ TOP BAR ══ */
+    #topbar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 16px;
+      background: #1e1e2e;
+      flex-shrink: 0; -webkit-app-region: drag;
+      flex-wrap: nowrap;
+    }
+    #topbar > * { -webkit-app-region: no-drag; }
+
+    .brand {
+      font-size: 11px; font-weight: 900; color: #fff;
+      letter-spacing: 3px; white-space: nowrap; margin-right: 4px;
+      text-transform: uppercase; line-height: 1.5;
+    }
+    .brand span { color: var(--accent); font-size: 13px; letter-spacing: 4px; }
+
+    /* Calendar trigger */
+    #cal-trigger {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12);
+      border-radius: 8px; padding: 5px 10px; cursor: pointer;
+      color: #cdd6f4; font-size: 13px; font-weight: 500;
+      transition: background .12s; white-space: nowrap; position: relative;
+    }
+    #cal-trigger:hover { background: rgba(255,255,255,.14); }
+    #cal-trigger .cal-icon { font-size: 14px; }
+
+    /* Calendar dropdown */
+    #cal-dropdown {
+      display: none; position: absolute; top: calc(100% + 8px); left: 0;
+      background: #2a2a3e; border: 1px solid #45475a; border-radius: 12px;
+      padding: 12px; z-index: 500; box-shadow: 0 12px 40px rgba(0,0,0,.4);
+      min-width: 220px;
+    }
+    #cal-trigger.open #cal-dropdown { display: block; }
+
+    #cal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 4px 2px 8px; font-size: 13px; font-weight: 600; color: #fff;
+    }
+    #cal-header button {
+      background: none; border: none; color: #6c7086;
+      cursor: pointer; font-size: 16px; padding: 0 4px; line-height: 1;
+    }
+    #cal-header button:hover { color: #fff; }
+    #cal-grid {
+      display: grid; grid-template-columns: repeat(7, 1fr);
+      gap: 1px; text-align: center;
+    }
+    .cal-dow {
+      font-size: 10px; font-weight: 600; color: #6c7086;
+      padding: 3px 0; text-transform: uppercase;
+    }
+    .cal-day {
+      font-size: 12px; padding: 5px 2px; border-radius: 6px;
+      cursor: pointer; color: #cdd6f4; transition: background .12s; position: relative;
+    }
+    .cal-day:hover { background: #313244; }
+    .cal-day.empty { cursor: default; pointer-events: none; }
+    .cal-day.today { color: #fff; font-weight: 700; }
+    .cal-day.today::after {
+      content: ''; position: absolute; bottom: 2px; left: 50%;
+      transform: translateX(-50%); width: 4px; height: 4px;
+      border-radius: 50%; background: var(--accent);
+    }
+    .cal-day.has-data { color: #a6e3a1; }
+    .cal-day.selected { background: var(--accent) !important; color: #fff !important; }
+
+    .header-field {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 5px 10px;
+    }
+    .header-field label {
+      font-size: 11px; font-weight: 600; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .5px; white-space: nowrap;
+    }
+    .header-field input {
+      border: none; background: transparent; font-size: 13px;
+      font-family: inherit; color: var(--text); outline: none; min-width: 80px;
+    }
+    .header-field input[type=date] { min-width: 120px; }
+
+    .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 13px; border-radius: 8px; border: 1px solid rgba(255,255,255,.15);
+      background: rgba(255,255,255,.08); color: #cdd6f4; font-size: 13px;
+      font-family: inherit; font-weight: 500; cursor: pointer;
+      transition: background .15s; white-space: nowrap;
+    }
+    .btn:hover { background: rgba(255,255,255,.15); color: #fff; }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.primary:hover { background: #5a52d5; }
+
+    #save-status { font-size: 12px; color: #6c7086; min-width: 60px; }
+    #save-status.saved   { color: #a6e3a1; }
+    #save-status.unsaved { color: #cba6f7; }
+
+    /* Totals bar */
+    #totals-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 16px; background: var(--surface);
+      border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .total-chip {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--accent-bg); border-radius: 20px;
+      padding: 4px 12px; font-size: 13px; font-weight: 600; color: var(--accent);
+      margin-left: 8px;
+    }
+    .total-chip .lbl { font-weight: 400; color: var(--muted); font-size: 12px; }
+    #row-count { font-size: 12px; color: var(--muted); margin-left: 4px; }
+
+    /* Table */
+    #table-wrap { flex: 1; overflow-y: auto; padding: 16px 20px 24px; }
+
+    table { width: 100%; border-collapse: separate; border-spacing: 0; }
+    thead th {
+      padding: 8px 12px; text-align: left;
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .5px; color: var(--muted);
+      border-bottom: 2px solid var(--border);
+      position: sticky; top: 0; background: var(--bg); z-index: 2;
+      white-space: nowrap;
+    }
+
+    tbody { box-shadow: var(--shadow); }
+    tbody td {
+      padding: 0; border-bottom: 1px solid var(--border);
+      vertical-align: middle; background: var(--surface);
+      transition: background .1s;
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: #f5f4ff; }
+
+    tbody tr:first-child td:first-child { border-top-left-radius: var(--radius); }
+    tbody tr:first-child td:last-child  { border-top-right-radius: var(--radius); }
+    tbody tr:last-child  td:first-child { border-bottom-left-radius: var(--radius); }
+    tbody tr:last-child  td:last-child  { border-bottom-right-radius: var(--radius); }
+
+    .cell { padding: 8px 12px; display: flex; align-items: center; }
+    .cell-center { justify-content: center; }
+    .cell-right  { justify-content: flex-end; }
+
+    .cell-num { font-size: 12px; color: var(--muted); font-weight: 600; }
+
+    td input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+
+    .status-badge {
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 12px; font-weight: 600; white-space: nowrap;
+      cursor: pointer; user-select: none;
+      transition: opacity .12s, transform .1s;
+    }
+    .status-badge:hover { opacity: .78; transform: scale(.97); }
+    .status-badge:active { transform: scale(.93); }
+    .status-done .status-badge     { background: var(--done);   color: var(--done-text); }
+    .status-progress .status-badge { background: var(--prog);   color: var(--prog-text); }
+    .status-notyet .status-badge   { background: var(--notyet); color: var(--notyet-text); }
+
+    /* Renewal badges (Subscriptions) */
+    .renew-badge {
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 12px; font-weight: 600; white-space: nowrap; display: inline-block;
+    }
+    .renew-badge.ok     { background: var(--renew-ok);     color: var(--renew-ok-text); }
+    .renew-badge.soon   { background: var(--renew-soon);   color: var(--renew-soon-text); }
+    .renew-badge.urgent { background: var(--renew-urgent); color: var(--renew-urgent-text); }
+
+    .status-dropdown {
+      position: fixed; z-index: 9999;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.45);
+      padding: 4px; display: flex; flex-direction: column; gap: 2px; min-width: 130px;
+    }
+    .status-dropdown .sd-opt {
+      padding: 5px 12px; border-radius: 7px; font-size: 12px; font-weight: 600;
+      cursor: pointer; white-space: nowrap; transition: opacity .1s;
+    }
+    .status-dropdown .sd-opt:hover { opacity: .8; }
+    .status-dropdown .sd-opt.done     { background: var(--done);   color: var(--done-text); }
+    .status-dropdown .sd-opt.progress { background: var(--prog);   color: var(--prog-text); }
+    .status-dropdown .sd-opt.notyet   { background: var(--notyet); color: var(--notyet-text); }
+
+    .min-inline-input {
+      width: 60px; background: var(--surface2); border: 1.5px solid var(--accent);
+      border-radius: 6px; color: var(--text); font-family: inherit; font-size: 13px;
+      font-weight: 600; text-align: right; padding: 2px 6px; outline: none;
+    }
+
+    .desc-cell { max-width: 240px; }
+    .desc-text { font-size: 13px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
+    .source-text { font-size: 12px; color: var(--muted); white-space: pre-wrap; word-break: break-word; }
+    .source-link {
+      font-size: 12px; color: var(--accent); cursor: pointer;
+      text-decoration: none; word-break: break-all; transition: color .12s;
+      background: none; border: none; font-family: inherit; padding: 0; text-align: left;
+    }
+    .source-link:hover { color: #5a52d5; text-decoration: underline; }
+
+    .hours-val { font-size: 13px; font-weight: 600; color: var(--accent); }
+
+    /* Row actions (on hover) */
+    .row-actions { display: flex; gap: 4px; }
+    .row-btn {
+      background: none; border: 1px solid var(--border); border-radius: 6px;
+      padding: 3px 8px; font-size: 11px; cursor: pointer; color: var(--muted);
+      font-family: inherit; transition: all .12s;
+    }
+    .row-btn:hover { background: var(--surface2); color: var(--text); }
+    .row-btn.del:hover { background: #fee2e2; border-color: #fca5a5; color: #dc2626; }
+    .row-btn.timer-start:hover { background: #dcfce7; border-color: #86efac; color: #16a34a; }
+    .row-btn.timer-stop { background: #dcfce7; border-color: #86efac; color: #16a34a; }
+    .row-btn.timer-stop:hover { background: #16a34a; color: #fff; border-color: #16a34a; }
+    .row-btn:disabled { opacity: .3; cursor: default; pointer-events: none; }
+
+    tbody tr td .row-actions { opacity: 0; transition: opacity .12s; }
+    tbody tr:hover td .row-actions { opacity: 1; }
+
+    /* Timer-running row */
+    tbody tr.timer-running td { background: #f0fff4 !important; }
+    tbody tr.timer-running:hover td { background: #dcfce7 !important; }
+
+    /* Empty state */
+    #empty-state, #sub-empty-state, #lic-empty-state, #ins-empty-state {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 12px; padding: 80px 0; color: var(--muted);
+    }
+    #empty-state .icon, #sub-empty-state .icon, #lic-empty-state .icon, #ins-empty-state .icon { font-size: 44px; opacity: .35; }
+    #empty-state p, #sub-empty-state p, #lic-empty-state p, #ins-empty-state p { font-size: 15px; }
+
+    /* ══ SUBSCRIPTIONS MODULE ══ */
+    #sub-topbar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 16px; background: #1e1e2e; flex-shrink: 0;
+    }
+    .sub-title { font-size: 15px; font-weight: 700; color: #fff; margin-right: 4px; }
+    .sub-cost { font-weight: 600; color: var(--accent); }
+    .sub-cost .cur { font-size: 11px; color: var(--muted); font-weight: 500; }
+    #sub-table-wrap { flex: 1; overflow-y: auto; padding: 16px 20px 24px; }
+
+    /* ══ LICENSES MODULE ══ */
+    #lic-topbar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 16px; background: #1e1e2e; flex-shrink: 0;
+    }
+    .lic-title { font-size: 15px; font-weight: 700; color: #fff; margin-right: 4px; }
+    #lic-table-wrap { flex: 1; overflow: auto; padding: 16px 20px 24px; }
+    #lic-table-wrap table { min-width: 1180px; }
+    .rtl-text { unicode-bidi: plaintext; text-align: start; }
+    .cell-muted { color: var(--muted); opacity: .55; }
+    .lic-hijri { font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+    /* ══ INSURANCE MODULE ══ */
+    #ins-topbar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 16px; background: #1e1e2e; flex-shrink: 0;
+    }
+    .ins-title { font-size: 15px; font-weight: 700; color: #fff; margin-right: 4px; }
+    #ins-table-wrap { flex: 1; overflow: auto; padding: 16px 20px 24px; }
+    #ins-table-wrap table { min-width: 1180px; }
+    .ins-cat-badge {
+      display: inline-block; padding: 3px 9px; border-radius: 6px;
+      font-size: 11px; font-weight: 600; background: var(--surface2);
+      color: var(--muted); border: 1px solid var(--border); white-space: nowrap;
+    }
+
+    /* ══ MODAL ══ */
+    #modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.45); backdrop-filter: blur(4px);
+      z-index: 100; align-items: center; justify-content: center;
+    }
+    #modal-overlay.open { display: flex; }
+
+    #modal {
+      background: var(--surface); border-radius: 16px;
+      width: 560px; max-height: 90vh; overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,.25);
+      animation: modalIn .18s ease;
+    }
+    @keyframes modalIn {
+      from { opacity: 0; transform: scale(.96) translateY(8px); }
+      to   { opacity: 1; transform: scale(1)  translateY(0); }
+    }
+
+    /* ══ SUBSCRIPTION MODAL (mirrors #modal-overlay/#modal) ══ */
+    #sub-modal-overlay, #lic-modal-overlay, #ins-modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.45); backdrop-filter: blur(4px);
+      z-index: 100; align-items: center; justify-content: center;
+    }
+    #sub-modal-overlay.open, #lic-modal-overlay.open, #ins-modal-overlay.open { display: flex; }
+    #sub-modal, #lic-modal, #ins-modal {
+      background: var(--surface); border-radius: 16px;
+      width: 480px; max-height: 90vh; overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,.25);
+      animation: modalIn .18s ease;
+    }
+    #sub-settings-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.45); backdrop-filter: blur(4px);
+      z-index: 100; align-items: center; justify-content: center;
+    }
+    #sub-settings-overlay.open { display: flex; }
+    #sub-settings-modal {
+      background: var(--surface); border-radius: 16px;
+      width: 380px; max-height: 90vh; overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,.25);
+      animation: modalIn .18s ease;
+    }
+
+    .modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 24px 0;
+    }
+    .modal-title { font-size: 17px; font-weight: 700; }
+    .modal-close {
+      background: var(--surface2); border: none; width: 28px; height: 28px;
+      border-radius: 50%; cursor: pointer; font-size: 16px; color: var(--muted);
+      display: flex; align-items: center; justify-content: center;
+      transition: background .12s;
+    }
+    .modal-close:hover { background: var(--border); color: var(--text); }
+
+    .modal-body { padding: 20px 24px 24px; display: flex; flex-direction: column; gap: 14px; }
+
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-group.full { grid-column: 1 / -1; }
+    .form-group label {
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .5px; color: var(--muted);
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      border: 1.5px solid var(--border); border-radius: 8px;
+      padding: 9px 12px; font-size: 13px; font-family: inherit;
+      background: var(--surface2); color: var(--text); outline: none;
+      transition: border-color .15s;
+    }
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus { border-color: var(--accent); background: #fff; }
+    .form-group textarea { resize: vertical; min-height: 70px; }
+
+    /* License extra-detail rows (dynamic key/value fields, e.g. Car Plate, Policy Number) */
+    .lic-extra-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+    .lic-extra-row input { flex: 1; min-width: 0; }
+    .lic-extra-row .row-btn { flex-shrink: 0; }
+    .lic-type-badge {
+      display: inline-block; padding: 3px 9px; border-radius: 6px;
+      font-size: 11px; font-weight: 600; background: var(--surface2);
+      color: var(--muted); border: 1px solid var(--border); white-space: nowrap;
+    }
+    .lic-extras-summary { font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .lic-extras-summary b { color: var(--text); font-weight: 600; }
+
+    .modal-footer {
+      display: flex; justify-content: flex-end; gap: 8px;
+      padding: 0 24px 20px;
+    }
+
+    .field-error {
+      border-color: #dc2626 !important;
+      background: #fff5f5 !important;
+      animation: shake .25s ease;
+    }
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      25%      { transform: translateX(-4px); }
+      75%      { transform: translateX(4px); }
+    }
+
+    /* ══ SETTINGS MODAL ══ */
+    #settings-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.45); backdrop-filter: blur(4px);
+      z-index: 200; align-items: center; justify-content: center;
+    }
+    #settings-overlay.open { display: flex; }
+
+    #settings-modal {
+      background: var(--surface); border-radius: 16px;
+      width: 680px; max-height: 88vh;
+      display: flex; flex-direction: column;
+      box-shadow: 0 20px 60px rgba(0,0,0,.25);
+      animation: modalIn .18s ease;
+    }
+
+    .settings-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 24px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .settings-header h2 { font-size: 17px; font-weight: 700; }
+
+    .settings-body {
+      display: flex; flex: 1; overflow: hidden;
+    }
+
+    /* Tabs */
+    .settings-tabs {
+      width: 160px; flex-shrink: 0; border-right: 1px solid var(--border);
+      padding: 12px 8px; display: flex; flex-direction: column; gap: 2px;
+    }
+    .stab {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px; border-radius: 8px; cursor: pointer;
+      font-size: 13px; font-weight: 500; color: var(--muted);
+      transition: background .12s, color .12s; border: none; background: none;
+      font-family: inherit; text-align: left; width: 100%;
+    }
+    .stab:hover { background: var(--surface2); color: var(--text); }
+    .stab.active { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
+    .stab-icon { font-size: 15px; }
+
+    /* Panels */
+    .settings-panels { flex: 1; overflow-y: auto; padding: 16px 20px; }
+    .settings-panel { display: none; flex-direction: column; gap: 12px; }
+    .settings-panel.active { display: flex; }
+
+    .lookup-category { }
+    .lookup-category-title {
+      font-size: 12px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .6px; color: var(--muted); margin-bottom: 8px;
+    }
+
+    .lookup-list {
+      display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px;
+    }
+    .lookup-item {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 6px 10px;
+      transition: border-color .12s;
+    }
+    .lookup-item:focus-within { border-color: var(--accent); }
+    .lookup-item input {
+      flex: 1; border: none; background: transparent; font-size: 13px;
+      font-family: inherit; color: var(--text); outline: none;
+    }
+    .lookup-item-del {
+      background: none; border: none; cursor: pointer; color: var(--muted);
+      font-size: 16px; line-height: 1; padding: 0 2px;
+      transition: color .12s;
+    }
+    .lookup-item-del:hover { color: #dc2626; }
+
+    .lookup-add-row {
+      display: flex; gap: 8px;
+    }
+    .lookup-add-row input {
+      flex: 1; border: 1.5px solid var(--border); border-radius: 8px;
+      padding: 7px 12px; font-size: 13px; font-family: inherit;
+      background: var(--surface2); color: var(--text); outline: none;
+      transition: border-color .15s;
+    }
+    .lookup-add-row input:focus { border-color: var(--accent); background: #fff; }
+    .lookup-add-row button {
+      padding: 7px 14px; border-radius: 8px; border: 1px solid var(--accent);
+      background: var(--accent-bg); color: var(--accent); font-size: 13px;
+      font-family: inherit; font-weight: 600; cursor: pointer; transition: background .12s;
+    }
+    .lookup-add-row button:hover { background: var(--accent); color: #fff; }
+
+    .settings-footer {
+      display: flex; justify-content: flex-end; gap: 8px;
+      padding: 12px 24px 16px; border-top: 1px solid var(--border); flex-shrink: 0;
+    }
+
+    /* General settings panel */
+    .general-field { display: flex; flex-direction: column; gap: 5px; }
+    .general-field label {
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .5px; color: var(--muted);
+    }
+    .general-field input {
+      border: 1.5px solid var(--border); border-radius: 8px;
+      padding: 9px 12px; font-size: 13px; font-family: inherit;
+      background: var(--surface2); color: var(--text); outline: none;
+      transition: border-color .15s;
+    }
+    .general-field input:focus { border-color: var(--accent); background: #fff; }
+    .general-hint { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+    /* ══ SECTION DIVIDERS ══ */
+    tr.notyet-divider td, tr.inprogress-divider td {
+      background: transparent !important; padding: 0 !important; border: none !important;
+    }
+    .notyet-divider-inner, .inprogress-divider-inner {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 12px 6px;
+    }
+    .notyet-divider-inner::before,
+    .notyet-divider-inner::after {
+      content: ''; flex: 1; height: 1.5px;
+      background: linear-gradient(90deg, transparent, var(--notyet-text), transparent);
+      opacity: .35;
+    }
+    .inprogress-divider-inner::before,
+    .inprogress-divider-inner::after {
+      content: ''; flex: 1; height: 1.5px;
+      background: linear-gradient(90deg, transparent, var(--prog-text), transparent);
+      opacity: .35;
+    }
+    .notyet-divider-label {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .7px; color: var(--notyet-text); white-space: nowrap;
+      padding: 3px 10px; background: var(--notyet); border-radius: 20px;
+    }
+    .inprogress-divider-label {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .7px; color: var(--prog-text); white-space: nowrap;
+      padding: 3px 10px; background: var(--prog); border-radius: 20px;
+    }
+
+    tbody tr.notyet-row td { background: #faf9ff; }
+    tbody tr.notyet-row:hover td { background: #f1f0f9; }
+
+    /* ══ TODAY BUTTON ══ */
+    #btn-today { transition: all .15s; }
+    #btn-today.is-today { background: rgba(108,99,255,.25); border-color: var(--accent); color: #a89fff; }
+
+    /* ══ PIN BUTTON ══ */
+    #btn-pin.pinned { background: rgba(108,99,255,.3); border-color: var(--accent); color: #a89fff; }
+
+    /* ══ CARRY-OVER SECTION ══ */
+    .carryover-header {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 12px;
+    }
+    .carryover-icon { font-size: 16px; }
+    .carryover-title {
+      font-size: 13px; font-weight: 700; color: var(--notyet-text);
+      text-transform: uppercase; letter-spacing: .5px;
+    }
+    .carryover-sub { font-size: 12px; color: var(--muted); }
+
+    #carryover-section thead th {
+      padding: 7px 12px; text-align: left;
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .5px; color: var(--muted);
+      border-bottom: 2px solid var(--notyet);
+      background: var(--bg); white-space: nowrap;
+    }
+    #carryover-section tbody td {
+      background: var(--notyet); border-bottom: 1px solid rgba(108,99,255,.12);
+      vertical-align: middle; padding: 0;
+    }
+    #carryover-section tbody tr:last-child td { border-bottom: none; }
+    #carryover-section tbody tr:hover td { background: #e9e7f8; }
+    #carryover-section tbody tr:first-child td:first-child { border-top-left-radius: var(--radius); }
+    #carryover-section tbody tr:first-child td:last-child  { border-top-right-radius: var(--radius); }
+    #carryover-section tbody tr:last-child  td:first-child { border-bottom-left-radius: var(--radius); }
+    #carryover-section tbody tr:last-child  td:last-child  { border-bottom-right-radius: var(--radius); }
+
+    .co-date-badge {
+      display: inline-block; padding: 2px 8px; border-radius: 10px;
+      font-size: 11px; font-weight: 600;
+      background: rgba(108,99,255,.15); color: var(--notyet-text);
+      white-space: nowrap;
+    }
+    .co-actions { display: flex; gap: 4px; }
+    .co-btn {
+      background: none; border: 1px solid rgba(108,99,255,.3); border-radius: 6px;
+      padding: 3px 8px; font-size: 11px; cursor: pointer; color: var(--notyet-text);
+      font-family: inherit; transition: all .12s; white-space: nowrap;
+    }
+    .co-btn:hover { background: rgba(108,99,255,.15); }
+    .co-btn.move:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    /* ══ PRINT PREVIEW MODAL ══ */
+    #print-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.55); backdrop-filter: blur(4px);
+      z-index: 300; align-items: flex-start; justify-content: center;
+      overflow-y: auto; padding: 32px 0;
+    }
+    #print-overlay.open { display: flex; }
+
+    #print-frame {
+      background: #fff; width: 794px; flex-shrink: 0;
+      box-shadow: 0 20px 60px rgba(0,0,0,.35);
+      border-radius: 4px; padding: 48px 52px;
+      font-family: 'Quicksand', 'Segoe UI', Arial, sans-serif;
+      font-size: 13px; color: #111;
+      position: relative;
+    }
+
+    .pf-toolbar {
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 10px; z-index: 301;
+      background: #1e1e2e; border-radius: 12px; padding: 10px 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.4);
+    }
+    .pf-toolbar .btn { font-size: 13px; }
+    .pf-toolbar .btn.primary { background: var(--accent); border-color: var(--accent); color:#fff; }
+
+    /* ══ REPORT STYLES ══ */
+    #print-frame { padding: 48px 52px; }
+
+    /* ── Header ── */
+    .rpt-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+    .rpt-logo { display: flex; align-items: center; gap: 10px; }
+    .rpt-logo-icon { font-size: 20px; }
+    .rpt-logo-text { font-size: 11px; font-weight: 900; color: #111; letter-spacing: 3px; text-transform: uppercase; line-height: 1.5; }
+    .rpt-logo-sub { font-size: 10px; color: #999; margin-top: 2px; }
+    .rpt-meta { text-align: right; }
+    .rpt-meta-name { font-size: 16px; font-weight: 700; color: #111; }
+    .rpt-meta-date { font-size: 12px; color: #666; margin-top: 3px; }
+    .rpt-meta-ref  { font-size: 10px; color: #bbb; margin-top: 2px; }
+
+    .rpt-divider { border: none; border-top: 2px solid #111; margin: 12px 0 20px; }
+
+    /* ── Summary row ── */
+    .rpt-summary { display: flex; gap: 0; margin-bottom: 24px; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; }
+    .rpt-card { flex: 1; padding: 12px 16px; border-right: 1px solid #ddd; }
+    .rpt-card:last-child { border-right: none; }
+    .rpt-card-val { font-size: 20px; font-weight: 800; color: #111; }
+    .rpt-card-lbl { font-size: 10px; color: #999; margin-top: 3px; }
+
+    /* ── Table ── */
+    .rpt-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .rpt-table thead th {
+      padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 700;
+      color: #444; border-bottom: 2px solid #111; background: #fff;
+      text-transform: uppercase; letter-spacing: .4px;
+    }
+    .rpt-table th:nth-last-child(-n+2) { text-align: right; }
+    .rpt-table td { padding: 10px 12px; border-bottom: 1px solid #eee; vertical-align: top; color: #222; }
+    .rpt-table td.center { text-align: center; color: #bbb; font-size: 11px; font-weight: 600; }
+    .rpt-table td.num  { text-align: right; color: #555; }
+    .rpt-table td.hrs  { text-align: right; font-weight: 700; color: #111; }
+    .rpt-table td.time-type { font-size: 11px; color: #666; line-height: 1.5; }
+
+    /* ── Badges ── */
+    .rpt-badge {
+      display: inline-block; padding: 2px 8px; border-radius: 4px;
+      font-size: 10px; font-weight: 700; white-space: nowrap;
+    }
+    .rpt-badge.done     { background: #dcfce7; color: #16a34a; }
+    .rpt-badge.progress { background: #fef9c3; color: #a16207; }
+    .rpt-badge.notyet   { background: #f1f0f9; color: #7c6fd6; }
+
+    /* ── Detail row ── */
+    .rpt-row-group { page-break-inside: avoid; break-inside: avoid; }
+    .rpt-detail td {
+      padding: 4px 12px 10px 36px;
+      border-bottom: 1px solid #eee;
+      background: #fafafa !important;
+      font-size: 12px; color: #444;
+      line-height: 1.6;
+    }
+    .det-line { display: flex; gap: 8px; }
+    .det-line + .det-line { margin-top: 2px; }
+    .det-lbl { font-weight: 700; color: #aaa; font-size: 10px; min-width: 76px; padding-top: 2px; text-transform: uppercase; letter-spacing: .4px; }
+    .det-val { color: #333; font-size: 12px; }
+    .det-val.src-val { color: #888; }
+
+    /* ── Totals ── */
+    .rpt-totals td {
+      padding: 10px 12px; border-top: 2px solid #111 !important;
+      border-bottom: none !important; background: #fff !important; font-weight: 700;
+    }
+    .rpt-totals td.total-label { text-align: right; font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: .4px; }
+    .rpt-totals td.num { text-align: right; color: #555; }
+    .rpt-totals td.hrs { text-align: right; color: #111; font-size: 15px; }
+
+    /* ── Footer ── */
+    .rpt-footer {
+      margin-top: 28px; display: flex; justify-content: space-between;
+      font-size: 10px; color: #bbb; border-top: 1px solid #ddd; padding-top: 10px;
+    }
+
+    @media print {
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .rpt-table { page-break-inside: auto; }
+      .rpt-row-group { page-break-inside: avoid; break-inside: avoid; }
+    }
+
+    /* ══ FILTER BAR ══ */
+    #filter-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 20px; background: var(--surface);
+      border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    #filter-input {
+      flex: 1; max-width: 280px; border: 1.5px solid var(--border);
+      border-radius: 8px; padding: 5px 10px 5px 28px; font-size: 13px;
+      font-family: inherit; background: var(--surface2); color: var(--text);
+      outline: none; transition: border-color .15s;
+    }
+    #filter-input:focus { border-color: var(--accent); background: #fff; }
+    .filter-icon {
+      position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
+      font-size: 13px; pointer-events: none; color: var(--muted);
+    }
+    .filter-wrap { position: relative; display: flex; align-items: center; }
+    #filter-clear {
+      background: none; border: none; cursor: pointer; color: var(--muted);
+      font-size: 14px; padding: 0 4px; display: none;
+    }
+    #filter-clear:hover { color: var(--text); }
+    .filter-chips { display: flex; gap: 6px; }
+    .filter-chip {
+      padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500;
+      border: 1px solid var(--border); background: var(--surface2); color: var(--muted);
+      cursor: pointer; transition: all .12s;
+    }
+    .filter-chip:hover { border-color: var(--accent); color: var(--accent); }
+    .filter-chip.active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+    #filter-count { font-size: 12px; color: var(--muted); margin-left: auto; }
+
+    /* ══ KBD HINTS ══ */
+    kbd {
+      display: inline-block; padding: 1px 5px; border-radius: 4px;
+      font-size: 10px; font-family: inherit; font-weight: 600;
+      background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2);
+      color: rgba(255,255,255,.6); vertical-align: middle; margin-left: 4px;
+    }
+
+    /* ══ DELETE CONFIRM ══ */
+    .del-confirm {
+      display: flex; align-items: center; gap: 4px;
+    }
+    .del-confirm span { font-size: 11px; color: #dc2626; font-weight: 600; }
+    .row-btn.del-yes { background: #fee2e2; border-color: #fca5a5; color: #dc2626; }
+    .row-btn.del-yes:hover { background: #dc2626; color: #fff; border-color: #dc2626; }
+    .row-btn.del-no:hover { background: var(--surface2); color: var(--text); }
+    .move-confirm input.move-date-input {
+      font-family: inherit; font-size: 11px;
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 2px 4px; color: var(--text); background: var(--surface);
+    }
+    .row-btn.move-yes { background: #ede9fe; border-color: #c4b5fd; color: #7c3aed; }
+    .row-btn.move-yes:hover { background: #7c3aed; color: #fff; border-color: #7c3aed; }
+
+    /* ══ TIMER CHIP ══ */
+    #timer-chip {
+      display: none; align-items: center; gap: 8px;
+      background: rgba(22,163,74,.12); border: 1px solid rgba(22,163,74,.35);
+      border-radius: 8px; padding: 5px 10px;
+      color: #a6e3a1; font-size: 13px; font-weight: 600;
+      animation: timerPulse 2s ease-in-out infinite;
+    }
+    #timer-chip.running { display: flex; }
+    @keyframes timerPulse {
+      0%,100% { border-color: rgba(22,163,74,.35); }
+      50%      { border-color: rgba(22,163,74,.7); }
+    }
+    #timer-display { font-variant-numeric: tabular-nums; letter-spacing: .5px; }
+    #timer-stop-btn {
+      background: rgba(22,163,74,.18); border: 1px solid rgba(22,163,74,.4);
+      border-radius: 6px; padding: 2px 8px; font-size: 11px; cursor: pointer;
+      color: #a6e3a1; font-family: inherit; font-weight: 600; transition: all .12s;
+    }
+    #timer-stop-btn:hover { background: #16a34a; color: #fff; border-color: #16a34a; }
+
+    /* ══ UNDO TOAST ══ */
+    #undo-toast, #sub-undo-toast, #lic-undo-toast, #ins-undo-toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: #1e1e2e; border: 1px solid #45475a; border-radius: 10px;
+      padding: 10px 16px; display: none; align-items: center; gap: 12px;
+      font-size: 13px; color: #cdd6f4; z-index: 9999;
+      box-shadow: 0 8px 32px rgba(0,0,0,.45);
+      animation: toastIn .2s ease;
+      white-space: nowrap;
+    }
+    #undo-toast.visible, #sub-undo-toast.visible, #lic-undo-toast.visible, #ins-undo-toast.visible { display: flex; }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+      to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+    #undo-toast-btn, #sub-undo-toast-btn, #lic-undo-toast-btn, #ins-undo-toast-btn {
+      background: var(--accent); border: none; border-radius: 6px;
+      padding: 3px 12px; font-size: 12px; font-weight: 700;
+      color: #fff; cursor: pointer; font-family: inherit; transition: background .12s;
+    }
+    #undo-toast-btn:hover, #sub-undo-toast-btn:hover, #lic-undo-toast-btn:hover, #ins-undo-toast-btn:hover { background: #5a52d5; }
+
+    /* ══ EXPORT RANGE MODAL ══ */
+    #export-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.45); backdrop-filter: blur(4px);
+      z-index: 150; align-items: center; justify-content: center;
+    }
+    #export-overlay.open { display: flex; }
+    #export-modal {
+      background: var(--surface); border-radius: 16px;
+      width: 440px; box-shadow: 0 20px 60px rgba(0,0,0,.25);
+      animation: modalIn .18s ease;
+    }
+    .export-hint {
+      font-size: 12px; color: var(--muted); line-height: 1.6;
+      background: var(--surface2); border-radius: 8px; padding: 10px 12px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ SIDEBAR ══ -->
+<div id="sidebar">
+  <div class="sidebar-brand">MOS TA FA<br><span>COOPERATION TOOLS</span></div>
+  <nav class="sidebar-nav">
+    <button class="nav-item active" data-module="timesheet" onclick="switchModule('timesheet')">
+      <span class="nav-icon">🕐</span>Timesheet
+    </button>
+    <button class="nav-item" data-module="subscriptions" onclick="switchModule('subscriptions')">
+      <span class="nav-icon">💳</span>Subscriptions
+    </button>
+    <button class="nav-item" data-module="licenses" onclick="switchModule('licenses')">
+      <span class="nav-icon">📜</span>Licenses
+    </button>
+    <button class="nav-item" data-module="insurance" onclick="switchModule('insurance')">
+      <span class="nav-icon">🛡️</span>Insurance
+    </button>
+  </nav>
+</div>
+
+<!-- ══ TIMESHEET MODULE ══ -->
+<div id="module-timesheet" class="app-module active">
+<div id="main">
+  <!-- Top bar -->
+  <div id="topbar">
+    <!-- Calendar trigger -->
+    <div id="cal-trigger" onclick="toggleCalendar(event)">
+      <span class="cal-icon">📅</span>
+      <span id="cal-trigger-label">June 2026</span>
+      <span>▾</span>
+      <div id="cal-dropdown" onclick="event.stopPropagation()">
+        <div id="cal-header">
+          <button id="cal-prev">‹</button>
+          <span id="cal-month-label"></span>
+          <button id="cal-next">›</button>
+        </div>
+        <div id="cal-grid"></div>
+      </div>
+    </div>
+
+    <!-- Live timer chip -->
+    <div id="timer-chip">
+      <span>⏱</span>
+      <span id="timer-display">00:00</span>
+      <button id="timer-stop-btn" onclick="stopTimer()">■ Stop</button>
+    </div>
+
+    <div class="topbar-right">
+      <span id="save-status"></span>
+      <button class="btn" id="btn-today" onclick="goToday()">📍 Today</button>
+      <button class="btn" onclick="openSettings()" title="Settings">⚙ Settings</button>
+      <button class="btn" onclick="openModal()">+ Add Record <kbd>⌃N</kbd></button>
+      <button class="btn" onclick="exportCSV()">⬇ CSV</button>
+      <button class="btn" onclick="openExport()" title="Export a date range">⬇ Range</button>
+      <button class="btn" onclick="openPrint()">🖨 Print</button>
+    </div>
+  </div>
+
+  <!-- Info + Totals bar -->
+  <div id="totals-bar">
+    <div class="header-field">
+      <label>Name</label>
+      <input id="hName" type="text" placeholder="Your name" />
+    </div>
+    <div class="header-field">
+      <label>Date</label>
+      <input id="hDate" type="date" />
+    </div>
+    <div class="total-chip">
+      <span class="lbl">Total</span>
+      <span id="total-min">0</span> min &nbsp;·&nbsp;
+      <span id="total-hrs">0.00</span> hrs
+    </div>
+    <span id="row-count"></span>
+  </div>
+
+  <!-- Filter bar -->
+  <div id="filter-bar">
+    <div class="filter-wrap">
+      <span class="filter-icon">🔍</span>
+      <input id="filter-input" type="text" placeholder="Filter rows…" oninput="applyFilter()" />
+      <button id="filter-clear" onclick="clearFilter()" title="Clear filter">✕</button>
+    </div>
+    <div class="filter-chips">
+      <button class="filter-chip" data-status="Done"        onclick="toggleStatusFilter(this)">Done</button>
+      <button class="filter-chip" data-status="In Progress" onclick="toggleStatusFilter(this)">In Progress</button>
+      <button class="filter-chip" data-status="Not Yet"     onclick="toggleStatusFilter(this)">Not Yet</button>
+    </div>
+    <span id="filter-count"></span>
+  </div>
+
+  <!-- Table -->
+  <div id="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:36px">#</th>
+          <th>Company</th>
+          <th>Project</th>
+          <th>Natural</th>
+          <th>Time</th>
+          <th style="min-width:220px">Description</th>
+          <th style="min-width:180px">Source</th>
+          <th>Status</th>
+          <th style="width:80px;text-align:right">Minutes</th>
+          <th style="width:70px;text-align:right">Hours</th>
+          <th style="width:110px"></th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div id="empty-state">
+      <div class="icon">📋</div>
+      <p>No records yet — click <strong>+ Add Record</strong> to start</p>
+    </div>
+    <div id="carryover-section" style="display:none; margin-top:24px;">
+      <div class="carryover-header">
+        <span class="carryover-icon">📌</span>
+        <span class="carryover-title">Carried Over — Not Yet</span>
+        <span class="carryover-sub" id="carryover-sub"></span>
+      </div>
+      <table style="width:100%;border-collapse:separate;border-spacing:0;">
+        <thead>
+          <tr>
+            <th style="width:36px">#</th>
+            <th style="width:90px">From</th>
+            <th>Company</th>
+            <th>Project</th>
+            <th>Natural</th>
+            <th style="min-width:220px">Description</th>
+            <th style="min-width:160px">Source</th>
+            <th style="width:110px"></th>
+          </tr>
+        </thead>
+        <tbody id="carryover-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PRINT PREVIEW ══ -->
+<div id="print-overlay" onclick="printOverlayClick(event)">
+  <div id="print-frame"></div>
+  <div class="pf-toolbar">
+    <button class="btn" onclick="closePrint()">✕ Close</button>
+    <button class="btn primary" onclick="triggerPrint()">🖨 Print / Save PDF</button>
+  </div>
+</div>
+
+<!-- ══ SETTINGS MODAL ══ -->
+<div id="settings-overlay" onclick="settingsOverlayClick(event)">
+  <div id="settings-modal">
+    <div class="settings-header">
+      <h2>⚙ Settings &amp; Lookups</h2>
+      <button class="modal-close" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="settings-body">
+      <!-- Tabs -->
+      <div class="settings-tabs">
+        <button class="stab active" data-tab="general"   onclick="switchTab(this)"><span class="stab-icon">🔧</span> General</button>
+        <button class="stab"        data-tab="companies" onclick="switchTab(this)"><span class="stab-icon">🏢</span> Companies</button>
+        <button class="stab"        data-tab="projects"  onclick="switchTab(this)"><span class="stab-icon">📁</span> Projects</button>
+        <button class="stab"        data-tab="natural"   onclick="switchTab(this)"><span class="stab-icon">🏷</span> Natural</button>
+        <button class="stab"        data-tab="timeType"  onclick="switchTab(this)"><span class="stab-icon">⏰</span> Time Type</button>
+        <button class="stab"        data-tab="status"    onclick="switchTab(this)"><span class="stab-icon">🔖</span> Status</button>
+      </div>
+      <!-- Panels -->
+      <div class="settings-panels">
+        <div class="settings-panel active" id="tab-general">
+          <div class="general-field">
+            <label>Default Name</label>
+            <input id="setting-default-name" type="text" placeholder="e.g. Moustafa Baraka" />
+          </div>
+          <p class="general-hint">Pre-fills the Name field when opening a new day with no existing data.</p>
+        </div>
+        <div class="settings-panel" id="tab-companies"></div>
+        <div class="settings-panel" id="tab-projects"></div>
+        <div class="settings-panel" id="tab-natural"></div>
+        <div class="settings-panel" id="tab-timeType"></div>
+        <div class="settings-panel" id="tab-status"></div>
+      </div>
+    </div>
+    <div class="settings-footer">
+      <button class="btn" onclick="closeSettings()">Cancel</button>
+      <button class="btn primary" onclick="saveSettings()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ADD / EDIT RECORD MODAL ══ -->
+<div id="modal-overlay" onclick="overlayClick(event)">
+  <div id="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">Add Record</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Company</label>
+          <select id="f-company"></select>
+        </div>
+        <div class="form-group">
+          <label>Project</label>
+          <select id="f-project"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Natural</label>
+          <select id="f-natural"></select>
+        </div>
+        <div class="form-group">
+          <label>Time Type</label>
+          <select id="f-time"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Description</label>
+          <textarea id="f-description" placeholder="What did you do?"></textarea>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Source</label>
+          <input id="f-source" type="text" placeholder="Email subject, Jira ticket URL…" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Status</label>
+          <select id="f-status">
+            <option>Done</option><option>In Progress</option><option>Not Yet</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Minutes</label>
+          <input id="f-minutes" type="number" min="1" max="1440" placeholder="e.g. 45" />
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" onclick="submitModal()">Add Record</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ EXPORT RANGE MODAL ══ -->
+<div id="export-overlay" onclick="exportOverlayClick(event)">
+  <div id="export-modal">
+    <div class="modal-header">
+      <span class="modal-title">Export CSV — Date Range</span>
+      <button class="modal-close" onclick="closeExport()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>From</label>
+          <input id="export-from" type="date" />
+        </div>
+        <div class="form-group">
+          <label>To</label>
+          <input id="export-to" type="date" />
+        </div>
+      </div>
+      <p class="export-hint">Exports all records across the selected date range into a single CSV file with a <strong>Date</strong> column prepended.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeExport()">Cancel</button>
+      <button class="btn primary" onclick="runExportRange()">⬇ Export CSV</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ UNDO TOAST ══ -->
+<div id="undo-toast">
+  <span>Row deleted</span>
+  <button id="undo-toast-btn" onclick="undoDelete()">Undo</button>
+</div>
+
+</div><!-- /module-timesheet -->
+
+<!-- ══ SUBSCRIPTIONS MODULE ══ -->
+<div id="module-subscriptions" class="app-module">
+  <div id="sub-topbar">
+    <span class="sub-title">💳 Subscriptions</span>
+    <div class="topbar-right">
+      <button class="btn" onclick="openSubSettings()" title="Settings">⚙ Settings</button>
+      <button class="btn primary" onclick="openSubModal()">+ Add Subscription</button>
+    </div>
+  </div>
+
+  <div id="sub-table-wrap">
+    <table id="sub-table" style="display:none">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Cost</th>
+          <th>Billing Cycle</th>
+          <th>End Date</th>
+          <th>Renewal Date</th>
+          <th>Renews In</th>
+          <th style="width:100px"></th>
+        </tr>
+      </thead>
+      <tbody id="sub-tbody"></tbody>
+    </table>
+    <div id="sub-empty-state">
+      <div class="icon">💳</div>
+      <p>No subscriptions yet — click <strong>+ Add Subscription</strong> to start tracking</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SUBSCRIPTION ADD/EDIT MODAL ══ -->
+<div id="sub-modal-overlay" onclick="subOverlayClick(event)">
+  <div id="sub-modal">
+    <div class="modal-header">
+      <span class="modal-title" id="sub-modal-title">Add Subscription</span>
+      <button class="modal-close" onclick="closeSubModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Name</label>
+          <input id="s-name" type="text" placeholder="e.g. Adobe Creative Cloud" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Cost</label>
+          <input id="s-cost" type="number" min="0" step="0.01" placeholder="e.g. 49.99" />
+        </div>
+        <div class="form-group">
+          <label>Currency</label>
+          <select id="s-currency">
+            <option>USD</option><option>SAR</option><option>EUR</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Billing Cycle</label>
+          <select id="s-cycle" onchange="onCycleChange()">
+            <option>Monthly</option><option>Yearly</option><option>Custom</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>End Date</label>
+          <input id="s-end" type="date" onchange="onEndDateChange()" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Renewal Date</label>
+          <input id="s-renewal" type="date" />
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeSubModal()">Cancel</button>
+      <button class="btn primary" onclick="submitSubModal()">Add Subscription</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SUBSCRIPTIONS SETTINGS MODAL ══ -->
+<div id="sub-settings-overlay" onclick="subSettingsOverlayClick(event)">
+  <div id="sub-settings-modal" class="modal">
+    <div class="modal-header">
+      <span class="modal-title">⚙ Subscriptions Settings</span>
+      <button class="modal-close" onclick="closeSubSettings()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Default Currency</label>
+          <select id="sub-setting-currency">
+            <option>USD</option><option>SAR</option><option>EUR</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeSubSettings()">Cancel</button>
+      <button class="btn primary" onclick="saveSubSettings()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SUBSCRIPTION UNDO TOAST ══ -->
+<div id="sub-undo-toast">
+  <span>Subscription deleted</span>
+  <button id="sub-undo-toast-btn" onclick="undoDeleteSub()">Undo</button>
+</div>
+
+<!-- ══ LICENSES MODULE ══ -->
+<div id="module-licenses" class="app-module">
+  <div id="lic-topbar">
+    <span class="lic-title">📜 Licenses</span>
+    <div class="topbar-right">
+      <button class="btn primary" onclick="openLicModal()">+ Add License</button>
+    </div>
+  </div>
+
+  <div id="lic-table-wrap">
+    <table id="lic-table" style="display:none">
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th>Type</th>
+          <th>Document #</th>
+          <th>Issue (Hijri)</th>
+          <th>Expiry (Hijri)</th>
+          <th>Issue Date</th>
+          <th>Expiry Date</th>
+          <th>Remaining</th>
+          <th>Details</th>
+          <th>Notes</th>
+          <th style="width:100px"></th>
+        </tr>
+      </thead>
+      <tbody id="lic-tbody"></tbody>
+    </table>
+    <div id="lic-empty-state">
+      <div class="icon">📜</div>
+      <p>No licenses yet — click <strong>+ Add License</strong> to start tracking</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══ LICENSE ADD/EDIT MODAL ══ -->
+<div id="lic-modal-overlay" onclick="licOverlayClick(event)">
+  <div id="lic-modal">
+    <div class="modal-header">
+      <span class="modal-title" id="lic-modal-title">Add License</span>
+      <button class="modal-close" onclick="closeLicModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Item (البيان)</label>
+          <input id="l-item" type="text" dir="auto" placeholder="e.g. السجل التجاري" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Type</label>
+          <select id="l-type" onchange="onLicTypeChange()">
+            <option value="">— Select Type —</option>
+            <option>Car Insurance</option>
+            <option>Governmental</option>
+            <option>Medical Insurance</option>
+            <option>Service/Subscription</option>
+            <option>Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Document # (رقم المستند)</label>
+          <input id="l-docnumber" type="text" dir="auto" placeholder="e.g. 1010225881" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Additional Details</label>
+          <div id="l-extras-list"></div>
+          <button type="button" class="btn" onclick="addLicExtraRow()">+ Add Field</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Issue Date — Hijri (هـ)</label>
+          <input id="l-issue-hijri" type="text" placeholder="e.g. 07-11-1445" />
+        </div>
+        <div class="form-group">
+          <label>Expiry Date — Hijri (هـ)</label>
+          <input id="l-expiry-hijri" type="text" placeholder="e.g. 16-12-1448" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Issue Date</label>
+          <input id="l-issue" type="date" />
+        </div>
+        <div class="form-group">
+          <label>Expiry Date</label>
+          <input id="l-expiry" type="date" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Notes (ملاحظات)</label>
+          <input id="l-notes" type="text" dir="auto" placeholder="optional notes" />
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeLicModal()">Cancel</button>
+      <button class="btn primary" onclick="submitLicModal()">Add License</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ LICENSE UNDO TOAST ══ -->
+<div id="lic-undo-toast">
+  <span>License deleted</span>
+  <button id="lic-undo-toast-btn" onclick="undoDeleteLic()">Undo</button>
+</div>
+
+<!-- ══ INSURANCE MODULE ══ -->
+<div id="module-insurance" class="app-module">
+  <div id="ins-topbar">
+    <span class="ins-title">🛡️ Insurance</span>
+    <div class="topbar-right">
+      <button class="btn primary" onclick="openInsModal()">+ Add Insurance</button>
+    </div>
+  </div>
+
+  <div id="ins-table-wrap">
+    <table id="ins-table" style="display:none">
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th>Category</th>
+          <th>Provider</th>
+          <th>Policy Number</th>
+          <th>Issue Date</th>
+          <th>Expiry Date</th>
+          <th>Remaining</th>
+          <th>Details</th>
+          <th style="width:100px"></th>
+        </tr>
+      </thead>
+      <tbody id="ins-tbody"></tbody>
+    </table>
+    <div id="ins-empty-state">
+      <div class="icon">🛡️</div>
+      <p>No insurance policies yet — click <strong>+ Add Insurance</strong> to start tracking</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══ INSURANCE ADD/EDIT MODAL ══ -->
+<div id="ins-modal-overlay" onclick="insOverlayClick(event)">
+  <div id="ins-modal">
+    <div class="modal-header">
+      <span class="modal-title" id="ins-modal-title">Add Insurance</span>
+      <button class="modal-close" onclick="closeInsModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Item (البيان)</label>
+          <input id="i-item" type="text" dir="auto" placeholder="e.g. تأمين سيارة كامري 2020" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Category</label>
+          <select id="i-category" onchange="onInsCategoryChange()">
+            <option value="">— Select Category —</option>
+            <option>Car</option>
+            <option>Medical</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Provider</label>
+          <input id="i-provider" type="text" dir="auto" placeholder="e.g. شركة امانة" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Policy Number</label>
+          <input id="i-policy" type="text" dir="auto" placeholder="e.g. 6300334389" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Additional Details</label>
+          <div id="i-extras-list"></div>
+          <button type="button" class="btn" onclick="addInsExtraRow()">+ Add Field</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Issue Date</label>
+          <input id="i-issue" type="date" />
+        </div>
+        <div class="form-group">
+          <label>Expiry Date</label>
+          <input id="i-expiry" type="date" />
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeInsModal()">Cancel</button>
+      <button class="btn primary" onclick="submitInsModal()">Add Insurance</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ INSURANCE UNDO TOAST ══ -->
+<div id="ins-undo-toast">
+  <span>Insurance policy deleted</span>
+  <button id="ins-undo-toast-btn" onclick="undoDeleteIns()">Undo</button>
+</div>
+
+<script>
+// ── State ──
+let savedDays  = new Set();
+let dayCache   = {};
+let activeDate = '';
+let rows       = [];
+let editIdx    = null;
+let calYear, calMonth;
+
+let lookups = {
+  companies: [], projects: [], natural: [], timeType: [], status: [],
+};
+let lookupsDraft = {};
+
+// ── Timer state ──
+let activeTimer = { rowIdx: null, startMs: null, intervalId: null };
+
+// ── Undo state ──
+let undoRecord   = null;  // { row, idx }
+let _undoTimer   = null;
+
+// ── Pin state ──
+let isPinned = false;
+
+// ── Module state ──
+let activeModule = 'timesheet';
+
+// ── Subscriptions state ──
+let subscriptions = [];
+let subPrefs      = { defaultCurrency: 'USD' };
+let subEditId     = null;
+let subsLoaded    = false;
+let _subSaveTimer = null;
+let undoSubscription = null; // { sub, idx }
+let _undoSubTimer    = null;
+
+// ── Licenses state ──
+let licenses      = [];
+let licEditId     = null;
+let licsLoaded    = false;
+let _licSaveTimer = null;
+let undoLicense   = null; // { lic, idx }
+let _undoLicTimer = null;
+
+// ── Insurance state ──
+let insurance      = [];
+let insEditId      = null;
+let insLoaded      = false;
+let _insSaveTimer  = null;
+let undoInsurance  = null; // { ins, idx }
+let _undoInsTimer  = null;
+
+// ── Helpers ──
+function fmt(date) { return date.toISOString().split('T')[0]; }
+function dayLabel(d) {
+  const [y,m,day] = d.split('-');
+  return new Date(+y, +m-1, +day).toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+}
+function totalMins(rowArr) {
+  return rowArr.reduce((s, r) => s + (parseFloat(r.minutes) || 0), 0);
+}
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function isURL(s) {
+  return /^https?:\/\//i.test(s || '');
+}
+
+// ── Lookup helpers ──
+function populateSelect(id, key, currentVal) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = '';
+  lookups[key].forEach(v => {
+    const o = document.createElement('option');
+    o.value = v; o.textContent = v;
+    if (v === currentVal) o.selected = true;
+    el.appendChild(o);
+  });
+}
+
+// ── Always-on-top ──
+function toggleAlwaysOnTop() {
+  isPinned = !isPinned;
+  window.api.setAlwaysOnTop(isPinned);
+  const btn = document.getElementById('btn-pin');
+  btn.classList.toggle('pinned', isPinned);
+  btn.title = isPinned ? 'Unpin window' : 'Keep window on top';
+}
+
+// ── Settings ──
+function openSettings() {
+  lookupsDraft = JSON.parse(JSON.stringify(lookups));
+  ['companies','projects','natural','timeType','status'].forEach(renderLookupPanel);
+  document.getElementById('setting-default-name').value = lookups.defaultName || '';
+  document.getElementById('settings-overlay').classList.add('open');
+}
+
+function closeSettings() {
+  document.getElementById('settings-overlay').classList.remove('open');
+}
+
+function settingsOverlayClick(e) {
+  if (e.target === document.getElementById('settings-overlay')) closeSettings();
+}
+
+async function saveSettings() {
+  lookups = JSON.parse(JSON.stringify(lookupsDraft));
+  lookups.defaultName = document.getElementById('setting-default-name').value.trim();
+  await window.api.saveLookups(lookups);
+  closeSettings();
+}
+
+function switchTab(btn) {
+  document.querySelectorAll('.stab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.settings-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+}
+
+function renderLookupPanel(key) {
+  const panel = document.getElementById('tab-' + key);
+  panel.innerHTML = '';
+
+  const list = document.createElement('div');
+  list.className = 'lookup-list';
+  const redraw = () => renderLookupPanel(key);
+
+  lookupsDraft[key].forEach((val, i) => {
+    const item = document.createElement('div');
+    item.className = 'lookup-item';
+
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.value = val;
+    inp.addEventListener('input', e => { lookupsDraft[key][i] = e.target.value; });
+
+    const del = document.createElement('button');
+    del.className = 'lookup-item-del'; del.textContent = '×';
+    del.title = 'Remove';
+    del.addEventListener('click', () => { lookupsDraft[key].splice(i, 1); redraw(); });
+
+    item.appendChild(inp); item.appendChild(del);
+    list.appendChild(item);
+  });
+
+  panel.appendChild(list);
+
+  const addRow = document.createElement('div');
+  addRow.className = 'lookup-add-row';
+
+  const addInp = document.createElement('input');
+  addInp.type = 'text'; addInp.placeholder = 'Add new…';
+
+  const addBtn = document.createElement('button');
+  addBtn.textContent = '+ Add';
+  addBtn.addEventListener('click', () => {
+    const v = addInp.value.trim();
+    if (!v) return;
+    lookupsDraft[key].push(v);
+    addInp.value = '';
+    redraw();
+    const items = panel.querySelectorAll('.lookup-item input');
+    if (items.length) items[items.length-1].focus();
+  });
+  addInp.addEventListener('keydown', e => { if (e.key === 'Enter') addBtn.click(); });
+
+  addRow.appendChild(addInp); addRow.appendChild(addBtn);
+  panel.appendChild(addRow);
+}
+
+// ── IPC ──
+async function refreshDayList() {
+  const days = await window.api.listDays();
+  savedDays = new Set(days);
+  // Days loaded lazily — only fetch data when a day is actually opened
+}
+
+// ── Calendar toggle ──
+function toggleCalendar(e) {
+  e.stopPropagation();
+  document.getElementById('cal-trigger').classList.toggle('open');
+}
+document.addEventListener('click', () => {
+  document.getElementById('cal-trigger')?.classList.remove('open');
+});
+
+// ── Calendar ──
+function renderCalendar() {
+  const label = new Date(calYear, calMonth, 1)
+    .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  document.getElementById('cal-month-label').textContent = label;
+  document.getElementById('cal-trigger-label').textContent = label;
+
+  const grid = document.getElementById('cal-grid');
+  grid.innerHTML = '';
+  ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'cal-dow'; el.textContent = d;
+    grid.appendChild(el);
+  });
+
+  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+  const todayStr = fmt(new Date());
+
+  for (let i = 0; i < firstDay; i++) {
+    const el = document.createElement('div'); el.className = 'cal-day empty';
+    grid.appendChild(el);
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const el = document.createElement('div');
+    el.className = 'cal-day';
+    el.textContent = d;
+    if (dateStr === todayStr)   el.classList.add('today');
+    if (savedDays.has(dateStr)) el.classList.add('has-data');
+    if (dateStr === activeDate) el.classList.add('selected');
+    el.addEventListener('click', () => {
+      document.getElementById('cal-trigger').classList.remove('open');
+      switchDay(dateStr);
+    });
+    grid.appendChild(el);
+  }
+}
+
+document.getElementById('cal-prev').addEventListener('click', (e) => {
+  e.stopPropagation();
+  calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; }
+  renderCalendar();
+});
+document.getElementById('cal-next').addEventListener('click', (e) => {
+  e.stopPropagation();
+  calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; }
+  renderCalendar();
+});
+
+// ── Switch day ──
+async function switchDay(dateStr) {
+  // Stop any running timer before leaving the day
+  if (activeTimer.rowIdx !== null) stopTimer();
+
+  activeDate = dateStr;
+
+  let entry = dayCache[dateStr];
+  if (!entry) {
+    entry = await window.api.loadDay(dateStr);
+    if (entry) dayCache[dateStr] = entry;
+  }
+
+  rows = (entry?.rows || []).map(r => Object.assign({}, r));
+  document.getElementById('hName').value = entry?.name || lookups.defaultName || '';
+  document.getElementById('hDate').value = dateStr;
+
+  window.api.setTitle('Cooperation Tools — Timesheet — ' + dateStr);
+
+  renderTable();
+  renderCalendar();
+  updateTodayBtn();
+  renderCarryOver();
+  clearStatus();
+}
+
+// ── Table ──
+const STATUS_CYCLE = { 'Done': 'In Progress', 'In Progress': 'Not Yet', 'Not Yet': 'Done' };
+
+function statusClass(s) {
+  if (s === 'Done')        return 'status-done';
+  if (s === 'In Progress') return 'status-progress';
+  return 'status-notyet';
+}
+
+function renderTable() {
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+
+  const doneRows   = rows.filter(r => r.status === 'Done'        && rowMatchesFilter(r));
+  const inProgRows = rows.filter(r => r.status === 'In Progress' && rowMatchesFilter(r));
+  const notYetRows = rows.filter(r => (r.status === 'Not Yet' || r.status === 'Pending') && rowMatchesFilter(r));
+  const otherRows  = rows.filter(r => !['Done','In Progress','Not Yet','Pending'].includes(r.status) && rowMatchesFilter(r));
+  const activeRows = [...doneRows, ...inProgRows, ...otherRows];
+  const ordered    = [...activeRows, ...notYetRows];
+
+  const isFiltered = filterText || filterStatuses.size > 0;
+  const countEl    = document.getElementById('filter-count');
+  countEl.textContent = isFiltered ? `${ordered.length} of ${rows.length} shown` : '';
+
+  const getOrigIdx = (row) => rows.indexOf(row);
+
+  const inProgStart = doneRows.length;
+  const notYetStart = activeRows.length;
+
+  ordered.forEach((row, i) => {
+    const origIdx = getOrigIdx(row);
+
+    // In Progress divider
+    if (inProgRows.length > 0 && doneRows.length > 0 && i === inProgStart) {
+      const divTr = document.createElement('tr');
+      divTr.className = 'inprogress-divider';
+      const divTd = document.createElement('td');
+      divTd.colSpan = 11;
+      divTd.innerHTML = '<div class="inprogress-divider-inner"><span class="inprogress-divider-label">⚡ In Progress</span></div>';
+      divTr.appendChild(divTd);
+      tbody.appendChild(divTr);
+    }
+    // Not Yet divider
+    if (notYetRows.length > 0 && activeRows.length > 0 && i === notYetStart) {
+      const divTr = document.createElement('tr');
+      divTr.className = 'notyet-divider';
+      const divTd = document.createElement('td');
+      divTd.colSpan = 11;
+      divTd.innerHTML = '<div class="notyet-divider-inner"><span class="notyet-divider-label">📌 Not Yet Started</span></div>';
+      divTr.appendChild(divTd);
+      tbody.appendChild(divTr);
+    }
+
+    const tr = document.createElement('tr');
+    if (row.status === 'Not Yet' || row.status === 'Pending') tr.classList.add('notyet-row');
+    if (activeTimer.rowIdx === origIdx) tr.classList.add('timer-running');
+
+    // #
+    const num = document.createElement('span');
+    num.className = 'cell-num'; num.textContent = i + 1;
+    tr.appendChild(cellWrap(num, 'cell cell-center'));
+
+    tr.appendChild(textCell(row.company));
+    tr.appendChild(textCell(row.project));
+    tr.appendChild(textCell(row.natural));
+    const timeTd = document.createElement('td');
+    const timeDiv = document.createElement('div'); timeDiv.className = 'cell';
+    const timeSpan = document.createElement('span');
+    timeSpan.textContent = row.time;
+    if (row.time === 'Over Time') timeSpan.style.color = '#dc2626';
+    timeDiv.appendChild(timeSpan); timeTd.appendChild(timeDiv);
+    tr.appendChild(timeTd);
+
+    // Description
+    const descTd = document.createElement('td');
+    const descDiv = document.createElement('div');
+    descDiv.className = 'cell desc-cell';
+    const descSpan = document.createElement('span');
+    descSpan.className = 'desc-text'; descSpan.textContent = row.description;
+    descDiv.appendChild(descSpan); descTd.appendChild(descDiv);
+    tr.appendChild(descTd);
+
+    // Source — clickable link if URL
+    const srcTd = document.createElement('td');
+    const srcDiv = document.createElement('div'); srcDiv.className = 'cell';
+    if (isURL(row.source)) {
+      const link = document.createElement('button');
+      link.className = 'source-link';
+      link.textContent = row.source;
+      link.title = 'Open ' + row.source;
+      link.addEventListener('click', () => window.api.openExternal(row.source));
+      srcDiv.appendChild(link);
+    } else {
+      const srcSpan = document.createElement('span');
+      srcSpan.className = 'source-text'; srcSpan.textContent = row.source;
+      srcDiv.appendChild(srcSpan);
+    }
+    srcTd.appendChild(srcDiv);
+    tr.appendChild(srcTd);
+
+    // Status badge — click shows dropdown
+    const stTd = document.createElement('td');
+    stTd.className = statusClass(row.status);
+    const stDiv = document.createElement('div'); stDiv.className = 'cell';
+    const badge = document.createElement('span');
+    badge.className = 'status-badge'; badge.textContent = row.status;
+    badge.title = 'Click to change status';
+    badge.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.querySelector('.status-dropdown')?.remove();
+      const dropdown = document.createElement('div');
+      dropdown.className = 'status-dropdown';
+      const opts = [
+        { label: 'Done',        cls: 'done' },
+        { label: 'In Progress', cls: 'progress' },
+        { label: 'Not Yet',     cls: 'notyet' },
+      ];
+      opts.forEach(o => {
+        const opt = document.createElement('div');
+        opt.className = 'sd-opt ' + o.cls;
+        opt.textContent = o.label;
+        opt.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          rows[origIdx].status = o.label;
+          dropdown.remove();
+          renderTable(); setUnsaved();
+        });
+        dropdown.appendChild(opt);
+      });
+      const rect = badge.getBoundingClientRect();
+      dropdown.style.top  = (rect.bottom + 4) + 'px';
+      dropdown.style.left = rect.left + 'px';
+      document.body.appendChild(dropdown);
+      const close = () => { dropdown.remove(); document.removeEventListener('click', close); };
+      setTimeout(() => document.addEventListener('click', close), 0);
+    });
+    stDiv.appendChild(badge); stTd.appendChild(stDiv);
+    tr.appendChild(stTd);
+
+    // Minutes — click to edit inline
+    const minTd = document.createElement('td');
+    minTd.style.textAlign = 'right';
+    const minCell = document.createElement('div');
+    minCell.className = 'cell cell-right';
+    const minSpan = document.createElement('span');
+    minSpan.textContent = row.minutes || '—';
+    minSpan.style.cursor = 'pointer';
+    minSpan.title = 'Click to edit minutes';
+    minSpan.addEventListener('click', () => {
+      const inp = document.createElement('input');
+      inp.type = 'number'; inp.min = 1; inp.max = 1440;
+      inp.className = 'min-inline-input';
+      inp.value = row.minutes || '';
+      minCell.replaceChild(inp, minSpan);
+      inp.focus(); inp.select();
+      const commit = () => {
+        const val = parseInt(inp.value);
+        if (!isNaN(val) && val >= 1 && val <= 1440) rows[origIdx].minutes = val;
+        renderTable(); setUnsaved();
+      };
+      inp.addEventListener('blur', commit);
+      inp.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') { ev.preventDefault(); inp.blur(); }
+        if (ev.key === 'Escape') { ev.preventDefault(); renderTable(); }
+      });
+    });
+    minCell.appendChild(minSpan);
+    minTd.appendChild(minCell);
+    tr.appendChild(minTd);
+
+    // Hours
+    const m = parseFloat(row.minutes);
+    const hrsSpan = document.createElement('span');
+    hrsSpan.className = 'hours-val';
+    hrsSpan.textContent = isNaN(m) ? '—' : (m/60).toFixed(2);
+    tr.appendChild(cellWrap(hrsSpan, 'cell cell-right'));
+
+    // Actions
+    const actTd = document.createElement('td');
+    const actDiv = document.createElement('div'); actDiv.className = 'cell';
+    const acts = document.createElement('div'); acts.className = 'row-actions';
+
+    // Timer button
+    const timerBtn = document.createElement('button');
+    if (activeTimer.rowIdx === origIdx) {
+      timerBtn.className = 'row-btn timer-stop';
+      timerBtn.textContent = '■';
+      timerBtn.title = 'Stop timer';
+      timerBtn.addEventListener('click', () => stopTimer());
+    } else {
+      timerBtn.className = 'row-btn timer-start';
+      timerBtn.textContent = '⏱';
+      timerBtn.title = 'Start timer';
+      timerBtn.addEventListener('click', () => startTimer(origIdx));
+    }
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'row-btn'; editBtn.textContent = '✏️';
+    editBtn.title = 'Edit'; editBtn.addEventListener('click', () => openModal(origIdx));
+
+    const dupBtn = document.createElement('button');
+    dupBtn.className = 'row-btn'; dupBtn.textContent = '⧉';
+    dupBtn.title = 'Duplicate';
+    dupBtn.addEventListener('click', () => {
+      rows.splice(origIdx + 1, 0, Object.assign({}, rows[origIdx]));
+      renderTable(); setUnsaved();
+    });
+
+    const moveBtn = document.createElement('button');
+    moveBtn.className = 'row-btn'; moveBtn.textContent = '📅';
+    moveBtn.title = 'Move to another day';
+    const restoreActs = () => {
+      acts.innerHTML = '';
+      acts.appendChild(timerBtn); acts.appendChild(editBtn); acts.appendChild(dupBtn);
+      acts.appendChild(moveBtn); acts.appendChild(delBtn);
+    };
+    moveBtn.addEventListener('click', () => {
+      acts.innerHTML = '';
+      const conf = document.createElement('div'); conf.className = 'del-confirm move-confirm';
+      const dateInp = document.createElement('input');
+      dateInp.type = 'date'; dateInp.className = 'move-date-input'; dateInp.value = activeDate;
+      const yes = document.createElement('button'); yes.className = 'row-btn move-yes'; yes.textContent = '✓';
+      yes.title = 'Move record to this day';
+      yes.addEventListener('click', () => moveRowToDate(origIdx, dateInp.value));
+      const no = document.createElement('button'); no.className = 'row-btn del-no'; no.textContent = '✕';
+      no.title = 'Cancel';
+      no.addEventListener('click', restoreActs);
+      dateInp.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') { ev.preventDefault(); moveRowToDate(origIdx, dateInp.value); }
+        if (ev.key === 'Escape') { ev.preventDefault(); restoreActs(); }
+      });
+      conf.appendChild(dateInp); conf.appendChild(yes); conf.appendChild(no);
+      acts.appendChild(conf);
+      dateInp.focus();
+    });
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'row-btn del'; delBtn.textContent = '🗑️';
+    delBtn.title = 'Delete';
+    delBtn.addEventListener('click', () => {
+      acts.innerHTML = '';
+      const conf = document.createElement('div'); conf.className = 'del-confirm';
+      const lbl = document.createElement('span'); lbl.textContent = 'Delete?';
+      const yes = document.createElement('button'); yes.className = 'row-btn del-yes'; yes.textContent = 'Yes';
+      yes.addEventListener('click', () => {
+        const removed = rows.splice(origIdx, 1)[0];
+        showUndoToast(removed, origIdx);
+        renderTable(); setUnsaved();
+      });
+      const no = document.createElement('button'); no.className = 'row-btn del-no'; no.textContent = 'No';
+      no.addEventListener('click', restoreActs);
+      conf.appendChild(lbl); conf.appendChild(yes); conf.appendChild(no);
+      acts.appendChild(conf);
+    });
+
+    acts.appendChild(timerBtn); acts.appendChild(editBtn); acts.appendChild(dupBtn); acts.appendChild(moveBtn); acts.appendChild(delBtn);
+    actDiv.appendChild(acts); actTd.appendChild(actDiv);
+    tr.appendChild(actTd);
+
+    tbody.appendChild(tr);
+  });
+
+  updateTotals();
+  document.getElementById('empty-state').style.display = rows.length ? 'none' : 'flex';
+  document.getElementById('row-count').textContent = rows.length ? `${rows.length} record${rows.length===1?'':'s'}` : '';
+}
+
+function cellWrap(el, cls) {
+  const td = document.createElement('td');
+  const div = document.createElement('div'); div.className = cls;
+  div.appendChild(el); td.appendChild(div); return td;
+}
+function textCell(val) {
+  const span = document.createElement('span'); span.textContent = val;
+  return cellWrap(span, 'cell');
+}
+
+function updateTotals() {
+  const workedRows = rows.filter(r => r.status !== 'Not Yet' && r.status !== 'Pending');
+  const t = totalMins(workedRows);
+  document.getElementById('total-min').textContent = t;
+  document.getElementById('total-hrs').textContent = (t/60).toFixed(2);
+}
+
+// ── Live Timer ──
+function startTimer(rowIdx) {
+  if (activeTimer.rowIdx !== null) stopTimer();
+  activeTimer = {
+    rowIdx,
+    startMs: Date.now(),
+    intervalId: setInterval(updateTimerDisplay, 1000),
+  };
+  document.getElementById('timer-chip').classList.add('running');
+  updateTimerDisplay();
+  renderTable();
+}
+
+function stopTimer() {
+  if (activeTimer.rowIdx === null) return;
+  clearInterval(activeTimer.intervalId);
+  const elapsed = Math.max(1, Math.round((Date.now() - activeTimer.startMs) / 60000));
+  const idx = activeTimer.rowIdx;
+  activeTimer = { rowIdx: null, startMs: null, intervalId: null };
+  document.getElementById('timer-chip').classList.remove('running');
+
+  if (idx < rows.length) {
+    rows[idx].minutes = String((parseInt(rows[idx].minutes, 10) || 0) + elapsed);
+    renderTable();
+    setUnsaved();
+  }
+}
+
+function updateTimerDisplay() {
+  if (activeTimer.startMs === null) return;
+  const total = Math.floor((Date.now() - activeTimer.startMs) / 1000);
+  const m = Math.floor(total / 60).toString().padStart(2, '0');
+  const s = (total % 60).toString().padStart(2, '0');
+  document.getElementById('timer-display').textContent = `${m}:${s}`;
+}
+
+// ── Undo ──
+function showUndoToast(row, idx) {
+  undoRecord = { row, idx };
+  clearTimeout(_undoTimer);
+  const toast = document.getElementById('undo-toast');
+  toast.classList.add('visible');
+  _undoTimer = setTimeout(hideUndoToast, 5000);
+}
+
+function hideUndoToast() {
+  document.getElementById('undo-toast').classList.remove('visible');
+  undoRecord = null;
+}
+
+function undoDelete() {
+  if (!undoRecord) return;
+  const { row, idx } = undoRecord;
+  rows.splice(Math.min(idx, rows.length), 0, Object.assign({}, row));
+  hideUndoToast();
+  renderTable();
+  setUnsaved();
+}
+
+// ── Auto-save ──
+let _saveTimer = null;
+async function saveDay() {
+  if (!activeDate) return;
+  const data = {
+    name: document.getElementById('hName').value,
+    rows: rows.map(r => Object.assign({}, r)),
+  };
+  await window.api.saveDay(activeDate, data);
+  dayCache[activeDate] = data;
+  savedDays.add(activeDate);
+  renderCalendar();
+  const el = document.getElementById('save-status');
+  el.textContent = '✓ Saved'; el.className = 'saved';
+  setTimeout(() => { el.textContent = ''; el.className = ''; }, 1500);
+}
+
+function autoSave() {
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(saveDay, 300);
+}
+
+// Move a single record from the active day to another day's file.
+async function moveRowToDate(origIdx, targetDate) {
+  if (!targetDate || targetDate === activeDate) { renderTable(); return; }
+  const [removed] = rows.splice(origIdx, 1);
+  if (!removed) { renderTable(); return; }
+
+  // Load destination day (cache → disk → fresh), append, persist.
+  let entry = dayCache[targetDate]
+    ? JSON.parse(JSON.stringify(dayCache[targetDate]))
+    : await window.api.loadDay(targetDate);
+  if (!entry) {
+    entry = { name: document.getElementById('hName').value || lookups.defaultName || '', rows: [] };
+  }
+  entry.rows.push(Object.assign({}, removed));
+  await window.api.saveDay(targetDate, entry);
+  dayCache[targetDate] = entry;
+  savedDays.add(targetDate);
+
+  renderTable();
+  autoSave();           // persist the active day with the row removed
+  renderCalendar();
+  renderCarryOver();
+
+  const el = document.getElementById('save-status');
+  el.textContent = '✓ Moved to ' + targetDate; el.className = 'saved';
+  setTimeout(() => { el.textContent = ''; el.className = ''; }, 2000);
+}
+
+function setUnsaved() { autoSave(); }
+function clearStatus() { document.getElementById('save-status').textContent = ''; }
+
+// ── Modal ──
+function openModal(idx = null) {
+  editIdx = idx;
+  const row = idx !== null ? rows[idx] : null;
+  const isEdit = idx !== null;
+  document.getElementById('modal-title').textContent = isEdit ? 'Edit Record' : 'Add Record';
+  document.querySelector('#modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : 'Add Record';
+
+  populateSelect('f-company', 'companies', row?.company || '');
+  populateSelect('f-project', 'projects',  row?.project || '');
+  populateSelect('f-natural', 'natural',   row?.natural || '');
+  populateSelect('f-time',    'timeType',  row?.time    || '');
+  populateSelect('f-status',  'status',    row?.status  || '');
+
+  if (!isEdit) {
+    ['f-company','f-project','f-natural','f-time','f-status'].forEach(id => {
+      const sel = document.getElementById(id);
+      const blank = document.createElement('option');
+      blank.value = ''; blank.textContent = '— select —';
+      sel.insertBefore(blank, sel.firstChild);
+      sel.value = '';
+    });
+  }
+
+  document.getElementById('f-description').value = row?.description || '';
+  document.getElementById('f-source').value      = row?.source      || '';
+  document.getElementById('f-minutes').value     = row?.minutes     || '';
+
+  clearErrors();
+  document.getElementById('modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('f-company').focus(), 80);
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+  editIdx = null;
+  if (_carryOverEdit) {
+    activeDate     = _carryOverEdit.prevDate;
+    rows           = _carryOverEdit.prevRows;
+    _carryOverEdit = null;
+    renderTable();
+    renderCarryOver();
+  }
+}
+
+function overlayClick(e) {
+  if (e.target === document.getElementById('modal-overlay')) closeModal();
+}
+
+function submitModal() {
+  clearErrors();
+  const fields = [
+    { id: 'f-company',     val: document.getElementById('f-company').value },
+    { id: 'f-project',     val: document.getElementById('f-project').value },
+    { id: 'f-natural',     val: document.getElementById('f-natural').value },
+    { id: 'f-time',        val: document.getElementById('f-time').value },
+    { id: 'f-description', val: document.getElementById('f-description').value.trim() },
+    { id: 'f-status',      val: document.getElementById('f-status').value },
+  ];
+
+  let valid = true;
+  fields.forEach(f => {
+    if (!f.val) { markError(f.id); valid = false; }
+  });
+
+  // Validate minutes: optional but must be a positive integer ≤ 1440 if provided
+  const minRaw = document.getElementById('f-minutes').value.trim();
+  if (minRaw !== '') {
+    const minVal = parseInt(minRaw, 10);
+    if (isNaN(minVal) || minVal < 1 || minVal > 1440 || String(minVal) !== minRaw) {
+      markError('f-minutes'); valid = false;
+    }
+  }
+
+  if (!valid) return;
+
+  const record = {
+    company:     document.getElementById('f-company').value,
+    project:     document.getElementById('f-project').value,
+    natural:     document.getElementById('f-natural').value,
+    time:        document.getElementById('f-time').value,
+    description: document.getElementById('f-description').value.trim(),
+    source:      document.getElementById('f-source').value.trim(),
+    status:      document.getElementById('f-status').value,
+    minutes:     minRaw,
+  };
+
+  if (editIdx !== null) { rows[editIdx] = record; }
+  else { rows.push(record); }
+
+  closeModal();
+
+  if (_carryOverEdit) {
+    const foreignDate = activeDate;
+    const foreignRows = rows;
+    window.api.saveDay(foreignDate, { name: dayCache[foreignDate]?.name || '', rows: foreignRows });
+    dayCache[foreignDate] = { name: dayCache[foreignDate]?.name || '', rows: foreignRows };
+    activeDate = _carryOverEdit.prevDate;
+    rows       = _carryOverEdit.prevRows;
+    _carryOverEdit = null;
+    renderTable();
+    renderCarryOver();
+  } else {
+    renderTable();
+    autoSave();
+  }
+}
+
+function markError(id) {
+  const el = document.getElementById(id);
+  el.classList.add('field-error');
+  el.addEventListener('input',  () => el.classList.remove('field-error'), { once: true });
+  el.addEventListener('change', () => el.classList.remove('field-error'), { once: true });
+}
+function clearErrors() {
+  document.querySelectorAll('.field-error').forEach(el => el.classList.remove('field-error'));
+}
+
+// ── Keyboard shortcuts ──
+document.addEventListener('keydown', e => {
+  const inputFocused = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
+  const anyOpen = ['modal-overlay','settings-overlay','print-overlay','export-overlay','sub-modal-overlay','sub-settings-overlay','lic-modal-overlay','ins-modal-overlay']
+    .some(id => document.getElementById(id).classList.contains('open'));
+
+  if (e.key === 'Escape') {
+    closeModal(); closePrint(); closeExport(); closeSubModal(); closeSubSettings(); closeLicModal(); closeInsModal();
+  }
+  if (e.ctrlKey && e.key === 'Enter') {
+    e.preventDefault();
+    if (document.getElementById('modal-overlay').classList.contains('open')) submitModal();
+    if (document.getElementById('sub-modal-overlay').classList.contains('open')) submitSubModal();
+    if (document.getElementById('lic-modal-overlay').classList.contains('open')) submitLicModal();
+    if (document.getElementById('ins-modal-overlay').classList.contains('open')) submitInsModal();
+  }
+  if (!anyOpen && !inputFocused) {
+    if (e.ctrlKey && !e.shiftKey && e.key === 'n') { e.preventDefault(); openModal(); }
+    // Day navigation: Ctrl+Left = earlier day, Ctrl+Right = later day
+    if (e.ctrlKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      e.preventDefault();
+      const sorted = [...savedDays].sort(); // ascending
+      const idx = sorted.indexOf(activeDate);
+      if (e.key === 'ArrowLeft' && idx > 0) {
+        switchDay(sorted[idx - 1]);
+      } else if (e.key === 'ArrowRight') {
+        if (idx >= 0 && idx < sorted.length - 1) switchDay(sorted[idx + 1]);
+        else switchDay(fmt(new Date()));
+      }
+    }
+  }
+});
+
+// hDate change → switch day
+document.getElementById('hDate').addEventListener('change', e => {
+  switchDay(e.target.value);
+});
+
+// hName: auto-save + persist as defaultName
+let _nameSaveTimer = null;
+document.getElementById('hName').addEventListener('input', () => {
+  autoSave();
+  clearTimeout(_nameSaveTimer);
+  _nameSaveTimer = setTimeout(() => {
+    const name = document.getElementById('hName').value.trim();
+    if (name && name !== lookups.defaultName) {
+      lookups.defaultName = name;
+      window.api.saveLookups(lookups);
+    }
+  }, 2000);
+});
+
+// ── Print ──
+function openPrint() {
+  const frame = document.getElementById('print-frame');
+  const name  = document.getElementById('hName').value || 'N/A';
+  const date  = activeDate || document.getElementById('hDate').value;
+  const [y,m,d] = date.split('-');
+  const dt = new Date(+y, +m-1, +d);
+  const dayName   = dt.toLocaleDateString('en-US', { weekday:'long' });
+  const dateLabel = dt.toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+
+  const badgeClass = s => s === 'Done' ? 'done' : s === 'In Progress' ? 'progress' : 'notyet';
+
+  const printRows  = rows.filter(r => r.status !== 'Not Yet' && r.status !== 'Pending');
+  const totalMin   = totalMins(printRows);
+  const totalHrs   = (totalMin / 60).toFixed(2);
+  const doneCount  = printRows.filter(r => r.status === 'Done').length;
+  const progCount  = printRows.filter(r => r.status === 'In Progress').length;
+
+  const byType = {};
+  printRows.forEach(r => {
+    if (!r.minutes) return;
+    const k = r.time || 'Other';
+    byType[k] = (byType[k] || 0) + (parseFloat(r.minutes) || 0);
+  });
+
+  const workHrs = ((byType['Work Time'] || byType['Work'] || 0) / 60).toFixed(2);
+  const otHrs   = ((byType['Over Time'] || byType['Part Time'] || 0) / 60).toFixed(2);
+
+  // Each record pair wrapped in a <tbody> for page-break-inside:avoid
+  const rowsHTML = printRows.map((r, i) => `
+    <tbody class="rpt-row-group">
+      <tr>
+        <td class="center">${i + 1}</td>
+        <td>${esc(r.company)}</td>
+        <td>${esc(r.project)}</td>
+        <td class="time-type">${esc(r.natural)}<br><span style="${r.time === 'Over Time' ? 'color:#dc2626;font-weight:700' : 'color:#aaa'}">${esc(r.time)}</span></td>
+        <td><span class="rpt-badge ${badgeClass(r.status)}">${esc(r.status)}</span></td>
+        <td class="num">${r.minutes || '—'}</td>
+        <td class="hrs">${r.minutes ? (parseFloat(r.minutes)/60).toFixed(2) : '—'}</td>
+      </tr>
+      <tr class="rpt-detail">
+        <td colspan="7">
+          <div class="det-line">
+            <span class="det-lbl">Description</span>
+            <span class="det-val">${esc(r.description)}</span>
+          </div>
+          ${r.source ? `<div class="det-line">
+            <span class="det-lbl">Source</span>
+            <span class="det-val src-val" dir="auto">${esc(r.source)}</span>
+          </div>` : ''}
+        </td>
+      </tr>
+    </tbody>`).join('');
+
+  const printedOn = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+
+  frame.innerHTML = `
+    <div class="rpt-header">
+      <div class="rpt-logo">
+        <div class="rpt-logo-icon">⏱</div>
+        <div>
+          <div class="rpt-logo-text">MOS TA FA<br><span style="color:#6c63ff;letter-spacing:4px">COOPERATION TOOLS</span></div>
+          <div class="rpt-logo-sub">Daily Work Report</div>
+        </div>
+      </div>
+      <div class="rpt-meta">
+        <div class="rpt-meta-name">${esc(name)}</div>
+        <div class="rpt-meta-date">${dayName}, ${dateLabel}</div>
+        <div class="rpt-meta-ref">Ref: ${esc(date)}</div>
+      </div>
+    </div>
+    <hr class="rpt-divider"/>
+    <div class="rpt-summary">
+      <div class="rpt-card">
+        <div class="rpt-card-val">${totalHrs}h</div>
+        <div class="rpt-card-lbl">Total Hours</div>
+      </div>
+      <div class="rpt-card">
+        <div class="rpt-card-val">${totalMin} min</div>
+        <div class="rpt-card-lbl">Total Minutes</div>
+      </div>
+      <div class="rpt-card">
+        <div class="rpt-card-val">${workHrs}h</div>
+        <div class="rpt-card-lbl">Work Time</div>
+      </div>
+      <div class="rpt-card">
+        <div class="rpt-card-val">${otHrs}h</div>
+        <div class="rpt-card-lbl">Over Time</div>
+      </div>
+    </div>
+    <table class="rpt-table">
+      <thead>
+        <tr>
+          <th style="width:32px;text-align:center">#</th>
+          <th>Company</th>
+          <th>Project</th>
+          <th>Type</th>
+          <th>Status</th>
+          <th style="text-align:right">Min</th>
+          <th style="text-align:right">Hrs</th>
+        </tr>
+      </thead>
+      ${rowsHTML}
+      <tbody>
+        <tr class="rpt-totals">
+          <td colspan="5" class="total-label">Total</td>
+          <td class="num">${totalMin}</td>
+          <td class="hrs">${totalHrs}</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="rpt-footer">
+      <span>MOS TA FA COOPERATION TOOLS — ${esc(name)}</span>
+      <span>Work: ${workHrs}h &nbsp;|&nbsp; Overtime: ${otHrs}h &nbsp;|&nbsp; Printed ${printedOn}</span>
+    </div>`;
+
+  document.getElementById('print-overlay').classList.add('open');
+}
+
+function closePrint() {
+  document.getElementById('print-overlay').classList.remove('open');
+}
+
+function printOverlayClick(e) {
+  if (e.target === document.getElementById('print-overlay')) closePrint();
+}
+
+function triggerPrint() {
+  const frame = document.getElementById('print-frame');
+  const allRules = [...document.styleSheets].flatMap(s => {
+    try { return [...s.cssRules].map(r => r.cssText); } catch { return []; }
+  });
+  const reportCSS = allRules.filter(r =>
+    r.includes('.rpt-') || r.includes('@media print') || r.includes('box-sizing') || r.includes('.det-')
+  ).join('\n');
+
+  const win = window.open('', '_blank', 'width=940,height=800');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>TimeSheet Report</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: 'Quicksand', 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #111; padding: 48px 52px; background: #fff; }
+      ${reportCSS}
+    </style>
+  </head><body>${frame.innerHTML}</body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => { win.print(); }, 450);
+}
+
+// ── Today button ──
+function goToday() {
+  switchDay(fmt(new Date()));
+}
+
+function updateTodayBtn() {
+  const btn = document.getElementById('btn-today');
+  btn.classList.toggle('is-today', activeDate === fmt(new Date()));
+}
+
+// ── Carry-over (Not Yet from past days) ──
+async function renderCarryOver() {
+  const section = document.getElementById('carryover-section');
+  const tbody   = document.getElementById('carryover-tbody');
+  const sub     = document.getElementById('carryover-sub');
+
+  if (activeDate !== fmt(new Date())) {
+    section.style.display = 'none';
+    return;
+  }
+
+  for (const d of [...savedDays]) {
+    if (d !== activeDate && !dayCache[d]) {
+      const data = await window.api.loadDay(d);
+      if (data) dayCache[d] = data;
+    }
+  }
+
+  const items = [];
+  for (const d of [...savedDays].sort((a,b) => b.localeCompare(a))) {
+    if (d === activeDate) continue;
+    const entry = dayCache[d];
+    if (!entry?.rows) continue;
+    entry.rows.forEach((row, i) => {
+      if (row.status === 'Not Yet') items.push({ date: d, row, idx: i });
+    });
+  }
+
+  if (items.length === 0) { section.style.display = 'none'; return; }
+
+  section.style.display = 'block';
+  sub.textContent = `${items.length} item${items.length === 1 ? '' : 's'} waiting`;
+  tbody.innerHTML = '';
+
+  items.forEach(({ date, row, idx }, n) => {
+    const [y,m,d] = date.split('-');
+    const dt = new Date(+y,+m-1,+d);
+    const dateLabel = dt.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+
+    const tr = document.createElement('tr');
+
+    const numSpan = document.createElement('span');
+    numSpan.className = 'cell-num'; numSpan.textContent = n + 1;
+    tr.appendChild(cellWrap(numSpan, 'cell cell-center'));
+
+    const badge = document.createElement('span');
+    badge.className = 'co-date-badge'; badge.textContent = dateLabel;
+    tr.appendChild(cellWrap(badge, 'cell'));
+
+    tr.appendChild(textCell(row.company));
+    tr.appendChild(textCell(row.project));
+    tr.appendChild(textCell(row.natural));
+
+    const descSpan = document.createElement('span');
+    descSpan.className = 'desc-text'; descSpan.textContent = row.description;
+    tr.appendChild(cellWrap(descSpan, 'cell desc-cell'));
+
+    const srcSpan = document.createElement('span');
+    srcSpan.className = 'source-text'; srcSpan.textContent = row.source || '';
+    tr.appendChild(cellWrap(srcSpan, 'cell'));
+
+    const acts = document.createElement('div'); acts.className = 'co-actions';
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'co-btn'; editBtn.textContent = '✏️ Edit';
+    editBtn.title = 'Edit this record in its original day';
+    editBtn.addEventListener('click', () => openCarryOverEdit(date, idx));
+
+    const moveBtn = document.createElement('button');
+    moveBtn.className = 'co-btn move'; moveBtn.textContent = '→ Today';
+    moveBtn.title = 'Move to today';
+    moveBtn.addEventListener('click', () => moveToToday(date, idx));
+
+    const dismissBtn = document.createElement('button');
+    dismissBtn.className = 'co-btn'; dismissBtn.textContent = '✕ Dismiss';
+    dismissBtn.title = 'Delete from original day';
+    dismissBtn.addEventListener('click', async () => {
+      const entry = dayCache[date] ? JSON.parse(JSON.stringify(dayCache[date])) : await window.api.loadDay(date);
+      if (!entry) return;
+      entry.rows.splice(idx, 1);
+      await window.api.saveDay(date, entry);
+      dayCache[date] = entry;
+      if (entry.rows.length === 0) savedDays.delete(date);
+      renderCarryOver(); renderCalendar();
+    });
+
+    acts.appendChild(editBtn); acts.appendChild(moveBtn); acts.appendChild(dismissBtn);
+    tr.appendChild(cellWrap(acts, 'cell'));
+
+    tbody.appendChild(tr);
+  });
+}
+
+async function openCarryOverEdit(date, idx) {
+  const entry = dayCache[date] || await window.api.loadDay(date);
+  if (!entry) return;
+  const prevDate = activeDate;
+  const prevRows = rows;
+  activeDate = date;
+  rows = entry.rows.map(r => Object.assign({}, r));
+  openModal(idx);
+  _carryOverEdit = { prevDate, prevRows };
+}
+let _carryOverEdit = null;
+
+async function moveToToday(date, idx) {
+  const entry = dayCache[date] ? JSON.parse(JSON.stringify(dayCache[date])) : await window.api.loadDay(date);
+  if (!entry) return;
+  const [removed] = entry.rows.splice(idx, 1);
+  await window.api.saveDay(date, entry);
+  dayCache[date] = entry;
+  if (entry.rows.length === 0) savedDays.delete(date);
+  rows.push(Object.assign({}, removed));
+  renderTable();
+  autoSave();
+  renderCarryOver();
+  renderCalendar();
+}
+
+// ── Filter ──
+let filterText = '';
+let filterStatuses = new Set();
+
+function applyFilter() {
+  filterText = document.getElementById('filter-input').value.toLowerCase().trim();
+  document.getElementById('filter-clear').style.display = filterText ? 'block' : 'none';
+  renderTable();
+}
+
+function clearFilter() {
+  filterText = '';
+  document.getElementById('filter-input').value = '';
+  document.getElementById('filter-clear').style.display = 'none';
+  renderTable();
+}
+
+function toggleStatusFilter(btn) {
+  const s = btn.dataset.status;
+  if (filterStatuses.has(s)) { filterStatuses.delete(s); btn.classList.remove('active'); }
+  else                        { filterStatuses.add(s);    btn.classList.add('active'); }
+  renderTable();
+}
+
+function rowMatchesFilter(row) {
+  if (filterStatuses.size > 0 && !filterStatuses.has(row.status)) return false;
+  if (!filterText) return true;
+  return [row.company, row.project, row.natural, row.time, row.description, row.source, row.status]
+    .some(v => (v || '').toLowerCase().includes(filterText));
+}
+
+// ── CSV Export (today) ──
+function exportCSV() {
+  const headers = ['#','Company','Project','Natural','Time Type','Description','Source','Status','Minutes','Hours'];
+  const lines = [headers.join(',')];
+  rows.forEach((r, i) => {
+    const mins = parseFloat(r.minutes) || 0;
+    const cols = [
+      i + 1,
+      r.company, r.project, r.natural, r.time,
+      r.description, r.source, r.status,
+      r.minutes || '',
+      mins ? (mins / 60).toFixed(2) : '',
+    ].map(v => `"${String(v || '').replace(/"/g, '""')}"`);
+    lines.push(cols.join(','));
+  });
+  downloadCSV(lines.join('\r\n'), `timesheet-${activeDate || 'export'}.csv`);
+}
+
+// ── Export Range ──
+function openExport() {
+  const today = fmt(new Date());
+  const [y, m] = today.split('-');
+  const firstOfMonth = `${y}-${m}-01`;
+  document.getElementById('export-from').value = firstOfMonth;
+  document.getElementById('export-to').value   = today;
+  document.getElementById('export-overlay').classList.add('open');
+}
+
+function closeExport() {
+  document.getElementById('export-overlay').classList.remove('open');
+}
+
+function exportOverlayClick(e) {
+  if (e.target === document.getElementById('export-overlay')) closeExport();
+}
+
+async function runExportRange() {
+  const from = document.getElementById('export-from').value;
+  const to   = document.getElementById('export-to').value;
+  if (!from || !to || from > to) {
+    document.getElementById('export-from').classList.add('field-error');
+    document.getElementById('export-to').classList.add('field-error');
+    setTimeout(() => {
+      document.getElementById('export-from').classList.remove('field-error');
+      document.getElementById('export-to').classList.remove('field-error');
+    }, 1200);
+    return;
+  }
+
+  const datesInRange = [...savedDays]
+    .filter(d => d >= from && d <= to)
+    .sort();
+
+  const headers = ['Date','#','Company','Project','Natural','Time Type','Description','Source','Status','Minutes','Hours'];
+  const lines = [headers.join(',')];
+
+  for (const d of datesInRange) {
+    let entry = dayCache[d];
+    if (!entry) {
+      entry = await window.api.loadDay(d);
+      if (entry) dayCache[d] = entry;
+    }
+    if (!entry?.rows) continue;
+    entry.rows.forEach((r, i) => {
+      const mins = parseFloat(r.minutes) || 0;
+      const cols = [
+        d, i + 1,
+        r.company, r.project, r.natural, r.time,
+        r.description, r.source, r.status,
+        r.minutes || '',
+        mins ? (mins / 60).toFixed(2) : '',
+      ].map(v => `"${String(v || '').replace(/"/g, '""')}"`);
+      lines.push(cols.join(','));
+    });
+  }
+
+  closeExport();
+  downloadCSV(lines.join('\r\n'), `timesheet-${from}-to-${to}.csv`);
+}
+
+function downloadCSV(csv, filename) {
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// ── Module switching ──
+function switchModule(name) {
+  if (activeModule === name) return;
+  activeModule = name;
+
+  document.querySelectorAll('.app-module').forEach(el => {
+    el.classList.toggle('active', el.id === 'module-' + name);
+  });
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.module === name);
+  });
+
+  if (name === 'timesheet') {
+    window.api.setTitle('Cooperation Tools — Timesheet — ' + activeDate);
+  } else if (name === 'subscriptions') {
+    window.api.setTitle('Cooperation Tools — Subscriptions');
+    if (!subsLoaded) loadSubscriptionsData();
+    else renderSubscriptions();
+  } else if (name === 'licenses') {
+    window.api.setTitle('Cooperation Tools — Licenses');
+    if (!licsLoaded) loadLicensesData();
+    else renderLicenses();
+  } else if (name === 'insurance') {
+    window.api.setTitle('Cooperation Tools — Insurance');
+    if (!insLoaded) loadInsuranceData();
+    else renderInsurance();
+  }
+}
+
+// ── Subscriptions: data ──
+async function loadSubscriptionsData() {
+  const data = await window.api.loadSubscriptions();
+  subscriptions = (data && Array.isArray(data.subscriptions)) ? data.subscriptions : [];
+  subPrefs.defaultCurrency = (data && data.defaultCurrency) ? data.defaultCurrency : 'USD';
+  subsLoaded = true;
+  renderSubscriptions();
+}
+
+async function saveSubscriptionsData() {
+  await window.api.saveSubscriptions({
+    subscriptions: subscriptions.map(s => Object.assign({}, s)),
+    defaultCurrency: subPrefs.defaultCurrency,
+  });
+}
+
+function autoSaveSubscriptions() {
+  clearTimeout(_subSaveTimer);
+  _subSaveTimer = setTimeout(saveSubscriptionsData, 300);
+}
+
+// ── Subscriptions: helpers ──
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const target = new Date(dateStr + 'T00:00:00');
+  return Math.round((target - today) / 86400000);
+}
+
+function renewClass(daysLeft) {
+  if (daysLeft === null) return 'ok';
+  if (daysLeft <= 7)  return 'urgent';
+  if (daysLeft <= 30) return 'soon';
+  return 'ok';
+}
+
+function renewLabel(daysLeft) {
+  if (daysLeft === null) return '—';
+  if (daysLeft < 0)  return `${Math.abs(daysLeft)}d overdue`;
+  if (daysLeft === 0) return 'Today';
+  return `in ${daysLeft}d`;
+}
+
+function addInterval(dateStr, cycle) {
+  const d = new Date(dateStr + 'T00:00:00');
+  if (cycle === 'Monthly') d.setMonth(d.getMonth() + 1);
+  else if (cycle === 'Yearly') d.setFullYear(d.getFullYear() + 1);
+  else return '';
+  return fmt(d);
+}
+
+// ── Subscriptions: render ──
+function renderSubscriptions() {
+  const tbody = document.getElementById('sub-tbody');
+  const table = document.getElementById('sub-table');
+  const empty = document.getElementById('sub-empty-state');
+  tbody.innerHTML = '';
+
+  if (subscriptions.length === 0) {
+    table.style.display = 'none';
+    empty.style.display = 'flex';
+    return;
+  }
+  table.style.display = '';
+  empty.style.display = 'none';
+
+  const sorted = subscriptions.slice().sort((a, b) => {
+    const da = daysUntil(a.renewalDate), db = daysUntil(b.renewalDate);
+    if (da === null) return 1;
+    if (db === null) return -1;
+    return da - db;
+  });
+
+  sorted.forEach(sub => {
+    const tr = document.createElement('tr');
+
+    tr.appendChild(textCell(sub.name));
+
+    const costSpan = document.createElement('span');
+    costSpan.className = 'sub-cost';
+    const costNum = parseFloat(sub.cost);
+    const costText = isNaN(costNum) ? sub.cost : costNum.toFixed(2);
+    costSpan.textContent = (sub.currency || 'USD') + ' ' + costText;
+    tr.appendChild(cellWrap(costSpan, 'cell'));
+
+    tr.appendChild(textCell(sub.billingCycle));
+    tr.appendChild(textCell(sub.endDate || '—'));
+    tr.appendChild(textCell(sub.renewalDate || '—'));
+
+    const daysLeft = daysUntil(sub.renewalDate);
+    const badge = document.createElement('span');
+    badge.className = 'renew-badge ' + renewClass(daysLeft);
+    badge.textContent = renewLabel(daysLeft);
+    tr.appendChild(cellWrap(badge, 'cell'));
+
+    const acts = document.createElement('div');
+    acts.className = 'row-actions';
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'row-btn'; editBtn.textContent = '✏️';
+    editBtn.title = 'Edit'; editBtn.addEventListener('click', () => openSubModal(sub.id));
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'row-btn del'; delBtn.textContent = '🗑️';
+    delBtn.title = 'Delete';
+    delBtn.addEventListener('click', () => {
+      acts.innerHTML = '';
+      const conf = document.createElement('div'); conf.className = 'del-confirm';
+      const lbl = document.createElement('span'); lbl.textContent = 'Delete?';
+      const yes = document.createElement('button'); yes.className = 'row-btn del-yes'; yes.textContent = 'Yes';
+      yes.addEventListener('click', () => {
+        const removeIdx = subscriptions.indexOf(sub);
+        const removed = subscriptions.splice(removeIdx, 1)[0];
+        showSubUndoToast(removed, removeIdx);
+        renderSubscriptions(); autoSaveSubscriptions();
+      });
+      const no = document.createElement('button'); no.className = 'row-btn del-no'; no.textContent = 'No';
+      no.addEventListener('click', () => {
+        acts.innerHTML = '';
+        acts.appendChild(editBtn); acts.appendChild(delBtn);
+      });
+      conf.appendChild(lbl); conf.appendChild(yes); conf.appendChild(no);
+      acts.appendChild(conf);
+    });
+
+    acts.appendChild(editBtn); acts.appendChild(delBtn);
+    tr.appendChild(cellWrap(acts, 'cell'));
+
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Subscriptions: undo ──
+function showSubUndoToast(sub, idx) {
+  undoSubscription = { sub, idx };
+  clearTimeout(_undoSubTimer);
+  const toast = document.getElementById('sub-undo-toast');
+  toast.classList.add('visible');
+  _undoSubTimer = setTimeout(hideSubUndoToast, 5000);
+}
+
+function hideSubUndoToast() {
+  document.getElementById('sub-undo-toast').classList.remove('visible');
+  undoSubscription = null;
+}
+
+function undoDeleteSub() {
+  if (!undoSubscription) return;
+  const { sub, idx } = undoSubscription;
+  subscriptions.splice(Math.min(idx, subscriptions.length), 0, Object.assign({}, sub));
+  hideSubUndoToast();
+  renderSubscriptions();
+  autoSaveSubscriptions();
+}
+
+// ── Subscriptions: modal ──
+function openSubModal(id = null) {
+  subEditId = id;
+  const sub = id !== null ? subscriptions.find(s => s.id === id) : null;
+  const isEdit = !!sub;
+  document.getElementById('sub-modal-title').textContent = isEdit ? 'Edit Subscription' : 'Add Subscription';
+  document.querySelector('#sub-modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : 'Add Subscription';
+
+  document.getElementById('s-name').value     = sub ? sub.name : '';
+  document.getElementById('s-cost').value     = sub ? sub.cost : '';
+  document.getElementById('s-currency').value = sub ? (sub.currency || 'USD') : subPrefs.defaultCurrency;
+  document.getElementById('s-cycle').value    = sub ? sub.billingCycle : 'Monthly';
+  document.getElementById('s-end').value      = sub ? (sub.endDate || '') : '';
+  document.getElementById('s-renewal').value  = sub ? (sub.renewalDate || '') : '';
+
+  clearSubErrors();
+  document.getElementById('sub-modal-overlay').classList.add('open');
+  document.getElementById('s-name').focus();
+}
+
+function closeSubModal() {
+  document.getElementById('sub-modal-overlay').classList.remove('open');
+  subEditId = null;
+}
+
+function subOverlayClick(e) {
+  if (e.target === document.getElementById('sub-modal-overlay')) closeSubModal();
+}
+
+// ── Subscriptions: settings ──
+function openSubSettings() {
+  document.getElementById('sub-setting-currency').value = subPrefs.defaultCurrency;
+  document.getElementById('sub-settings-overlay').classList.add('open');
+}
+
+function closeSubSettings() {
+  document.getElementById('sub-settings-overlay').classList.remove('open');
+}
+
+function subSettingsOverlayClick(e) {
+  if (e.target === document.getElementById('sub-settings-overlay')) closeSubSettings();
+}
+
+function saveSubSettings() {
+  subPrefs.defaultCurrency = document.getElementById('sub-setting-currency').value;
+  closeSubSettings();
+  autoSaveSubscriptions();
+}
+
+// Auto-suggest the renewal date from the end date + billing cycle, without overwriting a value the user already typed
+function onEndDateChange() {
+  const cycle = document.getElementById('s-cycle').value;
+  const end   = document.getElementById('s-end').value;
+  const renewalEl = document.getElementById('s-renewal');
+  if (end && !renewalEl.value && (cycle === 'Monthly' || cycle === 'Yearly')) {
+    renewalEl.value = addInterval(end, cycle);
+  }
+}
+
+function onCycleChange() {
+  const cycle = document.getElementById('s-cycle').value;
+  const end   = document.getElementById('s-end').value;
+  const renewalEl = document.getElementById('s-renewal');
+  if (end && !renewalEl.value && (cycle === 'Monthly' || cycle === 'Yearly')) {
+    renewalEl.value = addInterval(end, cycle);
+  }
+}
+
+function submitSubModal() {
+  clearSubErrors();
+
+  const name   = document.getElementById('s-name').value.trim();
+  const costRaw = document.getElementById('s-cost').value.trim();
+  const currency = document.getElementById('s-currency').value;
+  const cycle  = document.getElementById('s-cycle').value;
+  const end    = document.getElementById('s-end').value;
+  const renewal = document.getElementById('s-renewal').value;
+
+  let valid = true;
+  if (!name) { markSubError('s-name'); valid = false; }
+
+  const cost = parseFloat(costRaw);
+  if (costRaw === '' || isNaN(cost) || cost < 0) { markSubError('s-cost'); valid = false; }
+
+  if (!end)     { markSubError('s-end'); valid = false; }
+  if (!renewal) { markSubError('s-renewal'); valid = false; }
+
+  if (!valid) return;
+
+  const record = {
+    id:           subEditId !== null ? subEditId : 'sub_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    name,
+    cost:         costRaw,
+    currency,
+    billingCycle: cycle,
+    endDate:      end,
+    renewalDate:  renewal,
+  };
+
+  if (subEditId !== null) {
+    const idx = subscriptions.findIndex(s => s.id === subEditId);
+    if (idx !== -1) subscriptions[idx] = record;
+  } else {
+    subscriptions.push(record);
+  }
+
+  closeSubModal();
+  renderSubscriptions();
+  autoSaveSubscriptions();
+}
+
+function markSubError(id) {
+  const el = document.getElementById(id);
+  el.classList.add('field-error');
+  el.addEventListener('input',  () => el.classList.remove('field-error'), { once: true });
+  el.addEventListener('change', () => el.classList.remove('field-error'), { once: true });
+}
+function clearSubErrors() {
+  document.querySelectorAll('#sub-modal .field-error').forEach(el => el.classList.remove('field-error'));
+}
+
+// ── Licenses: type-specific suggested detail fields (only applied when extras list is empty) ──
+const LICENSE_TYPE_PRESETS = {
+  'Car Insurance':       ['Car Plate', 'Policy Number'],
+  'Governmental':        ['Reference Number'],
+  'Medical Insurance':   ['Policy Number', 'Provider'],
+  'Service/Subscription':['Account Reference'],
+  'Other':               [],
+};
+
+// ── Licenses: data ──
+async function loadLicensesData() {
+  const data = await window.api.loadLicenses();
+  licenses = (data && Array.isArray(data.licenses)) ? data.licenses : [];
+  licsLoaded = true;
+  renderLicenses();
+}
+
+async function saveLicensesData() {
+  await window.api.saveLicenses({ licenses: licenses.map(l => Object.assign({}, l)) });
+}
+
+function autoSaveLicenses() {
+  clearTimeout(_licSaveTimer);
+  _licSaveTimer = setTimeout(saveLicensesData, 300);
+}
+
+// ── Licenses: render ──
+function renderLicenses() {
+  const tbody = document.getElementById('lic-tbody');
+  const table = document.getElementById('lic-table');
+  const empty = document.getElementById('lic-empty-state');
+  tbody.innerHTML = '';
+
+  if (licenses.length === 0) {
+    table.style.display = 'none';
+    empty.style.display = 'flex';
+    return;
+  }
+  table.style.display = '';
+  empty.style.display = 'none';
+
+  const sorted = licenses.slice().sort((a, b) => {
+    const da = daysUntil(a.expiryDate), db = daysUntil(b.expiryDate);
+    if (da === null) return 1;
+    if (db === null) return -1;
+    return da - db;
+  });
+
+  sorted.forEach(lic => {
+    const tr = document.createElement('tr');
+
+    const itemSpan = document.createElement('span');
+    itemSpan.className = 'rtl-text'; itemSpan.textContent = lic.item; itemSpan.setAttribute('dir', 'auto');
+    tr.appendChild(cellWrap(itemSpan, 'cell desc-cell'));
+
+    if (lic.type) {
+      const typeBadge = document.createElement('span');
+      typeBadge.className = 'lic-type-badge'; typeBadge.textContent = lic.type;
+      tr.appendChild(cellWrap(typeBadge, 'cell'));
+    } else {
+      tr.appendChild(textCell('—'));
+    }
+
+    const docSpan = document.createElement('span');
+    docSpan.className = 'rtl-text'; docSpan.textContent = lic.docNumber || '—'; docSpan.setAttribute('dir', 'auto');
+    tr.appendChild(cellWrap(docSpan, 'cell'));
+
+    const issueHijriSpan = document.createElement('span');
+    issueHijriSpan.className = 'lic-hijri'; issueHijriSpan.textContent = lic.issueDateHijri || '—';
+    tr.appendChild(cellWrap(issueHijriSpan, 'cell'));
+
+    const expiryHijriSpan = document.createElement('span');
+    expiryHijriSpan.className = 'lic-hijri'; expiryHijriSpan.textContent = lic.expiryDateHijri || '—';
+    tr.appendChild(cellWrap(expiryHijriSpan, 'cell'));
+
+    tr.appendChild(textCell(lic.issueDate || '—'));
+    tr.appendChild(textCell(lic.expiryDate || '—'));
+
+    const daysLeft = daysUntil(lic.expiryDate);
+    const badge = document.createElement('span');
+    badge.className = 'renew-badge ' + renewClass(daysLeft);
+    badge.textContent = renewLabel(daysLeft);
+    tr.appendChild(cellWrap(badge, 'cell'));
+
+    if (Array.isArray(lic.extras) && lic.extras.length > 0) {
+      const extrasWrap = document.createElement('div');
+      extrasWrap.className = 'lic-extras-summary';
+      lic.extras.forEach(ex => {
+        const line = document.createElement('div');
+        const b = document.createElement('b'); b.textContent = ex.label + ': ';
+        line.appendChild(b);
+        line.appendChild(document.createTextNode(ex.value || '—'));
+        extrasWrap.appendChild(line);
+      });
+      tr.appendChild(cellWrap(extrasWrap, 'cell'));
+    } else {
+      tr.appendChild(textCell('—'));
+    }
+
+    const notesSpan = document.createElement('span');
+    notesSpan.className = 'rtl-text'; notesSpan.textContent = lic.notes || '—'; notesSpan.setAttribute('dir', 'auto');
+    tr.appendChild(cellWrap(notesSpan, 'cell desc-cell'));
+
+    const acts = document.createElement('div');
+    acts.className = 'row-actions';
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'row-btn'; editBtn.textContent = '✏️';
+    editBtn.title = 'Edit'; editBtn.addEventListener('click', () => openLicModal(lic.id));
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'row-btn del'; delBtn.textContent = '🗑️';
+    delBtn.title = 'Delete';
+    delBtn.addEventListener('click', () => {
+      acts.innerHTML = '';
+      const conf = document.createElement('div'); conf.className = 'del-confirm';
+      const lbl = document.createElement('span'); lbl.textContent = 'Delete?';
+      const yes = document.createElement('button'); yes.className = 'row-btn del-yes'; yes.textContent = 'Yes';
+      yes.addEventListener('click', () => {
+        const removeIdx = licenses.indexOf(lic);
+        const removed = licenses.splice(removeIdx, 1)[0];
+        showLicUndoToast(removed, removeIdx);
+        renderLicenses(); autoSaveLicenses();
+      });
+      const no = document.createElement('button'); no.className = 'row-btn del-no'; no.textContent = 'No';
+      no.addEventListener('click', () => {
+        acts.innerHTML = '';
+        acts.appendChild(editBtn); acts.appendChild(delBtn);
+      });
+      conf.appendChild(lbl); conf.appendChild(yes); conf.appendChild(no);
+      acts.appendChild(conf);
+    });
+
+    acts.appendChild(editBtn); acts.appendChild(delBtn);
+    tr.appendChild(cellWrap(acts, 'cell'));
+
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Licenses: undo ──
+function showLicUndoToast(lic, idx) {
+  undoLicense = { lic, idx };
+  clearTimeout(_undoLicTimer);
+  const toast = document.getElementById('lic-undo-toast');
+  toast.classList.add('visible');
+  _undoLicTimer = setTimeout(hideLicUndoToast, 5000);
+}
+
+function hideLicUndoToast() {
+  document.getElementById('lic-undo-toast').classList.remove('visible');
+  undoLicense = null;
+}
+
+function undoDeleteLic() {
+  if (!undoLicense) return;
+  const { lic, idx } = undoLicense;
+  licenses.splice(Math.min(idx, licenses.length), 0, Object.assign({}, lic));
+  hideLicUndoToast();
+  renderLicenses();
+  autoSaveLicenses();
+}
+
+// ── Licenses: modal ──
+function openLicModal(id = null) {
+  licEditId = id;
+  const lic = id !== null ? licenses.find(l => l.id === id) : null;
+  const isEdit = !!lic;
+  document.getElementById('lic-modal-title').textContent = isEdit ? 'Edit License' : 'Add License';
+  document.querySelector('#lic-modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : 'Add License';
+
+  document.getElementById('l-item').value         = lic ? lic.item : '';
+  document.getElementById('l-type').value         = lic ? (lic.type || '') : '';
+  document.getElementById('l-docnumber').value    = lic ? (lic.docNumber || '') : '';
+  document.getElementById('l-issue-hijri').value  = lic ? (lic.issueDateHijri || '') : '';
+  document.getElementById('l-expiry-hijri').value = lic ? (lic.expiryDateHijri || '') : '';
+  document.getElementById('l-issue').value        = lic ? (lic.issueDate || '') : '';
+  document.getElementById('l-expiry').value       = lic ? (lic.expiryDate || '') : '';
+  document.getElementById('l-notes').value        = lic ? (lic.notes || '') : '';
+
+  const extrasList = document.getElementById('l-extras-list');
+  extrasList.innerHTML = '';
+  const extras = (lic && Array.isArray(lic.extras)) ? lic.extras : [];
+  extras.forEach(ex => addLicExtraRow(ex.label, ex.value));
+
+  clearLicErrors();
+  document.getElementById('lic-modal-overlay').classList.add('open');
+  document.getElementById('l-item').focus();
+}
+
+function closeLicModal() {
+  document.getElementById('lic-modal-overlay').classList.remove('open');
+  licEditId = null;
+}
+
+function licOverlayClick(e) {
+  if (e.target === document.getElementById('lic-modal-overlay')) closeLicModal();
+}
+
+// ── Licenses: dynamic "Additional Details" extra fields ──
+function addLicExtraRow(label = '', value = '') {
+  const list = document.getElementById('l-extras-list');
+  const row = document.createElement('div');
+  row.className = 'lic-extra-row';
+
+  const labelInput = document.createElement('input');
+  labelInput.type = 'text'; labelInput.className = 'lic-extra-label';
+  labelInput.placeholder = 'Label (e.g. Car Plate)'; labelInput.value = label;
+
+  const valueInput = document.createElement('input');
+  valueInput.type = 'text'; valueInput.className = 'lic-extra-value'; valueInput.setAttribute('dir', 'auto');
+  valueInput.placeholder = 'Value'; valueInput.value = value;
+
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button'; removeBtn.className = 'row-btn del'; removeBtn.textContent = '✕';
+  removeBtn.title = 'Remove field';
+  removeBtn.addEventListener('click', () => row.remove());
+
+  row.appendChild(labelInput); row.appendChild(valueInput); row.appendChild(removeBtn);
+  list.appendChild(row);
+}
+
+// Suggest preset detail fields for the chosen type — only when the list is still empty,
+// so we never clobber details the user already entered.
+function onLicTypeChange() {
+  const list = document.getElementById('l-extras-list');
+  if (list.children.length > 0) return;
+  const type = document.getElementById('l-type').value;
+  const presets = LICENSE_TYPE_PRESETS[type] || [];
+  presets.forEach(label => addLicExtraRow(label, ''));
+}
+
+function submitLicModal() {
+  clearLicErrors();
+
+  const item = document.getElementById('l-item').value.trim();
+  if (!item) { markLicError('l-item'); return; }
+
+  const extras = [];
+  document.querySelectorAll('#l-extras-list .lic-extra-row').forEach(row => {
+    const label = row.querySelector('.lic-extra-label').value.trim();
+    const value = row.querySelector('.lic-extra-value').value.trim();
+    if (label || value) extras.push({ label: label || 'Detail', value });
+  });
+
+  const record = {
+    id:             licEditId !== null ? licEditId : 'lic_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    item,
+    type:           document.getElementById('l-type').value,
+    docNumber:      document.getElementById('l-docnumber').value.trim(),
+    issueDateHijri: document.getElementById('l-issue-hijri').value.trim(),
+    expiryDateHijri:document.getElementById('l-expiry-hijri').value.trim(),
+    issueDate:      document.getElementById('l-issue').value,
+    expiryDate:     document.getElementById('l-expiry').value,
+    notes:          document.getElementById('l-notes').value.trim(),
+    extras,
+  };
+
+  if (licEditId !== null) {
+    const idx = licenses.findIndex(l => l.id === licEditId);
+    if (idx !== -1) licenses[idx] = record;
+  } else {
+    licenses.push(record);
+  }
+
+  closeLicModal();
+  renderLicenses();
+  autoSaveLicenses();
+}
+
+function markLicError(id) {
+  const el = document.getElementById(id);
+  el.classList.add('field-error');
+  el.addEventListener('input',  () => el.classList.remove('field-error'), { once: true });
+  el.addEventListener('change', () => el.classList.remove('field-error'), { once: true });
+}
+function clearLicErrors() {
+  document.querySelectorAll('#lic-modal .field-error').forEach(el => el.classList.remove('field-error'));
+}
+
+// ── Insurance: category-specific suggested detail fields (only applied when extras list is empty) ──
+const INSURANCE_CATEGORY_PRESETS = {
+  'Car':     ['Car Plate'],
+  'Medical': [],
+  'Other':   [],
+};
+
+// ── Insurance: data ──
+async function loadInsuranceData() {
+  const data = await window.api.loadInsurance();
+  insurance = (data && Array.isArray(data.insurance)) ? data.insurance : [];
+  insLoaded = true;
+  renderInsurance();
+}
+
+async function saveInsuranceData() {
+  await window.api.saveInsurance({ insurance: insurance.map(i => Object.assign({}, i)) });
+}
+
+function autoSaveInsurance() {
+  clearTimeout(_insSaveTimer);
+  _insSaveTimer = setTimeout(saveInsuranceData, 300);
+}
+
+// ── Insurance: render ──
+function renderInsurance() {
+  const tbody = document.getElementById('ins-tbody');
+  const table = document.getElementById('ins-table');
+  const empty = document.getElementById('ins-empty-state');
+  tbody.innerHTML = '';
+
+  if (insurance.length === 0) {
+    table.style.display = 'none';
+    empty.style.display = 'flex';
+    return;
+  }
+  table.style.display = '';
+  empty.style.display = 'none';
+
+  const sorted = insurance.slice().sort((a, b) => {
+    const da = daysUntil(a.expiryDate), db = daysUntil(b.expiryDate);
+    if (da === null) return 1;
+    if (db === null) return -1;
+    return da - db;
+  });
+
+  sorted.forEach(ins => {
+    const tr = document.createElement('tr');
+
+    const itemSpan = document.createElement('span');
+    itemSpan.className = 'rtl-text'; itemSpan.textContent = ins.item; itemSpan.setAttribute('dir', 'auto');
+    tr.appendChild(cellWrap(itemSpan, 'cell desc-cell'));
+
+    if (ins.category) {
+      const catBadge = document.createElement('span');
+      catBadge.className = 'ins-cat-badge'; catBadge.textContent = ins.category;
+      tr.appendChild(cellWrap(catBadge, 'cell'));
+    } else {
+      tr.appendChild(textCell('—'));
+    }
+
+    const provSpan = document.createElement('span');
+    provSpan.className = 'rtl-text' + (ins.provider ? '' : ' cell-muted');
+    provSpan.textContent = ins.provider || '—'; provSpan.setAttribute('dir', 'auto');
+    tr.appendChild(cellWrap(provSpan, 'cell'));
+
+    const policySpan = document.createElement('span');
+    policySpan.className = 'rtl-text' + (ins.policyNumber ? '' : ' cell-muted');
+    policySpan.textContent = ins.policyNumber || '—'; policySpan.setAttribute('dir', 'auto');
+    tr.appendChild(cellWrap(policySpan, 'cell'));
+
+    const issueSpan = document.createElement('span');
+    issueSpan.className = ins.issueDate ? '' : 'cell-muted'; issueSpan.textContent = ins.issueDate || '—';
+    tr.appendChild(cellWrap(issueSpan, 'cell'));
+
+    const expirySpan = document.createElement('span');
+    expirySpan.className = ins.expiryDate ? '' : 'cell-muted'; expirySpan.textContent = ins.expiryDate || '—';
+    tr.appendChild(cellWrap(expirySpan, 'cell'));
+
+    const daysLeft = daysUntil(ins.expiryDate);
+    const badge = document.createElement('span');
+    badge.className = 'renew-badge ' + renewClass(daysLeft);
+    badge.textContent = renewLabel(daysLeft);
+    tr.appendChild(cellWrap(badge, 'cell'));
+
+    if (Array.isArray(ins.extras) && ins.extras.length > 0) {
+      const extrasWrap = document.createElement('div');
+      extrasWrap.className = 'lic-extras-summary';
+      ins.extras.forEach(ex => {
+        const line = document.createElement('div');
+        const b = document.createElement('b'); b.textContent = ex.label + ': ';
+        line.appendChild(b);
+        line.appendChild(document.createTextNode(ex.value || '—'));
+        extrasWrap.appendChild(line);
+      });
+      tr.appendChild(cellWrap(extrasWrap, 'cell'));
+    } else {
+      const dash = document.createElement('span');
+      dash.className = 'cell-muted'; dash.textContent = '—';
+      tr.appendChild(cellWrap(dash, 'cell'));
+    }
+
+    const acts = document.createElement('div');
+    acts.className = 'row-actions';
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'row-btn'; editBtn.textContent = '✏️';
+    editBtn.title = 'Edit'; editBtn.addEventListener('click', () => openInsModal(ins.id));
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'row-btn del'; delBtn.textContent = '🗑️';
+    delBtn.title = 'Delete';
+    delBtn.addEventListener('click', () => {
+      acts.innerHTML = '';
+      const conf = document.createElement('div'); conf.className = 'del-confirm';
+      const lbl = document.createElement('span'); lbl.textContent = 'Delete?';
+      const yes = document.createElement('button'); yes.className = 'row-btn del-yes'; yes.textContent = 'Yes';
+      yes.addEventListener('click', () => {
+        const removeIdx = insurance.indexOf(ins);
+        const removed = insurance.splice(removeIdx, 1)[0];
+        showInsUndoToast(removed, removeIdx);
+        renderInsurance(); autoSaveInsurance();
+      });
+      const no = document.createElement('button'); no.className = 'row-btn del-no'; no.textContent = 'No';
+      no.addEventListener('click', () => {
+        acts.innerHTML = '';
+        acts.appendChild(editBtn); acts.appendChild(delBtn);
+      });
+      conf.appendChild(lbl); conf.appendChild(yes); conf.appendChild(no);
+      acts.appendChild(conf);
+    });
+
+    acts.appendChild(editBtn); acts.appendChild(delBtn);
+    tr.appendChild(cellWrap(acts, 'cell'));
+
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Insurance: undo ──
+function showInsUndoToast(ins, idx) {
+  undoInsurance = { ins, idx };
+  clearTimeout(_undoInsTimer);
+  const toast = document.getElementById('ins-undo-toast');
+  toast.classList.add('visible');
+  _undoInsTimer = setTimeout(hideInsUndoToast, 5000);
+}
+
+function hideInsUndoToast() {
+  document.getElementById('ins-undo-toast').classList.remove('visible');
+  undoInsurance = null;
+}
+
+function undoDeleteIns() {
+  if (!undoInsurance) return;
+  const { ins, idx } = undoInsurance;
+  insurance.splice(Math.min(idx, insurance.length), 0, Object.assign({}, ins));
+  hideInsUndoToast();
+  renderInsurance();
+  autoSaveInsurance();
+}
+
+// ── Insurance: modal ──
+function openInsModal(id = null) {
+  insEditId = id;
+  const ins = id !== null ? insurance.find(i => i.id === id) : null;
+  const isEdit = !!ins;
+  document.getElementById('ins-modal-title').textContent = isEdit ? 'Edit Insurance' : 'Add Insurance';
+  document.querySelector('#ins-modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : 'Add Insurance';
+
+  document.getElementById('i-item').value     = ins ? ins.item : '';
+  document.getElementById('i-category').value = ins ? (ins.category || '') : '';
+  document.getElementById('i-provider').value = ins ? (ins.provider || '') : '';
+  document.getElementById('i-policy').value   = ins ? (ins.policyNumber || '') : '';
+  document.getElementById('i-issue').value    = ins ? (ins.issueDate || '') : '';
+  document.getElementById('i-expiry').value   = ins ? (ins.expiryDate || '') : '';
+
+  const extrasList = document.getElementById('i-extras-list');
+  extrasList.innerHTML = '';
+  const extras = (ins && Array.isArray(ins.extras)) ? ins.extras : [];
+  extras.forEach(ex => addInsExtraRow(ex.label, ex.value));
+
+  clearInsErrors();
+  document.getElementById('ins-modal-overlay').classList.add('open');
+  document.getElementById('i-item').focus();
+}
+
+function closeInsModal() {
+  document.getElementById('ins-modal-overlay').classList.remove('open');
+  insEditId = null;
+}
+
+function insOverlayClick(e) {
+  if (e.target === document.getElementById('ins-modal-overlay')) closeInsModal();
+}
+
+// ── Insurance: dynamic "Additional Details" extra fields ──
+function addInsExtraRow(label = '', value = '') {
+  const list = document.getElementById('i-extras-list');
+  const row = document.createElement('div');
+  row.className = 'lic-extra-row';
+
+  const labelInput = document.createElement('input');
+  labelInput.type = 'text'; labelInput.className = 'lic-extra-label';
+  labelInput.placeholder = 'Label (e.g. Car Plate)'; labelInput.value = label;
+
+  const valueInput = document.createElement('input');
+  valueInput.type = 'text'; valueInput.className = 'lic-extra-value'; valueInput.setAttribute('dir', 'auto');
+  valueInput.placeholder = 'Value'; valueInput.value = value;
+
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button'; removeBtn.className = 'row-btn del'; removeBtn.textContent = '✕';
+  removeBtn.title = 'Remove field';
+  removeBtn.addEventListener('click', () => row.remove());
+
+  row.appendChild(labelInput); row.appendChild(valueInput); row.appendChild(removeBtn);
+  list.appendChild(row);
+}
+
+// Suggest preset detail fields for the chosen category — only when the list is still empty,
+// so we never clobber details the user already entered.
+function onInsCategoryChange() {
+  const list = document.getElementById('i-extras-list');
+  if (list.children.length > 0) return;
+  const category = document.getElementById('i-category').value;
+  const presets = INSURANCE_CATEGORY_PRESETS[category] || [];
+  presets.forEach(label => addInsExtraRow(label, ''));
+}
+
+function submitInsModal() {
+  clearInsErrors();
+
+  const item = document.getElementById('i-item').value.trim();
+  if (!item) { markInsError('i-item'); return; }
+
+  const extras = [];
+  document.querySelectorAll('#i-extras-list .lic-extra-row').forEach(row => {
+    const label = row.querySelector('.lic-extra-label').value.trim();
+    const value = row.querySelector('.lic-extra-value').value.trim();
+    if (label || value) extras.push({ label: label || 'Detail', value });
+  });
+
+  const record = {
+    id:           insEditId !== null ? insEditId : 'ins_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    item,
+    category:     document.getElementById('i-category').value,
+    provider:     document.getElementById('i-provider').value.trim(),
+    policyNumber: document.getElementById('i-policy').value.trim(),
+    issueDate:    document.getElementById('i-issue').value,
+    expiryDate:   document.getElementById('i-expiry').value,
+    extras,
+  };
+
+  if (insEditId !== null) {
+    const idx = insurance.findIndex(i => i.id === insEditId);
+    if (idx !== -1) insurance[idx] = record;
+  } else {
+    insurance.push(record);
+  }
+
+  closeInsModal();
+  renderInsurance();
+  autoSaveInsurance();
+}
+
+function markInsError(id) {
+  const el = document.getElementById(id);
+  el.classList.add('field-error');
+  el.addEventListener('input',  () => el.classList.remove('field-error'), { once: true });
+  el.addEventListener('change', () => el.classList.remove('field-error'), { once: true });
+}
+function clearInsErrors() {
+  document.querySelectorAll('#ins-modal .field-error').forEach(el => el.classList.remove('field-error'));
+}
+
+// ── Init ──
+async function init() {
+  const t = new Date();
+  calYear  = t.getFullYear();
+  calMonth = t.getMonth();
+
+  lookups = await window.api.loadLookups();
+  await refreshDayList();
+
+  const today = fmt(t);
+  await switchDay(today);
+}
+
+init();
+</script>
+</body>
+</html>
