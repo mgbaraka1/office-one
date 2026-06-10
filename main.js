@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
+const fs = require('node:fs');
 const path = require('node:path');
 const db   = require('./db');
 
@@ -48,6 +49,7 @@ function createWindow() {
 ipcMain.handle('saveDay',  (_e, dateStr, data) => db.saveDay(dateStr, data));
 ipcMain.handle('loadDay',  (_e, dateStr)       => db.loadDay(dateStr));
 ipcMain.handle('listDays', ()                  => db.listDays());
+ipcMain.handle('loadDaysRange', (_e, from, to) => db.loadDaysRange(from, to));
 
 // ── Lookups ──
 ipcMain.handle('loadLookups', ()         => db.loadLookups());
@@ -78,6 +80,33 @@ ipcMain.handle('backupDatabase', async () => {
   catch (err) { return { ok: false, error: String(err?.message || err) }; }
 });
 
+// ── Export a report HTML document to a PDF file (native "Save as" dialog) ──
+// Renders the supplied self-contained HTML in an offscreen window, prints it to
+// PDF via Chromium, and writes the chosen file. Read-only; touches no app data.
+ipcMain.handle('exportPDF', async (_e, html, defaultName) => {
+  let pdfWin;
+  try {
+    const { canceled, filePath } = await dialog.showSaveDialog(win, {
+      title: 'Save report as PDF',
+      defaultPath: defaultName || 'report.pdf',
+      filters: [{ name: 'PDF document', extensions: ['pdf'] }],
+    });
+    if (canceled || !filePath) return { ok: false };
+
+    pdfWin = new BrowserWindow({ show: false, webPreferences: { offscreen: false } });
+    await pdfWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+    // Give webfonts/layout a beat to settle before snapshotting.
+    await new Promise(r => setTimeout(r, 350));
+    const pdf = await pdfWin.webContents.printToPDF({ printBackground: true, margins: { marginType: 'default' } });
+    fs.writeFileSync(filePath, pdf);
+    return { ok: true, path: filePath };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err) };
+  } finally {
+    if (pdfWin && !pdfWin.isDestroyed()) pdfWin.destroy();
+  }
+});
+
 // ── Close handshake ──
 ipcMain.handle('flushComplete', () => {
   clearTimeout(closeFallback);
@@ -87,6 +116,9 @@ ipcMain.handle('flushComplete', () => {
 
 // ── Carry-over (all "Not Yet" rows across days, except the active day) ──
 ipcMain.handle('getCarryOver', (_e, excludeDate) => db.getCarryOver(excludeDate));
+
+// ── Open tasks (all "In Progress" + "Not Yet" rows across every day) ──
+ipcMain.handle('getOpenItems', () => db.getOpenItems());
 
 // ── Window controls ──
 ipcMain.handle('setTitle',       (_e, title) => { if (win) win.setTitle(title); });

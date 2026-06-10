@@ -106,6 +106,12 @@ function tx(fn) {
   finally { txDepth--; }
 }
 
+// Parse JSON text read out of a TEXT column, returning `fallback` (never throwing)
+// on any malformed/empty value. Every JSON column read funnels through here.
+function safeParse(text, fallback) {
+  try { return JSON.parse(text); } catch { return fallback; }
+}
+
 // ── meta helpers ──────────────────────────────────────────────────────────────
 function metaGet(key) {
   const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(key);
@@ -167,7 +173,11 @@ function init(dir) {
   const isNew  = !fs.existsSync(dbPath);
 
   db = new DatabaseSync(dbPath);   // auto-creates the file if missing
-  db.exec('PRAGMA journal_mode = WAL');  // crash-safe writes
+  db.exec('PRAGMA journal_mode = WAL');   // crash-safe writes
+  db.exec('PRAGMA synchronous = NORMAL'); // WAL-recommended: durable + fast (only the
+                                          //   last txn is at risk on power loss, never corruption)
+  db.exec('PRAGMA busy_timeout = 5000');  // wait up to 5s on a lock (backup/PDF window) instead
+                                          //   of throwing SQLITE_BUSY
   db.exec('PRAGMA foreign_keys = ON');
   createSchema();
 
@@ -205,34 +215,51 @@ function saveDay(dateStr, data) {
 function loadDay(dateStr) {
   const row = db.prepare('SELECT name, rows FROM days WHERE date = ?').get(dateStr);
   if (!row) return null;
-  let rows = [];
-  try { rows = JSON.parse(row.rows); } catch { rows = []; }
-  return { name: row.name, rows };
+  return { name: row.name, rows: safeParse(row.rows, []) };
 }
 
 function listDays() {
   return db.prepare('SELECT date FROM days ORDER BY date DESC').all().map(r => r.date);
 }
 
-// All "Not Yet" rows across every day (except `excludeDate`), newest day first.
-// Returns [{ date, idx, row }] — `idx` is the row's position within that day.
-function getCarryOver(excludeDate) {
+// All days in [from, to] inclusive, oldest first — one query (powers Analytics +
+// range reports without N IPC round-trips). Returns [{date, name, rows[]}].
+function loadDaysRange(from, to) {
+  const recs = db.prepare(
+    'SELECT date, name, rows FROM days WHERE date >= ? AND date <= ? ORDER BY date ASC'
+  ).all(from, to);
+  return recs.map(r => ({ date: r.date, name: r.name, rows: safeParse(r.rows, []) }));
+}
+
+// Scan every day's rows (newest day first), collecting { date, idx, row } for each
+// row matching `predicate(row, date)` — `idx` is the row's position within that day.
+// One table scan in the main process, shared by getCarryOver / getOpenItems (rather
+// than N renderer round-trips).
+function scanRows(predicate) {
   const days = db.prepare('SELECT date, rows FROM days ORDER BY date DESC').all();
   const items = [];
   for (const d of days) {
-    if (d.date === excludeDate) continue;
-    let arr = [];
-    try { arr = JSON.parse(d.rows); } catch { arr = []; }
-    arr.forEach((row, idx) => { if (row.status === 'Not Yet') items.push({ date: d.date, idx, row }); });
+    safeParse(d.rows, []).forEach((row, idx) => {
+      if (predicate(row, d.date)) items.push({ date: d.date, idx, row });
+    });
   }
   return items;
+}
+
+// All "Not Yet" rows across every day (except `excludeDate`), newest day first.
+function getCarryOver(excludeDate) {
+  return scanRows((row, date) => date !== excludeDate && row.status === 'Not Yet');
+}
+
+// All open work across every day: status "In Progress" or "Not Yet"/"Pending".
+function getOpenItems() {
+  return scanRows(row => row.status === 'In Progress' || row.status === 'Not Yet' || row.status === 'Pending');
 }
 
 // ── Lookups ────────────────────────────────────────────────────────────────────
 function loadLookups() {
   const v = metaGet('lookups');
-  if (!v) return DEFAULT_LOOKUPS;
-  try { return JSON.parse(v); } catch { return DEFAULT_LOOKUPS; }
+  return v ? safeParse(v, DEFAULT_LOOKUPS) : DEFAULT_LOOKUPS;
 }
 function saveLookups(data) {
   metaSet('lookups', JSON.stringify(data));
@@ -322,8 +349,7 @@ function saveInsurance(data) {
 // ── Window prefs ────────────────────────────────────────────────────────────────
 function loadPrefs() {
   const v = metaGet('window_prefs');
-  if (!v) return {};
-  try { return JSON.parse(v); } catch { return {}; }
+  return v ? safeParse(v, {}) : {};
 }
 function savePrefs(prefs) {
   try { metaSet('window_prefs', JSON.stringify(prefs)); } catch { /* non-critical */ }
@@ -353,7 +379,7 @@ function dbPath() {
 
 module.exports = {
   init, close, backup, dbPath,
-  saveDay, loadDay, listDays, getCarryOver,
+  saveDay, loadDay, listDays, loadDaysRange, getCarryOver, getOpenItems,
   loadLookups, saveLookups,
   loadSubscriptions, saveSubscriptions,
   loadLicenses, saveLicenses,

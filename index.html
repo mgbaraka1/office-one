@@ -434,6 +434,254 @@
       .dash-stats { grid-template-columns: repeat(2, 1fr); }
       .dash-grid { grid-template-columns: 1fr; }
     }
+
+    /* ══ OPEN TASKS MODULE ══ */
+    #tasks-topbar {
+      display: flex; align-items: center; gap: 12px;
+      padding: 8px 16px; background: #1e1e2e; flex-shrink: 0;
+    }
+    .tasks-title { font-size: 15px; font-weight: 700; color: #fff; margin-right: 2px; white-space: nowrap; }
+    .tasks-search { flex: 0 1 320px; }
+    #tasks-count-chip { font-size: 12px; color: var(--sidebar-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .nav-badge.count { background: var(--sidebar-active); }
+    .tasks-scroll { flex: 1; overflow-y: auto; padding: 20px 26px 40px; max-width: 1000px; width: 100%; }
+    .task-section { margin-bottom: 22px; }
+    .task-section-head {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+      font-size: 14px; font-weight: 700; color: var(--text);
+    }
+    .task-section-count {
+      font-size: 11px; font-weight: 700; color: var(--muted);
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 20px; padding: 1px 9px;
+    }
+    .task-item {
+      display: flex; align-items: flex-start; gap: 12px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 11px;
+      padding: 11px 13px; margin-bottom: 8px; box-shadow: var(--shadow);
+    }
+    .task-status {
+      flex-shrink: 0; font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 6px;
+      white-space: nowrap; margin-top: 2px;
+    }
+    .task-status.ip { background: var(--prog); color: var(--prog-text); }
+    .task-status.ny { background: var(--notyet); color: var(--notyet-text); }
+    .task-main { flex: 1; min-width: 0; }
+    .task-meta-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin-bottom: 2px; }
+    .task-date { font-size: 11.5px; font-weight: 600; color: var(--accent); white-space: nowrap; }
+    .task-meta { font-size: 12px; color: var(--muted); }
+    .task-desc { font-size: 13.5px; color: var(--text); line-height: 1.45; word-break: break-word; }
+    .task-item .row-tags { margin-top: 5px; }
+    .task-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+    .task-actions .co-btn { white-space: nowrap; }
+    .task-actions .co-btn.done-btn { color: var(--renew-ok-text); font-weight: 700; }
+
+    /* ══ ANALYTICS MODULE ══ */
+    #an-topbar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 16px; background: #1e1e2e; flex-shrink: 0;
+    }
+    .an-title { font-size: 15px; font-weight: 700; color: #fff; margin-right: 4px; }
+    .an-period { display: flex; gap: 4px; background: #15141f; padding: 3px; border-radius: 9px; }
+    .an-period-btn {
+      border: none; background: none; color: var(--sidebar-fg); cursor: pointer;
+      font-family: inherit; font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 7px;
+      transition: background .12s, color .12s;
+    }
+    .an-period-btn:hover { color: #fff; }
+    .an-period-btn.active { background: var(--accent); color: #fff; }
+    .an-range { display: none; align-items: center; gap: 6px; }
+    .an-range.show { display: flex; }
+    .an-range input {
+      font-family: inherit; font-size: 12px; padding: 5px 8px; border-radius: 7px;
+      border: 1px solid #34313f; background: #15141f; color: var(--sidebar-fg); color-scheme: dark;
+    }
+    .an-range span { color: var(--sidebar-muted); font-size: 12px; }
+
+    .an-scroll { flex: 1; overflow-y: auto; padding: 24px 28px 40px; }
+    .an-kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 18px; }
+    .an-kpi {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 15px 16px; display: flex; flex-direction: column; gap: 5px;
+    }
+    .an-kpi-label { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+    .an-kpi-val { font-size: 25px; font-weight: 700; color: var(--text); line-height: 1.05; font-variant-numeric: tabular-nums; }
+    .an-kpi-val small { font-size: 13px; font-weight: 600; color: var(--muted); }
+    .an-kpi-foot { font-size: 11px; color: var(--muted); }
+    .an-kpi.accent .an-kpi-val { color: var(--accent); }
+
+    .an-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; margin-bottom: 16px; }
+    .an-grid.thirds { grid-template-columns: 1.2fr 1fr; }
+    .an-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 16px 18px 18px;
+    }
+    .an-card.full { grid-column: 1 / -1; }
+    .an-card-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; }
+    .an-card-title { font-size: 14px; font-weight: 700; color: var(--text); }
+    .an-card-sub { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+    /* Horizontal bar list */
+    .an-bars { display: flex; flex-direction: column; gap: 9px; }
+    .an-bar-row { display: grid; grid-template-columns: 120px 1fr 56px; align-items: center; gap: 10px; }
+    .an-bar-label { font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .an-bar-track { display: block; background: var(--surface2); border-radius: 6px; height: 18px; overflow: hidden; }
+    .an-bar-fill { display: block; height: 100%; border-radius: 6px; background: var(--accent); min-width: 2px; transition: width .35s ease; }
+    .an-bar-val { font-size: 12px; font-weight: 600; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+    .an-empty { text-align: center; color: var(--muted); font-size: 13px; padding: 26px 10px; }
+
+    /* Donut */
+    .an-donut-wrap { display: flex; align-items: center; gap: 20px; }
+    .an-donut { flex-shrink: 0; }
+    .an-donut-center { font-size: 18px; font-weight: 700; fill: var(--text); }
+    .an-donut-center-sub { font-size: 9px; fill: var(--muted); }
+    .an-legend { display: flex; flex-direction: column; gap: 7px; flex: 1; }
+    .an-legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text); }
+    .an-legend-dot { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
+    .an-legend-val { margin-left: auto; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+    /* Trend line (SVG) */
+    .an-trend { width: 100%; height: 160px; display: block; }
+    .an-trend-area { fill: var(--accent-bg); opacity: .55; }
+    .an-trend-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+    .an-trend-dot { fill: var(--accent); }
+    .an-trend-grid { stroke: var(--border); stroke-width: 1; }
+    .an-trend-lbl { fill: var(--muted); font-size: 10px; }
+
+    /* Heatmap (GitHub-style) */
+    .an-heat-scroll { overflow-x: auto; padding-bottom: 4px; }
+    .an-heat { display: flex; gap: 3px; }
+    .an-heat-col { display: flex; flex-direction: column; gap: 3px; }
+    .an-heat-cell { width: 13px; height: 13px; border-radius: 3px; background: var(--surface2); cursor: pointer; }
+    .an-heat-cell.h1 { background: color-mix(in srgb, var(--accent) 30%, var(--surface2)); }
+    .an-heat-cell.h2 { background: color-mix(in srgb, var(--accent) 55%, var(--surface2)); }
+    .an-heat-cell.h3 { background: color-mix(in srgb, var(--accent) 78%, var(--surface2)); }
+    .an-heat-cell.h4 { background: var(--accent); }
+    .an-heat-cell.empty { cursor: default; opacity: .35; }
+    .an-heat-cell:not(.empty):hover { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .an-heat-legend { display: flex; align-items: center; justify-content: flex-end; gap: 5px; margin-top: 10px; font-size: 11px; color: var(--muted); }
+    .an-heat-legend .an-heat-cell { cursor: default; }
+    .an-spend-row { display: flex; align-items: baseline; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .an-spend-row:last-child { border-bottom: none; }
+    .an-spend-cur { font-weight: 600; color: var(--text); }
+    .an-spend-vals { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .an-spend-vals b { color: var(--accent); font-weight: 700; }
+    @media (max-width: 1000px) {
+      .an-kpis { grid-template-columns: repeat(3, 1fr); }
+      .an-grid, .an-grid.thirds { grid-template-columns: 1fr; }
+    }
+
+    /* Topbar dropdown menus (Export / Reports) */
+    .menu-wrap { position: relative; display: inline-block; }
+    .top-menu {
+      position: absolute; top: calc(100% + 6px); right: 0; min-width: 210px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      box-shadow: 0 12px 34px rgba(0,0,0,.28); padding: 5px; z-index: 250;
+      display: none; flex-direction: column; gap: 1px;
+    }
+    .top-menu.open { display: flex; animation: modalIn .14s ease; }
+    .top-menu button {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      background: none; border: none; cursor: pointer; font-family: inherit;
+      font-size: 13px; font-weight: 500; color: var(--text); text-align: left;
+      padding: 9px 12px; border-radius: 7px; transition: background .12s;
+    }
+    .top-menu button:hover { background: var(--row-hover); }
+    .top-menu .tm-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); }
+    .top-menu button:hover .tm-tag { color: var(--accent); }
+    .tm-sep { height: 1px; background: var(--border); margin: 4px 6px; }
+
+    /* Report-options modal tabs */
+    .rep-tabs { display: flex; gap: 6px; margin-bottom: 4px; }
+    .rep-tab {
+      flex: 1; border: 1.5px solid var(--border); background: var(--surface2);
+      color: var(--muted); font-family: inherit; font-size: 12.5px; font-weight: 600;
+      padding: 9px; border-radius: 8px; cursor: pointer; transition: all .12s;
+    }
+    .rep-tab.active { border-color: var(--accent); background: var(--accent-bg); color: var(--accent); }
+
+    /* Generic transient toast (PDF/export feedback, etc.) */
+    .app-toast {
+      position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: #1e1e2e; color: #fff; padding: 11px 20px; border-radius: 10px;
+      font-size: 13px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,.32);
+      opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 9999; max-width: 80vw;
+    }
+    .app-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ══ TAGS (timesheet rows) ══ */
+    .row-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+    .row-tag {
+      font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 20px;
+      background: var(--accent-bg); color: var(--accent); white-space: nowrap; line-height: 1.6;
+    }
+
+    /* ══ ROW SELECTION (bulk actions) ══ */
+    .row-select { display: inline-flex; align-items: center; gap: 6px; }
+    .row-select input { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer;
+      opacity: 0; transition: opacity .12s; flex-shrink: 0; }
+    tr:hover .row-select input, .row-select input:checked { opacity: 1; }
+    tr.row-selected { background: var(--accent-bg) !important; }
+
+    #bulk-bar {
+      position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px);
+      display: none; align-items: center; gap: 8px; z-index: 400;
+      background: #1e1e2e; color: #fff; padding: 9px 12px 9px 18px; border-radius: 12px;
+      box-shadow: 0 10px 36px rgba(0,0,0,.4);
+    }
+    #bulk-bar.show { display: flex; animation: modalIn .16s ease; }
+    #bulk-count { font-size: 13px; font-weight: 700; margin-right: 6px; }
+    .bulk-btn {
+      background: #2c2b3d; color: #fff; border: none; cursor: pointer; font-family: inherit;
+      font-size: 12.5px; font-weight: 600; padding: 7px 12px; border-radius: 8px; transition: background .12s;
+    }
+    .bulk-btn:hover { background: #3a3850; }
+    .bulk-btn.danger { background: #5b2330; } .bulk-btn.danger:hover { background: #7a2e40; }
+    .bulk-btn.ghost { background: transparent; color: var(--sidebar-muted); }
+    .bulk-btn.ghost:hover { background: #2c2b3d; color: #fff; }
+    #bulk-bar .top-menu { bottom: calc(100% + 6px); top: auto; }
+
+    /* Timer pause button */
+    #timer-pause-btn {
+      background: rgba(255,255,255,.16); border: none; color: #fff; cursor: pointer;
+      border-radius: 6px; padding: 2px 7px; font-size: 12px; font-family: inherit;
+    }
+    #timer-pause-btn:hover { background: rgba(255,255,255,.28); }
+    #timer-chip.paused { opacity: .7; }
+
+    /* ══ MONTH OVERVIEW MODAL ══ */
+    #month-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.45); backdrop-filter: blur(4px);
+      z-index: 150; align-items: center; justify-content: center;
+    }
+    #month-overlay.open { display: flex; }
+    #month-modal {
+      background: var(--surface); border-radius: 16px;
+      width: 760px; max-width: 94vw; max-height: 92vh; overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,.25); animation: modalIn .18s ease;
+    }
+    .month-nav { display: flex; align-items: center; gap: 14px; padding: 10px 24px 0; }
+    .month-summary { flex: 1; text-align: center; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .month-summary b { color: var(--accent); font-size: 15px; }
+    .month-body { padding: 14px 24px 24px; }
+    .month-dow { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 6px; }
+    .month-dow span { text-align: center; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+    .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+    .month-cell {
+      min-height: 64px; border: 1px solid var(--border); border-radius: 9px; padding: 6px 8px;
+      display: flex; flex-direction: column; gap: 3px; background: var(--surface2);
+    }
+    .month-cell.empty { background: transparent; border-color: transparent; }
+    .month-cell.has { cursor: pointer; transition: border-color .12s, transform .12s; }
+    .month-cell.has:hover { border-color: var(--accent); transform: translateY(-1px); }
+    .month-cell.today { box-shadow: 0 0 0 2px var(--accent) inset; }
+    .mc-day { font-size: 12px; font-weight: 700; color: var(--text); }
+    .mc-day.is-today { color: var(--accent); }
+    .mc-hrs { font-size: 15px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+    .mc-rec { font-size: 10.5px; color: var(--muted); margin-top: auto; }
+    .mc-bar { height: 3px; border-radius: 2px; background: var(--accent); opacity: .35; }
+
     .sub-title { font-size: 15px; font-weight: 700; color: #fff; margin-right: 4px; }
     .sub-cost { font-weight: 600; color: var(--accent); }
     .sub-cost .cur { font-size: 11px; color: var(--muted); font-weight: 500; }
@@ -514,6 +762,18 @@
       z-index: 100; align-items: center; justify-content: center;
     }
     #sub-settings-overlay.open { display: flex; }
+    #report-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.45); backdrop-filter: blur(4px);
+      z-index: 100; align-items: center; justify-content: center;
+    }
+    #report-overlay.open { display: flex; }
+    #report-modal {
+      background: var(--surface); border-radius: 16px;
+      width: 440px; max-height: 90vh; overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,.25);
+      animation: modalIn .18s ease;
+    }
     #sub-settings-modal {
       background: var(--surface); border-radius: 16px;
       width: 380px; max-height: 90vh; overflow-y: auto;
@@ -827,6 +1087,7 @@
     .rpt-card:last-child { border-right: none; }
     .rpt-card-val { font-size: 20px; font-weight: 800; color: #111; }
     .rpt-card-lbl { font-size: 10px; color: #999; margin-top: 3px; }
+    .rpt-bd-title { font-size: 13px; font-weight: 700; color: #2a2722; margin-bottom: 8px; }
 
     /* ── Table ── */
     .rpt-table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -1017,6 +1278,12 @@
     <button class="nav-item active" data-module="timesheet" onclick="switchModule('timesheet')">
       <span class="nav-icon">🕐</span>Timesheet
     </button>
+    <button class="nav-item" data-module="tasks" onclick="switchModule('tasks')">
+      <span class="nav-icon">✅</span>Open Tasks<span class="nav-badge" id="nav-badge-tasks"></span>
+    </button>
+    <button class="nav-item" data-module="analytics" onclick="switchModule('analytics')">
+      <span class="nav-icon">📊</span>Analytics
+    </button>
     <button class="nav-item" data-module="subscriptions" onclick="switchModule('subscriptions')">
       <span class="nav-icon">💳</span>Subscriptions<span class="nav-badge" id="nav-badge-subscriptions"></span>
     </button>
@@ -1070,6 +1337,91 @@
   </div>
 </div>
 
+<!-- ══ OPEN TASKS MODULE ══ -->
+<div id="module-tasks" class="app-module">
+  <div id="tasks-topbar">
+    <span class="tasks-title">✅ Open Tasks</span>
+    <div class="filter-wrap tasks-search">
+      <span class="filter-icon">🔍</span>
+      <input id="tasks-filter" type="text" placeholder="Filter open tasks…" oninput="applyTaskFilter()" />
+    </div>
+    <div class="topbar-right">
+      <span id="tasks-count-chip"></span>
+      <button class="btn" onclick="renderOpenTasks()" title="Refresh">↻ Refresh</button>
+    </div>
+  </div>
+  <div class="tasks-scroll" id="tasks-scroll"></div>
+</div>
+
+<!-- ══ ANALYTICS MODULE ══ -->
+<div id="module-analytics" class="app-module">
+  <div id="an-topbar">
+    <span class="an-title">📊 Analytics</span>
+    <div class="an-period" id="an-period">
+      <button class="an-period-btn" data-period="week"  onclick="setAnPeriod('week')">This Week</button>
+      <button class="an-period-btn active" data-period="month" onclick="setAnPeriod('month')">This Month</button>
+      <button class="an-period-btn" data-period="30"    onclick="setAnPeriod('30')">Last 30 Days</button>
+      <button class="an-period-btn" data-period="year"  onclick="setAnPeriod('year')">This Year</button>
+      <button class="an-period-btn" data-period="custom" onclick="setAnPeriod('custom')">Custom</button>
+    </div>
+    <div class="an-range" id="an-range">
+      <input type="date" id="an-from" onchange="renderAnalytics()" />
+      <span>→</span>
+      <input type="date" id="an-to" onchange="renderAnalytics()" />
+    </div>
+    <div class="topbar-right">
+      <button class="btn" onclick="exportAnalyticsPDF()" title="Save this analytics view as PDF">⬇ PDF</button>
+      <button class="btn" onclick="renderAnalytics()" title="Refresh">↻ Refresh</button>
+    </div>
+  </div>
+  <div class="an-scroll" id="an-scroll">
+    <div class="an-kpis" id="an-kpis"></div>
+    <div class="an-grid">
+      <div class="an-card">
+        <div class="an-card-head"><span class="an-card-title">Hours by Company</span><span class="an-card-sub" id="an-company-sub"></span></div>
+        <div id="an-company"></div>
+      </div>
+      <div class="an-card">
+        <div class="an-card-head"><span class="an-card-title">Hours by Project</span><span class="an-card-sub" id="an-project-sub"></span></div>
+        <div id="an-project"></div>
+      </div>
+    </div>
+    <div class="an-grid thirds">
+      <div class="an-card">
+        <div class="an-card-head"><span class="an-card-title">Daily Hours</span><span class="an-card-sub" id="an-trend-sub"></span></div>
+        <div id="an-trend"></div>
+      </div>
+      <div class="an-card">
+        <div class="an-card-head"><span class="an-card-title">Time Breakdown</span><span class="an-card-sub" id="an-type-sub"></span></div>
+        <div id="an-type"></div>
+      </div>
+    </div>
+    <div class="an-card full" style="margin-bottom:16px">
+      <div class="an-card-head"><span class="an-card-title">Activity</span><span class="an-card-sub" id="an-heat-sub"></span></div>
+      <div class="an-heat-scroll"><div id="an-heat"></div></div>
+      <div class="an-heat-legend">
+        Less
+        <span class="an-heat-cell"></span>
+        <span class="an-heat-cell h1"></span>
+        <span class="an-heat-cell h2"></span>
+        <span class="an-heat-cell h3"></span>
+        <span class="an-heat-cell h4"></span>
+        More
+      </div>
+    </div>
+    <div class="an-grid">
+      <div class="an-card">
+        <div class="an-card-head"><span class="an-card-title">Status Breakdown</span><span class="an-card-sub" id="an-status-sub"></span></div>
+        <div id="an-status"></div>
+      </div>
+      <div class="an-card">
+        <div class="an-card-head"><span class="an-card-title">Recurring Spend</span><span class="an-card-sub" id="an-spend-sub">Subscriptions</span></div>
+        <div id="an-spend"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ══ TIMESHEET MODULE ══ -->
 <div id="module-timesheet" class="app-module active">
 <div id="main">
@@ -1092,8 +1444,9 @@
 
     <!-- Live timer chip -->
     <div id="timer-chip">
-      <span>⏱</span>
+      <span id="timer-icon">⏱</span>
       <span id="timer-display">00:00</span>
+      <button id="timer-pause-btn" onclick="togglePauseTimer()" title="Pause / resume">⏸</button>
       <button id="timer-stop-btn" onclick="stopTimer()">■ Stop</button>
     </div>
 
@@ -1101,10 +1454,30 @@
       <span id="save-status"></span>
       <button class="btn" id="btn-today" onclick="goToday()">📍 Today</button>
       <button class="btn" onclick="openSettings()" title="Settings">⚙ Settings</button>
+      <button class="btn" onclick="openMonthView()" title="Month overview">🗓 Month</button>
       <button class="btn" onclick="openModal()">+ Add Record <kbd>⌃N</kbd></button>
-      <button class="btn" onclick="exportCSV()">⬇ CSV</button>
-      <button class="btn" onclick="openExport()" title="Export a date range">⬇ Range</button>
-      <button class="btn" onclick="openPrint()">🖨 Print</button>
+      <div class="menu-wrap">
+        <button class="btn" onclick="openTemplateMenu(event)" title="Insert from a saved template">📋 Templates ▾</button>
+        <div class="top-menu" id="template-menu"></div>
+      </div>
+      <div class="menu-wrap">
+        <button class="btn" onclick="toggleTopMenu(event,'export-menu')" title="Export data">⬇ Export ▾</button>
+        <div class="top-menu" id="export-menu">
+          <button onclick="exportCSV()"><span>Current day</span><span class="tm-tag">CSV</span></button>
+          <button onclick="exportXLS()"><span>Current day</span><span class="tm-tag">Excel</span></button>
+          <div class="tm-sep"></div>
+          <button onclick="openExport('csv')"><span>Date range</span><span class="tm-tag">CSV</span></button>
+          <button onclick="openExport('xls')"><span>Date range</span><span class="tm-tag">Excel</span></button>
+        </div>
+      </div>
+      <div class="menu-wrap">
+        <button class="btn" onclick="toggleTopMenu(event,'report-menu')" title="Generate a report">📄 Reports ▾</button>
+        <div class="top-menu" id="report-menu">
+          <button onclick="openPrint()"><span>Daily report</span><span class="tm-tag">🖨</span></button>
+          <button onclick="openReportModal('month')"><span>Monthly summary</span></button>
+          <button onclick="openReportModal('range')"><span>Date-range report</span></button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1195,7 +1568,37 @@
   <div id="print-frame"></div>
   <div class="pf-toolbar">
     <button class="btn" onclick="closePrint()">✕ Close</button>
-    <button class="btn primary" onclick="triggerPrint()">🖨 Print / Save PDF</button>
+    <button class="btn" onclick="exportReportPDF()">⬇ Save PDF</button>
+    <button class="btn primary" onclick="triggerPrint()">🖨 Print</button>
+  </div>
+</div>
+
+<!-- ══ REPORT OPTIONS MODAL ══ -->
+<div id="report-overlay" onclick="reportOverlayClick(event)">
+  <div id="report-modal">
+    <div class="modal-header">
+      <span class="modal-title">📄 Generate Report</span>
+      <button class="modal-close" onclick="closeReportModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="rep-tabs">
+        <button class="rep-tab" data-kind="month" onclick="setReportKind('month')">Monthly Summary</button>
+        <button class="rep-tab" data-kind="range" onclick="setReportKind('range')">Date Range</button>
+      </div>
+      <div class="form-group" id="rep-month-fields">
+        <label>Month</label>
+        <input id="rep-month" type="month" />
+      </div>
+      <div class="form-row" id="rep-range-fields" style="display:none">
+        <div class="form-group"><label>From</label><input id="rep-from" type="date" /></div>
+        <div class="form-group"><label>To</label><input id="rep-to" type="date" /></div>
+      </div>
+      <p class="export-hint">Aggregates totals per day plus a per-company / per-project breakdown with Work and Over-Time split. Preview, then Print or Save as PDF.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeReportModal()">Cancel</button>
+      <button class="btn primary" onclick="generateReport()">Preview →</button>
+    </div>
   </div>
 </div>
 
@@ -1291,19 +1694,63 @@
           <input id="f-minutes" type="number" min="1" max="1440" placeholder="e.g. 45" />
         </div>
       </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Tags <span style="text-transform:none;font-weight:500;color:var(--muted)">— comma separated, optional</span></label>
+          <input id="f-tags" type="text" placeholder="e.g. urgent, billable, follow-up" />
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
+      <button class="btn" onclick="saveAsTemplate()" title="Save these field values as a reusable template" style="margin-right:auto">📋 Save as Template</button>
       <button class="btn" onclick="closeModal()">Cancel</button>
       <button class="btn primary" onclick="submitModal()">Add Record</button>
     </div>
   </div>
 </div>
 
+<!-- ══ MONTH OVERVIEW MODAL ══ -->
+<div id="month-overlay" onclick="monthOverlayClick(event)">
+  <div id="month-modal">
+    <div class="modal-header">
+      <span class="modal-title">🗓 <span id="month-title">Month</span></span>
+      <button class="modal-close" onclick="closeMonthView()">✕</button>
+    </div>
+    <div class="month-nav">
+      <button class="btn" onclick="monthViewStep(-1)">‹ Prev</button>
+      <div class="month-summary" id="month-summary"></div>
+      <button class="btn" onclick="monthViewStep(1)">Next ›</button>
+    </div>
+    <div class="month-body">
+      <div class="month-dow">
+        <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+      </div>
+      <div class="month-grid" id="month-grid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ BULK ACTION BAR ══ -->
+<div id="bulk-bar">
+  <span id="bulk-count">0 selected</span>
+  <div class="menu-wrap">
+    <button class="bulk-btn" onclick="toggleTopMenu(event,'bulk-status-menu')">Set Status ▾</button>
+    <div class="top-menu" id="bulk-status-menu">
+      <button onclick="bulkSetStatus('Done')">Done</button>
+      <button onclick="bulkSetStatus('In Progress')">In Progress</button>
+      <button onclick="bulkSetStatus('Not Yet')">Not Yet</button>
+    </div>
+  </div>
+  <button class="bulk-btn" onclick="bulkMovePrompt()">📅 Move…</button>
+  <button class="bulk-btn danger" onclick="bulkDelete()">🗑 Delete</button>
+  <button class="bulk-btn ghost" onclick="clearSelection()">✕ Clear</button>
+</div>
+
 <!-- ══ EXPORT RANGE MODAL ══ -->
 <div id="export-overlay" onclick="exportOverlayClick(event)">
   <div id="export-modal">
     <div class="modal-header">
-      <span class="modal-title">Export CSV — Date Range</span>
+      <span class="modal-title" id="export-title">Export — Date Range</span>
       <button class="modal-close" onclick="closeExport()">✕</button>
     </div>
     <div class="modal-body">
@@ -1317,18 +1764,18 @@
           <input id="export-to" type="date" />
         </div>
       </div>
-      <p class="export-hint">Exports all records across the selected date range into a single CSV file with a <strong>Date</strong> column prepended.</p>
+      <p class="export-hint">Exports all records across the selected date range into a single file with a <strong>Date</strong> column prepended.</p>
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeExport()">Cancel</button>
-      <button class="btn primary" onclick="runExportRange()">⬇ Export CSV</button>
+      <button class="btn primary" id="export-run-btn" onclick="runExportRange()">⬇ Export CSV</button>
     </div>
   </div>
 </div>
 
 <!-- ══ UNDO TOAST ══ -->
 <div id="undo-toast">
-  <span>Row deleted</span>
+  <span id="undo-toast-label">Row deleted</span>
   <button id="undo-toast-btn" onclick="undoDelete()">Undo</button>
 </div>
 
@@ -1682,7 +2129,8 @@ let lookupsDraft = {};
 // ── Timer state ──
 // Track the timed row by object reference (rowRef), not by array index — the
 // index drifts if a row above it is deleted/duplicated/moved while running.
-let activeTimer = { rowRef: null, startMs: null, intervalId: null };
+let activeTimer = { rowRef: null, startMs: null, intervalId: null, accumMs: 0, paused: false };
+let selectedRows = new Set();   // bulk-selection by row object reference
 
 // ── Undo state ──
 let undoRecord   = null;  // { row, idx }
@@ -1719,6 +2167,13 @@ let _insSaveTimer  = null;
 let undoInsurance  = null; // { ins, idx }
 let _undoInsTimer  = null;
 
+// ── Analytics state ──
+let analyticsLoaded = false;
+let anPeriod        = 'month';   // week | month | 30 | year | custom
+
+// ── Open Tasks state ──
+let taskFilter = '';
+
 // ── Helpers ──
 // Format a Date as a local YYYY-MM-DD string. Uses local calendar components
 // (NOT toISOString, which is UTC and can roll "today" back a day in +tz zones).
@@ -1735,6 +2190,16 @@ function dayLabel(d) {
 function totalMins(rowArr) {
   return rowArr.reduce((s, r) => s + (parseFloat(r.minutes) || 0), 0);
 }
+let _toastTimer = null;
+function toast(msg) {
+  const el = document.getElementById('app-toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
 function esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -1927,6 +2392,7 @@ document.getElementById('cal-next').addEventListener('click', (e) => {
 async function switchDay(dateStr) {
   // Stop any running timer before leaving the day
   if (activeTimer.rowRef !== null) stopTimer();
+  clearSelection();
 
   activeDate = dateStr;
 
@@ -2003,11 +2469,25 @@ function renderTable() {
     const tr = document.createElement('tr');
     if (row.status === 'Not Yet' || row.status === 'Pending') tr.classList.add('notyet-row');
     if (activeTimer.rowRef === row) tr.classList.add('timer-running');
+    if (selectedRows.has(row)) tr.classList.add('row-selected');
 
-    // #
-    const num = document.createElement('span');
-    num.className = 'cell-num'; num.textContent = i + 1;
-    tr.appendChild(cellWrap(num, 'cell cell-center'));
+    // # + bulk-select checkbox
+    const numTd = document.createElement('td');
+    const numCellDiv = document.createElement('div'); numCellDiv.className = 'cell cell-center';
+    const selWrap = document.createElement('label'); selWrap.className = 'row-select';
+    const chk = document.createElement('input');
+    chk.type = 'checkbox'; chk.checked = selectedRows.has(row); chk.title = 'Select for bulk action';
+    chk.addEventListener('click', e => e.stopPropagation());
+    chk.addEventListener('change', () => {
+      if (chk.checked) selectedRows.add(row); else selectedRows.delete(row);
+      tr.classList.toggle('row-selected', chk.checked);
+      updateBulkBar();
+    });
+    const numSpan = document.createElement('span');
+    numSpan.className = 'cell-num'; numSpan.textContent = i + 1;
+    selWrap.appendChild(chk); selWrap.appendChild(numSpan);
+    numCellDiv.appendChild(selWrap); numTd.appendChild(numCellDiv);
+    tr.appendChild(numTd);
 
     tr.appendChild(textCell(row.company));
     tr.appendChild(textCell(row.project));
@@ -2020,13 +2500,23 @@ function renderTable() {
     timeDiv.appendChild(timeSpan); timeTd.appendChild(timeDiv);
     tr.appendChild(timeTd);
 
-    // Description
+    // Description (+ tag chips)
     const descTd = document.createElement('td');
     const descDiv = document.createElement('div');
     descDiv.className = 'cell desc-cell';
     const descSpan = document.createElement('span');
     descSpan.className = 'desc-text'; descSpan.textContent = row.description;
-    descDiv.appendChild(descSpan); descTd.appendChild(descDiv);
+    descDiv.appendChild(descSpan);
+    const tags = Array.isArray(row.tags) ? row.tags : [];
+    if (tags.length) {
+      const tagWrap = document.createElement('div'); tagWrap.className = 'row-tags';
+      tags.forEach(t => {
+        const chip = document.createElement('span'); chip.className = 'row-tag';
+        chip.textContent = t; tagWrap.appendChild(chip);
+      });
+      descDiv.appendChild(tagWrap);
+    }
+    descTd.appendChild(descDiv);
     tr.appendChild(descTd);
 
     // Source — clickable link if URL
@@ -2243,19 +2733,54 @@ function startTimer(rowIdx) {
     rowRef: rows[rowIdx],
     startMs: Date.now(),
     intervalId: setInterval(updateTimerDisplay, 1000),
+    accumMs: 0,
+    paused: false,
   };
-  document.getElementById('timer-chip').classList.add('running');
+  const chip = document.getElementById('timer-chip');
+  chip.classList.add('running'); chip.classList.remove('paused');
+  document.getElementById('timer-pause-btn').textContent = '⏸';
   updateTimerDisplay();
   renderTable();
+}
+
+// Total elapsed ms = accumulated (paused) time + the current running stretch.
+function timerElapsedMs() {
+  const accum = activeTimer.accumMs || 0;
+  const running = (!activeTimer.paused && activeTimer.startMs) ? (Date.now() - activeTimer.startMs) : 0;
+  return accum + running;
+}
+
+// Pause/resume the live timer without committing minutes.
+function togglePauseTimer() {
+  if (activeTimer.rowRef === null) return;
+  const chip = document.getElementById('timer-chip');
+  const btn  = document.getElementById('timer-pause-btn');
+  if (activeTimer.paused) {
+    activeTimer.paused = false;
+    activeTimer.startMs = Date.now();
+    activeTimer.intervalId = setInterval(updateTimerDisplay, 1000);
+    chip.classList.remove('paused');
+    btn.textContent = '⏸'; btn.title = 'Pause';
+  } else {
+    activeTimer.accumMs = timerElapsedMs();
+    activeTimer.paused = true;
+    clearInterval(activeTimer.intervalId);
+    activeTimer.intervalId = null;
+    chip.classList.add('paused');
+    btn.textContent = '▶'; btn.title = 'Resume';
+  }
+  updateTimerDisplay();
 }
 
 function stopTimer() {
   if (activeTimer.rowRef === null) return;
   clearInterval(activeTimer.intervalId);
-  const elapsed = Math.max(1, Math.round((Date.now() - activeTimer.startMs) / 60000));
+  const elapsed = Math.max(1, Math.round(timerElapsedMs() / 60000));
   const rowRef = activeTimer.rowRef;
-  activeTimer = { rowRef: null, startMs: null, intervalId: null };
-  document.getElementById('timer-chip').classList.remove('running');
+  activeTimer = { rowRef: null, startMs: null, intervalId: null, accumMs: 0, paused: false };
+  const chip = document.getElementById('timer-chip');
+  chip.classList.remove('running'); chip.classList.remove('paused');
+  document.getElementById('timer-pause-btn').textContent = '⏸';
 
   // Locate the row by reference — it may have shifted position (or be gone).
   const idx = rows.indexOf(rowRef);
@@ -2267,28 +2792,49 @@ function stopTimer() {
 }
 
 function updateTimerDisplay() {
-  if (activeTimer.startMs === null) return;
-  const total = Math.floor((Date.now() - activeTimer.startMs) / 1000);
+  if (activeTimer.rowRef === null) return;
+  const total = Math.floor(timerElapsedMs() / 1000);
   const m = Math.floor(total / 60).toString().padStart(2, '0');
   const s = (total % 60).toString().padStart(2, '0');
   document.getElementById('timer-display').textContent = `${m}:${s}`;
 }
 
-// ── Undo ──
+// ── Undo (single row + generic bulk restore) ──
+let _undoRestoreFn = null;
 function showUndoToast(row, idx) {
   undoRecord = { row, idx };
+  _undoRestoreFn = null;
   clearTimeout(_undoTimer);
-  const toast = document.getElementById('undo-toast');
-  toast.classList.add('visible');
+  document.getElementById('undo-toast-label').textContent = 'Row deleted';
+  document.getElementById('undo-toast').classList.add('visible');
+  _undoTimer = setTimeout(hideUndoToast, 5000);
+}
+
+// Show an undo toast with a custom label whose Undo button runs `restoreFn`.
+function showGenericUndo(label, restoreFn) {
+  undoRecord = null;
+  _undoRestoreFn = restoreFn;
+  clearTimeout(_undoTimer);
+  document.getElementById('undo-toast-label').textContent = label;
+  document.getElementById('undo-toast').classList.add('visible');
   _undoTimer = setTimeout(hideUndoToast, 5000);
 }
 
 function hideUndoToast() {
   document.getElementById('undo-toast').classList.remove('visible');
   undoRecord = null;
+  _undoRestoreFn = null;
 }
 
 function undoDelete() {
+  if (_undoRestoreFn) {
+    const fn = _undoRestoreFn;
+    hideUndoToast();
+    fn();
+    renderTable();
+    setUnsaved();
+    return;
+  }
   if (!undoRecord) return;
   const { row, idx } = undoRecord;
   rows.splice(Math.min(idx, rows.length), 0, Object.assign({}, row));
@@ -2312,6 +2858,7 @@ async function saveDay() {
   const el = document.getElementById('save-status');
   el.textContent = '✓ Saved'; el.className = 'saved';
   setTimeout(() => { el.textContent = ''; el.className = ''; }, 1500);
+  updateTaskBadge();   // status edits may change the open-task count
 }
 
 function autoSave() {
@@ -2377,6 +2924,7 @@ function openModal(idx = null) {
   document.getElementById('f-description').value = row?.description || '';
   document.getElementById('f-source').value      = row?.source      || '';
   document.getElementById('f-minutes').value     = row?.minutes     || '';
+  document.getElementById('f-tags').value        = Array.isArray(row?.tags) ? row.tags.join(', ') : (row?.tags || '');
 
   clearErrors();
   document.getElementById('modal-overlay').classList.add('open');
@@ -2435,6 +2983,7 @@ function submitModal() {
     source:      document.getElementById('f-source').value.trim(),
     status:      document.getElementById('f-status').value,
     minutes:     minRaw,
+    tags:        parseTags(document.getElementById('f-tags').value),
   };
 
   if (editIdx !== null) {
@@ -2477,11 +3026,13 @@ function clearErrors() { clearErrorsIn('body'); }
 // ── Keyboard shortcuts ──
 document.addEventListener('keydown', e => {
   const inputFocused = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
-  const anyOpen = ['modal-overlay','settings-overlay','print-overlay','export-overlay','sub-modal-overlay','sub-settings-overlay','lic-modal-overlay','ins-modal-overlay']
+  const anyOpen = ['modal-overlay','settings-overlay','print-overlay','export-overlay','report-overlay','month-overlay','sub-modal-overlay','sub-settings-overlay','lic-modal-overlay','ins-modal-overlay']
     .some(id => document.getElementById(id).classList.contains('open'));
 
   if (e.key === 'Escape') {
-    closeModal(); closeSettings(); closePrint(); closeExport(); closeSubModal(); closeSubSettings(); closeLicModal(); closeInsModal();
+    closeModal(); closeSettings(); closePrint(); closeExport(); closeReportModal(); closeMonthView(); closeSubModal(); closeSubSettings(); closeLicModal(); closeInsModal();
+    document.querySelectorAll('.top-menu.open').forEach(m => m.classList.remove('open'));
+    if (selectedRows.size) clearSelection();
   }
   if (e.ctrlKey && e.key === 'Enter') {
     e.preventDefault();
@@ -2538,6 +3089,7 @@ function openPrint() {
   const frame = document.getElementById('print-frame');
   const name  = document.getElementById('hName').value || 'N/A';
   const date  = activeDate || document.getElementById('hDate').value;
+  _reportFileBase = `timesheet-${date}`;
   const [y,m,d] = date.split('-');
   const dt = new Date(+y, +m-1, +d);
   const dayName   = dt.toLocaleDateString('en-US', { weekday:'long' });
@@ -2664,30 +3216,45 @@ function printOverlayClick(e) {
   if (e.target === document.getElementById('print-overlay')) closePrint();
 }
 
-function triggerPrint() {
-  const frame = document.getElementById('print-frame');
-  const allRules = [...document.styleSheets].flatMap(s => {
+// Build a self-contained report HTML document (used by both Print and Save-PDF).
+function buildReportDoc(innerHTML, title) {
+  const reportCSS = [...document.styleSheets].flatMap(s => {
     try { return [...s.cssRules].map(r => r.cssText); } catch { return []; }
-  });
-  const reportCSS = allRules.filter(r =>
+  }).filter(r =>
     r.includes('.rpt-') || r.includes('@media print') || r.includes('box-sizing') || r.includes('.det-')
   ).join('\n');
 
-  const win = window.open('', '_blank', 'width=940,height=800');
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-    <title>TimeSheet Report</title>
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>${esc(title || 'Report')}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body { font-family: 'Quicksand', 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #111; padding: 48px 52px; background: #fff; }
+      .rpt-bd-title { font-size: 13px; font-weight: 700; color: #2a2722; margin-bottom: 8px; }
       ${reportCSS}
     </style>
-  </head><body>${frame.innerHTML}</body></html>`);
+  </head><body>${innerHTML}</body></html>`;
+}
+
+function triggerPrint() {
+  const frame = document.getElementById('print-frame');
+  const win = window.open('', '_blank', 'width=940,height=800');
+  win.document.write(buildReportDoc(frame.innerHTML, 'Report'));
   win.document.close();
   win.focus();
   setTimeout(() => { win.print(); }, 450);
+}
+
+// Save the currently-previewed report directly to a PDF file (Chromium printToPDF).
+async function exportReportPDF() {
+  const frame = document.getElementById('print-frame');
+  let res;
+  try { res = await window.api.exportPDF(buildReportDoc(frame.innerHTML, 'Report'), `${_reportFileBase || 'report'}.pdf`); }
+  catch { res = { ok: false, error: 'failed' }; }
+  if (res && res.ok) toast('PDF saved');
+  else if (res && res.error) toast('PDF failed: ' + res.error);
 }
 
 // ── Today button ──
@@ -2833,13 +3400,14 @@ function toggleStatusFilter(btn) {
 function rowMatchesFilter(row) {
   if (filterStatuses.size > 0 && !filterStatuses.has(row.status)) return false;
   if (!filterText) return true;
-  return [row.company, row.project, row.natural, row.time, row.description, row.source, row.status]
+  const tagStr = Array.isArray(row.tags) ? row.tags.join(' ') : '';
+  return [row.company, row.project, row.natural, row.time, row.description, row.source, row.status, tagStr]
     .some(v => (v || '').toLowerCase().includes(filterText));
 }
 
 // ── CSV Export (today) ──
 function exportCSV() {
-  const headers = ['#','Company','Project','Natural','Time Type','Description','Source','Status','Minutes','Hours'];
+  const headers = ['#','Company','Project','Natural','Time Type','Description','Source','Status','Minutes','Hours','Tags'];
   const lines = [headers.join(',')];
   rows.forEach((r, i) => {
     const mins = parseFloat(r.minutes) || 0;
@@ -2849,19 +3417,35 @@ function exportCSV() {
       r.description, r.source, r.status,
       r.minutes || '',
       mins ? (mins / 60).toFixed(2) : '',
+      Array.isArray(r.tags) ? r.tags.join('; ') : '',
     ].map(csvCell);
     lines.push(cols.join(','));
   });
   downloadCSV(lines.join('\r\n'), `timesheet-${activeDate || 'export'}.csv`);
 }
 
-// ── Export Range ──
-function openExport() {
-  const today = fmt(new Date());
-  const [y, m] = today.split('-');
-  const firstOfMonth = `${y}-${m}-01`;
-  document.getElementById('export-from').value = firstOfMonth;
-  document.getElementById('export-to').value   = today;
+// ── Excel (.xls) export — current day ──
+function exportXLS() {
+  const headers = ['#','Company','Project','Natural','Time Type','Description','Source','Status','Minutes','Hours','Tags'];
+  const data = rows.map((r, i) => {
+    const mins = parseFloat(r.minutes) || 0;
+    return [i + 1, r.company, r.project, r.natural, r.time, r.description, r.source, r.status,
+            r.minutes || '', mins ? (mins / 60).toFixed(2) : '', Array.isArray(r.tags) ? r.tags.join('; ') : ''];
+  });
+  downloadFile(buildXLS(headers, data, 'Timesheet'),
+               `timesheet-${activeDate || 'export'}.xls`, 'application/vnd.ms-excel');
+}
+
+// ── Export Range (CSV or Excel) ──
+let exportFmt = 'csv';
+function openExport(fmt = 'csv') {
+  exportFmt = (fmt === 'xls') ? 'xls' : 'csv';
+  const t = fmt(new Date());
+  const [y, m] = t.split('-');
+  document.getElementById('export-from').value = `${y}-${m}-01`;
+  document.getElementById('export-to').value   = t;
+  document.getElementById('export-title').textContent = `Export ${exportFmt === 'xls' ? 'Excel' : 'CSV'} — Date Range`;
+  document.getElementById('export-run-btn').textContent = `⬇ Export ${exportFmt === 'xls' ? 'Excel' : 'CSV'}`;
   document.getElementById('export-overlay').classList.add('open');
 }
 
@@ -2886,50 +3470,444 @@ async function runExportRange() {
     return;
   }
 
-  const datesInRange = [...savedDays]
-    .filter(d => d >= from && d <= to)
-    .sort();
-
-  const headers = ['Date','#','Company','Project','Natural','Time Type','Description','Source','Status','Minutes','Hours'];
-  const lines = [headers.join(',')];
-
-  for (const d of datesInRange) {
-    let entry = dayCache[d];
-    if (!entry) {
-      entry = await window.api.loadDay(d);
-      if (entry) dayCache[d] = entry;
-    }
-    if (!entry?.rows) continue;
-    entry.rows.forEach((r, i) => {
+  // One query for the whole range (rather than N loadDay round-trips).
+  const days = await window.api.loadDaysRange(from, to);
+  const headers = ['Date','#','Company','Project','Natural','Time Type','Description','Source','Status','Minutes','Hours','Tags'];
+  const data = [];
+  days.forEach(entry => {
+    (entry.rows || []).forEach((r, i) => {
       const mins = parseFloat(r.minutes) || 0;
-      const cols = [
-        d, i + 1,
-        r.company, r.project, r.natural, r.time,
-        r.description, r.source, r.status,
-        r.minutes || '',
-        mins ? (mins / 60).toFixed(2) : '',
-      ].map(csvCell);
-      lines.push(cols.join(','));
+      data.push([entry.date, i + 1, r.company, r.project, r.natural, r.time,
+                 r.description, r.source, r.status, r.minutes || '', mins ? (mins / 60).toFixed(2) : '',
+                 Array.isArray(r.tags) ? r.tags.join('; ') : '']);
     });
-  }
+  });
 
   closeExport();
-  downloadCSV(lines.join('\r\n'), `timesheet-${from}-to-${to}.csv`);
+  if (exportFmt === 'xls') {
+    downloadFile(buildXLS(headers, data, 'Timesheet'), `timesheet-${from}-to-${to}.xls`, 'application/vnd.ms-excel');
+  } else {
+    const lines = [headers.join(',')];
+    data.forEach(cols => lines.push(cols.map(csvCell).join(',')));
+    downloadCSV(lines.join('\r\n'), `timesheet-${from}-to-${to}.csv`);
+  }
 }
 
 function downloadCSV(csv, filename) {
-  // Prepend a UTF-8 BOM so Excel (Windows) detects the encoding and renders
-  // Arabic/RTL text correctly instead of mojibake.
-  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  downloadFile(csv, filename, 'text/csv;charset=utf-8;');
+}
+
+// Build an HTML-table workbook Excel opens natively (UTF-8 + RTL-safe). Header
+// row is styled; cells are left to Excel's auto type detection.
+function buildXLS(headers, rows2D, sheetName) {
+  const th = headers.map(h =>
+    `<th style="background:#1e1e2e;color:#fff;border:1px solid #888;padding:5px 9px;text-align:left">${esc(String(h))}</th>`
+  ).join('');
+  const trs = rows2D.map(r =>
+    '<tr>' + r.map(c => `<td style="border:1px solid #ccc;padding:4px 9px">${esc(String(c ?? ''))}</td>`).join('') + '</tr>'
+  ).join('');
+  return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="UTF-8">
+<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
+<x:Name>${esc(sheetName || 'Sheet1')}</x:Name>
+<x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+<style>table{border-collapse:collapse;font-family:Calibri,Arial,sans-serif;font-size:11pt}</style>
+</head><body><table><tr>${th}</tr>${trs}</table></body></html>`;
+}
+
+// Save text/HTML content to a file with a UTF-8 BOM (so Excel reads Arabic).
+function downloadFile(content, filename, mime) {
+  const blob = new Blob(['﻿' + content], { type: mime });
   const url  = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = filename;
   a.click(); URL.revokeObjectURL(url);
 }
 
+// ── Topbar dropdown menus ──
+function toggleTopMenu(e, id) {
+  e.stopPropagation();
+  const menu = document.getElementById(id);
+  const willOpen = !menu.classList.contains('open');
+  document.querySelectorAll('.top-menu.open').forEach(m => m.classList.remove('open'));
+  if (willOpen) menu.classList.add('open');
+}
+document.addEventListener('click', () => {
+  document.querySelectorAll('.top-menu.open').forEach(m => m.classList.remove('open'));
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// REPORTS — daily (existing) + new monthly / date-range aggregate reports.
+// ════════════════════════════════════════════════════════════════════════════
+let _reportKind = 'month';
+let _reportFileBase = 'report';
+
+function openReportModal(kind) {
+  setReportKind(kind || 'month');
+  const t = fmt(new Date());
+  const [y, m] = t.split('-');
+  document.getElementById('rep-month').value = `${y}-${m}`;
+  document.getElementById('rep-from').value  = `${y}-${m}-01`;
+  document.getElementById('rep-to').value    = t;
+  document.getElementById('report-overlay').classList.add('open');
+}
+function setReportKind(kind) {
+  _reportKind = kind;
+  document.querySelectorAll('#report-modal .rep-tab').forEach(b => b.classList.toggle('active', b.dataset.kind === kind));
+  document.getElementById('rep-month-fields').style.display = kind === 'month' ? '' : 'none';
+  document.getElementById('rep-range-fields').style.display = kind === 'range' ? '' : 'none';
+}
+function closeReportModal() { document.getElementById('report-overlay').classList.remove('open'); }
+function reportOverlayClick(e) { if (e.target === document.getElementById('report-overlay')) closeReportModal(); }
+
+async function generateReport() {
+  let from, to, title;
+  if (_reportKind === 'month') {
+    const mv = document.getElementById('rep-month').value;
+    if (!mv) { document.getElementById('rep-month').classList.add('field-error'); setTimeout(() => document.getElementById('rep-month').classList.remove('field-error'), 1200); return; }
+    const [y, m] = mv.split('-').map(Number);
+    from = `${mv}-01`;
+    to   = `${mv}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
+    title = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    _reportFileBase = `report-${mv}`;
+  } else {
+    from = document.getElementById('rep-from').value;
+    to   = document.getElementById('rep-to').value;
+    if (!from || !to || from > to) {
+      ['rep-from', 'rep-to'].forEach(id => { document.getElementById(id).classList.add('field-error'); setTimeout(() => document.getElementById(id).classList.remove('field-error'), 1200); });
+      return;
+    }
+    title = `${from} → ${to}`;
+    _reportFileBase = `report-${from}-to-${to}`;
+  }
+
+  const days = await window.api.loadDaysRange(from, to);
+  const name = document.getElementById('hName').value || (lookups && lookups.defaultName) || 'N/A';
+  document.getElementById('print-frame').innerHTML = buildAggregateReportHTML(days, _reportKind === 'month' ? 'Monthly Summary' : 'Range Report', title, name);
+  closeReportModal();
+  document.getElementById('print-overlay').classList.add('open');
+}
+
+// Build the aggregate (monthly / range) report HTML using the shared .rpt-* CSS.
+function buildAggregateReportHTML(days, reportType, title, name) {
+  let totalMin = 0, workMin = 0, otMin = 0, recordCount = 0, activeDays = 0;
+  const byCompany = {}, byProject = {};
+  const perDay = [];
+  days.forEach(d => {
+    let dMin = 0, dWork = 0, dOt = 0, dRec = 0;
+    (d.rows || []).forEach(r => {
+      const m = parseFloat(r.minutes) || 0;
+      dRec++; recordCount++; dMin += m; totalMin += m;
+      if (r.time === 'Work Time') { workMin += m; dWork += m; }
+      else if (r.time === 'Over Time') { otMin += m; dOt += m; }
+      if (r.company) byCompany[r.company] = (byCompany[r.company] || 0) + m;
+      if (r.project) byProject[r.project] = (byProject[r.project] || 0) + m;
+    });
+    if (dMin > 0) activeDays++;
+    if (dRec > 0) perDay.push({ date: d.date, rec: dRec, work: dWork, ot: dOt, total: dMin });
+  });
+  const h = m => (m / 60).toFixed(2);
+  const otherMin = Math.max(0, totalMin - workMin - otMin);
+
+  const perDayRows = perDay.length ? perDay.map(p => {
+    const dt = new Date(p.date + 'T00:00:00');
+    return `<tr>
+      <td>${dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</td>
+      <td class="center">${p.rec}</td>
+      <td class="hrs">${h(p.work)}</td>
+      <td class="hrs" style="color:#dc2626">${p.ot ? h(p.ot) : '—'}</td>
+      <td class="hrs"><b>${h(p.total)}</b></td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="5" class="center" style="color:#999">No records in this period.</td></tr>`;
+
+  const breakdown = (map) => {
+    const items = Object.entries(map).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+    if (!items.length) return `<tr><td colspan="3" class="center" style="color:#999">—</td></tr>`;
+    return items.map(([k, v]) => `<tr>
+      <td>${esc(k)}</td>
+      <td class="hrs">${h(v)}</td>
+      <td class="num">${totalMin ? Math.round((v / totalMin) * 100) : 0}%</td>
+    </tr>`).join('');
+  };
+
+  const printedOn = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  return `
+    <div class="rpt-header">
+      <div class="rpt-logo">
+        <div class="rpt-logo-icon">⏱</div>
+        <div>
+          <div class="rpt-logo-text">MOS TA FA<br><span style="color:#6c63ff;letter-spacing:4px">COOPERATION TOOLS</span></div>
+          <div class="rpt-logo-sub">${esc(reportType)}</div>
+        </div>
+      </div>
+      <div class="rpt-meta">
+        <div class="rpt-meta-name">${esc(name)}</div>
+        <div class="rpt-meta-date">${esc(title)}</div>
+        <div class="rpt-meta-ref">${activeDays} active day${activeDays === 1 ? '' : 's'} · ${recordCount} record${recordCount === 1 ? '' : 's'}</div>
+      </div>
+    </div>
+    <hr class="rpt-divider"/>
+    <div class="rpt-summary">
+      <div class="rpt-card"><div class="rpt-card-val">${h(totalMin)}h</div><div class="rpt-card-lbl">Total Hours</div></div>
+      <div class="rpt-card"><div class="rpt-card-val">${h(workMin)}h</div><div class="rpt-card-lbl">Work Time</div></div>
+      <div class="rpt-card"><div class="rpt-card-val">${h(otMin)}h</div><div class="rpt-card-lbl">Over Time</div></div>
+      <div class="rpt-card"><div class="rpt-card-val">${activeDays ? h(totalMin / activeDays) : '0.00'}h</div><div class="rpt-card-lbl">Avg / Active Day</div></div>
+    </div>
+
+    <table class="rpt-table">
+      <thead><tr>
+        <th>Day</th>
+        <th style="text-align:center">Records</th>
+        <th style="text-align:right">Work (h)</th>
+        <th style="text-align:right">Over (h)</th>
+        <th style="text-align:right">Total (h)</th>
+      </tr></thead>
+      <tbody>
+        ${perDayRows}
+        <tr class="rpt-totals">
+          <td class="total-label">Total</td>
+          <td class="center">${recordCount}</td>
+          <td class="hrs">${h(workMin)}</td>
+          <td class="hrs">${h(otMin)}</td>
+          <td class="hrs">${h(totalMin)}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div style="display:flex;gap:24px;margin-top:22px;align-items:flex-start">
+      <div style="flex:1">
+        <div class="rpt-bd-title">By Company</div>
+        <table class="rpt-table"><thead><tr><th>Company</th><th style="text-align:right">Hours</th><th style="text-align:right">Share</th></tr></thead><tbody>${breakdown(byCompany)}</tbody></table>
+      </div>
+      <div style="flex:1">
+        <div class="rpt-bd-title">By Project</div>
+        <table class="rpt-table"><thead><tr><th>Project</th><th style="text-align:right">Hours</th><th style="text-align:right">Share</th></tr></thead><tbody>${breakdown(byProject)}</tbody></table>
+      </div>
+    </div>
+
+    <div class="rpt-footer">
+      <span>MOS TA FA COOPERATION TOOLS — ${esc(name)}</span>
+      <span>Work: ${h(workMin)}h &nbsp;|&nbsp; Overtime: ${h(otMin)}h${otherMin > 0 ? ` &nbsp;|&nbsp; Other: ${h(otherMin)}h` : ''} &nbsp;|&nbsp; Printed ${printedOn}</span>
+    </div>`;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TIMESHEET DEPTH — tags, templates, bulk actions, month overview.
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── Tags ──
+function parseTags(str) {
+  if (!str) return [];
+  if (Array.isArray(str)) return str.map(s => String(s).trim()).filter(Boolean).slice(0, 12);
+  return String(str).split(',').map(t => t.trim()).filter(Boolean).slice(0, 12);
+}
+
+// ── Bulk selection ──
+function updateBulkBar() {
+  const bar = document.getElementById('bulk-bar');
+  const n = selectedRows.size;
+  if (n > 0) {
+    bar.classList.add('show');
+    const c = document.getElementById('bulk-count');
+    if (c) c.textContent = `${n} selected`;
+  } else {
+    bar.classList.remove('show');
+  }
+}
+function clearSelection() {
+  selectedRows.clear();
+  updateBulkBar();
+  document.querySelectorAll('tr.row-selected').forEach(tr => tr.classList.remove('row-selected'));
+  document.querySelectorAll('.row-select input:checked').forEach(c => { c.checked = false; });
+}
+function bulkSetStatus(s) {
+  if (!selectedRows.size) return;
+  selectedRows.forEach(r => { const i = rows.indexOf(r); if (i !== -1) rows[i].status = s; });
+  clearSelection();
+  renderTable();
+  setUnsaved();
+}
+function bulkDelete() {
+  if (!selectedRows.size) return;
+  const removed = [...selectedRows]
+    .map(r => ({ row: r, idx: rows.indexOf(r) }))
+    .filter(x => x.idx !== -1)
+    .sort((a, b) => b.idx - a.idx);           // descending so splices stay valid
+  removed.forEach(x => rows.splice(x.idx, 1));
+
+  // If the running timer's row was deleted, tear the timer down cleanly.
+  if (activeTimer.rowRef && !rows.includes(activeTimer.rowRef)) {
+    clearInterval(activeTimer.intervalId);
+    activeTimer = { rowRef: null, startMs: null, intervalId: null, accumMs: 0, paused: false };
+    document.getElementById('timer-chip').classList.remove('running', 'paused');
+  }
+
+  const ascending = removed.slice().sort((a, b) => a.idx - b.idx);
+  const count = removed.length;
+  clearSelection();
+  renderTable();
+  setUnsaved();
+  showGenericUndo(`${count} record${count === 1 ? '' : 's'} deleted`, () => {
+    ascending.forEach(x => rows.splice(Math.min(x.idx, rows.length), 0, x.row));
+  });
+}
+function bulkMovePrompt() {
+  if (!selectedRows.size) return;
+  const bar = document.getElementById('bulk-bar');
+  const prev = bar.innerHTML;
+  bar.innerHTML = '';
+  const lbl = document.createElement('span'); lbl.id = 'bulk-count'; lbl.textContent = 'Move to:';
+  const inp = document.createElement('input'); inp.type = 'date'; inp.value = activeDate; inp.className = 'move-date-input';
+  const ok = document.createElement('button'); ok.className = 'bulk-btn'; ok.textContent = '✓ Move';
+  const cancel = document.createElement('button'); cancel.className = 'bulk-btn ghost'; cancel.textContent = '✕';
+  ok.onclick = async () => { const t = inp.value; bar.innerHTML = prev; await moveRowsToDate([...selectedRows], t); };
+  cancel.onclick = () => { bar.innerHTML = prev; updateBulkBar(); };
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') ok.onclick(); if (e.key === 'Escape') cancel.onclick(); });
+  bar.appendChild(lbl); bar.appendChild(inp); bar.appendChild(ok); bar.appendChild(cancel);
+  inp.focus();
+}
+async function moveRowsToDate(rowRefs, targetDate) {
+  if (!targetDate || targetDate === activeDate) { clearSelection(); renderTable(); updateBulkBar(); return; }
+  let entry = dayCache[targetDate]
+    ? JSON.parse(JSON.stringify(dayCache[targetDate]))
+    : await window.api.loadDay(targetDate);
+  if (!entry) entry = { name: document.getElementById('hName').value || lookups.defaultName || '', rows: [] };
+
+  const withIdx = rowRefs.map(r => ({ r, i: rows.indexOf(r) })).filter(x => x.i !== -1);
+  withIdx.slice().sort((a, b) => b.i - a.i).forEach(x => rows.splice(x.i, 1));     // remove (desc)
+  withIdx.slice().sort((a, b) => a.i - b.i).forEach(x => entry.rows.push(Object.assign({}, x.r))); // append (asc)
+
+  await window.api.saveDay(targetDate, entry);
+  dayCache[targetDate] = entry;
+  savedDays.add(targetDate);
+  clearSelection();
+  renderTable();
+  autoSave();
+  renderCalendar();
+  renderCarryOver();
+  toast(`Moved ${withIdx.length} record${withIdx.length === 1 ? '' : 's'} to ${targetDate}`);
+}
+
+// ── Templates ──
+function openTemplateMenu(e) {
+  renderTemplateMenu();
+  toggleTopMenu(e, 'template-menu');
+}
+function renderTemplateMenu() {
+  const menu = document.getElementById('template-menu');
+  const tpls = (lookups && lookups.templates) || [];
+  if (!tpls.length) {
+    menu.innerHTML = `<div style="padding:10px 12px;font-size:12px;color:var(--muted);line-height:1.5">No templates yet.<br>Fill the Add Record form, then click<br>“📋 Save as Template”.</div>`;
+    return;
+  }
+  menu.innerHTML = tpls.map((t, i) => `
+    <button onclick="insertTemplate(${i})">
+      <span>${esc(t.name || t.description || 'Template')}</span>
+      <span class="tm-tag" title="Delete template" style="cursor:pointer" onclick="event.stopPropagation();deleteTemplate(${i})">✕</span>
+    </button>`).join('');
+}
+function saveAsTemplate() {
+  const desc = document.getElementById('f-description').value.trim();
+  const company = document.getElementById('f-company').value;
+  const project = document.getElementById('f-project').value;
+  const name = (desc || [company, project].filter(Boolean).join(' · ') || 'Template').slice(0, 48);
+  const tpl = {
+    name, company, project,
+    natural: document.getElementById('f-natural').value,
+    time:    document.getElementById('f-time').value,
+    description: desc,
+    source:  document.getElementById('f-source').value.trim(),
+    status:  document.getElementById('f-status').value || 'In Progress',
+    tags:    parseTags(document.getElementById('f-tags').value),
+  };
+  if (!lookups.templates) lookups.templates = [];
+  lookups.templates.push(tpl);
+  window.api.saveLookups(lookups);
+  toast('Template saved: ' + name);
+}
+function insertTemplate(i) {
+  const t = (lookups.templates || [])[i];
+  if (!t) return;
+  rows.push({
+    company: t.company || '', project: t.project || '', natural: t.natural || '', time: t.time || '',
+    description: t.description || '', source: t.source || '', status: t.status || 'In Progress',
+    minutes: '', tags: Array.isArray(t.tags) ? t.tags.slice() : [],
+  });
+  renderTable();
+  setUnsaved();
+  toast('Inserted: ' + (t.name || 'template'));
+}
+function deleteTemplate(i) {
+  if (!lookups.templates) return;
+  lookups.templates.splice(i, 1);
+  window.api.saveLookups(lookups);
+  renderTemplateMenu();
+}
+
+// ── Month overview ──
+let monthViewY = null, monthViewM = null;
+function openMonthView() {
+  const base = activeDate ? new Date(activeDate + 'T00:00:00') : new Date();
+  monthViewY = base.getFullYear();
+  monthViewM = base.getMonth();
+  document.getElementById('month-overlay').classList.add('open');
+  renderMonthView();
+}
+function closeMonthView() { document.getElementById('month-overlay').classList.remove('open'); }
+function monthOverlayClick(e) { if (e.target === document.getElementById('month-overlay')) closeMonthView(); }
+function monthViewStep(d) {
+  monthViewM += d;
+  if (monthViewM < 0)  { monthViewM = 11; monthViewY--; }
+  if (monthViewM > 11) { monthViewM = 0;  monthViewY++; }
+  renderMonthView();
+}
+async function renderMonthView() {
+  const y = monthViewY, m = monthViewM;
+  document.getElementById('month-title').textContent =
+    new Date(y, m, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const mm = String(m + 1).padStart(2, '0');
+  const lastDay = new Date(y, m + 1, 0).getDate();
+  const days = await window.api.loadDaysRange(`${y}-${mm}-01`, `${y}-${mm}-${String(lastDay).padStart(2, '0')}`);
+  const map = {};
+  days.forEach(d => { map[d.date] = d.rows || []; });
+
+  const grid = document.getElementById('month-grid');
+  grid.innerHTML = '';
+  const firstDow = new Date(y, m, 1).getDay();
+  const todayStr = fmt(new Date());
+  let maxMin = 1;
+  Object.values(map).forEach(rws => { maxMin = Math.max(maxMin, totalMins(rws)); });
+
+  for (let i = 0; i < firstDow; i++) {
+    const c = document.createElement('div'); c.className = 'month-cell empty'; grid.appendChild(c);
+  }
+  let monthMin = 0, activeDays = 0;
+  for (let d = 1; d <= lastDay; d++) {
+    const ds = `${y}-${mm}-${String(d).padStart(2, '0')}`;
+    const rws = map[ds] || [];
+    const mins = totalMins(rws);
+    monthMin += mins;
+    if (mins > 0) activeDays++;
+    const cell = document.createElement('div');
+    cell.className = 'month-cell' + (rws.length ? ' has' : '') + (ds === todayStr ? ' today' : '');
+    cell.innerHTML = `
+      <span class="mc-day ${ds === todayStr ? 'is-today' : ''}">${d}</span>
+      ${mins ? `<span class="mc-hrs">${(mins / 60).toFixed(1)}h</span>` : ''}
+      ${rws.length ? `<span class="mc-rec">${rws.length} rec</span>` : ''}
+      ${mins ? `<div class="mc-bar" style="width:${Math.max(12, Math.round(mins / maxMin * 100))}%"></div>` : ''}`;
+    if (rws.length) cell.addEventListener('click', () => { closeMonthView(); switchModule('timesheet'); switchDay(ds); });
+    grid.appendChild(cell);
+  }
+  document.getElementById('month-summary').innerHTML =
+    `<b>${(monthMin / 60).toFixed(1)}h</b> across ${activeDays} active day${activeDays === 1 ? '' : 's'}`;
+}
+
 // ── Module switching ──
 function switchModule(name) {
   if (activeModule === name) return;
+  if (name !== 'timesheet' && selectedRows.size) clearSelection();
   activeModule = name;
 
   document.querySelectorAll('.app-module').forEach(el => {
@@ -2956,6 +3934,13 @@ function switchModule(name) {
     window.api.setTitle('Cooperation Tools — Insurance');
     if (!insLoaded) loadInsuranceData();
     else renderInsurance();
+  } else if (name === 'analytics') {
+    window.api.setTitle('Cooperation Tools — Analytics');
+    analyticsLoaded = true;
+    renderAnalytics();
+  } else if (name === 'tasks') {
+    window.api.setTitle('Cooperation Tools — Open Tasks');
+    renderOpenTasks();
   }
 }
 
@@ -3118,6 +4103,487 @@ function setNavBadge(module, count) {
   if (!el) return;
   if (count > 0) { el.textContent = count; el.classList.add('show'); }
   else { el.textContent = ''; el.classList.remove('show'); }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ANALYTICS MODULE — read-only insights derived from existing data (one query).
+// ════════════════════════════════════════════════════════════════════════════
+const AN_TYPE_COLORS = {
+  'Work Time': '#6c63ff', 'Over Time': '#ef4444', 'Training': '#06b6d4',
+  'Leave': '#f59e0b', 'Holiday': '#22c55e', 'Part Time': '#ec4899',
+};
+const AN_FALLBACK = ['#a855f7', '#84cc16', '#14b8a6', '#f97316', '#0ea5e9', '#d946ef'];
+const AN_STATUS_COLORS = { 'Done': '#16a34a', 'In Progress': '#d4a017', 'Not Yet': '#7c6fd6', 'Pending': '#7c6fd6' };
+
+function anFmtHrs(mins) {
+  if (!mins) return '0h';
+  if (mins < 60) return mins + 'm';
+  return (mins / 60).toFixed(1) + 'h';
+}
+
+function setAnPeriod(p) {
+  anPeriod = p;
+  document.querySelectorAll('#an-period .an-period-btn').forEach(b => b.classList.toggle('active', b.dataset.period === p));
+  const range = document.getElementById('an-range');
+  range.classList.toggle('show', p === 'custom');
+  if (p === 'custom' && !document.getElementById('an-from').value) {
+    const start = new Date(); start.setDate(start.getDate() - 29);
+    document.getElementById('an-from').value = fmt(start);
+    document.getElementById('an-to').value   = fmt(new Date());
+  }
+  renderAnalytics();
+}
+
+// Resolve the active period to a {from, to, label} window of YYYY-MM-DD strings.
+function anRange() {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const to = fmt(today);
+  if (anPeriod === 'custom') {
+    let from = document.getElementById('an-from').value || to;
+    let t    = document.getElementById('an-to').value   || to;
+    if (from > t) { const x = from; from = t; t = x; }
+    return { from, to: t, label: `${from} → ${t}` };
+  }
+  if (anPeriod === 'week') {
+    const s = new Date(today); s.setDate(today.getDate() - today.getDay()); // back to Sunday
+    return { from: fmt(s), to, label: 'This week' };
+  }
+  if (anPeriod === 'month') {
+    const s = new Date(today.getFullYear(), today.getMonth(), 1);
+    return { from: fmt(s), to, label: today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) };
+  }
+  if (anPeriod === 'year') {
+    const s = new Date(today.getFullYear(), 0, 1);
+    return { from: fmt(s), to, label: String(today.getFullYear()) };
+  }
+  // last 30 days
+  const s = new Date(today); s.setDate(today.getDate() - 29);
+  return { from: fmt(s), to, label: 'Last 30 days' };
+}
+
+async function renderAnalytics() {
+  const { from, to, label } = anRange();
+
+  // The heatmap always shows a recent fixed window, independent of the period.
+  const heatWeeks = 26;
+  const todayD = new Date(); todayD.setHours(0, 0, 0, 0);
+  const lastSunday  = new Date(todayD); lastSunday.setDate(todayD.getDate() - todayD.getDay());
+  const firstSunday = new Date(lastSunday); firstSunday.setDate(lastSunday.getDate() - (heatWeeks - 1) * 7);
+  const heatFrom = fmt(firstSunday);
+
+  // One query spanning both the period and the heatmap window.
+  const fetchFrom = heatFrom < from ? heatFrom : from;
+  const fetchTo   = to > fmt(todayD) ? to : fmt(todayD);
+  const days = await window.api.loadDaysRange(fetchFrom, fetchTo);
+
+  // Per-day total minutes (for heatmap + trend).
+  const dayMin = {};
+  days.forEach(d => { dayMin[d.date] = totalMins(d.rows || []); });
+
+  // Aggregate over the selected period only.
+  const periodDays = days.filter(d => d.date >= from && d.date <= to);
+  const byCompany = {}, byProject = {}, byType = {}, byStatus = {};
+  let totalMin = 0, recordCount = 0, activeDays = 0;
+  periodDays.forEach(d => {
+    let dayHas = false;
+    (d.rows || []).forEach(r => {
+      recordCount++;
+      const m = parseFloat(r.minutes) || 0;
+      totalMin += m;
+      if (m > 0) dayHas = true;
+      if (r.company) byCompany[r.company] = (byCompany[r.company] || 0) + m;
+      if (r.project) byProject[r.project] = (byProject[r.project] || 0) + m;
+      const tk = r.time || 'Other';   if (m > 0) byType[tk] = (byType[tk] || 0) + m;
+      const sk = (r.status === 'Pending') ? 'Not Yet' : (r.status || 'Other');
+      byStatus[sk] = (byStatus[sk] || 0) + 1;
+    });
+    if (dayHas) activeDays++;
+  });
+
+  const workMin = byType['Work Time'] || 0;
+  const otMin   = byType['Over Time'] || 0;
+  const pct = (m) => totalMin ? Math.round((m / totalMin) * 100) : 0;
+
+  // ── KPIs ──
+  const kpis = [
+    { label: 'Total Hours', val: (totalMin / 60).toFixed(1), unit: 'h', foot: `${recordCount} record${recordCount === 1 ? '' : 's'}`, cls: 'accent' },
+    { label: 'Work Time',   val: (workMin / 60).toFixed(1),  unit: 'h', foot: `${pct(workMin)}% of total`, cls: '' },
+    { label: 'Over Time',   val: (otMin / 60).toFixed(1),    unit: 'h', foot: `${pct(otMin)}% of total`, cls: '' },
+    { label: 'Avg / Day',   val: activeDays ? (totalMin / 60 / activeDays).toFixed(1) : '0', unit: 'h', foot: `${activeDays} active day${activeDays === 1 ? '' : 's'}`, cls: '' },
+    { label: 'Period',      val: (totalMin / 60).toFixed(0), unit: 'h', foot: esc(label), cls: '' },
+  ];
+  document.getElementById('an-kpis').innerHTML = kpis.map(k => `
+    <div class="an-kpi ${k.cls}">
+      <span class="an-kpi-label">${esc(k.label)}</span>
+      <span class="an-kpi-val">${esc(k.val)}<small>${k.unit}</small></span>
+      <span class="an-kpi-foot">${k.foot}</span>
+    </div>`).join('');
+
+  // ── Bar charts: company + project ──
+  renderAnBars('an-company', byCompany, 'an-company-sub');
+  renderAnBars('an-project', byProject, 'an-project-sub');
+
+  // ── Daily trend ──
+  document.getElementById('an-trend').innerHTML = anTrend(from, to, dayMin);
+  document.getElementById('an-trend-sub').textContent = label;
+
+  // ── Time breakdown donut ──
+  const typeSegs = Object.entries(byType)
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, v], i) => ({ label: k, value: v, color: AN_TYPE_COLORS[k] || AN_FALLBACK[i % AN_FALLBACK.length] }));
+  document.getElementById('an-type').innerHTML = anDonut(typeSegs, totalMin);
+  document.getElementById('an-type-sub').textContent = typeSegs.length ? `${typeSegs.length} types` : '';
+
+  // ── Heatmap ──
+  document.getElementById('an-heat').innerHTML = anHeatmap(firstSunday, heatWeeks, dayMin, todayD);
+  document.getElementById('an-heat-sub').textContent = 'Last 26 weeks';
+
+  // ── Status breakdown ──
+  const statusItems = Object.entries(byStatus)
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => ({ label: k, value: v, color: AN_STATUS_COLORS[k] || '#94a3b8', display: String(v) }));
+  const statusMax = Math.max(1, ...statusItems.map(s => s.value));
+  document.getElementById('an-status').innerHTML = statusItems.length
+    ? `<div class="an-bars">${statusItems.map(s => anBarRow(s.label, s.value, statusMax, s.display, s.color)).join('')}</div>`
+    : `<div class="an-empty">No records in this period.</div>`;
+  document.getElementById('an-status-sub').textContent = recordCount ? `${recordCount} total` : '';
+
+  // ── Recurring spend (subscriptions) ──
+  renderAnSpend();
+}
+
+// Render a top-N horizontal bar chart of {key: minutes} into `elId`.
+function renderAnBars(elId, map, subId) {
+  const items = Object.entries(map).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+  const el = document.getElementById(elId);
+  if (subId) document.getElementById(subId).textContent = items.length ? `${items.length}` : '';
+  if (!items.length) { el.innerHTML = `<div class="an-empty">No tracked time in this period.</div>`; return; }
+  const top = items.slice(0, 8);
+  const max = top[0][1];
+  el.innerHTML = `<div class="an-bars">${top.map(([k, v]) => anBarRow(k, v, max, anFmtHrs(v))).join('')}</div>`;
+}
+
+function anBarRow(label, value, max, display, color) {
+  const w = Math.max(2, Math.round((value / max) * 100));
+  const style = `width:${w}%${color ? `;background:${color}` : ''}`;
+  return `
+    <div class="an-bar-row">
+      <span class="an-bar-label" title="${esc(label)}">${esc(label)}</span>
+      <span class="an-bar-track"><span class="an-bar-fill" style="${style}"></span></span>
+      <span class="an-bar-val">${esc(display)}</span>
+    </div>`;
+}
+
+// SVG donut from [{label, value, color}] segments.
+function anDonut(segments, totalMin) {
+  if (!segments.length) return `<div class="an-empty">No tracked time in this period.</div>`;
+  const total = segments.reduce((s, x) => s + x.value, 0) || 1;
+  const r = 52, C = 2 * Math.PI * r;
+  let offset = 0;
+  const circles = segments.map(s => {
+    const dash = (s.value / total) * C;
+    const c = `<circle r="${r}" cx="60" cy="60" fill="none" stroke="${s.color}" stroke-width="15"
+                 stroke-dasharray="${dash.toFixed(2)} ${(C - dash).toFixed(2)}"
+                 stroke-dashoffset="${(-offset).toFixed(2)}" transform="rotate(-90 60 60)"/>`;
+    offset += dash;
+    return c;
+  }).join('');
+  const legend = segments.map(s => `
+    <div class="an-legend-item">
+      <span class="an-legend-dot" style="background:${s.color}"></span>${esc(s.label)}
+      <span class="an-legend-val">${anFmtHrs(s.value)} · ${Math.round((s.value / total) * 100)}%</span>
+    </div>`).join('');
+  return `
+    <div class="an-donut-wrap">
+      <svg class="an-donut" width="120" height="120" viewBox="0 0 120 120">
+        ${circles}
+        <text class="an-donut-center" x="60" y="58" text-anchor="middle">${(total / 60).toFixed(1)}h</text>
+        <text class="an-donut-center-sub" x="60" y="72" text-anchor="middle">TOTAL</text>
+      </svg>
+      <div class="an-legend">${legend}</div>
+    </div>`;
+}
+
+// SVG daily-hours trend over [from, to].
+function anTrend(from, to, dayMin) {
+  const dates = [];
+  const d = new Date(from + 'T00:00:00'), end = new Date(to + 'T00:00:00');
+  while (d <= end) { dates.push(fmt(d)); d.setDate(d.getDate() + 1); }
+  if (!dates.length) return `<div class="an-empty">No data.</div>`;
+  const vals = dates.map(dt => (dayMin[dt] || 0) / 60);
+  const maxV = Math.max(1, ...vals);
+
+  const W = 700, H = 160, padL = 28, padR = 8, padT = 12, padB = 22;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  const n = dates.length;
+  const x = i => padL + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
+  const y = v => padT + innerH - (v / maxV) * innerH;
+
+  const pts = vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`);
+  const linePath = `M ${pts.join(' L ')}`;
+  const areaPath = `M ${x(0).toFixed(1)},${(padT + innerH).toFixed(1)} L ${pts.join(' L ')} L ${x(n - 1).toFixed(1)},${(padT + innerH).toFixed(1)} Z`;
+
+  // y gridlines at 0, mid, max
+  const grids = [0, maxV / 2, maxV].map(v => `
+    <line class="an-trend-grid" x1="${padL}" y1="${y(v).toFixed(1)}" x2="${W - padR}" y2="${y(v).toFixed(1)}"/>
+    <text class="an-trend-lbl" x="2" y="${(y(v) + 3).toFixed(1)}">${v.toFixed(v < 10 ? 1 : 0)}</text>`).join('');
+
+  // x labels: ~5 evenly spaced
+  const labelIdx = [...new Set([0, Math.floor(n / 4), Math.floor(n / 2), Math.floor(3 * n / 4), n - 1])];
+  const xlabels = labelIdx.map(i => {
+    const dd = new Date(dates[i] + 'T00:00:00');
+    const t = dd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const anchor = i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle';
+    return `<text class="an-trend-lbl" x="${x(i).toFixed(1)}" y="${H - 6}" text-anchor="${anchor}">${t}</text>`;
+  }).join('');
+
+  const dots = n <= 31 ? vals.map((v, i) => v > 0 ? `<circle class="an-trend-dot" cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.5"/>` : '').join('') : '';
+
+  return `<svg class="an-trend" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    ${grids}
+    <path class="an-trend-area" d="${areaPath}"/>
+    <path class="an-trend-line" d="${linePath}"/>
+    ${dots}
+    ${xlabels}
+  </svg>`;
+}
+
+// GitHub-style contribution grid. `start` is a Sunday; renders `weeks` columns.
+function anHeatmap(start, weeks, dayMin, today) {
+  const cols = [];
+  const cur = new Date(start);
+  for (let w = 0; w < weeks; w++) {
+    let col = '';
+    for (let day = 0; day < 7; day++) {
+      const ds = fmt(cur);
+      const future = cur > today;
+      const mins = dayMin[ds] || 0;
+      let cls = '';
+      if (future) cls = 'empty';
+      else if (mins === 0) cls = '';
+      else if (mins < 120) cls = 'h1';
+      else if (mins < 240) cls = 'h2';
+      else if (mins < 360) cls = 'h3';
+      else cls = 'h4';
+      const title = future ? '' : `${ds} · ${anFmtHrs(mins)}`;
+      const onclick = future ? '' : ` onclick="anJumpToDay('${ds}')"`;
+      col += `<div class="an-heat-cell ${cls}" title="${title}"${onclick}></div>`;
+      cur.setDate(cur.getDate() + 1);
+    }
+    cols.push(`<div class="an-heat-col">${col}</div>`);
+  }
+  return `<div class="an-heat">${cols.join('')}</div>`;
+}
+
+function anJumpToDay(ds) {
+  switchModule('timesheet');
+  switchDay(ds);
+}
+
+async function renderAnSpend() {
+  const data = await window.api.loadSubscriptions();
+  const subs = (data && data.subscriptions) || [];
+  const el = document.getElementById('an-spend');
+  // Sum monthly + yearly equivalents per currency.
+  const cur = {};   // currency -> { monthly, yearly }
+  subs.forEach(s => {
+    const cost = parseFloat(String(s.cost).replace(/[^0-9.]/g, '')) || 0;
+    if (!cost) return;
+    const c = s.currency || 'USD';
+    cur[c] = cur[c] || { monthly: 0, yearly: 0 };
+    if (s.billingCycle === 'Yearly')      { cur[c].yearly += cost;       cur[c].monthly += cost / 12; }
+    else if (s.billingCycle === 'Monthly'){ cur[c].monthly += cost;      cur[c].yearly  += cost * 12; }
+    else { cur[c].yearly += cost; cur[c].monthly += cost / 12; }   // Custom → treat as yearly
+  });
+  const entries = Object.entries(cur);
+  document.getElementById('an-spend-sub').textContent = `${subs.length} subscription${subs.length === 1 ? '' : 's'}`;
+  if (!entries.length) { el.innerHTML = `<div class="an-empty">No subscription costs recorded.</div>`; return; }
+  el.innerHTML = entries.map(([c, v]) => `
+    <div class="an-spend-row">
+      <span class="an-spend-cur">${esc(c)}</span>
+      <span class="an-spend-vals"><b>${v.monthly.toFixed(0)}</b> / mo &nbsp;·&nbsp; <b>${v.yearly.toFixed(0)}</b> / yr</span>
+    </div>`).join('');
+}
+
+// Export the current analytics view to PDF (light theme, self-contained HTML).
+async function exportAnalyticsPDF() {
+  const css = [...document.styleSheets].flatMap(s => {
+    try { return [...s.cssRules].map(r => r.cssText); } catch { return []; }
+  }).join('\n');
+  const { label } = anRange();
+  const body = document.getElementById('an-scroll').innerHTML;
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>${css}
+      body { font-family:'Quicksand',sans-serif; background:#fff; padding:28px 32px; display:block; }
+      .an-report-title { font-size:20px; font-weight:700; color:#2a2722; margin-bottom:4px; }
+      .an-report-sub { font-size:12px; color:#8a857c; margin-bottom:20px; }
+    </style></head>
+    <body>
+      <div class="an-report-title">📊 Analytics — ${esc(label)}</div>
+      <div class="an-report-sub">Cooperation Tools · generated ${new Date().toLocaleString('en-US')}</div>
+      ${body}
+    </body></html>`;
+  const res = await window.api.exportPDF(html, `analytics-${fmt(new Date())}.pdf`);
+  if (res && res.ok) toast('PDF saved');
+  else if (res && res.error) toast('PDF failed: ' + res.error);
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// OPEN TASKS — every "In Progress" + "Not Yet" record across all days, with
+// inline actions (edit in its day, → Today, ✓ Done, ✕ Dismiss). One scan query.
+// ════════════════════════════════════════════════════════════════════════════
+function applyTaskFilter() {
+  taskFilter = document.getElementById('tasks-filter').value.toLowerCase().trim();
+  renderOpenTasks();
+}
+
+// Refresh the sidebar count badge. Pass a known count, or omit to query for it.
+async function updateTaskBadge(count) {
+  if (count === undefined) {
+    try { count = (await window.api.getOpenItems()).length; } catch { count = 0; }
+  }
+  const el = document.getElementById('nav-badge-tasks');
+  if (!el) return;
+  if (count > 0) { el.textContent = count; el.classList.add('show', 'count'); }
+  else { el.textContent = ''; el.classList.remove('show'); }
+}
+
+async function renderOpenTasks() {
+  const scroll = document.getElementById('tasks-scroll');
+  let items = await window.api.getOpenItems();
+  updateTaskBadge(items.length);
+
+  if (taskFilter) {
+    items = items.filter(it => {
+      const r = it.row;
+      const tagStr = Array.isArray(r.tags) ? r.tags.join(' ') : '';
+      return [r.company, r.project, r.natural, r.time, r.description, r.source, tagStr, it.date]
+        .some(v => (v || '').toLowerCase().includes(taskFilter));
+    });
+  }
+
+  const inProg = items.filter(it => it.row.status === 'In Progress').sort((a, b) => b.date.localeCompare(a.date));
+  const notYet = items.filter(it => it.row.status === 'Not Yet' || it.row.status === 'Pending').sort((a, b) => a.date.localeCompare(b.date));
+  document.getElementById('tasks-count-chip').textContent = `${inProg.length} in progress · ${notYet.length} not yet`;
+
+  scroll.innerHTML = '';
+  if (!items.length) {
+    scroll.innerHTML = `<div class="dash-empty"><span class="de-icon">🎉</span>${taskFilter ? 'No matching open tasks.' : 'No open tasks — everything is done!'}</div>`;
+    return;
+  }
+  if (inProg.length) scroll.appendChild(buildTaskSection('⚡ In Progress', inProg, 'ip'));
+  if (notYet.length) scroll.appendChild(buildTaskSection('📌 Not Yet', notYet, 'ny'));
+}
+
+function buildTaskSection(title, list, kind) {
+  const sec = document.createElement('div'); sec.className = 'task-section';
+  const head = document.createElement('div'); head.className = 'task-section-head';
+  head.innerHTML = `<span>${title}</span><span class="task-section-count">${list.length}</span>`;
+  sec.appendChild(head);
+  list.forEach(it => sec.appendChild(buildTaskItem(it, kind)));
+  return sec;
+}
+
+function buildTaskItem({ date, idx, row }, kind) {
+  const item = document.createElement('div'); item.className = 'task-item';
+  const today = fmt(new Date());
+  const [y, m, d] = date.split('-');
+  const dateLabel = new Date(+y, +m - 1, +d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const ageDays = Math.round((new Date(today + 'T00:00:00') - new Date(date + 'T00:00:00')) / 86400000);
+  const ageStr = date === today ? ' · today' : (ageDays > 0 ? ` · ${ageDays}d ago` : '');
+  const meta = [row.company, row.project, row.natural].filter(Boolean).map(esc).join(' · ');
+  const tags = (Array.isArray(row.tags) && row.tags.length)
+    ? `<div class="row-tags">${row.tags.map(t => `<span class="row-tag">${esc(t)}</span>`).join('')}</div>` : '';
+
+  item.innerHTML = `
+    <span class="task-status ${kind}">${kind === 'ip' ? 'In Progress' : 'Not Yet'}</span>
+    <div class="task-main">
+      <div class="task-meta-line">
+        <span class="task-date" title="${date}">${dateLabel}${ageStr}</span>
+        ${meta ? `<span class="task-meta">${meta}</span>` : ''}
+      </div>
+      <div class="task-desc rtl-text" dir="auto">${esc(row.description || '(no description)')}</div>
+      ${tags}
+    </div>`;
+
+  const acts = document.createElement('div'); acts.className = 'task-actions';
+  const mk = (txt, title, cls, fn) => {
+    const b = document.createElement('button');
+    b.className = 'co-btn' + (cls ? ' ' + cls : '');
+    b.textContent = txt; b.title = title;
+    b.addEventListener('click', fn);
+    return b;
+  };
+  const editB   = mk('✏️', 'Edit in its day', '', () => taskEdit(date, idx));
+  const todayB  = (date !== today) ? mk('→ Today', 'Move to today', 'move', () => taskToToday(date, idx)) : null;
+  const doneB   = mk('✓ Done', 'Mark as done', 'done-btn', () => taskMarkDone(date, idx));
+  const dismissB = document.createElement('button');
+  dismissB.className = 'co-btn'; dismissB.textContent = '✕'; dismissB.title = 'Dismiss (delete this record)';
+
+  const restore = () => {
+    acts.innerHTML = '';
+    acts.appendChild(editB);
+    if (todayB) acts.appendChild(todayB);
+    acts.appendChild(doneB);
+    acts.appendChild(dismissB);
+  };
+  dismissB.addEventListener('click', () => showDeleteConfirm(acts, async () => {
+    let snap = null;
+    await mutateStoredDay(date, e => { snap = e.rows.splice(idx, 1)[0]; });
+    await renderOpenTasks();
+    showGenericUndo('Task dismissed', () => {
+      mutateStoredDay(date, e => e.rows.splice(Math.min(idx, e.rows.length), 0, snap)).then(renderOpenTasks);
+    });
+  }, restore));
+
+  restore();
+  item.appendChild(acts);
+  return item;
+}
+
+// Load a stored day (cache → disk → fresh), apply `mutateFn(entry)`, persist, and
+// keep caches / the active day / calendar in sync. Used by all Open-Tasks actions.
+async function mutateStoredDay(date, mutateFn) {
+  let entry = dayCache[date]
+    ? JSON.parse(JSON.stringify(dayCache[date]))
+    : await window.api.loadDay(date);
+  if (!entry) entry = { name: (lookups && lookups.defaultName) || '', rows: [] };
+  mutateFn(entry);
+  await window.api.saveDay(date, entry);
+  dayCache[date] = entry;
+  if (entry.rows.length === 0) savedDays.delete(date); else savedDays.add(date);
+  if (date === activeDate) {
+    rows = entry.rows.map(r => Object.assign({}, r));
+    renderTable();
+    renderCarryOver();
+  }
+  renderCalendar();
+  return entry;
+}
+
+async function taskEdit(date, idx) {
+  switchModule('timesheet');
+  await switchDay(date);
+  openModal(idx);
+}
+
+async function taskToToday(date, idx) {
+  const today = fmt(new Date());
+  if (date === today) return;
+  let removed = null;
+  await mutateStoredDay(date, e => { removed = e.rows.splice(idx, 1)[0]; });
+  if (removed) await mutateStoredDay(today, e => { e.rows.push(Object.assign({}, removed)); });
+  await renderOpenTasks();
+  renderCarryOver();
+  toast('Moved to today');
+}
+
+async function taskMarkDone(date, idx) {
+  await mutateStoredDay(date, e => { if (e.rows[idx]) e.rows[idx].status = 'Done'; });
+  await renderOpenTasks();
+  toast('Marked done');
 }
 
 // ── Database backup ──
@@ -3943,9 +5409,11 @@ async function init() {
 
   applyThemeLabel();
   switchModule('dashboard');   // boot into the overview
+  updateTaskBadge();           // open-tasks count in the sidebar
 }
 
 init();
 </script>
+<div id="app-toast" class="app-toast"></div>
 </body>
 </html>
