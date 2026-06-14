@@ -4,7 +4,10 @@
   "description": "Cooperation Tools — an offline Electron desktop app for tracking daily timesheets, subscriptions, licenses, and insurance policies. Data is stored in a self-contained, zero-config embedded SQLite database (Node's built-in node:sqlite, bundled with Electron — no server, no separate install, no native build).",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "pack": "electron-builder --dir"
   },
   "keywords": [
     "electron",
@@ -24,6 +27,34 @@
     "node": ">=18"
   },
   "devDependencies": {
-    "electron": "^42.3.3"
+    "electron": "^42.3.3",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.mostafa.cooperationtools",
+    "productName": "Cooperation Tools",
+    "files": [
+      "main.js",
+      "db.js",
+      "preload.js",
+      "index.html",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Cooperation Tools"
+    },
+    "directories": {
+      "output": "dist"
+    }
   }
 }
