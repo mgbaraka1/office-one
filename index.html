@@ -1320,9 +1320,6 @@
     <button class="nav-item active" data-module="timesheet" onclick="switchModule('timesheet')">
       <span class="nav-icon">🕐</span>Timesheet
     </button>
-    <button class="nav-item" data-module="tasks" onclick="switchModule('tasks')">
-      <span class="nav-icon">✅</span>Open Tasks<span class="nav-badge" id="nav-badge-tasks"></span>
-    </button>
     <button class="nav-item" data-module="analytics" onclick="switchModule('analytics')">
       <span class="nav-icon">📊</span>Analytics
     </button>
@@ -1331,12 +1328,6 @@
     </button>
     <button class="nav-item" data-module="subscriptions" onclick="switchModule('subscriptions')">
       <span class="nav-icon">💳</span>Subscriptions<span class="nav-badge" id="nav-badge-subscriptions"></span>
-    </button>
-    <button class="nav-item" data-module="licenses" onclick="switchModule('licenses')">
-      <span class="nav-icon">📜</span>Licenses<span class="nav-badge" id="nav-badge-licenses"></span>
-    </button>
-    <button class="nav-item" data-module="insurance" onclick="switchModule('insurance')">
-      <span class="nav-icon">🛡️</span>Insurance<span class="nav-badge" id="nav-badge-insurance"></span>
     </button>
   </nav>
   <div class="sidebar-footer">
@@ -1380,22 +1371,6 @@
       </div>
     </div>
   </div>
-</div>
-
-<!-- ══ OPEN TASKS MODULE ══ -->
-<div id="module-tasks" class="app-module">
-  <div id="tasks-topbar">
-    <span class="tasks-title">✅ Open Tasks</span>
-    <div class="filter-wrap tasks-search">
-      <span class="filter-icon">🔍</span>
-      <input id="tasks-filter" type="text" placeholder="Filter open tasks…" oninput="applyTaskFilter()" />
-    </div>
-    <div class="topbar-right">
-      <span id="tasks-count-chip"></span>
-      <button class="btn" onclick="renderOpenTasks()" title="Refresh">↻ Refresh</button>
-    </div>
-  </div>
-  <div class="tasks-scroll" id="tasks-scroll"></div>
 </div>
 
 <!-- ══ ANALYTICS MODULE ══ -->
@@ -1507,6 +1482,17 @@
           <button class="btn primary" onclick="genOvertimeReport()">Generate →</button>
         </div>
       </div>
+
+      <div class="rmod-card">
+        <div class="rmod-card-head">
+          <div class="rmod-card-icon">💳</div>
+          <div class="rmod-card-title">Subscriptions PDF</div>
+        </div>
+        <div class="rmod-card-desc">The full list of recurring subscriptions — cost, billing cycle, end &amp; renewal dates and how soon each renews, with monthly / yearly spend totals per currency.</div>
+        <div class="rmod-card-controls">
+          <button class="btn primary" onclick="genSubscriptionsReport()">Generate →</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1545,28 +1531,6 @@
       <button class="btn" onclick="openSettings()" title="Settings">⚙ Settings</button>
       <button class="btn" onclick="openMonthView()" title="Month overview">🗓 Month</button>
       <button class="btn" onclick="openModal()">+ Add Record <kbd>⌃N</kbd></button>
-      <div class="menu-wrap">
-        <button class="btn" onclick="openTemplateMenu(event)" title="Insert from a saved template">📋 Templates ▾</button>
-        <div class="top-menu" id="template-menu"></div>
-      </div>
-      <div class="menu-wrap">
-        <button class="btn" onclick="toggleTopMenu(event,'export-menu')" title="Export data">⬇ Export ▾</button>
-        <div class="top-menu" id="export-menu">
-          <button onclick="exportCSV()"><span>Current day</span><span class="tm-tag">CSV</span></button>
-          <button onclick="exportXLS()"><span>Current day</span><span class="tm-tag">Excel</span></button>
-          <div class="tm-sep"></div>
-          <button onclick="openExport('csv')"><span>Date range</span><span class="tm-tag">CSV</span></button>
-          <button onclick="openExport('xls')"><span>Date range</span><span class="tm-tag">Excel</span></button>
-        </div>
-      </div>
-      <div class="menu-wrap">
-        <button class="btn" onclick="toggleTopMenu(event,'report-menu')" title="Generate a report">📄 Reports ▾</button>
-        <div class="top-menu" id="report-menu">
-          <button onclick="openPrint()"><span>Daily report</span><span class="tm-tag">🖨</span></button>
-          <button onclick="openReportModal('month')"><span>Monthly summary</span></button>
-          <button onclick="openReportModal('range')"><span>Date-range report</span></button>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -1659,35 +1623,6 @@
     <button class="btn" onclick="closePrint()">✕ Close</button>
     <button class="btn" onclick="exportReportPDF()">⬇ Save PDF</button>
     <button class="btn primary" onclick="triggerPrint()">🖨 Print</button>
-  </div>
-</div>
-
-<!-- ══ REPORT OPTIONS MODAL ══ -->
-<div id="report-overlay" onclick="reportOverlayClick(event)">
-  <div id="report-modal">
-    <div class="modal-header">
-      <span class="modal-title">📄 Generate Report</span>
-      <button class="modal-close" onclick="closeReportModal()">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="rep-tabs">
-        <button class="rep-tab" data-kind="month" onclick="setReportKind('month')">Monthly Summary</button>
-        <button class="rep-tab" data-kind="range" onclick="setReportKind('range')">Date Range</button>
-      </div>
-      <div class="form-group" id="rep-month-fields">
-        <label>Month</label>
-        <input id="rep-month" type="month" />
-      </div>
-      <div class="form-row" id="rep-range-fields" style="display:none">
-        <div class="form-group"><label>From</label><input id="rep-from" type="date" /></div>
-        <div class="form-group"><label>To</label><input id="rep-to" type="date" /></div>
-      </div>
-      <p class="export-hint">Aggregates totals per day plus a per-company / per-project breakdown with Work and Over-Time split. Preview, then Print or Save as PDF.</p>
-    </div>
-    <div class="modal-footer">
-      <button class="btn" onclick="closeReportModal()">Cancel</button>
-      <button class="btn primary" onclick="generateReport()">Preview →</button>
-    </div>
   </div>
 </div>
 
@@ -1791,7 +1726,6 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="saveAsTemplate()" title="Save these field values as a reusable template" style="margin-right:auto">📋 Save as Template</button>
       <button class="btn" onclick="closeModal()">Cancel</button>
       <button class="btn primary" onclick="submitModal()">Add Record</button>
     </div>
@@ -1833,33 +1767,6 @@
   <button class="bulk-btn" onclick="bulkMovePrompt()">📅 Move…</button>
   <button class="bulk-btn danger" onclick="bulkDelete()">🗑 Delete</button>
   <button class="bulk-btn ghost" onclick="clearSelection()">✕ Clear</button>
-</div>
-
-<!-- ══ EXPORT RANGE MODAL ══ -->
-<div id="export-overlay" onclick="exportOverlayClick(event)">
-  <div id="export-modal">
-    <div class="modal-header">
-      <span class="modal-title" id="export-title">Export — Date Range</span>
-      <button class="modal-close" onclick="closeExport()">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="form-row">
-        <div class="form-group">
-          <label>From</label>
-          <input id="export-from" type="date" />
-        </div>
-        <div class="form-group">
-          <label>To</label>
-          <input id="export-to" type="date" />
-        </div>
-      </div>
-      <p class="export-hint">Exports all records across the selected date range into a single file with a <strong>Date</strong> column prepended.</p>
-    </div>
-    <div class="modal-footer">
-      <button class="btn" onclick="closeExport()">Cancel</button>
-      <button class="btn primary" id="export-run-btn" onclick="runExportRange()">⬇ Export CSV</button>
-    </div>
-  </div>
 </div>
 
 <!-- ══ UNDO TOAST ══ -->
@@ -1985,222 +1892,6 @@
   <button id="sub-undo-toast-btn" onclick="undoDeleteSub()">Undo</button>
 </div>
 
-<!-- ══ LICENSES MODULE ══ -->
-<div id="module-licenses" class="app-module">
-  <div id="lic-topbar">
-    <span class="lic-title">📜 Licenses</span>
-    <div class="topbar-right">
-      <input type="text" id="lic-filter" class="mod-search" placeholder="🔍 Search licenses…" oninput="applyLicFilter()">
-      <button class="btn primary" onclick="openLicModal()">+ Add License</button>
-    </div>
-  </div>
-
-  <div id="lic-table-wrap">
-    <table id="lic-table" style="display:none">
-      <thead>
-        <tr>
-          <th>Item</th>
-          <th>Type</th>
-          <th>Document #</th>
-          <th>Issue (Hijri)</th>
-          <th>Expiry (Hijri)</th>
-          <th>Issue Date</th>
-          <th>Expiry Date</th>
-          <th>Remaining</th>
-          <th>Details</th>
-          <th>Notes</th>
-          <th style="width:100px"></th>
-        </tr>
-      </thead>
-      <tbody id="lic-tbody"></tbody>
-    </table>
-    <div id="lic-empty-state">
-      <div class="icon">📜</div>
-      <p>No licenses yet — click <strong>+ Add License</strong> to start tracking</p>
-    </div>
-  </div>
-</div>
-
-<!-- ══ LICENSE ADD/EDIT MODAL ══ -->
-<div id="lic-modal-overlay" onclick="licOverlayClick(event)">
-  <div id="lic-modal">
-    <div class="modal-header">
-      <span class="modal-title" id="lic-modal-title">Add License</span>
-      <button class="modal-close" onclick="closeLicModal()">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Item (البيان)</label>
-          <input id="l-item" type="text" dir="auto" placeholder="e.g. السجل التجاري" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Type</label>
-          <select id="l-type" onchange="onLicTypeChange()">
-            <option value="">— Select Type —</option>
-            <option>Car Insurance</option>
-            <option>Governmental</option>
-            <option>Medical Insurance</option>
-            <option>Service/Subscription</option>
-            <option>Other</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Document # (رقم المستند)</label>
-          <input id="l-docnumber" type="text" dir="auto" placeholder="e.g. 1010225881" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Additional Details</label>
-          <div id="l-extras-list"></div>
-          <button type="button" class="btn" onclick="addLicExtraRow()">+ Add Field</button>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Issue Date — Hijri (هـ)</label>
-          <input id="l-issue-hijri" type="text" placeholder="e.g. 07-11-1445" />
-        </div>
-        <div class="form-group">
-          <label>Expiry Date — Hijri (هـ)</label>
-          <input id="l-expiry-hijri" type="text" placeholder="e.g. 16-12-1448" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Issue Date</label>
-          <input id="l-issue" type="date" />
-        </div>
-        <div class="form-group">
-          <label>Expiry Date</label>
-          <input id="l-expiry" type="date" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Notes (ملاحظات)</label>
-          <input id="l-notes" type="text" dir="auto" placeholder="optional notes" />
-        </div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn" onclick="closeLicModal()">Cancel</button>
-      <button class="btn primary" onclick="submitLicModal()">Add License</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══ LICENSE UNDO TOAST ══ -->
-<div id="lic-undo-toast">
-  <span>License deleted</span>
-  <button id="lic-undo-toast-btn" onclick="undoDeleteLic()">Undo</button>
-</div>
-
-<!-- ══ INSURANCE MODULE ══ -->
-<div id="module-insurance" class="app-module">
-  <div id="ins-topbar">
-    <span class="ins-title">🛡️ Insurance</span>
-    <div class="topbar-right">
-      <input type="text" id="ins-filter" class="mod-search" placeholder="🔍 Search insurance…" oninput="applyInsFilter()">
-      <button class="btn primary" onclick="openInsModal()">+ Add Insurance</button>
-    </div>
-  </div>
-
-  <div id="ins-table-wrap">
-    <table id="ins-table" style="display:none">
-      <thead>
-        <tr>
-          <th>Item</th>
-          <th>Category</th>
-          <th>Provider</th>
-          <th>Policy Number</th>
-          <th>Issue Date</th>
-          <th>Expiry Date</th>
-          <th>Remaining</th>
-          <th>Details</th>
-          <th style="width:100px"></th>
-        </tr>
-      </thead>
-      <tbody id="ins-tbody"></tbody>
-    </table>
-    <div id="ins-empty-state">
-      <div class="icon">🛡️</div>
-      <p>No insurance policies yet — click <strong>+ Add Insurance</strong> to start tracking</p>
-    </div>
-  </div>
-</div>
-
-<!-- ══ INSURANCE ADD/EDIT MODAL ══ -->
-<div id="ins-modal-overlay" onclick="insOverlayClick(event)">
-  <div id="ins-modal">
-    <div class="modal-header">
-      <span class="modal-title" id="ins-modal-title">Add Insurance</span>
-      <button class="modal-close" onclick="closeInsModal()">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Item (البيان)</label>
-          <input id="i-item" type="text" dir="auto" placeholder="e.g. تأمين سيارة كامري 2020" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Category</label>
-          <select id="i-category" onchange="onInsCategoryChange()">
-            <option value="">— Select Category —</option>
-            <option>Car</option>
-            <option>Medical</option>
-            <option>Other</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Provider</label>
-          <input id="i-provider" type="text" dir="auto" placeholder="e.g. شركة امانة" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Policy Number</label>
-          <input id="i-policy" type="text" dir="auto" placeholder="e.g. 6300334389" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Additional Details</label>
-          <div id="i-extras-list"></div>
-          <button type="button" class="btn" onclick="addInsExtraRow()">+ Add Field</button>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Issue Date</label>
-          <input id="i-issue" type="date" />
-        </div>
-        <div class="form-group">
-          <label>Expiry Date</label>
-          <input id="i-expiry" type="date" />
-        </div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn" onclick="closeInsModal()">Cancel</button>
-      <button class="btn primary" onclick="submitInsModal()">Add Insurance</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══ INSURANCE UNDO TOAST ══ -->
-<div id="ins-undo-toast">
-  <span>Insurance policy deleted</span>
-  <button id="ins-undo-toast-btn" onclick="undoDeleteIns()">Undo</button>
-</div>
-
 <script>
 // ── State ──
 let savedDays  = new Set();
@@ -2229,7 +1920,7 @@ let _undoTimer   = null;
 let activeModule = 'timesheet';
 
 // ── Module search filters ──
-let subFilter = '', licFilter = '', insFilter = '';
+let subFilter = '';
 
 // ── Subscriptions state ──
 let subscriptions = [];
@@ -2240,28 +1931,9 @@ let _subSaveTimer = null;
 let undoSubscription = null; // { sub, idx }
 let _undoSubTimer    = null;
 
-// ── Licenses state ──
-let licenses      = [];
-let licEditId     = null;
-let licsLoaded    = false;
-let _licSaveTimer = null;
-let undoLicense   = null; // { lic, idx }
-let _undoLicTimer = null;
-
-// ── Insurance state ──
-let insurance      = [];
-let insEditId      = null;
-let insLoaded      = false;
-let _insSaveTimer  = null;
-let undoInsurance  = null; // { ins, idx }
-let _undoInsTimer  = null;
-
 // ── Analytics state ──
 let analyticsLoaded = false;
 let anPeriod        = 'month';   // week | month | 30 | year | custom
-
-// ── Open Tasks state ──
-let taskFilter = '';
 
 // ── Helpers ──
 // Format a Date as a local YYYY-MM-DD string. Uses local calendar components
@@ -2960,22 +2632,11 @@ async function saveDay() {
   const el = document.getElementById('save-status');
   el.textContent = '✓ Saved'; el.className = 'saved';
   setTimeout(() => { el.textContent = ''; el.className = ''; }, 1500);
-  scheduleTaskBadge();   // status edits may change the open-task count (coalesced)
 }
 
 function autoSave() {
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(saveDay, 300);
-}
-
-// The open-task badge is derived from a full cross-day scan (getOpenItems),
-// which is too heavy to run on every save. Coalesce rapid saves into one
-// refresh once edits settle, so the scan cost no longer scales with how fast
-// the user types.
-let _taskBadgeTimer = null;
-function scheduleTaskBadge() {
-  clearTimeout(_taskBadgeTimer);
-  _taskBadgeTimer = setTimeout(() => updateTaskBadge(), 1000);
 }
 
 // Move a single record from the active day to another day's file.
@@ -3121,7 +2782,6 @@ async function submitModal() {
     renderTable();
     renderCarryOver();
     renderCalendar();
-    updateTaskBadge();   // an edited day may change its open-item count
   } else {
     renderTable();
     autoSave();
@@ -3143,11 +2803,11 @@ function clearErrors() { clearErrorsIn('body'); }
 // ── Keyboard shortcuts ──
 document.addEventListener('keydown', e => {
   const inputFocused = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
-  const anyOpen = ['modal-overlay','settings-overlay','print-overlay','export-overlay','report-overlay','month-overlay','sub-modal-overlay','sub-settings-overlay','lic-modal-overlay','ins-modal-overlay']
+  const anyOpen = ['modal-overlay','settings-overlay','print-overlay','month-overlay','sub-modal-overlay','sub-settings-overlay']
     .some(id => document.getElementById(id).classList.contains('open'));
 
   if (e.key === 'Escape') {
-    closeModal(); closeSettings(); closePrint(); closeExport(); closeReportModal(); closeMonthView(); closeSubModal(); closeSubSettings(); closeLicModal(); closeInsModal();
+    closeModal(); closeSettings(); closePrint(); closeMonthView(); closeSubModal(); closeSubSettings();
     document.querySelectorAll('.top-menu.open').forEach(m => m.classList.remove('open'));
     if (selectedRows.size) clearSelection();
   }
@@ -3155,17 +2815,13 @@ document.addEventListener('keydown', e => {
     e.preventDefault();
     if (document.getElementById('modal-overlay').classList.contains('open')) submitModal();
     if (document.getElementById('sub-modal-overlay').classList.contains('open')) submitSubModal();
-    if (document.getElementById('lic-modal-overlay').classList.contains('open')) submitLicModal();
-    if (document.getElementById('ins-modal-overlay').classList.contains('open')) submitInsModal();
   }
   if (!anyOpen && !inputFocused) {
     if (e.ctrlKey && !e.shiftKey && e.key === 'n') {
       e.preventDefault();
       if      (activeModule === 'subscriptions') openSubModal();
-      else if (activeModule === 'licenses')      openLicModal();
-      else if (activeModule === 'insurance')     openInsModal();
       else if (activeModule === 'timesheet')     openModal();
-      // dashboard has no Add action — Ctrl+N is a no-op there
+      // dashboard / analytics / reports have no Add action — Ctrl+N is a no-op there
     }
     // Day navigation: Ctrl+Left = earlier day, Ctrl+Right = later day
     if (e.ctrlKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
@@ -3317,15 +2973,6 @@ function buildDailyReportHTML(srcRows, date, name) {
       <span>MOS TA FA COOPERATION TOOLS — ${esc(name)}</span>
       <span>Work: ${workHrs}h &nbsp;|&nbsp; Overtime: ${otHrs}h${otherMin > 0 ? ` &nbsp;|&nbsp; Other: ${otherHrs}h` : ''} &nbsp;|&nbsp; Printed ${printedOn}</span>
     </div>`;
-}
-
-// Timesheet topbar "Daily report" — previews the active day.
-function openPrint() {
-  const name = document.getElementById('hName').value || 'N/A';
-  const date = activeDate || document.getElementById('hDate').value;
-  _reportFileBase = `timesheet-${date}`;
-  document.getElementById('print-frame').innerHTML = buildDailyReportHTML(rows, date, name);
-  document.getElementById('print-overlay').classList.add('open');
 }
 
 function closePrint() {
@@ -3550,6 +3197,126 @@ function buildOvertimeReportHTML(days, monthLabel, name) {
     </div>`;
 }
 
+// Subscriptions PDF — the full list of recurring subscriptions, mirroring the
+// columns of the Subscriptions module, plus monthly/yearly spend per currency.
+async function genSubscriptionsReport() {
+  let data;
+  try { data = await window.api.loadSubscriptions(); }
+  catch { toast('Could not load subscriptions'); return; }
+  const subs = (data && Array.isArray(data.subscriptions)) ? data.subscriptions : [];
+  const name = document.getElementById('hName').value || (lookups && lookups.defaultName) || 'N/A';
+  if (!subs.length) toast('No subscriptions yet — showing an empty report');
+  _reportFileBase = `subscriptions-${fmt(new Date())}`;
+  document.getElementById('print-frame').innerHTML = buildSubscriptionsReportHTML(subs, (data && data.defaultCurrency) || 'USD', name);
+  document.getElementById('print-overlay').classList.add('open');
+}
+
+function buildSubscriptionsReportHTML(subs, defaultCurrency, name) {
+  // Sort by soonest renewal first (no renewal date sorts last) — matches the module.
+  const sorted = subs.slice().sort((a, b) => {
+    const da = daysUntil(a.renewalDate), db = daysUntil(b.renewalDate);
+    if (da === null) return 1;
+    if (db === null) return -1;
+    return da - db;
+  });
+
+  // Monthly + yearly spend equivalents per currency (Monthly/Yearly/Custom).
+  const cur = {};
+  let dueSoon = 0, overdue = 0;
+  sorted.forEach(s => {
+    const d = daysUntil(s.renewalDate);
+    if (d !== null && d < 0) overdue++;
+    else if (d !== null && d <= 30) dueSoon++;
+    const cost = parseFloat(String(s.cost).replace(/[^0-9.]/g, '')) || 0;
+    if (!cost) return;
+    const c = s.currency || defaultCurrency || 'USD';
+    cur[c] = cur[c] || { monthly: 0, yearly: 0 };
+    if (s.billingCycle === 'Yearly')        { cur[c].yearly += cost;  cur[c].monthly += cost / 12; }
+    else if (s.billingCycle === 'Monthly')  { cur[c].monthly += cost; cur[c].yearly  += cost * 12; }
+    else                                    { cur[c].yearly += cost;  cur[c].monthly += cost / 12; }
+  });
+
+  const renewCell = (dateStr) => {
+    const d = daysUntil(dateStr);
+    if (d === null) return '<span style="color:#999">—</span>';
+    const color = (d < 0 || d <= 7) ? '#dc2626' : (d <= 30 ? '#a16207' : '#16a34a');
+    return `<span style="color:${color};font-weight:600">${esc(renewLabel(d))}</span>`;
+  };
+
+  const rowsHTML = sorted.length ? sorted.map((s, i) => {
+    const costNum = parseFloat(s.cost);
+    const costText = isNaN(costNum) ? (s.cost || '—') : costNum.toFixed(2);
+    return `
+      <tbody class="rpt-row-group">
+        <tr>
+          <td class="center">${i + 1}</td>
+          <td>${esc(s.name)}</td>
+          <td>${esc((s.currency || defaultCurrency || 'USD') + ' ' + costText)}</td>
+          <td>${esc(s.billingCycle || '—')}</td>
+          <td>${esc(s.endDate || '—')}</td>
+          <td>${esc(s.renewalDate || '—')}</td>
+          <td>${renewCell(s.renewalDate)}</td>
+        </tr>
+      </tbody>`;
+  }).join('') : `<tbody><tr><td colspan="7" class="center" style="color:#999;padding:18px">No subscriptions recorded.</td></tr></tbody>`;
+
+  const spendRows = Object.entries(cur).map(([c, v]) =>
+    `<tr><td>${esc(c)}</td><td class="hrs">${v.monthly.toFixed(0)}</td><td class="hrs">${v.yearly.toFixed(0)}</td></tr>`
+  ).join('') || `<tr><td colspan="3" class="center" style="color:#999">No subscription costs recorded.</td></tr>`;
+
+  const printedOn = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  return `
+    <div class="rpt-header">
+      <div class="rpt-logo">
+        <div class="rpt-logo-icon">💳</div>
+        <div>
+          <div class="rpt-logo-text">MOS TA FA<br><span style="color:#6c63ff;letter-spacing:4px">COOPERATION TOOLS</span></div>
+          <div class="rpt-logo-sub">Subscriptions Report</div>
+        </div>
+      </div>
+      <div class="rpt-meta">
+        <div class="rpt-meta-name">${esc(name)}</div>
+        <div class="rpt-meta-date">${printedOn}</div>
+        <div class="rpt-meta-ref">${sorted.length} subscription${sorted.length === 1 ? '' : 's'}</div>
+      </div>
+    </div>
+    <hr class="rpt-divider"/>
+    <div class="rpt-summary">
+      <div class="rpt-card"><div class="rpt-card-val">${sorted.length}</div><div class="rpt-card-lbl">Subscriptions</div></div>
+      <div class="rpt-card"><div class="rpt-card-val" style="color:#a16207">${dueSoon}</div><div class="rpt-card-lbl">Renewing ≤30d</div></div>
+      <div class="rpt-card"><div class="rpt-card-val" style="color:#dc2626">${overdue}</div><div class="rpt-card-lbl">Overdue</div></div>
+      <div class="rpt-card"><div class="rpt-card-val">${Object.keys(cur).length}</div><div class="rpt-card-lbl">Currencies</div></div>
+    </div>
+    <table class="rpt-table">
+      <thead>
+        <tr>
+          <th style="width:32px;text-align:center">#</th>
+          <th>Name</th>
+          <th>Cost</th>
+          <th>Billing Cycle</th>
+          <th>End Date</th>
+          <th>Renewal Date</th>
+          <th>Renews In</th>
+        </tr>
+      </thead>
+      ${rowsHTML}
+    </table>
+
+    <div style="margin-top:22px">
+      <div class="rpt-bd-title">Recurring Spend by Currency</div>
+      <table class="rpt-table">
+        <thead><tr><th>Currency</th><th style="text-align:right">Monthly</th><th style="text-align:right">Yearly</th></tr></thead>
+        <tbody>${spendRows}</tbody>
+      </table>
+    </div>
+
+    <div class="rpt-footer">
+      <span>MOS TA FA COOPERATION TOOLS — ${esc(name)}</span>
+      <span>${sorted.length} subscription${sorted.length === 1 ? '' : 's'} &nbsp;|&nbsp; Printed ${printedOn}</span>
+    </div>`;
+}
+
 // ── Today button ──
 function goToday() {
   switchDay(fmt(new Date()));
@@ -3632,7 +3399,6 @@ async function renderCarryOver() {
       dayCache[date] = entry;
       if (entry.rows.length === 0) savedDays.delete(date);
       renderCarryOver(); renderCalendar();
-      updateTaskBadge();   // dismissing removes an open ("Not Yet") item
     });
 
     acts.appendChild(editBtn); acts.appendChild(moveBtn); acts.appendChild(dismissBtn);
@@ -3700,127 +3466,15 @@ function rowMatchesFilter(row) {
     .some(v => (v || '').toLowerCase().includes(filterText));
 }
 
-// ── CSV Export (today) ──
-function exportCSV() {
-  const headers = ['#','Company','Project','Natural','Time Type','Description','Source','Status','Minutes','Hours','Tags'];
-  const lines = [headers.join(',')];
-  rows.forEach((r, i) => {
-    const mins = parseFloat(r.minutes) || 0;
-    const cols = [
-      i + 1,
-      r.company, r.project, r.natural, r.time,
-      r.description, r.source, r.status,
-      r.minutes || '',
-      mins ? (mins / 60).toFixed(2) : '',
-      Array.isArray(r.tags) ? r.tags.join('; ') : '',
-    ].map(csvCell);
-    lines.push(cols.join(','));
-  });
-  downloadCSV(lines.join('\r\n'), `timesheet-${activeDate || 'export'}.csv`);
-}
+// Base filename for the Reports-module PDF / print preview (set by genDailyReport
+// / genOvertimeReport / genSubscriptionsReport, read by exportReportPDF).
+let _reportFileBase = 'report';
 
-// ── Excel (.xls) export — current day ──
-function exportXLS() {
-  const headers = ['#','Company','Project','Natural','Time Type','Description','Source','Status','Minutes','Hours','Tags'];
-  const data = rows.map((r, i) => {
-    const mins = parseFloat(r.minutes) || 0;
-    return [i + 1, r.company, r.project, r.natural, r.time, r.description, r.source, r.status,
-            r.minutes || '', mins ? (mins / 60).toFixed(2) : '', Array.isArray(r.tags) ? r.tags.join('; ') : ''];
-  });
-  downloadFile(buildXLS(headers, data, 'Timesheet'),
-               `timesheet-${activeDate || 'export'}.xls`, 'application/vnd.ms-excel');
-}
+// ════════════════════════════════════════════════════════════════════════════
+// TIMESHEET DEPTH — tags, templates, bulk actions, month overview.
+// ════════════════════════════════════════════════════════════════════════════
 
-// ── Export Range (CSV or Excel) ──
-let exportFmt = 'csv';
-function openExport(fmt = 'csv') {
-  exportFmt = (fmt === 'xls') ? 'xls' : 'csv';
-  const t = fmt(new Date());
-  const [y, m] = t.split('-');
-  document.getElementById('export-from').value = `${y}-${m}-01`;
-  document.getElementById('export-to').value   = t;
-  document.getElementById('export-title').textContent = `Export ${exportFmt === 'xls' ? 'Excel' : 'CSV'} — Date Range`;
-  document.getElementById('export-run-btn').textContent = `⬇ Export ${exportFmt === 'xls' ? 'Excel' : 'CSV'}`;
-  document.getElementById('export-overlay').classList.add('open');
-}
-
-function closeExport() {
-  document.getElementById('export-overlay').classList.remove('open');
-}
-
-function exportOverlayClick(e) {
-  if (e.target === document.getElementById('export-overlay')) closeExport();
-}
-
-async function runExportRange() {
-  const from = document.getElementById('export-from').value;
-  const to   = document.getElementById('export-to').value;
-  if (!from || !to || from > to) {
-    document.getElementById('export-from').classList.add('field-error');
-    document.getElementById('export-to').classList.add('field-error');
-    setTimeout(() => {
-      document.getElementById('export-from').classList.remove('field-error');
-      document.getElementById('export-to').classList.remove('field-error');
-    }, 1200);
-    return;
-  }
-
-  // One query for the whole range (rather than N loadDay round-trips).
-  const days = await window.api.loadDaysRange(from, to);
-  const headers = ['Date','#','Company','Project','Natural','Time Type','Description','Source','Status','Minutes','Hours','Tags'];
-  const data = [];
-  days.forEach(entry => {
-    (entry.rows || []).forEach((r, i) => {
-      const mins = parseFloat(r.minutes) || 0;
-      data.push([entry.date, i + 1, r.company, r.project, r.natural, r.time,
-                 r.description, r.source, r.status, r.minutes || '', mins ? (mins / 60).toFixed(2) : '',
-                 Array.isArray(r.tags) ? r.tags.join('; ') : '']);
-    });
-  });
-
-  closeExport();
-  if (exportFmt === 'xls') {
-    downloadFile(buildXLS(headers, data, 'Timesheet'), `timesheet-${from}-to-${to}.xls`, 'application/vnd.ms-excel');
-  } else {
-    const lines = [headers.join(',')];
-    data.forEach(cols => lines.push(cols.map(csvCell).join(',')));
-    downloadCSV(lines.join('\r\n'), `timesheet-${from}-to-${to}.csv`);
-  }
-}
-
-function downloadCSV(csv, filename) {
-  downloadFile(csv, filename, 'text/csv;charset=utf-8;');
-}
-
-// Build an HTML-table workbook Excel opens natively (UTF-8 + RTL-safe). Header
-// row is styled; cells are left to Excel's auto type detection.
-function buildXLS(headers, rows2D, sheetName) {
-  const th = headers.map(h =>
-    `<th style="background:#1e1e2e;color:#fff;border:1px solid #888;padding:5px 9px;text-align:left">${esc(String(h))}</th>`
-  ).join('');
-  const trs = rows2D.map(r =>
-    '<tr>' + r.map(c => `<td style="border:1px solid #ccc;padding:4px 9px">${esc(String(c ?? ''))}</td>`).join('') + '</tr>'
-  ).join('');
-  return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="UTF-8">
-<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
-<x:Name>${esc(sheetName || 'Sheet1')}</x:Name>
-<x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
-</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
-<style>table{border-collapse:collapse;font-family:Calibri,Arial,sans-serif;font-size:11pt}</style>
-</head><body><table><tr>${th}</tr>${trs}</table></body></html>`;
-}
-
-// Save text/HTML content to a file with a UTF-8 BOM (so Excel reads Arabic).
-function downloadFile(content, filename, mime) {
-  const blob = new Blob(['﻿' + content], { type: mime });
-  const url  = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = filename;
-  a.click(); URL.revokeObjectURL(url);
-}
-
-// ── Topbar dropdown menus ──
+// ── Dropdown menu (bulk-action "Set Status ▾") ──
 function toggleTopMenu(e, id) {
   e.stopPropagation();
   const menu = document.getElementById(id);
@@ -3831,166 +3485,6 @@ function toggleTopMenu(e, id) {
 document.addEventListener('click', () => {
   document.querySelectorAll('.top-menu.open').forEach(m => m.classList.remove('open'));
 });
-
-// ════════════════════════════════════════════════════════════════════════════
-// REPORTS — daily (existing) + new monthly / date-range aggregate reports.
-// ════════════════════════════════════════════════════════════════════════════
-let _reportKind = 'month';
-let _reportFileBase = 'report';
-
-function openReportModal(kind) {
-  setReportKind(kind || 'month');
-  const t = fmt(new Date());
-  const [y, m] = t.split('-');
-  document.getElementById('rep-month').value = `${y}-${m}`;
-  document.getElementById('rep-from').value  = `${y}-${m}-01`;
-  document.getElementById('rep-to').value    = t;
-  document.getElementById('report-overlay').classList.add('open');
-}
-function setReportKind(kind) {
-  _reportKind = kind;
-  document.querySelectorAll('#report-modal .rep-tab').forEach(b => b.classList.toggle('active', b.dataset.kind === kind));
-  document.getElementById('rep-month-fields').style.display = kind === 'month' ? '' : 'none';
-  document.getElementById('rep-range-fields').style.display = kind === 'range' ? '' : 'none';
-}
-function closeReportModal() { document.getElementById('report-overlay').classList.remove('open'); }
-function reportOverlayClick(e) { if (e.target === document.getElementById('report-overlay')) closeReportModal(); }
-
-async function generateReport() {
-  let from, to, title;
-  if (_reportKind === 'month') {
-    const mv = document.getElementById('rep-month').value;
-    if (!mv) { document.getElementById('rep-month').classList.add('field-error'); setTimeout(() => document.getElementById('rep-month').classList.remove('field-error'), 1200); return; }
-    const [y, m] = mv.split('-').map(Number);
-    from = `${mv}-01`;
-    to   = `${mv}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
-    title = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    _reportFileBase = `report-${mv}`;
-  } else {
-    from = document.getElementById('rep-from').value;
-    to   = document.getElementById('rep-to').value;
-    if (!from || !to || from > to) {
-      ['rep-from', 'rep-to'].forEach(id => { document.getElementById(id).classList.add('field-error'); setTimeout(() => document.getElementById(id).classList.remove('field-error'), 1200); });
-      return;
-    }
-    title = `${from} → ${to}`;
-    _reportFileBase = `report-${from}-to-${to}`;
-  }
-
-  const days = await window.api.loadDaysRange(from, to);
-  const name = document.getElementById('hName').value || (lookups && lookups.defaultName) || 'N/A';
-  document.getElementById('print-frame').innerHTML = buildAggregateReportHTML(days, _reportKind === 'month' ? 'Monthly Summary' : 'Range Report', title, name);
-  closeReportModal();
-  document.getElementById('print-overlay').classList.add('open');
-}
-
-// Build the aggregate (monthly / range) report HTML using the shared .rpt-* CSS.
-function buildAggregateReportHTML(days, reportType, title, name) {
-  let totalMin = 0, workMin = 0, otMin = 0, recordCount = 0, activeDays = 0;
-  const byCompany = {}, byProject = {};
-  const perDay = [];
-  days.forEach(d => {
-    let dMin = 0, dWork = 0, dOt = 0, dRec = 0;
-    (d.rows || []).forEach(r => {
-      const m = parseFloat(r.minutes) || 0;
-      dRec++; recordCount++; dMin += m; totalMin += m;
-      if (r.time === 'Work Time') { workMin += m; dWork += m; }
-      else if (r.time === 'Over Time') { otMin += m; dOt += m; }
-      if (r.company) byCompany[r.company] = (byCompany[r.company] || 0) + m;
-      if (r.project) byProject[r.project] = (byProject[r.project] || 0) + m;
-    });
-    if (dMin > 0) activeDays++;
-    if (dRec > 0) perDay.push({ date: d.date, rec: dRec, work: dWork, ot: dOt, total: dMin });
-  });
-  const h = m => (m / 60).toFixed(2);
-  const otherMin = Math.max(0, totalMin - workMin - otMin);
-
-  const perDayRows = perDay.length ? perDay.map(p => {
-    const dt = new Date(p.date + 'T00:00:00');
-    return `<tr>
-      <td>${dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</td>
-      <td class="center">${p.rec}</td>
-      <td class="hrs">${h(p.work)}</td>
-      <td class="hrs" style="color:#dc2626">${p.ot ? h(p.ot) : '—'}</td>
-      <td class="hrs"><b>${h(p.total)}</b></td>
-    </tr>`;
-  }).join('') : `<tr><td colspan="5" class="center" style="color:#999">No records in this period.</td></tr>`;
-
-  const breakdown = (map) => {
-    const items = Object.entries(map).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
-    if (!items.length) return `<tr><td colspan="3" class="center" style="color:#999">—</td></tr>`;
-    return items.map(([k, v]) => `<tr>
-      <td>${esc(k)}</td>
-      <td class="hrs">${h(v)}</td>
-      <td class="num">${totalMin ? Math.round((v / totalMin) * 100) : 0}%</td>
-    </tr>`).join('');
-  };
-
-  const printedOn = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-
-  return `
-    <div class="rpt-header">
-      <div class="rpt-logo">
-        <div class="rpt-logo-icon">⏱</div>
-        <div>
-          <div class="rpt-logo-text">MOS TA FA<br><span style="color:#6c63ff;letter-spacing:4px">COOPERATION TOOLS</span></div>
-          <div class="rpt-logo-sub">${esc(reportType)}</div>
-        </div>
-      </div>
-      <div class="rpt-meta">
-        <div class="rpt-meta-name">${esc(name)}</div>
-        <div class="rpt-meta-date">${esc(title)}</div>
-        <div class="rpt-meta-ref">${activeDays} active day${activeDays === 1 ? '' : 's'} · ${recordCount} record${recordCount === 1 ? '' : 's'}</div>
-      </div>
-    </div>
-    <hr class="rpt-divider"/>
-    <div class="rpt-summary">
-      <div class="rpt-card"><div class="rpt-card-val">${h(totalMin)}h</div><div class="rpt-card-lbl">Total Hours</div></div>
-      <div class="rpt-card"><div class="rpt-card-val">${h(workMin)}h</div><div class="rpt-card-lbl">Work Time</div></div>
-      <div class="rpt-card"><div class="rpt-card-val">${h(otMin)}h</div><div class="rpt-card-lbl">Over Time</div></div>
-      <div class="rpt-card"><div class="rpt-card-val">${activeDays ? h(totalMin / activeDays) : '0.00'}h</div><div class="rpt-card-lbl">Avg / Active Day</div></div>
-    </div>
-
-    <table class="rpt-table">
-      <thead><tr>
-        <th>Day</th>
-        <th style="text-align:center">Records</th>
-        <th style="text-align:right">Work (h)</th>
-        <th style="text-align:right">Over (h)</th>
-        <th style="text-align:right">Total (h)</th>
-      </tr></thead>
-      <tbody>
-        ${perDayRows}
-        <tr class="rpt-totals">
-          <td class="total-label">Total</td>
-          <td class="center">${recordCount}</td>
-          <td class="hrs">${h(workMin)}</td>
-          <td class="hrs">${h(otMin)}</td>
-          <td class="hrs">${h(totalMin)}</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <div style="display:flex;gap:24px;margin-top:22px;align-items:flex-start">
-      <div style="flex:1">
-        <div class="rpt-bd-title">By Company</div>
-        <table class="rpt-table"><thead><tr><th>Company</th><th style="text-align:right">Hours</th><th style="text-align:right">Share</th></tr></thead><tbody>${breakdown(byCompany)}</tbody></table>
-      </div>
-      <div style="flex:1">
-        <div class="rpt-bd-title">By Project</div>
-        <table class="rpt-table"><thead><tr><th>Project</th><th style="text-align:right">Hours</th><th style="text-align:right">Share</th></tr></thead><tbody>${breakdown(byProject)}</tbody></table>
-      </div>
-    </div>
-
-    <div class="rpt-footer">
-      <span>MOS TA FA COOPERATION TOOLS — ${esc(name)}</span>
-      <span>Work: ${h(workMin)}h &nbsp;|&nbsp; Overtime: ${h(otMin)}h${otherMin > 0 ? ` &nbsp;|&nbsp; Other: ${h(otherMin)}h` : ''} &nbsp;|&nbsp; Printed ${printedOn}</span>
-    </div>`;
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-// TIMESHEET DEPTH — tags, templates, bulk actions, month overview.
-// ════════════════════════════════════════════════════════════════════════════
 
 // ── Tags ──
 function parseTags(str) {
@@ -4085,62 +3579,6 @@ async function moveRowsToDate(rowRefs, targetDate) {
   toast(`Moved ${withIdx.length} record${withIdx.length === 1 ? '' : 's'} to ${targetDate}`);
 }
 
-// ── Templates ──
-function openTemplateMenu(e) {
-  renderTemplateMenu();
-  toggleTopMenu(e, 'template-menu');
-}
-function renderTemplateMenu() {
-  const menu = document.getElementById('template-menu');
-  const tpls = (lookups && lookups.templates) || [];
-  if (!tpls.length) {
-    menu.innerHTML = `<div style="padding:10px 12px;font-size:12px;color:var(--muted);line-height:1.5">No templates yet.<br>Fill the Add Record form, then click<br>“📋 Save as Template”.</div>`;
-    return;
-  }
-  menu.innerHTML = tpls.map((t, i) => `
-    <button onclick="insertTemplate(${i})">
-      <span>${esc(t.name || t.description || 'Template')}</span>
-      <span class="tm-tag" title="Delete template" style="cursor:pointer" onclick="event.stopPropagation();deleteTemplate(${i})">✕</span>
-    </button>`).join('');
-}
-function saveAsTemplate() {
-  const desc = document.getElementById('f-description').value.trim();
-  const company = document.getElementById('f-company').value;
-  const project = document.getElementById('f-project').value;
-  const name = (desc || [company, project].filter(Boolean).join(' · ') || 'Template').slice(0, 48);
-  const tpl = {
-    name, company, project,
-    natural: document.getElementById('f-natural').value,
-    time:    document.getElementById('f-time').value,
-    description: desc,
-    source:  document.getElementById('f-source').value.trim(),
-    status:  document.getElementById('f-status').value || 'In Progress',
-    tags:    parseTags(document.getElementById('f-tags').value),
-  };
-  if (!lookups.templates) lookups.templates = [];
-  lookups.templates.push(tpl);
-  persistLookups();
-  toast('Template saved: ' + name);
-}
-function insertTemplate(i) {
-  const t = (lookups.templates || [])[i];
-  if (!t) return;
-  rows.push({
-    company: t.company || '', project: t.project || '', natural: t.natural || '', time: t.time || '',
-    description: t.description || '', source: t.source || '', status: t.status || 'In Progress',
-    minutes: '', tags: Array.isArray(t.tags) ? t.tags.slice() : [],
-  });
-  renderTable();
-  setUnsaved();
-  toast('Inserted: ' + (t.name || 'template'));
-}
-function deleteTemplate(i) {
-  if (!lookups.templates) return;
-  lookups.templates.splice(i, 1);
-  persistLookups();
-  renderTemplateMenu();
-}
-
 // ── Month overview ──
 let monthViewY = null, monthViewM = null;
 function openMonthView() {
@@ -4221,21 +3659,10 @@ function switchModule(name) {
     window.api.setTitle('Cooperation Tools — Subscriptions');
     if (!subsLoaded) loadSubscriptionsData();
     else renderSubscriptions();
-  } else if (name === 'licenses') {
-    window.api.setTitle('Cooperation Tools — Licenses');
-    if (!licsLoaded) loadLicensesData();
-    else renderLicenses();
-  } else if (name === 'insurance') {
-    window.api.setTitle('Cooperation Tools — Insurance');
-    if (!insLoaded) loadInsuranceData();
-    else renderInsurance();
   } else if (name === 'analytics') {
     window.api.setTitle('Cooperation Tools — Analytics');
     analyticsLoaded = true;
     renderAnalytics();
-  } else if (name === 'tasks') {
-    window.api.setTitle('Cooperation Tools — Open Tasks');
-    renderOpenTasks();
   } else if (name === 'reports') {
     window.api.setTitle('Cooperation Tools — Reports');
     initReportsModule();
@@ -4269,8 +3696,6 @@ function autoSaveSubscriptions() {
 
 // ── Module search filters ──
 function applySubFilter() { subFilter = document.getElementById('sub-filter').value.toLowerCase().trim(); renderSubscriptions(); }
-function applyLicFilter() { licFilter = document.getElementById('lic-filter').value.toLowerCase().trim(); renderLicenses(); }
-function applyInsFilter() { insFilter = document.getElementById('ins-filter').value.toLowerCase().trim(); renderInsurance(); }
 
 // ── Theme toggle ──
 function applyThemeLabel() {
@@ -4316,29 +3741,17 @@ async function renderDashboard() {
   const todayRecs = dayEntries[dayEntries.length - 1]?.rows?.length || 0;
 
   // Cross-module attention data
-  const [subData, licData, insData, carry] = await Promise.all([
+  const [subData, carry] = await Promise.all([
     window.api.loadSubscriptions(),
-    window.api.loadLicenses(),
-    window.api.loadInsurance(),
     window.api.getCarryOver(today),
   ]);
   const subs = (subData && subData.subscriptions) || [];
-  const lics = (licData && licData.licenses) || [];
-  const ins  = (insData && insData.insurance)  || [];
   const carryCount = Array.isArray(carry) ? carry.length : 0;
 
   const attention = [];
   subs.forEach(s => {
     const d = daysUntil(s.renewalDate);
     if (d !== null && d <= 30) attention.push({ icon: '💳', title: s.name || 'Subscription', days: d, module: 'subscriptions', kind: 'Renews' });
-  });
-  lics.forEach(l => {
-    const d = daysUntil(l.expiryDate);
-    if (d !== null && d <= 30) attention.push({ icon: '📜', title: l.item || 'License', days: d, module: 'licenses', kind: 'Expires' });
-  });
-  ins.forEach(p => {
-    const d = daysUntil(p.expiryDate);
-    if (d !== null && d <= 30) attention.push({ icon: '🛡️', title: p.item || 'Insurance', days: d, module: 'insurance', kind: 'Expires' });
   });
   attention.sort((a, b) => a.days - b.days);
 
@@ -4393,11 +3806,9 @@ async function renderDashboard() {
     }).join('');
   }
 
-  // Sidebar attention badges (urgent counts per module, ≤7 days or overdue)
+  // Sidebar attention badge (urgent count, ≤7 days or overdue)
   const urgent = m => attention.filter(a => a.module === m && a.days <= 7).length;
   setNavBadge('subscriptions', urgent('subscriptions'));
-  setNavBadge('licenses', urgent('licenses'));
-  setNavBadge('insurance', urgent('insurance'));
 }
 
 function setNavBadge(module, count) {
@@ -4732,162 +4143,6 @@ async function exportAnalyticsPDF() {
   else if (res && res.error) toast('PDF failed: ' + res.error);
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// OPEN TASKS — every "In Progress" + "Not Yet" record across all days, with
-// inline actions (edit in its day, → Today, ✓ Done, ✕ Dismiss). One scan query.
-// ════════════════════════════════════════════════════════════════════════════
-function applyTaskFilter() {
-  taskFilter = document.getElementById('tasks-filter').value.toLowerCase().trim();
-  renderOpenTasks();
-}
-
-// Refresh the sidebar count badge. Pass a known count, or omit to query for it.
-async function updateTaskBadge(count) {
-  if (count === undefined) {
-    try { count = (await window.api.getOpenItems()).length; } catch { count = 0; }
-  }
-  const el = document.getElementById('nav-badge-tasks');
-  if (!el) return;
-  if (count > 0) { el.textContent = count; el.classList.add('show', 'count'); }
-  else { el.textContent = ''; el.classList.remove('show'); }
-}
-
-async function renderOpenTasks() {
-  const scroll = document.getElementById('tasks-scroll');
-  let items = await window.api.getOpenItems();
-  updateTaskBadge(items.length);
-
-  if (taskFilter) {
-    items = items.filter(it => {
-      const r = it.row;
-      const tagStr = Array.isArray(r.tags) ? r.tags.join(' ') : '';
-      return [r.company, r.project, r.natural, r.time, r.description, r.source, tagStr, it.date]
-        .some(v => (v || '').toLowerCase().includes(taskFilter));
-    });
-  }
-
-  const inProg = items.filter(it => it.row.status === 'In Progress').sort((a, b) => b.date.localeCompare(a.date));
-  const notYet = items.filter(it => it.row.status === 'Not Yet' || it.row.status === 'Pending').sort((a, b) => a.date.localeCompare(b.date));
-  document.getElementById('tasks-count-chip').textContent = `${inProg.length} in progress · ${notYet.length} not yet`;
-
-  scroll.innerHTML = '';
-  if (!items.length) {
-    scroll.innerHTML = `<div class="dash-empty"><span class="de-icon">🎉</span>${taskFilter ? 'No matching open tasks.' : 'No open tasks — everything is done!'}</div>`;
-    return;
-  }
-  if (inProg.length) scroll.appendChild(buildTaskSection('⚡ In Progress', inProg, 'ip'));
-  if (notYet.length) scroll.appendChild(buildTaskSection('📌 Not Yet', notYet, 'ny'));
-}
-
-function buildTaskSection(title, list, kind) {
-  const sec = document.createElement('div'); sec.className = 'task-section';
-  const head = document.createElement('div'); head.className = 'task-section-head';
-  head.innerHTML = `<span>${title}</span><span class="task-section-count">${list.length}</span>`;
-  sec.appendChild(head);
-  list.forEach(it => sec.appendChild(buildTaskItem(it, kind)));
-  return sec;
-}
-
-function buildTaskItem({ date, idx, row }, kind) {
-  const item = document.createElement('div'); item.className = 'task-item';
-  const today = fmt(new Date());
-  const [y, m, d] = date.split('-');
-  const dateLabel = new Date(+y, +m - 1, +d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  const ageDays = Math.round((new Date(today + 'T00:00:00') - new Date(date + 'T00:00:00')) / 86400000);
-  const ageStr = date === today ? ' · today' : (ageDays > 0 ? ` · ${ageDays}d ago` : '');
-  const meta = [row.company, row.project, row.natural].filter(Boolean).map(esc).join(' · ');
-  const tags = (Array.isArray(row.tags) && row.tags.length)
-    ? `<div class="row-tags">${row.tags.map(t => `<span class="row-tag">${esc(t)}</span>`).join('')}</div>` : '';
-
-  item.innerHTML = `
-    <span class="task-status ${kind}">${kind === 'ip' ? 'In Progress' : 'Not Yet'}</span>
-    <div class="task-main">
-      <div class="task-meta-line">
-        <span class="task-date" title="${date}">${dateLabel}${ageStr}</span>
-        ${meta ? `<span class="task-meta">${meta}</span>` : ''}
-      </div>
-      <div class="task-desc rtl-text" dir="auto">${esc(row.description || '(no description)')}</div>
-      ${tags}
-    </div>`;
-
-  const acts = document.createElement('div'); acts.className = 'task-actions';
-  const mk = (txt, title, cls, fn) => {
-    const b = document.createElement('button');
-    b.className = 'co-btn' + (cls ? ' ' + cls : '');
-    b.textContent = txt; b.title = title;
-    b.addEventListener('click', fn);
-    return b;
-  };
-  const editB   = mk('✏️', 'Edit in its day', '', () => taskEdit(date, idx));
-  const todayB  = (date !== today) ? mk('→ Today', 'Move to today', 'move', () => taskToToday(date, idx)) : null;
-  const doneB   = mk('✓ Done', 'Mark as done', 'done-btn', () => taskMarkDone(date, idx));
-  const dismissB = document.createElement('button');
-  dismissB.className = 'co-btn'; dismissB.textContent = '✕'; dismissB.title = 'Dismiss (delete this record)';
-
-  const restore = () => {
-    acts.innerHTML = '';
-    acts.appendChild(editB);
-    if (todayB) acts.appendChild(todayB);
-    acts.appendChild(doneB);
-    acts.appendChild(dismissB);
-  };
-  dismissB.addEventListener('click', () => showDeleteConfirm(acts, async () => {
-    let snap = null;
-    await mutateStoredDay(date, e => { snap = e.rows.splice(idx, 1)[0]; });
-    await renderOpenTasks();
-    showGenericUndo('Task dismissed', () => {
-      mutateStoredDay(date, e => e.rows.splice(Math.min(idx, e.rows.length), 0, snap)).then(renderOpenTasks);
-    });
-  }, restore));
-
-  restore();
-  item.appendChild(acts);
-  return item;
-}
-
-// Load a stored day (cache → disk → fresh), apply `mutateFn(entry)`, persist, and
-// keep caches / the active day / calendar in sync. Used by all Open-Tasks actions.
-async function mutateStoredDay(date, mutateFn) {
-  let entry = dayCache[date]
-    ? JSON.parse(JSON.stringify(dayCache[date]))
-    : await window.api.loadDay(date);
-  if (!entry) entry = { name: (lookups && lookups.defaultName) || '', rows: [] };
-  mutateFn(entry);
-  await window.api.saveDay(date, entry);
-  dayCache[date] = entry;
-  if (entry.rows.length === 0) savedDays.delete(date); else savedDays.add(date);
-  if (date === activeDate) {
-    rows = entry.rows.map(r => Object.assign({}, r));
-    renderTable();
-    renderCarryOver();
-  }
-  renderCalendar();
-  return entry;
-}
-
-async function taskEdit(date, idx) {
-  switchModule('timesheet');
-  await switchDay(date);
-  openModal(idx);
-}
-
-async function taskToToday(date, idx) {
-  const today = fmt(new Date());
-  if (date === today) return;
-  let removed = null;
-  await mutateStoredDay(date, e => { removed = e.rows.splice(idx, 1)[0]; });
-  if (removed) await mutateStoredDay(today, e => { e.rows.push(Object.assign({}, removed)); });
-  await renderOpenTasks();
-  renderCarryOver();
-  toast('Moved to today');
-}
-
-async function taskMarkDone(date, idx) {
-  await mutateStoredDay(date, e => { if (e.rows[idx]) e.rows[idx].status = 'Done'; });
-  await renderOpenTasks();
-  toast('Marked done');
-}
-
 // ── Database backup ──
 async function backupDatabase() {
   const btn = document.getElementById('backup-btn');
@@ -5135,527 +4390,6 @@ function submitSubModal() {
 
 function clearSubErrors()  { clearErrorsIn('#sub-modal'); }
 
-// ── Licenses: type-specific suggested detail fields (only applied when extras list is empty) ──
-const LICENSE_TYPE_PRESETS = {
-  'Car Insurance':       ['Car Plate', 'Policy Number'],
-  'Governmental':        ['Reference Number'],
-  'Medical Insurance':   ['Policy Number', 'Provider'],
-  'Service/Subscription':['Account Reference'],
-  'Other':               [],
-};
-
-// ── Licenses: data ──
-async function loadLicensesData() {
-  let data;
-  try { data = await window.api.loadLicenses(); }
-  catch { toast('Could not load licenses'); return; }
-  licenses = (data && Array.isArray(data.licenses)) ? data.licenses : [];
-  licsLoaded = true;
-  renderLicenses();
-}
-
-async function saveLicensesData() {
-  try { await window.api.saveLicenses({ licenses: licenses.map(l => Object.assign({}, l)) }); }
-  catch { toast('Could not save licenses'); }
-}
-
-function autoSaveLicenses() {
-  clearTimeout(_licSaveTimer);
-  _licSaveTimer = setTimeout(saveLicensesData, 300);
-}
-
-// ── Licenses: render ──
-function renderLicenses() {
-  const tbody = document.getElementById('lic-tbody');
-  const table = document.getElementById('lic-table');
-  const empty = document.getElementById('lic-empty-state');
-  tbody.innerHTML = '';
-
-  if (licenses.length === 0) {
-    table.style.display = 'none';
-    empty.style.display = 'flex';
-    return;
-  }
-  table.style.display = '';
-  empty.style.display = 'none';
-
-  const sorted = licenses.slice().sort((a, b) => {
-    const da = daysUntil(a.expiryDate), db = daysUntil(b.expiryDate);
-    if (da === null) return 1;
-    if (db === null) return -1;
-    return da - db;
-  }).filter(l => textMatch([
-    l.item, l.type, l.docNumber, l.issueDateHijri, l.expiryDateHijri, l.issueDate, l.expiryDate, l.notes,
-    ...(l.extras || []).flatMap(e => [e.label, e.value]),
-  ], licFilter));
-
-  if (sorted.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="11" class="no-matches">No matches</td></tr>';
-    return;
-  }
-
-  sorted.forEach(lic => {
-    const tr = document.createElement('tr');
-
-    const itemSpan = document.createElement('span');
-    itemSpan.className = 'rtl-text'; itemSpan.textContent = lic.item; itemSpan.setAttribute('dir', 'auto');
-    tr.appendChild(cellWrap(itemSpan, 'cell desc-cell'));
-
-    if (lic.type) {
-      const typeBadge = document.createElement('span');
-      typeBadge.className = 'lic-type-badge'; typeBadge.textContent = lic.type;
-      tr.appendChild(cellWrap(typeBadge, 'cell'));
-    } else {
-      tr.appendChild(textCell('—'));
-    }
-
-    const docSpan = document.createElement('span');
-    docSpan.className = 'rtl-text'; docSpan.textContent = lic.docNumber || '—'; docSpan.setAttribute('dir', 'auto');
-    tr.appendChild(cellWrap(docSpan, 'cell'));
-
-    const issueHijriSpan = document.createElement('span');
-    issueHijriSpan.className = 'lic-hijri'; issueHijriSpan.textContent = lic.issueDateHijri || '—';
-    tr.appendChild(cellWrap(issueHijriSpan, 'cell'));
-
-    const expiryHijriSpan = document.createElement('span');
-    expiryHijriSpan.className = 'lic-hijri'; expiryHijriSpan.textContent = lic.expiryDateHijri || '—';
-    tr.appendChild(cellWrap(expiryHijriSpan, 'cell'));
-
-    tr.appendChild(textCell(lic.issueDate || '—'));
-    tr.appendChild(textCell(lic.expiryDate || '—'));
-
-    const daysLeft = daysUntil(lic.expiryDate);
-    const badge = document.createElement('span');
-    badge.className = 'renew-badge ' + renewClass(daysLeft);
-    badge.textContent = renewLabel(daysLeft);
-    tr.appendChild(cellWrap(badge, 'cell'));
-
-    if (Array.isArray(lic.extras) && lic.extras.length > 0) {
-      const extrasWrap = document.createElement('div');
-      extrasWrap.className = 'lic-extras-summary';
-      lic.extras.forEach(ex => {
-        const line = document.createElement('div');
-        const b = document.createElement('b'); b.textContent = ex.label + ': ';
-        line.appendChild(b);
-        line.appendChild(document.createTextNode(ex.value || '—'));
-        extrasWrap.appendChild(line);
-      });
-      tr.appendChild(cellWrap(extrasWrap, 'cell'));
-    } else {
-      tr.appendChild(textCell('—'));
-    }
-
-    const notesSpan = document.createElement('span');
-    notesSpan.className = 'rtl-text'; notesSpan.textContent = lic.notes || '—'; notesSpan.setAttribute('dir', 'auto');
-    tr.appendChild(cellWrap(notesSpan, 'cell desc-cell'));
-
-    const acts = document.createElement('div');
-    acts.className = 'row-actions';
-
-    const editBtn = document.createElement('button');
-    editBtn.className = 'row-btn'; editBtn.textContent = '✏️';
-    editBtn.title = 'Edit'; editBtn.addEventListener('click', () => openLicModal(lic.id));
-
-    const delBtn = document.createElement('button');
-    delBtn.className = 'row-btn del'; delBtn.textContent = '🗑️';
-    delBtn.title = 'Delete';
-    const restore = () => { acts.innerHTML = ''; acts.appendChild(editBtn); acts.appendChild(delBtn); };
-    delBtn.addEventListener('click', () => showDeleteConfirm(acts, () => {
-      const removeIdx = licenses.indexOf(lic);
-      const removed = licenses.splice(removeIdx, 1)[0];
-      showLicUndoToast(removed, removeIdx);
-      renderLicenses(); autoSaveLicenses();
-    }, restore));
-
-    acts.appendChild(editBtn); acts.appendChild(delBtn);
-    tr.appendChild(cellWrap(acts, 'cell'));
-
-    tbody.appendChild(tr);
-  });
-}
-
-// ── Licenses: undo ──
-function showLicUndoToast(lic, idx) {
-  undoLicense = { lic, idx };
-  clearTimeout(_undoLicTimer);
-  const toast = document.getElementById('lic-undo-toast');
-  toast.classList.add('visible');
-  _undoLicTimer = setTimeout(hideLicUndoToast, 5000);
-}
-
-function hideLicUndoToast() {
-  document.getElementById('lic-undo-toast').classList.remove('visible');
-  undoLicense = null;
-}
-
-function undoDeleteLic() {
-  if (!undoLicense) return;
-  const { lic, idx } = undoLicense;
-  licenses.splice(Math.min(idx, licenses.length), 0, Object.assign({}, lic));
-  hideLicUndoToast();
-  renderLicenses();
-  autoSaveLicenses();
-}
-
-// ── Licenses: modal ──
-function openLicModal(id = null) {
-  licEditId = id;
-  const lic = id !== null ? licenses.find(l => l.id === id) : null;
-  const isEdit = !!lic;
-  document.getElementById('lic-modal-title').textContent = isEdit ? 'Edit License' : 'Add License';
-  document.querySelector('#lic-modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : 'Add License';
-
-  document.getElementById('l-item').value         = lic ? lic.item : '';
-  document.getElementById('l-type').value         = lic ? (lic.type || '') : '';
-  document.getElementById('l-docnumber').value    = lic ? (lic.docNumber || '') : '';
-  document.getElementById('l-issue-hijri').value  = lic ? (lic.issueDateHijri || '') : '';
-  document.getElementById('l-expiry-hijri').value = lic ? (lic.expiryDateHijri || '') : '';
-  document.getElementById('l-issue').value        = lic ? (lic.issueDate || '') : '';
-  document.getElementById('l-expiry').value       = lic ? (lic.expiryDate || '') : '';
-  document.getElementById('l-notes').value        = lic ? (lic.notes || '') : '';
-
-  const extrasList = document.getElementById('l-extras-list');
-  extrasList.innerHTML = '';
-  const extras = (lic && Array.isArray(lic.extras)) ? lic.extras : [];
-  extras.forEach(ex => addLicExtraRow(ex.label, ex.value));
-
-  clearLicErrors();
-  document.getElementById('lic-modal-overlay').classList.add('open');
-  document.getElementById('l-item').focus();
-}
-
-function closeLicModal() {
-  document.getElementById('lic-modal-overlay').classList.remove('open');
-  licEditId = null;
-}
-
-function licOverlayClick(e) {
-  if (e.target === document.getElementById('lic-modal-overlay')) closeLicModal();
-}
-
-// ── Licenses: dynamic "Additional Details" extra fields ──
-// Shared "Additional Details" key/value row builder for the Licenses and
-// Insurance modals (they share the .lic-extra-* markup); the two named
-// wrappers keep the modal-specific list id so the inline HTML stays simple.
-function addExtraRow(listId, label = '', value = '') {
-  const list = document.getElementById(listId);
-  const row = document.createElement('div');
-  row.className = 'lic-extra-row';
-
-  const labelInput = document.createElement('input');
-  labelInput.type = 'text'; labelInput.className = 'lic-extra-label';
-  labelInput.placeholder = 'Label (e.g. Car Plate)'; labelInput.value = label;
-
-  const valueInput = document.createElement('input');
-  valueInput.type = 'text'; valueInput.className = 'lic-extra-value'; valueInput.setAttribute('dir', 'auto');
-  valueInput.placeholder = 'Value'; valueInput.value = value;
-
-  const removeBtn = document.createElement('button');
-  removeBtn.type = 'button'; removeBtn.className = 'row-btn del'; removeBtn.textContent = '✕';
-  removeBtn.title = 'Remove field';
-  removeBtn.addEventListener('click', () => row.remove());
-
-  row.appendChild(labelInput); row.appendChild(valueInput); row.appendChild(removeBtn);
-  list.appendChild(row);
-}
-function addLicExtraRow(label = '', value = '') { addExtraRow('l-extras-list', label, value); }
-
-// Suggest preset detail fields for the chosen type — only when the list is still empty,
-// so we never clobber details the user already entered.
-function onLicTypeChange() {
-  const list = document.getElementById('l-extras-list');
-  if (list.children.length > 0) return;
-  const type = document.getElementById('l-type').value;
-  const presets = LICENSE_TYPE_PRESETS[type] || [];
-  presets.forEach(label => addLicExtraRow(label, ''));
-}
-
-function submitLicModal() {
-  clearLicErrors();
-
-  const item = document.getElementById('l-item').value.trim();
-  if (!item) { markError('l-item'); return; }
-
-  const extras = [];
-  document.querySelectorAll('#l-extras-list .lic-extra-row').forEach(row => {
-    const label = row.querySelector('.lic-extra-label').value.trim();
-    const value = row.querySelector('.lic-extra-value').value.trim();
-    if (label || value) extras.push({ label: label || 'Detail', value });
-  });
-
-  const record = {
-    id:             licEditId !== null ? licEditId : 'lic_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
-    item,
-    type:           document.getElementById('l-type').value,
-    docNumber:      document.getElementById('l-docnumber').value.trim(),
-    issueDateHijri: document.getElementById('l-issue-hijri').value.trim(),
-    expiryDateHijri:document.getElementById('l-expiry-hijri').value.trim(),
-    issueDate:      document.getElementById('l-issue').value,
-    expiryDate:     document.getElementById('l-expiry').value,
-    notes:          document.getElementById('l-notes').value.trim(),
-    extras,
-  };
-
-  if (licEditId !== null) {
-    const idx = licenses.findIndex(l => l.id === licEditId);
-    if (idx !== -1) licenses[idx] = record;
-  } else {
-    licenses.push(record);
-  }
-
-  closeLicModal();
-  renderLicenses();
-  autoSaveLicenses();
-}
-
-function clearLicErrors()  { clearErrorsIn('#lic-modal'); }
-
-// ── Insurance: category-specific suggested detail fields (only applied when extras list is empty) ──
-const INSURANCE_CATEGORY_PRESETS = {
-  'Car':     ['Car Plate'],
-  'Medical': [],
-  'Other':   [],
-};
-
-// ── Insurance: data ──
-async function loadInsuranceData() {
-  let data;
-  try { data = await window.api.loadInsurance(); }
-  catch { toast('Could not load insurance'); return; }
-  insurance = (data && Array.isArray(data.insurance)) ? data.insurance : [];
-  insLoaded = true;
-  renderInsurance();
-}
-
-async function saveInsuranceData() {
-  try { await window.api.saveInsurance({ insurance: insurance.map(i => Object.assign({}, i)) }); }
-  catch { toast('Could not save insurance'); }
-}
-
-function autoSaveInsurance() {
-  clearTimeout(_insSaveTimer);
-  _insSaveTimer = setTimeout(saveInsuranceData, 300);
-}
-
-// ── Insurance: render ──
-function renderInsurance() {
-  const tbody = document.getElementById('ins-tbody');
-  const table = document.getElementById('ins-table');
-  const empty = document.getElementById('ins-empty-state');
-  tbody.innerHTML = '';
-
-  if (insurance.length === 0) {
-    table.style.display = 'none';
-    empty.style.display = 'flex';
-    return;
-  }
-  table.style.display = '';
-  empty.style.display = 'none';
-
-  const sorted = insurance.slice().sort((a, b) => {
-    const da = daysUntil(a.expiryDate), db = daysUntil(b.expiryDate);
-    if (da === null) return 1;
-    if (db === null) return -1;
-    return da - db;
-  }).filter(n => textMatch([
-    n.item, n.category, n.provider, n.policyNumber, n.issueDate, n.expiryDate,
-    ...(n.extras || []).flatMap(e => [e.label, e.value]),
-  ], insFilter));
-
-  if (sorted.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" class="no-matches">No matches</td></tr>';
-    return;
-  }
-
-  sorted.forEach(ins => {
-    const tr = document.createElement('tr');
-
-    const itemSpan = document.createElement('span');
-    itemSpan.className = 'rtl-text'; itemSpan.textContent = ins.item; itemSpan.setAttribute('dir', 'auto');
-    tr.appendChild(cellWrap(itemSpan, 'cell desc-cell'));
-
-    if (ins.category) {
-      const catBadge = document.createElement('span');
-      catBadge.className = 'ins-cat-badge'; catBadge.textContent = ins.category;
-      tr.appendChild(cellWrap(catBadge, 'cell'));
-    } else {
-      tr.appendChild(textCell('—'));
-    }
-
-    const provSpan = document.createElement('span');
-    provSpan.className = 'rtl-text' + (ins.provider ? '' : ' cell-muted');
-    provSpan.textContent = ins.provider || '—'; provSpan.setAttribute('dir', 'auto');
-    tr.appendChild(cellWrap(provSpan, 'cell'));
-
-    const policySpan = document.createElement('span');
-    policySpan.className = 'rtl-text' + (ins.policyNumber ? '' : ' cell-muted');
-    policySpan.textContent = ins.policyNumber || '—'; policySpan.setAttribute('dir', 'auto');
-    tr.appendChild(cellWrap(policySpan, 'cell'));
-
-    const issueSpan = document.createElement('span');
-    issueSpan.className = ins.issueDate ? '' : 'cell-muted'; issueSpan.textContent = ins.issueDate || '—';
-    tr.appendChild(cellWrap(issueSpan, 'cell'));
-
-    const expirySpan = document.createElement('span');
-    expirySpan.className = ins.expiryDate ? '' : 'cell-muted'; expirySpan.textContent = ins.expiryDate || '—';
-    tr.appendChild(cellWrap(expirySpan, 'cell'));
-
-    const daysLeft = daysUntil(ins.expiryDate);
-    const badge = document.createElement('span');
-    badge.className = 'renew-badge ' + renewClass(daysLeft);
-    badge.textContent = renewLabel(daysLeft);
-    tr.appendChild(cellWrap(badge, 'cell'));
-
-    if (Array.isArray(ins.extras) && ins.extras.length > 0) {
-      const extrasWrap = document.createElement('div');
-      extrasWrap.className = 'lic-extras-summary';
-      ins.extras.forEach(ex => {
-        const line = document.createElement('div');
-        const b = document.createElement('b'); b.textContent = ex.label + ': ';
-        line.appendChild(b);
-        line.appendChild(document.createTextNode(ex.value || '—'));
-        extrasWrap.appendChild(line);
-      });
-      tr.appendChild(cellWrap(extrasWrap, 'cell'));
-    } else {
-      const dash = document.createElement('span');
-      dash.className = 'cell-muted'; dash.textContent = '—';
-      tr.appendChild(cellWrap(dash, 'cell'));
-    }
-
-    const acts = document.createElement('div');
-    acts.className = 'row-actions';
-
-    const editBtn = document.createElement('button');
-    editBtn.className = 'row-btn'; editBtn.textContent = '✏️';
-    editBtn.title = 'Edit'; editBtn.addEventListener('click', () => openInsModal(ins.id));
-
-    const delBtn = document.createElement('button');
-    delBtn.className = 'row-btn del'; delBtn.textContent = '🗑️';
-    delBtn.title = 'Delete';
-    const restore = () => { acts.innerHTML = ''; acts.appendChild(editBtn); acts.appendChild(delBtn); };
-    delBtn.addEventListener('click', () => showDeleteConfirm(acts, () => {
-      const removeIdx = insurance.indexOf(ins);
-      const removed = insurance.splice(removeIdx, 1)[0];
-      showInsUndoToast(removed, removeIdx);
-      renderInsurance(); autoSaveInsurance();
-    }, restore));
-
-    acts.appendChild(editBtn); acts.appendChild(delBtn);
-    tr.appendChild(cellWrap(acts, 'cell'));
-
-    tbody.appendChild(tr);
-  });
-}
-
-// ── Insurance: undo ──
-function showInsUndoToast(ins, idx) {
-  undoInsurance = { ins, idx };
-  clearTimeout(_undoInsTimer);
-  const toast = document.getElementById('ins-undo-toast');
-  toast.classList.add('visible');
-  _undoInsTimer = setTimeout(hideInsUndoToast, 5000);
-}
-
-function hideInsUndoToast() {
-  document.getElementById('ins-undo-toast').classList.remove('visible');
-  undoInsurance = null;
-}
-
-function undoDeleteIns() {
-  if (!undoInsurance) return;
-  const { ins, idx } = undoInsurance;
-  insurance.splice(Math.min(idx, insurance.length), 0, Object.assign({}, ins));
-  hideInsUndoToast();
-  renderInsurance();
-  autoSaveInsurance();
-}
-
-// ── Insurance: modal ──
-function openInsModal(id = null) {
-  insEditId = id;
-  const ins = id !== null ? insurance.find(i => i.id === id) : null;
-  const isEdit = !!ins;
-  document.getElementById('ins-modal-title').textContent = isEdit ? 'Edit Insurance' : 'Add Insurance';
-  document.querySelector('#ins-modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : 'Add Insurance';
-
-  document.getElementById('i-item').value     = ins ? ins.item : '';
-  document.getElementById('i-category').value = ins ? (ins.category || '') : '';
-  document.getElementById('i-provider').value = ins ? (ins.provider || '') : '';
-  document.getElementById('i-policy').value   = ins ? (ins.policyNumber || '') : '';
-  document.getElementById('i-issue').value    = ins ? (ins.issueDate || '') : '';
-  document.getElementById('i-expiry').value   = ins ? (ins.expiryDate || '') : '';
-
-  const extrasList = document.getElementById('i-extras-list');
-  extrasList.innerHTML = '';
-  const extras = (ins && Array.isArray(ins.extras)) ? ins.extras : [];
-  extras.forEach(ex => addInsExtraRow(ex.label, ex.value));
-
-  clearInsErrors();
-  document.getElementById('ins-modal-overlay').classList.add('open');
-  document.getElementById('i-item').focus();
-}
-
-function closeInsModal() {
-  document.getElementById('ins-modal-overlay').classList.remove('open');
-  insEditId = null;
-}
-
-function insOverlayClick(e) {
-  if (e.target === document.getElementById('ins-modal-overlay')) closeInsModal();
-}
-
-// ── Insurance: dynamic "Additional Details" extra fields ──
-function addInsExtraRow(label = '', value = '') { addExtraRow('i-extras-list', label, value); }
-
-// Suggest preset detail fields for the chosen category — only when the list is still empty,
-// so we never clobber details the user already entered.
-function onInsCategoryChange() {
-  const list = document.getElementById('i-extras-list');
-  if (list.children.length > 0) return;
-  const category = document.getElementById('i-category').value;
-  const presets = INSURANCE_CATEGORY_PRESETS[category] || [];
-  presets.forEach(label => addInsExtraRow(label, ''));
-}
-
-function submitInsModal() {
-  clearInsErrors();
-
-  const item = document.getElementById('i-item').value.trim();
-  if (!item) { markError('i-item'); return; }
-
-  const extras = [];
-  document.querySelectorAll('#i-extras-list .lic-extra-row').forEach(row => {
-    const label = row.querySelector('.lic-extra-label').value.trim();
-    const value = row.querySelector('.lic-extra-value').value.trim();
-    if (label || value) extras.push({ label: label || 'Detail', value });
-  });
-
-  const record = {
-    id:           insEditId !== null ? insEditId : 'ins_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
-    item,
-    category:     document.getElementById('i-category').value,
-    provider:     document.getElementById('i-provider').value.trim(),
-    policyNumber: document.getElementById('i-policy').value.trim(),
-    issueDate:    document.getElementById('i-issue').value,
-    expiryDate:   document.getElementById('i-expiry').value,
-    extras,
-  };
-
-  if (insEditId !== null) {
-    const idx = insurance.findIndex(i => i.id === insEditId);
-    if (idx !== -1) insurance[idx] = record;
-  } else {
-    insurance.push(record);
-  }
-
-  closeInsModal();
-  renderInsurance();
-  autoSaveInsurance();
-}
-
-function clearInsErrors()  { clearErrorsIn('#ins-modal'); }
-
 // ── Flush pending saves before the window closes ──
 // Saves are 300 ms-debounced; on close we cancel the timers and persist
 // immediately so a just-made edit can't be lost. Only modules that have been
@@ -5664,13 +4398,9 @@ async function flushPending() {
   clearTimeout(_saveTimer);
   clearTimeout(_nameSaveTimer);
   clearTimeout(_subSaveTimer);
-  clearTimeout(_licSaveTimer);
-  clearTimeout(_insSaveTimer);
   const tasks = [];
   if (activeDate)  tasks.push(saveDay());
   if (subsLoaded)  tasks.push(saveSubscriptionsData());
-  if (licsLoaded)  tasks.push(saveLicensesData());
-  if (insLoaded)   tasks.push(saveInsuranceData());
   try { await Promise.all(tasks); } catch { /* best effort */ }
 }
 
@@ -5708,7 +4438,6 @@ async function init() {
   if (_pov && _pov.parentElement !== document.body) document.body.appendChild(_pov);
 
   switchModule('dashboard');   // boot into the overview
-  updateTaskBadge();           // open-tasks count in the sidebar
 }
 
 init();
