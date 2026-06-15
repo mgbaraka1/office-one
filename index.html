@@ -355,6 +355,47 @@
       padding: 8px 16px; background: #1e1e2e; flex-shrink: 0;
     }
 
+    /* ══ REPORTS MODULE ══ */
+    #reports-topbar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 16px; background: #1e1e2e; flex-shrink: 0;
+    }
+    .reports-title { font-size: 15px; font-weight: 700; color: #fff; }
+    .rmod-scroll { flex: 1; overflow-y: auto; padding: 28px 32px 40px; max-width: 1100px; width: 100%; }
+    .rmod-intro { margin-bottom: 24px; }
+    .rmod-intro h1 { font-size: 26px; font-weight: 700; color: var(--text); letter-spacing: -.4px; }
+    .rmod-intro p { font-size: 14px; color: var(--muted); margin-top: 4px; }
+    .rmod-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 18px; }
+    .rmod-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: var(--shadow);
+      padding: 22px 22px 20px; display: flex; flex-direction: column; gap: 14px;
+      transition: transform .12s, border-color .12s;
+    }
+    .rmod-card:hover { transform: translateY(-2px); border-color: var(--accent); }
+    .rmod-card-head { display: flex; align-items: center; gap: 12px; }
+    .rmod-card-icon {
+      width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; background: var(--accent-bg);
+    }
+    .rmod-card-title { font-size: 16px; font-weight: 700; color: var(--text); }
+    .rmod-card-desc { font-size: 13px; color: var(--muted); line-height: 1.55; }
+    .rmod-card-controls { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin-top: auto; }
+    .rmod-field { display: flex; flex-direction: column; gap: 5px; }
+    .rmod-field label {
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .6px; color: var(--muted);
+    }
+    .rmod-field input {
+      font-family: inherit; font-size: 13px; padding: 8px 10px;
+      border: 1px solid var(--border); border-radius: 8px;
+      background: var(--surface2); color: var(--text);
+    }
+    .rmod-field input:focus { outline: none; border-color: var(--accent); background: var(--input-focus-bg); }
+    .rmod-field input.field-error { border-color: var(--renew-urgent-text); }
+    .rmod-card-controls .btn { padding: 9px 18px; }
+
     /* ══ DASHBOARD MODULE ══ */
     #dash-topbar {
       display: flex; align-items: center; gap: 10px;
@@ -1284,6 +1325,9 @@
     <button class="nav-item" data-module="analytics" onclick="switchModule('analytics')">
       <span class="nav-icon">📊</span>Analytics
     </button>
+    <button class="nav-item" data-module="reports" onclick="switchModule('reports')">
+      <span class="nav-icon">📄</span>Reports
+    </button>
     <button class="nav-item" data-module="subscriptions" onclick="switchModule('subscriptions')">
       <span class="nav-icon">💳</span>Subscriptions<span class="nav-badge" id="nav-badge-subscriptions"></span>
     </button>
@@ -1417,6 +1461,50 @@
       <div class="an-card">
         <div class="an-card-head"><span class="an-card-title">Recurring Spend</span><span class="an-card-sub" id="an-spend-sub">Subscriptions</span></div>
         <div id="an-spend"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ REPORTS MODULE ══ -->
+<div id="module-reports" class="app-module">
+  <div id="reports-topbar">
+    <span class="reports-title">📄 Reports</span>
+  </div>
+  <div class="rmod-scroll">
+    <div class="rmod-intro">
+      <h1>Reports</h1>
+      <p>Generate ready-to-share PDF reports. A preview opens first — then Print or Save as PDF.</p>
+    </div>
+    <div class="rmod-grid">
+      <div class="rmod-card">
+        <div class="rmod-card-head">
+          <div class="rmod-card-icon">🗓</div>
+          <div class="rmod-card-title">Daily Timesheet PDF</div>
+        </div>
+        <div class="rmod-card-desc">The full daily work report for a single day — every record with its hours and the Work / Over-Time split. The same report you can print from the Timesheet.</div>
+        <div class="rmod-card-controls">
+          <div class="rmod-field">
+            <label for="rmod-daily-date">Day</label>
+            <input type="date" id="rmod-daily-date" />
+          </div>
+          <button class="btn primary" onclick="genDailyReport()">Generate →</button>
+        </div>
+      </div>
+
+      <div class="rmod-card">
+        <div class="rmod-card-head">
+          <div class="rmod-card-icon">⏱</div>
+          <div class="rmod-card-title">Monthly Over-Time PDF</div>
+        </div>
+        <div class="rmod-card-desc">Every Over-Time entry logged in the chosen month, with the total hours — formatted as an Over-Time Request to share with management for approval.</div>
+        <div class="rmod-card-controls">
+          <div class="rmod-field">
+            <label for="rmod-ot-month">Month</label>
+            <input type="month" id="rmod-ot-month" />
+          </div>
+          <button class="btn primary" onclick="genOvertimeReport()">Generate →</button>
+        </div>
       </div>
     </div>
   </div>
@@ -3085,11 +3173,9 @@ document.getElementById('hName').addEventListener('input', () => {
 });
 
 // ── Print ──
-function openPrint() {
-  const frame = document.getElementById('print-frame');
-  const name  = document.getElementById('hName').value || 'N/A';
-  const date  = activeDate || document.getElementById('hDate').value;
-  _reportFileBase = `timesheet-${date}`;
+// Build the daily work report inner HTML for a given day's rows (shared by the
+// Timesheet "Daily report" action and the Reports module's Daily Timesheet PDF).
+function buildDailyReportHTML(srcRows, date, name) {
   const [y,m,d] = date.split('-');
   const dt = new Date(+y, +m-1, +d);
   const dayName   = dt.toLocaleDateString('en-US', { weekday:'long' });
@@ -3097,11 +3183,9 @@ function openPrint() {
 
   const badgeClass = s => s === 'Done' ? 'done' : s === 'In Progress' ? 'progress' : 'notyet';
 
-  const printRows  = rows.filter(r => r.status !== 'Not Yet' && r.status !== 'Pending');
+  const printRows  = srcRows.filter(r => r.status !== 'Not Yet' && r.status !== 'Pending');
   const totalMin   = totalMins(printRows);
   const totalHrs   = (totalMin / 60).toFixed(2);
-  const doneCount  = printRows.filter(r => r.status === 'Done').length;
-  const progCount  = printRows.filter(r => r.status === 'In Progress').length;
 
   const byType = {};
   printRows.forEach(r => {
@@ -3145,7 +3229,7 @@ function openPrint() {
 
   const printedOn = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
 
-  frame.innerHTML = `
+  return `
     <div class="rpt-header">
       <div class="rpt-logo">
         <div class="rpt-logo-icon">⏱</div>
@@ -3204,7 +3288,14 @@ function openPrint() {
       <span>MOS TA FA COOPERATION TOOLS — ${esc(name)}</span>
       <span>Work: ${workHrs}h &nbsp;|&nbsp; Overtime: ${otHrs}h${otherMin > 0 ? ` &nbsp;|&nbsp; Other: ${otherHrs}h` : ''} &nbsp;|&nbsp; Printed ${printedOn}</span>
     </div>`;
+}
 
+// Timesheet topbar "Daily report" — previews the active day.
+function openPrint() {
+  const name = document.getElementById('hName').value || 'N/A';
+  const date = activeDate || document.getElementById('hDate').value;
+  _reportFileBase = `timesheet-${date}`;
+  document.getElementById('print-frame').innerHTML = buildDailyReportHTML(rows, date, name);
   document.getElementById('print-overlay').classList.add('open');
 }
 
@@ -3255,6 +3346,179 @@ async function exportReportPDF() {
   catch { res = { ok: false, error: 'failed' }; }
   if (res && res.ok) toast('PDF saved');
   else if (res && res.error) toast('PDF failed: ' + res.error);
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// REPORTS MODULE — landing page of one-click report actions.
+// ════════════════════════════════════════════════════════════════════════════
+
+function initReportsModule() {
+  const t = fmt(new Date());
+  const dEl = document.getElementById('rmod-daily-date');
+  const mEl = document.getElementById('rmod-ot-month');
+  if (dEl && !dEl.value) dEl.value = activeDate || t;
+  if (mEl && !mEl.value) mEl.value = t.slice(0, 7);
+}
+
+function flashFieldError(el) {
+  if (!el) return;
+  el.classList.add('field-error');
+  setTimeout(() => el.classList.remove('field-error'), 1200);
+}
+
+// Daily Timesheet PDF — same daily report, for any chosen day.
+async function genDailyReport() {
+  const input = document.getElementById('rmod-daily-date');
+  const date = input.value;
+  if (!date) { flashFieldError(input); return; }
+
+  let dayRows;
+  if (date === activeDate) {
+    dayRows = rows;
+  } else {
+    const entry = dayCache[date] || await window.api.loadDay(date);
+    dayRows = entry ? entry.rows : [];
+  }
+  if (!dayRows.length) toast('No records on that day — showing an empty report');
+
+  const name = document.getElementById('hName').value || (lookups && lookups.defaultName) || 'N/A';
+  _reportFileBase = `timesheet-${date}`;
+  document.getElementById('print-frame').innerHTML = buildDailyReportHTML(dayRows, date, name);
+  document.getElementById('print-overlay').classList.add('open');
+}
+
+// Monthly Over-Time PDF — lists every Over-Time entry in a month + total hours,
+// framed as an Over-Time Request for management.
+async function genOvertimeReport() {
+  const input = document.getElementById('rmod-ot-month');
+  const mv = input.value;
+  if (!mv) { flashFieldError(input); return; }
+
+  const [y, m] = mv.split('-').map(Number);
+  const from = `${mv}-01`;
+  const to   = `${mv}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
+  const days = await window.api.loadDaysRange(from, to);
+  const monthLabel = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const name = document.getElementById('hName').value || (lookups && lookups.defaultName) || 'N/A';
+
+  _reportFileBase = `overtime-request-${mv}`;
+  document.getElementById('print-frame').innerHTML = buildOvertimeReportHTML(days, monthLabel, name);
+  document.getElementById('print-overlay').classList.add('open');
+}
+
+function buildOvertimeReportHTML(days, monthLabel, name) {
+  const otRows = [];
+  days.forEach(d => {
+    (d.rows || []).forEach(r => {
+      if (r.time === 'Over Time') otRows.push({ date: d.date, row: r });
+    });
+  });
+  otRows.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+
+  let totalMin = 0;
+  const daySet = new Set();
+  const rowsHTML = otRows.map((o, i) => {
+    const r = o.row;
+    const mins = parseFloat(r.minutes) || 0;
+    totalMin += mins;
+    daySet.add(o.date);
+    const dt = new Date(o.date + 'T00:00:00');
+    const dLabel = dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    return `
+      <tbody class="rpt-row-group">
+        <tr>
+          <td class="center">${i + 1}</td>
+          <td>${dLabel}</td>
+          <td>${esc(r.company)}</td>
+          <td>${esc(r.project)}</td>
+          <td>${esc(r.natural)}</td>
+          <td class="num">${r.minutes || '—'}</td>
+          <td class="hrs">${mins ? (mins / 60).toFixed(2) : '—'}</td>
+        </tr>
+        ${(r.description || r.source) ? `<tr class="rpt-detail">
+          <td colspan="7">
+            ${r.description ? `<div class="det-line">
+              <span class="det-lbl">Description</span>
+              <span class="det-val" dir="auto">${esc(r.description)}</span>
+            </div>` : ''}
+            ${r.source ? `<div class="det-line">
+              <span class="det-lbl">Source</span>
+              <span class="det-val src-val" dir="auto">${esc(r.source)}</span>
+            </div>` : ''}
+          </td>
+        </tr>` : ''}
+      </tbody>`;
+  }).join('');
+
+  const totalHrs = (totalMin / 60).toFixed(2);
+  const dayCount = daySet.size;
+  const printedOn = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  const body = otRows.length ? `
+    ${rowsHTML}
+    <tbody>
+      <tr class="rpt-totals">
+        <td colspan="5" class="total-label">Total Over-Time</td>
+        <td class="num">${totalMin}</td>
+        <td class="hrs">${totalHrs}</td>
+      </tr>
+    </tbody>` : `
+    <tbody>
+      <tr><td colspan="7" class="center" style="color:#999;padding:18px">No Over-Time recorded in ${esc(monthLabel)}.</td></tr>
+    </tbody>`;
+
+  return `
+    <div class="rpt-header">
+      <div class="rpt-logo">
+        <div class="rpt-logo-icon">⏱</div>
+        <div>
+          <div class="rpt-logo-text">MOS TA FA<br><span style="color:#6c63ff;letter-spacing:4px">COOPERATION TOOLS</span></div>
+          <div class="rpt-logo-sub">Over-Time Request</div>
+        </div>
+      </div>
+      <div class="rpt-meta">
+        <div class="rpt-meta-name">${esc(name)}</div>
+        <div class="rpt-meta-date">${esc(monthLabel)}</div>
+        <div class="rpt-meta-ref">${otRows.length} entr${otRows.length === 1 ? 'y' : 'ies'} · ${dayCount} day${dayCount === 1 ? '' : 's'}</div>
+      </div>
+    </div>
+    <hr class="rpt-divider"/>
+    <div class="rpt-summary">
+      <div class="rpt-card"><div class="rpt-card-val" style="color:#dc2626">${totalHrs}h</div><div class="rpt-card-lbl">Total Over-Time</div></div>
+      <div class="rpt-card"><div class="rpt-card-val">${totalMin} min</div><div class="rpt-card-lbl">Total Minutes</div></div>
+      <div class="rpt-card"><div class="rpt-card-val">${otRows.length}</div><div class="rpt-card-lbl">Entries</div></div>
+      <div class="rpt-card"><div class="rpt-card-val">${dayCount}</div><div class="rpt-card-lbl">Days</div></div>
+    </div>
+    <p style="font-size:12.5px;color:#444;margin:0 0 14px;line-height:1.6">
+      Kindly find below the Over-Time hours logged during <b>${esc(monthLabel)}</b>, submitted for your review and approval.
+      The total Over-Time for the period is <b>${totalHrs} hours</b> across ${dayCount} day${dayCount === 1 ? '' : 's'}.
+    </p>
+    <table class="rpt-table">
+      <thead>
+        <tr>
+          <th style="width:32px;text-align:center">#</th>
+          <th>Date</th>
+          <th>Company</th>
+          <th>Project</th>
+          <th>Task</th>
+          <th style="text-align:right">Min</th>
+          <th style="text-align:right">Hrs</th>
+        </tr>
+      </thead>
+      ${body}
+    </table>
+    <div style="display:flex;justify-content:space-between;margin-top:42px;gap:40px">
+      <div style="flex:1">
+        <div style="border-top:1.5px solid #333;padding-top:6px;font-size:12px;color:#444">Employee — ${esc(name)}</div>
+      </div>
+      <div style="flex:1">
+        <div style="border-top:1.5px solid #333;padding-top:6px;font-size:12px;color:#444">Approved by</div>
+      </div>
+    </div>
+    <div class="rpt-footer">
+      <span>MOS TA FA COOPERATION TOOLS — ${esc(name)}</span>
+      <span>Over-Time: ${totalHrs}h &nbsp;|&nbsp; ${esc(monthLabel)} &nbsp;|&nbsp; Printed ${printedOn}</span>
+    </div>`;
 }
 
 // ── Today button ──
@@ -3941,6 +4205,9 @@ function switchModule(name) {
   } else if (name === 'tasks') {
     window.api.setTitle('Cooperation Tools — Open Tasks');
     renderOpenTasks();
+  } else if (name === 'reports') {
+    window.api.setTitle('Cooperation Tools — Reports');
+    initReportsModule();
   }
 }
 
@@ -5408,6 +5675,13 @@ async function init() {
   await switchDay(today);
 
   applyThemeLabel();
+
+  // The shared print/report preview overlay sits inside the Timesheet module in
+  // markup. Lift it to <body> so it stays visible when opened from any module
+  // (e.g. Reports) — a position:fixed node inside a display:none module renders 0×0.
+  const _pov = document.getElementById('print-overlay');
+  if (_pov && _pov.parentElement !== document.body) document.body.appendChild(_pov);
+
   switchModule('dashboard');   // boot into the overview
   updateTaskBadge();           // open-tasks count in the sidebar
 }
