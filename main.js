@@ -74,14 +74,6 @@ ipcMain.handle('saveLookups', (_e, data) => db.saveLookups(data));
 ipcMain.handle('loadSubscriptions', ()         => db.loadSubscriptions());
 ipcMain.handle('saveSubscriptions', (_e, data) => db.saveSubscriptions(data));
 
-// ── Licenses ──
-ipcMain.handle('loadLicenses', ()         => db.loadLicenses());
-ipcMain.handle('saveLicenses', (_e, data) => db.saveLicenses(data));
-
-// ── Insurance ──
-ipcMain.handle('loadInsurance', ()         => db.loadInsurance());
-ipcMain.handle('saveInsurance', (_e, data) => db.saveInsurance(data));
-
 // ── Backup ──
 ipcMain.handle('backupDatabase', async () => {
   const stamp = new Date().toISOString().slice(0, 10);
@@ -131,9 +123,6 @@ ipcMain.handle('flushComplete', () => {
 
 // ── Carry-over (all "Not Yet" rows across days, except the active day) ──
 ipcMain.handle('getCarryOver', (_e, excludeDate) => db.getCarryOver(excludeDate));
-
-// ── Open tasks (all "In Progress" + "Not Yet" rows across every day) ──
-ipcMain.handle('getOpenItems', () => db.getOpenItems());
 
 // ── Window controls ──
 ipcMain.handle('setTitle',       (_e, title) => { if (win) win.setTitle(title); });
