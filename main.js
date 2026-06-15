@@ -26,6 +26,20 @@ function createWindow() {
   if (prefs.maximized) win.maximize();
   win.loadFile('index.html');
 
+  // Defense in depth: the app is a single local page. Deny any attempt to open
+  // new windows or navigate the top frame elsewhere. The one legitimate popup
+  // is the print-preview window (about:blank, written via document.write); real
+  // web links are handed to the OS browser (mirrors the openExternal allowlist).
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url === '' || url === 'about:blank') return { action: 'allow' };
+    try {
+      const u = new URL(url);
+      if (u.protocol === 'http:' || u.protocol === 'https:') shell.openExternal(u.href);
+    } catch { /* not a valid URL — ignore */ }
+    return { action: 'deny' };
+  });
+  win.webContents.on('will-navigate', (e) => e.preventDefault());
+
   win.on('close', (e) => {
     // Persist window state on every close attempt. Use getNormalBounds() so the
     // restored (un-maximized) size is saved even while maximized.
