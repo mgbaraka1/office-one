@@ -2272,10 +2272,6 @@ function fmt(date) {
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 }
-function dayLabel(d) {
-  const [y,m,day] = d.split('-');
-  return new Date(+y, +m-1, +day).toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
-}
 function totalMins(rowArr) {
   return rowArr.reduce((s, r) => s + (parseFloat(r.minutes) || 0), 0);
 }
@@ -2961,12 +2957,22 @@ async function saveDay() {
   const el = document.getElementById('save-status');
   el.textContent = '✓ Saved'; el.className = 'saved';
   setTimeout(() => { el.textContent = ''; el.className = ''; }, 1500);
-  updateTaskBadge();   // status edits may change the open-task count
+  scheduleTaskBadge();   // status edits may change the open-task count (coalesced)
 }
 
 function autoSave() {
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(saveDay, 300);
+}
+
+// The open-task badge is derived from a full cross-day scan (getOpenItems),
+// which is too heavy to run on every save. Coalesce rapid saves into one
+// refresh once edits settle, so the scan cost no longer scales with how fast
+// the user types.
+let _taskBadgeTimer = null;
+function scheduleTaskBadge() {
+  clearTimeout(_taskBadgeTimer);
+  _taskBadgeTimer = setTimeout(() => updateTaskBadge(), 1000);
 }
 
 // Move a single record from the active day to another day's file.
@@ -3050,7 +3056,7 @@ function overlayClick(e) {
   if (e.target === document.getElementById('modal-overlay')) closeModal();
 }
 
-function submitModal() {
+async function submitModal() {
   clearErrors();
   const fields = [
     { id: 'f-company',     val: document.getElementById('f-company').value },
@@ -3099,15 +3105,20 @@ function submitModal() {
   closeModal();
 
   if (_carryOverEdit) {
-    const foreignDate = activeDate;
-    const foreignRows = rows;
-    window.api.saveDay(foreignDate, { name: dayCache[foreignDate]?.name || '', rows: foreignRows });
-    dayCache[foreignDate] = { name: dayCache[foreignDate]?.name || '', rows: foreignRows };
+    const foreignDate  = activeDate;
+    const foreignEntry = { name: dayCache[foreignDate]?.name || '', rows };
     activeDate = _carryOverEdit.prevDate;
     rows       = _carryOverEdit.prevRows;
     _carryOverEdit = null;
+    try {
+      await window.api.saveDay(foreignDate, foreignEntry);
+      dayCache[foreignDate] = foreignEntry;
+      savedDays.add(foreignDate);
+    } catch { toast('Could not save edit'); }
     renderTable();
     renderCarryOver();
+    renderCalendar();
+    updateTaskBadge();   // an edited day may change its open-item count
   } else {
     renderTable();
     autoSave();
@@ -3613,10 +3624,12 @@ async function renderCarryOver() {
       const entry = dayCache[date] ? JSON.parse(JSON.stringify(dayCache[date])) : await window.api.loadDay(date);
       if (!entry) return;
       entry.rows.splice(idx, 1);
-      await window.api.saveDay(date, entry);
+      try { await window.api.saveDay(date, entry); }
+      catch { toast('Could not dismiss — save failed'); return; }
       dayCache[date] = entry;
       if (entry.rows.length === 0) savedDays.delete(date);
       renderCarryOver(); renderCalendar();
+      updateTaskBadge();   // dismissing removes an open ("Not Yet") item
     });
 
     acts.appendChild(editBtn); acts.appendChild(moveBtn); acts.appendChild(dismissBtn);
