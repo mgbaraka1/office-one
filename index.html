@@ -5074,7 +5074,9 @@ function saveSubSettings() {
 }
 
 // Auto-suggest the renewal date from the end date + billing cycle, without overwriting a value the user already typed
-function onEndDateChange() {
+// End-date and billing-cycle <select>/<input> both call this: suggest a
+// renewal date (end + 1 cycle) only when one isn't already filled in.
+function suggestSubRenewal() {
   const cycle = document.getElementById('s-cycle').value;
   const end   = document.getElementById('s-end').value;
   const renewalEl = document.getElementById('s-renewal');
@@ -5082,15 +5084,8 @@ function onEndDateChange() {
     renewalEl.value = addInterval(end, cycle);
   }
 }
-
-function onCycleChange() {
-  const cycle = document.getElementById('s-cycle').value;
-  const end   = document.getElementById('s-end').value;
-  const renewalEl = document.getElementById('s-renewal');
-  if (end && !renewalEl.value && (cycle === 'Monthly' || cycle === 'Yearly')) {
-    renewalEl.value = addInterval(end, cycle);
-  }
-}
+function onEndDateChange() { suggestSubRenewal(); }
+function onCycleChange()   { suggestSubRenewal(); }
 
 function submitSubModal() {
   clearSubErrors();
@@ -5103,13 +5098,13 @@ function submitSubModal() {
   const renewal = document.getElementById('s-renewal').value;
 
   let valid = true;
-  if (!name) { markSubError('s-name'); valid = false; }
+  if (!name) { markError('s-name'); valid = false; }
 
   const cost = parseFloat(costRaw);
-  if (costRaw === '' || isNaN(cost) || cost < 0) { markSubError('s-cost'); valid = false; }
+  if (costRaw === '' || isNaN(cost) || cost < 0) { markError('s-cost'); valid = false; }
 
-  if (!end)     { markSubError('s-end'); valid = false; }
-  if (!renewal) { markSubError('s-renewal'); valid = false; }
+  if (!end)     { markError('s-end'); valid = false; }
+  if (!renewal) { markError('s-renewal'); valid = false; }
 
   if (!valid) return;
 
@@ -5135,7 +5130,6 @@ function submitSubModal() {
   autoSaveSubscriptions();
 }
 
-function markSubError(id)  { markError(id); }
 function clearSubErrors()  { clearErrorsIn('#sub-modal'); }
 
 // ── Licenses: type-specific suggested detail fields (only applied when extras list is empty) ──
@@ -5337,8 +5331,11 @@ function licOverlayClick(e) {
 }
 
 // ── Licenses: dynamic "Additional Details" extra fields ──
-function addLicExtraRow(label = '', value = '') {
-  const list = document.getElementById('l-extras-list');
+// Shared "Additional Details" key/value row builder for the Licenses and
+// Insurance modals (they share the .lic-extra-* markup); the two named
+// wrappers keep the modal-specific list id so the inline HTML stays simple.
+function addExtraRow(listId, label = '', value = '') {
+  const list = document.getElementById(listId);
   const row = document.createElement('div');
   row.className = 'lic-extra-row';
 
@@ -5358,6 +5355,7 @@ function addLicExtraRow(label = '', value = '') {
   row.appendChild(labelInput); row.appendChild(valueInput); row.appendChild(removeBtn);
   list.appendChild(row);
 }
+function addLicExtraRow(label = '', value = '') { addExtraRow('l-extras-list', label, value); }
 
 // Suggest preset detail fields for the chosen type — only when the list is still empty,
 // so we never clobber details the user already entered.
@@ -5373,7 +5371,7 @@ function submitLicModal() {
   clearLicErrors();
 
   const item = document.getElementById('l-item').value.trim();
-  if (!item) { markLicError('l-item'); return; }
+  if (!item) { markError('l-item'); return; }
 
   const extras = [];
   document.querySelectorAll('#l-extras-list .lic-extra-row').forEach(row => {
@@ -5407,7 +5405,6 @@ function submitLicModal() {
   autoSaveLicenses();
 }
 
-function markLicError(id)  { markError(id); }
 function clearLicErrors()  { clearErrorsIn('#lic-modal'); }
 
 // ── Insurance: category-specific suggested detail fields (only applied when extras list is empty) ──
@@ -5606,27 +5603,7 @@ function insOverlayClick(e) {
 }
 
 // ── Insurance: dynamic "Additional Details" extra fields ──
-function addInsExtraRow(label = '', value = '') {
-  const list = document.getElementById('i-extras-list');
-  const row = document.createElement('div');
-  row.className = 'lic-extra-row';
-
-  const labelInput = document.createElement('input');
-  labelInput.type = 'text'; labelInput.className = 'lic-extra-label';
-  labelInput.placeholder = 'Label (e.g. Car Plate)'; labelInput.value = label;
-
-  const valueInput = document.createElement('input');
-  valueInput.type = 'text'; valueInput.className = 'lic-extra-value'; valueInput.setAttribute('dir', 'auto');
-  valueInput.placeholder = 'Value'; valueInput.value = value;
-
-  const removeBtn = document.createElement('button');
-  removeBtn.type = 'button'; removeBtn.className = 'row-btn del'; removeBtn.textContent = '✕';
-  removeBtn.title = 'Remove field';
-  removeBtn.addEventListener('click', () => row.remove());
-
-  row.appendChild(labelInput); row.appendChild(valueInput); row.appendChild(removeBtn);
-  list.appendChild(row);
-}
+function addInsExtraRow(label = '', value = '') { addExtraRow('i-extras-list', label, value); }
 
 // Suggest preset detail fields for the chosen category — only when the list is still empty,
 // so we never clobber details the user already entered.
@@ -5642,7 +5619,7 @@ function submitInsModal() {
   clearInsErrors();
 
   const item = document.getElementById('i-item').value.trim();
-  if (!item) { markInsError('i-item'); return; }
+  if (!item) { markError('i-item'); return; }
 
   const extras = [];
   document.querySelectorAll('#i-extras-list .lic-extra-row').forEach(row => {
@@ -5674,7 +5651,6 @@ function submitInsModal() {
   autoSaveInsurance();
 }
 
-function markInsError(id)  { markError(id); }
 function clearInsErrors()  { clearErrorsIn('#ins-modal'); }
 
 // ── Flush pending saves before the window closes ──
