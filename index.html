@@ -2529,7 +2529,10 @@ function renderTable() {
   const countEl    = document.getElementById('filter-count');
   countEl.textContent = isFiltered ? `${ordered.length} of ${rows.length} shown` : '';
 
-  const getOrigIdx = (row) => rows.indexOf(row);
+  // Map each row object → its index in `rows` once, so the per-row lookup below
+  // is O(1) instead of rows.indexOf() (O(n)) inside the render loop.
+  const origIdxOf = new Map(rows.map((r, i) => [r, i]));
+  const getOrigIdx = (row) => origIdxOf.get(row);
 
   const inProgStart = doneRows.length;
   const notYetStart = activeRows.length;
@@ -2877,7 +2880,7 @@ function stopTimer() {
   // Locate the row by reference — it may have shifted position (or be gone).
   const idx = rows.indexOf(rowRef);
   if (idx !== -1) {
-    rows[idx].minutes = String((parseInt(rows[idx].minutes, 10) || 0) + elapsed);
+    rows[idx].minutes = (parseInt(rows[idx].minutes, 10) || 0) + elapsed;   // keep minutes a Number
     renderTable();
     setUnsaved();
   }
@@ -3091,7 +3094,7 @@ async function submitModal() {
     description: document.getElementById('f-description').value.trim(),
     source:      document.getElementById('f-source').value.trim(),
     status:      document.getElementById('f-status').value,
-    minutes:     minRaw,
+    minutes:     minRaw === '' ? '' : parseInt(minRaw, 10),   // Number when set, '' when blank
     tags:        parseTags(document.getElementById('f-tags').value),
   };
 
