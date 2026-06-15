@@ -4,10 +4,19 @@ node_modules/
 # Packaged builds
 dist/
 out/
-build/
 *.exe
 *.dmg
 *.AppImage
+
+# electron-builder resource dir: ignore generated output but KEEP the source
+# icon assets it (and the BrowserWindow icon path) depend on — see package.json
+# "build.files" / win.icon and main.js. Without these committed, a fresh clone
+# can't build or show an app icon.
+build/*
+!build/icon.ico
+!build/icon.png
+!build/icon.svg
+!build/gen-icon.js
 
 # Logs & OS cruft
 *.log
