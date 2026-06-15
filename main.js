@@ -135,7 +135,20 @@ ipcMain.handle('openExternal',   (_e, url)   => {
 app.whenReady().then(() => {
   // Open/create the embedded SQLite database, apply the schema, and (on first
   // run) import any pre-existing JSON data — all automatically, no setup needed.
-  db.init(app.getPath('userData'));
+  try {
+    db.init(app.getPath('userData'));
+  } catch (err) {
+    // A failed DB open (locked, corrupt, permissions) must not leave the user
+    // with an invisible, windowless process — surface it and exit.
+    dialog.showErrorBox(
+      'Cooperation Tools — database error',
+      'The data store could not be opened, so the app cannot start.\n\n' +
+      String(err?.message || err) +
+      '\n\nYour data folder:\n' + app.getPath('userData')
+    );
+    app.quit();
+    return;
+  }
   createWindow();
 });
 app.on('window-all-closed', () => {
