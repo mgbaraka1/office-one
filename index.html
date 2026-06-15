@@ -786,13 +786,13 @@
     }
 
     /* ══ SUBSCRIPTION MODAL (mirrors #modal-overlay/#modal) ══ */
-    #sub-modal-overlay, #lic-modal-overlay, #ins-modal-overlay {
+    #sub-modal-overlay {
       display: none; position: fixed; inset: 0;
       background: rgba(0,0,0,.45); backdrop-filter: blur(4px);
       z-index: 100; align-items: center; justify-content: center;
     }
-    #sub-modal-overlay.open, #lic-modal-overlay.open, #ins-modal-overlay.open { display: flex; }
-    #sub-modal, #lic-modal, #ins-modal {
+    #sub-modal-overlay.open { display: flex; }
+    #sub-modal {
       background: var(--surface); border-radius: 16px;
       width: 480px; max-height: 90vh; overflow-y: auto;
       box-shadow: 0 20px 60px rgba(0,0,0,.25);
@@ -804,18 +804,6 @@
       z-index: 100; align-items: center; justify-content: center;
     }
     #sub-settings-overlay.open { display: flex; }
-    #report-overlay {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,.45); backdrop-filter: blur(4px);
-      z-index: 100; align-items: center; justify-content: center;
-    }
-    #report-overlay.open { display: flex; }
-    #report-modal {
-      background: var(--surface); border-radius: 16px;
-      width: 440px; max-height: 90vh; overflow-y: auto;
-      box-shadow: 0 20px 60px rgba(0,0,0,.25);
-      animation: modalIn .18s ease;
-    }
     #sub-settings-modal {
       background: var(--surface); border-radius: 16px;
       width: 380px; max-height: 90vh; overflow-y: auto;
@@ -1290,22 +1278,6 @@
     }
     #undo-toast-btn:hover, #sub-undo-toast-btn:hover, #lic-undo-toast-btn:hover, #ins-undo-toast-btn:hover { background: #5a52d5; }
 
-    /* ══ EXPORT RANGE MODAL ══ */
-    #export-overlay {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,.45); backdrop-filter: blur(4px);
-      z-index: 150; align-items: center; justify-content: center;
-    }
-    #export-overlay.open { display: flex; }
-    #export-modal {
-      background: var(--surface); border-radius: 16px;
-      width: 440px; box-shadow: 0 20px 60px rgba(0,0,0,.25);
-      animation: modalIn .18s ease;
-    }
-    .export-hint {
-      font-size: 12px; color: var(--muted); line-height: 1.6;
-      background: var(--surface2); border-radius: 8px; padding: 10px 12px;
-    }
   </style>
 </head>
 <body>
