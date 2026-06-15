@@ -343,12 +343,12 @@
     tbody tr.timer-running:hover td { background: #dcfce7 !important; }
 
     /* Empty state */
-    #empty-state, #sub-empty-state, #lic-empty-state, #ins-empty-state {
+    #empty-state, #sub-empty-state {
       display: flex; flex-direction: column; align-items: center;
       justify-content: center; gap: 12px; padding: 80px 0; color: var(--muted);
     }
-    #empty-state .icon, #sub-empty-state .icon, #lic-empty-state .icon, #ins-empty-state .icon { font-size: 44px; opacity: .35; }
-    #empty-state p, #sub-empty-state p, #lic-empty-state p, #ins-empty-state p { font-size: 15px; }
+    #empty-state .icon, #sub-empty-state .icon { font-size: 44px; opacity: .35; }
+    #empty-state p, #sub-empty-state p { font-size: 15px; }
 
     /* ══ SUBSCRIPTIONS MODULE ══ */
     #sub-topbar {
@@ -476,47 +476,6 @@
       .dash-stats { grid-template-columns: repeat(2, 1fr); }
       .dash-grid { grid-template-columns: 1fr; }
     }
-
-    /* ══ OPEN TASKS MODULE ══ */
-    #tasks-topbar {
-      display: flex; align-items: center; gap: 12px;
-      padding: 8px 16px; background: #1e1e2e; flex-shrink: 0;
-    }
-    .tasks-title { font-size: 15px; font-weight: 700; color: #fff; margin-right: 2px; white-space: nowrap; }
-    .tasks-search { flex: 0 1 320px; }
-    #tasks-count-chip { font-size: 12px; color: var(--sidebar-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .nav-badge.count { background: var(--sidebar-active); }
-    .tasks-scroll { flex: 1; overflow-y: auto; padding: 20px 26px 40px; max-width: 1000px; width: 100%; }
-    .task-section { margin-bottom: 22px; }
-    .task-section-head {
-      display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
-      font-size: 14px; font-weight: 700; color: var(--text);
-    }
-    .task-section-count {
-      font-size: 11px; font-weight: 700; color: var(--muted);
-      background: var(--surface2); border: 1px solid var(--border);
-      border-radius: 20px; padding: 1px 9px;
-    }
-    .task-item {
-      display: flex; align-items: flex-start; gap: 12px;
-      background: var(--surface); border: 1px solid var(--border); border-radius: 11px;
-      padding: 11px 13px; margin-bottom: 8px; box-shadow: var(--shadow);
-    }
-    .task-status {
-      flex-shrink: 0; font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 6px;
-      white-space: nowrap; margin-top: 2px;
-    }
-    .task-status.ip { background: var(--prog); color: var(--prog-text); }
-    .task-status.ny { background: var(--notyet); color: var(--notyet-text); }
-    .task-main { flex: 1; min-width: 0; }
-    .task-meta-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin-bottom: 2px; }
-    .task-date { font-size: 11.5px; font-weight: 600; color: var(--accent); white-space: nowrap; }
-    .task-meta { font-size: 12px; color: var(--muted); }
-    .task-desc { font-size: 13.5px; color: var(--text); line-height: 1.45; word-break: break-word; }
-    .task-item .row-tags { margin-top: 5px; }
-    .task-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
-    .task-actions .co-btn { white-space: nowrap; }
-    .task-actions .co-btn.done-btn { color: var(--renew-ok-text); font-weight: 700; }
 
     /* ══ ANALYTICS MODULE ══ */
     #an-topbar {
@@ -729,33 +688,11 @@
     .sub-cost .cur { font-size: 11px; color: var(--muted); font-weight: 500; }
     #sub-table-wrap { flex: 1; overflow-y: auto; padding: 16px 20px 24px; }
 
-    /* ══ LICENSES MODULE ══ */
-    #lic-topbar {
-      display: flex; align-items: center; gap: 10px;
-      padding: 8px 16px; background: #1e1e2e; flex-shrink: 0;
-    }
-    .lic-title { font-size: 15px; font-weight: 700; color: #fff; margin-right: 4px; }
-    #lic-table-wrap { flex: 1; overflow: auto; padding: 16px 20px 24px; }
-    #lic-table-wrap table { min-width: 1180px; }
+    /* Generic helpers (RTL-aware text + muted placeholder cells) */
     .rtl-text { unicode-bidi: plaintext; text-align: start; }
     .cell-muted { color: var(--muted); opacity: .55; }
-    .lic-hijri { font-size: 12px; color: var(--muted); white-space: nowrap; }
 
-    /* ══ INSURANCE MODULE ══ */
-    #ins-topbar {
-      display: flex; align-items: center; gap: 10px;
-      padding: 8px 16px; background: #1e1e2e; flex-shrink: 0;
-    }
-    .ins-title { font-size: 15px; font-weight: 700; color: #fff; margin-right: 4px; }
-    #ins-table-wrap { flex: 1; overflow: auto; padding: 16px 20px 24px; }
-    #ins-table-wrap table { min-width: 1180px; }
-    .ins-cat-badge {
-      display: inline-block; padding: 3px 9px; border-radius: 6px;
-      font-size: 11px; font-weight: 600; background: var(--surface2);
-      color: var(--muted); border: 1px solid var(--border); white-space: nowrap;
-    }
-
-    /* Search input for the dark module top bars (Subscriptions/Licenses/Insurance) */
+    /* Search input for the dark module top bar (Subscriptions) */
     .mod-search {
       width: 200px; border: 1px solid rgba(255,255,255,.15); border-radius: 8px;
       padding: 5px 10px; font-size: 13px; font-family: inherit;
@@ -845,18 +782,6 @@
     .form-group select:focus,
     .form-group textarea:focus { border-color: var(--accent); background: var(--input-focus-bg); }
     .form-group textarea { resize: vertical; min-height: 70px; }
-
-    /* License extra-detail rows (dynamic key/value fields, e.g. Car Plate, Policy Number) */
-    .lic-extra-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
-    .lic-extra-row input { flex: 1; min-width: 0; }
-    .lic-extra-row .row-btn { flex-shrink: 0; }
-    .lic-type-badge {
-      display: inline-block; padding: 3px 9px; border-radius: 6px;
-      font-size: 11px; font-weight: 600; background: var(--surface2);
-      color: var(--muted); border: 1px solid var(--border); white-space: nowrap;
-    }
-    .lic-extras-summary { font-size: 12px; color: var(--muted); line-height: 1.5; }
-    .lic-extras-summary b { color: var(--text); font-weight: 600; }
 
     .modal-footer {
       display: flex; justify-content: flex-end; gap: 8px;
@@ -1257,7 +1182,7 @@
     #timer-stop-btn:hover { background: #16a34a; color: #fff; border-color: #16a34a; }
 
     /* ══ UNDO TOAST ══ */
-    #undo-toast, #sub-undo-toast, #lic-undo-toast, #ins-undo-toast {
+    #undo-toast, #sub-undo-toast {
       position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
       background: #1e1e2e; border: 1px solid #45475a; border-radius: 10px;
       padding: 10px 16px; display: none; align-items: center; gap: 12px;
@@ -1266,17 +1191,17 @@
       animation: toastIn .2s ease;
       white-space: nowrap;
     }
-    #undo-toast.visible, #sub-undo-toast.visible, #lic-undo-toast.visible, #ins-undo-toast.visible { display: flex; }
+    #undo-toast.visible, #sub-undo-toast.visible { display: flex; }
     @keyframes toastIn {
       from { opacity: 0; transform: translateX(-50%) translateY(8px); }
       to   { opacity: 1; transform: translateX(-50%) translateY(0); }
     }
-    #undo-toast-btn, #sub-undo-toast-btn, #lic-undo-toast-btn, #ins-undo-toast-btn {
+    #undo-toast-btn, #sub-undo-toast-btn {
       background: var(--accent); border: none; border-radius: 6px;
       padding: 3px 12px; font-size: 12px; font-weight: 700;
       color: #fff; cursor: pointer; font-family: inherit; transition: background .12s;
     }
-    #undo-toast-btn:hover, #sub-undo-toast-btn:hover, #lic-undo-toast-btn:hover, #ins-undo-toast-btn:hover { background: #5a52d5; }
+    #undo-toast-btn:hover, #sub-undo-toast-btn:hover { background: #5a52d5; }
 
   </style>
 </head>
