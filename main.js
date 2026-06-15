@@ -123,7 +123,6 @@ ipcMain.handle('getOpenItems', () => db.getOpenItems());
 
 // ── Window controls ──
 ipcMain.handle('setTitle',       (_e, title) => { if (win) win.setTitle(title); });
-ipcMain.handle('setAlwaysOnTop', (_e, flag)  => { if (win) win.setAlwaysOnTop(flag); });
 ipcMain.handle('openExternal',   (_e, url)   => {
   // Only ever hand off real web links to the OS — never file:, javascript:, etc.
   try {

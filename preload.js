@@ -19,6 +19,5 @@ contextBridge.exposeInMainWorld('api', {
   flushComplete:     ()           => ipcRenderer.invoke('flushComplete'),
   onBeforeClose:  (cb)            => ipcRenderer.on('before-close', () => cb()),
   setTitle:       (title)         => ipcRenderer.invoke('setTitle', title),
-  setAlwaysOnTop: (flag)          => ipcRenderer.invoke('setAlwaysOnTop', flag),
   openExternal:   (url)           => ipcRenderer.invoke('openExternal', url),
 });
