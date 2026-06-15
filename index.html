@@ -212,6 +212,7 @@
     #save-status { font-size: 12px; color: #6c7086; min-width: 60px; }
     #save-status.saved   { color: #a6e3a1; }
     #save-status.unsaved { color: #cba6f7; }
+    #save-status.save-error { color: #f38ba8; }
 
     /* Totals bar */
     #totals-bar {
@@ -2349,7 +2350,8 @@ function settingsOverlayClick(e) {
 async function saveSettings() {
   lookups = JSON.parse(JSON.stringify(lookupsDraft));
   lookups.defaultName = document.getElementById('setting-default-name').value.trim();
-  await window.api.saveLookups(lookups);
+  try { await window.api.saveLookups(lookups); }
+  catch { toast('Could not save settings'); return; }
   closeSettings();
 }
 
@@ -2415,6 +2417,12 @@ async function refreshDayList() {
   const days = await window.api.listDays();
   savedDays = new Set(days);
   // Days loaded lazily — only fetch data when a day is actually opened
+}
+
+// Persist lookups (default name, templates, lists) without blocking the UI,
+// surfacing a toast if the write fails instead of an unhandled rejection.
+function persistLookups() {
+  Promise.resolve(window.api.saveLookups(lookups)).catch(() => toast('Could not save settings'));
 }
 
 // ── Calendar toggle ──
@@ -2939,7 +2947,14 @@ async function saveDay() {
     name: document.getElementById('hName').value,
     rows: rows.map(r => Object.assign({}, r)),
   };
-  await window.api.saveDay(activeDate, data);
+  try {
+    await window.api.saveDay(activeDate, data);
+  } catch (err) {
+    const el = document.getElementById('save-status');
+    el.textContent = '⚠ Save failed'; el.className = 'save-error';
+    toast('Could not save — your changes are still on screen. Retrying on next edit.');
+    return;
+  }
   dayCache[activeDate] = data;
   savedDays.add(activeDate);
   renderCalendar();
@@ -3167,7 +3182,7 @@ document.getElementById('hName').addEventListener('input', () => {
     const name = document.getElementById('hName').value.trim();
     if (name && name !== lookups.defaultName) {
       lookups.defaultName = name;
-      window.api.saveLookups(lookups);
+      persistLookups();
     }
   }, 2000);
 });
@@ -4088,7 +4103,7 @@ function saveAsTemplate() {
   };
   if (!lookups.templates) lookups.templates = [];
   lookups.templates.push(tpl);
-  window.api.saveLookups(lookups);
+  persistLookups();
   toast('Template saved: ' + name);
 }
 function insertTemplate(i) {
@@ -4106,7 +4121,7 @@ function insertTemplate(i) {
 function deleteTemplate(i) {
   if (!lookups.templates) return;
   lookups.templates.splice(i, 1);
-  window.api.saveLookups(lookups);
+  persistLookups();
   renderTemplateMenu();
 }
 
@@ -4213,7 +4228,9 @@ function switchModule(name) {
 
 // ── Subscriptions: data ──
 async function loadSubscriptionsData() {
-  const data = await window.api.loadSubscriptions();
+  let data;
+  try { data = await window.api.loadSubscriptions(); }
+  catch { toast('Could not load subscriptions'); return; }
   subscriptions = (data && Array.isArray(data.subscriptions)) ? data.subscriptions : [];
   subPrefs.defaultCurrency = (data && data.defaultCurrency) ? data.defaultCurrency : 'USD';
   subsLoaded = true;
@@ -4221,10 +4238,12 @@ async function loadSubscriptionsData() {
 }
 
 async function saveSubscriptionsData() {
-  await window.api.saveSubscriptions({
-    subscriptions: subscriptions.map(s => Object.assign({}, s)),
-    defaultCurrency: subPrefs.defaultCurrency,
-  });
+  try {
+    await window.api.saveSubscriptions({
+      subscriptions: subscriptions.map(s => Object.assign({}, s)),
+      defaultCurrency: subPrefs.defaultCurrency,
+    });
+  } catch { toast('Could not save subscriptions'); }
 }
 
 function autoSaveSubscriptions() {
@@ -5117,14 +5136,17 @@ const LICENSE_TYPE_PRESETS = {
 
 // ── Licenses: data ──
 async function loadLicensesData() {
-  const data = await window.api.loadLicenses();
+  let data;
+  try { data = await window.api.loadLicenses(); }
+  catch { toast('Could not load licenses'); return; }
   licenses = (data && Array.isArray(data.licenses)) ? data.licenses : [];
   licsLoaded = true;
   renderLicenses();
 }
 
 async function saveLicensesData() {
-  await window.api.saveLicenses({ licenses: licenses.map(l => Object.assign({}, l)) });
+  try { await window.api.saveLicenses({ licenses: licenses.map(l => Object.assign({}, l)) }); }
+  catch { toast('Could not save licenses'); }
 }
 
 function autoSaveLicenses() {
@@ -5384,14 +5406,17 @@ const INSURANCE_CATEGORY_PRESETS = {
 
 // ── Insurance: data ──
 async function loadInsuranceData() {
-  const data = await window.api.loadInsurance();
+  let data;
+  try { data = await window.api.loadInsurance(); }
+  catch { toast('Could not load insurance'); return; }
   insurance = (data && Array.isArray(data.insurance)) ? data.insurance : [];
   insLoaded = true;
   renderInsurance();
 }
 
 async function saveInsuranceData() {
-  await window.api.saveInsurance({ insurance: insurance.map(i => Object.assign({}, i)) });
+  try { await window.api.saveInsurance({ insurance: insurance.map(i => Object.assign({}, i)) }); }
+  catch { toast('Could not save insurance'); }
 }
 
 function autoSaveInsurance() {
@@ -5668,11 +5693,19 @@ async function init() {
   calYear  = t.getFullYear();
   calMonth = t.getMonth();
 
-  lookups = await window.api.loadLookups();
-  await refreshDayList();
-
-  const today = fmt(t);
-  await switchDay(today);
+  try {
+    lookups = await window.api.loadLookups();
+    await refreshDayList();
+    const today = fmt(t);
+    await switchDay(today);
+  } catch (err) {
+    // Data layer unreachable at startup — keep the shell usable rather than
+    // leaving a blank window, and tell the user.
+    if (!lookups || !Array.isArray(lookups.companies)) {
+      lookups = { companies: [], projects: [], natural: [], timeType: [], status: [] };
+    }
+    toast('Could not load data — some views may be empty');
+  }
 
   applyThemeLabel();
 
