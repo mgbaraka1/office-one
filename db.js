@@ -29,11 +29,6 @@ const DEFAULT_LOOKUPS = {
   status:    ['Done', 'In Progress', 'Not Yet'],
 };
 
-// Seed data transcribed from the user's existing tracking spreadsheet — written
-// only when initialising a brand-new database that has no JSON data to import.
-const DEFAULT_LICENSES = [
-];
-
 let db;          // DatabaseSync instance
 let userDataDir; // for one-time JSON migration
 
@@ -51,27 +46,6 @@ function createSchema() {
       name         TEXT, cost TEXT, currency TEXT,
       billingCycle TEXT, endDate TEXT, renewalDate TEXT,
       sort_order   INTEGER
-    );
-
-    CREATE TABLE IF NOT EXISTS licenses (
-      id             TEXT PRIMARY KEY,
-      item           TEXT, type TEXT, docNumber TEXT,
-      issueDateHijri TEXT, expiryDateHijri TEXT,
-      issueDate      TEXT, expiryDate TEXT, notes TEXT,
-      sort_order     INTEGER
-    );
-    CREATE TABLE IF NOT EXISTS license_extras (
-      license_id TEXT, seq INTEGER, label TEXT, value TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS insurance (
-      id           TEXT PRIMARY KEY,
-      item         TEXT, category TEXT, provider TEXT, policyNumber TEXT,
-      issueDate    TEXT, expiryDate TEXT,
-      sort_order   INTEGER
-    );
-    CREATE TABLE IF NOT EXISTS insurance_extras (
-      insurance_id TEXT, seq INTEGER, label TEXT, value TEXT
     );
 
     -- Generic key/value store: lookups, default currency, window bounds, flags.
@@ -141,15 +115,6 @@ function migrateFromJson() {
   const subs = readJson(path.join(userDataDir, 'subscriptions.json'));
   if (subs) saveSubscriptions(subs);
 
-  // Insurance
-  const ins = readJson(path.join(userDataDir, 'insurance.json'));
-  if (ins) saveInsurance(ins);
-
-  // Licenses — import existing file if present, otherwise seed defaults.
-  const lic = readJson(path.join(userDataDir, 'licenses.json'));
-  if (lic && Array.isArray(lic.licenses)) saveLicenses(lic);
-  else saveLicenses({ licenses: DEFAULT_LICENSES });
-
   // Window prefs
   const prefs = readJson(path.join(userDataDir, 'prefs.json'));
   if (prefs) metaSet('window_prefs', JSON.stringify(prefs));
@@ -170,10 +135,28 @@ function init(dir) {
   db.exec('PRAGMA foreign_keys = ON');
   createSchema();
 
-  // First run only: import any legacy JSON data / seed the licenses module.
-  // On later runs, snapshot the existing DB into the rotating backups folder.
+  // First run only: import any legacy JSON data. On later runs, snapshot the
+  // existing DB into the rotating backups folder.
   if (isNew) tx(migrateFromJson);
   else rotateBackups();
+
+  // The Licenses and Insurance modules were removed. Drop their tables (one-time
+  // cleanup). On an existing DB the rotateBackups() snapshot above captures the
+  // data first, so there's still a recovery copy in backups/.
+  dropRemovedModuleTables();
+}
+
+// One-time teardown of tables for modules that no longer exist (Licenses,
+// Insurance). DROP IF EXISTS is a no-op once they're gone / on a fresh DB.
+function dropRemovedModuleTables() {
+  try {
+    db.exec(`
+      DROP TABLE IF EXISTS license_extras;
+      DROP TABLE IF EXISTS licenses;
+      DROP TABLE IF EXISTS insurance_extras;
+      DROP TABLE IF EXISTS insurance;
+    `);
+  } catch { /* non-critical */ }
 }
 
 // Snapshot the current DB into <userData>/backups/, keeping the newest `keep`.
@@ -222,8 +205,8 @@ function loadDaysRange(from, to) {
 
 // Scan every day's rows (newest day first), collecting { date, idx, row } for each
 // row matching `predicate(row, date)` — `idx` is the row's position within that day.
-// One table scan in the main process, shared by getCarryOver / getOpenItems (rather
-// than N renderer round-trips).
+// One table scan in the main process (powers getCarryOver) rather than N renderer
+// round-trips.
 function scanRows(predicate) {
   const days = db.prepare('SELECT date, rows FROM days ORDER BY date DESC').all();
   const items = [];
@@ -238,11 +221,6 @@ function scanRows(predicate) {
 // All "Not Yet" rows across every day (except `excludeDate`), newest day first.
 function getCarryOver(excludeDate) {
   return scanRows((row, date) => date !== excludeDate && row.status === 'Not Yet');
-}
-
-// All open work across every day: status "In Progress" or "Not Yet"/"Pending".
-function getOpenItems() {
-  return scanRows(row => row.status === 'In Progress' || row.status === 'Not Yet' || row.status === 'Pending');
 }
 
 // ── Lookups ────────────────────────────────────────────────────────────────────
@@ -274,64 +252,6 @@ function saveSubscriptions(data) {
       s.billingCycle ?? '', s.endDate ?? '', s.renewalDate ?? '', i
     ));
     metaSet('subscriptions_default_currency', currency);
-  });
-}
-
-// ── Licenses ────────────────────────────────────────────────────────────────────
-function loadLicenses() {
-  const rows = db.prepare(
-    'SELECT id, item, type, docNumber, issueDateHijri, expiryDateHijri, issueDate, expiryDate, notes FROM licenses ORDER BY sort_order'
-  ).all();
-  const extras = db.prepare('SELECT license_id, label, value FROM license_extras ORDER BY seq').all();
-  const byId = new Map(rows.map(r => [r.id, Object.assign(r, { extras: [] })]));
-  for (const e of extras) {
-    const rec = byId.get(e.license_id);
-    if (rec) rec.extras.push({ label: e.label, value: e.value });
-  }
-  return { licenses: rows };
-}
-function saveLicenses(data) {
-  const list = Array.isArray(data?.licenses) ? data.licenses : [];
-  tx(() => {
-    db.exec('DELETE FROM license_extras');
-    db.exec('DELETE FROM licenses');
-    const stmt = db.prepare(`INSERT INTO licenses(id, item, type, docNumber, issueDateHijri, expiryDateHijri, issueDate, expiryDate, notes, sort_order)
-                             VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-    const exStmt = db.prepare('INSERT INTO license_extras(license_id, seq, label, value) VALUES(?, ?, ?, ?)');
-    list.forEach((l, i) => {
-      stmt.run(l.id, l.item ?? '', l.type ?? '', l.docNumber ?? '', l.issueDateHijri ?? '',
-               l.expiryDateHijri ?? '', l.issueDate ?? '', l.expiryDate ?? '', l.notes ?? '', i);
-      (l.extras || []).forEach((ex, j) => exStmt.run(l.id, j, ex.label ?? '', ex.value ?? ''));
-    });
-  });
-}
-
-// ── Insurance ───────────────────────────────────────────────────────────────────
-function loadInsurance() {
-  const rows = db.prepare(
-    'SELECT id, item, category, provider, policyNumber, issueDate, expiryDate FROM insurance ORDER BY sort_order'
-  ).all();
-  const extras = db.prepare('SELECT insurance_id, label, value FROM insurance_extras ORDER BY seq').all();
-  const byId = new Map(rows.map(r => [r.id, Object.assign(r, { extras: [] })]));
-  for (const e of extras) {
-    const rec = byId.get(e.insurance_id);
-    if (rec) rec.extras.push({ label: e.label, value: e.value });
-  }
-  return { insurance: rows };
-}
-function saveInsurance(data) {
-  const list = Array.isArray(data?.insurance) ? data.insurance : [];
-  tx(() => {
-    db.exec('DELETE FROM insurance_extras');
-    db.exec('DELETE FROM insurance');
-    const stmt = db.prepare(`INSERT INTO insurance(id, item, category, provider, policyNumber, issueDate, expiryDate, sort_order)
-                             VALUES(?, ?, ?, ?, ?, ?, ?, ?)`);
-    const exStmt = db.prepare('INSERT INTO insurance_extras(insurance_id, seq, label, value) VALUES(?, ?, ?, ?)');
-    list.forEach((n, i) => {
-      stmt.run(n.id, n.item ?? '', n.category ?? '', n.provider ?? '', n.policyNumber ?? '',
-               n.issueDate ?? '', n.expiryDate ?? '', i);
-      (n.extras || []).forEach((ex, j) => exStmt.run(n.id, j, ex.label ?? '', ex.value ?? ''));
-    });
   });
 }
 
@@ -368,10 +288,8 @@ function dbPath() {
 
 module.exports = {
   init, close, backup, dbPath,
-  saveDay, loadDay, listDays, loadDaysRange, getCarryOver, getOpenItems,
+  saveDay, loadDay, listDays, loadDaysRange, getCarryOver,
   loadLookups, saveLookups,
   loadSubscriptions, saveSubscriptions,
-  loadLicenses, saveLicenses,
-  loadInsurance, saveInsurance,
   loadPrefs, savePrefs,
 };
