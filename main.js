@@ -74,6 +74,10 @@ ipcMain.handle('saveLookups', (_e, data) => db.saveLookups(data));
 ipcMain.handle('loadSubscriptions', ()         => db.loadSubscriptions());
 ipcMain.handle('saveSubscriptions', (_e, data) => db.saveSubscriptions(data));
 
+// ── Backlog ("Not Yet" pool) ──
+ipcMain.handle('loadBacklog', ()         => db.loadBacklog());
+ipcMain.handle('saveBacklog', (_e, data) => db.saveBacklog(data));
+
 // ── Backup ──
 ipcMain.handle('backupDatabase', async () => {
   const stamp = new Date().toISOString().slice(0, 10);
@@ -120,9 +124,6 @@ ipcMain.handle('flushComplete', () => {
   allowClose = true;
   if (win && !win.isDestroyed()) win.close();
 });
-
-// ── Carry-over (all "Not Yet" rows across days, except the active day) ──
-ipcMain.handle('getCarryOver', (_e, excludeDate) => db.getCarryOver(excludeDate));
 
 // ── Window controls ──
 ipcMain.handle('setTitle',       (_e, title) => { if (win) win.setTitle(title); });
