@@ -26,7 +26,7 @@ const DEFAULT_LOOKUPS = {
   projects:  ['Visa', 'Online Platform', 'Data Hub', 'QA Test', 'Uploader', 'BILLING Visa', 'Payment Gateway', '-'],
   natural:   ['Ticket', 'Task', 'Meeting', 'Call', '-'],
   timeType:  ['Work Time', 'Over Time', 'Training', 'Leave', 'Holiday'],
-  status:    ['Done', 'In Progress', 'Not Yet'],
+  status:    ['Done', 'In Progress'],
 };
 
 let db;          // DatabaseSync instance
@@ -46,6 +46,16 @@ function createSchema() {
       name         TEXT, cost TEXT, currency TEXT,
       billingCycle TEXT, endDate TEXT, renewalDate TEXT,
       sort_order   INTEGER
+    );
+
+    -- "Not Yet" backlog: a day-agnostic pool of tasks (no date binding). A task
+    -- is picked out of here and assigned into a specific day when worked on.
+    CREATE TABLE IF NOT EXISTS backlog (
+      id          TEXT PRIMARY KEY,
+      company     TEXT, project TEXT, natural TEXT, time TEXT,
+      description TEXT, source TEXT,
+      tags        TEXT,            -- JSON array of strings
+      sort_order  INTEGER
     );
 
     -- Generic key/value store: lookups, default currency, window bounds, flags.
@@ -144,6 +154,56 @@ function init(dir) {
   // cleanup). On an existing DB the rotateBackups() snapshot above captures the
   // data first, so there's still a recovery copy in backups/.
   dropRemovedModuleTables();
+
+  // "Not Yet" is now a day-agnostic backlog, not a per-day row status. One-time:
+  // move every existing "Not Yet"/"Pending" day-row into the backlog table and
+  // drop "Not Yet" from the saved status lookup. Guarded by a meta flag so it
+  // runs exactly once; the rotateBackups() snapshot above is the recovery copy.
+  migrateNotYetToBacklog();
+}
+
+// One-time conversion of legacy per-day "Not Yet" rows into the standalone
+// backlog pool. Idempotent via the `notyet_backlog_migrated` meta flag.
+function migrateNotYetToBacklog() {
+  if (metaGet('notyet_backlog_migrated') === '1') return;
+  const isNotYet = (r) => r && (r.status === 'Not Yet' || r.status === 'Pending');
+  tx(() => {
+    const days = db.prepare('SELECT date, rows FROM days ORDER BY date ASC').all();
+    const insert = db.prepare(`INSERT INTO backlog(id, company, project, natural, time, description, source, tags, sort_order)
+                               VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    let order = 0;
+    for (const d of days) {
+      const rows = safeParse(d.rows, []);
+      const moved = rows.filter(isNotYet);
+      if (moved.length === 0) continue;
+      const keep = rows.filter(r => !isNotYet(r));
+      moved.forEach(r => {
+        const id = 'bl_' + Date.now().toString(36) + '_' + order + '_' + Math.random().toString(36).slice(2, 7);
+        insert.run(
+          id, r.company ?? '', r.project ?? '', r.natural ?? '', r.time ?? '',
+          r.description ?? '', r.source ?? '',
+          JSON.stringify(Array.isArray(r.tags) ? r.tags : []), order++
+        );
+      });
+      // A day left with no rows would otherwise show as a phantom "has data" day
+      // on the calendar — remove it. Otherwise persist the trimmed rows.
+      if (keep.length === 0) db.prepare('DELETE FROM days WHERE date = ?').run(d.date);
+      else db.prepare('UPDATE days SET rows = ? WHERE date = ?').run(JSON.stringify(keep), d.date);
+    }
+
+    // Drop "Not Yet"/"Pending" from the saved status lookup so the day Add/Edit
+    // form no longer offers it (DEFAULT_LOOKUPS already excludes it for fresh DBs).
+    const lk = metaGet('lookups');
+    if (lk) {
+      const parsed = safeParse(lk, null);
+      if (parsed && Array.isArray(parsed.status)) {
+        parsed.status = parsed.status.filter(s => s !== 'Not Yet' && s !== 'Pending');
+        metaSet('lookups', JSON.stringify(parsed));
+      }
+    }
+
+    metaSet('notyet_backlog_migrated', '1');
+  });
 }
 
 // One-time teardown of tables for modules that no longer exist (Licenses,
@@ -203,24 +263,33 @@ function loadDaysRange(from, to) {
   return recs.map(r => ({ date: r.date, name: r.name, rows: safeParse(r.rows, []) }));
 }
 
-// Scan every day's rows (newest day first), collecting { date, idx, row } for each
-// row matching `predicate(row, date)` — `idx` is the row's position within that day.
-// One table scan in the main process (powers getCarryOver) rather than N renderer
-// round-trips.
-function scanRows(predicate) {
-  const days = db.prepare('SELECT date, rows FROM days ORDER BY date DESC').all();
-  const items = [];
-  for (const d of days) {
-    safeParse(d.rows, []).forEach((row, idx) => {
-      if (predicate(row, d.date)) items.push({ date: d.date, idx, row });
-    });
-  }
-  return items;
+// ── Backlog ("Not Yet" pool) ────────────────────────────────────────────────────
+// A day-agnostic list of tasks. Returns { backlog: [...] }; mirrors the
+// subscriptions IPC shape so the renderer treats it the same way.
+function loadBacklog() {
+  const backlog = db.prepare(
+    'SELECT id, company, project, natural, time, description, source, tags FROM backlog ORDER BY sort_order'
+  ).all().map(t => ({
+    id: t.id,
+    company: t.company || '', project: t.project || '', natural: t.natural || '', time: t.time || '',
+    description: t.description || '', source: t.source || '',
+    tags: safeParse(t.tags, []),
+  }));
+  return { backlog };
 }
 
-// All "Not Yet" rows across every day (except `excludeDate`), newest day first.
-function getCarryOver(excludeDate) {
-  return scanRows((row, date) => date !== excludeDate && row.status === 'Not Yet');
+function saveBacklog(data) {
+  const list = Array.isArray(data?.backlog) ? data.backlog : [];
+  tx(() => {
+    db.exec('DELETE FROM backlog');
+    const stmt = db.prepare(`INSERT INTO backlog(id, company, project, natural, time, description, source, tags, sort_order)
+                             VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    list.forEach((t, i) => stmt.run(
+      t.id, t.company ?? '', t.project ?? '', t.natural ?? '', t.time ?? '',
+      t.description ?? '', t.source ?? '',
+      JSON.stringify(Array.isArray(t.tags) ? t.tags : []), i
+    ));
+  });
 }
 
 // ── Lookups ────────────────────────────────────────────────────────────────────
@@ -288,7 +357,8 @@ function dbPath() {
 
 module.exports = {
   init, close, backup, dbPath,
-  saveDay, loadDay, listDays, loadDaysRange, getCarryOver,
+  saveDay, loadDay, listDays, loadDaysRange,
+  loadBacklog, saveBacklog,
   loadLookups, saveLookups,
   loadSubscriptions, saveSubscriptions,
   loadPrefs, savePrefs,
