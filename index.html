@@ -436,33 +436,6 @@
     .dash-stat.accent .ds-value { color: var(--accent); }
     .dash-stat.warn .ds-value { color: var(--renew-urgent-text); }
 
-    .dash-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; align-items: start; }
-    .dash-card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); box-shadow: var(--shadow);
-      padding: 18px 20px 20px;
-    }
-    .dash-card-head {
-      display: flex; align-items: baseline; justify-content: space-between;
-      margin-bottom: 16px;
-    }
-    .dash-card-title { font-size: 15px; font-weight: 700; color: var(--text); }
-    .dash-card-sub { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-
-    /* Week bar chart */
-    .dash-week { display: flex; align-items: flex-end; gap: 10px; height: 150px; padding-top: 8px; }
-    .dwk-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
-    .dwk-bar-wrap { width: 100%; flex: 1; display: flex; align-items: flex-end; }
-    .dwk-bar {
-      width: 100%; border-radius: 6px 6px 0 0; min-height: 3px;
-      background: var(--accent-bg); transition: height .3s ease;
-    }
-    .dwk-bar.has { background: var(--accent); }
-    .dwk-bar.today { background: var(--accent); box-shadow: 0 0 0 2px var(--accent-bg); }
-    .dwk-val { font-size: 11px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
-    .dwk-day { font-size: 11px; color: var(--muted); }
-    .dwk-day.is-today { color: var(--accent); font-weight: 700; }
-
     /* Attention list */
     .dash-attention { display: flex; flex-direction: column; gap: 8px; }
     .dash-att-item {
@@ -479,7 +452,6 @@
     .dash-empty .de-icon { font-size: 30px; display: block; margin-bottom: 8px; opacity: .7; }
     @media (max-width: 880px) {
       .dash-stats { grid-template-columns: repeat(2, 1fr); }
-      .dash-grid { grid-template-columns: 1fr; }
     }
 
     /* ══ ANALYTICS MODULE ══ */
@@ -517,7 +489,6 @@
     .an-kpi.accent .an-kpi-val { color: var(--accent); }
 
     .an-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; margin-bottom: 16px; }
-    .an-grid.thirds { grid-template-columns: 1.2fr 1fr; }
     .an-card {
       background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
       box-shadow: var(--shadow); padding: 16px 18px 18px;
@@ -572,9 +543,13 @@
     .an-spend-cur { font-weight: 600; color: var(--text); }
     .an-spend-vals { color: var(--muted); font-variant-numeric: tabular-nums; }
     .an-spend-vals b { color: var(--accent); font-weight: 700; }
+    .an-flow-row { display: flex; align-items: baseline; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+    .an-flow-row:last-child { border-bottom: none; }
+    .an-flow-val { font-size: 22px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; min-width: 64px; }
+    .an-flow-lbl { font-size: 13px; color: var(--muted); }
     @media (max-width: 1000px) {
       .an-kpis { grid-template-columns: repeat(3, 1fr); }
-      .an-grid, .an-grid.thirds { grid-template-columns: 1fr; }
+      .an-grid { grid-template-columns: 1fr; }
     }
 
     /* Topbar dropdown menus (Export / Reports) */
@@ -1170,14 +1145,14 @@
 <div id="sidebar">
   <div class="sidebar-brand">MOS TA FA<br><span>COOPERATION TOOLS</span></div>
   <nav class="sidebar-nav">
-    <button class="nav-item active" data-module="timesheet" onclick="switchModule('timesheet')">
+    <button class="nav-item active" data-module="analytics" onclick="switchModule('analytics')">
+      <span class="nav-icon">📊</span>Analytics
+    </button>
+    <button class="nav-item" data-module="timesheet" onclick="switchModule('timesheet')">
       <span class="nav-icon">🕐</span>Timesheet
     </button>
     <button class="nav-item" data-module="backlog" onclick="switchModule('backlog')">
       <span class="nav-icon">📌</span>Not Yet
-    </button>
-    <button class="nav-item" data-module="analytics" onclick="switchModule('analytics')">
-      <span class="nav-icon">📊</span>Analytics
     </button>
     <button class="nav-item" data-module="reports" onclick="switchModule('reports')">
       <span class="nav-icon">📄</span>Reports
@@ -1224,6 +1199,8 @@
     </div>
     <div class="dash-stats" id="dash-stats"></div>
     <div class="an-kpis" id="an-kpis"></div>
+
+    <!-- Hours by company / project -->
     <div class="an-grid">
       <div class="an-card">
         <div class="an-card-head"><span class="an-card-title">Hours by Company</span><span class="an-card-sub" id="an-company-sub"></span></div>
@@ -1234,16 +1211,44 @@
         <div id="an-project"></div>
       </div>
     </div>
-    <div class="an-grid thirds">
+
+    <!-- Daily hours trend / records completed trend -->
+    <div class="an-grid">
       <div class="an-card">
         <div class="an-card-head"><span class="an-card-title">Daily Hours</span><span class="an-card-sub" id="an-trend-sub"></span></div>
         <div id="an-trend"></div>
       </div>
       <div class="an-card">
+        <div class="an-card-head"><span class="an-card-title">Records Completed</span><span class="an-card-sub" id="an-done-sub"></span></div>
+        <div id="an-done"></div>
+      </div>
+    </div>
+
+    <!-- Time breakdown donut / activity (natural) donut -->
+    <div class="an-grid">
+      <div class="an-card">
         <div class="an-card-head"><span class="an-card-title">Time Breakdown</span><span class="an-card-sub" id="an-type-sub"></span></div>
         <div id="an-type"></div>
       </div>
+      <div class="an-card">
+        <div class="an-card-head"><span class="an-card-title">By Activity</span><span class="an-card-sub" id="an-activity-sub"></span></div>
+        <div id="an-activity"></div>
+      </div>
     </div>
+
+    <!-- Busiest weekday / over-time trend -->
+    <div class="an-grid">
+      <div class="an-card">
+        <div class="an-card-head"><span class="an-card-title">Busiest Weekday</span><span class="an-card-sub" id="an-weekday-sub"></span></div>
+        <div id="an-weekday"></div>
+      </div>
+      <div class="an-card">
+        <div class="an-card-head"><span class="an-card-title">Over-Time Trend</span><span class="an-card-sub" id="an-overtime-sub"></span></div>
+        <div id="an-overtime"></div>
+      </div>
+    </div>
+
+    <!-- Activity heatmap (fixed 26-week window) -->
     <div class="an-card full" style="margin-bottom:16px">
       <div class="an-card-head"><span class="an-card-title">Activity</span><span class="an-card-sub" id="an-heat-sub"></span></div>
       <div class="an-heat-scroll"><div id="an-heat"></div></div>
@@ -1257,26 +1262,24 @@
         More
       </div>
     </div>
-    <div class="dash-grid" style="margin-bottom:16px">
-      <div class="dash-card">
-        <div class="dash-card-head">
-          <span class="dash-card-title">This Week</span>
-          <span class="dash-card-sub" id="dash-week-total"></span>
-        </div>
-        <div class="dash-week" id="dash-week"></div>
-      </div>
-      <div class="dash-card">
-        <div class="dash-card-head">
-          <span class="dash-card-title">Needs Attention</span>
-          <span class="dash-card-sub" id="dash-attention-sub"></span>
-        </div>
-        <div class="dash-attention" id="dash-attention"></div>
-      </div>
-    </div>
+
+    <!-- Not Yet backlog by company / task-flow metrics -->
     <div class="an-grid">
       <div class="an-card">
-        <div class="an-card-head"><span class="an-card-title">Status Breakdown</span><span class="an-card-sub" id="an-status-sub"></span></div>
-        <div id="an-status"></div>
+        <div class="an-card-head"><span class="an-card-title">Not Yet by Company</span><span class="an-card-sub" id="an-backlog-sub"></span></div>
+        <div id="an-backlog"></div>
+      </div>
+      <div class="an-card">
+        <div class="an-card-head"><span class="an-card-title">Task Flow</span><span class="an-card-sub" id="an-flow-sub"></span></div>
+        <div id="an-flow"></div>
+      </div>
+    </div>
+
+    <!-- Needs attention / recurring spend -->
+    <div class="an-grid">
+      <div class="an-card">
+        <div class="an-card-head"><span class="an-card-title">Needs Attention</span><span class="an-card-sub" id="dash-attention-sub"></span></div>
+        <div class="dash-attention" id="dash-attention"></div>
       </div>
       <div class="an-card">
         <div class="an-card-head"><span class="an-card-title">Recurring Spend</span><span class="an-card-sub" id="an-spend-sub">Subscriptions</span></div>
@@ -3370,6 +3373,10 @@ async function assignBacklogToDay(id, targetDate) {
     time: task.time || '', description: task.description || '', source: task.source || '',
     status: 'In Progress', minutes: '',
     tags: Array.isArray(task.tags) ? task.tags.slice() : [],
+    // Task-flow provenance: carry the original arrival time and stamp the pick
+    // moment so analytics can measure time-in-backlog and pick throughput.
+    createdAt: task.createdAt || null,
+    assignedAt: new Date().toISOString(),
   };
 
   // Target == the day currently open in Timesheet: append to the in-memory rows
@@ -3486,8 +3493,10 @@ function submitBacklogModal() {
 
   if (backlogEditId !== null) {
     const i = backlog.findIndex(t => t.id === backlogEditId);
-    if (i !== -1) backlog[i] = record;
+    // Preserve the original arrival time across edits (task-flow analytics).
+    if (i !== -1) { record.createdAt = backlog[i].createdAt || null; backlog[i] = record; }
   } else {
+    record.createdAt = new Date().toISOString();   // stamp when the task entered the pool
     backlog.push(record);
   }
 
@@ -3789,18 +3798,15 @@ async function renderOverview() {
   document.getElementById('dash-date').textContent =
     new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-  // Last 7 days (oldest → today)
-  const today = fmt(new Date());
-  const dates = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(); d.setDate(d.getDate() - i);
-    dates.push(fmt(d));
-  }
-  const dayEntries = await Promise.all(dates.map(d => window.api.loadDay(d)));
-  const dayMins = dayEntries.map(e => e ? totalMins(e.rows || []) : 0);
-  const todayMin = dayMins[dayMins.length - 1];
-  const weekMin  = dayMins.reduce((s, m) => s + m, 0);
-  const todayRecs = dayEntries[dayEntries.length - 1]?.rows?.length || 0;
+  // Today + month-to-date hours in one query.
+  const now = new Date();
+  const today = fmt(now);
+  const monthStart = fmt(new Date(now.getFullYear(), now.getMonth(), 1));
+  const monthDays = await window.api.loadDaysRange(monthStart, today);
+  const todayEntry = monthDays.find(d => d.date === today);
+  const todayMin  = todayEntry ? totalMins(todayEntry.rows || []) : 0;
+  const todayRecs = todayEntry?.rows?.length || 0;
+  const monthMin  = monthDays.reduce((s, d) => s + totalMins(d.rows || []), 0);
 
   // Cross-module attention data
   const [subData, backlogData] = await Promise.all([
@@ -3808,7 +3814,15 @@ async function renderOverview() {
     window.api.loadBacklog(),
   ]);
   const subs = (subData && subData.subscriptions) || [];
-  const backlogCount = (backlogData && Array.isArray(backlogData.backlog)) ? backlogData.backlog.length : 0;
+  const backlogList = (backlogData && Array.isArray(backlogData.backlog)) ? backlogData.backlog : [];
+  const backlogCount = backlogList.length;
+
+  // Oldest task still waiting in the "Not Yet" pool (days since it was added).
+  // Rows predating the createdAt column have null → excluded ("unknown arrival").
+  const ages = backlogList
+    .map(t => t.createdAt ? Math.floor((Date.now() - new Date(t.createdAt).getTime()) / 86400000) : null)
+    .filter(a => a !== null && a >= 0);
+  const oldestWait = ages.length ? Math.max(...ages) : null;
 
   const attention = [];
   subs.forEach(s => {
@@ -3819,10 +3833,10 @@ async function renderOverview() {
 
   // Stat cards
   const stats = [
-    { label: '🕐 Today',     value: (todayMin / 60).toFixed(1), unit: 'h', foot: `${todayRecs} record${todayRecs === 1 ? '' : 's'}`, cls: 'accent', go: 'timesheet' },
-    { label: '📅 This Week',  value: (weekMin / 60).toFixed(1),  unit: 'h', foot: `${weekMin} min total`, cls: '', go: 'timesheet' },
+    { label: '🕐 Today',      value: (todayMin / 60).toFixed(1), unit: 'h', foot: `${todayRecs} record${todayRecs === 1 ? '' : 's'}`, cls: 'accent', go: 'timesheet' },
+    { label: '📅 This Month', value: (monthMin / 60).toFixed(1), unit: 'h', foot: `${monthDays.length} day${monthDays.length === 1 ? '' : 's'} logged`, cls: '', go: 'timesheet' },
     { label: '📌 Not Yet',    value: String(backlogCount), unit: '', foot: 'in backlog', cls: '', go: 'backlog' },
-    { label: '⚠️ Upcoming',   value: String(attention.length), unit: '', foot: 'next 30 days', cls: attention.length ? 'warn' : '', go: null },
+    { label: '⏳ Oldest Wait', value: oldestWait === null ? '—' : String(oldestWait), unit: oldestWait === null ? '' : 'd', foot: oldestWait === null ? 'no aged tasks' : 'longest in backlog', cls: (oldestWait !== null && oldestWait >= 14) ? 'warn' : '', go: backlogCount ? 'backlog' : null },
   ];
   document.getElementById('dash-stats').innerHTML = stats.map(s => `
     <div class="dash-stat ${s.cls}" ${s.go ? `onclick="switchModule('${s.go}')"` : ''}>
@@ -3830,23 +3844,6 @@ async function renderOverview() {
       <span class="ds-value">${esc(s.value)}${s.unit ? `<small> ${s.unit}</small>` : ''}</span>
       <span class="ds-foot">${esc(s.foot)}</span>
     </div>`).join('');
-
-  // Week bar chart
-  const maxMin = Math.max(60, ...dayMins);
-  document.getElementById('dash-week-total').textContent = `${(weekMin / 60).toFixed(1)} h`;
-  document.getElementById('dash-week').innerHTML = dates.map((d, i) => {
-    const mins = dayMins[i];
-    const hrs = (mins / 60);
-    const pct = Math.round((mins / maxMin) * 100);
-    const isToday = d === today;
-    const dow = new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' });
-    return `
-      <div class="dwk-col">
-        <span class="dwk-val">${mins ? hrs.toFixed(1) : ''}</span>
-        <div class="dwk-bar-wrap"><div class="dwk-bar ${mins ? 'has' : ''} ${isToday ? 'today' : ''}" style="height:${mins ? Math.max(pct, 4) : 2}%"></div></div>
-        <span class="dwk-day ${isToday ? 'is-today' : ''}">${dow}</span>
-      </div>`;
-  }).join('');
 
   // Attention list
   document.getElementById('dash-attention-sub').textContent = attention.length ? `${attention.length} item${attention.length === 1 ? '' : 's'}` : '';
@@ -3888,7 +3885,6 @@ const AN_TYPE_COLORS = {
   'Leave': '#f59e0b', 'Holiday': '#22c55e', 'Part Time': '#ec4899',
 };
 const AN_FALLBACK = ['#a855f7', '#84cc16', '#14b8a6', '#f97316', '#0ea5e9', '#d946ef'];
-const AN_STATUS_COLORS = { 'Done': '#16a34a', 'In Progress': '#d4a017' };
 
 function anFmtHrs(mins) {
   if (!mins) return '0h';
@@ -3961,20 +3957,29 @@ async function renderAnalytics() {
 
   // Aggregate over the selected period only.
   const periodDays = days.filter(d => d.date >= from && d.date <= to);
-  const byCompany = {}, byProject = {}, byType = {}, byStatus = {};
-  let totalMin = 0, recordCount = 0, activeDays = 0;
+  const byCompany = {}, byProject = {}, byType = {}, byNatural = {};
+  const doneByDay = {};                 // date -> count of Done records (throughput trend)
+  const byWeekday = [0, 0, 0, 0, 0, 0, 0]; // Sun..Sat total minutes
+  const otByWeek = {};                  // week-start date -> Over-Time minutes
+  let totalMin = 0, recordCount = 0, activeDays = 0, doneCount = 0;
   periodDays.forEach(d => {
     let dayHas = false;
+    const wd = new Date(d.date + 'T00:00:00').getDay();
     (d.rows || []).forEach(r => {
       recordCount++;
       const m = parseFloat(r.minutes) || 0;
       totalMin += m;
+      byWeekday[wd] += m;
       if (m > 0) dayHas = true;
       if (r.company) byCompany[r.company] = (byCompany[r.company] || 0) + m;
       if (r.project) byProject[r.project] = (byProject[r.project] || 0) + m;
+      if (r.natural && m > 0) byNatural[r.natural] = (byNatural[r.natural] || 0) + m;
       const tk = r.time || 'Other';   if (m > 0) byType[tk] = (byType[tk] || 0) + m;
-      const sk = r.status || 'Other';
-      byStatus[sk] = (byStatus[sk] || 0) + 1;
+      if (r.time === 'Over Time' && m > 0) {
+        const wk = anWeekStart(d.date);
+        otByWeek[wk] = (otByWeek[wk] || 0) + m;
+      }
+      if (r.status === 'Done') { doneCount++; doneByDay[d.date] = (doneByDay[d.date] || 0) + 1; }
     });
     if (dayHas) activeDays++;
   });
@@ -3982,6 +3987,7 @@ async function renderAnalytics() {
   const workMin = byType['Work Time'] || 0;
   const otMin   = byType['Over Time'] || 0;
   const pct = (m) => totalMin ? Math.round((m / totalMin) * 100) : 0;
+  const completionRate = recordCount ? Math.round((doneCount / recordCount) * 100) : 0;
 
   // ── KPIs ──
   const kpis = [
@@ -3989,7 +3995,7 @@ async function renderAnalytics() {
     { label: 'Work Time',   val: (workMin / 60).toFixed(1),  unit: 'h', foot: `${pct(workMin)}% of total`, cls: '' },
     { label: 'Over Time',   val: (otMin / 60).toFixed(1),    unit: 'h', foot: `${pct(otMin)}% of total`, cls: '' },
     { label: 'Avg / Day',   val: activeDays ? (totalMin / 60 / activeDays).toFixed(1) : '0', unit: 'h', foot: `${activeDays} active day${activeDays === 1 ? '' : 's'}`, cls: '' },
-    { label: 'Period',      val: (totalMin / 60).toFixed(0), unit: 'h', foot: esc(label), cls: '' },
+    { label: 'Completion',  val: String(completionRate), unit: '%', foot: `${doneCount} of ${recordCount} done`, cls: '' },
   ];
   document.getElementById('an-kpis').innerHTML = kpis.map(k => `
     <div class="an-kpi ${k.cls}">
@@ -4002,11 +4008,17 @@ async function renderAnalytics() {
   renderAnBars('an-company', byCompany, 'an-company-sub');
   renderAnBars('an-project', byProject, 'an-project-sub');
 
-  // ── Daily trend ──
-  document.getElementById('an-trend').innerHTML = anTrend(from, to, dayMin);
+  // ── Daily hours trend ──
+  document.getElementById('an-trend').innerHTML = anTrend(from, to, dayMin, { scale: 1 / 60 });
   document.getElementById('an-trend-sub').textContent = label;
 
-  // ── Time breakdown donut ──
+  // ── Records-completed trend (Done records per day) ──
+  document.getElementById('an-done').innerHTML = doneCount
+    ? anTrend(from, to, doneByDay, { integer: true })
+    : `<div class="an-empty">No completed records in this period.</div>`;
+  document.getElementById('an-done-sub').textContent = doneCount ? `${doneCount} done` : '';
+
+  // ── Time breakdown donut (by time type) ──
   const typeSegs = Object.entries(byType)
     .filter(([, v]) => v > 0)
     .sort((a, b) => b[1] - a[1])
@@ -4014,22 +4026,116 @@ async function renderAnalytics() {
   document.getElementById('an-type').innerHTML = anDonut(typeSegs, totalMin);
   document.getElementById('an-type-sub').textContent = typeSegs.length ? `${typeSegs.length} types` : '';
 
+  // ── Activity donut (by natural: Ticket / Task / Meeting / Call) ──
+  const natSegs = Object.entries(byNatural)
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, v], i) => ({ label: k, value: v, color: AN_FALLBACK[i % AN_FALLBACK.length] }));
+  document.getElementById('an-activity').innerHTML = anDonut(natSegs, totalMin);
+  document.getElementById('an-activity-sub').textContent = natSegs.length ? `${natSegs.length} types` : '';
+
+  // ── Busiest weekday (total hours by day of week) ──
+  renderAnWeekday(byWeekday);
+
+  // ── Over-time trend (Over-Time hours per week) ──
+  renderAnOvertime(otByWeek);
+
   // ── Heatmap ──
   document.getElementById('an-heat').innerHTML = anHeatmap(firstSunday, heatWeeks, dayMin, todayD);
   document.getElementById('an-heat-sub').textContent = 'Last 26 weeks';
 
-  // ── Status breakdown ──
-  const statusItems = Object.entries(byStatus)
-    .sort((a, b) => b[1] - a[1])
-    .map(([k, v]) => ({ label: k, value: v, color: AN_STATUS_COLORS[k] || '#94a3b8', display: String(v) }));
-  const statusMax = Math.max(1, ...statusItems.map(s => s.value));
-  document.getElementById('an-status').innerHTML = statusItems.length
-    ? `<div class="an-bars">${statusItems.map(s => anBarRow(s.label, s.value, statusMax, s.display, s.color)).join('')}</div>`
-    : `<div class="an-empty">No records in this period.</div>`;
-  document.getElementById('an-status-sub').textContent = recordCount ? `${recordCount} total` : '';
+  // ── Not Yet backlog by company + task-flow metrics ──
+  const backlogData = await window.api.loadBacklog();
+  const backlogList = (backlogData && Array.isArray(backlogData.backlog)) ? backlogData.backlog : [];
+  const backlogByCompany = {};
+  backlogList.forEach(t => { const c = t.company || '—'; backlogByCompany[c] = (backlogByCompany[c] || 0) + 1; });
+  renderAnBacklog(backlogByCompany, backlogList.length);
+  renderAnFlow(days, from, to, backlogList);
 
   // ── Recurring spend (subscriptions) ──
   renderAnSpend();
+}
+
+// Sunday (YYYY-MM-DD) of the week containing `ds` — used to bucket weekly totals.
+function anWeekStart(ds) {
+  const d = new Date(ds + 'T00:00:00');
+  d.setDate(d.getDate() - d.getDay());
+  return fmt(d);
+}
+
+// Busiest-weekday bars (Sun..Sat) of total tracked hours.
+function renderAnWeekday(mins) {
+  const el = document.getElementById('an-weekday');
+  const sub = document.getElementById('an-weekday-sub');
+  const names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const total = mins.reduce((s, m) => s + m, 0);
+  if (!total) { el.innerHTML = `<div class="an-empty">No tracked time in this period.</div>`; sub.textContent = ''; return; }
+  const max = Math.max(...mins);
+  el.innerHTML = `<div class="an-bars">${mins.map((m, i) => anBarRow(names[i].slice(0, 3), m, max, anFmtHrs(m))).join('')}</div>`;
+  const peak = mins.indexOf(max);
+  sub.textContent = `${names[peak]} busiest`;
+}
+
+// Over-Time hours bucketed by week, oldest → newest.
+function renderAnOvertime(otByWeek) {
+  const el = document.getElementById('an-overtime');
+  const sub = document.getElementById('an-overtime-sub');
+  const entries = Object.entries(otByWeek).sort((a, b) => a[0] < b[0] ? -1 : 1);
+  if (!entries.length) { el.innerHTML = `<div class="an-empty">No over-time logged in this period.</div>`; sub.textContent = ''; return; }
+  const max = Math.max(...entries.map(([, v]) => v));
+  const total = entries.reduce((s, [, v]) => s + v, 0);
+  el.innerHTML = `<div class="an-bars">${entries.map(([wk, v]) => {
+    const lbl = new Date(wk + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return anBarRow(lbl, v, max, anFmtHrs(v), '#ef4444');
+  }).join('')}</div>`;
+  sub.textContent = `${anFmtHrs(total)} total`;
+}
+
+// "Not Yet" backlog composition by company (current pool, count-based).
+function renderAnBacklog(map, count) {
+  const el = document.getElementById('an-backlog');
+  const sub = document.getElementById('an-backlog-sub');
+  const items = Object.entries(map).sort((a, b) => b[1] - a[1]);
+  sub.textContent = count ? `${count} task${count === 1 ? '' : 's'}` : '';
+  if (!items.length) { el.innerHTML = `<div class="an-empty">The backlog is empty.</div>`; return; }
+  const top = items.slice(0, 8);
+  const max = top[0][1];
+  el.innerHTML = `<div class="an-bars">${top.map(([k, v]) => anBarRow(k, v, max, String(v))).join('')}</div>`;
+}
+
+// Task-flow: picks in the period + avg time-in-backlog (from picked day-rows)
+// + the oldest task still waiting in the pool. Requires the createdAt/assignedAt
+// provenance stamped at create/pick time; rows lacking it are skipped gracefully.
+function renderAnFlow(days, from, to, backlogList) {
+  const el = document.getElementById('an-flow');
+  const sub = document.getElementById('an-flow-sub');
+  let picked = 0, waitSum = 0, waitN = 0;
+  days.forEach(d => (d.rows || []).forEach(r => {
+    if (!r.assignedAt) return;
+    const ad = r.assignedAt.slice(0, 10);
+    if (ad < from || ad > to) return;
+    picked++;
+    if (r.createdAt) {
+      const w = (new Date(r.assignedAt).getTime() - new Date(r.createdAt).getTime()) / 86400000;
+      if (w >= 0) { waitSum += w; waitN++; }
+    }
+  }));
+  const ages = backlogList
+    .map(t => t.createdAt ? Math.floor((Date.now() - new Date(t.createdAt).getTime()) / 86400000) : null)
+    .filter(a => a !== null && a >= 0);
+  const oldest = ages.length ? Math.max(...ages) : null;
+
+  sub.textContent = picked ? `${picked} picked` : '';
+  const rows = [
+    { val: String(picked), lbl: 'tasks picked from the backlog this period' },
+    { val: waitN ? (waitSum / waitN).toFixed(1) + ' d' : '—', lbl: waitN ? 'avg time waiting before being picked' : 'no pick timings yet' },
+    { val: oldest === null ? '—' : oldest + ' d', lbl: oldest === null ? 'no aged tasks in the pool' : 'oldest task still waiting' },
+  ];
+  el.innerHTML = rows.map(r => `
+    <div class="an-flow-row">
+      <span class="an-flow-val">${esc(r.val)}</span>
+      <span class="an-flow-lbl">${esc(r.lbl)}</span>
+    </div>`).join('');
 }
 
 // Render a top-N horizontal bar chart of {key: minutes} into `elId`.
@@ -4084,13 +4190,16 @@ function anDonut(segments, totalMin) {
     </div>`;
 }
 
-// SVG daily-hours trend over [from, to].
-function anTrend(from, to, dayMin) {
+// SVG line trend over [from, to]. `valMap` is keyed by date; `opts.scale`
+// multiplies each value (e.g. 1/60 to turn minutes into hours) and
+// `opts.integer` renders whole-number y labels (e.g. record counts).
+function anTrend(from, to, valMap, opts = {}) {
+  const scale = opts.scale ?? 1;
   const dates = [];
   const d = new Date(from + 'T00:00:00'), end = new Date(to + 'T00:00:00');
   while (d <= end) { dates.push(fmt(d)); d.setDate(d.getDate() + 1); }
   if (!dates.length) return `<div class="an-empty">No data.</div>`;
-  const vals = dates.map(dt => (dayMin[dt] || 0) / 60);
+  const vals = dates.map(dt => (valMap[dt] || 0) * scale);
   const maxV = Math.max(1, ...vals);
 
   const W = 700, H = 160, padL = 28, padR = 8, padT = 12, padB = 22;
@@ -4104,9 +4213,10 @@ function anTrend(from, to, dayMin) {
   const areaPath = `M ${x(0).toFixed(1)},${(padT + innerH).toFixed(1)} L ${pts.join(' L ')} L ${x(n - 1).toFixed(1)},${(padT + innerH).toFixed(1)} Z`;
 
   // y gridlines at 0, mid, max
+  const fmtLbl = v => opts.integer ? String(Math.round(v)) : v.toFixed(v < 10 ? 1 : 0);
   const grids = [0, maxV / 2, maxV].map(v => `
     <line class="an-trend-grid" x1="${padL}" y1="${y(v).toFixed(1)}" x2="${W - padR}" y2="${y(v).toFixed(1)}"/>
-    <text class="an-trend-lbl" x="2" y="${(y(v) + 3).toFixed(1)}">${v.toFixed(v < 10 ? 1 : 0)}</text>`).join('');
+    <text class="an-trend-lbl" x="2" y="${(y(v) + 3).toFixed(1)}">${fmtLbl(v)}</text>`).join('');
 
   // x labels: ~5 evenly spaced
   const labelIdx = [...new Set([0, Math.floor(n / 4), Math.floor(n / 2), Math.floor(3 * n / 4), n - 1])];
