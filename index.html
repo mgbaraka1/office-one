@@ -413,8 +413,8 @@
     .dash-greeting h1 { font-size: 26px; font-weight: 700; color: var(--text); letter-spacing: -.4px; }
     .dash-greeting p { font-size: 14px; color: var(--muted); margin-top: 4px; }
     .dash-stats {
-      display: grid; grid-template-columns: repeat(4, 1fr);
-      gap: 16px; margin-bottom: 22px;
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 16px; margin-bottom: 4px;
     }
     .dash-stat {
       background: var(--surface); border: 1px solid var(--border);
@@ -477,11 +477,24 @@
     .an-range span { color: var(--sidebar-muted); font-size: 12px; }
 
     .an-scroll { flex: 1; overflow-y: auto; padding: 24px 28px 40px; }
-    .an-kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 18px; }
+
+    /* Section divider headers */
+    .an-section { display: flex; align-items: center; gap: 12px; margin: 30px 0 14px; }
+    .an-section-title { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .9px; color: var(--muted); white-space: nowrap; }
+    .an-section-line { flex: 1; height: 1px; background: var(--border); }
+    .an-period-tag {
+      flex-shrink: 0; font-size: 11.5px; font-weight: 600; color: var(--accent);
+      background: var(--accent-bg); padding: 4px 11px; border-radius: 999px; white-space: nowrap;
+    }
+    .an-period-tag:empty { display: none; }
+
+    .an-kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 16px; }
     .an-kpi {
       background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
       box-shadow: var(--shadow); padding: 15px 16px; display: flex; flex-direction: column; gap: 5px;
+      transition: border-color .12s, transform .12s;
     }
+    .an-kpi:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
     .an-kpi-label { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
     .an-kpi-val { font-size: 25px; font-weight: 700; color: var(--text); line-height: 1.05; font-variant-numeric: tabular-nums; }
     .an-kpi-val small { font-size: 13px; font-weight: 600; color: var(--muted); }
@@ -492,7 +505,9 @@
     .an-card {
       background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
       box-shadow: var(--shadow); padding: 16px 18px 18px;
+      transition: border-color .12s, box-shadow .12s;
     }
+    .an-card:hover { border-color: color-mix(in srgb, var(--accent) 32%, var(--border)); }
     .an-card.full { grid-column: 1 / -1; }
     .an-card-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; }
     .an-card-title { font-size: 14px; font-weight: 700; color: var(--text); }
@@ -518,15 +533,35 @@
     .an-legend-val { margin-left: auto; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
 
     /* Trend line (SVG) */
-    .an-trend { width: 100%; height: 160px; display: block; }
-    .an-trend-area { fill: var(--accent-bg); opacity: .55; }
+    .an-trend { width: 100%; height: 180px; display: block; }
+    .an-trend-area { fill: var(--accent-bg); }   /* fallback; each SVG sets its own gradient inline */
     .an-trend-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
     .an-trend-dot { fill: var(--accent); }
+    .an-trend-dot.peak { stroke: var(--surface); stroke-width: 2; }
     .an-trend-grid { stroke: var(--border); stroke-width: 1; }
     .an-trend-lbl { fill: var(--muted); font-size: 10px; }
+    .an-trend-avg { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 5 4; opacity: .6; }
+    .an-trend-avg-lbl { fill: var(--muted); font-size: 10px; font-weight: 600; }
+    .an-trend-peak-lbl { fill: var(--accent); font-size: 11px; font-weight: 700; }
 
     /* Heatmap (GitHub-style) */
+    .an-heat-card { display: flex; align-items: stretch; gap: 0; }
+    .an-heat-left { flex: 1; min-width: 0; }
+    .an-heat-stats {
+      flex: 0 0 168px; display: flex; flex-direction: column; justify-content: center; gap: 16px;
+      margin-left: 28px; padding-left: 28px; border-left: 1px solid var(--border);
+    }
+    .an-hs-item { display: flex; flex-direction: column; gap: 1px; }
+    .an-hs-val { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1.1; font-variant-numeric: tabular-nums; }
+    .an-hs-val.accent { color: var(--accent); }
+    .an-hs-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-top: 2px; }
+    .an-hs-foot { font-size: 10.5px; color: var(--muted); }
     .an-heat-scroll { overflow-x: auto; padding-bottom: 4px; }
+    .an-heat-months { display: flex; gap: 3px; padding-left: 30px; margin-bottom: 4px; height: 12px; }
+    .an-heat-mcol { flex: 0 0 13px; width: 13px; font-size: 9.5px; color: var(--muted); white-space: nowrap; overflow: visible; }
+    .an-heat-body { display: flex; gap: 6px; align-items: flex-start; }
+    .an-heat-weekdays { display: flex; flex-direction: column; gap: 3px; flex: 0 0 24px; width: 24px; }
+    .an-heat-wd { height: 13px; line-height: 13px; font-size: 9px; color: var(--muted); text-align: right; }
     .an-heat { display: flex; gap: 3px; }
     .an-heat-col { display: flex; flex-direction: column; gap: 3px; }
     .an-heat-cell { width: 13px; height: 13px; border-radius: 3px; background: var(--surface2); cursor: pointer; }
@@ -543,13 +578,15 @@
     .an-spend-cur { font-weight: 600; color: var(--text); }
     .an-spend-vals { color: var(--muted); font-variant-numeric: tabular-nums; }
     .an-spend-vals b { color: var(--accent); font-weight: 700; }
-    .an-flow-row { display: flex; align-items: baseline; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border); }
-    .an-flow-row:last-child { border-bottom: none; }
-    .an-flow-val { font-size: 22px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; min-width: 64px; }
-    .an-flow-lbl { font-size: 13px; color: var(--muted); }
     @media (max-width: 1000px) {
       .an-kpis { grid-template-columns: repeat(3, 1fr); }
       .an-grid { grid-template-columns: 1fr; }
+      .an-heat-card { flex-direction: column; }
+      .an-heat-stats {
+        flex-direction: row; flex-wrap: wrap; gap: 22px; justify-content: flex-start;
+        flex-basis: auto; margin-left: 0; padding-left: 0; margin-top: 16px; padding-top: 16px;
+        border-left: none; border-top: 1px solid var(--border);
+      }
     }
 
     /* Topbar dropdown menus (Export / Reports) */
@@ -1193,14 +1230,32 @@
     </div>
   </div>
   <div class="an-scroll" id="an-scroll">
+    <!-- ── Overview: greeting + period-independent quick glance ── -->
     <div class="dash-greeting">
       <h1 id="dash-hello">Welcome back</h1>
       <p id="dash-date"></p>
     </div>
     <div class="dash-stats" id="dash-stats"></div>
+
+    <!-- ── Time Tracking: everything driven by the selected period ── -->
+    <div class="an-section">
+      <span class="an-section-title">📈 Time Tracking</span>
+      <span class="an-section-line"></span>
+      <span class="an-period-tag" id="an-period-tag"></span>
+    </div>
     <div class="an-kpis" id="an-kpis"></div>
 
-    <!-- Hours by company / project -->
+    <div class="an-grid">
+      <div class="an-card">
+        <div class="an-card-head"><span class="an-card-title">Daily Hours</span><span class="an-card-sub" id="an-trend-sub"></span></div>
+        <div id="an-trend"></div>
+      </div>
+      <div class="an-card">
+        <div class="an-card-head"><span class="an-card-title">Daily Over Time</span><span class="an-card-sub" id="an-trend-ot-sub"></span></div>
+        <div id="an-trend-ot"></div>
+      </div>
+    </div>
+
     <div class="an-grid">
       <div class="an-card">
         <div class="an-card-head"><span class="an-card-title">Hours by Company</span><span class="an-card-sub" id="an-company-sub"></span></div>
@@ -1212,19 +1267,6 @@
       </div>
     </div>
 
-    <!-- Daily hours trend / records completed trend -->
-    <div class="an-grid">
-      <div class="an-card">
-        <div class="an-card-head"><span class="an-card-title">Daily Hours</span><span class="an-card-sub" id="an-trend-sub"></span></div>
-        <div id="an-trend"></div>
-      </div>
-      <div class="an-card">
-        <div class="an-card-head"><span class="an-card-title">Records Completed</span><span class="an-card-sub" id="an-done-sub"></span></div>
-        <div id="an-done"></div>
-      </div>
-    </div>
-
-    <!-- Time breakdown donut / activity (natural) donut -->
     <div class="an-grid">
       <div class="an-card">
         <div class="an-card-head"><span class="an-card-title">Time Breakdown</span><span class="an-card-sub" id="an-type-sub"></span></div>
@@ -1236,49 +1278,36 @@
       </div>
     </div>
 
-    <!-- Busiest weekday / over-time trend -->
-    <div class="an-grid">
-      <div class="an-card">
-        <div class="an-card-head"><span class="an-card-title">Busiest Weekday</span><span class="an-card-sub" id="an-weekday-sub"></span></div>
-        <div id="an-weekday"></div>
+    <!-- ── Activity: fixed 26-week heatmap (period-independent) ── -->
+    <div class="an-section">
+      <span class="an-section-title">🔥 Activity</span>
+      <span class="an-section-line"></span>
+    </div>
+    <div class="an-card full an-heat-card" style="margin-bottom:16px">
+      <div class="an-heat-left">
+        <div class="an-card-head"><span class="an-card-title">Last 26 Weeks</span><span class="an-card-sub" id="an-heat-sub"></span></div>
+        <div class="an-heat-scroll"><div id="an-heat"></div></div>
+        <div class="an-heat-legend">
+          Less
+          <span class="an-heat-cell"></span>
+          <span class="an-heat-cell h1"></span>
+          <span class="an-heat-cell h2"></span>
+          <span class="an-heat-cell h3"></span>
+          <span class="an-heat-cell h4"></span>
+          More
+        </div>
       </div>
-      <div class="an-card">
-        <div class="an-card-head"><span class="an-card-title">Over-Time Trend</span><span class="an-card-sub" id="an-overtime-sub"></span></div>
-        <div id="an-overtime"></div>
-      </div>
+      <div class="an-heat-stats" id="an-heat-stats"></div>
     </div>
 
-    <!-- Activity heatmap (fixed 26-week window) -->
-    <div class="an-card full" style="margin-bottom:16px">
-      <div class="an-card-head"><span class="an-card-title">Activity</span><span class="an-card-sub" id="an-heat-sub"></span></div>
-      <div class="an-heat-scroll"><div id="an-heat"></div></div>
-      <div class="an-heat-legend">
-        Less
-        <span class="an-heat-cell"></span>
-        <span class="an-heat-cell h1"></span>
-        <span class="an-heat-cell h2"></span>
-        <span class="an-heat-cell h3"></span>
-        <span class="an-heat-cell h4"></span>
-        More
-      </div>
+    <!-- ── Needs Attention: cross-module reminders ── -->
+    <div class="an-section">
+      <span class="an-section-title">🔔 Needs Attention</span>
+      <span class="an-section-line"></span>
     </div>
-
-    <!-- Not Yet backlog by company / task-flow metrics -->
     <div class="an-grid">
       <div class="an-card">
-        <div class="an-card-head"><span class="an-card-title">Not Yet by Company</span><span class="an-card-sub" id="an-backlog-sub"></span></div>
-        <div id="an-backlog"></div>
-      </div>
-      <div class="an-card">
-        <div class="an-card-head"><span class="an-card-title">Task Flow</span><span class="an-card-sub" id="an-flow-sub"></span></div>
-        <div id="an-flow"></div>
-      </div>
-    </div>
-
-    <!-- Needs attention / recurring spend -->
-    <div class="an-grid">
-      <div class="an-card">
-        <div class="an-card-head"><span class="an-card-title">Needs Attention</span><span class="an-card-sub" id="dash-attention-sub"></span></div>
+        <div class="an-card-head"><span class="an-card-title">Upcoming Renewals</span><span class="an-card-sub" id="dash-attention-sub"></span></div>
         <div class="dash-attention" id="dash-attention"></div>
       </div>
       <div class="an-card">
@@ -3373,10 +3402,6 @@ async function assignBacklogToDay(id, targetDate) {
     time: task.time || '', description: task.description || '', source: task.source || '',
     status: 'In Progress', minutes: '',
     tags: Array.isArray(task.tags) ? task.tags.slice() : [],
-    // Task-flow provenance: carry the original arrival time and stamp the pick
-    // moment so analytics can measure time-in-backlog and pick throughput.
-    createdAt: task.createdAt || null,
-    assignedAt: new Date().toISOString(),
   };
 
   // Target == the day currently open in Timesheet: append to the in-memory rows
@@ -3493,10 +3518,8 @@ function submitBacklogModal() {
 
   if (backlogEditId !== null) {
     const i = backlog.findIndex(t => t.id === backlogEditId);
-    // Preserve the original arrival time across edits (task-flow analytics).
-    if (i !== -1) { record.createdAt = backlog[i].createdAt || null; backlog[i] = record; }
+    if (i !== -1) backlog[i] = record;
   } else {
-    record.createdAt = new Date().toISOString();   // stamp when the task entered the pool
     backlog.push(record);
   }
 
@@ -3814,15 +3837,7 @@ async function renderOverview() {
     window.api.loadBacklog(),
   ]);
   const subs = (subData && subData.subscriptions) || [];
-  const backlogList = (backlogData && Array.isArray(backlogData.backlog)) ? backlogData.backlog : [];
-  const backlogCount = backlogList.length;
-
-  // Oldest task still waiting in the "Not Yet" pool (days since it was added).
-  // Rows predating the createdAt column have null → excluded ("unknown arrival").
-  const ages = backlogList
-    .map(t => t.createdAt ? Math.floor((Date.now() - new Date(t.createdAt).getTime()) / 86400000) : null)
-    .filter(a => a !== null && a >= 0);
-  const oldestWait = ages.length ? Math.max(...ages) : null;
+  const backlogCount = (backlogData && Array.isArray(backlogData.backlog)) ? backlogData.backlog.length : 0;
 
   const attention = [];
   subs.forEach(s => {
@@ -3836,7 +3851,6 @@ async function renderOverview() {
     { label: '🕐 Today',      value: (todayMin / 60).toFixed(1), unit: 'h', foot: `${todayRecs} record${todayRecs === 1 ? '' : 's'}`, cls: 'accent', go: 'timesheet' },
     { label: '📅 This Month', value: (monthMin / 60).toFixed(1), unit: 'h', foot: `${monthDays.length} day${monthDays.length === 1 ? '' : 's'} logged`, cls: '', go: 'timesheet' },
     { label: '📌 Not Yet',    value: String(backlogCount), unit: '', foot: 'in backlog', cls: '', go: 'backlog' },
-    { label: '⏳ Oldest Wait', value: oldestWait === null ? '—' : String(oldestWait), unit: oldestWait === null ? '' : 'd', foot: oldestWait === null ? 'no aged tasks' : 'longest in backlog', cls: (oldestWait !== null && oldestWait >= 14) ? 'warn' : '', go: backlogCount ? 'backlog' : null },
   ];
   document.getElementById('dash-stats').innerHTML = stats.map(s => `
     <div class="dash-stat ${s.cls}" ${s.go ? `onclick="switchModule('${s.go}')"` : ''}>
@@ -3885,6 +3899,7 @@ const AN_TYPE_COLORS = {
   'Leave': '#f59e0b', 'Holiday': '#22c55e', 'Part Time': '#ec4899',
 };
 const AN_FALLBACK = ['#a855f7', '#84cc16', '#14b8a6', '#f97316', '#0ea5e9', '#d946ef'];
+let _anTrendSeq = 0;   // monotonic id source for per-trend SVG gradients
 
 function anFmtHrs(mins) {
   if (!mins) return '0h';
@@ -3934,10 +3949,13 @@ function anRange() {
 
 async function renderAnalytics() {
   // The Analytics view is also the home overview — populate the merged
-  // greeting / "now" stat cards / This-Week chart / Needs-Attention list.
+  // greeting / "now" stat cards / Needs-Attention list.
   renderOverview();
 
   const { from, to, label } = anRange();
+  // Surface the active period next to the Time Tracking section header so it's
+  // clear which window the KPIs/charts below cover (the stat cards above are "now").
+  document.getElementById('an-period-tag').textContent = label;
 
   // The heatmap always shows a recent fixed window, independent of the period.
   const heatWeeks = 26;
@@ -3951,35 +3969,32 @@ async function renderAnalytics() {
   const fetchTo   = to > fmt(todayD) ? to : fmt(todayD);
   const days = await window.api.loadDaysRange(fetchFrom, fetchTo);
 
-  // Per-day total minutes (for heatmap + trend).
-  const dayMin = {};
-  days.forEach(d => { dayMin[d.date] = totalMins(d.rows || []); });
+  // Per-day total minutes (for heatmap + trend), plus an Over-Time-only series
+  // for the companion trend.
+  const dayMin = {}, dayOtMin = {};
+  days.forEach(d => {
+    dayMin[d.date] = totalMins(d.rows || []);
+    let ot = 0;
+    (d.rows || []).forEach(r => { if (r.time === 'Over Time') ot += parseFloat(r.minutes) || 0; });
+    dayOtMin[d.date] = ot;
+  });
 
   // Aggregate over the selected period only.
   const periodDays = days.filter(d => d.date >= from && d.date <= to);
   const byCompany = {}, byProject = {}, byType = {}, byNatural = {};
-  const doneByDay = {};                 // date -> count of Done records (throughput trend)
-  const byWeekday = [0, 0, 0, 0, 0, 0, 0]; // Sun..Sat total minutes
-  const otByWeek = {};                  // week-start date -> Over-Time minutes
   let totalMin = 0, recordCount = 0, activeDays = 0, doneCount = 0;
   periodDays.forEach(d => {
     let dayHas = false;
-    const wd = new Date(d.date + 'T00:00:00').getDay();
     (d.rows || []).forEach(r => {
       recordCount++;
       const m = parseFloat(r.minutes) || 0;
       totalMin += m;
-      byWeekday[wd] += m;
       if (m > 0) dayHas = true;
       if (r.company) byCompany[r.company] = (byCompany[r.company] || 0) + m;
       if (r.project) byProject[r.project] = (byProject[r.project] || 0) + m;
       if (r.natural && m > 0) byNatural[r.natural] = (byNatural[r.natural] || 0) + m;
       const tk = r.time || 'Other';   if (m > 0) byType[tk] = (byType[tk] || 0) + m;
-      if (r.time === 'Over Time' && m > 0) {
-        const wk = anWeekStart(d.date);
-        otByWeek[wk] = (otByWeek[wk] || 0) + m;
-      }
-      if (r.status === 'Done') { doneCount++; doneByDay[d.date] = (doneByDay[d.date] || 0) + 1; }
+      if (r.status === 'Done') doneCount++;
     });
     if (dayHas) activeDays++;
   });
@@ -4008,15 +4023,19 @@ async function renderAnalytics() {
   renderAnBars('an-company', byCompany, 'an-company-sub');
   renderAnBars('an-project', byProject, 'an-project-sub');
 
-  // ── Daily hours trend ──
-  document.getElementById('an-trend').innerHTML = anTrend(from, to, dayMin, { scale: 1 / 60 });
-  document.getElementById('an-trend-sub').textContent = label;
-
-  // ── Records-completed trend (Done records per day) ──
-  document.getElementById('an-done').innerHTML = doneCount
-    ? anTrend(from, to, doneByDay, { integer: true })
-    : `<div class="an-empty">No completed records in this period.</div>`;
-  document.getElementById('an-done-sub').textContent = doneCount ? `${doneCount} done` : '';
+  // ── Daily hours + companion Part-Time trend ──
+  // These two are pinned to the current month (month-to-date), independent of the
+  // period selector that drives the KPIs and bar/donut charts.
+  const monthFrom  = fmt(new Date(todayD.getFullYear(), todayD.getMonth(), 1));
+  const monthTo    = fmt(todayD);
+  const monthLabel = todayD.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  document.getElementById('an-trend').innerHTML = anTrend(monthFrom, monthTo, dayMin);
+  document.getElementById('an-trend-sub').textContent = monthLabel;
+  const hasOt = Object.keys(dayOtMin).some(d => d >= monthFrom && d <= monthTo && dayOtMin[d] > 0);
+  document.getElementById('an-trend-ot').innerHTML = hasOt
+    ? anTrend(monthFrom, monthTo, dayOtMin)
+    : `<div class="an-empty">No over-time hours this month.</div>`;
+  document.getElementById('an-trend-ot-sub').textContent = hasOt ? monthLabel : '';
 
   // ── Time breakdown donut (by time type) ──
   const typeSegs = Object.entries(byType)
@@ -4034,108 +4053,14 @@ async function renderAnalytics() {
   document.getElementById('an-activity').innerHTML = anDonut(natSegs, totalMin);
   document.getElementById('an-activity-sub').textContent = natSegs.length ? `${natSegs.length} types` : '';
 
-  // ── Busiest weekday (total hours by day of week) ──
-  renderAnWeekday(byWeekday);
-
-  // ── Over-time trend (Over-Time hours per week) ──
-  renderAnOvertime(otByWeek);
-
-  // ── Heatmap ──
+  // ── Heatmap + its summary stats ──
   document.getElementById('an-heat').innerHTML = anHeatmap(firstSunday, heatWeeks, dayMin, todayD);
-  document.getElementById('an-heat-sub').textContent = 'Last 26 weeks';
-
-  // ── Not Yet backlog by company + task-flow metrics ──
-  const backlogData = await window.api.loadBacklog();
-  const backlogList = (backlogData && Array.isArray(backlogData.backlog)) ? backlogData.backlog : [];
-  const backlogByCompany = {};
-  backlogList.forEach(t => { const c = t.company || '—'; backlogByCompany[c] = (backlogByCompany[c] || 0) + 1; });
-  renderAnBacklog(backlogByCompany, backlogList.length);
-  renderAnFlow(days, from, to, backlogList);
+  renderAnHeatStats(dayMin, heatFrom, fmt(todayD));
+  const spanFrom = firstSunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  document.getElementById('an-heat-sub').textContent = `${spanFrom} – today`;
 
   // ── Recurring spend (subscriptions) ──
   renderAnSpend();
-}
-
-// Sunday (YYYY-MM-DD) of the week containing `ds` — used to bucket weekly totals.
-function anWeekStart(ds) {
-  const d = new Date(ds + 'T00:00:00');
-  d.setDate(d.getDate() - d.getDay());
-  return fmt(d);
-}
-
-// Busiest-weekday bars (Sun..Sat) of total tracked hours.
-function renderAnWeekday(mins) {
-  const el = document.getElementById('an-weekday');
-  const sub = document.getElementById('an-weekday-sub');
-  const names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const total = mins.reduce((s, m) => s + m, 0);
-  if (!total) { el.innerHTML = `<div class="an-empty">No tracked time in this period.</div>`; sub.textContent = ''; return; }
-  const max = Math.max(...mins);
-  el.innerHTML = `<div class="an-bars">${mins.map((m, i) => anBarRow(names[i].slice(0, 3), m, max, anFmtHrs(m))).join('')}</div>`;
-  const peak = mins.indexOf(max);
-  sub.textContent = `${names[peak]} busiest`;
-}
-
-// Over-Time hours bucketed by week, oldest → newest.
-function renderAnOvertime(otByWeek) {
-  const el = document.getElementById('an-overtime');
-  const sub = document.getElementById('an-overtime-sub');
-  const entries = Object.entries(otByWeek).sort((a, b) => a[0] < b[0] ? -1 : 1);
-  if (!entries.length) { el.innerHTML = `<div class="an-empty">No over-time logged in this period.</div>`; sub.textContent = ''; return; }
-  const max = Math.max(...entries.map(([, v]) => v));
-  const total = entries.reduce((s, [, v]) => s + v, 0);
-  el.innerHTML = `<div class="an-bars">${entries.map(([wk, v]) => {
-    const lbl = new Date(wk + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    return anBarRow(lbl, v, max, anFmtHrs(v), '#ef4444');
-  }).join('')}</div>`;
-  sub.textContent = `${anFmtHrs(total)} total`;
-}
-
-// "Not Yet" backlog composition by company (current pool, count-based).
-function renderAnBacklog(map, count) {
-  const el = document.getElementById('an-backlog');
-  const sub = document.getElementById('an-backlog-sub');
-  const items = Object.entries(map).sort((a, b) => b[1] - a[1]);
-  sub.textContent = count ? `${count} task${count === 1 ? '' : 's'}` : '';
-  if (!items.length) { el.innerHTML = `<div class="an-empty">The backlog is empty.</div>`; return; }
-  const top = items.slice(0, 8);
-  const max = top[0][1];
-  el.innerHTML = `<div class="an-bars">${top.map(([k, v]) => anBarRow(k, v, max, String(v))).join('')}</div>`;
-}
-
-// Task-flow: picks in the period + avg time-in-backlog (from picked day-rows)
-// + the oldest task still waiting in the pool. Requires the createdAt/assignedAt
-// provenance stamped at create/pick time; rows lacking it are skipped gracefully.
-function renderAnFlow(days, from, to, backlogList) {
-  const el = document.getElementById('an-flow');
-  const sub = document.getElementById('an-flow-sub');
-  let picked = 0, waitSum = 0, waitN = 0;
-  days.forEach(d => (d.rows || []).forEach(r => {
-    if (!r.assignedAt) return;
-    const ad = r.assignedAt.slice(0, 10);
-    if (ad < from || ad > to) return;
-    picked++;
-    if (r.createdAt) {
-      const w = (new Date(r.assignedAt).getTime() - new Date(r.createdAt).getTime()) / 86400000;
-      if (w >= 0) { waitSum += w; waitN++; }
-    }
-  }));
-  const ages = backlogList
-    .map(t => t.createdAt ? Math.floor((Date.now() - new Date(t.createdAt).getTime()) / 86400000) : null)
-    .filter(a => a !== null && a >= 0);
-  const oldest = ages.length ? Math.max(...ages) : null;
-
-  sub.textContent = picked ? `${picked} picked` : '';
-  const rows = [
-    { val: String(picked), lbl: 'tasks picked from the backlog this period' },
-    { val: waitN ? (waitSum / waitN).toFixed(1) + ' d' : '—', lbl: waitN ? 'avg time waiting before being picked' : 'no pick timings yet' },
-    { val: oldest === null ? '—' : oldest + ' d', lbl: oldest === null ? 'no aged tasks in the pool' : 'oldest task still waiting' },
-  ];
-  el.innerHTML = rows.map(r => `
-    <div class="an-flow-row">
-      <span class="an-flow-val">${esc(r.val)}</span>
-      <span class="an-flow-lbl">${esc(r.lbl)}</span>
-    </div>`).join('');
 }
 
 // Render a top-N horizontal bar chart of {key: minutes} into `elId`.
@@ -4190,19 +4115,22 @@ function anDonut(segments, totalMin) {
     </div>`;
 }
 
-// SVG line trend over [from, to]. `valMap` is keyed by date; `opts.scale`
-// multiplies each value (e.g. 1/60 to turn minutes into hours) and
-// `opts.integer` renders whole-number y labels (e.g. record counts).
-function anTrend(from, to, valMap, opts = {}) {
-  const scale = opts.scale ?? 1;
+// SVG daily-hours trend over [from, to]. Adds a "nice" rounded y-axis, an
+// average reference line (over active days), an emphasised + labelled peak,
+// per-point hover tooltips, and a gradient area fill.
+function anTrend(from, to, dayMin) {
   const dates = [];
   const d = new Date(from + 'T00:00:00'), end = new Date(to + 'T00:00:00');
   while (d <= end) { dates.push(fmt(d)); d.setDate(d.getDate() + 1); }
   if (!dates.length) return `<div class="an-empty">No data.</div>`;
-  const vals = dates.map(dt => (valMap[dt] || 0) * scale);
-  const maxV = Math.max(1, ...vals);
+  const vals = dates.map(dt => (dayMin[dt] || 0) / 60);
+  const rawMax = Math.max(0, ...vals);
+  const maxV = Math.max(2, Math.ceil(rawMax / 2) * 2);   // round up to a clean even number
+  const active = vals.filter(v => v > 0);
+  const avg = active.length ? active.reduce((s, v) => s + v, 0) / active.length : 0;
+  const peakIdx = vals.reduce((bi, v, i) => v > vals[bi] ? i : bi, 0);
 
-  const W = 700, H = 160, padL = 28, padR = 8, padT = 12, padB = 22;
+  const W = 900, H = 170, padL = 30, padR = 14, padT = 20, padB = 24;
   const innerW = W - padL - padR, innerH = H - padT - padB;
   const n = dates.length;
   const x = i => padL + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
@@ -4212,11 +4140,15 @@ function anTrend(from, to, valMap, opts = {}) {
   const linePath = `M ${pts.join(' L ')}`;
   const areaPath = `M ${x(0).toFixed(1)},${(padT + innerH).toFixed(1)} L ${pts.join(' L ')} L ${x(n - 1).toFixed(1)},${(padT + innerH).toFixed(1)} Z`;
 
-  // y gridlines at 0, mid, max
-  const fmtLbl = v => opts.integer ? String(Math.round(v)) : v.toFixed(v < 10 ? 1 : 0);
+  // y gridlines at 0, mid, max (clean integers thanks to the even maxV)
   const grids = [0, maxV / 2, maxV].map(v => `
     <line class="an-trend-grid" x1="${padL}" y1="${y(v).toFixed(1)}" x2="${W - padR}" y2="${y(v).toFixed(1)}"/>
-    <text class="an-trend-lbl" x="2" y="${(y(v) + 3).toFixed(1)}">${fmtLbl(v)}</text>`).join('');
+    <text class="an-trend-lbl" x="2" y="${(y(v) + 3).toFixed(1)}">${v.toFixed(0)}</text>`).join('');
+
+  // average reference line
+  const avgLine = avg > 0 ? `
+    <line class="an-trend-avg" x1="${padL}" y1="${y(avg).toFixed(1)}" x2="${W - padR}" y2="${y(avg).toFixed(1)}"/>
+    <text class="an-trend-avg-lbl" x="${(W - padR).toFixed(1)}" y="${(y(avg) - 5).toFixed(1)}" text-anchor="end">avg ${avg.toFixed(1)}h</text>` : '';
 
   // x labels: ~5 evenly spaced
   const labelIdx = [...new Set([0, Math.floor(n / 4), Math.floor(n / 2), Math.floor(3 * n / 4), n - 1])];
@@ -4227,22 +4159,45 @@ function anTrend(from, to, valMap, opts = {}) {
     return `<text class="an-trend-lbl" x="${x(i).toFixed(1)}" y="${H - 6}" text-anchor="${anchor}">${t}</text>`;
   }).join('');
 
-  const dots = n <= 31 ? vals.map((v, i) => v > 0 ? `<circle class="an-trend-dot" cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.5"/>` : '').join('') : '';
+  // dots with native hover tooltips; the peak is enlarged
+  const dots = n <= 45 ? vals.map((v, i) => {
+    if (v <= 0) return '';
+    const peak = i === peakIdx;
+    const lbl = new Date(dates[i] + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `<circle class="an-trend-dot${peak ? ' peak' : ''}" cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="${peak ? 4 : 2.5}"><title>${lbl} · ${v.toFixed(1)}h</title></circle>`;
+  }).join('') : '';
+  const peakLbl = vals[peakIdx] > 0
+    ? `<text class="an-trend-peak-lbl" x="${x(peakIdx).toFixed(1)}" y="${(y(vals[peakIdx]) - 10).toFixed(1)}" text-anchor="middle">${vals[peakIdx].toFixed(1)}h</text>`
+    : '';
 
+  // Unique gradient id per call — multiple trends coexist on the page.
+  const gradId = 'anTrendGrad' + (++_anTrendSeq);
   return `<svg class="an-trend" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    <defs><linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="var(--accent)" stop-opacity="0.02"/>
+    </linearGradient></defs>
     ${grids}
-    <path class="an-trend-area" d="${areaPath}"/>
+    ${avgLine}
+    <path class="an-trend-area" style="fill:url(#${gradId})" d="${areaPath}"/>
     <path class="an-trend-line" d="${linePath}"/>
     ${dots}
+    ${peakLbl}
     ${xlabels}
   </svg>`;
 }
 
-// GitHub-style contribution grid. `start` is a Sunday; renders `weeks` columns.
+// GitHub-style contribution grid. `start` is a Sunday; renders `weeks` columns,
+// with month labels along the top and Mon/Wed/Fri labels down the left.
 function anHeatmap(start, weeks, dayMin, today) {
-  const cols = [];
+  const cols = [], months = [];
   const cur = new Date(start);
+  let prevMonth = -1;
   for (let w = 0; w < weeks; w++) {
+    // Label a column with its month name when the month rolls over.
+    const m = cur.getMonth();
+    months.push(`<span class="an-heat-mcol">${m !== prevMonth ? cur.toLocaleDateString('en-US', { month: 'short' }) : ''}</span>`);
+    prevMonth = m;
     let col = '';
     for (let day = 0; day < 7; day++) {
       const ds = fmt(cur);
@@ -4262,7 +4217,42 @@ function anHeatmap(start, weeks, dayMin, today) {
     }
     cols.push(`<div class="an-heat-col">${col}</div>`);
   }
-  return `<div class="an-heat">${cols.join('')}</div>`;
+  const wd = ['', 'Mon', '', 'Wed', '', 'Fri', ''].map(l => `<span class="an-heat-wd">${l}</span>`).join('');
+  return `
+    <div class="an-heat-months">${months.join('')}</div>
+    <div class="an-heat-body">
+      <div class="an-heat-weekdays">${wd}</div>
+      <div class="an-heat">${cols.join('')}</div>
+    </div>`;
+}
+
+// Summary stats for the heatmap window [from, today]: total tracked, active
+// days, current streak (ending today), and longest streak — all from dayMin.
+function renderAnHeatStats(dayMin, from, todayStr) {
+  const days = [];
+  const d = new Date(from + 'T00:00:00'), end = new Date(todayStr + 'T00:00:00');
+  while (d <= end) { days.push(fmt(d)); d.setDate(d.getDate() + 1); }
+  let totalMin = 0, activeDays = 0, longest = 0, run = 0;
+  days.forEach(ds => {
+    const m = dayMin[ds] || 0;
+    if (m > 0) { totalMin += m; activeDays++; run++; if (run > longest) longest = run; }
+    else run = 0;
+  });
+  let current = 0;
+  for (let i = days.length - 1; i >= 0; i--) { if ((dayMin[days[i]] || 0) > 0) current++; else break; }
+
+  const items = [
+    { val: (totalMin / 60).toFixed(0) + 'h', label: 'Tracked', foot: 'last 26 weeks', cls: 'accent' },
+    { val: String(activeDays), label: 'Active Days', foot: 'with logged time', cls: '' },
+    { val: current + 'd', label: 'Current Streak', foot: current ? 'keep it going' : 'start one today', cls: '' },
+    { val: longest + 'd', label: 'Longest Streak', foot: 'best run', cls: '' },
+  ];
+  document.getElementById('an-heat-stats').innerHTML = items.map(it => `
+    <div class="an-hs-item">
+      <span class="an-hs-val ${it.cls}">${esc(it.val)}</span>
+      <span class="an-hs-label">${esc(it.label)}</span>
+      <span class="an-hs-foot">${esc(it.foot)}</span>
+    </div>`).join('');
 }
 
 function anJumpToDay(ds) {

@@ -55,7 +55,6 @@ function createSchema() {
       company     TEXT, project TEXT, natural TEXT, time TEXT,
       description TEXT, source TEXT,
       tags        TEXT,            -- JSON array of strings
-      createdAt   TEXT,            -- ISO timestamp set when the task entered the pool (null = unknown/legacy)
       sort_order  INTEGER
     );
 
@@ -145,7 +144,6 @@ function init(dir) {
                                           //   of throwing SQLITE_BUSY
   db.exec('PRAGMA foreign_keys = ON');
   createSchema();
-  ensureBacklogColumns();   // additive migration for DBs created before createdAt existed
 
   // First run only: import any legacy JSON data. On later runs, snapshot the
   // existing DB into the rotating backups folder.
@@ -162,14 +160,6 @@ function init(dir) {
   // drop "Not Yet" from the saved status lookup. Guarded by a meta flag so it
   // runs exactly once; the rotateBackups() snapshot above is the recovery copy.
   migrateNotYetToBacklog();
-}
-
-// Additive, idempotent column migration: older DBs predate backlog.createdAt.
-// SQLite's ADD COLUMN is cheap and backfills existing rows with NULL (= "unknown
-// arrival time"), which the analytics task-flow widgets render as such.
-function ensureBacklogColumns() {
-  const cols = db.prepare('PRAGMA table_info(backlog)').all().map(c => c.name);
-  if (!cols.includes('createdAt')) db.exec('ALTER TABLE backlog ADD COLUMN createdAt TEXT');
 }
 
 // One-time conversion of legacy per-day "Not Yet" rows into the standalone
@@ -278,13 +268,12 @@ function loadDaysRange(from, to) {
 // subscriptions IPC shape so the renderer treats it the same way.
 function loadBacklog() {
   const backlog = db.prepare(
-    'SELECT id, company, project, natural, time, description, source, tags, createdAt FROM backlog ORDER BY sort_order'
+    'SELECT id, company, project, natural, time, description, source, tags FROM backlog ORDER BY sort_order'
   ).all().map(t => ({
     id: t.id,
     company: t.company || '', project: t.project || '', natural: t.natural || '', time: t.time || '',
     description: t.description || '', source: t.source || '',
     tags: safeParse(t.tags, []),
-    createdAt: t.createdAt || null,
   }));
   return { backlog };
 }
@@ -293,12 +282,12 @@ function saveBacklog(data) {
   const list = Array.isArray(data?.backlog) ? data.backlog : [];
   tx(() => {
     db.exec('DELETE FROM backlog');
-    const stmt = db.prepare(`INSERT INTO backlog(id, company, project, natural, time, description, source, tags, createdAt, sort_order)
-                             VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    const stmt = db.prepare(`INSERT INTO backlog(id, company, project, natural, time, description, source, tags, sort_order)
+                             VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     list.forEach((t, i) => stmt.run(
       t.id, t.company ?? '', t.project ?? '', t.natural ?? '', t.time ?? '',
       t.description ?? '', t.source ?? '',
-      JSON.stringify(Array.isArray(t.tags) ? t.tags : []), t.createdAt ?? null, i
+      JSON.stringify(Array.isArray(t.tags) ? t.tags : []), i
     ));
   });
 }
