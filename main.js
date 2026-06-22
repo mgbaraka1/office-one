@@ -2,6 +2,17 @@ const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const db   = require('./db');
+const auth = require('./auth');
+
+// Wrap a data IPC handler so it fails closed when no one is logged in. Every
+// handler that reads or writes user data goes through this — the renderer can
+// never reach the data layer before authenticating.
+function authed(handler) {
+  return (event, ...args) => {
+    if (!auth.isAuthenticated()) throw new Error('Not authenticated');
+    return handler(event, ...args);
+  };
+}
 
 let win;
 let allowClose = false;       // set once the renderer has flushed pending saves
@@ -50,7 +61,7 @@ function createWindow() {
     // (300 ms) auto-saves before the window tears down, so no edit is lost.
     if (!allowClose) {
       e.preventDefault();
-      win.webContents.send('before-close');
+      win.webContents.send('app:beforeClose');
       // Safety net: if the renderer never reports back, close anyway.
       closeFallback = setTimeout(() => {
         allowClose = true;
@@ -60,26 +71,37 @@ function createWindow() {
   });
 }
 
-// ── Days ──
-ipcMain.handle('saveDay',  (_e, dateStr, data) => db.saveDay(dateStr, data));
-ipcMain.handle('loadDay',  (_e, dateStr)       => db.loadDay(dateStr));
-ipcMain.handle('listDays', ()                  => db.listDays());
-ipcMain.handle('loadDaysRange', (_e, from, to) => db.loadDaysRange(from, to));
+// ── Authentication (ungated — these are the gate) ──
+ipcMain.handle('auth:status',      ()                     => auth.status());
+ipcMain.handle('auth:setup',       (_e, username, pass)   => auth.setup(username, pass));
+ipcMain.handle('auth:login',       (_e, username, pass)   => auth.login(username, pass));
+ipcMain.handle('auth:logout',      ()                     => auth.logout());
+ipcMain.handle('auth:currentUser', ()                     => auth.currentUser());
 
-// ── Lookups ──
-ipcMain.handle('loadLookups', ()         => db.loadLookups());
-ipcMain.handle('saveLookups', (_e, data) => db.saveLookups(data));
+// ── Days ── (userId always comes from the authenticated session, never the renderer)
+ipcMain.handle('day:save',  authed((_e, dateStr, data) => db.saveDay(auth.requireUserId(), dateStr, data)));
+ipcMain.handle('day:get',   authed((_e, dateStr)       => db.loadDay(auth.requireUserId(), dateStr)));
+ipcMain.handle('days:list', authed(()                  => db.listDays(auth.requireUserId())));
+ipcMain.handle('days:range', authed((_e, from, to)     => db.loadDaysRange(auth.requireUserId(), from, to)));
+
+// ── Analytics (aggregation done in SQL, not in the renderer) ──
+ipcMain.handle('analytics:summary',  authed((_e, from, to, spanFrom, spanTo) => db.getAnalytics(auth.requireUserId(), from, to, spanFrom, spanTo)));
+ipcMain.handle('analytics:overview', authed((_e, today, monthStart)          => db.getOverviewStats(auth.requireUserId(), today, monthStart)));
+
+// ── Lookups (shared app config) ──
+ipcMain.handle('lookups:get',  authed(()         => db.loadLookups()));
+ipcMain.handle('lookups:save', authed((_e, data) => db.saveLookups(data)));
 
 // ── Subscriptions ──
-ipcMain.handle('loadSubscriptions', ()         => db.loadSubscriptions());
-ipcMain.handle('saveSubscriptions', (_e, data) => db.saveSubscriptions(data));
+ipcMain.handle('subscriptions:list', authed(()         => db.loadSubscriptions(auth.requireUserId())));
+ipcMain.handle('subscriptions:save', authed((_e, data) => db.saveSubscriptions(auth.requireUserId(), data)));
 
 // ── Backlog ("Not Yet" pool) ──
-ipcMain.handle('loadBacklog', ()         => db.loadBacklog());
-ipcMain.handle('saveBacklog', (_e, data) => db.saveBacklog(data));
+ipcMain.handle('backlog:list', authed(()         => db.loadBacklog(auth.requireUserId())));
+ipcMain.handle('backlog:save', authed((_e, data) => db.saveBacklog(auth.requireUserId(), data)));
 
 // ── Backup ──
-ipcMain.handle('backupDatabase', async () => {
+ipcMain.handle('db:backup', authed(async () => {
   const stamp = new Date().toISOString().slice(0, 10);
   const { canceled, filePath } = await dialog.showSaveDialog(win, {
     title: 'Back up database',
@@ -89,12 +111,12 @@ ipcMain.handle('backupDatabase', async () => {
   if (canceled || !filePath) return { ok: false };
   try { db.backup(filePath); return { ok: true, path: filePath }; }
   catch (err) { return { ok: false, error: String(err?.message || err) }; }
-});
+}));
 
 // ── Export a report HTML document to a PDF file (native "Save as" dialog) ──
 // Renders the supplied self-contained HTML in an offscreen window, prints it to
 // PDF via Chromium, and writes the chosen file. Read-only; touches no app data.
-ipcMain.handle('exportPDF', async (_e, html, defaultName) => {
+ipcMain.handle('report:exportPDF', authed(async (_e, html, defaultName) => {
   let pdfWin;
   try {
     const { canceled, filePath } = await dialog.showSaveDialog(win, {
@@ -116,18 +138,18 @@ ipcMain.handle('exportPDF', async (_e, html, defaultName) => {
   } finally {
     if (pdfWin && !pdfWin.isDestroyed()) pdfWin.destroy();
   }
-});
+}));
 
 // ── Close handshake ──
-ipcMain.handle('flushComplete', () => {
+ipcMain.handle('app:flushComplete', () => {
   clearTimeout(closeFallback);
   allowClose = true;
   if (win && !win.isDestroyed()) win.close();
 });
 
 // ── Window controls ──
-ipcMain.handle('setTitle',       (_e, title) => { if (win) win.setTitle(title); });
-ipcMain.handle('openExternal',   (_e, url)   => {
+ipcMain.handle('window:setTitle',   (_e, title) => { if (win) win.setTitle(title); });
+ipcMain.handle('shell:openExternal', (_e, url)  => {
   // Only ever hand off real web links to the OS — never file:, javascript:, etc.
   try {
     const u = new URL(String(url));
@@ -135,11 +157,38 @@ ipcMain.handle('openExternal',   (_e, url)   => {
   } catch { /* not a valid URL — ignore */ }
 });
 
-app.whenReady().then(() => {
-  // Open/create the embedded SQLite database, apply the schema, and (on first
-  // run) import any pre-existing JSON data — all automatically, no setup needed.
+// Dev convenience: load KEY=VALUE pairs from a local .env into process.env.
+// Only in development — packaged builds ignore it so a stray .env can't alter a
+// shipped app. Existing environment variables always win.
+function loadDotEnv() {
   try {
-    db.init(app.getPath('userData'));
+    if (app.isPackaged) return;
+    const file = path.join(__dirname, '.env');
+    if (!fs.existsSync(file)) return;
+    const re = /^\s*(\w+)\s*=\s*(.*)\s*$/;
+    for (const line of fs.readFileSync(file, 'utf-8').split(/\r?\n/)) {
+      const m = re.exec(line);
+      if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+    }
+  } catch { /* non-critical */ }
+}
+
+app.whenReady().then(() => {
+  // Optional data-directory override (see .env.example). Lets the store live
+  // somewhere other than the default userData folder — handy for testing or a
+  // portable install. Must be set before any path is read.
+  loadDotEnv();
+  if (process.env.COOPERATION_TOOLS_DATA_DIR) {
+    app.setPath('userData', process.env.COOPERATION_TOOLS_DATA_DIR);
+  }
+
+  // Boot the data layer in three explicit, sequential steps: open the embedded
+  // SQLite connection, bring the schema to the latest version via the versioned
+  // migration runner, then run best-effort maintenance (backup rotation).
+  try {
+    db.openConnection(app.getPath('userData'));
+    db.applyMigrations();
+    db.runMaintenance();
   } catch (err) {
     // A failed DB open (locked, corrupt, permissions) must not leave the user
     // with an invisible, windowless process — surface it and exit.

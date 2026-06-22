@@ -1174,9 +1174,67 @@
     }
     #undo-toast-btn:hover, #sub-undo-toast-btn:hover, #backlog-undo-toast-btn:hover { background: #5a52d5; }
 
+    /* ── Auth gate (setup / login) ── */
+    #auth-overlay {
+      position: fixed; inset: 0; z-index: 1000; display: none;
+      align-items: center; justify-content: center;
+      background: var(--sidebar-bg); font-family: 'Quicksand', sans-serif;
+    }
+    #auth-overlay.active { display: flex; }
+    .auth-card {
+      width: 360px; max-width: 90vw; background: #fff; border-radius: 16px;
+      padding: 34px 32px 28px; box-shadow: 0 24px 60px rgba(0,0,0,.35);
+    }
+    .auth-brand { text-align: center; color: #1e1e2e; font-weight: 700; letter-spacing: 3px; font-size: 20px; }
+    .auth-brand span { display: block; font-size: 11px; letter-spacing: 4px; color: #6c63ff; margin-top: 4px; }
+    .auth-heading { text-align: center; margin: 20px 0 4px; font-size: 18px; font-weight: 700; color: #2a2722; }
+    .auth-sub { text-align: center; margin: 0 0 20px; font-size: 12.5px; color: #8a857c; }
+    .auth-field { margin-bottom: 14px; }
+    .auth-field label { display: block; font-size: 11px; font-weight: 600; color: #8a857c; margin-bottom: 5px; letter-spacing: .3px; }
+    .auth-field input {
+      width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 14px;
+      font-family: inherit; border: 1.5px solid #e9e6e0; border-radius: 8px; background: #f7f6f3;
+      color: #2a2722; transition: border-color .12s, background .12s;
+    }
+    .auth-field input:focus { outline: none; border-color: #6c63ff; background: #fff; }
+    .auth-field input.input-error { border-color: #dc2626; background: #fff5f5; }
+    .auth-btn {
+      width: 100%; padding: 11px; margin-top: 6px; font-size: 14px; font-weight: 700;
+      font-family: inherit; color: #fff; background: #6c63ff; border: none; border-radius: 8px; cursor: pointer;
+      transition: background .12s;
+    }
+    .auth-btn:hover { background: #5a52d5; }
+    .auth-btn:disabled { opacity: .6; cursor: default; }
+    .auth-error { min-height: 16px; margin: 10px 2px 0; font-size: 12px; color: #dc2626; text-align: center; }
+    .sidebar-user { font-size: 11px; color: var(--sidebar-muted); padding: 4px 14px 2px; }
+    .sidebar-user b { color: var(--sidebar-fg); font-weight: 600; }
+
   </style>
 </head>
 <body>
+
+<!-- ══ AUTH GATE (setup on first run / login each session) ══ -->
+<div id="auth-overlay">
+  <form class="auth-card" id="auth-form" onsubmit="submitAuth(event)" autocomplete="off">
+    <div class="auth-brand">MOS TA FA<span>COOPERATION TOOLS</span></div>
+    <div class="auth-heading" id="auth-heading">Welcome back</div>
+    <div class="auth-sub" id="auth-sub">Log in to continue</div>
+    <div class="auth-field">
+      <label for="auth-username">Username</label>
+      <input id="auth-username" type="text" autocomplete="username" spellcheck="false" />
+    </div>
+    <div class="auth-field">
+      <label for="auth-password">Password</label>
+      <input id="auth-password" type="password" autocomplete="current-password" />
+    </div>
+    <div class="auth-field" id="auth-confirm-field" style="display:none">
+      <label for="auth-confirm">Confirm password</label>
+      <input id="auth-confirm" type="password" autocomplete="new-password" />
+    </div>
+    <button class="auth-btn" id="auth-submit" type="submit">Log in</button>
+    <div class="auth-error" id="auth-error"></div>
+  </form>
+</div>
 
 <!-- ══ SIDEBAR ══ -->
 <div id="sidebar">
@@ -1204,6 +1262,10 @@
     </button>
     <button id="backup-btn" class="nav-item" onclick="backupDatabase()" title="Save a copy of your database to a file">
       <span class="nav-icon">💾</span>Backup Data
+    </button>
+    <div class="sidebar-user" id="sidebar-user"></div>
+    <button id="logout-btn" class="nav-item" onclick="doLogout()" title="Log out of this session">
+      <span class="nav-icon">🚪</span>Log Out
     </button>
   </div>
 </div>
@@ -2551,20 +2613,29 @@ function undoDelete() {
 let _saveTimer = null;
 async function saveDay() {
   if (!activeDate) return;
+  const savedDate = activeDate;
+  const savedRows = rows;                      // array reference captured at send time
   const data = {
     name: document.getElementById('hName').value,
-    rows: rows.map(r => Object.assign({}, r)),
+    rows: savedRows.map(r => Object.assign({}, r)),
   };
+  let res;
   try {
-    await window.api.saveDay(activeDate, data);
+    res = await window.api.saveDay(savedDate, data);
   } catch (err) {
     const el = document.getElementById('save-status');
     el.textContent = '⚠ Save failed'; el.className = 'save-error';
     toast('Could not save — your changes are still on screen. Retrying on next edit.');
     return;
   }
-  dayCache[activeDate] = data;
-  savedDays.add(activeDate);
+  // Adopt the canonical entry ids so a freshly-inserted row updates in place on
+  // the next save (instead of inserting a duplicate). Only when we're still on
+  // the same day with the same rows array (the user didn't switch mid-save).
+  if (res && Array.isArray(res.eids) && rows === savedRows && res.eids.length === savedRows.length) {
+    savedRows.forEach((r, i) => { if (res.eids[i] != null) r.eid = res.eids[i]; });
+  }
+  dayCache[savedDate] = { name: data.name, rows: savedRows.map(r => Object.assign({}, r)) };
+  savedDays.add(savedDate);
   renderCalendar();
   const el = document.getElementById('save-status');
   el.textContent = '✓ Saved'; el.className = 'saved';
@@ -3821,15 +3892,13 @@ async function renderOverview() {
   document.getElementById('dash-date').textContent =
     new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-  // Today + month-to-date hours in one query.
+  // Today + month-to-date hours — aggregated in SQL (no day blobs shipped).
   const now = new Date();
   const today = fmt(now);
   const monthStart = fmt(new Date(now.getFullYear(), now.getMonth(), 1));
-  const monthDays = await window.api.loadDaysRange(monthStart, today);
-  const todayEntry = monthDays.find(d => d.date === today);
-  const todayMin  = todayEntry ? totalMins(todayEntry.rows || []) : 0;
-  const todayRecs = todayEntry?.rows?.length || 0;
-  const monthMin  = monthDays.reduce((s, d) => s + totalMins(d.rows || []), 0);
+  const ov = await window.api.loadOverviewStats(today, monthStart);
+  const todayMin = ov.todayMin, todayRecs = ov.todayRecs, monthMin = ov.monthMin;
+  const daysLogged = ov.daysLogged;
 
   // Cross-module attention data
   const [subData, backlogData] = await Promise.all([
@@ -3849,7 +3918,7 @@ async function renderOverview() {
   // Stat cards
   const stats = [
     { label: '🕐 Today',      value: (todayMin / 60).toFixed(1), unit: 'h', foot: `${todayRecs} record${todayRecs === 1 ? '' : 's'}`, cls: 'accent', go: 'timesheet' },
-    { label: '📅 This Month', value: (monthMin / 60).toFixed(1), unit: 'h', foot: `${monthDays.length} day${monthDays.length === 1 ? '' : 's'} logged`, cls: '', go: 'timesheet' },
+    { label: '📅 This Month', value: (monthMin / 60).toFixed(1), unit: 'h', foot: `${daysLogged} day${daysLogged === 1 ? '' : 's'} logged`, cls: '', go: 'timesheet' },
     { label: '📌 Not Yet',    value: String(backlogCount), unit: '', foot: 'in backlog', cls: '', go: 'backlog' },
   ];
   document.getElementById('dash-stats').innerHTML = stats.map(s => `
@@ -3964,40 +4033,16 @@ async function renderAnalytics() {
   const firstSunday = new Date(lastSunday); firstSunday.setDate(lastSunday.getDate() - (heatWeeks - 1) * 7);
   const heatFrom = fmt(firstSunday);
 
-  // One query spanning both the period and the heatmap window.
+  // One aggregation call spanning both the period (KPIs/bars/donuts) and the
+  // heatmap/trend window (per-day series). All group-bys + sums run in SQL — the
+  // renderer receives only small maps + scalars, never the raw rows.
   const fetchFrom = heatFrom < from ? heatFrom : from;
   const fetchTo   = to > fmt(todayD) ? to : fmt(todayD);
-  const days = await window.api.loadDaysRange(fetchFrom, fetchTo);
+  const an = await window.api.loadAnalytics(from, to, fetchFrom, fetchTo);
 
-  // Per-day total minutes (for heatmap + trend), plus an Over-Time-only series
-  // for the companion trend.
-  const dayMin = {}, dayOtMin = {};
-  days.forEach(d => {
-    dayMin[d.date] = totalMins(d.rows || []);
-    let ot = 0;
-    (d.rows || []).forEach(r => { if (r.time === 'Over Time') ot += parseFloat(r.minutes) || 0; });
-    dayOtMin[d.date] = ot;
-  });
-
-  // Aggregate over the selected period only.
-  const periodDays = days.filter(d => d.date >= from && d.date <= to);
-  const byCompany = {}, byProject = {}, byType = {}, byNatural = {};
-  let totalMin = 0, recordCount = 0, activeDays = 0, doneCount = 0;
-  periodDays.forEach(d => {
-    let dayHas = false;
-    (d.rows || []).forEach(r => {
-      recordCount++;
-      const m = parseFloat(r.minutes) || 0;
-      totalMin += m;
-      if (m > 0) dayHas = true;
-      if (r.company) byCompany[r.company] = (byCompany[r.company] || 0) + m;
-      if (r.project) byProject[r.project] = (byProject[r.project] || 0) + m;
-      if (r.natural && m > 0) byNatural[r.natural] = (byNatural[r.natural] || 0) + m;
-      const tk = r.time || 'Other';   if (m > 0) byType[tk] = (byType[tk] || 0) + m;
-      if (r.status === 'Done') doneCount++;
-    });
-    if (dayHas) activeDays++;
-  });
+  const dayMin = an.dayMin, dayOtMin = an.dayOtMin;
+  const byCompany = an.byCompany, byProject = an.byProject, byType = an.byType, byNatural = an.byNatural;
+  const totalMin = an.totalMin, recordCount = an.recordCount, activeDays = an.activeDays, doneCount = an.doneCount;
 
   const workMin = byType['Work Time'] || 0;
   const otMin   = byType['Over Time'] || 0;
@@ -4608,7 +4653,85 @@ async function init() {
   switchModule('analytics');   // boot into the Analytics home / overview
 }
 
-init();
+// ── Auth gate ──
+// The app shell is rendered but covered by #auth-overlay until the user
+// authenticates. On first run (no accounts yet) the overlay is a one-time setup
+// form; otherwise it's a login form. init() (the real app boot, which talks to
+// the now-gated data layer) only runs after a successful login/setup.
+let _authMode  = 'login';   // 'login' | 'setup'
+let _appBooted = false;
+
+async function bootAuth() {
+  let status;
+  try { status = await window.api.authStatus(); }
+  catch { status = { hasUsers: true, authenticated: false }; }
+  setAuthMode(status.hasUsers ? 'login' : 'setup');
+  document.getElementById('auth-overlay').classList.add('active');
+  setTimeout(() => document.getElementById('auth-username').focus(), 50);
+}
+
+function setAuthMode(mode) {
+  _authMode = mode;
+  const setup = mode === 'setup';
+  document.getElementById('auth-heading').textContent = setup ? 'Create your account' : 'Welcome back';
+  document.getElementById('auth-sub').textContent = setup
+    ? 'This is the first account on this device'
+    : 'Log in to continue';
+  document.getElementById('auth-submit').textContent = setup ? 'Create account' : 'Log in';
+  document.getElementById('auth-confirm-field').style.display = setup ? '' : 'none';
+  document.getElementById('auth-password').setAttribute('autocomplete', setup ? 'new-password' : 'current-password');
+  document.getElementById('auth-error').textContent = '';
+}
+
+async function submitAuth(e) {
+  e.preventDefault();
+  const userEl = document.getElementById('auth-username');
+  const passEl = document.getElementById('auth-password');
+  const confEl = document.getElementById('auth-confirm');
+  const errEl  = document.getElementById('auth-submit');
+  const showErr = (m) => { document.getElementById('auth-error').textContent = m || ''; };
+  [userEl, passEl, confEl].forEach(el => el.classList.remove('input-error'));
+  showErr('');
+
+  const username = userEl.value.trim();
+  const password = passEl.value;
+  if (!username) { userEl.classList.add('input-error'); userEl.focus(); return; }
+  if (!password) { passEl.classList.add('input-error'); passEl.focus(); return; }
+  if (_authMode === 'setup' && password !== confEl.value) {
+    confEl.classList.add('input-error'); confEl.focus(); showErr('Passwords do not match.'); return;
+  }
+
+  errEl.disabled = true;
+  let res;
+  try {
+    res = _authMode === 'setup'
+      ? await window.api.authSetup(username, password)
+      : await window.api.authLogin(username, password);
+  } catch { res = { ok: false, error: 'Something went wrong. Please try again.' }; }
+  errEl.disabled = false;
+
+  if (!res || !res.ok) { showErr(res && res.error || 'Login failed.'); passEl.select(); return; }
+
+  document.getElementById('auth-overlay').classList.remove('active');
+  passEl.value = ''; if (confEl) confEl.value = '';
+  await startApp(res.user);
+}
+
+async function startApp(user) {
+  const su = document.getElementById('sidebar-user');
+  if (su) su.innerHTML = 'Signed in as <b>' + esc(user && user.username || '') + '</b>';
+  if (_appBooted) return;
+  _appBooted = true;
+  await init();
+}
+
+async function doLogout() {
+  try { await flushPending(); } catch { /* best effort */ }
+  try { await window.api.authLogout(); } catch { /* ignore */ }
+  location.reload();   // cleanest reset: re-runs the gate against the now-empty session
+}
+
+bootAuth();
 </script>
 <div id="app-toast" class="app-toast"></div>
 </body>

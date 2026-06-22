@@ -1,7 +1,7 @@
 {
   "name": "timesheet",
-  "version": "1.1.0",
-  "description": "Cooperation Tools — an offline Electron desktop app for tracking daily timesheets, subscriptions, licenses, and insurance policies. Data is stored in a self-contained, zero-config embedded SQLite database (Node's built-in node:sqlite, bundled with Electron — no server, no separate install, no native build).",
+  "version": "1.2.0",
+  "description": "Cooperation Tools — an offline, multi-user Electron desktop app for tracking daily timesheets, a 'Not Yet' task backlog, and recurring subscriptions, with read-only analytics and PDF reports. Each account's data is isolated. Data is stored in a self-contained, zero-config embedded SQLite database (Node's built-in node:sqlite, bundled with Electron — no server, no separate install, no native build).",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -13,8 +13,9 @@
     "electron",
     "timesheet",
     "subscriptions",
-    "licenses",
-    "insurance",
+    "backlog",
+    "analytics",
+    "multi-user",
     "desktop",
     "sqlite",
     "node:sqlite",
@@ -36,11 +37,15 @@
     "files": [
       "main.js",
       "db.js",
+      "auth.js",
       "preload.js",
+      "ipc-types.js",
       "index.html",
+      "migrations/**/*",
       "package.json",
       "build/icon.ico",
-      "build/icon.png"
+      "build/icon.png",
+      "node_modules/bcryptjs/**/*"
     ],
     "win": {
       "icon": "build/icon.ico",
@@ -59,5 +64,8 @@
     "directories": {
       "output": "dist"
     }
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3"
   }
 }
