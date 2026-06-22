@@ -30,41 +30,8 @@ const DEFAULT_LOOKUPS = {
 };
 
 let db;          // DatabaseSync instance
-let userDataDir; // for one-time JSON migration
-
-// ── Schema ──────────────────────────────────────────────────────────────────
-function createSchema() {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS days (
-      date TEXT PRIMARY KEY,
-      name TEXT NOT NULL DEFAULT '',
-      rows TEXT NOT NULL DEFAULT '[]'   -- JSON array of row objects (variable shape)
-    );
-
-    CREATE TABLE IF NOT EXISTS subscriptions (
-      id           TEXT PRIMARY KEY,
-      name         TEXT, cost TEXT, currency TEXT,
-      billingCycle TEXT, endDate TEXT, renewalDate TEXT,
-      sort_order   INTEGER
-    );
-
-    -- "Not Yet" backlog: a day-agnostic pool of tasks (no date binding). A task
-    -- is picked out of here and assigned into a specific day when worked on.
-    CREATE TABLE IF NOT EXISTS backlog (
-      id          TEXT PRIMARY KEY,
-      company     TEXT, project TEXT, natural TEXT, time TEXT,
-      description TEXT, source TEXT,
-      tags        TEXT,            -- JSON array of strings
-      sort_order  INTEGER
-    );
-
-    -- Generic key/value store: lookups, default currency, window bounds, flags.
-    CREATE TABLE IF NOT EXISTS meta (
-      key   TEXT PRIMARY KEY,
-      value TEXT
-    );
-  `);
-}
+let userDataDir; // resolved userData folder (backups, db file)
+let dbWasNew = false; // true when openConnection created the file this run
 
 // Run a set of writes inside a single transaction (atomic + crash-safe).
 // Reentrant: nested tx() calls join the outermost transaction (SQLite has no
@@ -85,138 +52,89 @@ function safeParse(text, fallback) {
   try { return JSON.parse(text); } catch { return fallback; }
 }
 
-// ── meta helpers ──────────────────────────────────────────────────────────────
-function metaGet(key) {
-  const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(key);
+// ── Typed key/value stores (replaced the single generic `meta` table) ─────────
+//   app_settings  — shared application config that should travel with the data
+//                   (lookups, default subscription currency)
+//   machine_prefs — state tied to THIS machine, never to the data (window bounds)
+function kvGet(table, key) {
+  const row = db.prepare(`SELECT value FROM ${table} WHERE key = ?`).get(key);
   return row ? row.value : undefined;
 }
-function metaSet(key, value) {
-  db.prepare('INSERT INTO meta(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
-    .run(key, value);
+function kvSet(table, key, value) {
+  db.prepare(`INSERT INTO ${table}(key, value) VALUES(?, ?)
+              ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(key, value);
 }
+const appGet = (key) => kvGet('app_settings', key);
+const appSet = (key, value) => kvSet('app_settings', key, value);
+const machineGet = (key) => kvGet('machine_prefs', key);
+const machineSet = (key, value) => kvSet('machine_prefs', key, value);
 
-// ── One-time import of pre-existing JSON files (older app versions) ─────────────
-// Non-destructive: reads the JSON files but never modifies or deletes them.
-function readJson(file) {
-  try { return JSON.parse(fs.readFileSync(file, 'utf-8')); }
-  catch {
-    const bak = file + '.bak';
-    if (fs.existsSync(bak)) { try { return JSON.parse(fs.readFileSync(bak, 'utf-8')); } catch { return null; } }
-    return null;
-  }
-}
+// ── Boot sequence ─────────────────────────────────────────────────────────────
+// Boot is three explicit, sequential steps (called in order from main.js):
+//   1. openConnection(dir) — open/create the file, apply connection PRAGMAs
+//   2. applyMigrations()   — bring the schema up to the latest version
+//   3. runMaintenance()    — best-effort upkeep (backup rotation, dead-table sweep)
+// They are deliberately separate so each can fail/log independently and so the
+// boot order is obvious at the call site rather than buried inside one function.
 
-function migrateFromJson() {
-  // Days
-  const daysDir = path.join(userDataDir, 'days');
-  if (fs.existsSync(daysDir)) {
-    const files = fs.readdirSync(daysDir).filter(f => /^\d{4}-\d{2}-\d{2}\.json$/.test(f));
-    for (const f of files) {
-      const data = readJson(path.join(daysDir, f));
-      if (data) saveDay(f.replace('.json', ''), data);
-    }
-  }
-
-  // Lookups
-  const lookups = readJson(path.join(userDataDir, 'lookups.json'));
-  if (lookups) metaSet('lookups', JSON.stringify(lookups));
-
-  // Subscriptions
-  const subs = readJson(path.join(userDataDir, 'subscriptions.json'));
-  if (subs) saveSubscriptions(subs);
-
-  // Window prefs
-  const prefs = readJson(path.join(userDataDir, 'prefs.json'));
-  if (prefs) metaSet('window_prefs', JSON.stringify(prefs));
-}
-
-// ── Public init ─────────────────────────────────────────────────────────────
-function init(dir) {
+// Step 1 — open (or create) the database file and apply connection-level PRAGMAs.
+function openConnection(dir) {
   userDataDir = dir;
-  const dbPath = path.join(dir, 'cooperation-tools.db');
-  const isNew  = !fs.existsSync(dbPath);
+  const file = path.join(dir, 'cooperation-tools.db');
+  dbWasNew = !fs.existsSync(file);
 
-  db = new DatabaseSync(dbPath);   // auto-creates the file if missing
+  db = new DatabaseSync(file);            // auto-creates the file if missing
   db.exec('PRAGMA journal_mode = WAL');   // crash-safe writes
   db.exec('PRAGMA synchronous = NORMAL'); // WAL-recommended: durable + fast (only the
                                           //   last txn is at risk on power loss, never corruption)
   db.exec('PRAGMA busy_timeout = 5000');  // wait up to 5s on a lock (backup/PDF window) instead
                                           //   of throwing SQLITE_BUSY
-  db.exec('PRAGMA foreign_keys = ON');
-  createSchema();
-
-  // First run only: import any legacy JSON data. On later runs, snapshot the
-  // existing DB into the rotating backups folder.
-  if (isNew) tx(migrateFromJson);
-  else rotateBackups();
-
-  // The Licenses and Insurance modules were removed. Drop their tables (one-time
-  // cleanup). On an existing DB the rotateBackups() snapshot above captures the
-  // data first, so there's still a recovery copy in backups/.
-  dropRemovedModuleTables();
-
-  // "Not Yet" is now a day-agnostic backlog, not a per-day row status. One-time:
-  // move every existing "Not Yet"/"Pending" day-row into the backlog table and
-  // drop "Not Yet" from the saved status lookup. Guarded by a meta flag so it
-  // runs exactly once; the rotateBackups() snapshot above is the recovery copy.
-  migrateNotYetToBacklog();
+  db.exec('PRAGMA foreign_keys = ON');    // enforce FK constraints on every connection
 }
 
-// One-time conversion of legacy per-day "Not Yet" rows into the standalone
-// backlog pool. Idempotent via the `notyet_backlog_migrated` meta flag.
-function migrateNotYetToBacklog() {
-  if (metaGet('notyet_backlog_migrated') === '1') return;
-  const isNotYet = (r) => r && (r.status === 'Not Yet' || r.status === 'Pending');
-  tx(() => {
-    const days = db.prepare('SELECT date, rows FROM days ORDER BY date ASC').all();
-    const insert = db.prepare(`INSERT INTO backlog(id, company, project, natural, time, description, source, tags, sort_order)
-                               VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-    let order = 0;
-    for (const d of days) {
-      const rows = safeParse(d.rows, []);
-      const moved = rows.filter(isNotYet);
-      if (moved.length === 0) continue;
-      const keep = rows.filter(r => !isNotYet(r));
-      moved.forEach(r => {
-        const id = 'bl_' + Date.now().toString(36) + '_' + order + '_' + Math.random().toString(36).slice(2, 7);
-        insert.run(
-          id, r.company ?? '', r.project ?? '', r.natural ?? '', r.time ?? '',
-          r.description ?? '', r.source ?? '',
-          JSON.stringify(Array.isArray(r.tags) ? r.tags : []), order++
-        );
-      });
-      // A day left with no rows would otherwise show as a phantom "has data" day
-      // on the calendar — remove it. Otherwise persist the trimmed rows.
-      if (keep.length === 0) db.prepare('DELETE FROM days WHERE date = ?').run(d.date);
-      else db.prepare('UPDATE days SET rows = ? WHERE date = ?').run(JSON.stringify(keep), d.date);
-    }
+// Step 2 — run every pending versioned migration, in order, exactly once.
+// Each migration file in ./migrations exports { version, name, up(db) } and is
+// recorded in `schema_migrations` once applied. By default a migration runs
+// inside a single transaction; a migration may set `manualTransaction: true` to
+// manage its own transaction/PRAGMA sequencing (needed for table rebuilds where
+// `PRAGMA foreign_keys` must toggle outside a transaction).
+function applyMigrations() {
+  db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
+             version    INTEGER PRIMARY KEY,
+             name       TEXT NOT NULL,
+             applied_at TEXT NOT NULL
+           );`);
 
-    // Drop "Not Yet"/"Pending" from the saved status lookup so the day Add/Edit
-    // form no longer offers it (DEFAULT_LOOKUPS already excludes it for fresh DBs).
-    const lk = metaGet('lookups');
-    if (lk) {
-      const parsed = safeParse(lk, null);
-      if (parsed && Array.isArray(parsed.status)) {
-        parsed.status = parsed.status.filter(s => s !== 'Not Yet' && s !== 'Pending');
-        metaSet('lookups', JSON.stringify(parsed));
-      }
-    }
+  const applied = new Set(
+    db.prepare('SELECT version FROM schema_migrations').all().map(r => r.version)
+  );
 
-    metaSet('notyet_backlog_migrated', '1');
-  });
+  const dir = path.join(__dirname, 'migrations');
+  const migrations = fs.readdirSync(dir)
+    .filter(f => /^\d{3}_.*\.js$/.test(f))
+    .map(f => require(path.join(dir, f)))
+    .sort((a, b) => a.version - b.version);
+
+  const record = db.prepare(
+    'INSERT INTO schema_migrations(version, name, applied_at) VALUES(?, ?, ?)'
+  );
+
+  for (const m of migrations) {
+    if (applied.has(m.version)) continue;
+    const run = () => { m.up(db); record.run(m.version, m.name, new Date().toISOString()); };
+    if (m.manualTransaction) run();   // migration owns its own tx/PRAGMA sequencing
+    else tx(run);
+  }
 }
 
-// One-time teardown of tables for modules that no longer exist (Licenses,
-// Insurance). DROP IF EXISTS is a no-op once they're gone / on a fresh DB.
-function dropRemovedModuleTables() {
-  try {
-    db.exec(`
-      DROP TABLE IF EXISTS license_extras;
-      DROP TABLE IF EXISTS licenses;
-      DROP TABLE IF EXISTS insurance_extras;
-      DROP TABLE IF EXISTS insurance;
-    `);
-  } catch { /* non-critical */ }
+// Step 3 — best-effort housekeeping. Never throws; never blocks boot.
+function runMaintenance() {
+  if (!dbWasNew) rotateBackups();   // snapshot an existing DB before the user touches it
+}
+
+// Was the database file freshly created this run? (e.g. first launch → show setup)
+function isFreshDatabase() {
+  return dbWasNew;
 }
 
 // Snapshot the current DB into <userData>/backups/, keeping the newest `keep`.
@@ -235,57 +153,303 @@ function rotateBackups(keep = 5) {
   } catch { /* non-critical */ }
 }
 
-// ── Days ──────────────────────────────────────────────────────────────────────
-function saveDay(dateStr, data) {
+// ── Users (authentication) ──────────────────────────────────────────────────
+// Row shape: { id, username, password_hash, created_at, is_active }. Password
+// hashing/verification lives in auth.js — this layer only stores/reads the hash.
+// Counts only ACTIVE accounts: an inactive '__unclaimed__' placeholder (created
+// by migration 002 to own pre-existing data) must not count as "a user exists",
+// so first-run setup still appears and claims it.
+function countUsers() {
+  return db.prepare('SELECT COUNT(*) AS n FROM users WHERE is_active = 1').get().n;
+}
+
+// The inactive placeholder that owns pre-existing data on a database that had
+// data before any account was created (see migration 002). null if none.
+function getUnclaimedUser() {
+  return db.prepare(
+    "SELECT id FROM users WHERE is_active = 0 AND username = '__unclaimed__' LIMIT 1"
+  ).get() || null;
+}
+
+// Turn the placeholder into the real first account, in place, so it keeps owning
+// all the data migration 002 assigned to it.
+function claimUser(id, username, passwordHash) {
+  db.prepare('UPDATE users SET username = ?, password_hash = ?, is_active = 1 WHERE id = ?')
+    .run(username, passwordHash, id);
+}
+
+function getUserByUsername(username) {
+  return db.prepare(
+    'SELECT id, username, password_hash, created_at, is_active FROM users WHERE username = ?'
+  ).get(username) || null;
+}
+
+function getUserById(id) {
+  return db.prepare(
+    'SELECT id, username, created_at, is_active FROM users WHERE id = ?'
+  ).get(id) || null;
+}
+
+// Insert a new account and return its generated id. Caller supplies an already
+// hashed password. Throws on a duplicate username (UNIQUE constraint).
+function createUser(username, passwordHash) {
+  const info = db.prepare(
+    'INSERT INTO users(username, password_hash, created_at, is_active) VALUES(?, ?, ?, 1)'
+  ).run(username, passwordHash, new Date().toISOString());
+  return Number(info.lastInsertRowid);
+}
+
+// ── Days + entries ──────────────────────────────────────────────────────────
+// Storage is normalized: a `days` row (owner + date + employee_name) with child
+// `day_entries`. The renderer still works with the shape { name, rows[] } where
+// each row is { company, project, natural, time, description, source, status,
+// minutes, tags[] } — these functions translate between the two and scope every
+// query to the authenticated user (`userId`).
+
+// Stored day_entries row → renderer row shape (note the renamed columns:
+// activity_type→natural, time_type→time; minutes null → '' for the UI). `eid` is
+// the stable DB id, carried on the row so saveDay can update entries in place
+// (per-entry UPSERT) instead of rewriting them.
+function entryToRow(e) {
+  return {
+    eid: e.id,
+    company: e.company || '', project: e.project || '',
+    natural: e.activity_type || '', time: e.time_type || '',
+    description: e.description || '', source: e.source || '',
+    status: e.status || 'In Progress',
+    minutes: (e.minutes === null || e.minutes === undefined) ? '' : e.minutes,
+    tags: safeParse(e.tags, []),
+  };
+}
+
+const ENTRY_COLS = 'id, company, project, activity_type, time_type, description, source, status, minutes, tags';
+
+// Renderer row → normalized column values (the inverse of entryToRow).
+function rowToEntry(r) {
+  const mins = (r.minutes === '' || r.minutes === null || r.minutes === undefined) ? null : Number(r.minutes);
+  return {
+    company: r.company ?? '', project: r.project ?? '',
+    activity_type: r.natural ?? '', time_type: r.time ?? '',
+    description: r.description ?? '', source: r.source ?? '',
+    status: r.status === 'Done' ? 'Done' : 'In Progress',
+    minutes: Number.isFinite(mins) ? mins : null,
+    tags: JSON.stringify(Array.isArray(r.tags) ? r.tags : []),
+  };
+}
+
+function getDayRow(userId, dateStr) {
+  return db.prepare('SELECT id, employee_name FROM days WHERE user_id = ? AND date = ?')
+    .get(userId, dateStr) || null;
+}
+
+// Persist one day with a per-entry UPSERT (not a full rewrite):
+//   • a row whose `eid` matches an existing entry → UPDATE that entry in place
+//   • a new row (no/unknown eid) → INSERT
+//   • an existing entry no longer present in the rows → DELETE
+// Returns { eids: [...] } — the canonical entry id for each input row, in order,
+// so the renderer can adopt the ids of freshly-inserted rows (keeping subsequent
+// saves stable). A content-match fallback + a `consumed` guard make the operation
+// idempotent and safe under re-saves, duplicates, and cross-day moves even before
+// the renderer has reconciled ids.
+function saveDay(userId, dateStr, data) {
   const name = data?.name || '';
-  const rows = JSON.stringify(data?.rows || []);
-  db.prepare(`INSERT INTO days(date, name, rows) VALUES(?, ?, ?)
-              ON CONFLICT(date) DO UPDATE SET name = excluded.name, rows = excluded.rows`)
-    .run(dateStr, name, rows);
+  const rows = Array.isArray(data?.rows) ? data.rows : [];
+  const now  = new Date().toISOString();
+  const eids = new Array(rows.length).fill(null);
+
+  tx(() => {
+    db.prepare(`INSERT INTO days(user_id, date, employee_name, created_at, updated_at)
+                VALUES(?, ?, ?, ?, ?)
+                ON CONFLICT(user_id, date)
+                DO UPDATE SET employee_name = excluded.employee_name, updated_at = excluded.updated_at`)
+      .run(userId, dateStr, name, now, now);
+    const day = getDayRow(userId, dateStr);
+
+    const existing = db.prepare(
+      `SELECT ${ENTRY_COLS} FROM day_entries WHERE day_id = ? ORDER BY sort_order, id`
+    ).all(day.id);
+    const byId = new Map(existing.map(e => [e.id, e]));
+    const consumed = new Set();
+
+    const upd = db.prepare(`UPDATE day_entries SET
+      company=?, project=?, activity_type=?, time_type=?, description=?, source=?, status=?, minutes=?, tags=?, sort_order=?, updated_at=?
+      WHERE id=?`);
+    const ins = db.prepare(`INSERT INTO day_entries
+      (user_id, day_id, company, project, activity_type, time_type, description, source, status, minutes, tags, sort_order, created_at, updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+
+    const sameContent = (e, n) =>
+      e.company === n.company && e.project === n.project &&
+      e.activity_type === n.activity_type && e.time_type === n.time_type &&
+      e.description === n.description && e.source === n.source &&
+      e.status === n.status && (e.minutes ?? null) === n.minutes &&
+      (e.tags || '[]') === n.tags;
+
+    rows.forEach((r, i) => {
+      const n = rowToEntry(r);
+      let eid = null;
+      if (r.eid != null && byId.has(r.eid) && !consumed.has(r.eid)) {
+        eid = r.eid;                                   // 1) match by stable id
+      } else {
+        const m = existing.find(e => !consumed.has(e.id) && sameContent(e, n));
+        if (m) eid = m.id;                             // 2) content-match (idempotent re-save)
+      }
+      if (eid != null) {
+        consumed.add(eid);
+        upd.run(n.company, n.project, n.activity_type, n.time_type, n.description, n.source, n.status, n.minutes, n.tags, i, now, eid);
+      } else {
+        eid = Number(ins.run(userId, day.id, n.company, n.project, n.activity_type, n.time_type, n.description, n.source, n.status, n.minutes, n.tags, i, now, now).lastInsertRowid);
+        consumed.add(eid);
+      }
+      eids[i] = eid;
+    });
+
+    const del = db.prepare('DELETE FROM day_entries WHERE id = ?');
+    for (const e of existing) if (!consumed.has(e.id)) del.run(e.id);
+  });
+
+  return { eids };
 }
 
-function loadDay(dateStr) {
-  const row = db.prepare('SELECT name, rows FROM days WHERE date = ?').get(dateStr);
-  if (!row) return null;
-  return { name: row.name, rows: safeParse(row.rows, []) };
+function loadDay(userId, dateStr) {
+  const day = getDayRow(userId, dateStr);
+  if (!day) return null;
+  const rows = db.prepare(
+    `SELECT ${ENTRY_COLS} FROM day_entries WHERE day_id = ? ORDER BY sort_order, id`
+  ).all(day.id).map(entryToRow);
+  return { name: day.employee_name, rows };
 }
 
-function listDays() {
-  return db.prepare('SELECT date FROM days ORDER BY date DESC').all().map(r => r.date);
+// Only days that actually have entries (avoids phantom "has data" calendar marks
+// for an empty day row). Newest first.
+function listDays(userId) {
+  return db.prepare(
+    `SELECT d.date FROM days d
+     WHERE d.user_id = ? AND EXISTS (SELECT 1 FROM day_entries e WHERE e.day_id = d.id)
+     ORDER BY d.date DESC`
+  ).all(userId).map(r => r.date);
 }
 
-// All days in [from, to] inclusive, oldest first — one query (powers Analytics +
-// range reports without N IPC round-trips). Returns [{date, name, rows[]}].
-function loadDaysRange(from, to) {
-  const recs = db.prepare(
-    'SELECT date, name, rows FROM days WHERE date >= ? AND date <= ? ORDER BY date ASC'
-  ).all(from, to);
-  return recs.map(r => ({ date: r.date, name: r.name, rows: safeParse(r.rows, []) }));
+// All days in [from, to] inclusive, oldest first — two queries total (days, then
+// their entries) instead of N round-trips. Returns [{date, name, rows[]}].
+function loadDaysRange(userId, from, to) {
+  const days = db.prepare(
+    'SELECT id, date, employee_name FROM days WHERE user_id = ? AND date >= ? AND date <= ? ORDER BY date ASC'
+  ).all(userId, from, to);
+  if (days.length === 0) return [];
+
+  const byId = new Map(days.map(d => [d.id, { date: d.date, name: d.employee_name, rows: [] }]));
+  const placeholders = days.map(() => '?').join(',');
+  const entries = db.prepare(
+    `SELECT day_id, ${ENTRY_COLS} FROM day_entries WHERE day_id IN (${placeholders}) ORDER BY sort_order, id`
+  ).all(...days.map(d => d.id));
+  for (const e of entries) { const d = byId.get(e.day_id); if (d) d.rows.push(entryToRow(e)); }
+  return days.map(d => byId.get(d.id));
+}
+
+// ── Analytics aggregation (computed in SQL, not by shipping rows to the UI) ────
+// All rollups the Analytics view needs, scoped to the user:
+//   • period [from, to]  → totals + group-by-{company, project, time_type,
+//                          activity_type} maps used for KPIs / bars / donuts
+//   • span [spanFrom, spanTo] → per-day minute totals (all + Over-Time only) for
+//                          the trend line and the activity heatmap
+// Returns plain numbers + { key: minutes } maps; the renderer only draws them.
+function getAnalytics(userId, from, to, spanFrom, spanTo) {
+  const period = [userId, from, to];
+  const SCOPE = `FROM days d JOIN day_entries e ON e.day_id = d.id
+                 WHERE d.user_id = ? AND d.date >= ? AND d.date <= ?`;
+
+  const totals = db.prepare(
+    `SELECT COALESCE(SUM(e.minutes),0) AS totalMin,
+            COUNT(*) AS recordCount,
+            SUM(CASE WHEN e.status = 'Done' THEN 1 ELSE 0 END) AS doneCount ${SCOPE}`
+  ).get(...period);
+
+  const activeDays = db.prepare(
+    `SELECT COUNT(*) AS n FROM (
+       SELECT d.date ${SCOPE} GROUP BY d.date HAVING COALESCE(SUM(e.minutes),0) > 0
+     )`
+  ).get(...period).n;
+
+  const mapOf = (sql) => {
+    const m = {};
+    for (const r of db.prepare(sql).all(...period)) m[r.k] = r.v;
+    return m;
+  };
+  // company/project: sum all (incl. 0) for non-empty keys (UI filters >0).
+  const byCompany = mapOf(`SELECT e.company AS k, COALESCE(SUM(e.minutes),0) AS v ${SCOPE} AND e.company <> '' GROUP BY e.company`);
+  const byProject = mapOf(`SELECT e.project AS k, COALESCE(SUM(e.minutes),0) AS v ${SCOPE} AND e.project <> '' GROUP BY e.project`);
+  // donuts only count entries with logged minutes.
+  const byNatural = mapOf(`SELECT e.activity_type AS k, SUM(e.minutes) AS v ${SCOPE} AND e.activity_type <> '' AND e.minutes > 0 GROUP BY e.activity_type`);
+  const byType    = mapOf(`SELECT CASE WHEN e.time_type = '' THEN 'Other' ELSE e.time_type END AS k, SUM(e.minutes) AS v ${SCOPE} AND e.minutes > 0 GROUP BY k`);
+
+  const perDay = (otOnly) => {
+    const m = {};
+    const sql = `SELECT d.date AS date, COALESCE(SUM(e.minutes),0) AS mins
+                 FROM days d JOIN day_entries e ON e.day_id = d.id
+                 WHERE d.user_id = ? AND d.date >= ? AND d.date <= ?
+                 ${otOnly ? "AND e.time_type = 'Over Time'" : ''}
+                 GROUP BY d.date`;
+    for (const r of db.prepare(sql).all(userId, spanFrom, spanTo)) m[r.date] = r.mins;
+    return m;
+  };
+
+  return {
+    totalMin: totals.totalMin, recordCount: totals.recordCount, doneCount: totals.doneCount || 0,
+    activeDays, byCompany, byProject, byNatural, byType,
+    dayMin: perDay(false), dayOtMin: perDay(true),
+  };
+}
+
+// Overview "now" numbers (today + month-to-date), computed in SQL.
+function getOverviewStats(userId, today, monthStart) {
+  const t = db.prepare(
+    `SELECT COALESCE(SUM(e.minutes),0) AS mins, COUNT(*) AS recs
+     FROM days d JOIN day_entries e ON e.day_id = d.id
+     WHERE d.user_id = ? AND d.date = ?`
+  ).get(userId, today);
+  const m = db.prepare(
+    `SELECT COALESCE(SUM(e.minutes),0) AS mins, COUNT(DISTINCT d.date) AS days
+     FROM days d JOIN day_entries e ON e.day_id = d.id
+     WHERE d.user_id = ? AND d.date >= ? AND d.date <= ?`
+  ).get(userId, monthStart, today);
+  return { todayMin: t.mins, todayRecs: t.recs, monthMin: m.mins, daysLogged: m.days };
 }
 
 // ── Backlog ("Not Yet" pool) ────────────────────────────────────────────────────
 // A day-agnostic list of tasks. Returns { backlog: [...] }; mirrors the
 // subscriptions IPC shape so the renderer treats it the same way.
-function loadBacklog() {
+function loadBacklog(userId) {
   const backlog = db.prepare(
-    'SELECT id, company, project, natural, time, description, source, tags FROM backlog ORDER BY sort_order'
-  ).all().map(t => ({
+    'SELECT id, company, project, activity_type, time_type, description, source, tags FROM backlog WHERE user_id = ? ORDER BY sort_order'
+  ).all(userId).map(t => ({
     id: t.id,
-    company: t.company || '', project: t.project || '', natural: t.natural || '', time: t.time || '',
+    company: t.company || '', project: t.project || '', natural: t.activity_type || '', time: t.time_type || '',
     description: t.description || '', source: t.source || '',
     tags: safeParse(t.tags, []),
   }));
   return { backlog };
 }
 
-function saveBacklog(data) {
+// Upsert each task in place and delete only the tasks that were removed — no
+// blanket delete-all + reinsert. Scoped to the owner.
+function saveBacklog(userId, data) {
   const list = Array.isArray(data?.backlog) ? data.backlog : [];
   tx(() => {
-    db.exec('DELETE FROM backlog');
-    const stmt = db.prepare(`INSERT INTO backlog(id, company, project, natural, time, description, source, tags, sort_order)
-                             VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-    list.forEach((t, i) => stmt.run(
-      t.id, t.company ?? '', t.project ?? '', t.natural ?? '', t.time ?? '',
+    const keep = new Set(list.map(t => t.id));
+    const del = db.prepare('DELETE FROM backlog WHERE id = ? AND user_id = ?');
+    for (const row of db.prepare('SELECT id FROM backlog WHERE user_id = ?').all(userId)) {
+      if (!keep.has(row.id)) del.run(row.id, userId);
+    }
+    const up = db.prepare(`INSERT INTO backlog(id, user_id, company, project, activity_type, time_type, description, source, tags, sort_order)
+                           VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           ON CONFLICT(id) DO UPDATE SET
+                             company=excluded.company, project=excluded.project,
+                             activity_type=excluded.activity_type, time_type=excluded.time_type,
+                             description=excluded.description, source=excluded.source,
+                             tags=excluded.tags, sort_order=excluded.sort_order`);
+    list.forEach((t, i) => up.run(
+      t.id, userId, t.company ?? '', t.project ?? '', t.natural ?? '', t.time ?? '',
       t.description ?? '', t.source ?? '',
       JSON.stringify(Array.isArray(t.tags) ? t.tags : []), i
     ));
@@ -293,44 +457,60 @@ function saveBacklog(data) {
 }
 
 // ── Lookups ────────────────────────────────────────────────────────────────────
+// Lookups are shared application config (not per-user), stored in app_settings.
 function loadLookups() {
-  const v = metaGet('lookups');
+  const v = appGet('lookups');
   return v ? safeParse(v, DEFAULT_LOOKUPS) : DEFAULT_LOOKUPS;
 }
 function saveLookups(data) {
-  metaSet('lookups', JSON.stringify(data));
+  appSet('lookups', JSON.stringify(data));
 }
 
 // ── Subscriptions ───────────────────────────────────────────────────────────────
-function loadSubscriptions() {
+// Columns are snake_case in storage; aliased back to the camelCase shape the
+// renderer expects. `cost` is a REAL number.
+function loadSubscriptions(userId) {
   const subscriptions = db.prepare(
-    'SELECT id, name, cost, currency, billingCycle, endDate, renewalDate FROM subscriptions ORDER BY sort_order'
-  ).all();
-  const defaultCurrency = metaGet('subscriptions_default_currency') || 'USD';
+    `SELECT id, name, cost, currency,
+            billing_cycle AS billingCycle, end_date AS endDate, renewal_date AS renewalDate
+     FROM subscriptions WHERE user_id = ? ORDER BY sort_order`
+  ).all(userId);
+  const defaultCurrency = appGet('subscriptions_default_currency') || 'USD';
   return { subscriptions, defaultCurrency };
 }
-function saveSubscriptions(data) {
+function saveSubscriptions(userId, data) {
   const list = Array.isArray(data?.subscriptions) ? data.subscriptions : [];
   const currency = data?.defaultCurrency || 'USD';
   tx(() => {
-    db.exec('DELETE FROM subscriptions');
-    const stmt = db.prepare(`INSERT INTO subscriptions(id, name, cost, currency, billingCycle, endDate, renewalDate, sort_order)
-                             VALUES(?, ?, ?, ?, ?, ?, ?, ?)`);
-    list.forEach((s, i) => stmt.run(
-      s.id, s.name ?? '', s.cost ?? '', s.currency ?? '',
-      s.billingCycle ?? '', s.endDate ?? '', s.renewalDate ?? '', i
-    ));
-    metaSet('subscriptions_default_currency', currency);
+    const keep = new Set(list.map(s => s.id));
+    const del = db.prepare('DELETE FROM subscriptions WHERE id = ? AND user_id = ?');
+    for (const row of db.prepare('SELECT id FROM subscriptions WHERE user_id = ?').all(userId)) {
+      if (!keep.has(row.id)) del.run(row.id, userId);
+    }
+    const up = db.prepare(`INSERT INTO subscriptions(id, user_id, name, cost, currency, billing_cycle, end_date, renewal_date, sort_order)
+                           VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           ON CONFLICT(id) DO UPDATE SET
+                             name=excluded.name, cost=excluded.cost, currency=excluded.currency,
+                             billing_cycle=excluded.billing_cycle, end_date=excluded.end_date,
+                             renewal_date=excluded.renewal_date, sort_order=excluded.sort_order`);
+    list.forEach((s, i) => {
+      const cost = Number.parseFloat(String(s.cost ?? '').replace(/[^0-9.]/g, '')) || 0;
+      up.run(
+        s.id, userId, s.name ?? '', cost, s.currency || 'USD',
+        s.billingCycle || 'Monthly', s.endDate || null, s.renewalDate || null, i
+      );
+    });
+    appSet('subscriptions_default_currency', currency);
   });
 }
 
-// ── Window prefs ────────────────────────────────────────────────────────────────
+// ── Window prefs (this machine only) ──────────────────────────────────────────
 function loadPrefs() {
-  const v = metaGet('window_prefs');
+  const v = machineGet('window_prefs');
   return v ? safeParse(v, {}) : {};
 }
 function savePrefs(prefs) {
-  try { metaSet('window_prefs', JSON.stringify(prefs)); } catch { /* non-critical */ }
+  try { machineSet('window_prefs', JSON.stringify(prefs)); } catch { /* non-critical */ }
 }
 
 // ── Lifecycle / backup ──────────────────────────────────────────────────────
@@ -356,8 +536,11 @@ function dbPath() {
 }
 
 module.exports = {
-  init, close, backup, dbPath,
+  openConnection, applyMigrations, runMaintenance, isFreshDatabase,
+  close, backup, dbPath,
+  countUsers, getUserByUsername, getUserById, createUser, getUnclaimedUser, claimUser,
   saveDay, loadDay, listDays, loadDaysRange,
+  getAnalytics, getOverviewStats,
   loadBacklog, saveBacklog,
   loadLookups, saveLookups,
   loadSubscriptions, saveSubscriptions,

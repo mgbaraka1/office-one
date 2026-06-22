@@ -28,5 +28,20 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Environment / secrets — commit only the example, never a real .env
+.env
+.env.*
+!.env.example
+
+# SQLite database files must never be committed. The live store lives under
+# %APPDATA%\timesheet (outside the repo); these patterns are a safety net in case
+# a copy is ever placed in the working tree.
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+backups/
+
 # Local app data is stored under %APPDATA%\timesheet (outside the repo) and is
 # never committed — listed here only as a reminder.
