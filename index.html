@@ -1277,14 +1277,13 @@
     <div class="an-period" id="an-period">
       <button class="an-period-btn" data-period="week"  onclick="setAnPeriod('week')">This Week</button>
       <button class="an-period-btn active" data-period="month" onclick="setAnPeriod('month')">This Month</button>
-      <button class="an-period-btn" data-period="30"    onclick="setAnPeriod('30')">Last 30 Days</button>
       <button class="an-period-btn" data-period="year"  onclick="setAnPeriod('year')">This Year</button>
       <button class="an-period-btn" data-period="custom" onclick="setAnPeriod('custom')">Custom</button>
     </div>
     <div class="an-range" id="an-range">
-      <input type="date" id="an-from" onchange="renderAnalytics()" />
+      <input type="month" id="an-from" onchange="renderAnalytics()" />
       <span>→</span>
-      <input type="date" id="an-to" onchange="renderAnalytics()" />
+      <input type="month" id="an-to" onchange="renderAnalytics()" />
     </div>
     <div class="topbar-right">
       <button class="btn" onclick="exportAnalyticsPDF()" title="Save this analytics view as PDF">⬇ PDF</button>
@@ -1950,7 +1949,7 @@ let _undoBacklogTimer = null;
 
 // ── Analytics state ──
 let analyticsLoaded = false;
-let anPeriod        = 'month';   // week | month | 30 | year | custom
+let anPeriod        = 'month';   // week | month | year | custom
 
 // ── Helpers ──
 // Format a Date as a local YYYY-MM-DD string. Uses local calendar components
@@ -3982,9 +3981,9 @@ function setAnPeriod(p) {
   const range = document.getElementById('an-range');
   range.classList.toggle('show', p === 'custom');
   if (p === 'custom' && !document.getElementById('an-from').value) {
-    const start = new Date(); start.setDate(start.getDate() - 29);
-    document.getElementById('an-from').value = fmt(start);
-    document.getElementById('an-to').value   = fmt(new Date());
+    const now = fmt(new Date()).slice(0, 7); // YYYY-MM
+    document.getElementById('an-from').value = now;
+    document.getElementById('an-to').value   = now;
   }
   renderAnalytics();
 }
@@ -3994,10 +3993,17 @@ function anRange() {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const to = fmt(today);
   if (anPeriod === 'custom') {
-    let from = document.getElementById('an-from').value || to;
-    let t    = document.getElementById('an-to').value   || to;
-    if (from > t) { const x = from; from = t; t = x; }
-    return { from, to: t, label: `${from} → ${t}` };
+    const curM = to.slice(0, 7); // YYYY-MM
+    let fromM = document.getElementById('an-from').value || curM;
+    let toM   = document.getElementById('an-to').value   || fromM;
+    if (fromM > toM) { const x = fromM; fromM = toM; toM = x; }
+    const [fy, fmo] = fromM.split('-').map(Number);
+    const [ty, tmo] = toM.split('-').map(Number);
+    const from = fmt(new Date(fy, fmo - 1, 1));   // first day of from-month
+    const t    = fmt(new Date(ty, tmo, 0));        // last day of to-month
+    const monthLabel = (y, m) => new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    const label = fromM === toM ? monthLabel(fy, fmo) : `${monthLabel(fy, fmo)} → ${monthLabel(ty, tmo)}`;
+    return { from, to: t, label };
   }
   if (anPeriod === 'week') {
     const s = new Date(today); s.setDate(today.getDate() - today.getDay()); // back to Sunday
@@ -4011,9 +4017,9 @@ function anRange() {
     const s = new Date(today.getFullYear(), 0, 1);
     return { from: fmt(s), to, label: String(today.getFullYear()) };
   }
-  // last 30 days
-  const s = new Date(today); s.setDate(today.getDate() - 29);
-  return { from: fmt(s), to, label: 'Last 30 days' };
+  // fallback: this month
+  const s = new Date(today.getFullYear(), today.getMonth(), 1);
+  return { from: fmt(s), to, label: today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) };
 }
 
 async function renderAnalytics() {
@@ -4068,19 +4074,15 @@ async function renderAnalytics() {
   renderAnBars('an-company', byCompany, 'an-company-sub');
   renderAnBars('an-project', byProject, 'an-project-sub');
 
-  // ── Daily hours + companion Part-Time trend ──
-  // These two are pinned to the current month (month-to-date), independent of the
-  // period selector that drives the KPIs and bar/donut charts.
-  const monthFrom  = fmt(new Date(todayD.getFullYear(), todayD.getMonth(), 1));
-  const monthTo    = fmt(todayD);
-  const monthLabel = todayD.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  document.getElementById('an-trend').innerHTML = anTrend(monthFrom, monthTo, dayMin);
-  document.getElementById('an-trend-sub').textContent = monthLabel;
-  const hasOt = Object.keys(dayOtMin).some(d => d >= monthFrom && d <= monthTo && dayOtMin[d] > 0);
+  // ── Daily hours + companion Over-Time trend ──
+  // These follow the selected period so the charts reflect the searched range.
+  document.getElementById('an-trend').innerHTML = anTrend(from, to, dayMin);
+  document.getElementById('an-trend-sub').textContent = label;
+  const hasOt = Object.keys(dayOtMin).some(d => d >= from && d <= to && dayOtMin[d] > 0);
   document.getElementById('an-trend-ot').innerHTML = hasOt
-    ? anTrend(monthFrom, monthTo, dayOtMin)
-    : `<div class="an-empty">No over-time hours this month.</div>`;
-  document.getElementById('an-trend-ot-sub').textContent = hasOt ? monthLabel : '';
+    ? anTrend(from, to, dayOtMin)
+    : `<div class="an-empty">No over-time hours in this period.</div>`;
+  document.getElementById('an-trend-ot-sub').textContent = hasOt ? label : '';
 
   // ── Time breakdown donut (by time type) ──
   const typeSegs = Object.entries(byType)

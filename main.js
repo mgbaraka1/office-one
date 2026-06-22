@@ -49,7 +49,12 @@ function createWindow() {
     } catch { /* not a valid URL — ignore */ }
     return { action: 'deny' };
   });
-  win.webContents.on('will-navigate', (e) => e.preventDefault());
+  // Block navigation *away* from the app (defense in depth), but allow a reload
+  // of our own page — logout (doLogout → location.reload) relies on it, and a
+  // reload fires will-navigate with the current URL as its target.
+  win.webContents.on('will-navigate', (e, url) => {
+    if (url !== win.webContents.getURL()) e.preventDefault();
+  });
 
   win.on('close', (e) => {
     // Persist window state on every close attempt. Use getNormalBounds() so the
