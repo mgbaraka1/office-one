@@ -20,14 +20,12 @@ const { DatabaseSync } = require('node:sqlite');
 const path = require('node:path');
 const fs   = require('node:fs');
 
-// ── Defaults / seed data ──────────────────────────────────────────────────────
-const DEFAULT_LOOKUPS = {
-  companies: ['Amana', 'Arabia', 'Liva', 'Maknanah', 'ACME', 'Elm Almaknanah', 'AJT', 'Saudi Enaya', 'Salama'],
-  projects:  ['Visa', 'Online Platform', 'Data Hub', 'QA Test', 'Uploader', 'BILLING Visa', 'Payment Gateway', '-'],
-  natural:   ['Ticket', 'Task', 'Meeting', 'Call', '-'],
-  timeType:  ['Work Time', 'Over Time', 'Training', 'Leave', 'Holiday'],
-  status:    ['Done', 'In Progress'],
-};
+// ── Lookup catalog categories (see migration 003) ────────────────────────────
+// Every bounded category/type/status field is normalized into the `lookup_codes`
+// table under one of these category discriminators. The renderer fetches options
+// per-category and stores a stable `code` (logic fields) or display `label`
+// (company/project/activity) — never a hardcoded string.
+const LOOKUP_CATEGORIES = ['COMPANY', 'PROJECT', 'ACTIVITY_TYPE', 'TIME_TYPE', 'ENTRY_STATUS', 'CURRENCY', 'BILLING_CYCLE'];
 
 let db;          // DatabaseSync instance
 let userDataDir; // resolved userData folder (backups, db file)
@@ -68,6 +66,42 @@ const appGet = (key) => kvGet('app_settings', key);
 const appSet = (key, value) => kvSet('app_settings', key, value);
 const machineGet = (key) => kvGet('machine_prefs', key);
 const machineSet = (key, value) => kvSet('machine_prefs', key, value);
+
+// ── Lookup catalog cache (normalized categories) ──────────────────────────────
+// An in-memory snapshot of `lookup_codes`, rebuilt lazily and invalidated on edit.
+// Used to resolve a category value → its id on WRITE (accepting either the stable
+// `code` or the display `label`), and an id → its code/label on READ.
+let lkCache = null;
+function lkBuild() {
+  const rows = db.prepare(
+    'SELECT id, category, code, label, sort_order, is_active FROM lookup_codes ORDER BY category, sort_order, id'
+  ).all();
+  const byCat = {}, idTo = new Map(), valToId = new Map();
+  for (const r of rows) {
+    (byCat[r.category] ||= []).push(r);
+    idTo.set(r.id, r);
+    valToId.set(r.category + '|' + r.code, r.id);
+    // a display label resolves too (company/project rows round-trip by label)
+    if (!valToId.has(r.category + '|' + r.label)) valToId.set(r.category + '|' + r.label, r.id);
+  }
+  lkCache = { byCat, idTo, valToId };
+}
+function lk() { if (!lkCache) lkBuild(); return lkCache; }
+function lkInvalidate() { lkCache = null; }
+// value may be a stable code OR a display label; '' / null → null (unset).
+function lkId(category, value) {
+  if (value == null || value === '') return null;
+  return lk().valToId.get(category + '|' + value) ?? null;
+}
+function lkCode(id)  { const r = id == null ? null : lk().idTo.get(id); return r ? r.code  : ''; }
+function lkLabel(id) { const r = id == null ? null : lk().idTo.get(id); return r ? r.label : ''; }
+function slugCode(s) { return String(s).toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'NA'; }
+function uniqueCode(category, base) {
+  const exists = db.prepare('SELECT 1 FROM lookup_codes WHERE category = ? AND code = ?');
+  let code = base, i = 2;
+  while (exists.get(category, code)) code = base + '_' + (i++);
+  return code;
+}
 
 // ── Boot sequence ─────────────────────────────────────────────────────────────
 // Boot is three explicit, sequential steps (called in order from main.js):
@@ -210,28 +244,31 @@ function createUser(username, passwordHash) {
 // activity_type→natural, time_type→time; minutes null → '' for the UI). `eid` is
 // the stable DB id, carried on the row so saveDay can update entries in place
 // (per-entry UPSERT) instead of rewriting them.
+// Category fields are stored as FK ids into lookup_codes. Display fields
+// (company/project/natural) round-trip as their LABEL; logic fields (time/status)
+// round-trip as their stable CODE, so the renderer compares codes, never strings.
 function entryToRow(e) {
   return {
     eid: e.id,
-    company: e.company || '', project: e.project || '',
-    natural: e.activity_type || '', time: e.time_type || '',
+    company: lkLabel(e.company_id), project: lkLabel(e.project_id),
+    natural: lkLabel(e.activity_type_id), time: lkCode(e.time_type_id),
     description: e.description || '', source: e.source || '',
-    status: e.status || 'In Progress',
+    status: lkCode(e.status_id) || 'IN_PROGRESS',
     minutes: (e.minutes === null || e.minutes === undefined) ? '' : e.minutes,
     tags: safeParse(e.tags, []),
   };
 }
 
-const ENTRY_COLS = 'id, company, project, activity_type, time_type, description, source, status, minutes, tags';
+const ENTRY_COLS = 'id, company_id, project_id, activity_type_id, time_type_id, status_id, description, source, minutes, tags';
 
-// Renderer row → normalized column values (the inverse of entryToRow).
+// Renderer row → normalized FK column values (the inverse of entryToRow).
 function rowToEntry(r) {
   const mins = (r.minutes === '' || r.minutes === null || r.minutes === undefined) ? null : Number(r.minutes);
   return {
-    company: r.company ?? '', project: r.project ?? '',
-    activity_type: r.natural ?? '', time_type: r.time ?? '',
+    company_id: lkId('COMPANY', r.company), project_id: lkId('PROJECT', r.project),
+    activity_type_id: lkId('ACTIVITY_TYPE', r.natural), time_type_id: lkId('TIME_TYPE', r.time),
+    status_id: lkId('ENTRY_STATUS', r.status) ?? lkId('ENTRY_STATUS', 'IN_PROGRESS'),
     description: r.description ?? '', source: r.source ?? '',
-    status: r.status === 'Done' ? 'Done' : 'In Progress',
     minutes: Number.isFinite(mins) ? mins : null,
     tags: JSON.stringify(Array.isArray(r.tags) ? r.tags : []),
   };
@@ -272,18 +309,17 @@ function saveDay(userId, dateStr, data) {
     const consumed = new Set();
 
     const upd = db.prepare(`UPDATE day_entries SET
-      company=?, project=?, activity_type=?, time_type=?, description=?, source=?, status=?, minutes=?, tags=?, sort_order=?, updated_at=?
+      company_id=?, project_id=?, activity_type_id=?, time_type_id=?, status_id=?, description=?, source=?, minutes=?, tags=?, sort_order=?, updated_at=?
       WHERE id=?`);
     const ins = db.prepare(`INSERT INTO day_entries
-      (user_id, day_id, company, project, activity_type, time_type, description, source, status, minutes, tags, sort_order, created_at, updated_at)
+      (user_id, day_id, company_id, project_id, activity_type_id, time_type_id, status_id, description, source, minutes, tags, sort_order, created_at, updated_at)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
 
     const sameContent = (e, n) =>
-      e.company === n.company && e.project === n.project &&
-      e.activity_type === n.activity_type && e.time_type === n.time_type &&
-      e.description === n.description && e.source === n.source &&
-      e.status === n.status && (e.minutes ?? null) === n.minutes &&
-      (e.tags || '[]') === n.tags;
+      e.company_id === n.company_id && e.project_id === n.project_id &&
+      e.activity_type_id === n.activity_type_id && e.time_type_id === n.time_type_id &&
+      e.status_id === n.status_id && e.description === n.description && e.source === n.source &&
+      (e.minutes ?? null) === n.minutes && (e.tags || '[]') === n.tags;
 
     rows.forEach((r, i) => {
       const n = rowToEntry(r);
@@ -296,9 +332,9 @@ function saveDay(userId, dateStr, data) {
       }
       if (eid != null) {
         consumed.add(eid);
-        upd.run(n.company, n.project, n.activity_type, n.time_type, n.description, n.source, n.status, n.minutes, n.tags, i, now, eid);
+        upd.run(n.company_id, n.project_id, n.activity_type_id, n.time_type_id, n.status_id, n.description, n.source, n.minutes, n.tags, i, now, eid);
       } else {
-        eid = Number(ins.run(userId, day.id, n.company, n.project, n.activity_type, n.time_type, n.description, n.source, n.status, n.minutes, n.tags, i, now, now).lastInsertRowid);
+        eid = Number(ins.run(userId, day.id, n.company_id, n.project_id, n.activity_type_id, n.time_type_id, n.status_id, n.description, n.source, n.minutes, n.tags, i, now, now).lastInsertRowid);
         consumed.add(eid);
       }
       eids[i] = eid;
@@ -356,18 +392,20 @@ function loadDaysRange(userId, from, to) {
 // Returns plain numbers + { key: minutes } maps; the renderer only draws them.
 function getAnalytics(userId, from, to, spanFrom, spanTo) {
   const period = [userId, from, to];
-  const SCOPE = `FROM days d JOIN day_entries e ON e.day_id = d.id
-                 WHERE d.user_id = ? AND d.date >= ? AND d.date <= ?`;
+  const FROM  = `FROM days d JOIN day_entries e ON e.day_id = d.id`;
+  const WHERE = `WHERE d.user_id = ? AND d.date >= ? AND d.date <= ?`;
+  const doneId = lkId('ENTRY_STATUS', 'DONE');
+  const otId   = lkId('TIME_TYPE', 'OVERTIME');
 
   const totals = db.prepare(
     `SELECT COALESCE(SUM(e.minutes),0) AS totalMin,
             COUNT(*) AS recordCount,
-            SUM(CASE WHEN e.status = 'Done' THEN 1 ELSE 0 END) AS doneCount ${SCOPE}`
-  ).get(...period);
+            SUM(CASE WHEN e.status_id = ? THEN 1 ELSE 0 END) AS doneCount ${FROM} ${WHERE}`
+  ).get(doneId, ...period);
 
   const activeDays = db.prepare(
     `SELECT COUNT(*) AS n FROM (
-       SELECT d.date ${SCOPE} GROUP BY d.date HAVING COALESCE(SUM(e.minutes),0) > 0
+       SELECT d.date ${FROM} ${WHERE} GROUP BY d.date HAVING COALESCE(SUM(e.minutes),0) > 0
      )`
   ).get(...period).n;
 
@@ -376,21 +414,21 @@ function getAnalytics(userId, from, to, spanFrom, spanTo) {
     for (const r of db.prepare(sql).all(...period)) m[r.k] = r.v;
     return m;
   };
-  // company/project: sum all (incl. 0) for non-empty keys (UI filters >0).
-  const byCompany = mapOf(`SELECT e.company AS k, COALESCE(SUM(e.minutes),0) AS v ${SCOPE} AND e.company <> '' GROUP BY e.company`);
-  const byProject = mapOf(`SELECT e.project AS k, COALESCE(SUM(e.minutes),0) AS v ${SCOPE} AND e.project <> '' GROUP BY e.project`);
+  // company/project/natural keyed by display LABEL (INNER JOIN drops unset FKs).
+  const byCompany = mapOf(`SELECT lc.label AS k, COALESCE(SUM(e.minutes),0) AS v ${FROM} JOIN lookup_codes lc ON lc.id = e.company_id ${WHERE} GROUP BY lc.label`);
+  const byProject = mapOf(`SELECT lc.label AS k, COALESCE(SUM(e.minutes),0) AS v ${FROM} JOIN lookup_codes lc ON lc.id = e.project_id ${WHERE} GROUP BY lc.label`);
   // donuts only count entries with logged minutes.
-  const byNatural = mapOf(`SELECT e.activity_type AS k, SUM(e.minutes) AS v ${SCOPE} AND e.activity_type <> '' AND e.minutes > 0 GROUP BY e.activity_type`);
-  const byType    = mapOf(`SELECT CASE WHEN e.time_type = '' THEN 'Other' ELSE e.time_type END AS k, SUM(e.minutes) AS v ${SCOPE} AND e.minutes > 0 GROUP BY k`);
+  const byNatural = mapOf(`SELECT lc.label AS k, SUM(e.minutes) AS v ${FROM} JOIN lookup_codes lc ON lc.id = e.activity_type_id ${WHERE} AND e.minutes > 0 GROUP BY lc.label`);
+  // time-type keyed by stable CODE; unset time_type buckets under 'OTHER'.
+  const byType    = mapOf(`SELECT COALESCE(lc.code, 'OTHER') AS k, SUM(e.minutes) AS v ${FROM} LEFT JOIN lookup_codes lc ON lc.id = e.time_type_id ${WHERE} AND e.minutes > 0 GROUP BY k`);
 
   const perDay = (otOnly) => {
     const m = {};
     const sql = `SELECT d.date AS date, COALESCE(SUM(e.minutes),0) AS mins
-                 FROM days d JOIN day_entries e ON e.day_id = d.id
-                 WHERE d.user_id = ? AND d.date >= ? AND d.date <= ?
-                 ${otOnly ? "AND e.time_type = 'Over Time'" : ''}
+                 ${FROM} ${WHERE} ${otOnly ? 'AND e.time_type_id = ?' : ''}
                  GROUP BY d.date`;
-    for (const r of db.prepare(sql).all(userId, spanFrom, spanTo)) m[r.date] = r.mins;
+    const args = otOnly ? [userId, spanFrom, spanTo, otId] : [userId, spanFrom, spanTo];
+    for (const r of db.prepare(sql).all(...args)) m[r.date] = r.mins;
     return m;
   };
 
@@ -421,10 +459,10 @@ function getOverviewStats(userId, today, monthStart) {
 // subscriptions IPC shape so the renderer treats it the same way.
 function loadBacklog(userId) {
   const backlog = db.prepare(
-    'SELECT id, company, project, activity_type, time_type, description, source, tags FROM backlog WHERE user_id = ? ORDER BY sort_order'
+    'SELECT id, company_id, project_id, activity_type_id, time_type_id, description, source, tags FROM backlog WHERE user_id = ? ORDER BY sort_order'
   ).all(userId).map(t => ({
     id: t.id,
-    company: t.company || '', project: t.project || '', natural: t.activity_type || '', time: t.time_type || '',
+    company: lkLabel(t.company_id), project: lkLabel(t.project_id), natural: lkLabel(t.activity_type_id), time: lkCode(t.time_type_id),
     description: t.description || '', source: t.source || '',
     tags: safeParse(t.tags, []),
   }));
@@ -441,29 +479,67 @@ function saveBacklog(userId, data) {
     for (const row of db.prepare('SELECT id FROM backlog WHERE user_id = ?').all(userId)) {
       if (!keep.has(row.id)) del.run(row.id, userId);
     }
-    const up = db.prepare(`INSERT INTO backlog(id, user_id, company, project, activity_type, time_type, description, source, tags, sort_order)
+    const up = db.prepare(`INSERT INTO backlog(id, user_id, company_id, project_id, activity_type_id, time_type_id, description, source, tags, sort_order)
                            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                            ON CONFLICT(id) DO UPDATE SET
-                             company=excluded.company, project=excluded.project,
-                             activity_type=excluded.activity_type, time_type=excluded.time_type,
+                             company_id=excluded.company_id, project_id=excluded.project_id,
+                             activity_type_id=excluded.activity_type_id, time_type_id=excluded.time_type_id,
                              description=excluded.description, source=excluded.source,
                              tags=excluded.tags, sort_order=excluded.sort_order`);
     list.forEach((t, i) => up.run(
-      t.id, userId, t.company ?? '', t.project ?? '', t.natural ?? '', t.time ?? '',
+      t.id, userId,
+      lkId('COMPANY', t.company), lkId('PROJECT', t.project),
+      lkId('ACTIVITY_TYPE', t.natural), lkId('TIME_TYPE', t.time),
       t.description ?? '', t.source ?? '',
       JSON.stringify(Array.isArray(t.tags) ? t.tags : []), i
     ));
   });
 }
 
-// ── Lookups ────────────────────────────────────────────────────────────────────
-// Lookups are shared application config (not per-user), stored in app_settings.
-function loadLookups() {
-  const v = appGet('lookups');
-  return v ? safeParse(v, DEFAULT_LOOKUPS) : DEFAULT_LOOKUPS;
+// ── Lookups (normalized catalog — shared app config, not per-user) ────────────
+// Options for one category, ordered for dropdowns. Active-only by default; the
+// Settings editor passes includeInactive to manage soft-disabled entries.
+function getLookupsByCategory(category, includeInactive = false) {
+  return (lk().byCat[category] || [])
+    .filter(r => includeInactive || r.is_active)
+    .map(r => ({ id: r.id, code: r.code, label: r.label, sortOrder: r.sort_order, isActive: !!r.is_active }));
 }
+// Full catalog (every category, incl. inactive) + the default employee name —
+// what the renderer loads once at boot to build all dropdowns.
+function loadLookups() {
+  const categories = {};
+  for (const cat of LOOKUP_CATEGORIES) categories[cat] = getLookupsByCategory(cat, true);
+  return { categories, defaultName: appGet('default_employee_name') || '' };
+}
+// Persist edits from the Settings catalog editor. Existing rows are updated in
+// place (label / order / active); new rows get a generated unique code. Entries
+// are NEVER hard-deleted — disable via isActive:false (soft-disable). Codes are
+// immutable once created (they are the stable identity historical rows point at).
 function saveLookups(data) {
-  appSet('lookups', JSON.stringify(data));
+  tx(() => {
+    if (data && data.categories) {
+      const now = new Date().toISOString();
+      const upd = db.prepare('UPDATE lookup_codes SET label = ?, sort_order = ?, is_active = ? WHERE id = ?');
+      const ins = db.prepare('INSERT INTO lookup_codes(category, code, label, sort_order, is_active, created_at) VALUES(?,?,?,?,?,?)');
+      for (const [cat, list] of Object.entries(data.categories)) {
+        if (!LOOKUP_CATEGORIES.includes(cat) || !Array.isArray(list)) continue;
+        list.forEach((item, i) => {
+          const label = String(item.label ?? '').trim();
+          if (!label) return;
+          const sort   = Number.isInteger(item.sortOrder) ? item.sortOrder : i;
+          const active = item.isActive === false ? 0 : 1;
+          if (item.id != null && lk().idTo.has(item.id)) {
+            upd.run(label, sort, active, item.id);
+          } else {
+            const code = uniqueCode(cat, String(item.code || '').trim().toUpperCase() || slugCode(label));
+            ins.run(cat, code, label, sort, active, now);
+          }
+        });
+      }
+    }
+    if (data && typeof data.defaultName === 'string') appSet('default_employee_name', data.defaultName.trim());
+  });
+  lkInvalidate();
 }
 
 // ── Subscriptions ───────────────────────────────────────────────────────────────
@@ -471,10 +547,15 @@ function saveLookups(data) {
 // renderer expects. `cost` is a REAL number.
 function loadSubscriptions(userId) {
   const subscriptions = db.prepare(
-    `SELECT id, name, cost, currency,
-            billing_cycle AS billingCycle, end_date AS endDate, renewal_date AS renewalDate
+    `SELECT id, name, cost, currency_id, billing_cycle_id,
+            end_date AS endDate, renewal_date AS renewalDate
      FROM subscriptions WHERE user_id = ? ORDER BY sort_order`
-  ).all(userId);
+  ).all(userId).map(s => ({
+    id: s.id, name: s.name, cost: s.cost,
+    currency: lkCode(s.currency_id) || 'USD',
+    billingCycle: lkCode(s.billing_cycle_id) || 'MONTHLY',
+    endDate: s.endDate, renewalDate: s.renewalDate,
+  }));
   const defaultCurrency = appGet('subscriptions_default_currency') || 'USD';
   return { subscriptions, defaultCurrency };
 }
@@ -487,17 +568,19 @@ function saveSubscriptions(userId, data) {
     for (const row of db.prepare('SELECT id FROM subscriptions WHERE user_id = ?').all(userId)) {
       if (!keep.has(row.id)) del.run(row.id, userId);
     }
-    const up = db.prepare(`INSERT INTO subscriptions(id, user_id, name, cost, currency, billing_cycle, end_date, renewal_date, sort_order)
+    const up = db.prepare(`INSERT INTO subscriptions(id, user_id, name, cost, currency_id, billing_cycle_id, end_date, renewal_date, sort_order)
                            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
                            ON CONFLICT(id) DO UPDATE SET
-                             name=excluded.name, cost=excluded.cost, currency=excluded.currency,
-                             billing_cycle=excluded.billing_cycle, end_date=excluded.end_date,
+                             name=excluded.name, cost=excluded.cost, currency_id=excluded.currency_id,
+                             billing_cycle_id=excluded.billing_cycle_id, end_date=excluded.end_date,
                              renewal_date=excluded.renewal_date, sort_order=excluded.sort_order`);
     list.forEach((s, i) => {
       const cost = Number.parseFloat(String(s.cost ?? '').replace(/[^0-9.]/g, '')) || 0;
+      const currencyId = lkId('CURRENCY', s.currency) ?? lkId('CURRENCY', 'USD');
+      const cycleId    = lkId('BILLING_CYCLE', s.billingCycle) ?? lkId('BILLING_CYCLE', 'MONTHLY');
       up.run(
-        s.id, userId, s.name ?? '', cost, s.currency || 'USD',
-        s.billingCycle || 'Monthly', s.endDate || null, s.renewalDate || null, i
+        s.id, userId, s.name ?? '', cost, currencyId, cycleId,
+        s.endDate || null, s.renewalDate || null, i
       );
     });
     appSet('subscriptions_default_currency', currency);
@@ -542,7 +625,7 @@ module.exports = {
   saveDay, loadDay, listDays, loadDaysRange,
   getAnalytics, getOverviewStats,
   loadBacklog, saveBacklog,
-  loadLookups, saveLookups,
+  loadLookups, saveLookups, getLookupsByCategory,
   loadSubscriptions, saveSubscriptions,
   loadPrefs, savePrefs,
 };

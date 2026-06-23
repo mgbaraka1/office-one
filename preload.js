@@ -32,9 +32,11 @@ contextBridge.exposeInMainWorld('api', {
   /** @returns {Promise<import('./ipc-types').OverviewStats>} */
   loadOverviewStats: (today, monthStart)       => ipcRenderer.invoke('analytics:overview', today, monthStart),
 
-  // ── Lookups (shared app config) ──
+  // ── Lookups (normalized catalog — shared app config) ──
   /** @returns {Promise<import('./ipc-types').Lookups>} */
   loadLookups:    ()              => ipcRenderer.invoke('lookups:get'),
+  /** @returns {Promise<import('./ipc-types').LookupOption[]>} */
+  getLookupsByCategory: (category, includeInactive) => ipcRenderer.invoke('lookups:getByCategory', category, includeInactive),
   saveLookups:    (data)          => ipcRenderer.invoke('lookups:save', data),
 
   // ── Subscriptions ──
