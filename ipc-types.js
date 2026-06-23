@@ -29,6 +29,20 @@
  */
 
 /**
+ * One company/project as listed on its page: the display label plus how many
+ * day_entries reference it (for the current user).
+ * @typedef {Object} CategoryValue
+ * @property {string} name
+ * @property {number} count
+ */
+
+/**
+ * A day_entry as shown on the read-only Companies/Projects pages — a DayEntryRow
+ * plus the date of the day it belongs to (entries span many days there).
+ * @typedef {DayEntryRow & { date: string }} CategoryEntry
+ */
+
+/**
  * A day's payload. `name` is the employee name for that day.
  * @typedef {Object} DayData
  * @property {string} name

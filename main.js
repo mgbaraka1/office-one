@@ -89,6 +89,12 @@ ipcMain.handle('day:get',   authed((_e, dateStr)       => db.loadDay(auth.requir
 ipcMain.handle('days:list', authed(()                  => db.listDays(auth.requireUserId())));
 ipcMain.handle('days:range', authed((_e, from, to)     => db.loadDaysRange(auth.requireUserId(), from, to)));
 
+// ── Companies / Projects (read-only views over existing day_entries) ──
+ipcMain.handle('companies:list',    authed(()         => db.listCompanies(auth.requireUserId())));
+ipcMain.handle('companies:entries', authed((_e, name) => db.companyEntries(auth.requireUserId(), name)));
+ipcMain.handle('projects:list',     authed(()         => db.listProjects(auth.requireUserId())));
+ipcMain.handle('projects:entries',  authed((_e, name) => db.projectEntries(auth.requireUserId(), name)));
+
 // ── Analytics (aggregation done in SQL, not in the renderer) ──
 ipcMain.handle('analytics:summary',  authed((_e, from, to, spanFrom, spanTo) => db.getAnalytics(auth.requireUserId(), from, to, spanFrom, spanTo)));
 ipcMain.handle('analytics:overview', authed((_e, today, monthStart)          => db.getOverviewStats(auth.requireUserId(), today, monthStart)));
