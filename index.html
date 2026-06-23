@@ -831,27 +831,6 @@
     }
 
     /* ══ SETTINGS MODAL ══ */
-    #settings-overlay {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,.45); backdrop-filter: blur(4px);
-      z-index: 200; align-items: center; justify-content: center;
-    }
-    #settings-overlay.open { display: flex; }
-
-    #settings-modal {
-      background: var(--surface); border-radius: 16px;
-      width: 680px; max-height: 88vh;
-      display: flex; flex-direction: column;
-      box-shadow: 0 20px 60px rgba(0,0,0,.25);
-      animation: modalIn .18s ease;
-    }
-
-    .settings-header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 20px 24px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0;
-    }
-    .settings-header h2 { font-size: 17px; font-weight: 700; }
-
     .settings-body {
       display: flex; flex: 1; overflow: hidden;
     }
@@ -921,11 +900,6 @@
     }
     .lookup-add-row button:hover { background: var(--accent); color: #fff; }
 
-    .settings-footer {
-      display: flex; justify-content: flex-end; gap: 8px;
-      padding: 12px 24px 16px; border-top: 1px solid var(--border); flex-shrink: 0;
-    }
-
     /* General settings panel */
     .general-field { display: flex; flex-direction: column; gap: 5px; }
     .general-field label {
@@ -940,6 +914,101 @@
     }
     .general-field input:focus { border-color: var(--accent); background: var(--input-focus-bg); }
     .general-hint { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+    /* ══ SETTINGS MODULE (page) ══ */
+    #settings-topbar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 16px; background: #1e1e2e; flex-shrink: 0;
+    }
+    .settings-mod-title { font-size: 15px; font-weight: 700; color: #fff; margin-right: auto; }
+    #module-settings .settings-body { background: var(--bg); }
+    /* Lookup category sub-tabs (inside the Lookups top-level tab) */
+    #tab-lookups.settings-panel.active { gap: 0; }
+    .lookup-subtabs {
+      display: flex; gap: 4px; flex-wrap: wrap;
+      border-bottom: 1px solid var(--border); margin-bottom: 14px; padding-bottom: 8px;
+    }
+    .ltab {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border-radius: 8px; cursor: pointer;
+      font-size: 13px; font-weight: 500; color: var(--muted);
+      transition: background .12s, color .12s; border: 1px solid transparent; background: none;
+      font-family: inherit;
+    }
+    .ltab:hover { background: var(--surface2); color: var(--text); }
+    .ltab.active { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
+    .lookup-subpanels { flex: 1; }
+    .lookup-panel { display: none; flex-direction: column; gap: 12px; }
+    .lookup-panel.active { display: flex; }
+
+    /* ══ COMPANIES / PROJECTS MODULES (read-only views) ══ */
+    .cp-topbar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 16px; background: #1e1e2e; flex-shrink: 0;
+    }
+    .cp-title { font-size: 15px; font-weight: 700; color: #fff; margin-right: auto; }
+    .cp-body { flex: 1; display: flex; overflow: hidden; }
+    .cp-list-panel {
+      width: 280px; flex-shrink: 0; border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; background: var(--surface);
+    }
+    .cp-list-search { padding: 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .cp-search {
+      width: 100%; box-sizing: border-box;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      padding: 8px 12px; font-size: 13px; font-family: inherit;
+      background: var(--surface2); color: var(--text); outline: none;
+      transition: border-color .15s;
+    }
+    .cp-search:focus { border-color: var(--accent); background: var(--input-focus-bg); }
+    .cp-list { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+    .cp-list-item {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 9px 12px; border-radius: 8px; cursor: pointer;
+      border: 1px solid transparent; background: none; font-family: inherit;
+      font-size: 13px; color: var(--text); text-align: left; width: 100%;
+      transition: background .12s, border-color .12s;
+    }
+    .cp-list-item:hover { background: var(--surface2); }
+    .cp-list-item.active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+    .cp-list-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cp-list-count {
+      flex-shrink: 0; font-size: 11px; font-weight: 600;
+      background: var(--surface2); color: var(--muted);
+      border-radius: 10px; padding: 1px 8px; min-width: 20px; text-align: center;
+    }
+    .cp-list-item.active .cp-list-count { background: var(--accent); color: #fff; }
+    .cp-list-empty { padding: 20px 12px; color: var(--muted); font-size: 13px; text-align: center; }
+
+    .cp-records-panel { flex: 1; overflow-y: auto; padding: 16px 20px 24px; }
+    .cp-placeholder { text-align: center; color: var(--muted); padding: 60px 20px; }
+    .cp-placeholder .icon { font-size: 40px; margin-bottom: 12px; opacity: .6; }
+    .cp-records-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+    .cp-records-title { font-size: 18px; font-weight: 700; }
+    .cp-filter-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-bottom: 14px; }
+    .cp-filter-field { display: flex; flex-direction: column; gap: 4px; }
+    .cp-filter-field label { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+    .cp-filter-field input, .cp-filter-field select {
+      border: 1.5px solid var(--border); border-radius: 8px;
+      padding: 7px 10px; font-size: 13px; font-family: inherit;
+      background: var(--surface2); color: var(--text); outline: none;
+    }
+    .cp-filter-field input:focus, .cp-filter-field select:focus { border-color: var(--accent); }
+    .cp-filter-clear {
+      padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--surface); color: var(--muted); font-size: 12px;
+      font-family: inherit; cursor: pointer; transition: color .12s, border-color .12s;
+    }
+    .cp-filter-clear:hover { color: var(--text); border-color: var(--accent); }
+    .cp-summary { display: flex; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
+    .cp-summary-chip {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 10px 16px; display: flex; flex-direction: column; gap: 2px; min-width: 110px;
+    }
+    .cp-summary-val { font-size: 18px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+    .cp-summary-lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+    .cp-records-empty { padding: 30px; text-align: center; color: var(--muted); font-size: 13px; }
+    .cp-date-cell { font-size: 12px; color: var(--muted); white-space: nowrap; }
 
     /* ══ SECTION DIVIDERS ══ */
     tr.inprogress-divider td {
@@ -1255,6 +1324,15 @@
     <button class="nav-item" data-module="subscriptions" onclick="switchModule('subscriptions')">
       <span class="nav-icon">💳</span>Subscriptions<span class="nav-badge" id="nav-badge-subscriptions"></span>
     </button>
+    <button class="nav-item" data-module="companies" onclick="switchModule('companies')">
+      <span class="nav-icon">🏢</span>Companies
+    </button>
+    <button class="nav-item" data-module="projects" onclick="switchModule('projects')">
+      <span class="nav-icon">📁</span>Projects
+    </button>
+    <button class="nav-item" data-module="settings" onclick="switchModule('settings')">
+      <span class="nav-icon">⚙</span>Settings
+    </button>
   </nav>
   <div class="sidebar-footer">
     <button id="theme-toggle" class="nav-item" onclick="toggleTheme()" title="Switch between light and dark mode">
@@ -1465,7 +1543,7 @@
     <div class="topbar-right">
       <span id="save-status"></span>
       <button class="btn" id="btn-today" onclick="goToday()">📍 Today</button>
-      <button class="btn" onclick="openSettings()" title="Settings">⚙ Settings</button>
+      <button class="btn" onclick="switchModule('settings')" title="Settings">⚙ Settings</button>
       <button class="btn" onclick="openMonthView()" title="Month overview">🗓 Month</button>
       <button class="btn" onclick="openModal()">+ Add Record <kbd>⌃N</kbd></button>
     </div>
@@ -1537,46 +1615,6 @@
     <button class="btn" onclick="closePrint()">✕ Close</button>
     <button class="btn" onclick="exportReportPDF()">⬇ Save PDF</button>
     <button class="btn primary" onclick="triggerPrint()">🖨 Print</button>
-  </div>
-</div>
-
-<!-- ══ SETTINGS MODAL ══ -->
-<div id="settings-overlay" onclick="settingsOverlayClick(event)">
-  <div id="settings-modal">
-    <div class="settings-header">
-      <h2>⚙ Settings &amp; Lookups</h2>
-      <button class="modal-close" onclick="closeSettings()">✕</button>
-    </div>
-    <div class="settings-body">
-      <!-- Tabs -->
-      <div class="settings-tabs">
-        <button class="stab active" data-tab="general"   onclick="switchTab(this)"><span class="stab-icon">🔧</span> General</button>
-        <button class="stab"        data-tab="companies" onclick="switchTab(this)"><span class="stab-icon">🏢</span> Companies</button>
-        <button class="stab"        data-tab="projects"  onclick="switchTab(this)"><span class="stab-icon">📁</span> Projects</button>
-        <button class="stab"        data-tab="natural"   onclick="switchTab(this)"><span class="stab-icon">🏷</span> Natural</button>
-        <button class="stab"        data-tab="timeType"  onclick="switchTab(this)"><span class="stab-icon">⏰</span> Time Type</button>
-        <button class="stab"        data-tab="status"    onclick="switchTab(this)"><span class="stab-icon">🔖</span> Status</button>
-      </div>
-      <!-- Panels -->
-      <div class="settings-panels">
-        <div class="settings-panel active" id="tab-general">
-          <div class="general-field">
-            <label>Default Name</label>
-            <input id="setting-default-name" type="text" placeholder="e.g. Moustafa Baraka" />
-          </div>
-          <p class="general-hint">Pre-fills the Name field when opening a new day with no existing data.</p>
-        </div>
-        <div class="settings-panel" id="tab-companies"></div>
-        <div class="settings-panel" id="tab-projects"></div>
-        <div class="settings-panel" id="tab-natural"></div>
-        <div class="settings-panel" id="tab-timeType"></div>
-        <div class="settings-panel" id="tab-status"></div>
-      </div>
-    </div>
-    <div class="settings-footer">
-      <button class="btn" onclick="closeSettings()">Cancel</button>
-      <button class="btn primary" onclick="saveSettings()">Save Changes</button>
-    </div>
   </div>
 </div>
 
@@ -1751,6 +1789,82 @@
     <div id="backlog-empty-state">
       <div class="icon">📌</div>
       <p>Nothing waiting — click <strong>+ Add Task</strong> to add to the Not Yet backlog</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══ COMPANIES MODULE (read-only view over day_entries) ══ -->
+<div id="module-companies" class="app-module">
+  <div class="cp-topbar">
+    <span class="cp-title">🏢 Companies</span>
+  </div>
+  <div class="cp-body">
+    <div class="cp-list-panel">
+      <div class="cp-list-search">
+        <input type="text" id="companies-search" class="cp-search" placeholder="🔍 Search companies…" oninput="renderCatList('companies')">
+      </div>
+      <div class="cp-list" id="companies-list"></div>
+    </div>
+    <div class="cp-records-panel" id="companies-records"></div>
+  </div>
+</div>
+
+<!-- ══ PROJECTS MODULE (read-only view over day_entries) ══ -->
+<div id="module-projects" class="app-module">
+  <div class="cp-topbar">
+    <span class="cp-title">📁 Projects</span>
+  </div>
+  <div class="cp-body">
+    <div class="cp-list-panel">
+      <div class="cp-list-search">
+        <input type="text" id="projects-search" class="cp-search" placeholder="🔍 Search projects…" oninput="renderCatList('projects')">
+      </div>
+      <div class="cp-list" id="projects-list"></div>
+    </div>
+    <div class="cp-records-panel" id="projects-records"></div>
+  </div>
+</div>
+
+<!-- ══ SETTINGS MODULE (General + Lookups) ══ -->
+<div id="module-settings" class="app-module">
+  <div id="settings-topbar">
+    <span class="settings-mod-title">⚙ Settings</span>
+    <div class="topbar-right">
+      <button class="btn primary" onclick="saveSettings()">Save Changes</button>
+    </div>
+  </div>
+  <div class="settings-body">
+    <!-- Top-level tabs -->
+    <div class="settings-tabs">
+      <button class="stab active" data-tab="general" onclick="switchTab(this)"><span class="stab-icon">🔧</span> General</button>
+      <button class="stab"        data-tab="lookups" onclick="switchTab(this)"><span class="stab-icon">🗂</span> Lookups</button>
+    </div>
+    <!-- Panels -->
+    <div class="settings-panels">
+      <div class="settings-panel active" id="tab-general">
+        <div class="general-field">
+          <label>Default Name</label>
+          <input id="setting-default-name" type="text" placeholder="e.g. Moustafa Baraka" />
+        </div>
+        <p class="general-hint">Pre-fills the Name field when opening a new day with no existing data.</p>
+      </div>
+      <div class="settings-panel" id="tab-lookups">
+        <!-- Lookup category sub-tabs -->
+        <div class="lookup-subtabs">
+          <button class="ltab active" data-ltab="companies" onclick="switchLookupTab(this)"><span class="stab-icon">🏢</span> Companies</button>
+          <button class="ltab"        data-ltab="projects"  onclick="switchLookupTab(this)"><span class="stab-icon">📁</span> Projects</button>
+          <button class="ltab"        data-ltab="natural"   onclick="switchLookupTab(this)"><span class="stab-icon">🏷</span> Natural</button>
+          <button class="ltab"        data-ltab="timeType"  onclick="switchLookupTab(this)"><span class="stab-icon">⏰</span> Time Type</button>
+          <button class="ltab"        data-ltab="status"    onclick="switchLookupTab(this)"><span class="stab-icon">🔖</span> Status</button>
+        </div>
+        <div class="lookup-subpanels">
+          <div class="lookup-panel active" id="tab-companies"></div>
+          <div class="lookup-panel" id="tab-projects"></div>
+          <div class="lookup-panel" id="tab-natural"></div>
+          <div class="lookup-panel" id="tab-timeType"></div>
+          <div class="lookup-panel" id="tab-status"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -2048,19 +2162,13 @@ function populateSelect(id, key, currentVal) {
 // Existing entries are relabeled / reordered / soft-disabled in place; new entries
 // get a server-generated stable code on save. Codes are never edited or deleted.
 const SETTINGS_TABS = ['companies', 'projects', 'natural', 'timeType', 'status'];
-function openSettings() {
+
+// Settings is a nav page (not a modal): switchModule('settings') calls this to
+// (re)load a working copy of the catalog and render the editors fresh each visit.
+function initSettingsModule() {
   lookupsDraft = JSON.parse(JSON.stringify(LK.categories || {}));
   SETTINGS_TABS.forEach(renderLookupPanel);
   document.getElementById('setting-default-name').value = LK.defaultName || '';
-  document.getElementById('settings-overlay').classList.add('open');
-}
-
-function closeSettings() {
-  document.getElementById('settings-overlay').classList.remove('open');
-}
-
-function settingsOverlayClick(e) {
-  if (e.target === document.getElementById('settings-overlay')) closeSettings();
 }
 
 async function saveSettings() {
@@ -2077,15 +2185,25 @@ async function saveSettings() {
     await window.api.saveLookups(payload);
     LK = await window.api.loadLookups();   // refresh — new entries now have stable codes
   } catch { toast('Could not save settings'); return; }
-  closeSettings();
+  initSettingsModule();                     // re-sync the draft with server-assigned codes
   renderTable();                            // reflect any relabeled values immediately
+  toast('Settings saved');
 }
 
+// Top-level Settings tabs (General / Lookups).
 function switchTab(btn) {
-  document.querySelectorAll('.stab').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.settings-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('#module-settings .stab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#module-settings .settings-panel').forEach(p => p.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+}
+
+// Lookup category sub-tabs (Companies / Projects / Natural / Time Type / Status).
+function switchLookupTab(btn) {
+  document.querySelectorAll('.ltab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.lookup-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + btn.dataset.ltab).classList.add('active');
 }
 
 function renderLookupPanel(uiKey) {
@@ -2833,11 +2951,11 @@ function clearErrors() { clearErrorsIn('body'); }
 // ── Keyboard shortcuts ──
 document.addEventListener('keydown', e => {
   const inputFocused = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
-  const anyOpen = ['modal-overlay','settings-overlay','print-overlay','month-overlay','sub-modal-overlay','sub-settings-overlay','backlog-modal-overlay']
+  const anyOpen = ['modal-overlay','print-overlay','month-overlay','sub-modal-overlay','sub-settings-overlay','backlog-modal-overlay']
     .some(id => document.getElementById(id).classList.contains('open'));
 
   if (e.key === 'Escape') {
-    closeModal(); closeSettings(); closePrint(); closeMonthView(); closeSubModal(); closeSubSettings(); closeBacklogModal();
+    closeModal(); closePrint(); closeMonthView(); closeSubModal(); closeSubSettings(); closeBacklogModal();
     document.querySelectorAll('.top-menu.open').forEach(m => m.classList.remove('open'));
     if (selectedRows.size) clearSelection();
   }
@@ -3879,7 +3997,261 @@ function switchModule(name) {
   } else if (name === 'reports') {
     window.api.setTitle('Cooperation Tools — Reports');
     initReportsModule();
+  } else if (name === 'settings') {
+    window.api.setTitle('Cooperation Tools — Settings');
+    initSettingsModule();
+  } else if (name === 'companies') {
+    window.api.setTitle('Cooperation Tools — Companies');
+    openCatPage('companies');
+  } else if (name === 'projects') {
+    window.api.setTitle('Cooperation Tools — Projects');
+    openCatPage('projects');
   }
+}
+
+// ══ COMPANIES / PROJECTS — read-only views over day_entries ══════════════════
+// Both pages are identical except for which category column they group by, so a
+// single parameterized renderer drives them (kind = 'companies' | 'projects').
+// Data is read via the companies:/projects: IPC channels (always scoped to the
+// session user in main); these pages never write.
+const CP_DEF = {
+  companies: { noun: 'company', icon: '🏢', listApi: 'listCompanies', entriesApi: 'companyEntries' },
+  projects:  { noun: 'project', icon: '📁', listApi: 'listProjects',  entriesApi: 'projectEntries' },
+};
+let cpState = {
+  companies: { list: [], selected: null, entries: [], from: '', to: '', type: '' },
+  projects:  { list: [], selected: null, entries: [], from: '', to: '', type: '' },
+};
+
+// Entered via switchModule(kind): (re)load the value list, keep a valid selection.
+async function openCatPage(kind) {
+  const def = CP_DEF[kind]; const st = cpState[kind];
+  let list;
+  try { list = await window.api[def.listApi](); }
+  catch { toast('Could not load ' + kind); return; }
+  st.list = Array.isArray(list) ? list : [];
+  if (st.selected && !st.list.some(x => x.name === st.selected)) st.selected = null;
+  renderCatList(kind);
+  if (st.selected) loadCatEntries(kind, st.selected);
+  else renderCatRecords(kind);
+}
+
+function renderCatList(kind) {
+  const def = CP_DEF[kind]; const st = cpState[kind];
+  const q = (document.getElementById(kind + '-search').value || '').trim().toLowerCase();
+  const wrap = document.getElementById(kind + '-list');
+  wrap.innerHTML = '';
+  const items = q ? st.list.filter(x => x.name.toLowerCase().includes(q)) : st.list;
+  if (!items.length) {
+    const empty = document.createElement('div'); empty.className = 'cp-list-empty';
+    empty.textContent = st.list.length ? 'No matches' : ('No ' + def.noun + ' data yet');
+    wrap.appendChild(empty); return;
+  }
+  items.forEach(x => {
+    const btn = document.createElement('button');
+    btn.className = 'cp-list-item' + (x.name === st.selected ? ' active' : '');
+    const nm = document.createElement('span'); nm.className = 'cp-list-name';
+    nm.textContent = x.name; nm.title = x.name;
+    const ct = document.createElement('span'); ct.className = 'cp-list-count';
+    ct.textContent = x.count;
+    btn.appendChild(nm); btn.appendChild(ct);
+    btn.addEventListener('click', () => selectCat(kind, x.name));
+    wrap.appendChild(btn);
+  });
+}
+
+function selectCat(kind, name) {
+  const st = cpState[kind];
+  st.selected = name; st.from = ''; st.to = ''; st.type = '';
+  renderCatList(kind);
+  loadCatEntries(kind, name);
+}
+
+async function loadCatEntries(kind, name) {
+  const def = CP_DEF[kind]; const st = cpState[kind];
+  let entries;
+  try { entries = await window.api[def.entriesApi](name); }
+  catch { toast('Could not load records'); return; }
+  if (st.selected !== name) return;   // selection changed while this was loading
+  st.entries = Array.isArray(entries) ? entries : [];
+  renderCatRecords(kind);
+}
+
+// Build the records panel shell once per selection (header + filter bar +
+// summary + table); filter changes only recompute the body via applyCatFilter
+// so the date/select inputs keep their focus.
+function renderCatRecords(kind) {
+  const def = CP_DEF[kind]; const st = cpState[kind];
+  const host = document.getElementById(kind + '-records');
+  host.innerHTML = '';
+
+  if (!st.selected) {
+    const ph = document.createElement('div'); ph.className = 'cp-placeholder';
+    ph.innerHTML = '<div class="icon">' + def.icon + '</div><p>Select a ' + def.noun + ' to view its records</p>';
+    host.appendChild(ph); return;
+  }
+
+  const head = document.createElement('div'); head.className = 'cp-records-head';
+  const title = document.createElement('h2'); title.className = 'cp-records-title';
+  title.textContent = st.selected;
+  head.appendChild(title);
+  host.appendChild(head);
+
+  // Filter bar: date range + entry (time) type
+  const bar = document.createElement('div'); bar.className = 'cp-filter-bar';
+  const mkField = (labelText, inputEl) => {
+    const f = document.createElement('div'); f.className = 'cp-filter-field';
+    const l = document.createElement('label'); l.textContent = labelText;
+    f.appendChild(l); f.appendChild(inputEl); return f;
+  };
+  const fromInp = document.createElement('input'); fromInp.type = 'date'; fromInp.value = st.from;
+  fromInp.addEventListener('change', () => { st.from = fromInp.value; applyCatFilter(kind); });
+  const toInp = document.createElement('input'); toInp.type = 'date'; toInp.value = st.to;
+  toInp.addEventListener('change', () => { st.to = toInp.value; applyCatFilter(kind); });
+  const typeSel = document.createElement('select');
+  const allOpt = document.createElement('option'); allOpt.value = ''; allOpt.textContent = 'All types';
+  typeSel.appendChild(allOpt);
+  lkOptions('TIME_TYPE').forEach(o => {
+    const opt = document.createElement('option'); opt.value = o.code; opt.textContent = o.label;
+    typeSel.appendChild(opt);
+  });
+  typeSel.value = st.type;
+  typeSel.addEventListener('change', () => { st.type = typeSel.value; applyCatFilter(kind); });
+
+  bar.appendChild(mkField('From', fromInp));
+  bar.appendChild(mkField('To', toInp));
+  bar.appendChild(mkField('Type', typeSel));
+  const clearBtn = document.createElement('button'); clearBtn.className = 'cp-filter-clear';
+  clearBtn.textContent = '✕ Clear filters';
+  clearBtn.addEventListener('click', () => {
+    st.from = ''; st.to = ''; st.type = '';
+    fromInp.value = ''; toInp.value = ''; typeSel.value = '';
+    applyCatFilter(kind);
+  });
+  bar.appendChild(clearBtn);
+  host.appendChild(bar);
+
+  // Summary
+  const summary = document.createElement('div'); summary.className = 'cp-summary';
+  summary.id = kind + '-summary';
+  host.appendChild(summary);
+
+  // Table
+  const wrap = document.createElement('div');
+  const table = document.createElement('table');
+  table.innerHTML = '<thead><tr>' +
+    '<th style="width:36px">#</th>' +
+    '<th>Date</th><th>Company</th><th>Project</th><th>Natural</th><th>Time</th>' +
+    '<th style="min-width:220px">Description</th><th style="min-width:160px">Source</th>' +
+    '<th>Status</th>' +
+    '<th style="width:80px;text-align:right">Minutes</th>' +
+    '<th style="width:70px;text-align:right">Hours</th></tr></thead>' +
+    '<tbody id="' + kind + '-rec-tbody"></tbody>';
+  wrap.appendChild(table);
+  host.appendChild(wrap);
+
+  applyCatFilter(kind);
+}
+
+function applyCatFilter(kind) {
+  const st = cpState[kind];
+  let rows = st.entries.slice();
+  if (st.from) rows = rows.filter(r => r.date >= st.from);
+  if (st.to)   rows = rows.filter(r => r.date <= st.to);
+  if (st.type) rows = rows.filter(r => r.time === st.type);
+
+  // Summary chips
+  const totalMin = rows.reduce((s, r) => s + (parseFloat(r.minutes) || 0), 0);
+  const summary = document.getElementById(kind + '-summary');
+  summary.innerHTML = '';
+  const chip = (val, lbl) => {
+    const c = document.createElement('div'); c.className = 'cp-summary-chip';
+    const v = document.createElement('span'); v.className = 'cp-summary-val'; v.textContent = val;
+    const l = document.createElement('span'); l.className = 'cp-summary-lbl'; l.textContent = lbl;
+    c.appendChild(v); c.appendChild(l); return c;
+  };
+  summary.appendChild(chip(rows.length, 'Entries'));
+  summary.appendChild(chip((totalMin / 60).toFixed(2), 'Total Hours'));
+
+  // Table body
+  const tbody = document.getElementById(kind + '-rec-tbody');
+  tbody.innerHTML = '';
+  if (!rows.length) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td'); td.colSpan = 11; td.className = 'cp-records-empty';
+    td.textContent = st.entries.length ? 'No records match the current filters' : ('No records for this ' + CP_DEF[kind].noun);
+    tr.appendChild(td); tbody.appendChild(tr); return;
+  }
+  rows.forEach((r, i) => tbody.appendChild(buildReadonlyRow(r, i)));
+}
+
+// One read-only timesheet-style row (mirrors the Timesheet columns + Date, no
+// row actions — these pages never edit).
+function buildReadonlyRow(r, i) {
+  const tr = document.createElement('tr');
+
+  const numTd = document.createElement('td');
+  const numDiv = document.createElement('div'); numDiv.className = 'cell cell-center';
+  const numSpan = document.createElement('span'); numSpan.className = 'cell-num'; numSpan.textContent = i + 1;
+  numDiv.appendChild(numSpan); numTd.appendChild(numDiv); tr.appendChild(numTd);
+
+  const dateTd = document.createElement('td');
+  const dateDiv = document.createElement('div'); dateDiv.className = 'cell';
+  const dateSpan = document.createElement('span'); dateSpan.className = 'cp-date-cell'; dateSpan.textContent = r.date;
+  dateDiv.appendChild(dateSpan); dateTd.appendChild(dateDiv); tr.appendChild(dateTd);
+
+  tr.appendChild(textCell(r.company));
+  tr.appendChild(textCell(r.project));
+  tr.appendChild(textCell(r.natural));
+
+  const timeTd = document.createElement('td');
+  const timeDiv = document.createElement('div'); timeDiv.className = 'cell';
+  const timeSpan = document.createElement('span'); timeSpan.textContent = lkLabel('TIME_TYPE', r.time);
+  if (r.time === 'OVERTIME') timeSpan.style.color = '#dc2626';
+  timeDiv.appendChild(timeSpan); timeTd.appendChild(timeDiv); tr.appendChild(timeTd);
+
+  const descTd = document.createElement('td');
+  const descDiv = document.createElement('div'); descDiv.className = 'cell desc-cell';
+  const descSpan = document.createElement('span'); descSpan.className = 'desc-text'; descSpan.textContent = r.description;
+  descDiv.appendChild(descSpan);
+  const tags = Array.isArray(r.tags) ? r.tags : [];
+  if (tags.length) {
+    const tw = document.createElement('div'); tw.className = 'row-tags';
+    tags.forEach(t => { const chip = document.createElement('span'); chip.className = 'row-tag'; chip.textContent = t; tw.appendChild(chip); });
+    descDiv.appendChild(tw);
+  }
+  descTd.appendChild(descDiv); tr.appendChild(descTd);
+
+  const srcTd = document.createElement('td');
+  const srcDiv = document.createElement('div'); srcDiv.className = 'cell';
+  if (isURL(r.source)) {
+    const link = document.createElement('button'); link.className = 'source-link';
+    link.textContent = r.source; link.title = 'Open ' + r.source;
+    link.addEventListener('click', () => window.api.openExternal(r.source));
+    srcDiv.appendChild(link);
+  } else {
+    const srcSpan = document.createElement('span'); srcSpan.className = 'source-text'; srcSpan.textContent = r.source;
+    srcDiv.appendChild(srcSpan);
+  }
+  srcTd.appendChild(srcDiv); tr.appendChild(srcTd);
+
+  const stTd = document.createElement('td'); stTd.className = statusClass(r.status);
+  const stDiv = document.createElement('div'); stDiv.className = 'cell';
+  const badge = document.createElement('span'); badge.className = 'status-badge';
+  badge.textContent = lkLabel('ENTRY_STATUS', r.status);
+  stDiv.appendChild(badge); stTd.appendChild(stDiv); tr.appendChild(stTd);
+
+  const minTd = document.createElement('td'); minTd.style.textAlign = 'right';
+  const minDiv = document.createElement('div'); minDiv.className = 'cell cell-right';
+  const minSpan = document.createElement('span'); minSpan.textContent = r.minutes || '—';
+  minDiv.appendChild(minSpan); minTd.appendChild(minDiv); tr.appendChild(minTd);
+
+  const m = parseFloat(r.minutes);
+  const hrsSpan = document.createElement('span'); hrsSpan.className = 'hours-val';
+  hrsSpan.textContent = isNaN(m) ? '—' : (m / 60).toFixed(2);
+  tr.appendChild(cellWrap(hrsSpan, 'cell cell-right'));
+
+  return tr;
 }
 
 // ── Subscriptions: data ──
