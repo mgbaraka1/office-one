@@ -383,6 +383,36 @@ function loadDaysRange(userId, from, to) {
   return days.map(d => byId.get(d.id));
 }
 
+// ── Companies / Projects views (read-only rollups over existing day_entries) ───
+// Both pages derive their data from the category FK columns already on
+// day_entries — no new table or schema change. Entries are grouped by the
+// display LABEL (the same value shown everywhere else). `fkCol` is a fixed,
+// internal column name (never user input), so interpolating it is injection-safe.
+// Every query is scoped to the authenticated `userId`.
+function distinctCategory(userId, fkCol) {
+  return db.prepare(
+    `SELECT lc.label AS name, COUNT(*) AS count
+       FROM days d JOIN day_entries e ON e.day_id = d.id
+       JOIN lookup_codes lc ON lc.id = e.${fkCol}
+      WHERE d.user_id = ?
+      GROUP BY lc.label
+      ORDER BY lc.label COLLATE NOCASE`
+  ).all(userId);
+}
+function categoryEntries(userId, fkCol, name) {
+  return db.prepare(
+    `SELECT d.date AS date, e.*
+       FROM days d JOIN day_entries e ON e.day_id = d.id
+       JOIN lookup_codes lc ON lc.id = e.${fkCol}
+      WHERE d.user_id = ? AND lc.label = ?
+      ORDER BY d.date DESC, e.sort_order, e.id`
+  ).all(userId, name).map(e => ({ date: e.date, ...entryToRow(e) }));
+}
+function listCompanies(userId)        { return distinctCategory(userId, 'company_id'); }
+function listProjects(userId)         { return distinctCategory(userId, 'project_id'); }
+function companyEntries(userId, name) { return categoryEntries(userId, 'company_id', name); }
+function projectEntries(userId, name) { return categoryEntries(userId, 'project_id', name); }
+
 // ── Analytics aggregation (computed in SQL, not by shipping rows to the UI) ────
 // All rollups the Analytics view needs, scoped to the user:
 //   • period [from, to]  → totals + group-by-{company, project, time_type,
@@ -623,6 +653,7 @@ module.exports = {
   close, backup, dbPath,
   countUsers, getUserByUsername, getUserById, createUser, getUnclaimedUser, claimUser,
   saveDay, loadDay, listDays, loadDaysRange,
+  listCompanies, listProjects, companyEntries, projectEntries,
   getAnalytics, getOverviewStats,
   loadBacklog, saveBacklog,
   loadLookups, saveLookups, getLookupsByCategory,
