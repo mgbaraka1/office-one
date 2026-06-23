@@ -85,12 +85,21 @@
  */
 
 /**
+ * One option in the normalized lookup catalog (a row of `lookup_codes`).
+ * @typedef {Object} LookupOption
+ * @property {number} id
+ * @property {string} code      Stable uppercase identifier (e.g. 'OVERTIME').
+ * @property {string} label     Human-readable display name (e.g. 'Over Time').
+ * @property {number} sortOrder Dropdown ordering.
+ * @property {boolean} isActive Soft-disable flag.
+ */
+
+/**
+ * The full lookup catalog returned by `lookups:get`. `categories` is keyed by the
+ * category discriminator (COMPANY, PROJECT, ACTIVITY_TYPE, TIME_TYPE, ENTRY_STATUS,
+ * CURRENCY, BILLING_CYCLE), each an ordered list of options (incl. inactive).
  * @typedef {Object} Lookups
- * @property {string[]} companies
- * @property {string[]} projects
- * @property {string[]} natural
- * @property {string[]} timeType
- * @property {string[]} status
+ * @property {Object<string, LookupOption[]>} categories
  * @property {string} [defaultName]
  */
 

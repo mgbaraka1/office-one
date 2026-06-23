@@ -93,9 +93,10 @@ ipcMain.handle('days:range', authed((_e, from, to)     => db.loadDaysRange(auth.
 ipcMain.handle('analytics:summary',  authed((_e, from, to, spanFrom, spanTo) => db.getAnalytics(auth.requireUserId(), from, to, spanFrom, spanTo)));
 ipcMain.handle('analytics:overview', authed((_e, today, monthStart)          => db.getOverviewStats(auth.requireUserId(), today, monthStart)));
 
-// ── Lookups (shared app config) ──
-ipcMain.handle('lookups:get',  authed(()         => db.loadLookups()));
-ipcMain.handle('lookups:save', authed((_e, data) => db.saveLookups(data)));
+// ── Lookups (normalized catalog — shared app config) ──
+ipcMain.handle('lookups:get',         authed(()                              => db.loadLookups()));
+ipcMain.handle('lookups:getByCategory', authed((_e, category, includeInactive) => db.getLookupsByCategory(category, includeInactive)));
+ipcMain.handle('lookups:save',        authed((_e, data)                      => db.saveLookups(data)));
 
 // ── Subscriptions ──
 ipcMain.handle('subscriptions:list', authed(()         => db.loadSubscriptions(auth.requireUserId())));

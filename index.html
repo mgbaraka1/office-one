@@ -1497,8 +1497,8 @@
       <button id="filter-clear" onclick="clearFilter()" title="Clear filter">✕</button>
     </div>
     <div class="filter-chips">
-      <button class="filter-chip" data-status="Done"        onclick="toggleStatusFilter(this)">Done</button>
-      <button class="filter-chip" data-status="In Progress" onclick="toggleStatusFilter(this)">In Progress</button>
+      <button class="filter-chip" data-status="DONE"        onclick="toggleStatusFilter(this)">Done</button>
+      <button class="filter-chip" data-status="IN_PROGRESS" onclick="toggleStatusFilter(this)">In Progress</button>
     </div>
     <span id="filter-count"></span>
   </div>
@@ -1623,9 +1623,7 @@
       <div class="form-row">
         <div class="form-group">
           <label>Status</label>
-          <select id="f-status">
-            <option>Done</option><option>In Progress</option>
-          </select>
+          <select id="f-status"></select>
         </div>
         <div class="form-group">
           <label>Minutes</label>
@@ -1673,8 +1671,8 @@
   <div class="menu-wrap">
     <button class="bulk-btn" onclick="toggleTopMenu(event,'bulk-status-menu')">Set Status ▾</button>
     <div class="top-menu" id="bulk-status-menu">
-      <button onclick="bulkSetStatus('Done')">Done</button>
-      <button onclick="bulkSetStatus('In Progress')">In Progress</button>
+      <button onclick="bulkSetStatus('DONE')">Done</button>
+      <button onclick="bulkSetStatus('IN_PROGRESS')">In Progress</button>
     </div>
   </div>
   <button class="bulk-btn" onclick="bulkMovePrompt()">📅 Move…</button>
@@ -1838,17 +1836,13 @@
         </div>
         <div class="form-group">
           <label>Currency</label>
-          <select id="s-currency">
-            <option>USD</option><option>SAR</option><option>EUR</option>
-          </select>
+          <select id="s-currency"></select>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Billing Cycle</label>
-          <select id="s-cycle" onchange="onCycleChange()">
-            <option>Monthly</option><option>Yearly</option><option>Custom</option>
-          </select>
+          <select id="s-cycle" onchange="onCycleChange()"></select>
         </div>
         <div class="form-group">
           <label>End Date</label>
@@ -1880,9 +1874,7 @@
       <div class="form-row">
         <div class="form-group">
           <label>Default Currency</label>
-          <select id="sub-setting-currency">
-            <option>USD</option><option>SAR</option><option>EUR</option>
-          </select>
+          <select id="sub-setting-currency"></select>
         </div>
       </div>
     </div>
@@ -1908,10 +1900,40 @@ let rows       = [];
 let editIdx    = null;
 let calYear, calMonth;
 
-let lookups = {
-  companies: [], projects: [], natural: [], timeType: [], status: [],
+// ── Normalized lookup catalog ──
+// Loaded once at boot from window.api.loadLookups(). `LK.categories` is keyed by
+// the catalog category; each option is { id, code, label, sortOrder, isActive }.
+// Display fields (company/project/natural) store their LABEL on the row; logic
+// fields (time/status/currency/billingCycle) store their stable CODE — so the UI
+// compares codes, never hardcoded display strings.
+let LK = { categories: {}, defaultName: '' };
+let lookupsDraft = {};          // working copy edited by the Settings catalog editor
+
+// UI dropdown key → catalog category, and which option field is the stored value.
+const LK_CAT = {
+  companies: 'COMPANY', projects: 'PROJECT', natural: 'ACTIVITY_TYPE',
+  timeType: 'TIME_TYPE', status: 'ENTRY_STATUS',
+  currency: 'CURRENCY', billingCycle: 'BILLING_CYCLE',
 };
-let lookupsDraft = {};
+const LK_VALUE = {             // 'label' = stored as display label; 'code' = stored as code
+  companies: 'label', projects: 'label', natural: 'label',
+  timeType: 'code', status: 'code', currency: 'code', billingCycle: 'code',
+};
+
+// Active options for a category, ordered for dropdowns.
+function lkOptions(category, includeInactive = false) {
+  return (LK.categories[category] || []).filter(o => includeInactive || o.isActive);
+}
+// Find the catalog option for a stored value (matches by code OR label).
+function lkFind(category, value) {
+  if (value == null || value === '') return null;
+  return (LK.categories[category] || []).find(o => o.code === value || o.label === value) || null;
+}
+// Stored value → human label (falls back to the raw value if unknown/legacy).
+function lkLabel(category, value) {
+  const o = lkFind(category, value);
+  return o ? o.label : (value || '');
+}
 
 // ── Timer state ──
 // Track the timed row by object reference (rowRef), not by array index — the
@@ -1994,32 +2016,42 @@ function textMatch(values, q) {
 }
 
 // ── Lookup helpers ──
+// Fill a <select> from the normalized lookup catalog, ordered by sort_order. The
+// option *value* is the stored form (label for display categories, code for logic
+// categories); the visible text is always the label.
 function populateSelect(id, key, currentVal) {
   const el = document.getElementById(id);
   if (!el) return;
   el.innerHTML = '';
-  const opts = lookups[key] || [];
-  // Preserve a value that's no longer in the lookups list, so editing a row
-  // doesn't silently rewrite it to the first option when saved.
-  if (currentVal && !opts.includes(currentVal)) {
+  const category = LK_CAT[key];
+  const valField = LK_VALUE[key] || 'label';
+  const opts = lkOptions(category);
+  const values = opts.map(o => o[valField]);
+  // Preserve a value no longer in the catalog (e.g. soft-disabled), so editing a
+  // row doesn't silently rewrite it to the first option when saved.
+  if (currentVal && !values.includes(currentVal)) {
     const o = document.createElement('option');
-    o.value = currentVal; o.textContent = currentVal + ' (removed)';
+    o.value = currentVal; o.textContent = lkLabel(category, currentVal) + ' (removed)';
     o.selected = true;
     el.appendChild(o);
   }
-  opts.forEach(v => {
+  opts.forEach(opt => {
     const o = document.createElement('option');
-    o.value = v; o.textContent = v;
-    if (v === currentVal) o.selected = true;
+    o.value = opt[valField]; o.textContent = opt.label;
+    if (opt[valField] === currentVal) o.selected = true;
     el.appendChild(o);
   });
 }
 
-// ── Settings ──
+// ── Settings (lookup catalog editor) ──
+// The tabs edit a working copy of the catalog (lookupsDraft, keyed by category).
+// Existing entries are relabeled / reordered / soft-disabled in place; new entries
+// get a server-generated stable code on save. Codes are never edited or deleted.
+const SETTINGS_TABS = ['companies', 'projects', 'natural', 'timeType', 'status'];
 function openSettings() {
-  lookupsDraft = JSON.parse(JSON.stringify(lookups));
-  ['companies','projects','natural','timeType','status'].forEach(renderLookupPanel);
-  document.getElementById('setting-default-name').value = lookups.defaultName || '';
+  lookupsDraft = JSON.parse(JSON.stringify(LK.categories || {}));
+  SETTINGS_TABS.forEach(renderLookupPanel);
+  document.getElementById('setting-default-name').value = LK.defaultName || '';
   document.getElementById('settings-overlay').classList.add('open');
 }
 
@@ -2032,11 +2064,21 @@ function settingsOverlayClick(e) {
 }
 
 async function saveSettings() {
-  lookups = JSON.parse(JSON.stringify(lookupsDraft));
-  lookups.defaultName = document.getElementById('setting-default-name').value.trim();
-  try { await window.api.saveLookups(lookups); }
-  catch { toast('Could not save settings'); return; }
+  // Build the catalog payload (sort_order = position), keeping only labelled rows.
+  const categories = {};
+  for (const uiKey of SETTINGS_TABS) {
+    const cat = LK_CAT[uiKey];
+    categories[cat] = (lookupsDraft[cat] || [])
+      .map((o, i) => ({ id: o.id ?? null, code: o.code, label: String(o.label || '').trim(), sortOrder: i, isActive: o.isActive !== false }))
+      .filter(o => o.label);
+  }
+  const payload = { categories, defaultName: document.getElementById('setting-default-name').value.trim() };
+  try {
+    await window.api.saveLookups(payload);
+    LK = await window.api.loadLookups();   // refresh — new entries now have stable codes
+  } catch { toast('Could not save settings'); return; }
   closeSettings();
+  renderTable();                            // reflect any relabeled values immediately
 }
 
 function switchTab(btn) {
@@ -2046,26 +2088,36 @@ function switchTab(btn) {
   document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
 }
 
-function renderLookupPanel(key) {
-  const panel = document.getElementById('tab-' + key);
+function renderLookupPanel(uiKey) {
+  const category = LK_CAT[uiKey];
+  const panel = document.getElementById('tab-' + uiKey);
   panel.innerHTML = '';
+  const arr = lookupsDraft[category] || (lookupsDraft[category] = []);
 
   const list = document.createElement('div');
   list.className = 'lookup-list';
-  const redraw = () => renderLookupPanel(key);
+  const redraw = () => renderLookupPanel(uiKey);
 
-  lookupsDraft[key].forEach((val, i) => {
+  arr.forEach((opt, i) => {
     const item = document.createElement('div');
-    item.className = 'lookup-item';
+    item.className = 'lookup-item' + (opt.isActive === false ? ' lookup-item-inactive' : '');
 
     const inp = document.createElement('input');
-    inp.type = 'text'; inp.value = val;
-    inp.addEventListener('input', e => { lookupsDraft[key][i] = e.target.value; });
+    inp.type = 'text'; inp.value = opt.label;
+    inp.title = opt.code ? 'code: ' + opt.code : 'new entry';
+    inp.addEventListener('input', e => { opt.label = e.target.value; });
 
+    // Existing entries soft-disable (codes are immutable — historical rows point at
+    // them); never-saved new entries are simply dropped.
     const del = document.createElement('button');
-    del.className = 'lookup-item-del'; del.textContent = '×';
-    del.title = 'Remove';
-    del.addEventListener('click', () => { lookupsDraft[key].splice(i, 1); redraw(); });
+    del.className = 'lookup-item-del';
+    del.textContent = opt.isActive === false ? '↺' : '×';
+    del.title = opt.id == null ? 'Remove' : (opt.isActive === false ? 'Re-enable' : 'Disable (hide from dropdowns)');
+    del.addEventListener('click', () => {
+      if (opt.id == null) arr.splice(i, 1);
+      else opt.isActive = opt.isActive === false;
+      redraw();
+    });
 
     item.appendChild(inp); item.appendChild(del);
     list.appendChild(item);
@@ -2084,7 +2136,7 @@ function renderLookupPanel(key) {
   addBtn.addEventListener('click', () => {
     const v = addInp.value.trim();
     if (!v) return;
-    lookupsDraft[key].push(v);
+    arr.push({ id: null, code: null, label: v, sortOrder: arr.length, isActive: true });
     addInp.value = '';
     redraw();
     const items = panel.querySelectorAll('.lookup-item input');
@@ -2103,10 +2155,10 @@ async function refreshDayList() {
   // Days loaded lazily — only fetch data when a day is actually opened
 }
 
-// Persist lookups (default name, templates, lists) without blocking the UI,
-// surfacing a toast if the write fails instead of an unhandled rejection.
+// Persist just the default employee name (auto-saved when the Name field changes)
+// without blocking the UI, surfacing a toast if the write fails.
 function persistLookups() {
-  Promise.resolve(window.api.saveLookups(lookups)).catch(() => toast('Could not save settings'));
+  Promise.resolve(window.api.saveLookups({ defaultName: LK.defaultName })).catch(() => toast('Could not save settings'));
 }
 
 // ── Calendar toggle ──
@@ -2183,7 +2235,7 @@ async function switchDay(dateStr) {
   }
 
   rows = (entry?.rows || []).map(r => Object.assign({}, r));
-  document.getElementById('hName').value = entry?.name || lookups.defaultName || '';
+  document.getElementById('hName').value = entry?.name || LK.defaultName || '';
   document.getElementById('hDate').value = dateStr;
 
   window.api.setTitle('Cooperation Tools — Timesheet — ' + dateStr);
@@ -2196,7 +2248,7 @@ async function switchDay(dateStr) {
 
 // ── Table ──
 function statusClass(s) {
-  if (s === 'Done') return 'status-done';
+  if (s === 'DONE') return 'status-done';
   return 'status-progress';
 }
 
@@ -2204,9 +2256,9 @@ function renderTable() {
   const tbody = document.getElementById('tbody');
   tbody.innerHTML = '';
 
-  const doneRows   = rows.filter(r => r.status === 'Done'        && rowMatchesFilter(r));
-  const inProgRows = rows.filter(r => r.status === 'In Progress' && rowMatchesFilter(r));
-  const otherRows  = rows.filter(r => !['Done','In Progress'].includes(r.status) && rowMatchesFilter(r));
+  const doneRows   = rows.filter(r => r.status === 'DONE'        && rowMatchesFilter(r));
+  const inProgRows = rows.filter(r => r.status === 'IN_PROGRESS' && rowMatchesFilter(r));
+  const otherRows  = rows.filter(r => !['DONE','IN_PROGRESS'].includes(r.status) && rowMatchesFilter(r));
   const ordered    = [...doneRows, ...inProgRows, ...otherRows];
 
   const isFiltered = filterText || filterStatuses.size > 0;
@@ -2262,8 +2314,8 @@ function renderTable() {
     const timeTd = document.createElement('td');
     const timeDiv = document.createElement('div'); timeDiv.className = 'cell';
     const timeSpan = document.createElement('span');
-    timeSpan.textContent = row.time;
-    if (row.time === 'Over Time') timeSpan.style.color = '#dc2626';
+    timeSpan.textContent = lkLabel('TIME_TYPE', row.time);
+    if (row.time === 'OVERTIME') timeSpan.style.color = '#dc2626';
     timeDiv.appendChild(timeSpan); timeTd.appendChild(timeDiv);
     tr.appendChild(timeTd);
 
@@ -2309,24 +2361,20 @@ function renderTable() {
     stTd.className = statusClass(row.status);
     const stDiv = document.createElement('div'); stDiv.className = 'cell';
     const badge = document.createElement('span');
-    badge.className = 'status-badge'; badge.textContent = row.status;
+    badge.className = 'status-badge'; badge.textContent = lkLabel('ENTRY_STATUS', row.status);
     badge.title = 'Click to change status';
     badge.addEventListener('click', (e) => {
       e.stopPropagation();
       document.querySelector('.status-dropdown')?.remove();
       const dropdown = document.createElement('div');
       dropdown.className = 'status-dropdown';
-      const opts = [
-        { label: 'Done',        cls: 'done' },
-        { label: 'In Progress', cls: 'progress' },
-      ];
-      opts.forEach(o => {
+      lkOptions('ENTRY_STATUS').forEach(o => {
         const opt = document.createElement('div');
-        opt.className = 'sd-opt ' + o.cls;
+        opt.className = 'sd-opt ' + (o.code === 'DONE' ? 'done' : 'progress');
         opt.textContent = o.label;
         opt.addEventListener('click', (ev) => {
           ev.stopPropagation();
-          rows[origIdx].status = o.label;
+          rows[origIdx].status = o.code;
           dropdown.remove();
           renderTable(); setUnsaved();
         });
@@ -2657,7 +2705,7 @@ async function moveRowToDate(origIdx, targetDate) {
     ? JSON.parse(JSON.stringify(dayCache[targetDate]))
     : await window.api.loadDay(targetDate);
   if (!entry) {
-    entry = { name: document.getElementById('hName').value || lookups.defaultName || '', rows: [] };
+    entry = { name: document.getElementById('hName').value || LK.defaultName || '', rows: [] };
   }
   entry.rows.push(Object.assign({}, removed));
   await window.api.saveDay(targetDate, entry);
@@ -2834,8 +2882,8 @@ document.getElementById('hName').addEventListener('input', () => {
   clearTimeout(_nameSaveTimer);
   _nameSaveTimer = setTimeout(() => {
     const name = document.getElementById('hName').value.trim();
-    if (name && name !== lookups.defaultName) {
-      lookups.defaultName = name;
+    if (name && name !== LK.defaultName) {
+      LK.defaultName = name;
       persistLookups();
     }
   }, 2000);
@@ -2850,7 +2898,7 @@ function buildDailyReportHTML(srcRows, date, name) {
   const dayName   = dt.toLocaleDateString('en-US', { weekday:'long' });
   const dateLabel = dt.toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
 
-  const badgeClass = s => s === 'Done' ? 'done' : 'progress';
+  const badgeClass = s => s === 'DONE' ? 'done' : 'progress';
 
   const printRows  = srcRows;
   const totalMin   = totalMins(printRows);
@@ -2859,12 +2907,12 @@ function buildDailyReportHTML(srcRows, date, name) {
   const byType = {};
   printRows.forEach(r => {
     if (!r.minutes) return;
-    const k = r.time || 'Other';
+    const k = r.time || 'OTHER';
     byType[k] = (byType[k] || 0) + (parseFloat(r.minutes) || 0);
   });
 
-  const workMin  = byType['Work Time'] || byType['Work'] || 0;
-  const otMin    = byType['Over Time'] || byType['Part Time'] || 0;
+  const workMin  = byType['WORK_TIME'] || 0;
+  const otMin    = byType['OVERTIME'] || 0;
   const otherMin = Math.max(0, totalMin - workMin - otMin);   // Training/Leave/Holiday/etc.
   const workHrs  = (workMin / 60).toFixed(2);
   const otHrs    = (otMin / 60).toFixed(2);
@@ -2877,8 +2925,8 @@ function buildDailyReportHTML(srcRows, date, name) {
         <td class="center">${i + 1}</td>
         <td>${esc(r.company)}</td>
         <td>${esc(r.project)}</td>
-        <td class="time-type">${esc(r.natural)}<br><span style="${r.time === 'Over Time' ? 'color:#dc2626;font-weight:700' : 'color:#aaa'}">${esc(r.time)}</span></td>
-        <td><span class="rpt-badge ${badgeClass(r.status)}">${esc(r.status)}</span></td>
+        <td class="time-type">${esc(r.natural)}<br><span style="${r.time === 'OVERTIME' ? 'color:#dc2626;font-weight:700' : 'color:#aaa'}">${esc(lkLabel('TIME_TYPE', r.time))}</span></td>
+        <td><span class="rpt-badge ${badgeClass(r.status)}">${esc(lkLabel('ENTRY_STATUS', r.status))}</span></td>
         <td class="num">${r.minutes || '—'}</td>
         <td class="hrs">${r.minutes ? (parseFloat(r.minutes)/60).toFixed(2) : '—'}</td>
       </tr>
@@ -3041,7 +3089,7 @@ async function genDailyReport() {
   }
   if (!dayRows.length) toast('No records on that day — showing an empty report');
 
-  const name = document.getElementById('hName').value || (lookups && lookups.defaultName) || 'N/A';
+  const name = document.getElementById('hName').value || LK.defaultName || 'N/A';
   _reportFileBase = `timesheet-${date}`;
   document.getElementById('print-frame').innerHTML = buildDailyReportHTML(dayRows, date, name);
   document.getElementById('print-overlay').classList.add('open');
@@ -3059,7 +3107,7 @@ async function genOvertimeReport() {
   const to   = `${mv}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
   const days = await window.api.loadDaysRange(from, to);
   const monthLabel = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  const name = document.getElementById('hName').value || (lookups && lookups.defaultName) || 'N/A';
+  const name = document.getElementById('hName').value || LK.defaultName || 'N/A';
 
   _reportFileBase = `overtime-request-${mv}`;
   document.getElementById('print-frame').innerHTML = buildOvertimeReportHTML(days, monthLabel, name);
@@ -3070,7 +3118,7 @@ function buildOvertimeReportHTML(days, monthLabel, name) {
   const otRows = [];
   days.forEach(d => {
     (d.rows || []).forEach(r => {
-      if (r.time === 'Over Time') otRows.push({ date: d.date, row: r });
+      if (r.time === 'OVERTIME') otRows.push({ date: d.date, row: r });
     });
   });
   otRows.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
@@ -3188,7 +3236,7 @@ async function genSubscriptionsReport() {
   try { data = await window.api.loadSubscriptions(); }
   catch { toast('Could not load subscriptions'); return; }
   const subs = (data && Array.isArray(data.subscriptions)) ? data.subscriptions : [];
-  const name = document.getElementById('hName').value || (lookups && lookups.defaultName) || 'N/A';
+  const name = document.getElementById('hName').value || LK.defaultName || 'N/A';
   if (!subs.length) toast('No subscriptions yet — showing an empty report');
   _reportFileBase = `subscriptions-${fmt(new Date())}`;
   document.getElementById('print-frame').innerHTML = buildSubscriptionsReportHTML(subs, (data && data.defaultCurrency) || 'USD', name);
@@ -3215,8 +3263,8 @@ function buildSubscriptionsReportHTML(subs, defaultCurrency, name) {
     if (!cost) return;
     const c = s.currency || defaultCurrency || 'USD';
     cur[c] = cur[c] || { monthly: 0, yearly: 0 };
-    if (s.billingCycle === 'Yearly')        { cur[c].yearly += cost;  cur[c].monthly += cost / 12; }
-    else if (s.billingCycle === 'Monthly')  { cur[c].monthly += cost; cur[c].yearly  += cost * 12; }
+    if (s.billingCycle === 'YEARLY')        { cur[c].yearly += cost;  cur[c].monthly += cost / 12; }
+    else if (s.billingCycle === 'MONTHLY')  { cur[c].monthly += cost; cur[c].yearly  += cost * 12; }
     else                                    { cur[c].yearly += cost;  cur[c].monthly += cost / 12; }
   });
 
@@ -3236,7 +3284,7 @@ function buildSubscriptionsReportHTML(subs, defaultCurrency, name) {
           <td class="center">${i + 1}</td>
           <td>${esc(s.name)}</td>
           <td>${esc((s.currency || defaultCurrency || 'USD') + ' ' + costText)}</td>
-          <td>${esc(s.billingCycle || '—')}</td>
+          <td>${esc(s.billingCycle ? lkLabel('BILLING_CYCLE', s.billingCycle) : '—')}</td>
           <td>${esc(s.endDate || '—')}</td>
           <td>${esc(s.renewalDate || '—')}</td>
           <td>${renewCell(s.renewalDate)}</td>
@@ -3377,8 +3425,8 @@ function renderBacklog() {
     const timeTd = document.createElement('td');
     const timeDiv = document.createElement('div'); timeDiv.className = 'cell';
     const timeSpan = document.createElement('span');
-    timeSpan.textContent = task.time;
-    if (task.time === 'Over Time') timeSpan.style.color = '#dc2626';
+    timeSpan.textContent = lkLabel('TIME_TYPE', task.time);
+    if (task.time === 'OVERTIME') timeSpan.style.color = '#dc2626';
     timeDiv.appendChild(timeSpan); timeTd.appendChild(timeDiv);
     tr.appendChild(timeTd);
 
@@ -3470,7 +3518,7 @@ async function assignBacklogToDay(id, targetDate) {
   const row = {
     company: task.company || '', project: task.project || '', natural: task.natural || '',
     time: task.time || '', description: task.description || '', source: task.source || '',
-    status: 'In Progress', minutes: '',
+    status: 'IN_PROGRESS', minutes: '',
     tags: Array.isArray(task.tags) ? task.tags.slice() : [],
   };
 
@@ -3490,7 +3538,7 @@ async function assignBacklogToDay(id, targetDate) {
   let entry = dayCache[targetDate]
     ? JSON.parse(JSON.stringify(dayCache[targetDate]))
     : await window.api.loadDay(targetDate);
-  if (!entry) entry = { name: lookups.defaultName || '', rows: [] };
+  if (!entry) entry = { name: LK.defaultName || '', rows: [] };
   entry.rows.push(row);
   try { await window.api.saveDay(targetDate, entry); }
   catch { toast('Could not assign — save failed'); return; }
@@ -3626,7 +3674,8 @@ function rowMatchesFilter(row) {
   if (filterStatuses.size > 0 && !filterStatuses.has(row.status)) return false;
   if (!filterText) return true;
   const tagStr = Array.isArray(row.tags) ? row.tags.join(' ') : '';
-  return [row.company, row.project, row.natural, row.time, row.description, row.source, row.status, tagStr]
+  // Search against the human labels of the code-valued fields (time / status).
+  return [row.company, row.project, row.natural, lkLabel('TIME_TYPE', row.time), row.description, row.source, lkLabel('ENTRY_STATUS', row.status), tagStr]
     .some(v => (v || '').toLowerCase().includes(filterText));
 }
 
@@ -3726,7 +3775,7 @@ async function moveRowsToDate(rowRefs, targetDate) {
   let entry = dayCache[targetDate]
     ? JSON.parse(JSON.stringify(dayCache[targetDate]))
     : await window.api.loadDay(targetDate);
-  if (!entry) entry = { name: document.getElementById('hName').value || lookups.defaultName || '', rows: [] };
+  if (!entry) entry = { name: document.getElementById('hName').value || LK.defaultName || '', rows: [] };
 
   const withIdx = rowRefs.map(r => ({ r, i: rows.indexOf(r) })).filter(x => x.i !== -1);
   withIdx.slice().sort((a, b) => b.i - a.i).forEach(x => rows.splice(x.i, 1));     // remove (desc)
@@ -3886,7 +3935,7 @@ function greetWord() {
 }
 
 async function renderOverview() {
-  const name = (lookups && lookups.defaultName) ? lookups.defaultName.split(' ')[0] : 'Moustafa';
+  const name = LK.defaultName ? LK.defaultName.split(' ')[0] : 'Moustafa';
   document.getElementById('dash-hello').textContent = `${greetWord()}, ${name}`;
   document.getElementById('dash-date').textContent =
     new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -3962,9 +4011,10 @@ function setNavBadge(module, count) {
 // ════════════════════════════════════════════════════════════════════════════
 // ANALYTICS MODULE — read-only insights derived from existing data (one query).
 // ════════════════════════════════════════════════════════════════════════════
+// Keyed by TIME_TYPE lookup code (+ 'OTHER' for unset).
 const AN_TYPE_COLORS = {
-  'Work Time': '#6c63ff', 'Over Time': '#ef4444', 'Training': '#06b6d4',
-  'Leave': '#f59e0b', 'Holiday': '#22c55e', 'Part Time': '#ec4899',
+  'WORK_TIME': '#6c63ff', 'OVERTIME': '#ef4444', 'TRAINING': '#06b6d4',
+  'LEAVE': '#f59e0b', 'HOLIDAY': '#22c55e', 'OTHER': '#94a3b8',
 };
 const AN_FALLBACK = ['#a855f7', '#84cc16', '#14b8a6', '#f97316', '#0ea5e9', '#d946ef'];
 let _anTrendSeq = 0;   // monotonic id source for per-trend SVG gradients
@@ -4050,16 +4100,16 @@ async function renderAnalytics() {
   const byCompany = an.byCompany, byProject = an.byProject, byType = an.byType, byNatural = an.byNatural;
   const totalMin = an.totalMin, recordCount = an.recordCount, activeDays = an.activeDays, doneCount = an.doneCount;
 
-  const workMin = byType['Work Time'] || 0;
-  const otMin   = byType['Over Time'] || 0;
+  const workMin = byType['WORK_TIME'] || 0;
+  const otMin   = byType['OVERTIME'] || 0;
   const pct = (m) => totalMin ? Math.round((m / totalMin) * 100) : 0;
   const completionRate = recordCount ? Math.round((doneCount / recordCount) * 100) : 0;
 
   // ── KPIs ──
   const kpis = [
     { label: 'Total Hours', val: (totalMin / 60).toFixed(1), unit: 'h', foot: `${recordCount} record${recordCount === 1 ? '' : 's'}`, cls: 'accent' },
-    { label: 'Work Time',   val: (workMin / 60).toFixed(1),  unit: 'h', foot: `${pct(workMin)}% of total`, cls: '' },
-    { label: 'Over Time',   val: (otMin / 60).toFixed(1),    unit: 'h', foot: `${pct(otMin)}% of total`, cls: '' },
+    { label: lkLabel('TIME_TYPE', 'WORK_TIME') || 'Work Time', val: (workMin / 60).toFixed(1),  unit: 'h', foot: `${pct(workMin)}% of total`, cls: '' },
+    { label: lkLabel('TIME_TYPE', 'OVERTIME')  || 'Over Time', val: (otMin / 60).toFixed(1),    unit: 'h', foot: `${pct(otMin)}% of total`, cls: '' },
     { label: 'Avg / Day',   val: activeDays ? (totalMin / 60 / activeDays).toFixed(1) : '0', unit: 'h', foot: `${activeDays} active day${activeDays === 1 ? '' : 's'}`, cls: '' },
     { label: 'Completion',  val: String(completionRate), unit: '%', foot: `${doneCount} of ${recordCount} done`, cls: '' },
   ];
@@ -4088,7 +4138,7 @@ async function renderAnalytics() {
   const typeSegs = Object.entries(byType)
     .filter(([, v]) => v > 0)
     .sort((a, b) => b[1] - a[1])
-    .map(([k, v], i) => ({ label: k, value: v, color: AN_TYPE_COLORS[k] || AN_FALLBACK[i % AN_FALLBACK.length] }));
+    .map(([k, v], i) => ({ label: k === 'OTHER' ? 'Other' : lkLabel('TIME_TYPE', k), value: v, color: AN_TYPE_COLORS[k] || AN_FALLBACK[i % AN_FALLBACK.length] }));
   document.getElementById('an-type').innerHTML = anDonut(typeSegs, totalMin);
   document.getElementById('an-type-sub').textContent = typeSegs.length ? `${typeSegs.length} types` : '';
 
@@ -4318,8 +4368,8 @@ async function renderAnSpend() {
     if (!cost) return;
     const c = s.currency || 'USD';
     cur[c] = cur[c] || { monthly: 0, yearly: 0 };
-    if (s.billingCycle === 'Yearly')      { cur[c].yearly += cost;       cur[c].monthly += cost / 12; }
-    else if (s.billingCycle === 'Monthly'){ cur[c].monthly += cost;      cur[c].yearly  += cost * 12; }
+    if (s.billingCycle === 'YEARLY')      { cur[c].yearly += cost;       cur[c].monthly += cost / 12; }
+    else if (s.billingCycle === 'MONTHLY'){ cur[c].monthly += cost;      cur[c].yearly  += cost * 12; }
     else { cur[c].yearly += cost; cur[c].monthly += cost / 12; }   // Custom → treat as yearly
   });
   const entries = Object.entries(cur);
@@ -4392,8 +4442,8 @@ function renewLabel(daysLeft) {
 
 function addInterval(dateStr, cycle) {
   const d = new Date(dateStr + 'T00:00:00');
-  if (cycle === 'Monthly') d.setMonth(d.getMonth() + 1);
-  else if (cycle === 'Yearly') d.setFullYear(d.getFullYear() + 1);
+  if (cycle === 'MONTHLY') d.setMonth(d.getMonth() + 1);
+  else if (cycle === 'YEARLY') d.setFullYear(d.getFullYear() + 1);
   else return '';
   return fmt(d);
 }
@@ -4418,7 +4468,7 @@ function renderSubscriptions() {
     if (da === null) return 1;
     if (db === null) return -1;
     return da - db;
-  }).filter(s => textMatch([s.name, s.cost, s.currency, s.billingCycle, s.endDate, s.renewalDate], subFilter));
+  }).filter(s => textMatch([s.name, s.cost, s.currency, lkLabel('BILLING_CYCLE', s.billingCycle), s.endDate, s.renewalDate], subFilter));
 
   if (sorted.length === 0) {
     tbody.innerHTML = '<tr><td colspan="7" class="no-matches">No matches</td></tr>';
@@ -4437,7 +4487,7 @@ function renderSubscriptions() {
     costSpan.textContent = (sub.currency || 'USD') + ' ' + costText;
     tr.appendChild(cellWrap(costSpan, 'cell'));
 
-    tr.appendChild(textCell(sub.billingCycle));
+    tr.appendChild(textCell(lkLabel('BILLING_CYCLE', sub.billingCycle)));
     tr.appendChild(textCell(sub.endDate || '—'));
     tr.appendChild(textCell(sub.renewalDate || '—'));
 
@@ -4505,8 +4555,9 @@ function openSubModal(id = null) {
 
   document.getElementById('s-name').value     = sub ? sub.name : '';
   document.getElementById('s-cost').value     = sub ? sub.cost : '';
-  document.getElementById('s-currency').value = sub ? (sub.currency || 'USD') : subPrefs.defaultCurrency;
-  document.getElementById('s-cycle').value    = sub ? sub.billingCycle : 'Monthly';
+  // Currency + cycle <select> options come from the lookup catalog (value = code).
+  populateSelect('s-currency', 'currency',     sub ? (sub.currency || 'USD') : subPrefs.defaultCurrency);
+  populateSelect('s-cycle',    'billingCycle', sub ? sub.billingCycle : 'MONTHLY');
   document.getElementById('s-end').value      = sub ? (sub.endDate || '') : '';
   document.getElementById('s-renewal').value  = sub ? (sub.renewalDate || '') : '';
 
@@ -4526,7 +4577,7 @@ function subOverlayClick(e) {
 
 // ── Subscriptions: settings ──
 function openSubSettings() {
-  document.getElementById('sub-setting-currency').value = subPrefs.defaultCurrency;
+  populateSelect('sub-setting-currency', 'currency', subPrefs.defaultCurrency);
   document.getElementById('sub-settings-overlay').classList.add('open');
 }
 
@@ -4551,7 +4602,7 @@ function suggestSubRenewal() {
   const cycle = document.getElementById('s-cycle').value;
   const end   = document.getElementById('s-end').value;
   const renewalEl = document.getElementById('s-renewal');
-  if (end && !renewalEl.value && (cycle === 'Monthly' || cycle === 'Yearly')) {
+  if (end && !renewalEl.value && (cycle === 'MONTHLY' || cycle === 'YEARLY')) {
     renewalEl.value = addInterval(end, cycle);
   }
 }
@@ -4631,16 +4682,14 @@ async function init() {
   calMonth = t.getMonth();
 
   try {
-    lookups = await window.api.loadLookups();
+    LK = await window.api.loadLookups();
     await refreshDayList();
     const today = fmt(t);
     await switchDay(today);
   } catch (err) {
     // Data layer unreachable at startup — keep the shell usable rather than
     // leaving a blank window, and tell the user.
-    if (!lookups || !Array.isArray(lookups.companies)) {
-      lookups = { companies: [], projects: [], natural: [], timeType: [], status: [] };
-    }
+    if (!LK || !LK.categories) LK = { categories: {}, defaultName: '' };
     toast('Could not load data — some views may be empty');
   }
 
