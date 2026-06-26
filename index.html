@@ -169,8 +169,48 @@
     .topbar-title, .an-title, .sub-title, .backlog-title,
     .reports-title, .cp-title, .settings-mod-title {
       font-size: 15px; font-weight: 700; color: var(--text);
+      display: inline-flex; align-items: center; gap: 8px;
     }
     .topbar-title { margin-right: 4px; }
+
+    /* ── Icon system (Lucide inline SVG) — themed via currentColor ── */
+    .lic { display: inline-block; width: 16px; height: 16px; vertical-align: -0.18em;
+           flex-shrink: 0; stroke-width: 2; overflow: visible; }
+    /* Leading title / section icons take the accent color */
+    .topbar-title .lic, .an-title .lic, .sub-title .lic, .backlog-title .lic,
+    .reports-title .lic, .cp-title .lic, .settings-mod-title .lic,
+    .modal-title .lic { width: 18px; height: 18px; vertical-align: middle; color: var(--primary); }
+    .an-section-title .lic { width: 14px; height: 14px; vertical-align: middle; color: var(--primary); }
+    /* Sidebar nav glyphs inherit text color (so active = white) */
+    .nav-icon { width: 20px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .nav-icon .lic { width: 18px; height: 18px; vertical-align: middle; }
+    /* Buttons & inline controls */
+    .btn .lic, .auth-btn .lic { width: 15px; height: 15px; vertical-align: -0.18em; }
+    .bulk-btn .lic, .row-btn .lic { width: 14px; height: 14px; vertical-align: -0.22em; }
+    .modal-close .lic { width: 16px; height: 16px; vertical-align: middle; }
+    .cal-icon .lic, .filter-icon .lic { width: 15px; height: 15px; vertical-align: middle; }
+    .stab-icon { display: inline-flex; align-items: center; }
+    .stab-icon .lic { width: 15px; height: 15px; vertical-align: middle; }
+    .rmod-card-icon .lic { width: 22px; height: 22px; }
+    /* Save / status pills + in-progress divider */
+    .saved .lic, .save-error .lic { width: 13px; height: 13px; vertical-align: -0.15em; }
+    .inprogress-divider-label .lic { width: 13px; height: 13px; vertical-align: -0.12em; }
+    /* Decorative empty-state icons — larger, lighter stroke */
+    #empty-state .icon .lic, #sub-empty-state .icon .lic,
+    #backlog-empty-state .icon .lic, .cp-placeholder .icon .lic { width: 46px; height: 46px; stroke-width: 1.5; }
+    .dash-empty .de-icon .lic { width: 30px; height: 30px; stroke-width: 1.75; }
+    /* Filter clear, timer chip, calendar caret, lookup toggle, cp filter clear */
+    #filter-clear .lic { width: 14px; height: 14px; vertical-align: middle; }
+    #timer-chip .lic { width: 14px; height: 14px; vertical-align: middle; }
+    .cal-caret { display: inline-flex; align-items: center; }
+    .cal-caret .lic { width: 14px; height: 14px; }
+    .lookup-item-del .lic { width: 14px; height: 14px; vertical-align: middle; }
+    .cp-filter-clear .lic { width: 13px; height: 13px; vertical-align: -0.15em; }
+    /* Dashboard stat-card labels + attention list icons */
+    .ds-label { display: inline-flex; align-items: center; gap: 6px; }
+    .ds-label .lic { width: 14px; height: 14px; color: var(--primary); }
+    .dash-att-icon .lic { width: 18px; height: 18px; vertical-align: middle; }
+    .inprogress-divider-label .lic { color: var(--warn); }
 
     /* Calendar trigger */
     #cal-trigger {
@@ -532,7 +572,7 @@
 
     /* Section divider headers */
     .an-section { display: flex; align-items: center; gap: 12px; margin: 30px 0 14px; }
-    .an-section-title { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .9px; color: var(--muted); white-space: nowrap; }
+    .an-section-title { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .9px; color: var(--muted); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
     .an-section-line { flex: 1; height: 1px; background: var(--border); }
     .an-period-tag {
       flex-shrink: 0; font-size: 11.5px; font-weight: 600; color: var(--accent);
@@ -1376,40 +1416,40 @@
   <div class="sidebar-brand">MOS TA FA<br><span>COOPERATION TOOLS</span></div>
   <nav class="sidebar-nav">
     <button class="nav-item active" data-module="analytics" onclick="switchModule('analytics')">
-      <span class="nav-icon">📊</span>Analytics
+      <span class="nav-icon" data-ic="layout-dashboard"></span>Analytics
     </button>
     <button class="nav-item" data-module="timesheet" onclick="switchModule('timesheet')">
-      <span class="nav-icon">🕐</span>Timesheet
+      <span class="nav-icon" data-ic="clock"></span>Timesheet
     </button>
     <button class="nav-item" data-module="backlog" onclick="switchModule('backlog')">
-      <span class="nav-icon">📌</span>Not Yet
+      <span class="nav-icon" data-ic="pin"></span>Not Yet
     </button>
     <button class="nav-item" data-module="reports" onclick="switchModule('reports')">
-      <span class="nav-icon">📄</span>Reports
+      <span class="nav-icon" data-ic="file-text"></span>Reports
     </button>
     <button class="nav-item" data-module="subscriptions" onclick="switchModule('subscriptions')">
-      <span class="nav-icon">💳</span>Subscriptions<span class="nav-badge" id="nav-badge-subscriptions"></span>
+      <span class="nav-icon" data-ic="credit-card"></span>Subscriptions<span class="nav-badge" id="nav-badge-subscriptions"></span>
     </button>
     <button class="nav-item" data-module="companies" onclick="switchModule('companies')">
-      <span class="nav-icon">🏢</span>Companies
+      <span class="nav-icon" data-ic="building-2"></span>Companies
     </button>
     <button class="nav-item" data-module="projects" onclick="switchModule('projects')">
-      <span class="nav-icon">📁</span>Projects
+      <span class="nav-icon" data-ic="folder"></span>Projects
     </button>
     <button class="nav-item" data-module="settings" onclick="switchModule('settings')">
-      <span class="nav-icon">⚙</span>Settings
+      <span class="nav-icon" data-ic="settings"></span>Settings
     </button>
   </nav>
   <div class="sidebar-footer">
     <button id="theme-toggle" class="nav-item" onclick="toggleTheme()" title="Switch between light and dark mode">
-      <span class="nav-icon" id="theme-icon">🌙</span><span id="theme-label">Dark Mode</span>
+      <span class="nav-icon" id="theme-icon" data-ic="moon"></span><span id="theme-label">Dark Mode</span>
     </button>
     <button id="backup-btn" class="nav-item" onclick="backupDatabase()" title="Save a copy of your database to a file">
-      <span class="nav-icon">💾</span>Backup Data
+      <span class="nav-icon" data-ic="save"></span>Backup Data
     </button>
     <div class="sidebar-user" id="sidebar-user"></div>
     <button id="logout-btn" class="nav-item" onclick="doLogout()" title="Log out of this session">
-      <span class="nav-icon">🚪</span>Log Out
+      <span class="nav-icon" data-ic="log-out"></span>Log Out
     </button>
   </div>
 </div>
@@ -1417,7 +1457,7 @@
 <!-- ══ ANALYTICS MODULE (home / overview) ══ -->
 <div id="module-analytics" class="app-module">
   <div id="an-topbar">
-    <span class="an-title">📊 Analytics</span>
+    <span class="an-title"><span class="ti-ic" data-ic="layout-dashboard"></span>Analytics</span>
     <div class="an-period" id="an-period">
       <button class="an-period-btn" data-period="week"  onclick="setAnPeriod('week')">This Week</button>
       <button class="an-period-btn active" data-period="month" onclick="setAnPeriod('month')">This Month</button>
@@ -1430,8 +1470,8 @@
       <input type="month" id="an-to" onchange="renderAnalytics()" />
     </div>
     <div class="topbar-right">
-      <button class="btn" onclick="exportAnalyticsPDF()" title="Save this analytics view as PDF">⬇ PDF</button>
-      <button class="btn" onclick="renderAnalytics()" title="Refresh">↻ Refresh</button>
+      <button class="btn" onclick="exportAnalyticsPDF()" title="Save this analytics view as PDF"><span data-ic="download"></span>PDF</button>
+      <button class="btn" onclick="renderAnalytics()" title="Refresh"><span data-ic="rotate-ccw"></span>Refresh</button>
     </div>
   </div>
   <div class="an-scroll" id="an-scroll">
@@ -1444,7 +1484,7 @@
 
     <!-- ── Time Tracking: everything driven by the selected period ── -->
     <div class="an-section">
-      <span class="an-section-title">📈 Time Tracking</span>
+      <span class="an-section-title"><span data-ic="trending-up"></span>Time Tracking</span>
       <span class="an-section-line"></span>
       <span class="an-period-tag" id="an-period-tag"></span>
     </div>
@@ -1485,7 +1525,7 @@
 
     <!-- ── Activity: fixed 26-week heatmap (period-independent) ── -->
     <div class="an-section">
-      <span class="an-section-title">🔥 Activity</span>
+      <span class="an-section-title"><span data-ic="flame"></span>Activity</span>
       <span class="an-section-line"></span>
     </div>
     <div class="an-card full an-heat-card" style="margin-bottom:16px">
@@ -1507,7 +1547,7 @@
 
     <!-- ── Needs Attention: cross-module reminders ── -->
     <div class="an-section">
-      <span class="an-section-title">🔔 Needs Attention</span>
+      <span class="an-section-title"><span data-ic="bell"></span>Needs Attention</span>
       <span class="an-section-line"></span>
     </div>
     <div class="an-grid">
@@ -1526,7 +1566,7 @@
 <!-- ══ REPORTS MODULE ══ -->
 <div id="module-reports" class="app-module">
   <div id="reports-topbar">
-    <span class="reports-title">📄 Reports</span>
+    <span class="reports-title"><span class="ti-ic" data-ic="file-text"></span>Reports</span>
   </div>
   <div class="rmod-scroll">
     <div class="rmod-intro">
@@ -1535,7 +1575,7 @@
     <div class="rmod-grid">
       <div class="rmod-card">
         <div class="rmod-card-head">
-          <div class="rmod-card-icon">🗓</div>
+          <div class="rmod-card-icon" data-ic="calendar-days"></div>
           <div class="rmod-card-title">Daily Timesheet PDF</div>
         </div>
         <div class="rmod-card-desc">The full daily work report for a single day — every record with its hours and the Work / Over-Time split. The same report you can print from the Timesheet.</div>
@@ -1550,7 +1590,7 @@
 
       <div class="rmod-card">
         <div class="rmod-card-head">
-          <div class="rmod-card-icon">⏱</div>
+          <div class="rmod-card-icon" data-ic="timer"></div>
           <div class="rmod-card-title">Monthly Over-Time PDF</div>
         </div>
         <div class="rmod-card-desc">Every Over-Time entry logged in the chosen month, with the total hours — formatted as an Over-Time Request to share with management for approval.</div>
@@ -1565,7 +1605,7 @@
 
       <div class="rmod-card">
         <div class="rmod-card-head">
-          <div class="rmod-card-icon">💳</div>
+          <div class="rmod-card-icon" data-ic="credit-card"></div>
           <div class="rmod-card-title">Subscriptions PDF</div>
         </div>
         <div class="rmod-card-desc">The full list of recurring subscriptions — cost, billing cycle, end &amp; renewal dates and how soon each renews, with monthly / yearly spend totals per currency.</div>
@@ -1582,12 +1622,12 @@
 <div id="main">
   <!-- Top bar -->
   <div id="topbar">
-    <span class="topbar-title">🕐 Timesheet</span>
+    <span class="topbar-title"><span class="ti-ic" data-ic="clock"></span>Timesheet</span>
     <!-- Calendar trigger -->
     <div id="cal-trigger" onclick="toggleCalendar(event)">
-      <span class="cal-icon">📅</span>
+      <span class="cal-icon" data-ic="calendar"></span>
       <span id="cal-trigger-label">June 2026</span>
-      <span>▾</span>
+      <span class="cal-caret" data-ic="chevron-down"></span>
       <div id="cal-dropdown" onclick="event.stopPropagation()">
         <div id="cal-header">
           <button id="cal-prev">‹</button>
@@ -1600,17 +1640,17 @@
 
     <!-- Live timer chip -->
     <div id="timer-chip">
-      <span id="timer-icon">⏱</span>
+      <span id="timer-icon" data-ic="timer"></span>
       <span id="timer-display">00:00</span>
-      <button id="timer-pause-btn" onclick="togglePauseTimer()" title="Pause / resume">⏸</button>
-      <button id="timer-stop-btn" onclick="stopTimer()">■ Stop</button>
+      <button id="timer-pause-btn" onclick="togglePauseTimer()" title="Pause / resume" data-ic="pause"></button>
+      <button id="timer-stop-btn" onclick="stopTimer()"><span data-ic="square"></span>Stop</button>
     </div>
 
     <div class="topbar-right">
       <span id="save-status"></span>
-      <button class="btn today-btn" id="btn-today" onclick="goToday()">📍 Today</button>
-      <button class="btn" onclick="switchModule('settings')" title="Settings">⚙ Settings</button>
-      <button class="btn" onclick="openMonthView()" title="Month overview">🗓 Month</button>
+      <button class="btn today-btn" id="btn-today" onclick="goToday()"><span data-ic="calendar-check"></span>Today</button>
+      <button class="btn" onclick="switchModule('settings')" title="Settings"><span data-ic="settings"></span>Settings</button>
+      <button class="btn" onclick="openMonthView()" title="Month overview"><span data-ic="calendar-days"></span>Month</button>
       <button class="btn primary" onclick="openModal()">+ Add Record <kbd>⌃N</kbd></button>
     </div>
   </div>
@@ -1649,9 +1689,9 @@
   <!-- Filter bar -->
   <div id="filter-bar">
     <div class="filter-wrap">
-      <span class="filter-icon">🔍</span>
+      <span class="filter-icon" data-ic="search"></span>
       <input id="filter-input" type="text" placeholder="Filter rows…" oninput="applyFilter()" />
-      <button id="filter-clear" onclick="clearFilter()" title="Clear filter">✕</button>
+      <button id="filter-clear" onclick="clearFilter()" title="Clear filter" data-ic="x"></button>
     </div>
     <div class="filter-chips">
       <button class="filter-chip" data-status="DONE"        onclick="toggleStatusFilter(this)">Done</button>
@@ -1681,7 +1721,7 @@
       <tbody id="tbody"></tbody>
     </table>
     <div id="empty-state">
-      <div class="icon">📋</div>
+      <div class="icon" data-ic="clipboard-list"></div>
       <p>No records yet — click <strong>+ Add Record</strong> to start</p>
     </div>
   </div>
@@ -1691,9 +1731,9 @@
 <div id="print-overlay" onclick="printOverlayClick(event)">
   <div id="print-frame"></div>
   <div class="pf-toolbar">
-    <button class="btn" onclick="closePrint()">✕ Close</button>
-    <button class="btn" onclick="exportReportPDF()">⬇ Save PDF</button>
-    <button class="btn primary" onclick="triggerPrint()">🖨 Print</button>
+    <button class="btn" onclick="closePrint()"><span data-ic="x"></span>Close</button>
+    <button class="btn" onclick="exportReportPDF()"><span data-ic="download"></span>Save PDF</button>
+    <button class="btn primary" onclick="triggerPrint()"><span data-ic="printer"></span>Print</button>
   </div>
 </div>
 
@@ -1702,7 +1742,7 @@
   <div id="modal">
     <div class="modal-header">
       <span class="modal-title" id="modal-title">Add Record</span>
-      <button class="modal-close" onclick="closeModal()">✕</button>
+      <button class="modal-close" onclick="closeModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <div class="form-row">
@@ -1765,8 +1805,8 @@
 <div id="month-overlay" onclick="monthOverlayClick(event)">
   <div id="month-modal">
     <div class="modal-header">
-      <span class="modal-title">🗓 <span id="month-title">Month</span></span>
-      <button class="modal-close" onclick="closeMonthView()">✕</button>
+      <span class="modal-title"><span class="ti-ic" data-ic="calendar-days"></span><span id="month-title">Month</span></span>
+      <button class="modal-close" onclick="closeMonthView()" data-ic="x"></button>
     </div>
     <div class="month-nav">
       <button class="btn" onclick="monthViewStep(-1)">‹ Prev</button>
@@ -1786,15 +1826,15 @@
 <div id="bulk-bar">
   <span id="bulk-count">0 selected</span>
   <div class="menu-wrap">
-    <button class="bulk-btn" onclick="toggleTopMenu(event,'bulk-status-menu')">Set Status ▾</button>
+    <button class="bulk-btn" onclick="toggleTopMenu(event,'bulk-status-menu')">Set Status <span data-ic="chevron-down"></span></button>
     <div class="top-menu" id="bulk-status-menu">
       <button onclick="bulkSetStatus('DONE')">Done</button>
       <button onclick="bulkSetStatus('IN_PROGRESS')">In Progress</button>
     </div>
   </div>
-  <button class="bulk-btn" onclick="bulkMovePrompt()">📅 Move…</button>
-  <button class="bulk-btn danger" onclick="bulkDelete()">🗑 Delete</button>
-  <button class="bulk-btn ghost" onclick="clearSelection()">✕ Clear</button>
+  <button class="bulk-btn" onclick="bulkMovePrompt()"><span data-ic="calendar-clock"></span>Move…</button>
+  <button class="bulk-btn danger" onclick="bulkDelete()"><span data-ic="trash-2"></span>Delete</button>
+  <button class="bulk-btn ghost" onclick="clearSelection()"><span data-ic="x"></span>Clear</button>
 </div>
 
 <!-- ══ UNDO TOAST ══ -->
@@ -1808,10 +1848,10 @@
 <!-- ══ SUBSCRIPTIONS MODULE ══ -->
 <div id="module-subscriptions" class="app-module">
   <div id="sub-topbar">
-    <span class="sub-title">💳 Subscriptions</span>
+    <span class="sub-title"><span class="ti-ic" data-ic="credit-card"></span>Subscriptions</span>
     <div class="topbar-right">
-      <input type="text" id="sub-filter" class="mod-search" placeholder="🔍 Search subscriptions…" oninput="applySubFilter()">
-      <button class="btn" onclick="openSubSettings()" title="Settings">⚙ Settings</button>
+      <input type="text" id="sub-filter" class="mod-search" placeholder="Search subscriptions…" oninput="applySubFilter()">
+      <button class="btn" onclick="openSubSettings()" title="Settings"><span data-ic="settings"></span>Settings</button>
       <button class="btn primary" onclick="openSubModal()">+ Add Subscription</button>
     </div>
   </div>
@@ -1832,7 +1872,7 @@
       <tbody id="sub-tbody"></tbody>
     </table>
     <div id="sub-empty-state">
-      <div class="icon">💳</div>
+      <div class="icon" data-ic="credit-card"></div>
       <p>No subscriptions yet — click <strong>+ Add Subscription</strong> to start tracking</p>
     </div>
   </div>
@@ -1841,9 +1881,9 @@
 <!-- ══ NOT YET (BACKLOG) MODULE ══ -->
 <div id="module-backlog" class="app-module">
   <div id="backlog-topbar">
-    <span class="backlog-title">📌 Not Yet</span>
+    <span class="backlog-title"><span class="ti-ic" data-ic="pin"></span>Not Yet</span>
     <div class="topbar-right">
-      <input type="text" id="backlog-filter" class="mod-search" placeholder="🔍 Search tasks…" oninput="applyBacklogFilter()">
+      <input type="text" id="backlog-filter" class="mod-search" placeholder="Search tasks…" oninput="applyBacklogFilter()">
       <button class="btn primary" onclick="openBacklogModal()">+ Add Task</button>
     </div>
   </div>
@@ -1866,7 +1906,7 @@
       <tbody id="backlog-tbody"></tbody>
     </table>
     <div id="backlog-empty-state">
-      <div class="icon">📌</div>
+      <div class="icon" data-ic="pin"></div>
       <p>Nothing waiting — click <strong>+ Add Task</strong> to add to the Not Yet backlog</p>
     </div>
   </div>
@@ -1875,12 +1915,12 @@
 <!-- ══ COMPANIES MODULE (read-only view over day_entries) ══ -->
 <div id="module-companies" class="app-module">
   <div class="cp-topbar">
-    <span class="cp-title">🏢 Companies</span>
+    <span class="cp-title"><span class="ti-ic" data-ic="building-2"></span>Companies</span>
   </div>
   <div class="cp-body">
     <div class="cp-list-panel">
       <div class="cp-list-search">
-        <input type="text" id="companies-search" class="cp-search" placeholder="🔍 Search companies…" oninput="renderCatList('companies')">
+        <input type="text" id="companies-search" class="cp-search" placeholder="Search companies…" oninput="renderCatList('companies')">
       </div>
       <div class="cp-list" id="companies-list"></div>
     </div>
@@ -1891,12 +1931,12 @@
 <!-- ══ PROJECTS MODULE (read-only view over day_entries) ══ -->
 <div id="module-projects" class="app-module">
   <div class="cp-topbar">
-    <span class="cp-title">📁 Projects</span>
+    <span class="cp-title"><span class="ti-ic" data-ic="folder"></span>Projects</span>
   </div>
   <div class="cp-body">
     <div class="cp-list-panel">
       <div class="cp-list-search">
-        <input type="text" id="projects-search" class="cp-search" placeholder="🔍 Search projects…" oninput="renderCatList('projects')">
+        <input type="text" id="projects-search" class="cp-search" placeholder="Search projects…" oninput="renderCatList('projects')">
       </div>
       <div class="cp-list" id="projects-list"></div>
     </div>
@@ -1907,7 +1947,7 @@
 <!-- ══ SETTINGS MODULE (General + Lookups) ══ -->
 <div id="module-settings" class="app-module">
   <div id="settings-topbar">
-    <span class="settings-mod-title">⚙ Settings</span>
+    <span class="settings-mod-title"><span class="ti-ic" data-ic="settings"></span>Settings</span>
     <div class="topbar-right">
       <button class="btn primary" onclick="saveSettings()">Save Changes</button>
     </div>
@@ -1915,8 +1955,8 @@
   <div class="settings-body">
     <!-- Top-level tabs -->
     <div class="settings-tabs">
-      <button class="stab active" data-tab="general" onclick="switchTab(this)"><span class="stab-icon">🔧</span> General</button>
-      <button class="stab"        data-tab="lookups" onclick="switchTab(this)"><span class="stab-icon">🗂</span> Lookups</button>
+      <button class="stab active" data-tab="general" onclick="switchTab(this)"><span class="stab-icon" data-ic="sliders-horizontal"></span> General</button>
+      <button class="stab"        data-tab="lookups" onclick="switchTab(this)"><span class="stab-icon" data-ic="list"></span> Lookups</button>
     </div>
     <!-- Panels -->
     <div class="settings-panels">
@@ -1930,11 +1970,11 @@
       <div class="settings-panel" id="tab-lookups">
         <!-- Lookup category sub-tabs -->
         <div class="lookup-subtabs">
-          <button class="ltab active" data-ltab="companies" onclick="switchLookupTab(this)"><span class="stab-icon">🏢</span> Companies</button>
-          <button class="ltab"        data-ltab="projects"  onclick="switchLookupTab(this)"><span class="stab-icon">📁</span> Projects</button>
-          <button class="ltab"        data-ltab="natural"   onclick="switchLookupTab(this)"><span class="stab-icon">🏷</span> Natural</button>
-          <button class="ltab"        data-ltab="timeType"  onclick="switchLookupTab(this)"><span class="stab-icon">⏰</span> Time Type</button>
-          <button class="ltab"        data-ltab="status"    onclick="switchLookupTab(this)"><span class="stab-icon">🔖</span> Status</button>
+          <button class="ltab active" data-ltab="companies" onclick="switchLookupTab(this)"><span class="stab-icon" data-ic="building-2"></span> Companies</button>
+          <button class="ltab"        data-ltab="projects"  onclick="switchLookupTab(this)"><span class="stab-icon" data-ic="folder"></span> Projects</button>
+          <button class="ltab"        data-ltab="natural"   onclick="switchLookupTab(this)"><span class="stab-icon" data-ic="tag"></span> Natural</button>
+          <button class="ltab"        data-ltab="timeType"  onclick="switchLookupTab(this)"><span class="stab-icon" data-ic="alarm-clock"></span> Time Type</button>
+          <button class="ltab"        data-ltab="status"    onclick="switchLookupTab(this)"><span class="stab-icon" data-ic="flag"></span> Status</button>
         </div>
         <div class="lookup-subpanels">
           <div class="lookup-panel active" id="tab-companies"></div>
@@ -1953,7 +1993,7 @@
   <div id="backlog-modal" class="modal">
     <div class="modal-header">
       <span class="modal-title" id="backlog-modal-title">Add Task</span>
-      <button class="modal-close" onclick="closeBacklogModal()">✕</button>
+      <button class="modal-close" onclick="closeBacklogModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <div class="form-row">
@@ -2013,7 +2053,7 @@
   <div id="sub-modal">
     <div class="modal-header">
       <span class="modal-title" id="sub-modal-title">Add Subscription</span>
-      <button class="modal-close" onclick="closeSubModal()">✕</button>
+      <button class="modal-close" onclick="closeSubModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <div class="form-row">
@@ -2060,8 +2100,8 @@
 <div id="sub-settings-overlay" onclick="subSettingsOverlayClick(event)">
   <div id="sub-settings-modal" class="modal">
     <div class="modal-header">
-      <span class="modal-title">⚙ Subscriptions Settings</span>
-      <button class="modal-close" onclick="closeSubSettings()">✕</button>
+      <span class="modal-title"><span class="ti-ic" data-ic="settings"></span>Subscriptions Settings</span>
+      <button class="modal-close" onclick="closeSubSettings()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <div class="form-row">
@@ -2085,6 +2125,69 @@
 </div>
 
 <script>
+// ── Icon system (Lucide, inlined offline SVG — no CDN, strict-CSP safe) ──
+// Each entry is the inner markup of a 24×24 Lucide icon; strokes use currentColor
+// so icons inherit the theme (--text / --muted / --primary / --bad) and hover states.
+const ICONS = {
+  "layout-dashboard": "<rect width=\"7\" height=\"9\" x=\"3\" y=\"3\" rx=\"1\" /><rect width=\"7\" height=\"5\" x=\"14\" y=\"3\" rx=\"1\" /><rect width=\"7\" height=\"9\" x=\"14\" y=\"12\" rx=\"1\" /><rect width=\"7\" height=\"5\" x=\"3\" y=\"16\" rx=\"1\" />",
+  "clock": "<circle cx=\"12\" cy=\"12\" r=\"10\" /><path d=\"M12 6v6l4 2\" />",
+  "pin": "<path d=\"M12 17v5\" /><path d=\"M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z\" />",
+  "file-text": "<path d=\"M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z\" /><path d=\"M14 2v5a1 1 0 0 0 1 1h5\" /><path d=\"M10 9H8\" /><path d=\"M16 13H8\" /><path d=\"M16 17H8\" />",
+  "credit-card": "<rect width=\"20\" height=\"14\" x=\"2\" y=\"5\" rx=\"2\" /><line x1=\"2\" x2=\"22\" y1=\"10\" y2=\"10\" />",
+  "building-2": "<path d=\"M10 12h4\" /><path d=\"M10 8h4\" /><path d=\"M14 21v-3a2 2 0 0 0-4 0v3\" /><path d=\"M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2\" /><path d=\"M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16\" />",
+  "folder": "<path d=\"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z\" />",
+  "settings": "<path d=\"M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915\" /><circle cx=\"12\" cy=\"12\" r=\"3\" />",
+  "moon": "<path d=\"M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401\" />",
+  "sun": "<circle cx=\"12\" cy=\"12\" r=\"4\" /><path d=\"M12 2v2\" /><path d=\"M12 20v2\" /><path d=\"m4.93 4.93 1.41 1.41\" /><path d=\"m17.66 17.66 1.41 1.41\" /><path d=\"M2 12h2\" /><path d=\"M20 12h2\" /><path d=\"m6.34 17.66-1.41 1.41\" /><path d=\"m19.07 4.93-1.41 1.41\" />",
+  "save": "<path d=\"M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z\" /><path d=\"M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7\" /><path d=\"M7 3v4a1 1 0 0 0 1 1h7\" />",
+  "log-out": "<path d=\"m16 17 5-5-5-5\" /><path d=\"M21 12H9\" /><path d=\"M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4\" />",
+  "trending-up": "<path d=\"M16 7h6v6\" /><path d=\"m22 7-8.5 8.5-5-5L2 17\" />",
+  "flame": "<path d=\"M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4\" />",
+  "bell": "<path d=\"M10.268 21a2 2 0 0 0 3.464 0\" /><path d=\"M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326\" />",
+  "calendar": "<path d=\"M8 2v4\" /><path d=\"M16 2v4\" /><rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\" /><path d=\"M3 10h18\" />",
+  "chevron-down": "<path d=\"m6 9 6 6 6-6\" />",
+  "timer": "<line x1=\"10\" x2=\"14\" y1=\"2\" y2=\"2\" /><line x1=\"12\" x2=\"15\" y1=\"14\" y2=\"11\" /><circle cx=\"12\" cy=\"14\" r=\"8\" />",
+  "play": "<path d=\"M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z\" />",
+  "pause": "<rect x=\"14\" y=\"3\" width=\"5\" height=\"18\" rx=\"1\" /><rect x=\"5\" y=\"3\" width=\"5\" height=\"18\" rx=\"1\" />",
+  "square": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" />",
+  "calendar-check": "<path d=\"M8 2v4\" /><path d=\"M16 2v4\" /><rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\" /><path d=\"M3 10h18\" /><path d=\"m9 16 2 2 4-4\" />",
+  "calendar-days": "<path d=\"M8 2v4\" /><path d=\"M16 2v4\" /><rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\" /><path d=\"M3 10h18\" /><path d=\"M8 14h.01\" /><path d=\"M12 14h.01\" /><path d=\"M16 14h.01\" /><path d=\"M8 18h.01\" /><path d=\"M12 18h.01\" /><path d=\"M16 18h.01\" />",
+  "pencil": "<path d=\"M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z\" /><path d=\"m15 5 4 4\" />",
+  "calendar-clock": "<path d=\"M16 14v2.2l1.6 1\" /><path d=\"M16 2v4\" /><path d=\"M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5\" /><path d=\"M3 10h5\" /><path d=\"M8 2v4\" /><circle cx=\"16\" cy=\"16\" r=\"6\" />",
+  "trash-2": "<path d=\"M10 11v6\" /><path d=\"M14 11v6\" /><path d=\"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6\" /><path d=\"M3 6h18\" /><path d=\"M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\" />",
+  "check": "<path d=\"M20 6 9 17l-5-5\" />",
+  "x": "<path d=\"M18 6 6 18\" /><path d=\"m6 6 12 12\" />",
+  "calendar-plus": "<path d=\"M16 19h6\" /><path d=\"M16 2v4\" /><path d=\"M19 16v6\" /><path d=\"M21 12.598V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8.5\" /><path d=\"M3 10h18\" /><path d=\"M8 2v4\" />",
+  "search": "<path d=\"m21 21-4.34-4.34\" /><circle cx=\"11\" cy=\"11\" r=\"8\" />",
+  "download": "<path d=\"M12 15V3\" /><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\" /><path d=\"m7 10 5 5 5-5\" />",
+  "printer": "<path d=\"M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2\" /><path d=\"M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6\" /><rect x=\"6\" y=\"14\" width=\"12\" height=\"8\" rx=\"1\" />",
+  "sliders-horizontal": "<path d=\"M10 5H3\" /><path d=\"M12 19H3\" /><path d=\"M14 3v4\" /><path d=\"M16 17v4\" /><path d=\"M21 12h-9\" /><path d=\"M21 19h-5\" /><path d=\"M21 5h-7\" /><path d=\"M8 10v4\" /><path d=\"M8 12H3\" />",
+  "list": "<path d=\"M3 5h.01\" /><path d=\"M3 12h.01\" /><path d=\"M3 19h.01\" /><path d=\"M8 5h13\" /><path d=\"M8 12h13\" /><path d=\"M8 19h13\" />",
+  "tag": "<path d=\"M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z\" /><circle cx=\"7.5\" cy=\"7.5\" r=\".5\" fill=\"currentColor\" />",
+  "alarm-clock": "<circle cx=\"12\" cy=\"13\" r=\"8\" /><path d=\"M12 9v4l2 2\" /><path d=\"M5 3 2 6\" /><path d=\"m22 6-3-3\" /><path d=\"M6.38 18.7 4 21\" /><path d=\"M17.64 18.67 20 21\" />",
+  "flag": "<path d=\"M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528\" />",
+  "rotate-ccw": "<path d=\"M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8\" /><path d=\"M3 3v5h5\" />",
+  "zap": "<path d=\"M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z\" />",
+  "triangle-alert": "<path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\" /><path d=\"M12 9v4\" /><path d=\"M12 17h.01\" />",
+  "circle-check": "<circle cx=\"12\" cy=\"12\" r=\"10\" /><path d=\"m9 12 2 2 4-4\" />",
+  "clipboard-list": "<rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\" ry=\"1\" /><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\" /><path d=\"M12 11h4\" /><path d=\"M12 16h4\" /><path d=\"M8 11h.01\" /><path d=\"M8 16h.01\" />",
+  "copy": "<rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\" ry=\"2\" /><path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\" />"
+};
+// Build an inline SVG string for icon `name`. Optional extra class via `cls`.
+function ic(name, cls) {
+  const inner = ICONS[name] || '';
+  return '<svg class="lic' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+       + 'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
+}
+// Replace every static [data-ic] placeholder with its inline SVG (once).
+function hydrateIcons(root) {
+  (root || document).querySelectorAll('[data-ic]').forEach(el => {
+    if (el.dataset.iced) return;
+    el.innerHTML = ic(el.getAttribute('data-ic'));
+    el.dataset.iced = '1';
+  });
+}
+
 // ── State ──
 let savedDays  = new Set();
 let dayCache   = {};
@@ -2308,7 +2411,7 @@ function renderLookupPanel(uiKey) {
     // them); never-saved new entries are simply dropped.
     const del = document.createElement('button');
     del.className = 'lookup-item-del';
-    del.textContent = opt.isActive === false ? '↺' : '×';
+    del.innerHTML = opt.isActive === false ? ic('rotate-ccw') : ic('x');
     del.title = opt.id == null ? 'Remove' : (opt.isActive === false ? 'Re-enable' : 'Disable (hide from dropdowns)');
     del.addEventListener('click', () => {
       if (opt.id == null) arr.splice(i, 1);
@@ -2478,7 +2581,7 @@ function renderTable() {
       divTr.className = 'inprogress-divider';
       const divTd = document.createElement('td');
       divTd.colSpan = 11;
-      divTd.innerHTML = '<div class="inprogress-divider-inner"><span class="inprogress-divider-label">⚡ In Progress</span></div>';
+      divTd.innerHTML = '<div class="inprogress-divider-inner"><span class="inprogress-divider-label">' + ic('zap') + ' In Progress</span></div>';
       divTr.appendChild(divTd);
       tbody.appendChild(divTr);
     }
@@ -2634,22 +2737,22 @@ function renderTable() {
     const timerBtn = document.createElement('button');
     if (activeTimer.rowRef === row) {
       timerBtn.className = 'row-btn timer-stop';
-      timerBtn.textContent = '■';
+      timerBtn.innerHTML = ic('square');
       timerBtn.title = 'Stop timer';
       timerBtn.addEventListener('click', () => stopTimer());
     } else {
       timerBtn.className = 'row-btn timer-start';
-      timerBtn.textContent = '⏱';
+      timerBtn.innerHTML = ic('play');
       timerBtn.title = 'Start timer';
       timerBtn.addEventListener('click', () => startTimer(origIdx));
     }
 
     const editBtn = document.createElement('button');
-    editBtn.className = 'row-btn'; editBtn.textContent = '✏️';
+    editBtn.className = 'row-btn'; editBtn.innerHTML = ic('pencil');
     editBtn.title = 'Edit'; editBtn.addEventListener('click', () => openModal(origIdx));
 
     const dupBtn = document.createElement('button');
-    dupBtn.className = 'row-btn'; dupBtn.textContent = '⧉';
+    dupBtn.className = 'row-btn'; dupBtn.innerHTML = ic('copy');
     dupBtn.title = 'Duplicate';
     dupBtn.addEventListener('click', () => {
       rows.splice(origIdx + 1, 0, Object.assign({}, rows[origIdx]));
@@ -2657,7 +2760,7 @@ function renderTable() {
     });
 
     const moveBtn = document.createElement('button');
-    moveBtn.className = 'row-btn'; moveBtn.textContent = '📅';
+    moveBtn.className = 'row-btn'; moveBtn.innerHTML = ic('calendar-clock');
     moveBtn.title = 'Move to another day';
     const restoreActs = () => {
       acts.innerHTML = '';
@@ -2669,10 +2772,10 @@ function renderTable() {
       const conf = document.createElement('div'); conf.className = 'del-confirm move-confirm';
       const dateInp = document.createElement('input');
       dateInp.type = 'date'; dateInp.className = 'move-date-input'; dateInp.value = activeDate;
-      const yes = document.createElement('button'); yes.className = 'row-btn move-yes'; yes.textContent = '✓';
+      const yes = document.createElement('button'); yes.className = 'row-btn move-yes'; yes.innerHTML = ic('check');
       yes.title = 'Move record to this day';
       yes.addEventListener('click', () => moveRowToDate(origIdx, dateInp.value));
-      const no = document.createElement('button'); no.className = 'row-btn del-no'; no.textContent = '✕';
+      const no = document.createElement('button'); no.className = 'row-btn del-no'; no.innerHTML = ic('x');
       no.title = 'Cancel';
       no.addEventListener('click', restoreActs);
       dateInp.addEventListener('keydown', (ev) => {
@@ -2685,7 +2788,7 @@ function renderTable() {
     });
 
     const delBtn = document.createElement('button');
-    delBtn.className = 'row-btn del'; delBtn.textContent = '🗑️';
+    delBtn.className = 'row-btn del'; delBtn.innerHTML = ic('trash-2');
     delBtn.title = 'Delete';
     delBtn.addEventListener('click', () => showDeleteConfirm(acts, () => {
       const removed = rows.splice(origIdx, 1)[0];
@@ -2752,7 +2855,7 @@ function startTimer(rowIdx) {
   };
   const chip = document.getElementById('timer-chip');
   chip.classList.add('running'); chip.classList.remove('paused');
-  document.getElementById('timer-pause-btn').textContent = '⏸';
+  document.getElementById('timer-pause-btn').innerHTML = ic('pause');
   updateTimerDisplay();
   renderTable();
 }
@@ -2774,14 +2877,14 @@ function togglePauseTimer() {
     activeTimer.startMs = Date.now();
     activeTimer.intervalId = setInterval(updateTimerDisplay, 1000);
     chip.classList.remove('paused');
-    btn.textContent = '⏸'; btn.title = 'Pause';
+    btn.innerHTML = ic('pause'); btn.title = 'Pause';
   } else {
     activeTimer.accumMs = timerElapsedMs();
     activeTimer.paused = true;
     clearInterval(activeTimer.intervalId);
     activeTimer.intervalId = null;
     chip.classList.add('paused');
-    btn.textContent = '▶'; btn.title = 'Resume';
+    btn.innerHTML = ic('play'); btn.title = 'Resume';
   }
   updateTimerDisplay();
 }
@@ -2794,7 +2897,7 @@ function stopTimer() {
   activeTimer = { rowRef: null, startMs: null, intervalId: null, accumMs: 0, paused: false };
   const chip = document.getElementById('timer-chip');
   chip.classList.remove('running'); chip.classList.remove('paused');
-  document.getElementById('timer-pause-btn').textContent = '⏸';
+  document.getElementById('timer-pause-btn').innerHTML = ic('pause');
 
   // Locate the row by reference — it may have shifted position (or be gone).
   const idx = rows.indexOf(rowRef);
@@ -2872,7 +2975,7 @@ async function saveDay() {
     res = await window.api.saveDay(savedDate, data);
   } catch (err) {
     const el = document.getElementById('save-status');
-    el.textContent = '⚠ Save failed'; el.className = 'save-error';
+    el.innerHTML = ic('triangle-alert') + ' Save failed'; el.className = 'save-error';
     toast('Could not save — your changes are still on screen. Retrying on next edit.');
     return;
   }
@@ -2886,7 +2989,7 @@ async function saveDay() {
   savedDays.add(savedDate);
   renderCalendar();
   const el = document.getElementById('save-status');
-  el.textContent = '✓ Saved'; el.className = 'saved';
+  el.innerHTML = ic('check') + ' Saved'; el.className = 'saved';
   setTimeout(() => { el.textContent = ''; el.className = ''; }, 1500);
 }
 
@@ -2918,7 +3021,7 @@ async function moveRowToDate(origIdx, targetDate) {
   renderCalendar();
 
   const el = document.getElementById('save-status');
-  el.textContent = '✓ Moved to ' + targetDate; el.className = 'saved';
+  el.innerHTML = ic('check') + ' Moved to ' + esc(targetDate); el.className = 'saved';
   setTimeout(() => { el.textContent = ''; el.className = ''; }, 2000);
 }
 
@@ -3635,15 +3738,15 @@ function renderBacklog() {
     const acts = document.createElement('div'); acts.className = 'row-actions';
 
     const assignBtn = document.createElement('button');
-    assignBtn.className = 'row-btn'; assignBtn.textContent = '→ Day';
+    assignBtn.className = 'row-btn'; assignBtn.innerHTML = ic('calendar-plus') + ' Day';
     assignBtn.title = 'Assign this task to a day';
 
     const editBtn = document.createElement('button');
-    editBtn.className = 'row-btn'; editBtn.textContent = '✏️';
+    editBtn.className = 'row-btn'; editBtn.innerHTML = ic('pencil');
     editBtn.title = 'Edit'; editBtn.addEventListener('click', () => openBacklogModal(task.id));
 
     const delBtn = document.createElement('button');
-    delBtn.className = 'row-btn del'; delBtn.textContent = '🗑️'; delBtn.title = 'Delete';
+    delBtn.className = 'row-btn del'; delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete';
 
     const restore = () => { acts.innerHTML = ''; acts.appendChild(assignBtn); acts.appendChild(editBtn); acts.appendChild(delBtn); };
 
@@ -3652,9 +3755,9 @@ function renderBacklog() {
       const conf = document.createElement('div'); conf.className = 'del-confirm move-confirm backlog-assign';
       const dateInp = document.createElement('input');
       dateInp.type = 'date'; dateInp.className = 'move-date-input'; dateInp.value = activeDate || fmt(new Date());
-      const yes = document.createElement('button'); yes.className = 'row-btn move-yes'; yes.textContent = '✓'; yes.title = 'Assign to this day';
+      const yes = document.createElement('button'); yes.className = 'row-btn move-yes'; yes.innerHTML = ic('check'); yes.title = 'Assign to this day';
       yes.addEventListener('click', () => assignBacklogToDay(task.id, dateInp.value));
-      const no = document.createElement('button'); no.className = 'row-btn del-no'; no.textContent = '✕'; no.title = 'Cancel';
+      const no = document.createElement('button'); no.className = 'row-btn del-no'; no.innerHTML = ic('x'); no.title = 'Cancel';
       no.addEventListener('click', restore);
       dateInp.addEventListener('keydown', (ev) => {
         if (ev.key === 'Enter') { ev.preventDefault(); assignBacklogToDay(task.id, dateInp.value); }
@@ -3932,8 +4035,8 @@ function bulkMovePrompt() {
   bar.innerHTML = '';
   const lbl = document.createElement('span'); lbl.id = 'bulk-count'; lbl.textContent = 'Move to:';
   const inp = document.createElement('input'); inp.type = 'date'; inp.value = activeDate; inp.className = 'move-date-input';
-  const ok = document.createElement('button'); ok.className = 'bulk-btn'; ok.textContent = '✓ Move';
-  const cancel = document.createElement('button'); cancel.className = 'bulk-btn ghost'; cancel.textContent = '✕';
+  const ok = document.createElement('button'); ok.className = 'bulk-btn'; ok.innerHTML = ic('check') + ' Move';
+  const cancel = document.createElement('button'); cancel.className = 'bulk-btn ghost'; cancel.innerHTML = ic('x');
   ok.onclick = async () => { const t = inp.value; bar.innerHTML = prev; await moveRowsToDate([...selectedRows], t); };
   cancel.onclick = () => { bar.innerHTML = prev; updateBulkBar(); };
   inp.addEventListener('keydown', e => { if (e.key === 'Enter') ok.onclick(); if (e.key === 'Escape') cancel.onclick(); });
@@ -4067,8 +4170,8 @@ function switchModule(name) {
 // Data is read via the companies:/projects: IPC channels (always scoped to the
 // session user in main); these pages never write.
 const CP_DEF = {
-  companies: { noun: 'company', icon: '🏢', listApi: 'listCompanies', entriesApi: 'companyEntries' },
-  projects:  { noun: 'project', icon: '📁', listApi: 'listProjects',  entriesApi: 'projectEntries' },
+  companies: { noun: 'company', icon: ic('building-2'), listApi: 'listCompanies', entriesApi: 'companyEntries' },
+  projects:  { noun: 'project', icon: ic('folder'),  listApi: 'listProjects',  entriesApi: 'projectEntries' },
 };
 let cpState = {
   companies: { list: [], selected: null, entries: [], from: '', to: '', type: '' },
@@ -4174,7 +4277,7 @@ function renderCatRecords(kind) {
   bar.appendChild(mkField('To', toInp));
   bar.appendChild(mkField('Type', typeSel));
   const clearBtn = document.createElement('button'); clearBtn.className = 'cp-filter-clear';
-  clearBtn.textContent = '✕ Clear filters';
+  clearBtn.innerHTML = ic('x') + ' Clear filters';
   clearBtn.addEventListener('click', () => {
     st.from = ''; st.to = ''; st.type = '';
     fromInp.value = ''; toInp.value = ''; typeSel.value = '';
@@ -4339,7 +4442,7 @@ function applyThemeLabel() {
   const dark = document.documentElement.getAttribute('data-theme') === 'dark';
   const icon = document.getElementById('theme-icon');
   const label = document.getElementById('theme-label');
-  if (icon)  icon.textContent  = dark ? '☀️' : '🌙';
+  if (icon)  { icon.innerHTML = dark ? ic('sun') : ic('moon'); icon.dataset.iced = '1'; }
   if (label) label.textContent = dark ? 'Light Mode' : 'Dark Mode';
 }
 function toggleTheme() {
@@ -4383,15 +4486,15 @@ async function renderOverview() {
   const attention = [];
   subs.forEach(s => {
     const d = daysUntil(s.renewalDate);
-    if (d !== null && d <= 30) attention.push({ icon: '💳', title: s.name || 'Subscription', days: d, module: 'subscriptions', kind: 'Renews' });
+    if (d !== null && d <= 30) attention.push({ icon: ic('credit-card'), title: s.name || 'Subscription', days: d, module: 'subscriptions', kind: 'Renews' });
   });
   attention.sort((a, b) => a.days - b.days);
 
   // Stat cards
   const stats = [
-    { label: '🕐 Today',      value: (todayMin / 60).toFixed(1), unit: 'h', foot: `${todayRecs} record${todayRecs === 1 ? '' : 's'}`, cls: 'accent', go: 'timesheet' },
-    { label: '📅 This Month', value: (monthMin / 60).toFixed(1), unit: 'h', foot: `${daysLogged} day${daysLogged === 1 ? '' : 's'} logged`, cls: '', go: 'timesheet' },
-    { label: '📌 Not Yet',    value: String(backlogCount), unit: '', foot: 'in backlog', cls: '', go: 'backlog' },
+    { label: ic('clock') + ' Today',      value: (todayMin / 60).toFixed(1), unit: 'h', foot: `${todayRecs} record${todayRecs === 1 ? '' : 's'}`, cls: 'accent', go: 'timesheet' },
+    { label: ic('calendar') + ' This Month', value: (monthMin / 60).toFixed(1), unit: 'h', foot: `${daysLogged} day${daysLogged === 1 ? '' : 's'} logged`, cls: '', go: 'timesheet' },
+    { label: ic('pin') + ' Not Yet',    value: String(backlogCount), unit: '', foot: 'in backlog', cls: '', go: 'backlog' },
   ];
   document.getElementById('dash-stats').innerHTML = stats.map(s => `
     <div class="dash-stat ${s.cls}" ${s.go ? `onclick="switchModule('${s.go}')"` : ''}>
@@ -4404,7 +4507,7 @@ async function renderOverview() {
   document.getElementById('dash-attention-sub').textContent = attention.length ? `${attention.length} item${attention.length === 1 ? '' : 's'}` : '';
   const attEl = document.getElementById('dash-attention');
   if (!attention.length) {
-    attEl.innerHTML = `<div class="dash-empty"><span class="de-icon">✅</span>All clear — nothing due in the next 30 days.</div>`;
+    attEl.innerHTML = `<div class="dash-empty"><span class="de-icon">${ic('circle-check')}</span>All clear — nothing due in the next 30 days.</div>`;
   } else {
     attEl.innerHTML = attention.slice(0, 8).map(a => {
       const cls = renewClass(a.days);
@@ -4821,7 +4924,7 @@ async function exportAnalyticsPDF() {
       .an-report-sub { font-size:12px; color:#8a857c; margin-bottom:20px; }
     </style></head>
     <body>
-      <div class="an-report-title">📊 Analytics — ${esc(label)}</div>
+      <div class="an-report-title">Analytics — ${esc(label)}</div>
       <div class="an-report-sub">Cooperation Tools · generated ${new Date().toLocaleString('en-US')}</div>
       ${body}
     </body></html>`;
@@ -4836,8 +4939,8 @@ async function backupDatabase() {
   const orig = btn.innerHTML;
   let res;
   try { res = await window.api.backupDatabase(); } catch { res = { ok: false, error: 'failed' }; }
-  if (res?.ok) btn.innerHTML = '<span class="nav-icon">✅</span>Backed up';
-  else if (res?.error) btn.innerHTML = '<span class="nav-icon">⚠️</span>Failed';
+  if (res?.ok) btn.innerHTML = '<span class="nav-icon">' + ic('circle-check') + '</span>Backed up';
+  else if (res?.error) btn.innerHTML = '<span class="nav-icon">' + ic('triangle-alert') + '</span>Failed';
   else return;   // user canceled the save dialog
   setTimeout(() => { btn.innerHTML = orig; }, 2200);
 }
@@ -4925,11 +5028,11 @@ function renderSubscriptions() {
     acts.className = 'row-actions';
 
     const editBtn = document.createElement('button');
-    editBtn.className = 'row-btn'; editBtn.textContent = '✏️';
+    editBtn.className = 'row-btn'; editBtn.innerHTML = ic('pencil');
     editBtn.title = 'Edit'; editBtn.addEventListener('click', () => openSubModal(sub.id));
 
     const delBtn = document.createElement('button');
-    delBtn.className = 'row-btn del'; delBtn.textContent = '🗑️';
+    delBtn.className = 'row-btn del'; delBtn.innerHTML = ic('trash-2');
     delBtn.title = 'Delete';
     const restore = () => { acts.innerHTML = ''; acts.appendChild(editBtn); acts.appendChild(delBtn); };
     delBtn.addEventListener('click', () => showDeleteConfirm(acts, () => {
@@ -5206,6 +5309,7 @@ async function doLogout() {
   location.reload();   // cleanest reset: re-runs the gate against the now-empty session
 }
 
+hydrateIcons();   // swap all static [data-ic] placeholders for inline Lucide SVG
 bootAuth();
 </script>
 <div id="app-toast" class="app-toast"></div>
