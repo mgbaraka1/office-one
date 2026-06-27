@@ -647,14 +647,16 @@
     .an-hs-val.accent { color: var(--accent); }
     .an-hs-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-top: 2px; }
     .an-hs-foot { font-size: 10.5px; color: var(--muted); }
-    .an-heat-scroll { overflow-x: auto; padding-bottom: 4px; }
+    /* Year heatmap fills the full content width: week columns flex to 1fr and
+       cells stay square via aspect-ratio, so all 12 months show without scroll. */
     .an-heat-months { display: flex; gap: 3px; padding-left: 30px; margin-bottom: 4px; height: 12px; }
-    .an-heat-mcol { flex: 0 0 13px; width: 13px; font-size: 9.5px; color: var(--muted); white-space: nowrap; overflow: visible; }
-    .an-heat-body { display: flex; gap: 6px; align-items: flex-start; }
+    .an-heat-mcol { flex: 1 1 0; min-width: 0; font-size: 9.5px; color: var(--muted); white-space: nowrap; overflow: visible; }
+    .an-heat-body { display: flex; gap: 6px; align-items: stretch; }
     .an-heat-weekdays { display: flex; flex-direction: column; gap: 3px; flex: 0 0 24px; width: 24px; }
-    .an-heat-wd { height: 13px; line-height: 13px; font-size: 9px; color: var(--muted); text-align: right; }
-    .an-heat { display: flex; gap: 3px; }
-    .an-heat-col { display: flex; flex-direction: column; gap: 3px; }
+    .an-heat-wd { flex: 1; display: flex; align-items: center; justify-content: flex-end; font-size: 9px; color: var(--muted); }
+    .an-heat { display: flex; gap: 3px; flex: 1; min-width: 0; }
+    .an-heat-col { display: flex; flex-direction: column; gap: 3px; flex: 1 1 0; min-width: 0; }
+    .an-heat-col .an-heat-cell { width: 100%; height: auto; aspect-ratio: 1 / 1; }
     .an-heat-cell { width: 13px; height: 13px; border-radius: 3px; background: var(--surface2); cursor: pointer; }
     .an-heat-cell.h1 { background: color-mix(in srgb, var(--accent) 30%, var(--surface2)); }
     .an-heat-cell.h2 { background: color-mix(in srgb, var(--accent) 55%, var(--surface2)); }
@@ -1528,10 +1530,10 @@
       <span class="an-section-title"><span data-ic="flame"></span>Activity</span>
       <span class="an-section-line"></span>
     </div>
-    <div class="an-card full an-heat-card" style="margin-bottom:16px">
+    <div class="an-card an-heat-card" style="margin-bottom:16px">
       <div class="an-heat-left">
-        <div class="an-card-head"><span class="an-card-title">Last 26 Weeks</span><span class="an-card-sub" id="an-heat-sub"></span></div>
-        <div class="an-heat-scroll"><div id="an-heat"></div></div>
+        <div class="an-card-head"><span class="an-card-title">This Year</span><span class="an-card-sub" id="an-heat-sub"></span></div>
+        <div id="an-heat"></div>
         <div class="an-heat-legend">
           Less
           <span class="an-heat-cell"></span>
@@ -1542,7 +1544,6 @@
           More
         </div>
       </div>
-      <div class="an-heat-stats" id="an-heat-stats"></div>
     </div>
 
     <!-- ── Needs Attention: cross-module reminders ── -->
@@ -2296,14 +2297,6 @@ function esc(s) {
 }
 function isURL(s) {
   return /^https?:\/\//i.test(s || '');
-}
-// Quote a value for CSV and neutralize spreadsheet formula injection: a cell
-// that starts with = + - @ (or tab/CR) is prefixed with ' so Excel/Sheets treats
-// it as text instead of executing it as a formula.
-function csvCell(v) {
-  let s = String(v ?? '');
-  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
-  return '"' + s.replace(/"/g, '""') + '"';
 }
 // True if any of `values` contains the (already-lowercased) query `q`. Empty q matches all.
 function textMatch(values, q) {
@@ -3213,8 +3206,6 @@ function buildDailyReportHTML(srcRows, date, name) {
   const dt = new Date(+y, +m-1, +d);
   const dayName   = dt.toLocaleDateString('en-US', { weekday:'long' });
   const dateLabel = dt.toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
-
-  const badgeClass = s => s === 'DONE' ? 'done' : 'progress';
 
   const printRows  = srcRows;
   const totalMin   = totalMins(printRows);
@@ -4609,12 +4600,17 @@ async function renderAnalytics() {
   // clear which window the KPIs/charts below cover (the stat cards above are "now").
   document.getElementById('an-period-tag').textContent = label;
 
-  // The heatmap always shows a recent fixed window, independent of the period.
-  const heatWeeks = 26;
+  // The heatmap shows a fixed window independent of the selected period: the full
+  // calendar year (Jan → Dec). Future days render as faded "empty" cells.
   const todayD = new Date(); todayD.setHours(0, 0, 0, 0);
-  const lastSunday  = new Date(todayD); lastSunday.setDate(todayD.getDate() - todayD.getDay());
-  const firstSunday = new Date(lastSunday); firstSunday.setDate(lastSunday.getDate() - (heatWeeks - 1) * 7);
-  const heatFrom = fmt(firstSunday);
+  const yearStart = new Date(todayD.getFullYear(), 0, 1);
+  const yearEnd = new Date(todayD.getFullYear(), 11, 31);
+  // Year strip starts on the Sunday on/before Jan 1 so weeks align to columns,
+  // and runs through the week containing Dec 31 so all 12 months are shown.
+  const yearFirstSunday = new Date(yearStart); yearFirstSunday.setDate(yearStart.getDate() - yearStart.getDay());
+  const yearLastSunday = new Date(yearEnd); yearLastSunday.setDate(yearEnd.getDate() - yearEnd.getDay());
+  const yearWeeks = Math.round((yearLastSunday - yearFirstSunday) / (7 * 864e5)) + 1;
+  const heatFrom = fmt(yearFirstSunday);
 
   // One aggregation call spanning both the period (KPIs/bars/donuts) and the
   // heatmap/trend window (per-day series). All group-bys + sums run in SQL — the
@@ -4677,11 +4673,11 @@ async function renderAnalytics() {
   document.getElementById('an-activity').innerHTML = anDonut(natSegs, totalMin);
   document.getElementById('an-activity-sub').textContent = natSegs.length ? `${natSegs.length} types` : '';
 
-  // ── Heatmap + its summary stats ──
-  document.getElementById('an-heat').innerHTML = anHeatmap(firstSunday, heatWeeks, dayMin, todayD);
-  renderAnHeatStats(dayMin, heatFrom, fmt(todayD));
-  const spanFrom = firstSunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  document.getElementById('an-heat-sub').textContent = `${spanFrom} – today`;
+  // ── Heatmap: This Year ──
+  // GitHub-style week-column strip spanning the full calendar year (Jan→Dec),
+  // stretched full-width so every month is visible without scrolling.
+  document.getElementById('an-heat').innerHTML = anHeatmap(yearFirstSunday, yearWeeks, dayMin, todayD);
+  document.getElementById('an-heat-sub').textContent = `Jan – Dec ${todayD.getFullYear()}`;
 
   // ── Recurring spend (subscriptions) ──
   renderAnSpend();
@@ -4848,35 +4844,6 @@ function anHeatmap(start, weeks, dayMin, today) {
       <div class="an-heat-weekdays">${wd}</div>
       <div class="an-heat">${cols.join('')}</div>
     </div>`;
-}
-
-// Summary stats for the heatmap window [from, today]: total tracked, active
-// days, current streak (ending today), and longest streak — all from dayMin.
-function renderAnHeatStats(dayMin, from, todayStr) {
-  const days = [];
-  const d = new Date(from + 'T00:00:00'), end = new Date(todayStr + 'T00:00:00');
-  while (d <= end) { days.push(fmt(d)); d.setDate(d.getDate() + 1); }
-  let totalMin = 0, activeDays = 0, longest = 0, run = 0;
-  days.forEach(ds => {
-    const m = dayMin[ds] || 0;
-    if (m > 0) { totalMin += m; activeDays++; run++; if (run > longest) longest = run; }
-    else run = 0;
-  });
-  let current = 0;
-  for (let i = days.length - 1; i >= 0; i--) { if ((dayMin[days[i]] || 0) > 0) current++; else break; }
-
-  const items = [
-    { val: (totalMin / 60).toFixed(0) + 'h', label: 'Tracked', foot: 'last 26 weeks', cls: 'accent' },
-    { val: String(activeDays), label: 'Active Days', foot: 'with logged time', cls: '' },
-    { val: current + 'd', label: 'Current Streak', foot: current ? 'keep it going' : 'start one today', cls: '' },
-    { val: longest + 'd', label: 'Longest Streak', foot: 'best run', cls: '' },
-  ];
-  document.getElementById('an-heat-stats').innerHTML = items.map(it => `
-    <div class="an-hs-item">
-      <span class="an-hs-val ${it.cls}">${esc(it.val)}</span>
-      <span class="an-hs-label">${esc(it.label)}</span>
-      <span class="an-hs-foot">${esc(it.foot)}</span>
-    </div>`).join('');
 }
 
 function anJumpToDay(ds) {
