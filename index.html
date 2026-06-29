@@ -547,6 +547,15 @@
     .pj-profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px 24px; }
     .pj-field-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: 4px; }
     .pj-field-val { font-size: 14px; color: var(--text); line-height: 1.5; word-break: break-word; }
+    .pj-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+    .pj-pill {
+      font-size: 12px; font-weight: 600; color: var(--text);
+      background: var(--surface2); border: 1px solid var(--border);
+      padding: 3px 10px; border-radius: 999px; white-space: nowrap;
+    }
+    /* Projects modal multi-select (companies) */
+    #p-companies.p-multi { min-height: 104px; padding: 4px; }
+    #p-companies.p-multi option { padding: 5px 8px; border-radius: var(--radius-sm); }
 
     /* document cards */
     .pj-docs { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
@@ -2085,17 +2094,19 @@
         </div>
       </div>
       <div class="form-row">
+        <div class="form-group full">
+          <label>Companies <span style="text-transform:none;font-weight:500;color:var(--muted)">— hold Ctrl/⌘ to select multiple</span></label>
+          <select id="p-companies" multiple class="p-multi"></select>
+        </div>
+      </div>
+      <div class="form-row">
         <div class="form-group">
-          <label>Client / System</label>
-          <input id="p-client" type="text" placeholder="e.g. Acme Corp" />
+          <label>System</label>
+          <select id="p-system"></select>
         </div>
         <div class="form-group">
           <label>Status</label>
-          <select id="p-status">
-            <option value="active">Active</option>
-            <option value="on-hold">On Hold</option>
-            <option value="completed">Completed</option>
-          </select>
+          <select id="p-status"></select>
         </div>
       </div>
       <div class="form-row">
@@ -2166,6 +2177,7 @@
           <button class="ltab"        data-ltab="natural"   onclick="switchLookupTab(this)"><span class="stab-icon" data-ic="tag"></span> Natural</button>
           <button class="ltab"        data-ltab="timeType"  onclick="switchLookupTab(this)"><span class="stab-icon" data-ic="alarm-clock"></span> Time Type</button>
           <button class="ltab"        data-ltab="status"    onclick="switchLookupTab(this)"><span class="stab-icon" data-ic="flag"></span> Status</button>
+          <button class="ltab"        data-ltab="projectStatus" onclick="switchLookupTab(this)"><span class="stab-icon" data-ic="clipboard-list"></span> Project Status</button>
         </div>
         <div class="lookup-subpanels">
           <div class="lookup-panel active" id="tab-companies"></div>
@@ -2173,6 +2185,7 @@
           <div class="lookup-panel" id="tab-natural"></div>
           <div class="lookup-panel" id="tab-timeType"></div>
           <div class="lookup-panel" id="tab-status"></div>
+          <div class="lookup-panel" id="tab-projectStatus"></div>
         </div>
       </div>
     </div>
@@ -2401,10 +2414,12 @@ const LK_CAT = {
   companies: 'COMPANY', systems: 'SYSTEM', natural: 'ACTIVITY_TYPE',
   timeType: 'TIME_TYPE', status: 'ENTRY_STATUS',
   currency: 'CURRENCY', billingCycle: 'BILLING_CYCLE',
+  projectStatus: 'PROJECT_STATUS',
 };
 const LK_VALUE = {             // 'label' = stored as display label; 'code' = stored as code
   companies: 'label', systems: 'label', natural: 'label',
   timeType: 'code', status: 'code', currency: 'code', billingCycle: 'code',
+  projectStatus: 'code',
 };
 
 // Active options for a category, ordered for dropdowns.
@@ -2457,7 +2472,7 @@ let undoBacklog      = null;   // { task, idx }
 let _undoBacklogTimer = null;
 
 // ── Projects state ──
-let projectsList     = [];       // [{id, name, clientName, status, taskCount, …}]
+let projectsList     = [];       // [{id, name, companies[], systemId, system, status, taskCount, …}]
 let projectsLoaded   = false;
 let projectFilter    = '';
 let currentProject   = null;     // full project loaded in the detail view
@@ -2532,11 +2547,46 @@ function populateSelect(id, key, currentVal) {
   });
 }
 
+// Fill a <select> whose option *values* are lookup_codes IDs (not label/code) — used
+// by the Projects modal, which persists real ids (companies junction + system FK).
+// Works for single- and multi-selects; single-selects get a leading "none" option.
+// `selected` may be a single id or an array. A selected id that is soft-disabled
+// (no longer an active option) is preserved so editing doesn't silently drop it.
+function populateLookupIdSelect(id, category, selected) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = '';
+  const sel = new Set((Array.isArray(selected) ? selected : (selected == null ? [] : [selected])).map(Number));
+  if (!el.multiple) {
+    const blank = document.createElement('option');
+    blank.value = ''; blank.textContent = '— None —';
+    if (sel.size === 0) blank.selected = true;
+    el.appendChild(blank);
+  }
+  const opts = lkOptions(category);
+  const activeIds = new Set(opts.map(o => o.id));
+  opts.forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = String(o.id); opt.textContent = o.label;
+    if (sel.has(o.id)) opt.selected = true;
+    el.appendChild(opt);
+  });
+  sel.forEach(idv => {
+    if (activeIds.has(idv)) return;            // already rendered above
+    const found = (LK.categories[category] || []).find(o => o.id === idv);
+    const opt = document.createElement('option');
+    opt.value = String(idv);
+    opt.textContent = (found ? found.label : ('#' + idv)) + ' (inactive)';
+    opt.selected = true;
+    el.appendChild(opt);
+  });
+}
+
 // ── Settings (lookup catalog editor) ──
 // The tabs edit a working copy of the catalog (lookupsDraft, keyed by category).
 // Existing entries are relabeled / reordered / soft-disabled in place; new entries
 // get a server-generated stable code on save. Codes are never edited or deleted.
-const SETTINGS_TABS = ['companies', 'systems', 'natural', 'timeType', 'status'];
+const SETTINGS_TABS = ['companies', 'systems', 'natural', 'timeType', 'status', 'projectStatus'];
 
 // Settings is a nav page (not a modal): switchModule('settings') calls this to
 // (re)load a working copy of the catalog and render the editors fresh each visit.
@@ -5359,9 +5409,12 @@ function clearSubErrors()  { clearErrorsIn('#sub-modal'); }
 // Unlike the debounced modules, project writes persist immediately through the
 // projects:* IPC channels; the detail view is re-read after each change.
 // ════════════════════════════════════════════════════════════════════════════
-const PJ_STATUS = { 'active': 'Active', 'on-hold': 'On Hold', 'completed': 'Completed' };
-function pjStatusLabel(s) { return PJ_STATUS[s] || (s || 'Active'); }
-function pjStatusClass(s) { return 'pj-status pj-status-' + (PJ_STATUS[s] ? s : 'active'); }
+// Status is a PROJECT_STATUS lookup code (e.g. 'ACTIVE'); resolve its label from the
+// catalog. The three seeded codes carry distinct pill colors; custom codes default
+// to the neutral "active" coloring.
+const PJ_STATUS_CLASS = { 'ACTIVE': 'active', 'ON_HOLD': 'on-hold', 'COMPLETED': 'completed' };
+function pjStatusLabel(s) { return lkLabel('PROJECT_STATUS', s) || (s || 'Active'); }
+function pjStatusClass(s) { return 'pj-status pj-status-' + (PJ_STATUS_CLASS[s] || 'active'); }
 // Small DOM helper local to the Projects module (uniquely named to avoid clashes).
 function pjMk(tag, cls, text) {
   const e = document.createElement(tag);
@@ -5412,7 +5465,7 @@ function renderProjectsList() {
   }
 
   const shown = projectsList.filter(p => textMatch(
-    [p.name, p.clientName, pjStatusLabel(p.status), p.description], projectFilter));
+    [p.name, ...(p.companies || []).map(c => c.label), p.system, pjStatusLabel(p.status), p.description], projectFilter));
 
   if (shown.length === 0) {
     grid.style.display = 'none';
@@ -5430,10 +5483,12 @@ function renderProjectsList() {
     const head = pjMk('div', 'pj-card-head');
     const left = pjMk('div');
     left.appendChild(pjMk('div', 'pj-card-name', p.name || 'Untitled project'));
-    if (p.clientName) {
+    const companyNames = (p.companies || []).map(c => c.label).filter(Boolean);
+    const subtitle = companyNames.length ? companyNames.join(', ') : (p.system || '');
+    if (subtitle) {
       const client = pjMk('div', 'pj-card-client');
       client.innerHTML = ic('building-2');
-      client.appendChild(document.createTextNode(p.clientName));
+      client.appendChild(document.createTextNode(subtitle));
       left.appendChild(client);
     }
     head.appendChild(left);
@@ -5519,7 +5574,18 @@ function renderProjectDetail(p) {
     f.appendChild(pjMk('div', 'pj-field-val', value || '—'));
     return f;
   };
-  grid.appendChild(field('Client / System', p.clientName));
+  // Companies as pills (a project can have several clients).
+  const companiesField = pjMk('div');
+  companiesField.appendChild(pjMk('div', 'pj-field-label', 'Companies'));
+  if ((p.companies || []).length) {
+    const pills = pjMk('div', 'pj-pills');
+    p.companies.forEach(c => pills.appendChild(pjMk('span', 'pj-pill', c.label)));
+    companiesField.appendChild(pills);
+  } else {
+    companiesField.appendChild(pjMk('div', 'pj-field-val', '—'));
+  }
+  grid.appendChild(companiesField);
+  grid.appendChild(field('System', p.system));
   grid.appendChild(field('Status', pjStatusLabel(p.status)));
   const descField = pjMk('div'); descField.style.gridColumn = '1 / -1';
   descField.appendChild(pjMk('div', 'pj-field-label', 'Description'));
@@ -5650,8 +5716,9 @@ function openProjectModal(id = null) {
   document.querySelector('#project-modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : 'Create Project';
 
   document.getElementById('p-name').value        = src?.name || '';
-  document.getElementById('p-client').value       = src?.clientName || '';
-  document.getElementById('p-status').value       = src?.status || 'active';
+  populateLookupIdSelect('p-companies', 'COMPANY', (src?.companies || []).map(c => c.id));
+  populateLookupIdSelect('p-system', 'SYSTEM', src?.systemId ?? null);
+  populateSelect('p-status', 'projectStatus', src?.status || 'ACTIVE');
   document.getElementById('p-description').value  = src?.description || '';
 
   clearErrorsIn('#project-modal');
@@ -5670,10 +5737,13 @@ async function submitProjectModal() {
   clearErrorsIn('#project-modal');
   const name = document.getElementById('p-name').value.trim();
   if (!name) { markError('p-name'); return; }
+  const sysVal = document.getElementById('p-system').value;
   const data = {
     name,
-    clientName:  document.getElementById('p-client').value.trim(),
-    status:      document.getElementById('p-status').value || 'active',
+    companyIds:  Array.from(document.getElementById('p-companies').selectedOptions)
+                   .map(o => Number(o.value)).filter(Number.isInteger),
+    systemId:    sysVal ? Number(sysVal) : null,
+    status:      document.getElementById('p-status').value || 'ACTIVE',
     description: document.getElementById('p-description').value.trim(),
   };
 
@@ -5724,7 +5794,8 @@ async function undoDeleteProject() {
   document.getElementById('project-undo-toast').classList.remove('visible');
   try {
     const created = await window.api.createProject({
-      name: snap.name, clientName: snap.clientName, status: snap.status, description: snap.description,
+      name: snap.name, description: snap.description, status: snap.status,
+      systemId: snap.systemId ?? null, companyIds: (snap.companies || []).map(c => c.id),
     });
     for (const d of (snap.documents || [])) {
       if (d.isAvailable) await window.api.setProjectDocumentStatus(created.id, d.documentType, true);

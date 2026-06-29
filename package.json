@@ -1,6 +1,6 @@
 {
   "name": "timesheet",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Cooperation Tools — an offline, multi-user Electron desktop app for tracking daily timesheets, a 'Not Yet' task backlog, and recurring subscriptions, with read-only analytics and PDF reports. Each account's data is isolated. Data is stored in a self-contained, zero-config embedded SQLite database (Node's built-in node:sqlite, bundled with Electron — no server, no separate install, no native build).",
   "main": "main.js",
   "scripts": {

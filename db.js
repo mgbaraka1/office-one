@@ -25,7 +25,7 @@ const fs   = require('node:fs');
 // table under one of these category discriminators. The renderer fetches options
 // per-category and stores a stable `code` (logic fields) or display `label`
 // (company/system/activity) — never a hardcoded string.
-const LOOKUP_CATEGORIES = ['COMPANY', 'SYSTEM', 'ACTIVITY_TYPE', 'TIME_TYPE', 'ENTRY_STATUS', 'CURRENCY', 'BILLING_CYCLE'];
+const LOOKUP_CATEGORIES = ['COMPANY', 'SYSTEM', 'ACTIVITY_TYPE', 'TIME_TYPE', 'ENTRY_STATUS', 'CURRENCY', 'BILLING_CYCLE', 'PROJECT_STATUS'];
 
 let db;          // DatabaseSync instance
 let userDataDir; // resolved userData folder (backups, db file)
@@ -95,6 +95,13 @@ function lkId(category, value) {
 }
 function lkCode(id)  { const r = id == null ? null : lk().idTo.get(id); return r ? r.code  : ''; }
 function lkLabel(id) { const r = id == null ? null : lk().idTo.get(id); return r ? r.label : ''; }
+// True if `id` is a real lookup row in the given category — used to validate FK ids
+// arriving from the renderer (companies multi-select, project system) before storing.
+function isLookupId(category, id) {
+  if (id == null || id === '') return false;
+  const r = lk().idTo.get(Number(id));
+  return !!(r && r.category === category);
+}
 function slugCode(s) { return String(s).toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'NA'; }
 function uniqueCode(category, base) {
   const exists = db.prepare('SELECT 1 FROM lookup_codes WHERE category = ? AND code = ?');
@@ -621,30 +628,61 @@ function saveSubscriptions(userId, data) {
 // A Project is a container for a client/system engagement. It owns a fixed set of
 // tracked documents (auto-created on insert) and links to existing tasks — both
 // timesheet entries (day_entries) and "Not Yet" backlog tasks — via a nullable
-// project_id FK. Every query is scoped to the authenticated owner (`userId`); the
-// document types are hardcoded (not a lookup catalog) per the feature spec.
+// project_id FK. A project also references one or more COMPANY lookup codes (its
+// clients, via the project_companies junction), a single SYSTEM lookup (system_id),
+// and a PROJECT_STATUS lookup code (status). Every query is scoped to the
+// authenticated owner (`userId`); the document types are hardcoded (not a lookup
+// catalog) per the feature spec.
 const PROJECT_DOC_TYPES = ['Quotation', 'Quotation Approval', 'Invoice'];
+const DEFAULT_PROJECT_STATUS = 'ACTIVE';
 
 // Resolve a project the caller owns, or null. Used to gate document/link writes.
 function ownsProject(userId, projectId) {
   return !!db.prepare('SELECT 1 FROM projects WHERE id = ? AND user_id = ?').get(projectId, userId);
 }
 
-// Insert a project and auto-create its three document rows (all unavailable).
-// Returns the full project (profile + tasks + documents) via getProject.
+// Replace a project's company links with the given lookup ids (COMPANY category).
+// Invalid / non-COMPANY / duplicate ids are skipped. Caller wraps this in a tx.
+function setProjectCompanies(projectId, companyIds) {
+  db.prepare('DELETE FROM project_companies WHERE project_id = ?').run(projectId);
+  const ins = db.prepare('INSERT OR IGNORE INTO project_companies(project_id, company_id) VALUES(?, ?)');
+  const seen = new Set();
+  for (const raw of (Array.isArray(companyIds) ? companyIds : [])) {
+    const id = Number(raw);
+    if (!Number.isInteger(id) || seen.has(id) || !isLookupId('COMPANY', id)) continue;
+    seen.add(id);
+    ins.run(projectId, id);
+  }
+}
+
+// The COMPANY lookups linked to a project, as { id, label } ordered for display.
+function projectCompanies(projectId) {
+  return db.prepare(
+    `SELECT pc.company_id AS id, lc.label AS label
+       FROM project_companies pc
+       JOIN lookup_codes lc ON lc.id = pc.company_id
+      WHERE pc.project_id = ?
+      ORDER BY lc.sort_order, lc.label`
+  ).all(projectId);
+}
+
+// Insert a project and auto-create its three document rows (all unavailable), plus
+// its company links. Returns the full project (profile + tasks + documents).
 function createProject(userId, data) {
   const now = new Date().toISOString();
+  const systemId = isLookupId('SYSTEM', data?.systemId) ? Number(data.systemId) : null;
   let id;
   tx(() => {
     id = Number(db.prepare(
-      `INSERT INTO projects(user_id, name, description, client_name, status, created_at)
+      `INSERT INTO projects(user_id, name, description, system_id, status, created_at)
        VALUES(?, ?, ?, ?, ?, ?)`
-    ).run(userId, data?.name ?? '', data?.description ?? '', data?.clientName ?? '',
-          data?.status || 'active', now).lastInsertRowid);
+    ).run(userId, data?.name ?? '', data?.description ?? '', systemId,
+          data?.status || DEFAULT_PROJECT_STATUS, now).lastInsertRowid);
     const insDoc = db.prepare(
       'INSERT INTO project_documents(project_id, document_type, is_available) VALUES(?, ?, 0)'
     );
     for (const t of PROJECT_DOC_TYPES) insDoc.run(id, t);
+    setProjectCompanies(id, data?.companyIds);
   });
   return getProject(userId, id);
 }
@@ -653,21 +691,25 @@ function createProject(userId, data) {
 // first — the list view's payload.
 function listProjects(userId) {
   return db.prepare(
-    `SELECT p.id, p.name, p.description, p.client_name AS clientName, p.status,
+    `SELECT p.id, p.name, p.description, p.system_id AS systemId, p.status,
             p.created_at AS createdAt,
             (SELECT COUNT(*) FROM day_entries e WHERE e.project_id = p.id)
           + (SELECT COUNT(*) FROM backlog b WHERE b.project_id = p.id) AS taskCount
        FROM projects p
       WHERE p.user_id = ?
       ORDER BY p.created_at DESC, p.id DESC`
-  ).all(userId);
+  ).all(userId).map(p => ({
+    ...p,
+    system: lkLabel(p.systemId),
+    companies: projectCompanies(p.id),
+  }));
 }
 
 // One project in full: profile + linked tasks (timesheet entries, each with its
 // day's date, and backlog tasks) + the three document statuses. null if not owned.
 function getProject(userId, id) {
   const p = db.prepare(
-    `SELECT id, name, description, client_name AS clientName, status, created_at AS createdAt
+    `SELECT id, name, description, system_id AS systemId, status, created_at AS createdAt
        FROM projects WHERE id = ? AND user_id = ?`
   ).get(id, userId);
   if (!p) return null;
@@ -695,19 +737,21 @@ function getProject(userId, id) {
        FROM project_documents WHERE project_id = ? ORDER BY id`
   ).all(id).map(r => ({ id: r.id, documentType: r.documentType, isAvailable: !!r.isAvailable }));
 
-  return { ...p, tasks: { entries, backlog }, documents };
+  return { ...p, system: lkLabel(p.systemId), companies: projectCompanies(id), tasks: { entries, backlog }, documents };
 }
 
 // Update a project's profile fields in place (documents/links untouched). Returns
 // the refreshed project, or null if the caller doesn't own it.
 function updateProject(userId, id, data) {
   if (!ownsProject(userId, id)) return null;
+  const systemId = isLookupId('SYSTEM', data?.systemId) ? Number(data.systemId) : null;
   tx(() => {
     db.prepare(
-      `UPDATE projects SET name = ?, description = ?, client_name = ?, status = ?
+      `UPDATE projects SET name = ?, description = ?, system_id = ?, status = ?
         WHERE id = ? AND user_id = ?`
-    ).run(data?.name ?? '', data?.description ?? '', data?.clientName ?? '',
-          data?.status || 'active', id, userId);
+    ).run(data?.name ?? '', data?.description ?? '', systemId,
+          data?.status || DEFAULT_PROJECT_STATUS, id, userId);
+    setProjectCompanies(id, data?.companyIds);
   });
   return getProject(userId, id);
 }
