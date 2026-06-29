@@ -553,9 +553,66 @@
       background: var(--surface2); border: 1px solid var(--border);
       padding: 3px 10px; border-radius: 999px; white-space: nowrap;
     }
-    /* Projects modal multi-select (companies) */
-    #p-companies.p-multi { min-height: 104px; padding: 4px; }
-    #p-companies.p-multi option { padding: 5px 8px; border-radius: var(--radius-sm); }
+    /* ── Tag-picker (reusable searchable multi-select) ── */
+    .tag-picker { display: flex; flex-direction: column; gap: 8px; }
+    .tp-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tp-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12px; font-weight: 600; color: var(--text);
+      background: var(--surface2); border: 1px solid var(--border);
+      padding: 4px 6px 4px 11px; border-radius: 999px; white-space: nowrap;
+    }
+    .tp-pill-static { padding: 4px 11px; }
+    .tp-pill-x {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 16px; height: 16px; border: none; border-radius: 50%; cursor: pointer;
+      background: var(--border); color: var(--text); font-size: 13px; line-height: 1; padding: 0;
+      transition: background var(--speed), color var(--speed);
+    }
+    .tp-pill-x:hover { background: var(--bad); color: #fff; }
+    .tp-input-wrap { position: relative; }
+    .tp-input {
+      width: 100%; box-sizing: border-box;
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 10px 12px; font-size: 14px; font-family: inherit;
+      background: var(--surface2); color: var(--text); outline: none;
+      transition: border-color var(--speed), box-shadow var(--speed);
+    }
+    .tp-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); background: var(--input-focus-bg); }
+    .tp-menu, .ss-menu {
+      position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 40;
+      max-height: 220px; overflow-y: auto;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); box-shadow: var(--shadow);
+      padding: 4px;
+    }
+    .tp-opt, .ss-opt {
+      padding: 8px 10px; border-radius: var(--radius-sm); font-size: 14px;
+      color: var(--text); cursor: pointer;
+    }
+    .tp-opt:hover, .tp-opt.active, .ss-opt:hover, .ss-opt.active { background: var(--surface2); }
+    .ss-opt.selected { font-weight: 600; color: var(--primary); }
+
+    /* ── Searchable single-select (combobox) ── */
+    .search-select { position: relative; }
+    .ss-input {
+      width: 100%; box-sizing: border-box;
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 10px 12px; font-size: 14px; font-family: inherit;
+      background: var(--surface2); color: var(--text); outline: none; cursor: pointer;
+      transition: border-color var(--speed), box-shadow var(--speed);
+    }
+    .ss-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); background: var(--input-focus-bg); }
+
+    /* Compact "linked project" pill shown on day-entry / backlog rows */
+    .row-project-tag {
+      display: inline-flex; align-items: center; gap: 4px; margin-top: 4px;
+      font-size: 11px; font-weight: 600; color: var(--muted);
+      background: var(--surface2); border: 1px solid var(--border);
+      padding: 1px 8px; border-radius: 999px; white-space: nowrap; max-width: 100%;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .row-project-tag .lic { width: 11px; height: 11px; flex-shrink: 0; }
 
     /* document cards */
     .pj-docs { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
@@ -1879,6 +1936,12 @@
       </div>
       <div class="form-row">
         <div class="form-group full">
+          <label>Project <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional, link this entry to a project</span></label>
+          <div id="f-project"></div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
           <label>Description</label>
           <textarea id="f-description" placeholder="What did you do?"></textarea>
         </div>
@@ -2095,16 +2158,18 @@
       </div>
       <div class="form-row">
         <div class="form-group full">
-          <label>Companies <span style="text-transform:none;font-weight:500;color:var(--muted)">— hold Ctrl/⌘ to select multiple</span></label>
-          <select id="p-companies" multiple class="p-multi"></select>
+          <label>Companies <span style="text-transform:none;font-weight:500;color:var(--muted)">— search and click to add</span></label>
+          <div id="p-companies"></div>
         </div>
       </div>
       <div class="form-row">
-        <div class="form-group">
-          <label>System</label>
-          <select id="p-system"></select>
+        <div class="form-group full">
+          <label>Systems <span style="text-transform:none;font-weight:500;color:var(--muted)">— a project can span several</span></label>
+          <div id="p-systems"></div>
         </div>
-        <div class="form-group">
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
           <label>Status</label>
           <select id="p-status"></select>
         </div>
@@ -2218,6 +2283,12 @@
         <div class="form-group">
           <label>Time Type</label>
           <select id="b-time"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Project <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional, link this task to a project</span></label>
+          <div id="b-project"></div>
         </div>
       </div>
       <div class="form-row">
@@ -2472,7 +2543,7 @@ let undoBacklog      = null;   // { task, idx }
 let _undoBacklogTimer = null;
 
 // ── Projects state ──
-let projectsList     = [];       // [{id, name, companies[], systemId, system, status, taskCount, …}]
+let projectsList     = [];       // [{id, name, companies[], systems[], status, taskCount, …}]
 let projectsLoaded   = false;
 let projectFilter    = '';
 let currentProject   = null;     // full project loaded in the detail view
@@ -2480,6 +2551,11 @@ let projectEditId    = null;     // modal mode: null = create, else project id
 let undoProject      = null;     // snapshot of a just-deleted project (for undo)
 let _undoProjectTimer = null;
 let linkableTasks    = { entries: [], backlog: [] };   // picker source
+let pCompaniesPicker = null;     // tag-picker handles for the project modal
+let pSystemsPicker   = null;
+let projectIndex     = [];       // lightweight [{id,name,status}] for the day/backlog Project field
+let fProjectPicker   = null;     // search-select handle in the day-entry modal
+let bProjectPicker   = null;     // search-select handle in the backlog modal
 
 // ── Analytics state ──
 let analyticsLoaded = false;
@@ -2547,39 +2623,157 @@ function populateSelect(id, key, currentVal) {
   });
 }
 
-// Fill a <select> whose option *values* are lookup_codes IDs (not label/code) — used
-// by the Projects modal, which persists real ids (companies junction + system FK).
-// Works for single- and multi-selects; single-selects get a leading "none" option.
-// `selected` may be a single id or an array. A selected id that is soft-disabled
-// (no longer an active option) is preserved so editing doesn't silently drop it.
-function populateLookupIdSelect(id, category, selected) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.innerHTML = '';
-  const sel = new Set((Array.isArray(selected) ? selected : (selected == null ? [] : [selected])).map(Number));
-  if (!el.multiple) {
-    const blank = document.createElement('option');
-    blank.value = ''; blank.textContent = '— None —';
-    if (sel.size === 0) blank.selected = true;
-    el.appendChild(blank);
+// ── Tag-picker (reusable searchable multi-select) ──
+// Builds a tag-picker into `host` (a container element). `options` is a list of
+// { id, label }; `initialIds` the preselected ids. The user types to filter, then
+// clicks / Enters an option to add it as a removable pill; already-selected options
+// are excluded from results. The underlying value is always an array of ids,
+// returned by the handle's getSelectedIds(). Used for the Projects modal's
+// Companies and Systems fields (one shared component — never two copies).
+// Special case: with exactly one option, it auto-selects it and shows a static
+// pill (no search UI), since that is the only possible value.
+function buildTagPicker(host, options, initialIds, placeholder) {
+  host.innerHTML = '';
+  host.className = 'tag-picker';
+  const optById = new Map((options || []).map(o => [Number(o.id), o.label]));
+  const selectedIds = [];
+  (Array.isArray(initialIds) ? initialIds : (initialIds == null ? [] : [initialIds]))
+    .forEach(id => { const n = Number(id); if (optById.has(n) && !selectedIds.includes(n)) selectedIds.push(n); });
+
+  const handle = { getSelectedIds: () => selectedIds.slice() };
+
+  // Single-option shortcut: auto-select and skip the interactive UI.
+  if ((options || []).length === 1) {
+    if (!selectedIds.length) selectedIds.push(Number(options[0].id));
+    const pills = document.createElement('div'); pills.className = 'tp-pills';
+    const pill = document.createElement('span'); pill.className = 'tp-pill tp-pill-static';
+    pill.textContent = optById.get(selectedIds[0]) ?? options[0].label;
+    pills.appendChild(pill);
+    host.appendChild(pills);
+    return handle;
   }
-  const opts = lkOptions(category);
-  const activeIds = new Set(opts.map(o => o.id));
-  opts.forEach(o => {
-    const opt = document.createElement('option');
-    opt.value = String(o.id); opt.textContent = o.label;
-    if (sel.has(o.id)) opt.selected = true;
-    el.appendChild(opt);
+
+  const pills = document.createElement('div'); pills.className = 'tp-pills';
+  const inputWrap = document.createElement('div'); inputWrap.className = 'tp-input-wrap';
+  const input = document.createElement('input');
+  input.type = 'text'; input.className = 'tp-input'; input.placeholder = placeholder || 'Search…';
+  const menu = document.createElement('div'); menu.className = 'tp-menu'; menu.style.display = 'none';
+  inputWrap.appendChild(input); inputWrap.appendChild(menu);
+  host.appendChild(pills); host.appendChild(inputWrap);
+
+  let filtered = [], activeIdx = 0;
+
+  const renderPills = () => {
+    pills.innerHTML = '';
+    selectedIds.forEach(id => {
+      const pill = document.createElement('span'); pill.className = 'tp-pill';
+      pill.appendChild(document.createTextNode(optById.get(id) ?? ('#' + id)));
+      const x = document.createElement('button');
+      x.type = 'button'; x.className = 'tp-pill-x'; x.innerHTML = '&times;'; x.title = 'Remove';
+      x.addEventListener('click', () => {
+        const i = selectedIds.indexOf(id); if (i >= 0) selectedIds.splice(i, 1);
+        renderPills(); renderMenu();
+      });
+      pill.appendChild(x);
+      pills.appendChild(pill);
+    });
+    pills.style.display = selectedIds.length ? '' : 'none';
+  };
+
+  const renderMenu = () => {
+    const q = input.value.toLowerCase().trim();
+    filtered = (options || []).filter(o =>
+      !selectedIds.includes(Number(o.id)) && (!q || o.label.toLowerCase().includes(q)));
+    menu.innerHTML = '';
+    if (!filtered.length) { menu.style.display = 'none'; return; }
+    if (activeIdx < 0 || activeIdx >= filtered.length) activeIdx = 0;
+    filtered.forEach((o, i) => {
+      const item = document.createElement('div');
+      item.className = 'tp-opt' + (i === activeIdx ? ' active' : '');
+      item.textContent = o.label;
+      item.addEventListener('mousedown', (e) => { e.preventDefault(); pick(Number(o.id)); });
+      menu.appendChild(item);
+    });
+    menu.style.display = '';
+  };
+
+  const pick = (id) => {
+    if (!selectedIds.includes(id)) selectedIds.push(id);
+    input.value = ''; activeIdx = 0;
+    renderPills(); renderMenu(); input.focus();
+  };
+
+  input.addEventListener('focus', () => { activeIdx = 0; renderMenu(); });
+  input.addEventListener('input', () => { activeIdx = 0; renderMenu(); });
+  input.addEventListener('blur', () => { setTimeout(() => { menu.style.display = 'none'; }, 120); });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); if (filtered.length) { activeIdx = (activeIdx + 1) % filtered.length; renderMenu(); } }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); if (filtered.length) { activeIdx = (activeIdx - 1 + filtered.length) % filtered.length; renderMenu(); } }
+    else if (e.key === 'Enter') { e.preventDefault(); if (filtered[activeIdx]) pick(Number(filtered[activeIdx].id)); }
+    else if (e.key === 'Backspace' && input.value === '' && selectedIds.length) { selectedIds.pop(); renderPills(); renderMenu(); }
   });
-  sel.forEach(idv => {
-    if (activeIds.has(idv)) return;            // already rendered above
-    const found = (LK.categories[category] || []).find(o => o.id === idv);
-    const opt = document.createElement('option');
-    opt.value = String(idv);
-    opt.textContent = (found ? found.label : ('#' + idv)) + ' (inactive)';
-    opt.selected = true;
-    el.appendChild(opt);
+
+  renderPills(); renderMenu();
+  return handle;
+}
+
+// ── Searchable single-select (reusable combobox) ──
+// Builds a searchable single-value dropdown into `host`. `options` is a list of
+// { id, label }; `initialId` the preselected id (or null). Typing filters; clicking
+// or Entering an option selects it (showing its label in the field); a built-in
+// "— None —" entry clears it. The handle's getSelectedId() returns the id or null.
+// Used by the day-entry and backlog modals' Project field (single project per task).
+function buildSearchSelect(host, options, initialId, placeholder) {
+  host.innerHTML = '';
+  host.className = 'search-select';
+  const optById = new Map((options || []).map(o => [Number(o.id), o.label]));
+  let selectedId = (initialId != null && optById.has(Number(initialId))) ? Number(initialId) : null;
+
+  const input = document.createElement('input');
+  input.type = 'text'; input.className = 'ss-input'; input.placeholder = placeholder || 'Search…';
+  input.readOnly = true;
+  const menu = document.createElement('div'); menu.className = 'ss-menu'; menu.style.display = 'none';
+  host.appendChild(input); host.appendChild(menu);
+
+  let filtered = [], activeIdx = 0, open = false;
+
+  const showLabel = () => { input.value = selectedId == null ? '' : (optById.get(selectedId) ?? ''); };
+
+  const renderMenu = () => {
+    const q = input.readOnly ? '' : input.value.toLowerCase().trim();
+    const base = [{ id: null, label: '— None —' }, ...(options || [])];
+    filtered = base.filter(o => !q || o.label.toLowerCase().includes(q));
+    menu.innerHTML = '';
+    if (!filtered.length) { menu.style.display = 'none'; return; }
+    if (activeIdx < 0 || activeIdx >= filtered.length) activeIdx = 0;
+    filtered.forEach((o, i) => {
+      const item = document.createElement('div');
+      item.className = 'ss-opt' + (i === activeIdx ? ' active' : '') +
+        ((o.id == null && selectedId == null) || Number(o.id) === selectedId ? ' selected' : '');
+      item.textContent = o.label;
+      item.addEventListener('mousedown', (e) => { e.preventDefault(); pick(o.id == null ? null : Number(o.id)); });
+      menu.appendChild(item);
+    });
+    menu.style.display = '';
+  };
+
+  const openMenu = () => { open = true; input.readOnly = false; input.value = ''; activeIdx = 0; renderMenu(); };
+  const closeMenu = () => { open = false; input.readOnly = true; menu.style.display = 'none'; showLabel(); };
+  const pick = (id) => { selectedId = id; closeMenu(); };
+
+  input.addEventListener('focus', openMenu);
+  input.addEventListener('click', () => { if (!open) openMenu(); });
+  input.addEventListener('input', () => { activeIdx = 0; renderMenu(); });
+  input.addEventListener('blur', () => { setTimeout(closeMenu, 120); });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); if (filtered.length) { activeIdx = (activeIdx + 1) % filtered.length; renderMenu(); } }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); if (filtered.length) { activeIdx = (activeIdx - 1 + filtered.length) % filtered.length; renderMenu(); } }
+    else if (e.key === 'Enter') { e.preventDefault(); const o = filtered[activeIdx]; if (o) pick(o.id == null ? null : Number(o.id)); }
+    else if (e.key === 'Escape' && open) { e.stopPropagation(); closeMenu(); }
   });
+
+  showLabel();
+  return { getSelectedId: () => selectedId };
 }
 
 // ── Settings (lookup catalog editor) ──
@@ -2878,6 +3072,8 @@ function renderTable() {
       });
       descDiv.appendChild(tagWrap);
     }
+    const projTag = projectRowTag(row.projectId);
+    if (projTag) descDiv.appendChild(projTag);
     descTd.appendChild(descDiv);
     tr.appendChild(descTd);
 
@@ -3295,6 +3491,9 @@ function openModal(idx = null) {
     });
   }
 
+  fProjectPicker = buildSearchSelect(document.getElementById('f-project'),
+    projectFieldOptions(row?.projectId ?? null), row?.projectId ?? null, 'No project');
+
   document.getElementById('f-description').value = row?.description || '';
   document.getElementById('f-source').value      = row?.source      || '';
   document.getElementById('f-minutes').value     = row?.minutes     || '';
@@ -3351,6 +3550,7 @@ async function submitModal() {
     status:      document.getElementById('f-status').value,
     minutes:     minRaw === '' ? '' : parseInt(minRaw, 10),   // Number when set, '' when blank
     tags:        parseTags(document.getElementById('f-tags').value),
+    projectId:   fProjectPicker ? fProjectPicker.getSelectedId() : (editIdx !== null ? rows[editIdx]?.projectId ?? null : null),
   };
 
   if (editIdx !== null) {
@@ -3959,6 +4159,8 @@ function renderBacklog() {
       tags.forEach(t => { const chip = document.createElement('span'); chip.className = 'row-tag'; chip.textContent = t; tagWrap.appendChild(chip); });
       descDiv.appendChild(tagWrap);
     }
+    const projTag = projectRowTag(task.projectId);
+    if (projTag) descDiv.appendChild(projTag);
     descTd.appendChild(descDiv);
     tr.appendChild(descTd);
 
@@ -4037,6 +4239,7 @@ async function assignBacklogToDay(id, targetDate) {
     time: task.time || '', description: task.description || '', source: task.source || '',
     status: 'IN_PROGRESS', minutes: '',
     tags: Array.isArray(task.tags) ? task.tags.slice() : [],
+    projectId: task.projectId ?? null,   // carry the project link onto the new day entry
   };
 
   // Target == the day currently open in Timesheet: append to the in-memory rows
@@ -4110,6 +4313,9 @@ function openBacklogModal(id = null) {
     });
   }
 
+  bProjectPicker = buildSearchSelect(document.getElementById('b-project'),
+    projectFieldOptions(task?.projectId ?? null), task?.projectId ?? null, 'No project');
+
   document.getElementById('b-description').value = task?.description || '';
   document.getElementById('b-source').value      = task?.source      || '';
   document.getElementById('b-tags').value        = Array.isArray(task?.tags) ? task.tags.join(', ') : '';
@@ -4149,6 +4355,8 @@ function submitBacklogModal() {
     description: document.getElementById('b-description').value.trim(),
     source:      document.getElementById('b-source').value.trim(),
     tags:        parseTags(document.getElementById('b-tags').value),
+    projectId:   bProjectPicker ? bProjectPicker.getSelectedId()
+                   : (backlogEditId !== null ? backlog.find(t => t.id === backlogEditId)?.projectId ?? null : null),
   };
 
   if (backlogEditId !== null) {
@@ -5435,7 +5643,50 @@ async function loadProjectsList() {
   catch { toast('Could not load projects'); return; }
   projectsList = Array.isArray(list) ? list : [];
   projectsLoaded = true;
+  syncProjectIndex();
   renderProjectsList();
+}
+
+// ── Project index (lightweight {id,name,status} cache for the Project field) ──
+// The day-entry and backlog views let a task be linked to a project; both need the
+// project names available even before the Projects module is first opened. This
+// cache is loaded at boot (refreshProjectIndex) and kept in sync whenever the full
+// list is (re)loaded (syncProjectIndex).
+function syncProjectIndex() {
+  projectIndex = projectsList.map(p => ({ id: p.id, name: p.name, status: p.status }));
+}
+async function refreshProjectIndex() {
+  try {
+    const list = await window.api.listProjects();
+    projectIndex = Array.isArray(list) ? list.map(p => ({ id: p.id, name: p.name, status: p.status })) : [];
+  } catch { /* keep whatever we had */ }
+}
+// A linked project's display name (''→ none / unknown).
+function projectNameById(id) {
+  if (id == null || id === '') return '';
+  const p = projectIndex.find(x => x.id === Number(id));
+  return p ? p.name : '';
+}
+// Options for a task's Project field: active projects, plus the currently-linked
+// one if it is no longer active (so an existing link is never silently dropped).
+function projectFieldOptions(currentId) {
+  const opts = projectIndex.filter(p => p.status === 'ACTIVE').map(p => ({ id: p.id, label: p.name }));
+  if (currentId != null && currentId !== '' && !opts.some(o => o.id === Number(currentId))) {
+    const p = projectIndex.find(x => x.id === Number(currentId));
+    if (p) opts.push({ id: p.id, label: p.name + ' (' + pjStatusLabel(p.status).toLowerCase() + ')' });
+  }
+  return opts;
+}
+// Build a compact muted pill naming the linked project (for a table row), or null.
+function projectRowTag(projectId) {
+  const name = projectNameById(projectId);
+  if (!name) return null;
+  const tag = document.createElement('span');
+  tag.className = 'row-project-tag';
+  tag.innerHTML = ic('clipboard-list');
+  tag.appendChild(document.createTextNode(name));
+  tag.title = 'Linked to project: ' + name;
+  return tag;
 }
 
 function applyProjectFilter() {
@@ -5465,7 +5716,8 @@ function renderProjectsList() {
   }
 
   const shown = projectsList.filter(p => textMatch(
-    [p.name, ...(p.companies || []).map(c => c.label), p.system, pjStatusLabel(p.status), p.description], projectFilter));
+    [p.name, ...(p.companies || []).map(c => c.label), ...(p.systems || []).map(s => s.label),
+     pjStatusLabel(p.status), p.description], projectFilter));
 
   if (shown.length === 0) {
     grid.style.display = 'none';
@@ -5484,7 +5736,8 @@ function renderProjectsList() {
     const left = pjMk('div');
     left.appendChild(pjMk('div', 'pj-card-name', p.name || 'Untitled project'));
     const companyNames = (p.companies || []).map(c => c.label).filter(Boolean);
-    const subtitle = companyNames.length ? companyNames.join(', ') : (p.system || '');
+    const systemNames  = (p.systems || []).map(s => s.label).filter(Boolean);
+    const subtitle = companyNames.length ? companyNames.join(', ') : systemNames.join(', ');
     if (subtitle) {
       const client = pjMk('div', 'pj-card-client');
       client.innerHTML = ic('building-2');
@@ -5585,7 +5838,17 @@ function renderProjectDetail(p) {
     companiesField.appendChild(pjMk('div', 'pj-field-val', '—'));
   }
   grid.appendChild(companiesField);
-  grid.appendChild(field('System', p.system));
+  // Systems as pills (a project can span several).
+  const systemsField = pjMk('div');
+  systemsField.appendChild(pjMk('div', 'pj-field-label', 'Systems'));
+  if ((p.systems || []).length) {
+    const pills = pjMk('div', 'pj-pills');
+    p.systems.forEach(s => pills.appendChild(pjMk('span', 'pj-pill', s.label)));
+    systemsField.appendChild(pills);
+  } else {
+    systemsField.appendChild(pjMk('div', 'pj-field-val', '—'));
+  }
+  grid.appendChild(systemsField);
   grid.appendChild(field('Status', pjStatusLabel(p.status)));
   const descField = pjMk('div'); descField.style.gridColumn = '1 / -1';
   descField.appendChild(pjMk('div', 'pj-field-label', 'Description'));
@@ -5716,8 +5979,12 @@ function openProjectModal(id = null) {
   document.querySelector('#project-modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : 'Create Project';
 
   document.getElementById('p-name').value        = src?.name || '';
-  populateLookupIdSelect('p-companies', 'COMPANY', (src?.companies || []).map(c => c.id));
-  populateLookupIdSelect('p-system', 'SYSTEM', src?.systemId ?? null);
+  pCompaniesPicker = buildTagPicker(document.getElementById('p-companies'),
+    lkOptions('COMPANY').map(o => ({ id: o.id, label: o.label })),
+    (src?.companies || []).map(c => c.id), 'Search companies…');
+  pSystemsPicker = buildTagPicker(document.getElementById('p-systems'),
+    lkOptions('SYSTEM').map(o => ({ id: o.id, label: o.label })),
+    (src?.systems || []).map(s => s.id), 'Search systems…');
   populateSelect('p-status', 'projectStatus', src?.status || 'ACTIVE');
   document.getElementById('p-description').value  = src?.description || '';
 
@@ -5737,12 +6004,10 @@ async function submitProjectModal() {
   clearErrorsIn('#project-modal');
   const name = document.getElementById('p-name').value.trim();
   if (!name) { markError('p-name'); return; }
-  const sysVal = document.getElementById('p-system').value;
   const data = {
     name,
-    companyIds:  Array.from(document.getElementById('p-companies').selectedOptions)
-                   .map(o => Number(o.value)).filter(Number.isInteger),
-    systemId:    sysVal ? Number(sysVal) : null,
+    companyIds:  pCompaniesPicker ? pCompaniesPicker.getSelectedIds() : [],
+    systemIds:   pSystemsPicker ? pSystemsPicker.getSelectedIds() : [],
     status:      document.getElementById('p-status').value || 'ACTIVE',
     description: document.getElementById('p-description').value.trim(),
   };
@@ -5795,7 +6060,7 @@ async function undoDeleteProject() {
   try {
     const created = await window.api.createProject({
       name: snap.name, description: snap.description, status: snap.status,
-      systemId: snap.systemId ?? null, companyIds: (snap.companies || []).map(c => c.id),
+      systemIds: (snap.systems || []).map(s => s.id), companyIds: (snap.companies || []).map(c => c.id),
     });
     for (const d of (snap.documents || [])) {
       if (d.isAvailable) await window.api.setProjectDocumentStatus(created.id, d.documentType, true);
@@ -5904,6 +6169,7 @@ async function init() {
 
   try {
     LK = await window.api.loadLookups();
+    await refreshProjectIndex();   // names for the day/backlog Project field + row pills
     await refreshDayList();
     const today = fmt(t);
     await switchDay(today);
