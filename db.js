@@ -24,8 +24,8 @@ const fs   = require('node:fs');
 // Every bounded category/type/status field is normalized into the `lookup_codes`
 // table under one of these category discriminators. The renderer fetches options
 // per-category and stores a stable `code` (logic fields) or display `label`
-// (company/project/activity) — never a hardcoded string.
-const LOOKUP_CATEGORIES = ['COMPANY', 'PROJECT', 'ACTIVITY_TYPE', 'TIME_TYPE', 'ENTRY_STATUS', 'CURRENCY', 'BILLING_CYCLE'];
+// (company/system/activity) — never a hardcoded string.
+const LOOKUP_CATEGORIES = ['COMPANY', 'SYSTEM', 'ACTIVITY_TYPE', 'TIME_TYPE', 'ENTRY_STATUS', 'CURRENCY', 'BILLING_CYCLE'];
 
 let db;          // DatabaseSync instance
 let userDataDir; // resolved userData folder (backups, db file)
@@ -81,7 +81,7 @@ function lkBuild() {
     (byCat[r.category] ||= []).push(r);
     idTo.set(r.id, r);
     valToId.set(r.category + '|' + r.code, r.id);
-    // a display label resolves too (company/project rows round-trip by label)
+    // a display label resolves too (company/system rows round-trip by label)
     if (!valToId.has(r.category + '|' + r.label)) valToId.set(r.category + '|' + r.label, r.id);
   }
   lkCache = { byCat, idTo, valToId };
@@ -236,7 +236,7 @@ function createUser(username, passwordHash) {
 // ── Days + entries ──────────────────────────────────────────────────────────
 // Storage is normalized: a `days` row (owner + date + employee_name) with child
 // `day_entries`. The renderer still works with the shape { name, rows[] } where
-// each row is { company, project, natural, time, description, source, status,
+// each row is { company, system, natural, time, description, source, status,
 // minutes, tags[] } — these functions translate between the two and scope every
 // query to the authenticated user (`userId`).
 
@@ -245,12 +245,12 @@ function createUser(username, passwordHash) {
 // the stable DB id, carried on the row so saveDay can update entries in place
 // (per-entry UPSERT) instead of rewriting them.
 // Category fields are stored as FK ids into lookup_codes. Display fields
-// (company/project/natural) round-trip as their LABEL; logic fields (time/status)
+// (company/system/natural) round-trip as their LABEL; logic fields (time/status)
 // round-trip as their stable CODE, so the renderer compares codes, never strings.
 function entryToRow(e) {
   return {
     eid: e.id,
-    company: lkLabel(e.company_id), project: lkLabel(e.project_id),
+    company: lkLabel(e.company_id), system: lkLabel(e.system_id),
     natural: lkLabel(e.activity_type_id), time: lkCode(e.time_type_id),
     description: e.description || '', source: e.source || '',
     status: lkCode(e.status_id) || 'IN_PROGRESS',
@@ -259,13 +259,13 @@ function entryToRow(e) {
   };
 }
 
-const ENTRY_COLS = 'id, company_id, project_id, activity_type_id, time_type_id, status_id, description, source, minutes, tags';
+const ENTRY_COLS = 'id, company_id, system_id, activity_type_id, time_type_id, status_id, description, source, minutes, tags';
 
 // Renderer row → normalized FK column values (the inverse of entryToRow).
 function rowToEntry(r) {
   const mins = (r.minutes === '' || r.minutes === null || r.minutes === undefined) ? null : Number(r.minutes);
   return {
-    company_id: lkId('COMPANY', r.company), project_id: lkId('PROJECT', r.project),
+    company_id: lkId('COMPANY', r.company), system_id: lkId('SYSTEM', r.system),
     activity_type_id: lkId('ACTIVITY_TYPE', r.natural), time_type_id: lkId('TIME_TYPE', r.time),
     status_id: lkId('ENTRY_STATUS', r.status) ?? lkId('ENTRY_STATUS', 'IN_PROGRESS'),
     description: r.description ?? '', source: r.source ?? '',
@@ -309,14 +309,14 @@ function saveDay(userId, dateStr, data) {
     const consumed = new Set();
 
     const upd = db.prepare(`UPDATE day_entries SET
-      company_id=?, project_id=?, activity_type_id=?, time_type_id=?, status_id=?, description=?, source=?, minutes=?, tags=?, sort_order=?, updated_at=?
+      company_id=?, system_id=?, activity_type_id=?, time_type_id=?, status_id=?, description=?, source=?, minutes=?, tags=?, sort_order=?, updated_at=?
       WHERE id=?`);
     const ins = db.prepare(`INSERT INTO day_entries
-      (user_id, day_id, company_id, project_id, activity_type_id, time_type_id, status_id, description, source, minutes, tags, sort_order, created_at, updated_at)
+      (user_id, day_id, company_id, system_id, activity_type_id, time_type_id, status_id, description, source, minutes, tags, sort_order, created_at, updated_at)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
 
     const sameContent = (e, n) =>
-      e.company_id === n.company_id && e.project_id === n.project_id &&
+      e.company_id === n.company_id && e.system_id === n.system_id &&
       e.activity_type_id === n.activity_type_id && e.time_type_id === n.time_type_id &&
       e.status_id === n.status_id && e.description === n.description && e.source === n.source &&
       (e.minutes ?? null) === n.minutes && (e.tags || '[]') === n.tags;
@@ -332,9 +332,9 @@ function saveDay(userId, dateStr, data) {
       }
       if (eid != null) {
         consumed.add(eid);
-        upd.run(n.company_id, n.project_id, n.activity_type_id, n.time_type_id, n.status_id, n.description, n.source, n.minutes, n.tags, i, now, eid);
+        upd.run(n.company_id, n.system_id, n.activity_type_id, n.time_type_id, n.status_id, n.description, n.source, n.minutes, n.tags, i, now, eid);
       } else {
-        eid = Number(ins.run(userId, day.id, n.company_id, n.project_id, n.activity_type_id, n.time_type_id, n.status_id, n.description, n.source, n.minutes, n.tags, i, now, now).lastInsertRowid);
+        eid = Number(ins.run(userId, day.id, n.company_id, n.system_id, n.activity_type_id, n.time_type_id, n.status_id, n.description, n.source, n.minutes, n.tags, i, now, now).lastInsertRowid);
         consumed.add(eid);
       }
       eids[i] = eid;
@@ -383,7 +383,7 @@ function loadDaysRange(userId, from, to) {
   return days.map(d => byId.get(d.id));
 }
 
-// ── Companies / Projects views (read-only rollups over existing day_entries) ───
+// ── Companies / Systems views (read-only rollups over existing day_entries) ───
 // Both pages derive their data from the category FK columns already on
 // day_entries — no new table or schema change. Entries are grouped by the
 // display LABEL (the same value shown everywhere else). `fkCol` is a fixed,
@@ -409,13 +409,13 @@ function categoryEntries(userId, fkCol, name) {
   ).all(userId, name).map(e => ({ date: e.date, ...entryToRow(e) }));
 }
 function listCompanies(userId)        { return distinctCategory(userId, 'company_id'); }
-function listProjects(userId)         { return distinctCategory(userId, 'project_id'); }
+function listSystems(userId)          { return distinctCategory(userId, 'system_id'); }
 function companyEntries(userId, name) { return categoryEntries(userId, 'company_id', name); }
-function projectEntries(userId, name) { return categoryEntries(userId, 'project_id', name); }
+function systemEntries(userId, name)  { return categoryEntries(userId, 'system_id', name); }
 
 // ── Analytics aggregation (computed in SQL, not by shipping rows to the UI) ────
 // All rollups the Analytics view needs, scoped to the user:
-//   • period [from, to]  → totals + group-by-{company, project, time_type,
+//   • period [from, to]  → totals + group-by-{company, system, time_type,
 //                          activity_type} maps used for KPIs / bars / donuts
 //   • span [spanFrom, spanTo] → per-day minute totals (all + Over-Time only) for
 //                          the trend line and the activity heatmap
@@ -444,9 +444,9 @@ function getAnalytics(userId, from, to, spanFrom, spanTo) {
     for (const r of db.prepare(sql).all(...period)) m[r.k] = r.v;
     return m;
   };
-  // company/project/natural keyed by display LABEL (INNER JOIN drops unset FKs).
+  // company/system/natural keyed by display LABEL (INNER JOIN drops unset FKs).
   const byCompany = mapOf(`SELECT lc.label AS k, COALESCE(SUM(e.minutes),0) AS v ${FROM} JOIN lookup_codes lc ON lc.id = e.company_id ${WHERE} GROUP BY lc.label`);
-  const byProject = mapOf(`SELECT lc.label AS k, COALESCE(SUM(e.minutes),0) AS v ${FROM} JOIN lookup_codes lc ON lc.id = e.project_id ${WHERE} GROUP BY lc.label`);
+  const bySystem  = mapOf(`SELECT lc.label AS k, COALESCE(SUM(e.minutes),0) AS v ${FROM} JOIN lookup_codes lc ON lc.id = e.system_id ${WHERE} GROUP BY lc.label`);
   // donuts only count entries with logged minutes.
   const byNatural = mapOf(`SELECT lc.label AS k, SUM(e.minutes) AS v ${FROM} JOIN lookup_codes lc ON lc.id = e.activity_type_id ${WHERE} AND e.minutes > 0 GROUP BY lc.label`);
   // time-type keyed by stable CODE; unset time_type buckets under 'OTHER'.
@@ -464,7 +464,7 @@ function getAnalytics(userId, from, to, spanFrom, spanTo) {
 
   return {
     totalMin: totals.totalMin, recordCount: totals.recordCount, doneCount: totals.doneCount || 0,
-    activeDays, byCompany, byProject, byNatural, byType,
+    activeDays, byCompany, bySystem, byNatural, byType,
     dayMin: perDay(false), dayOtMin: perDay(true),
   };
 }
@@ -489,10 +489,10 @@ function getOverviewStats(userId, today, monthStart) {
 // subscriptions IPC shape so the renderer treats it the same way.
 function loadBacklog(userId) {
   const backlog = db.prepare(
-    'SELECT id, company_id, project_id, activity_type_id, time_type_id, description, source, tags FROM backlog WHERE user_id = ? ORDER BY sort_order'
+    'SELECT id, company_id, system_id, activity_type_id, time_type_id, description, source, tags FROM backlog WHERE user_id = ? ORDER BY sort_order'
   ).all(userId).map(t => ({
     id: t.id,
-    company: lkLabel(t.company_id), project: lkLabel(t.project_id), natural: lkLabel(t.activity_type_id), time: lkCode(t.time_type_id),
+    company: lkLabel(t.company_id), system: lkLabel(t.system_id), natural: lkLabel(t.activity_type_id), time: lkCode(t.time_type_id),
     description: t.description || '', source: t.source || '',
     tags: safeParse(t.tags, []),
   }));
@@ -509,16 +509,16 @@ function saveBacklog(userId, data) {
     for (const row of db.prepare('SELECT id FROM backlog WHERE user_id = ?').all(userId)) {
       if (!keep.has(row.id)) del.run(row.id, userId);
     }
-    const up = db.prepare(`INSERT INTO backlog(id, user_id, company_id, project_id, activity_type_id, time_type_id, description, source, tags, sort_order)
+    const up = db.prepare(`INSERT INTO backlog(id, user_id, company_id, system_id, activity_type_id, time_type_id, description, source, tags, sort_order)
                            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                            ON CONFLICT(id) DO UPDATE SET
-                             company_id=excluded.company_id, project_id=excluded.project_id,
+                             company_id=excluded.company_id, system_id=excluded.system_id,
                              activity_type_id=excluded.activity_type_id, time_type_id=excluded.time_type_id,
                              description=excluded.description, source=excluded.source,
                              tags=excluded.tags, sort_order=excluded.sort_order`);
     list.forEach((t, i) => up.run(
       t.id, userId,
-      lkId('COMPANY', t.company), lkId('PROJECT', t.project),
+      lkId('COMPANY', t.company), lkId('SYSTEM', t.system),
       lkId('ACTIVITY_TYPE', t.natural), lkId('TIME_TYPE', t.time),
       t.description ?? '', t.source ?? '',
       JSON.stringify(Array.isArray(t.tags) ? t.tags : []), i
@@ -653,7 +653,7 @@ module.exports = {
   close, backup, dbPath,
   countUsers, getUserByUsername, getUserById, createUser, getUnclaimedUser, claimUser,
   saveDay, loadDay, listDays, loadDaysRange,
-  listCompanies, listProjects, companyEntries, projectEntries,
+  listCompanies, listSystems, companyEntries, systemEntries,
   getAnalytics, getOverviewStats,
   loadBacklog, saveBacklog,
   loadLookups, saveLookups, getLookupsByCategory,

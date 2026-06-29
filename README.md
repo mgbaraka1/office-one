@@ -8,10 +8,10 @@ Everything runs locally in an embedded SQLite database. No server, no network, n
 
 ## Features
 
-- **🕐 Timesheet** — per-day records (company, project, activity, time type, description, source, status, minutes, tags) with a live timer, bulk actions, month overview, and inline editing.
+- **🕐 Timesheet** — per-day records (company, system, activity, time type, description, source, status, minutes, tags) with a live timer, bulk actions, month overview, and inline editing.
 - **📌 Not Yet** — a day-agnostic backlog of tasks you can later assign into a specific day.
 - **💳 Subscriptions** — recurring-cost manager with per-currency renewal tracking and "renews in" badges.
-- **📊 Analytics** — the home overview: KPIs, hours by company/project, daily-hours trend, donuts, and a GitHub-style activity heatmap. All totals are aggregated in SQL.
+- **📊 Analytics** — the home overview: KPIs, hours by company/system, daily-hours trend, donuts, and a GitHub-style activity heatmap. All totals are aggregated in SQL.
 - **📄 Reports** — one-click PDF reports (daily timesheet, monthly over-time request, subscriptions) via an in-app print/preview overlay.
 - **🔐 Accounts** — each user has their own login; passwords are bcrypt-hashed; all data is owned per-user.
 

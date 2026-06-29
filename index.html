@@ -1033,7 +1033,7 @@
     .lookup-panel { display: none; flex-direction: column; gap: 12px; }
     .lookup-panel.active { display: flex; }
 
-    /* ══ COMPANIES / PROJECTS MODULES (read-only views) ══ */
+    /* ══ COMPANIES / SYSTEMS MODULES (read-only views) ══ */
     .cp-title { margin-right: auto; }
     .cp-body { flex: 1; display: flex; overflow: hidden; }
     .cp-list-panel {
@@ -1435,8 +1435,8 @@
     <button class="nav-item" data-module="companies" onclick="switchModule('companies')">
       <span class="nav-icon" data-ic="building-2"></span>Companies
     </button>
-    <button class="nav-item" data-module="projects" onclick="switchModule('projects')">
-      <span class="nav-icon" data-ic="folder"></span>Projects
+    <button class="nav-item" data-module="systems" onclick="switchModule('systems')">
+      <span class="nav-icon" data-ic="folder"></span>Systems
     </button>
     <button class="nav-item" data-module="settings" onclick="switchModule('settings')">
       <span class="nav-icon" data-ic="settings"></span>Settings
@@ -1509,8 +1509,8 @@
         <div id="an-company"></div>
       </div>
       <div class="an-card">
-        <div class="an-card-head"><span class="an-card-title">Hours by Project</span><span class="an-card-sub" id="an-project-sub"></span></div>
-        <div id="an-project"></div>
+        <div class="an-card-head"><span class="an-card-title">Hours by System</span><span class="an-card-sub" id="an-system-sub"></span></div>
+        <div id="an-system"></div>
       </div>
     </div>
 
@@ -1708,7 +1708,7 @@
         <tr>
           <th style="width:36px">#</th>
           <th>Company</th>
-          <th>Project</th>
+          <th>System</th>
           <th>Natural</th>
           <th>Time</th>
           <th style="min-width:220px">Description</th>
@@ -1752,8 +1752,8 @@
           <select id="f-company"></select>
         </div>
         <div class="form-group">
-          <label>Project</label>
-          <select id="f-project"></select>
+          <label>System</label>
+          <select id="f-system"></select>
         </div>
       </div>
       <div class="form-row">
@@ -1896,7 +1896,7 @@
         <tr>
           <th style="width:36px">#</th>
           <th>Company</th>
-          <th>Project</th>
+          <th>System</th>
           <th>Natural</th>
           <th>Time</th>
           <th style="min-width:240px">Description</th>
@@ -1929,19 +1929,19 @@
   </div>
 </div>
 
-<!-- ══ PROJECTS MODULE (read-only view over day_entries) ══ -->
-<div id="module-projects" class="app-module">
+<!-- ══ SYSTEMS MODULE (read-only view over day_entries) ══ -->
+<div id="module-systems" class="app-module">
   <div class="cp-topbar">
-    <span class="cp-title"><span class="ti-ic" data-ic="folder"></span>Projects</span>
+    <span class="cp-title"><span class="ti-ic" data-ic="folder"></span>Systems</span>
   </div>
   <div class="cp-body">
     <div class="cp-list-panel">
       <div class="cp-list-search">
-        <input type="text" id="projects-search" class="cp-search" placeholder="Search projects…" oninput="renderCatList('projects')">
+        <input type="text" id="systems-search" class="cp-search" placeholder="Search systems…" oninput="renderCatList('systems')">
       </div>
-      <div class="cp-list" id="projects-list"></div>
+      <div class="cp-list" id="systems-list"></div>
     </div>
-    <div class="cp-records-panel" id="projects-records"></div>
+    <div class="cp-records-panel" id="systems-records"></div>
   </div>
 </div>
 
@@ -1972,14 +1972,14 @@
         <!-- Lookup category sub-tabs -->
         <div class="lookup-subtabs">
           <button class="ltab active" data-ltab="companies" onclick="switchLookupTab(this)"><span class="stab-icon" data-ic="building-2"></span> Companies</button>
-          <button class="ltab"        data-ltab="projects"  onclick="switchLookupTab(this)"><span class="stab-icon" data-ic="folder"></span> Projects</button>
+          <button class="ltab"        data-ltab="systems"   onclick="switchLookupTab(this)"><span class="stab-icon" data-ic="folder"></span> Systems</button>
           <button class="ltab"        data-ltab="natural"   onclick="switchLookupTab(this)"><span class="stab-icon" data-ic="tag"></span> Natural</button>
           <button class="ltab"        data-ltab="timeType"  onclick="switchLookupTab(this)"><span class="stab-icon" data-ic="alarm-clock"></span> Time Type</button>
           <button class="ltab"        data-ltab="status"    onclick="switchLookupTab(this)"><span class="stab-icon" data-ic="flag"></span> Status</button>
         </div>
         <div class="lookup-subpanels">
           <div class="lookup-panel active" id="tab-companies"></div>
-          <div class="lookup-panel" id="tab-projects"></div>
+          <div class="lookup-panel" id="tab-systems"></div>
           <div class="lookup-panel" id="tab-natural"></div>
           <div class="lookup-panel" id="tab-timeType"></div>
           <div class="lookup-panel" id="tab-status"></div>
@@ -2003,8 +2003,8 @@
           <select id="b-company"></select>
         </div>
         <div class="form-group">
-          <label>Project</label>
-          <select id="b-project"></select>
+          <label>System</label>
+          <select id="b-system"></select>
         </div>
       </div>
       <div class="form-row">
@@ -2200,7 +2200,7 @@ let calYear, calMonth;
 // ── Normalized lookup catalog ──
 // Loaded once at boot from window.api.loadLookups(). `LK.categories` is keyed by
 // the catalog category; each option is { id, code, label, sortOrder, isActive }.
-// Display fields (company/project/natural) store their LABEL on the row; logic
+// Display fields (company/system/natural) store their LABEL on the row; logic
 // fields (time/status/currency/billingCycle) store their stable CODE — so the UI
 // compares codes, never hardcoded display strings.
 let LK = { categories: {}, defaultName: '' };
@@ -2208,12 +2208,12 @@ let lookupsDraft = {};          // working copy edited by the Settings catalog e
 
 // UI dropdown key → catalog category, and which option field is the stored value.
 const LK_CAT = {
-  companies: 'COMPANY', projects: 'PROJECT', natural: 'ACTIVITY_TYPE',
+  companies: 'COMPANY', systems: 'SYSTEM', natural: 'ACTIVITY_TYPE',
   timeType: 'TIME_TYPE', status: 'ENTRY_STATUS',
   currency: 'CURRENCY', billingCycle: 'BILLING_CYCLE',
 };
 const LK_VALUE = {             // 'label' = stored as display label; 'code' = stored as code
-  companies: 'label', projects: 'label', natural: 'label',
+  companies: 'label', systems: 'label', natural: 'label',
   timeType: 'code', status: 'code', currency: 'code', billingCycle: 'code',
 };
 
@@ -2336,7 +2336,7 @@ function populateSelect(id, key, currentVal) {
 // The tabs edit a working copy of the catalog (lookupsDraft, keyed by category).
 // Existing entries are relabeled / reordered / soft-disabled in place; new entries
 // get a server-generated stable code on save. Codes are never edited or deleted.
-const SETTINGS_TABS = ['companies', 'projects', 'natural', 'timeType', 'status'];
+const SETTINGS_TABS = ['companies', 'systems', 'natural', 'timeType', 'status'];
 
 // Settings is a nav page (not a modal): switchModule('settings') calls this to
 // (re)load a working copy of the catalog and render the editors fresh each visit.
@@ -2373,7 +2373,7 @@ function switchTab(btn) {
   document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
 }
 
-// Lookup category sub-tabs (Companies / Projects / Natural / Time Type / Status).
+// Lookup category sub-tabs (Companies / Systems / Natural / Time Type / Status).
 function switchLookupTab(btn) {
   document.querySelectorAll('.ltab').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.lookup-panel').forEach(p => p.classList.remove('active'));
@@ -2602,7 +2602,7 @@ function renderTable() {
     tr.appendChild(numTd);
 
     tr.appendChild(textCell(row.company));
-    tr.appendChild(textCell(row.project));
+    tr.appendChild(textCell(row.system));
     tr.appendChild(textCell(row.natural));
     const timeTd = document.createElement('td');
     const timeDiv = document.createElement('div'); timeDiv.className = 'cell';
@@ -3030,13 +3030,13 @@ function openModal(idx = null) {
   document.querySelector('#modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : 'Add Record';
 
   populateSelect('f-company', 'companies', row?.company || '');
-  populateSelect('f-project', 'projects',  row?.project || '');
+  populateSelect('f-system',  'systems',   row?.system  || '');
   populateSelect('f-natural', 'natural',   row?.natural || '');
   populateSelect('f-time',    'timeType',  row?.time    || '');
   populateSelect('f-status',  'status',    row?.status  || '');
 
   if (!isEdit) {
-    ['f-company','f-project','f-natural','f-time','f-status'].forEach(id => {
+    ['f-company','f-system','f-natural','f-time','f-status'].forEach(id => {
       const sel = document.getElementById(id);
       const blank = document.createElement('option');
       blank.value = ''; blank.textContent = '— select —';
@@ -3068,7 +3068,7 @@ async function submitModal() {
   clearErrors();
   const fields = [
     { id: 'f-company',     val: document.getElementById('f-company').value },
-    { id: 'f-project',     val: document.getElementById('f-project').value },
+    { id: 'f-system',      val: document.getElementById('f-system').value },
     { id: 'f-natural',     val: document.getElementById('f-natural').value },
     { id: 'f-time',        val: document.getElementById('f-time').value },
     { id: 'f-description', val: document.getElementById('f-description').value.trim() },
@@ -3093,7 +3093,7 @@ async function submitModal() {
 
   const record = {
     company:     document.getElementById('f-company').value,
-    project:     document.getElementById('f-project').value,
+    system:      document.getElementById('f-system').value,
     natural:     document.getElementById('f-natural').value,
     time:        document.getElementById('f-time').value,
     description: document.getElementById('f-description').value.trim(),
@@ -3229,7 +3229,7 @@ function buildDailyReportHTML(srcRows, date, name) {
       <tr>
         <td style="text-align:center">${i + 1}</td>
         <td>${esc(r.company)}</td>
-        <td>${esc(r.project)}</td>
+        <td>${esc(r.system)}</td>
         <td>${esc(r.description)}${r.source ? `<div style="font-size:10px;color:#777;margin-top:3px">${esc(r.source)}</div>` : ''}</td>
         <td style="text-align:right">${r.minutes || '—'}</td>
         <td style="text-align:right">${r.minutes ? (parseFloat(r.minutes)/60).toFixed(2) : '—'}</td>
@@ -3261,7 +3261,7 @@ function buildDailyReportHTML(srcRows, date, name) {
         <tr>
           <th style="width:28px;text-align:center">#</th>
           <th style="width:100px">Company</th>
-          <th style="width:100px">Project</th>
+          <th style="width:100px">System</th>
           <th>Description / Source</th>
           <th style="width:45px;text-align:right">Min</th>
           <th style="width:45px;text-align:right">Hrs</th>
@@ -3418,7 +3418,7 @@ function buildOvertimeReportHTML(days, monthLabel, name) {
         <td style="text-align:center">${i + 1}</td>
         <td>${dLabel}</td>
         <td>${esc(r.company)}</td>
-        <td>${esc(r.project)}</td>
+        <td>${esc(r.system)}</td>
         <td>${esc(r.natural)}</td>
         <td>${esc(r.description)}</td>
         <td style="text-align:right">${r.minutes || '—'}</td>
@@ -3472,7 +3472,7 @@ function buildOvertimeReportHTML(days, monthLabel, name) {
           <th style="width:28px;text-align:center">#</th>
           <th>Date</th>
           <th>Company</th>
-          <th>Project</th>
+          <th>System</th>
           <th>Task</th>
           <th>Description</th>
           <th style="text-align:right">Min</th>
@@ -3667,7 +3667,7 @@ function renderBacklog() {
   empty.style.display = 'none';
 
   const shown = backlog.filter(t => textMatch(
-    [t.company, t.project, t.natural, t.time, t.description, t.source,
+    [t.company, t.system, t.natural, t.time, t.description, t.source,
      Array.isArray(t.tags) ? t.tags.join(' ') : ''], backlogFilter));
 
   if (shown.length === 0) {
@@ -3683,7 +3683,7 @@ function renderBacklog() {
     tr.appendChild(cellWrap(numSpan, 'cell cell-center'));
 
     tr.appendChild(textCell(task.company));
-    tr.appendChild(textCell(task.project));
+    tr.appendChild(textCell(task.system));
     tr.appendChild(textCell(task.natural));
 
     const timeTd = document.createElement('td');
@@ -3780,7 +3780,7 @@ async function assignBacklogToDay(id, targetDate) {
   if (idx === -1) return;
   const task = backlog[idx];
   const row = {
-    company: task.company || '', project: task.project || '', natural: task.natural || '',
+    company: task.company || '', system: task.system || '', natural: task.natural || '',
     time: task.time || '', description: task.description || '', source: task.source || '',
     status: 'IN_PROGRESS', minutes: '',
     tags: Array.isArray(task.tags) ? task.tags.slice() : [],
@@ -3843,12 +3843,12 @@ function openBacklogModal(id = null) {
   document.querySelector('#backlog-modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : 'Add Task';
 
   populateSelect('b-company', 'companies', task?.company || '');
-  populateSelect('b-project', 'projects',  task?.project || '');
+  populateSelect('b-system',  'systems',   task?.system  || '');
   populateSelect('b-natural', 'natural',   task?.natural || '');
   populateSelect('b-time',    'timeType',  task?.time    || '');
 
   if (!isEdit) {
-    ['b-company','b-project','b-natural','b-time'].forEach(selId => {
+    ['b-company','b-system','b-natural','b-time'].forEach(selId => {
       const sel = document.getElementById(selId);
       const blank = document.createElement('option');
       blank.value = ''; blank.textContent = '— select —';
@@ -3878,7 +3878,7 @@ function submitBacklogModal() {
   clearBacklogErrors();
   const fields = [
     { id: 'b-company',     val: document.getElementById('b-company').value },
-    { id: 'b-project',     val: document.getElementById('b-project').value },
+    { id: 'b-system',      val: document.getElementById('b-system').value },
     { id: 'b-natural',     val: document.getElementById('b-natural').value },
     { id: 'b-time',        val: document.getElementById('b-time').value },
     { id: 'b-description', val: document.getElementById('b-description').value.trim() },
@@ -3890,7 +3890,7 @@ function submitBacklogModal() {
   const record = {
     id:          backlogEditId !== null ? backlogEditId : 'bl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
     company:     document.getElementById('b-company').value,
-    project:     document.getElementById('b-project').value,
+    system:      document.getElementById('b-system').value,
     natural:     document.getElementById('b-natural').value,
     time:        document.getElementById('b-time').value,
     description: document.getElementById('b-description').value.trim(),
@@ -3939,7 +3939,7 @@ function rowMatchesFilter(row) {
   if (!filterText) return true;
   const tagStr = Array.isArray(row.tags) ? row.tags.join(' ') : '';
   // Search against the human labels of the code-valued fields (time / status).
-  return [row.company, row.project, row.natural, lkLabel('TIME_TYPE', row.time), row.description, row.source, lkLabel('ENTRY_STATUS', row.status), tagStr]
+  return [row.company, row.system, row.natural, lkLabel('TIME_TYPE', row.time), row.description, row.source, lkLabel('ENTRY_STATUS', row.status), tagStr]
     .some(v => (v || '').toLowerCase().includes(filterText));
 }
 
@@ -4149,24 +4149,24 @@ function switchModule(name) {
   } else if (name === 'companies') {
     window.api.setTitle('Cooperation Tools — Companies');
     openCatPage('companies');
-  } else if (name === 'projects') {
-    window.api.setTitle('Cooperation Tools — Projects');
-    openCatPage('projects');
+  } else if (name === 'systems') {
+    window.api.setTitle('Cooperation Tools — Systems');
+    openCatPage('systems');
   }
 }
 
-// ══ COMPANIES / PROJECTS — read-only views over day_entries ══════════════════
+// ══ COMPANIES / SYSTEMS — read-only views over day_entries ══════════════════
 // Both pages are identical except for which category column they group by, so a
-// single parameterized renderer drives them (kind = 'companies' | 'projects').
-// Data is read via the companies:/projects: IPC channels (always scoped to the
+// single parameterized renderer drives them (kind = 'companies' | 'systems').
+// Data is read via the companies:/systems: IPC channels (always scoped to the
 // session user in main); these pages never write.
 const CP_DEF = {
   companies: { noun: 'company', icon: ic('building-2'), listApi: 'listCompanies', entriesApi: 'companyEntries' },
-  projects:  { noun: 'project', icon: ic('folder'),  listApi: 'listProjects',  entriesApi: 'projectEntries' },
+  systems:   { noun: 'system',  icon: ic('folder'),  listApi: 'listSystems',   entriesApi: 'systemEntries' },
 };
 let cpState = {
   companies: { list: [], selected: null, entries: [], from: '', to: '', type: '' },
-  projects:  { list: [], selected: null, entries: [], from: '', to: '', type: '' },
+  systems:   { list: [], selected: null, entries: [], from: '', to: '', type: '' },
 };
 
 // Entered via switchModule(kind): (re)load the value list, keep a valid selection.
@@ -4287,7 +4287,7 @@ function renderCatRecords(kind) {
   const table = document.createElement('table');
   table.innerHTML = '<thead><tr>' +
     '<th style="width:36px">#</th>' +
-    '<th>Date</th><th>Company</th><th>Project</th><th>Natural</th><th>Time</th>' +
+    '<th>Date</th><th>Company</th><th>System</th><th>Natural</th><th>Time</th>' +
     '<th style="min-width:220px">Description</th><th style="min-width:160px">Source</th>' +
     '<th>Status</th>' +
     '<th style="width:80px;text-align:right">Minutes</th>' +
@@ -4347,7 +4347,7 @@ function buildReadonlyRow(r, i) {
   dateDiv.appendChild(dateSpan); dateTd.appendChild(dateDiv); tr.appendChild(dateTd);
 
   tr.appendChild(textCell(r.company));
-  tr.appendChild(textCell(r.project));
+  tr.appendChild(textCell(r.system));
   tr.appendChild(textCell(r.natural));
 
   const timeTd = document.createElement('td');
@@ -4620,7 +4620,7 @@ async function renderAnalytics() {
   const an = await window.api.loadAnalytics(from, to, fetchFrom, fetchTo);
 
   const dayMin = an.dayMin, dayOtMin = an.dayOtMin;
-  const byCompany = an.byCompany, byProject = an.byProject, byType = an.byType, byNatural = an.byNatural;
+  const byCompany = an.byCompany, bySystem = an.bySystem, byType = an.byType, byNatural = an.byNatural;
   const totalMin = an.totalMin, recordCount = an.recordCount, activeDays = an.activeDays, doneCount = an.doneCount;
 
   const workMin = byType['WORK_TIME'] || 0;
@@ -4643,9 +4643,9 @@ async function renderAnalytics() {
       <span class="an-kpi-foot">${k.foot}</span>
     </div>`).join('');
 
-  // ── Bar charts: company + project ──
+  // ── Bar charts: company + system ──
   renderAnBars('an-company', byCompany, 'an-company-sub');
-  renderAnBars('an-project', byProject, 'an-project-sub');
+  renderAnBars('an-system', bySystem, 'an-system-sub');
 
   // ── Daily hours + companion Over-Time trend ──
   // These follow the selected period so the charts reflect the searched range.

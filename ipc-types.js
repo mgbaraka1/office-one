@@ -18,7 +18,7 @@
  * @typedef {Object} DayEntryRow
  * @property {number} [eid]      Stable DB entry id (absent on a not-yet-saved row).
  * @property {string} company
- * @property {string} project
+ * @property {string} system
  * @property {string} natural    Activity type (stored as `activity_type`).
  * @property {string} time       Time type, e.g. "Work Time" (stored as `time_type`).
  * @property {string} description
@@ -29,7 +29,7 @@
  */
 
 /**
- * One company/project as listed on its page: the display label plus how many
+ * One company/system as listed on its page: the display label plus how many
  * day_entries reference it (for the current user).
  * @typedef {Object} CategoryValue
  * @property {string} name
@@ -37,7 +37,7 @@
  */
 
 /**
- * A day_entry as shown on the read-only Companies/Projects pages — a DayEntryRow
+ * A day_entry as shown on the read-only Companies/Systems pages — a DayEntryRow
  * plus the date of the day it belongs to (entries span many days there).
  * @typedef {DayEntryRow & { date: string }} CategoryEntry
  */
@@ -85,7 +85,7 @@
  * @typedef {Object} BacklogTask
  * @property {string} id
  * @property {string} company
- * @property {string} project
+ * @property {string} system
  * @property {string} natural
  * @property {string} time
  * @property {string} description
@@ -110,7 +110,7 @@
 
 /**
  * The full lookup catalog returned by `lookups:get`. `categories` is keyed by the
- * category discriminator (COMPANY, PROJECT, ACTIVITY_TYPE, TIME_TYPE, ENTRY_STATUS,
+ * category discriminator (COMPANY, SYSTEM, ACTIVITY_TYPE, TIME_TYPE, ENTRY_STATUS,
  * CURRENCY, BILLING_CYCLE), each an ordered list of options (incl. inactive).
  * @typedef {Object} Lookups
  * @property {Object<string, LookupOption[]>} categories
@@ -125,7 +125,7 @@
  * @property {number} doneCount
  * @property {number} activeDays
  * @property {Object<string,number>} byCompany
- * @property {Object<string,number>} byProject
+ * @property {Object<string,number>} bySystem
  * @property {Object<string,number>} byNatural
  * @property {Object<string,number>} byType
  * @property {Object<string,number>} dayMin     date → total minutes
