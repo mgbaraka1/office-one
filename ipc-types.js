@@ -26,6 +26,7 @@
  * @property {'Done'|'In Progress'} status
  * @property {number|''} minutes  Logged minutes, or '' when unset.
  * @property {string[]} tags
+ * @property {number|null} [projectId]  Linked Project id, or null when unlinked.
  */
 
 /**
@@ -91,6 +92,7 @@
  * @property {string} description
  * @property {string} source
  * @property {string[]} tags
+ * @property {number|null} [projectId]  Linked Project id, or null when unlinked.
  */
 
 /**
@@ -120,14 +122,20 @@
  */
 
 /**
+ * A system linked to a project — one SYSTEM lookup row (via project_systems).
+ * @typedef {Object} ProjectSystem
+ * @property {number} id      The SYSTEM lookup_codes id.
+ * @property {string} label   The system's display label.
+ */
+
+/**
  * A project as listed on the Projects page (profile + a linked-task count).
  * @typedef {Object} ProjectListItem
  * @property {number} id
  * @property {string} name
  * @property {string} description
  * @property {ProjectCompany[]} companies  Linked client companies (COMPANY lookups).
- * @property {number|null} systemId        The SYSTEM lookup id, or null.
- * @property {string} system               The SYSTEM lookup label ('' if unset).
+ * @property {ProjectSystem[]} systems     Linked systems (SYSTEM lookups, many-to-many).
  * @property {string} status               A PROJECT_STATUS lookup code (e.g. 'ACTIVE').
  * @property {string} createdAt
  * @property {number} taskCount            Linked timesheet entries + backlog tasks.
@@ -140,8 +148,7 @@
  * @property {string} name
  * @property {string} description
  * @property {ProjectCompany[]} companies  Linked client companies (COMPANY lookups).
- * @property {number|null} systemId        The SYSTEM lookup id, or null.
- * @property {string} system               The SYSTEM lookup label ('' if unset).
+ * @property {ProjectSystem[]} systems     Linked systems (SYSTEM lookups, many-to-many).
  * @property {string} status               A PROJECT_STATUS lookup code (e.g. 'ACTIVE').
  * @property {string} createdAt
  * @property {{ entries: ProjectEntryTask[], backlog: Array<BacklogTask & {kind:'backlog'}> }} tasks
@@ -154,7 +161,7 @@
  * @property {string} name
  * @property {string} description
  * @property {number[]} companyIds   COMPANY lookup ids to link (replaces existing).
- * @property {number|null} systemId  SYSTEM lookup id, or null/unset.
+ * @property {number[]} systemIds    SYSTEM lookup ids to link (replaces existing).
  * @property {string} status         A PROJECT_STATUS lookup code.
  */
 
