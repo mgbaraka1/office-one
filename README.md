@@ -10,6 +10,7 @@ Everything runs locally in an embedded SQLite database. No server, no network, n
 
 - **🕐 Timesheet** — per-day records (company, system, activity, time type, description, source, status, minutes, tags) with a live timer, bulk actions, month overview, and inline editing.
 - **📌 Not Yet** — a day-agnostic backlog of tasks you can later assign into a specific day.
+- **📋 Projects** — a container for a client/system engagement: a profile, a fixed set of tracked documents (Quotation, Quotation Approval, Invoice) shown as status cards, and links to existing timesheet/backlog tasks.
 - **💳 Subscriptions** — recurring-cost manager with per-currency renewal tracking and "renews in" badges.
 - **📊 Analytics** — the home overview: KPIs, hours by company/system, daily-hours trend, donuts, and a GitHub-style activity heatmap. All totals are aggregated in SQL.
 - **📄 Reports** — one-click PDF reports (daily timesheet, monthly over-time request, subscriptions) via an in-app print/preview overlay.
@@ -84,7 +85,7 @@ On macOS the folder is `~/Library/Application Support/timesheet/`; on Linux `~/.
 - **`ipc-types.js`** — JSDoc type definitions for every IPC request/response shape.
 - **`index.html`** — the entire renderer UI (auth gate + all modules).
 
-Data is **normalized**: a `days` row owns child `day_entries`; `subscriptions` and `backlog` are owned per user; shared config lives in `app_settings`, machine-only state in `machine_prefs`.
+Data is **normalized**: a `days` row owns child `day_entries`; `subscriptions` and `backlog` are owned per user; `projects` own their tracked `project_documents` and are linked from `day_entries`/`backlog` via a nullable `project_id`; shared config lives in `app_settings`, machine-only state in `machine_prefs`.
 
 See [`CLAUDE.md`](CLAUDE.md) for the full developer reference.
 
