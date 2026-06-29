@@ -113,15 +113,24 @@
  */
 
 /**
+ * A company linked to a project — one COMPANY lookup row.
+ * @typedef {Object} ProjectCompany
+ * @property {number} id      The COMPANY lookup_codes id.
+ * @property {string} label   The company's display label.
+ */
+
+/**
  * A project as listed on the Projects page (profile + a linked-task count).
  * @typedef {Object} ProjectListItem
  * @property {number} id
  * @property {string} name
  * @property {string} description
- * @property {string} clientName   The system/client this project is for.
- * @property {'active'|'on-hold'|'completed'|string} status
+ * @property {ProjectCompany[]} companies  Linked client companies (COMPANY lookups).
+ * @property {number|null} systemId        The SYSTEM lookup id, or null.
+ * @property {string} system               The SYSTEM lookup label ('' if unset).
+ * @property {string} status               A PROJECT_STATUS lookup code (e.g. 'ACTIVE').
  * @property {string} createdAt
- * @property {number} taskCount     Linked timesheet entries + backlog tasks.
+ * @property {number} taskCount            Linked timesheet entries + backlog tasks.
  */
 
 /**
@@ -130,11 +139,23 @@
  * @property {number} id
  * @property {string} name
  * @property {string} description
- * @property {string} clientName
- * @property {'active'|'on-hold'|'completed'|string} status
+ * @property {ProjectCompany[]} companies  Linked client companies (COMPANY lookups).
+ * @property {number|null} systemId        The SYSTEM lookup id, or null.
+ * @property {string} system               The SYSTEM lookup label ('' if unset).
+ * @property {string} status               A PROJECT_STATUS lookup code (e.g. 'ACTIVE').
  * @property {string} createdAt
  * @property {{ entries: ProjectEntryTask[], backlog: Array<BacklogTask & {kind:'backlog'}> }} tasks
  * @property {ProjectDocument[]} documents
+ */
+
+/**
+ * Write shape for `projects:create` / `projects:update`.
+ * @typedef {Object} ProjectInput
+ * @property {string} name
+ * @property {string} description
+ * @property {number[]} companyIds   COMPANY lookup ids to link (replaces existing).
+ * @property {number|null} systemId  SYSTEM lookup id, or null/unset.
+ * @property {string} status         A PROJECT_STATUS lookup code.
  */
 
 /**
