@@ -112,6 +112,20 @@ ipcMain.handle('subscriptions:save', authed((_e, data) => db.saveSubscriptions(a
 ipcMain.handle('backlog:list', authed(()         => db.loadBacklog(auth.requireUserId())));
 ipcMain.handle('backlog:save', authed((_e, data) => db.saveBacklog(auth.requireUserId(), data)));
 
+// ── Projects (container for tasks + tracked documents) ──
+ipcMain.handle('projects:create', authed((_e, data)     => db.createProject(auth.requireUserId(), data)));
+ipcMain.handle('projects:list',   authed(()             => db.listProjects(auth.requireUserId())));
+ipcMain.handle('projects:get',    authed((_e, id)       => db.getProject(auth.requireUserId(), id)));
+ipcMain.handle('projects:update', authed((_e, id, data) => db.updateProject(auth.requireUserId(), id, data)));
+ipcMain.handle('projects:delete', authed((_e, id)       => db.deleteProject(auth.requireUserId(), id)));
+ipcMain.handle('projects:update-document-status', authed((_e, projectId, documentType, isAvailable) =>
+  db.setProjectDocumentStatus(auth.requireUserId(), projectId, documentType, isAvailable)));
+// Linking existing tasks (needed for the Phase 2 "link a task" picker) — extra
+// channels beyond the six in the spec, since the spec's UI requires task linking.
+ipcMain.handle('projects:link-task',   authed((_e, projectId, kind, taskId) => db.linkTask(auth.requireUserId(), projectId, kind, taskId)));
+ipcMain.handle('projects:unlink-task', authed((_e, kind, taskId)           => db.unlinkTask(auth.requireUserId(), kind, taskId)));
+ipcMain.handle('projects:linkable-tasks', authed(()                        => db.listLinkableTasks(auth.requireUserId())));
+
 // ── Backup ──
 ipcMain.handle('db:backup', authed(async () => {
   const stamp = new Date().toISOString().slice(0, 10);

@@ -59,6 +59,24 @@ contextBridge.exposeInMainWorld('api', {
   loadBacklog:    ()              => ipcRenderer.invoke('backlog:list'),
   saveBacklog:    (data)          => ipcRenderer.invoke('backlog:save', data),
 
+  // ── Projects (container for tasks + tracked documents) ──
+  /** @returns {Promise<import('./ipc-types').Project>} */
+  createProject:  (data)          => ipcRenderer.invoke('projects:create', data),
+  /** @returns {Promise<import('./ipc-types').ProjectListItem[]>} */
+  listProjects:   ()              => ipcRenderer.invoke('projects:list'),
+  /** @returns {Promise<import('./ipc-types').Project|null>} */
+  getProject:     (id)            => ipcRenderer.invoke('projects:get', id),
+  /** @returns {Promise<import('./ipc-types').Project|null>} */
+  updateProject:  (id, data)      => ipcRenderer.invoke('projects:update', id, data),
+  deleteProject:  (id)            => ipcRenderer.invoke('projects:delete', id),
+  /** @returns {Promise<import('./ipc-types').Project|null>} */
+  setProjectDocumentStatus: (projectId, documentType, isAvailable) =>
+                                     ipcRenderer.invoke('projects:update-document-status', projectId, documentType, isAvailable),
+  linkProjectTask:   (projectId, kind, taskId) => ipcRenderer.invoke('projects:link-task', projectId, kind, taskId),
+  unlinkProjectTask: (kind, taskId)            => ipcRenderer.invoke('projects:unlink-task', kind, taskId),
+  /** @returns {Promise<import('./ipc-types').LinkableTasks>} */
+  listLinkableTasks: ()           => ipcRenderer.invoke('projects:linkable-tasks'),
+
   // ── Backup / reports / window / shell ──
   /** @returns {Promise<import('./ipc-types').FileResult>} */
   backupDatabase:    ()           => ipcRenderer.invoke('db:backup'),

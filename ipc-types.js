@@ -99,6 +99,52 @@
  */
 
 /**
+ * A timesheet entry linked to a project — a DayEntryRow plus its day's date and a
+ * `kind` discriminator. (Backlog tasks linked to a project use BacklogTask + kind.)
+ * @typedef {DayEntryRow & { kind: 'entry', date: string }} ProjectEntryTask
+ */
+
+/**
+ * One of a project's three fixed tracked documents.
+ * @typedef {Object} ProjectDocument
+ * @property {number} id
+ * @property {'Quotation'|'Quotation Approval'|'Invoice'} documentType
+ * @property {boolean} isAvailable
+ */
+
+/**
+ * A project as listed on the Projects page (profile + a linked-task count).
+ * @typedef {Object} ProjectListItem
+ * @property {number} id
+ * @property {string} name
+ * @property {string} description
+ * @property {string} clientName   The system/client this project is for.
+ * @property {'active'|'on-hold'|'completed'|string} status
+ * @property {string} createdAt
+ * @property {number} taskCount     Linked timesheet entries + backlog tasks.
+ */
+
+/**
+ * A project in full — profile + linked tasks + document statuses (`projects:get`).
+ * @typedef {Object} Project
+ * @property {number} id
+ * @property {string} name
+ * @property {string} description
+ * @property {string} clientName
+ * @property {'active'|'on-hold'|'completed'|string} status
+ * @property {string} createdAt
+ * @property {{ entries: ProjectEntryTask[], backlog: Array<BacklogTask & {kind:'backlog'}> }} tasks
+ * @property {ProjectDocument[]} documents
+ */
+
+/**
+ * Unlinked tasks available to attach to a project (`projects:linkable-tasks`).
+ * @typedef {Object} LinkableTasks
+ * @property {ProjectEntryTask[]} entries
+ * @property {Array<BacklogTask & {kind:'backlog'}>} backlog
+ */
+
+/**
  * One option in the normalized lookup catalog (a row of `lookup_codes`).
  * @typedef {Object} LookupOption
  * @property {number} id
