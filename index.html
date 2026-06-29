@@ -155,7 +155,7 @@
     /* ══ TOP BAR ══ */
     /* ══ MODULE TOP BARS (shared) ══ */
     #topbar, #an-topbar, #sub-topbar, #backlog-topbar,
-    #reports-topbar, .cp-topbar, #settings-topbar {
+    #reports-topbar, .cp-topbar, #settings-topbar, #projects-topbar {
       display: flex; align-items: center; gap: 10px;
       padding: var(--space-3) 18px;
       background: var(--surface);
@@ -164,7 +164,7 @@
       -webkit-app-region: drag;   /* window is draggable from every topbar */
     }
     #topbar > *, #an-topbar > *, #sub-topbar > *, #backlog-topbar > *,
-    #reports-topbar > *, .cp-topbar > *, #settings-topbar > * { -webkit-app-region: no-drag; }
+    #reports-topbar > *, .cp-topbar > *, #settings-topbar > *, #projects-topbar > * { -webkit-app-region: no-drag; }
     /* Shared topbar title (leading label in every module) */
     .topbar-title, .an-title, .sub-title, .backlog-title,
     .reports-title, .cp-title, .settings-mod-title {
@@ -197,7 +197,8 @@
     .inprogress-divider-label .lic { width: 13px; height: 13px; vertical-align: -0.12em; }
     /* Decorative empty-state icons — larger, lighter stroke */
     #empty-state .icon .lic, #sub-empty-state .icon .lic,
-    #backlog-empty-state .icon .lic, .cp-placeholder .icon .lic { width: 46px; height: 46px; stroke-width: 1.5; }
+    #backlog-empty-state .icon .lic, .cp-placeholder .icon .lic,
+    #projects-empty-state .icon .lic { width: 46px; height: 46px; stroke-width: 1.5; }
     .dash-empty .de-icon .lic { width: 30px; height: 30px; stroke-width: 1.75; }
     /* Filter clear, timer chip, calendar caret, lookup toggle, cp filter clear */
     #filter-clear .lic { width: 14px; height: 14px; vertical-align: middle; }
@@ -427,12 +428,12 @@
     tbody tr.timer-running:hover td { background: color-mix(in srgb, var(--good) 14%, var(--surface)) !important; }
 
     /* ══ EMPTY STATES (one shared family) ══ */
-    #empty-state, #sub-empty-state, #backlog-empty-state, .cp-placeholder {
+    #empty-state, #sub-empty-state, #backlog-empty-state, .cp-placeholder, #projects-empty-state {
       display: flex; flex-direction: column; align-items: center; text-align: center;
       justify-content: center; gap: var(--space-3); padding: var(--space-8) var(--space-5); color: var(--muted);
     }
-    #empty-state .icon, #sub-empty-state .icon, #backlog-empty-state .icon, .cp-placeholder .icon { font-size: 44px; opacity: .4; margin: 0; }
-    #empty-state p, #sub-empty-state p, #backlog-empty-state p { font-size: 15px; }
+    #empty-state .icon, #sub-empty-state .icon, #backlog-empty-state .icon, .cp-placeholder .icon, #projects-empty-state .icon { font-size: 44px; opacity: .4; margin: 0; }
+    #empty-state p, #sub-empty-state p, #backlog-empty-state p, #projects-empty-state p { font-size: 15px; }
     /* In-card empties (analytics cards, read-only lists/records) */
     .an-empty, .dash-empty, .cp-records-empty, .cp-list-empty {
       text-align: center; color: var(--muted); font-size: 13px; padding: var(--space-7) var(--space-3);
@@ -504,6 +505,86 @@
     .rmod-field input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); background: var(--input-focus-bg); }
     .rmod-field input.field-error { border-color: var(--renew-urgent-text); }
     .rmod-card-controls .btn { padding: 9px 18px; }
+
+    /* ══ PROJECTS ══ */
+    .pj-scroll { flex: 1; overflow-y: auto; padding: var(--space-5) var(--space-6) var(--space-7); }
+    .pj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+    .pj-card {
+      display: flex; flex-direction: column; gap: 10px; cursor: pointer;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: var(--space-4) var(--space-5); box-shadow: var(--shadow-sm);
+      transition: transform .28s cubic-bezier(.22,1,.36,1), border-color .28s cubic-bezier(.22,1,.36,1);
+    }
+    .pj-card:hover { transform: translateY(-2px); border-color: var(--primary); }
+    .pj-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .pj-card-name { font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: -.2px; }
+    .pj-card-client { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+    .pj-card-client .lic { width: 14px; height: 14px; }
+    .pj-card-desc { font-size: 13px; color: var(--muted); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .pj-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 8px; }
+    .pj-card-count { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+    .pj-card-count .lic { width: 14px; height: 14px; }
+
+    /* status pill — shared by cards, list, and the detail header */
+    .pj-status { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+    .pj-status-active    { background: rgba(52,211,153,.16);  color: #059669; }
+    .pj-status-on-hold   { background: rgba(245,181,68,.18);  color: #b7791f; }
+    .pj-status-completed { background: rgba(100,108,132,.16); color: var(--muted); }
+    :root[data-theme="dark"] .pj-status-active    { color: #34d399; }
+    :root[data-theme="dark"] .pj-status-on-hold   { color: #f5b544; }
+
+    /* detail view */
+    .pj-detail-scroll { flex: 1; overflow-y: auto; padding: var(--space-5) var(--space-6) var(--space-7); }
+    .pj-back { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; padding: 4px 0; margin-bottom: 14px; }
+    .pj-back:hover { color: var(--primary); }
+    .pj-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 6px; flex-wrap: wrap; }
+    .pj-detail-title { font-size: 24px; font-weight: 700; color: var(--text); letter-spacing: -.4px; display: flex; align-items: center; gap: 12px; }
+    .pj-detail-actions { display: flex; gap: 8px; }
+    .pj-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-5); margin-top: 18px; box-shadow: var(--shadow-sm); }
+    .pj-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
+    .pj-section-title { font-size: 15px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
+    .pj-section-title .lic { width: 18px; height: 18px; color: var(--primary); }
+    .pj-profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px 24px; }
+    .pj-field-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: 4px; }
+    .pj-field-val { font-size: 14px; color: var(--text); line-height: 1.5; word-break: break-word; }
+
+    /* document cards */
+    .pj-docs { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+    .pj-doc-card {
+      display: flex; flex-direction: column; gap: 12px; text-align: center; align-items: center;
+      border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--space-5) var(--space-4);
+      background: var(--surface2); transition: border-color .28s cubic-bezier(.22,1,.36,1);
+    }
+    .pj-doc-card.available { border-color: rgba(52,211,153,.5); background: rgba(52,211,153,.07); }
+    .pj-doc-icon { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--border); color: var(--muted); }
+    .pj-doc-icon .lic { width: 20px; height: 20px; }
+    .pj-doc-card.available .pj-doc-icon { background: rgba(52,211,153,.18); color: #059669; }
+    :root[data-theme="dark"] .pj-doc-card.available .pj-doc-icon { color: #34d399; }
+    .pj-doc-name { font-size: 14px; font-weight: 700; color: var(--text); }
+    .pj-doc-state { font-size: 12px; font-weight: 600; }
+    .pj-doc-card.available .pj-doc-state { color: #059669; }
+    :root[data-theme="dark"] .pj-doc-card.available .pj-doc-state { color: #34d399; }
+    .pj-doc-card:not(.available) .pj-doc-state { color: var(--muted); }
+    .pj-doc-toggle {
+      display: inline-flex; align-items: center; gap: 6px; cursor: pointer; border: 1px solid var(--border);
+      background: var(--surface); color: var(--text); font-size: 12px; font-weight: 600;
+      padding: 6px 14px; border-radius: 999px; transition: all .2s;
+    }
+    .pj-doc-toggle:hover { border-color: var(--primary); color: var(--primary); }
+    .pj-doc-card.available .pj-doc-toggle { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .pj-doc-card.available .pj-doc-toggle:hover { background: var(--primary-strong); color: #fff; }
+    .pj-doc-toggle .lic { width: 14px; height: 14px; }
+
+    /* linkable-task picker rows */
+    .pj-link-list { display: flex; flex-direction: column; gap: 6px; max-height: 360px; overflow-y: auto; }
+    .pj-link-row {
+      display: flex; align-items: center; gap: 10px; justify-content: space-between;
+      border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px;
+    }
+    .pj-link-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .pj-link-main { font-size: 13px; color: var(--text); font-weight: 600; }
+    .pj-link-meta { font-size: 12px; color: var(--muted); }
+    .pj-kind-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; padding: 2px 7px; border-radius: 999px; background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
 
     /* ══ HOME OVERVIEW (merged into the Analytics view) ══ */
     .dash-greeting { margin-bottom: 22px; }
@@ -875,6 +956,24 @@
       box-shadow: var(--shadow);
       animation: modalIn .32s var(--ease);
     }
+
+    /* ══ PROJECT + LINK-TASK MODALS (mirror #modal-overlay/#modal) ══ */
+    #project-modal-overlay, #link-task-overlay {
+      display: none; position: fixed; inset: 0;
+      background: color-mix(in srgb, #000 55%, transparent); backdrop-filter: blur(4px);
+      z-index: 100; align-items: center; justify-content: center;
+    }
+    #project-modal-overlay.open, #link-task-overlay.open { display: flex; }
+    #project-modal, #link-task-modal {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      max-height: 90vh; overflow-y: auto;
+      box-shadow: var(--shadow);
+      animation: modalIn .32s var(--ease);
+    }
+    #project-modal { width: 460px; }
+    #link-task-modal { width: 540px; }
+    .btn.del-action { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 28%, transparent); }
+    .btn.del-action:hover { background: var(--bad); border-color: var(--bad); color: #fff; }
 
     .modal-header {
       display: flex; align-items: center; justify-content: space-between;
@@ -1327,7 +1426,7 @@
     #timer-stop-btn:hover { background: var(--good); color: #fff; border-color: var(--good); }
 
     /* ══ UNDO TOAST ══ */
-    #undo-toast, #sub-undo-toast, #backlog-undo-toast {
+    #undo-toast, #sub-undo-toast, #backlog-undo-toast, #project-undo-toast {
       position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
       background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
       padding: 13px 22px; display: none; align-items: center; gap: 12px;
@@ -1336,17 +1435,17 @@
       animation: toastIn .2s var(--ease);
       white-space: nowrap;
     }
-    #undo-toast.visible, #sub-undo-toast.visible, #backlog-undo-toast.visible { display: flex; }
+    #undo-toast.visible, #sub-undo-toast.visible, #backlog-undo-toast.visible, #project-undo-toast.visible { display: flex; }
     @keyframes toastIn {
       from { opacity: 0; transform: translateX(-50%) translateY(8px); }
       to   { opacity: 1; transform: translateX(-50%) translateY(0); }
     }
-    #undo-toast-btn, #sub-undo-toast-btn, #backlog-undo-toast-btn {
+    #undo-toast-btn, #sub-undo-toast-btn, #backlog-undo-toast-btn, #project-undo-toast-btn {
       background: var(--primary); border: none; border-radius: 8px;
       padding: 3px 12px; font-size: 12px; font-weight: 700;
       color: #fff; cursor: pointer; font-family: inherit; transition: background var(--speed);
     }
-    #undo-toast-btn:hover, #sub-undo-toast-btn:hover, #backlog-undo-toast-btn:hover { background: var(--primary-strong); }
+    #undo-toast-btn:hover, #sub-undo-toast-btn:hover, #backlog-undo-toast-btn:hover, #project-undo-toast-btn:hover { background: var(--primary-strong); }
 
     /* ── Auth gate (setup / login) ── */
     #auth-overlay {
@@ -1437,6 +1536,9 @@
     </button>
     <button class="nav-item" data-module="systems" onclick="switchModule('systems')">
       <span class="nav-icon" data-ic="folder"></span>Systems
+    </button>
+    <button class="nav-item" data-module="projects" onclick="switchModule('projects')">
+      <span class="nav-icon" data-ic="clipboard-list"></span>Projects
     </button>
     <button class="nav-item" data-module="settings" onclick="switchModule('settings')">
       <span class="nav-icon" data-ic="settings"></span>Settings
@@ -1945,6 +2047,94 @@
   </div>
 </div>
 
+<!-- ══ PROJECTS MODULE (container: tasks + tracked documents) ══ -->
+<div id="module-projects" class="app-module">
+  <div id="projects-topbar">
+    <span class="cp-title"><span class="ti-ic" data-ic="clipboard-list"></span>Projects</span>
+    <div class="topbar-right">
+      <input type="text" id="projects-filter" class="mod-search" placeholder="Search projects…" oninput="applyProjectFilter()">
+      <button class="btn primary" onclick="openProjectModal()">+ New Project</button>
+    </div>
+  </div>
+
+  <!-- List view: all projects as cards -->
+  <div id="projects-list-view" class="pj-scroll">
+    <div class="pj-grid" id="projects-grid"></div>
+    <div id="projects-empty-state" style="display:none">
+      <div class="icon" data-ic="clipboard-list"></div>
+      <p>No projects yet — click <strong>+ New Project</strong> to create one</p>
+    </div>
+  </div>
+
+  <!-- Detail view: profile + documents + linked tasks (built by JS) -->
+  <div id="projects-detail-view" class="pj-detail-scroll" style="display:none"></div>
+</div>
+
+<!-- ══ PROJECT ADD/EDIT MODAL ══ -->
+<div id="project-modal-overlay" onclick="projectOverlayClick(event)">
+  <div id="project-modal" class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="project-modal-title">New Project</span>
+      <button class="modal-close" onclick="closeProjectModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Project Name</label>
+          <input id="p-name" type="text" placeholder="e.g. Acme Payroll Rollout" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Client / System</label>
+          <input id="p-client" type="text" placeholder="e.g. Acme Corp" />
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="p-status">
+            <option value="active">Active</option>
+            <option value="on-hold">On Hold</option>
+            <option value="completed">Completed</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Description</label>
+          <textarea id="p-description" placeholder="What is this engagement about?"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeProjectModal()">Cancel</button>
+      <button class="btn primary" onclick="submitProjectModal()">Create Project</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ LINK EXISTING TASK MODAL ══ -->
+<div id="link-task-overlay" onclick="linkTaskOverlayClick(event)">
+  <div id="link-task-modal" class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Link an Existing Task</span>
+      <button class="modal-close" onclick="closeLinkModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <input type="text" id="link-task-filter" class="mod-search" style="width:100%;margin-bottom:12px" placeholder="Search tasks…" oninput="renderLinkList()">
+      <div class="pj-link-list" id="link-task-list"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeLinkModal()">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PROJECT DELETE UNDO TOAST ══ -->
+<div id="project-undo-toast">
+  <span>Project deleted</span>
+  <button id="project-undo-toast-btn" onclick="undoDeleteProject()">Undo</button>
+</div>
+
 <!-- ══ SETTINGS MODULE (General + Lookups) ══ -->
 <div id="module-settings" class="app-module">
   <div id="settings-topbar">
@@ -2265,6 +2455,16 @@ let backlogFilter    = '';
 let _backlogSaveTimer = null;
 let undoBacklog      = null;   // { task, idx }
 let _undoBacklogTimer = null;
+
+// ── Projects state ──
+let projectsList     = [];       // [{id, name, clientName, status, taskCount, …}]
+let projectsLoaded   = false;
+let projectFilter    = '';
+let currentProject   = null;     // full project loaded in the detail view
+let projectEditId    = null;     // modal mode: null = create, else project id
+let undoProject      = null;     // snapshot of a just-deleted project (for undo)
+let _undoProjectTimer = null;
+let linkableTasks    = { entries: [], backlog: [] };   // picker source
 
 // ── Analytics state ──
 let analyticsLoaded = false;
@@ -3130,11 +3330,12 @@ function clearErrors() { clearErrorsIn('body'); }
 // ── Keyboard shortcuts ──
 document.addEventListener('keydown', e => {
   const inputFocused = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
-  const anyOpen = ['modal-overlay','print-overlay','month-overlay','sub-modal-overlay','sub-settings-overlay','backlog-modal-overlay']
+  const anyOpen = ['modal-overlay','print-overlay','month-overlay','sub-modal-overlay','sub-settings-overlay','backlog-modal-overlay','project-modal-overlay','link-task-overlay']
     .some(id => document.getElementById(id).classList.contains('open'));
 
   if (e.key === 'Escape') {
     closeModal(); closePrint(); closeMonthView(); closeSubModal(); closeSubSettings(); closeBacklogModal();
+    closeProjectModal(); closeLinkModal();
     document.querySelectorAll('.top-menu.open').forEach(m => m.classList.remove('open'));
     if (selectedRows.size) clearSelection();
   }
@@ -3143,6 +3344,7 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('modal-overlay').classList.contains('open')) submitModal();
     if (document.getElementById('sub-modal-overlay').classList.contains('open')) submitSubModal();
     if (document.getElementById('backlog-modal-overlay').classList.contains('open')) submitBacklogModal();
+    if (document.getElementById('project-modal-overlay').classList.contains('open')) submitProjectModal();
   }
   if (!anyOpen && !inputFocused) {
     if (e.ctrlKey && !e.shiftKey && e.key === 'n') {
@@ -3150,6 +3352,7 @@ document.addEventListener('keydown', e => {
       if      (activeModule === 'subscriptions') openSubModal();
       else if (activeModule === 'timesheet')     openModal();
       else if (activeModule === 'backlog')       openBacklogModal();
+      else if (activeModule === 'projects')      openProjectModal();
       // analytics / reports have no Add action — Ctrl+N is a no-op there
     }
     // Day navigation: Ctrl+Left = earlier day, Ctrl+Right = later day
@@ -4152,6 +4355,9 @@ function switchModule(name) {
   } else if (name === 'systems') {
     window.api.setTitle('Cooperation Tools — Systems');
     openCatPage('systems');
+  } else if (name === 'projects') {
+    window.api.setTitle('Cooperation Tools — Projects');
+    initProjectsModule();
   }
 }
 
@@ -5147,6 +5353,456 @@ function submitSubModal() {
 }
 
 function clearSubErrors()  { clearErrorsIn('#sub-modal'); }
+
+// ════════════════════════════════════════════════════════════════════════════
+// PROJECTS — a container entity (profile + tracked documents + linked tasks).
+// Unlike the debounced modules, project writes persist immediately through the
+// projects:* IPC channels; the detail view is re-read after each change.
+// ════════════════════════════════════════════════════════════════════════════
+const PJ_STATUS = { 'active': 'Active', 'on-hold': 'On Hold', 'completed': 'Completed' };
+function pjStatusLabel(s) { return PJ_STATUS[s] || (s || 'Active'); }
+function pjStatusClass(s) { return 'pj-status pj-status-' + (PJ_STATUS[s] ? s : 'active'); }
+// Small DOM helper local to the Projects module (uniquely named to avoid clashes).
+function pjMk(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+function initProjectsModule() {
+  showProjectsListView();
+  if (!projectsLoaded) loadProjectsList();
+  else renderProjectsList();
+}
+
+async function loadProjectsList() {
+  let list;
+  try { list = await window.api.listProjects(); }
+  catch { toast('Could not load projects'); return; }
+  projectsList = Array.isArray(list) ? list : [];
+  projectsLoaded = true;
+  renderProjectsList();
+}
+
+function applyProjectFilter() {
+  projectFilter = document.getElementById('projects-filter').value.toLowerCase().trim();
+  renderProjectsList();
+}
+
+function showProjectsListView() {
+  document.getElementById('projects-detail-view').style.display = 'none';
+  document.getElementById('projects-list-view').style.display = '';
+}
+function showProjectDetailView() {
+  document.getElementById('projects-list-view').style.display = 'none';
+  document.getElementById('projects-detail-view').style.display = '';
+}
+
+function renderProjectsList() {
+  const grid  = document.getElementById('projects-grid');
+  const empty = document.getElementById('projects-empty-state');
+  grid.innerHTML = '';
+
+  if (projectsList.length === 0) {
+    grid.style.display = 'none';
+    empty.style.display = 'flex';
+    empty.querySelector('p').innerHTML = 'No projects yet — click <strong>+ New Project</strong> to create one';
+    return;
+  }
+
+  const shown = projectsList.filter(p => textMatch(
+    [p.name, p.clientName, pjStatusLabel(p.status), p.description], projectFilter));
+
+  if (shown.length === 0) {
+    grid.style.display = 'none';
+    empty.style.display = 'flex';
+    empty.querySelector('p').textContent = 'No projects match your search';
+    return;
+  }
+  grid.style.display = '';
+  empty.style.display = 'none';
+
+  shown.forEach(p => {
+    const card = pjMk('div', 'pj-card');
+    card.addEventListener('click', () => openProjectDetail(p.id));
+
+    const head = pjMk('div', 'pj-card-head');
+    const left = pjMk('div');
+    left.appendChild(pjMk('div', 'pj-card-name', p.name || 'Untitled project'));
+    if (p.clientName) {
+      const client = pjMk('div', 'pj-card-client');
+      client.innerHTML = ic('building-2');
+      client.appendChild(document.createTextNode(p.clientName));
+      left.appendChild(client);
+    }
+    head.appendChild(left);
+    head.appendChild(pjMk('span', pjStatusClass(p.status), pjStatusLabel(p.status)));
+    card.appendChild(head);
+
+    if (p.description) card.appendChild(pjMk('div', 'pj-card-desc', p.description));
+
+    const foot = pjMk('div', 'pj-card-foot');
+    const count = pjMk('div', 'pj-card-count');
+    count.innerHTML = ic('clipboard-list');
+    count.appendChild(document.createTextNode((p.taskCount || 0) + ' task' + (p.taskCount === 1 ? '' : 's')));
+    foot.appendChild(count);
+    card.appendChild(foot);
+
+    grid.appendChild(card);
+  });
+}
+
+async function openProjectDetail(id) {
+  let project;
+  try { project = await window.api.getProject(id); }
+  catch { toast('Could not open project'); return; }
+  if (!project) { toast('Project not found'); await loadProjectsList(); return; }
+  currentProject = project;
+  showProjectDetailView();
+  renderProjectDetail(project);
+}
+
+async function reloadCurrentProject() {
+  if (!currentProject) return;
+  let project;
+  try { project = await window.api.getProject(currentProject.id); }
+  catch { return; }
+  if (!project) { backToProjectsList(); return; }
+  currentProject = project;
+  renderProjectDetail(project);
+}
+
+function backToProjectsList() {
+  currentProject = null;
+  showProjectsListView();
+  loadProjectsList();   // counts may have changed via linking
+}
+
+function renderProjectDetail(p) {
+  const host = document.getElementById('projects-detail-view');
+  host.innerHTML = '';
+
+  // Back link
+  const back = pjMk('button', 'pj-back');
+  back.innerHTML = '<span style="font-size:16px;line-height:1">‹</span> All Projects';
+  back.addEventListener('click', backToProjectsList);
+  host.appendChild(back);
+
+  // Header: title + status + actions
+  const head = pjMk('div', 'pj-detail-head');
+  const titleWrap = pjMk('div');
+  const title = pjMk('div', 'pj-detail-title');
+  title.appendChild(document.createTextNode(p.name || 'Untitled project'));
+  title.appendChild(pjMk('span', pjStatusClass(p.status), pjStatusLabel(p.status)));
+  titleWrap.appendChild(title);
+  head.appendChild(titleWrap);
+
+  const actions = pjMk('div', 'pj-detail-actions');
+  buildDetailActions(actions);
+  head.appendChild(actions);
+  host.appendChild(head);
+
+  // ── Profile section ──
+  const profile = pjMk('div', 'pj-section');
+  const pHead = pjMk('div', 'pj-section-head');
+  const pTitle = pjMk('div', 'pj-section-title');
+  pTitle.innerHTML = ic('clipboard-list');
+  pTitle.appendChild(document.createTextNode('Profile'));
+  pHead.appendChild(pTitle);
+  profile.appendChild(pHead);
+
+  const grid = pjMk('div', 'pj-profile-grid');
+  const field = (label, value) => {
+    const f = pjMk('div');
+    f.appendChild(pjMk('div', 'pj-field-label', label));
+    f.appendChild(pjMk('div', 'pj-field-val', value || '—'));
+    return f;
+  };
+  grid.appendChild(field('Client / System', p.clientName));
+  grid.appendChild(field('Status', pjStatusLabel(p.status)));
+  const descField = pjMk('div'); descField.style.gridColumn = '1 / -1';
+  descField.appendChild(pjMk('div', 'pj-field-label', 'Description'));
+  descField.appendChild(pjMk('div', 'pj-field-val', p.description || '—'));
+  grid.appendChild(descField);
+  profile.appendChild(grid);
+  host.appendChild(profile);
+
+  // ── Documents section ──
+  const docs = pjMk('div', 'pj-section');
+  const dHead = pjMk('div', 'pj-section-head');
+  const dTitle = pjMk('div', 'pj-section-title');
+  dTitle.innerHTML = ic('file-text');
+  dTitle.appendChild(document.createTextNode('Documents'));
+  dHead.appendChild(dTitle);
+  docs.appendChild(dHead);
+
+  const docGrid = pjMk('div', 'pj-docs');
+  (p.documents || []).forEach(doc => {
+    const card = pjMk('div', 'pj-doc-card' + (doc.isAvailable ? ' available' : ''));
+    const icon = pjMk('div', 'pj-doc-icon');
+    icon.innerHTML = ic(doc.isAvailable ? 'circle-check' : 'file-text');
+    card.appendChild(icon);
+    card.appendChild(pjMk('div', 'pj-doc-name', doc.documentType));
+    card.appendChild(pjMk('div', 'pj-doc-state', doc.isAvailable ? 'Available' : 'Not Available'));
+    const toggle = pjMk('button', 'pj-doc-toggle');
+    toggle.innerHTML = ic(doc.isAvailable ? 'check' : 'x');
+    toggle.appendChild(document.createTextNode(doc.isAvailable ? 'Available' : 'Mark available'));
+    toggle.title = doc.isAvailable ? 'Mark as not available' : 'Mark as available';
+    toggle.addEventListener('click', () => toggleDoc(doc.documentType, !doc.isAvailable));
+    card.appendChild(toggle);
+    docGrid.appendChild(card);
+  });
+  docs.appendChild(docGrid);
+  host.appendChild(docs);
+
+  // ── Tasks section ──
+  const tasks = pjMk('div', 'pj-section');
+  const tHead = pjMk('div', 'pj-section-head');
+  const tTitle = pjMk('div', 'pj-section-title');
+  tTitle.innerHTML = ic('list');
+  const total = (p.tasks.entries.length + p.tasks.backlog.length);
+  tTitle.appendChild(document.createTextNode('Tasks (' + total + ')'));
+  tHead.appendChild(tTitle);
+  const linkBtn = pjMk('button', 'btn');
+  linkBtn.innerHTML = ic('calendar-plus') + ' Link Task';
+  linkBtn.addEventListener('click', openLinkModal);
+  tHead.appendChild(linkBtn);
+  tasks.appendChild(tHead);
+
+  if (total === 0) {
+    tasks.appendChild(pjMk('div', 'cp-records-empty', 'No tasks linked yet — use “Link Task” to attach existing work.'));
+  } else {
+    const wrap = pjMk('div');
+    const table = document.createElement('table');
+    table.innerHTML = '<thead><tr>' +
+      '<th style="width:70px">Type</th><th style="width:110px">Date</th>' +
+      '<th>Company</th><th>System</th><th>Natural</th><th>Time</th>' +
+      '<th style="min-width:200px">Description</th><th>Status</th>' +
+      '<th style="width:70px"></th></tr></thead><tbody></tbody>';
+    const tbody = table.querySelector('tbody');
+
+    const addRow = (t) => {
+      const isEntry = t.kind === 'entry';
+      const tr = document.createElement('tr');
+      const kindTag = pjMk('span', 'pj-kind-tag', isEntry ? 'Timesheet' : 'Backlog');
+      tr.appendChild(cellWrap(kindTag, 'cell'));
+      tr.appendChild(textCell(isEntry ? (t.date || '—') : '—'));
+      tr.appendChild(textCell(t.company || '—'));
+      tr.appendChild(textCell(t.system || '—'));
+      tr.appendChild(textCell(t.natural || '—'));
+
+      const timeSpan = pjMk('span', null, lkLabel('TIME_TYPE', t.time) || '—');
+      if (t.time === 'OVERTIME') timeSpan.style.color = '#dc2626';
+      tr.appendChild(cellWrap(timeSpan, 'cell'));
+
+      tr.appendChild(textCell(t.description || '—'));
+      tr.appendChild(textCell(isEntry ? (lkLabel('ENTRY_STATUS', t.status) || '—') : '—'));
+
+      const acts = pjMk('div', 'row-actions');
+      const unlinkBtn = pjMk('button', 'row-btn del');
+      unlinkBtn.innerHTML = ic('x'); unlinkBtn.title = 'Unlink from this project';
+      unlinkBtn.addEventListener('click', () => doUnlinkTask(t.kind, isEntry ? t.eid : t.id));
+      acts.appendChild(unlinkBtn);
+      tr.appendChild(cellWrap(acts, 'cell'));
+      tbody.appendChild(tr);
+    };
+    p.tasks.entries.forEach(addRow);
+    p.tasks.backlog.forEach(addRow);
+
+    wrap.appendChild(table);
+    tasks.appendChild(wrap);
+  }
+  host.appendChild(tasks);
+}
+
+// (Re)build the Edit / Delete buttons in the detail header's action container.
+function buildDetailActions(container) {
+  container.innerHTML = '';
+  const edit = pjMk('button', 'btn');
+  edit.innerHTML = ic('pencil') + ' Edit';
+  edit.addEventListener('click', () => openProjectModal(currentProject.id));
+  const del = pjMk('button', 'btn del-action');
+  del.innerHTML = ic('trash-2') + ' Delete';
+  del.addEventListener('click', () => showDeleteConfirm(container,
+    () => deleteCurrentProject(),
+    () => buildDetailActions(container)));
+  container.appendChild(edit);
+  container.appendChild(del);
+}
+
+async function toggleDoc(documentType, makeAvailable) {
+  let updated;
+  try { updated = await window.api.setProjectDocumentStatus(currentProject.id, documentType, makeAvailable); }
+  catch { toast('Could not update document'); return; }
+  if (!updated) { toast('Could not update document'); return; }
+  currentProject = updated;
+  renderProjectDetail(updated);
+}
+
+// ── Project add/edit modal ──
+function openProjectModal(id = null) {
+  projectEditId = id;
+  const src = id != null ? (currentProject && currentProject.id === id ? currentProject
+                            : projectsList.find(p => p.id === id)) : null;
+  const isEdit = !!src;
+  document.getElementById('project-modal-title').textContent = isEdit ? 'Edit Project' : 'New Project';
+  document.querySelector('#project-modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : 'Create Project';
+
+  document.getElementById('p-name').value        = src?.name || '';
+  document.getElementById('p-client').value       = src?.clientName || '';
+  document.getElementById('p-status').value       = src?.status || 'active';
+  document.getElementById('p-description').value  = src?.description || '';
+
+  clearErrorsIn('#project-modal');
+  document.getElementById('project-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('p-name').focus(), 80);
+}
+function closeProjectModal() {
+  document.getElementById('project-modal-overlay').classList.remove('open');
+  projectEditId = null;
+}
+function projectOverlayClick(e) {
+  if (e.target === document.getElementById('project-modal-overlay')) closeProjectModal();
+}
+
+async function submitProjectModal() {
+  clearErrorsIn('#project-modal');
+  const name = document.getElementById('p-name').value.trim();
+  if (!name) { markError('p-name'); return; }
+  const data = {
+    name,
+    clientName:  document.getElementById('p-client').value.trim(),
+    status:      document.getElementById('p-status').value || 'active',
+    description: document.getElementById('p-description').value.trim(),
+  };
+
+  try {
+    if (projectEditId != null) {
+      const updated = await window.api.updateProject(projectEditId, data);
+      closeProjectModal();
+      if (updated && currentProject && currentProject.id === updated.id) {
+        currentProject = updated;
+        renderProjectDetail(updated);
+      }
+      await loadProjectsList();
+      toast('Project saved');
+    } else {
+      const created = await window.api.createProject(data);
+      closeProjectModal();
+      await loadProjectsList();
+      if (created) openProjectDetail(created.id);
+      toast('Project created');
+    }
+  } catch { toast('Could not save project'); }
+}
+
+// ── Delete + undo (re-creates the project on undo: no hard loss) ──
+async function deleteCurrentProject() {
+  if (!currentProject) return;
+  const snapshot = currentProject;   // full object (profile + docs + tasks)
+  try { await window.api.deleteProject(snapshot.id); }
+  catch { toast('Could not delete project'); buildDetailActions(document.querySelector('.pj-detail-actions')); return; }
+  showProjectUndoToast(snapshot);
+  backToProjectsList();
+}
+function showProjectUndoToast(snapshot) {
+  undoProject = snapshot;
+  clearTimeout(_undoProjectTimer);
+  document.getElementById('project-undo-toast').classList.add('visible');
+  _undoProjectTimer = setTimeout(hideProjectUndoToast, 5000);
+}
+function hideProjectUndoToast() {
+  document.getElementById('project-undo-toast').classList.remove('visible');
+  undoProject = null;
+}
+async function undoDeleteProject() {
+  if (!undoProject) return;
+  const snap = undoProject;
+  undoProject = null;
+  clearTimeout(_undoProjectTimer);
+  document.getElementById('project-undo-toast').classList.remove('visible');
+  try {
+    const created = await window.api.createProject({
+      name: snap.name, clientName: snap.clientName, status: snap.status, description: snap.description,
+    });
+    for (const d of (snap.documents || [])) {
+      if (d.isAvailable) await window.api.setProjectDocumentStatus(created.id, d.documentType, true);
+    }
+    for (const t of (snap.tasks?.entries || []))  await window.api.linkProjectTask(created.id, 'entry', t.eid);
+    for (const t of (snap.tasks?.backlog || [])) await window.api.linkProjectTask(created.id, 'backlog', t.id);
+    toast('Project restored');
+  } catch { toast('Could not restore project'); }
+  await loadProjectsList();
+}
+
+// ── Link an existing task ──
+async function openLinkModal() {
+  try { linkableTasks = await window.api.listLinkableTasks(); }
+  catch { toast('Could not load tasks'); return; }
+  if (!linkableTasks || typeof linkableTasks !== 'object') linkableTasks = { entries: [], backlog: [] };
+  document.getElementById('link-task-filter').value = '';
+  renderLinkList();
+  document.getElementById('link-task-overlay').classList.add('open');
+}
+function closeLinkModal() {
+  document.getElementById('link-task-overlay').classList.remove('open');
+}
+function linkTaskOverlayClick(e) {
+  if (e.target === document.getElementById('link-task-overlay')) closeLinkModal();
+}
+function renderLinkList() {
+  const host = document.getElementById('link-task-list');
+  const q = (document.getElementById('link-task-filter').value || '').toLowerCase().trim();
+  host.innerHTML = '';
+
+  const all = [
+    ...(linkableTasks.entries || []),
+    ...(linkableTasks.backlog || []),
+  ].filter(t => textMatch(
+    [t.company, t.system, t.natural, lkLabel('TIME_TYPE', t.time), t.description, t.source, t.date], q));
+
+  if (all.length === 0) {
+    host.appendChild(pjMk('div', 'cp-records-empty', 'No unlinked tasks available.'));
+    return;
+  }
+
+  all.forEach(t => {
+    const isEntry = t.kind === 'entry';
+    const row = pjMk('div', 'pj-link-row');
+    const info = pjMk('div', 'pj-link-info');
+    const main = pjMk('div', 'pj-link-main', t.description || '(no description)');
+    info.appendChild(main);
+    const metaBits = [t.company, t.system, t.natural].filter(Boolean).join(' · ');
+    const meta = pjMk('div', 'pj-link-meta',
+      (isEntry ? ('Timesheet · ' + (t.date || '')) : 'Backlog') + (metaBits ? ' · ' + metaBits : ''));
+    info.appendChild(meta);
+    row.appendChild(info);
+
+    const btn = pjMk('button', 'btn primary');
+    btn.style.padding = '6px 14px';
+    btn.textContent = 'Link';
+    btn.addEventListener('click', () => doLinkTask(t.kind, isEntry ? t.eid : t.id));
+    row.appendChild(btn);
+    host.appendChild(row);
+  });
+}
+async function doLinkTask(kind, taskId) {
+  try { await window.api.linkProjectTask(currentProject.id, kind, taskId); }
+  catch { toast('Could not link task'); return; }
+  // Drop the just-linked task from the picker source, refresh both views.
+  if (kind === 'entry') linkableTasks.entries = (linkableTasks.entries || []).filter(t => t.eid !== taskId);
+  else                  linkableTasks.backlog = (linkableTasks.backlog || []).filter(t => t.id !== taskId);
+  renderLinkList();
+  await reloadCurrentProject();
+  toast('Task linked');
+}
+async function doUnlinkTask(kind, taskId) {
+  try { await window.api.unlinkProjectTask(kind, taskId); }
+  catch { toast('Could not unlink task'); return; }
+  await reloadCurrentProject();
+  toast('Task unlinked');
+}
 
 // ── Flush pending saves before the window closes ──
 // Saves are 300 ms-debounced; on close we cancel the timers and persist

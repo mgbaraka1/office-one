@@ -617,6 +617,165 @@ function saveSubscriptions(userId, data) {
   });
 }
 
+// ── Projects ──────────────────────────────────────────────────────────────────
+// A Project is a container for a client/system engagement. It owns a fixed set of
+// tracked documents (auto-created on insert) and links to existing tasks — both
+// timesheet entries (day_entries) and "Not Yet" backlog tasks — via a nullable
+// project_id FK. Every query is scoped to the authenticated owner (`userId`); the
+// document types are hardcoded (not a lookup catalog) per the feature spec.
+const PROJECT_DOC_TYPES = ['Quotation', 'Quotation Approval', 'Invoice'];
+
+// Resolve a project the caller owns, or null. Used to gate document/link writes.
+function ownsProject(userId, projectId) {
+  return !!db.prepare('SELECT 1 FROM projects WHERE id = ? AND user_id = ?').get(projectId, userId);
+}
+
+// Insert a project and auto-create its three document rows (all unavailable).
+// Returns the full project (profile + tasks + documents) via getProject.
+function createProject(userId, data) {
+  const now = new Date().toISOString();
+  let id;
+  tx(() => {
+    id = Number(db.prepare(
+      `INSERT INTO projects(user_id, name, description, client_name, status, created_at)
+       VALUES(?, ?, ?, ?, ?, ?)`
+    ).run(userId, data?.name ?? '', data?.description ?? '', data?.clientName ?? '',
+          data?.status || 'active', now).lastInsertRowid);
+    const insDoc = db.prepare(
+      'INSERT INTO project_documents(project_id, document_type, is_available) VALUES(?, ?, 0)'
+    );
+    for (const t of PROJECT_DOC_TYPES) insDoc.run(id, t);
+  });
+  return getProject(userId, id);
+}
+
+// All of the user's projects with a linked-task count (entries + backlog), newest
+// first — the list view's payload.
+function listProjects(userId) {
+  return db.prepare(
+    `SELECT p.id, p.name, p.description, p.client_name AS clientName, p.status,
+            p.created_at AS createdAt,
+            (SELECT COUNT(*) FROM day_entries e WHERE e.project_id = p.id)
+          + (SELECT COUNT(*) FROM backlog b WHERE b.project_id = p.id) AS taskCount
+       FROM projects p
+      WHERE p.user_id = ?
+      ORDER BY p.created_at DESC, p.id DESC`
+  ).all(userId);
+}
+
+// One project in full: profile + linked tasks (timesheet entries, each with its
+// day's date, and backlog tasks) + the three document statuses. null if not owned.
+function getProject(userId, id) {
+  const p = db.prepare(
+    `SELECT id, name, description, client_name AS clientName, status, created_at AS createdAt
+       FROM projects WHERE id = ? AND user_id = ?`
+  ).get(id, userId);
+  if (!p) return null;
+
+  const entries = db.prepare(
+    `SELECT d.date AS date, e.* FROM day_entries e
+       JOIN days d ON d.id = e.day_id
+      WHERE e.project_id = ? AND e.user_id = ?
+      ORDER BY d.date DESC, e.sort_order, e.id`
+  ).all(id, userId).map(e => ({ kind: 'entry', date: e.date, ...entryToRow(e) }));
+
+  const backlog = db.prepare(
+    `SELECT id, company_id, system_id, activity_type_id, time_type_id, description, source, tags
+       FROM backlog WHERE project_id = ? AND user_id = ? ORDER BY sort_order`
+  ).all(id, userId).map(t => ({
+    kind: 'backlog', id: t.id,
+    company: lkLabel(t.company_id), system: lkLabel(t.system_id),
+    natural: lkLabel(t.activity_type_id), time: lkCode(t.time_type_id),
+    description: t.description || '', source: t.source || '',
+    tags: safeParse(t.tags, []),
+  }));
+
+  const documents = db.prepare(
+    `SELECT id, document_type AS documentType, is_available AS isAvailable
+       FROM project_documents WHERE project_id = ? ORDER BY id`
+  ).all(id).map(r => ({ id: r.id, documentType: r.documentType, isAvailable: !!r.isAvailable }));
+
+  return { ...p, tasks: { entries, backlog }, documents };
+}
+
+// Update a project's profile fields in place (documents/links untouched). Returns
+// the refreshed project, or null if the caller doesn't own it.
+function updateProject(userId, id, data) {
+  if (!ownsProject(userId, id)) return null;
+  tx(() => {
+    db.prepare(
+      `UPDATE projects SET name = ?, description = ?, client_name = ?, status = ?
+        WHERE id = ? AND user_id = ?`
+    ).run(data?.name ?? '', data?.description ?? '', data?.clientName ?? '',
+          data?.status || 'active', id, userId);
+  });
+  return getProject(userId, id);
+}
+
+// Delete a project. ON DELETE CASCADE drops its document rows; ON DELETE SET NULL
+// unlinks (but never deletes) any linked timesheet/backlog tasks.
+function deleteProject(userId, id) {
+  tx(() => {
+    db.prepare('DELETE FROM projects WHERE id = ? AND user_id = ?').run(id, userId);
+  });
+  return { ok: true };
+}
+
+// Toggle availability of one document type for a project. documentType must be one
+// of the fixed PROJECT_DOC_TYPES. Returns the refreshed project, or null if the
+// caller doesn't own it / the type is unknown.
+function setProjectDocumentStatus(userId, projectId, documentType, isAvailable) {
+  if (!ownsProject(userId, projectId)) return null;
+  if (!PROJECT_DOC_TYPES.includes(documentType)) return null;
+  db.prepare(
+    'UPDATE project_documents SET is_available = ? WHERE project_id = ? AND document_type = ?'
+  ).run(isAvailable ? 1 : 0, projectId, documentType);
+  return getProject(userId, projectId);
+}
+
+// Link / unlink an existing task to a project. `kind` selects the table and is
+// validated to a fixed set (injection-safe). Linking verifies project ownership;
+// the task UPDATE is scoped to the owner so a user can only touch their own rows.
+function projectTaskTable(kind) {
+  return kind === 'backlog' ? 'backlog' : 'day_entries';   // default: timesheet entry
+}
+function linkTask(userId, projectId, kind, taskId) {
+  if (!ownsProject(userId, projectId)) return { ok: false, error: 'project not found' };
+  db.prepare(`UPDATE ${projectTaskTable(kind)} SET project_id = ? WHERE id = ? AND user_id = ?`)
+    .run(projectId, taskId, userId);
+  return { ok: true };
+}
+function unlinkTask(userId, kind, taskId) {
+  db.prepare(`UPDATE ${projectTaskTable(kind)} SET project_id = NULL WHERE id = ? AND user_id = ?`)
+    .run(taskId, userId);
+  return { ok: true };
+}
+
+// Tasks not yet linked to ANY project, for the "link an existing task" picker:
+// the day-agnostic backlog pool plus every timesheet entry (with its date). Both
+// scoped to the owner. Kept read-only; the UI links via linkTask.
+function listLinkableTasks(userId) {
+  const entries = db.prepare(
+    `SELECT d.date AS date, e.* FROM day_entries e
+       JOIN days d ON d.id = e.day_id
+      WHERE e.user_id = ? AND e.project_id IS NULL
+      ORDER BY d.date DESC, e.sort_order, e.id`
+  ).all(userId).map(e => ({ kind: 'entry', date: e.date, ...entryToRow(e) }));
+
+  const backlog = db.prepare(
+    `SELECT id, company_id, system_id, activity_type_id, time_type_id, description, source, tags
+       FROM backlog WHERE user_id = ? AND project_id IS NULL ORDER BY sort_order`
+  ).all(userId).map(t => ({
+    kind: 'backlog', id: t.id,
+    company: lkLabel(t.company_id), system: lkLabel(t.system_id),
+    natural: lkLabel(t.activity_type_id), time: lkCode(t.time_type_id),
+    description: t.description || '', source: t.source || '',
+    tags: safeParse(t.tags, []),
+  }));
+
+  return { entries, backlog };
+}
+
 // ── Window prefs (this machine only) ──────────────────────────────────────────
 function loadPrefs() {
   const v = machineGet('window_prefs');
@@ -656,6 +815,8 @@ module.exports = {
   listCompanies, listSystems, companyEntries, systemEntries,
   getAnalytics, getOverviewStats,
   loadBacklog, saveBacklog,
+  createProject, listProjects, getProject, updateProject, deleteProject,
+  setProjectDocumentStatus, linkTask, unlinkTask, listLinkableTasks,
   loadLookups, saveLookups, getLookupsByCategory,
   loadSubscriptions, saveSubscriptions,
   loadPrefs, savePrefs,
