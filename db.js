@@ -263,10 +263,11 @@ function entryToRow(e) {
     status: lkCode(e.status_id) || 'IN_PROGRESS',
     minutes: (e.minutes === null || e.minutes === undefined) ? '' : e.minutes,
     tags: safeParse(e.tags, []),
+    projectId: e.project_id ?? null,   // linked Project (nullable); rendered as a pill
   };
 }
 
-const ENTRY_COLS = 'id, company_id, system_id, activity_type_id, time_type_id, status_id, description, source, minutes, tags';
+const ENTRY_COLS = 'id, company_id, system_id, activity_type_id, time_type_id, status_id, description, source, minutes, tags, project_id';
 
 // Renderer row → normalized FK column values (the inverse of entryToRow).
 function rowToEntry(r) {
@@ -278,6 +279,8 @@ function rowToEntry(r) {
     description: r.description ?? '', source: r.source ?? '',
     minutes: Number.isFinite(mins) ? mins : null,
     tags: JSON.stringify(Array.isArray(r.tags) ? r.tags : []),
+    // Linked Project id (validated against ownership in saveDay; null = unlinked).
+    project_id: (r.projectId == null || r.projectId === '') ? null : Number(r.projectId),
   };
 }
 
@@ -316,20 +319,22 @@ function saveDay(userId, dateStr, data) {
     const consumed = new Set();
 
     const upd = db.prepare(`UPDATE day_entries SET
-      company_id=?, system_id=?, activity_type_id=?, time_type_id=?, status_id=?, description=?, source=?, minutes=?, tags=?, sort_order=?, updated_at=?
+      company_id=?, system_id=?, activity_type_id=?, time_type_id=?, status_id=?, description=?, source=?, minutes=?, tags=?, project_id=?, sort_order=?, updated_at=?
       WHERE id=?`);
     const ins = db.prepare(`INSERT INTO day_entries
-      (user_id, day_id, company_id, system_id, activity_type_id, time_type_id, status_id, description, source, minutes, tags, sort_order, created_at, updated_at)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+      (user_id, day_id, company_id, system_id, activity_type_id, time_type_id, status_id, description, source, minutes, tags, project_id, sort_order, created_at, updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
 
     const sameContent = (e, n) =>
       e.company_id === n.company_id && e.system_id === n.system_id &&
       e.activity_type_id === n.activity_type_id && e.time_type_id === n.time_type_id &&
       e.status_id === n.status_id && e.description === n.description && e.source === n.source &&
-      (e.minutes ?? null) === n.minutes && (e.tags || '[]') === n.tags;
+      (e.minutes ?? null) === n.minutes && (e.tags || '[]') === n.tags &&
+      (e.project_id ?? null) === n.project_id;
 
     rows.forEach((r, i) => {
       const n = rowToEntry(r);
+      n.project_id = ownedProjectId(userId, n.project_id);   // ignore links to projects the user doesn't own
       let eid = null;
       if (r.eid != null && byId.has(r.eid) && !consumed.has(r.eid)) {
         eid = r.eid;                                   // 1) match by stable id
@@ -339,9 +344,9 @@ function saveDay(userId, dateStr, data) {
       }
       if (eid != null) {
         consumed.add(eid);
-        upd.run(n.company_id, n.system_id, n.activity_type_id, n.time_type_id, n.status_id, n.description, n.source, n.minutes, n.tags, i, now, eid);
+        upd.run(n.company_id, n.system_id, n.activity_type_id, n.time_type_id, n.status_id, n.description, n.source, n.minutes, n.tags, n.project_id, i, now, eid);
       } else {
-        eid = Number(ins.run(userId, day.id, n.company_id, n.system_id, n.activity_type_id, n.time_type_id, n.status_id, n.description, n.source, n.minutes, n.tags, i, now, now).lastInsertRowid);
+        eid = Number(ins.run(userId, day.id, n.company_id, n.system_id, n.activity_type_id, n.time_type_id, n.status_id, n.description, n.source, n.minutes, n.tags, n.project_id, i, now, now).lastInsertRowid);
         consumed.add(eid);
       }
       eids[i] = eid;
@@ -496,12 +501,13 @@ function getOverviewStats(userId, today, monthStart) {
 // subscriptions IPC shape so the renderer treats it the same way.
 function loadBacklog(userId) {
   const backlog = db.prepare(
-    'SELECT id, company_id, system_id, activity_type_id, time_type_id, description, source, tags FROM backlog WHERE user_id = ? ORDER BY sort_order'
+    'SELECT id, company_id, system_id, activity_type_id, time_type_id, description, source, tags, project_id FROM backlog WHERE user_id = ? ORDER BY sort_order'
   ).all(userId).map(t => ({
     id: t.id,
     company: lkLabel(t.company_id), system: lkLabel(t.system_id), natural: lkLabel(t.activity_type_id), time: lkCode(t.time_type_id),
     description: t.description || '', source: t.source || '',
     tags: safeParse(t.tags, []),
+    projectId: t.project_id ?? null,   // linked Project (nullable); rendered as a pill
   }));
   return { backlog };
 }
@@ -516,19 +522,20 @@ function saveBacklog(userId, data) {
     for (const row of db.prepare('SELECT id FROM backlog WHERE user_id = ?').all(userId)) {
       if (!keep.has(row.id)) del.run(row.id, userId);
     }
-    const up = db.prepare(`INSERT INTO backlog(id, user_id, company_id, system_id, activity_type_id, time_type_id, description, source, tags, sort_order)
-                           VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    const up = db.prepare(`INSERT INTO backlog(id, user_id, company_id, system_id, activity_type_id, time_type_id, description, source, tags, project_id, sort_order)
+                           VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                            ON CONFLICT(id) DO UPDATE SET
                              company_id=excluded.company_id, system_id=excluded.system_id,
                              activity_type_id=excluded.activity_type_id, time_type_id=excluded.time_type_id,
                              description=excluded.description, source=excluded.source,
-                             tags=excluded.tags, sort_order=excluded.sort_order`);
+                             tags=excluded.tags, project_id=excluded.project_id, sort_order=excluded.sort_order`);
     list.forEach((t, i) => up.run(
       t.id, userId,
       lkId('COMPANY', t.company), lkId('SYSTEM', t.system),
       lkId('ACTIVITY_TYPE', t.natural), lkId('TIME_TYPE', t.time),
       t.description ?? '', t.source ?? '',
-      JSON.stringify(Array.isArray(t.tags) ? t.tags : []), i
+      JSON.stringify(Array.isArray(t.tags) ? t.tags : []),
+      ownedProjectId(userId, t.projectId), i
     ));
   });
 }
@@ -629,8 +636,9 @@ function saveSubscriptions(userId, data) {
 // tracked documents (auto-created on insert) and links to existing tasks — both
 // timesheet entries (day_entries) and "Not Yet" backlog tasks — via a nullable
 // project_id FK. A project also references one or more COMPANY lookup codes (its
-// clients, via the project_companies junction), a single SYSTEM lookup (system_id),
-// and a PROJECT_STATUS lookup code (status). Every query is scoped to the
+// clients, via the project_companies junction), one or more SYSTEM lookups (via
+// the project_systems junction), and a PROJECT_STATUS lookup code (status). Every
+// query is scoped to the
 // authenticated owner (`userId`); the document types are hardcoded (not a lookup
 // catalog) per the feature spec.
 const PROJECT_DOC_TYPES = ['Quotation', 'Quotation Approval', 'Invoice'];
@@ -639,6 +647,14 @@ const DEFAULT_PROJECT_STATUS = 'ACTIVE';
 // Resolve a project the caller owns, or null. Used to gate document/link writes.
 function ownsProject(userId, projectId) {
   return !!db.prepare('SELECT 1 FROM projects WHERE id = ? AND user_id = ?').get(projectId, userId);
+}
+
+// Return `projectId` when it is a real project the user owns, else null. Used when
+// a task carries an inline `projectId` (set from the timesheet/backlog views) to
+// never persist a link to a missing or someone else's project.
+function ownedProjectId(userId, projectId) {
+  if (projectId == null || !Number.isFinite(Number(projectId))) return null;
+  return ownsProject(userId, Number(projectId)) ? Number(projectId) : null;
 }
 
 // Replace a project's company links with the given lookup ids (COMPANY category).
@@ -666,23 +682,49 @@ function projectCompanies(projectId) {
   ).all(projectId);
 }
 
+// Replace a project's system links with the given lookup ids (SYSTEM category).
+// Invalid / non-SYSTEM / duplicate ids are skipped. Caller wraps this in a tx.
+// Mirrors setProjectCompanies — a project can span several systems (migration 009).
+function setProjectSystems(projectId, systemIds) {
+  db.prepare('DELETE FROM project_systems WHERE project_id = ?').run(projectId);
+  const ins = db.prepare('INSERT OR IGNORE INTO project_systems(project_id, system_id) VALUES(?, ?)');
+  const seen = new Set();
+  for (const raw of (Array.isArray(systemIds) ? systemIds : [])) {
+    const id = Number(raw);
+    if (!Number.isInteger(id) || seen.has(id) || !isLookupId('SYSTEM', id)) continue;
+    seen.add(id);
+    ins.run(projectId, id);
+  }
+}
+
+// The SYSTEM lookups linked to a project, as { id, label } ordered for display.
+function projectSystems(projectId) {
+  return db.prepare(
+    `SELECT ps.system_id AS id, lc.label AS label
+       FROM project_systems ps
+       JOIN lookup_codes lc ON lc.id = ps.system_id
+      WHERE ps.project_id = ?
+      ORDER BY lc.sort_order, lc.label`
+  ).all(projectId);
+}
+
 // Insert a project and auto-create its three document rows (all unavailable), plus
 // its company links. Returns the full project (profile + tasks + documents).
 function createProject(userId, data) {
   const now = new Date().toISOString();
-  const systemId = isLookupId('SYSTEM', data?.systemId) ? Number(data.systemId) : null;
   let id;
   tx(() => {
     id = Number(db.prepare(
-      `INSERT INTO projects(user_id, name, description, system_id, status, created_at)
-       VALUES(?, ?, ?, ?, ?, ?)`
-    ).run(userId, data?.name ?? '', data?.description ?? '', systemId,
+      `INSERT INTO projects(user_id, name, description, status, created_at)
+       VALUES(?, ?, ?, ?, ?)`
+    ).run(userId, data?.name ?? '', data?.description ?? '',
           data?.status || DEFAULT_PROJECT_STATUS, now).lastInsertRowid);
     const insDoc = db.prepare(
       'INSERT INTO project_documents(project_id, document_type, is_available) VALUES(?, ?, 0)'
     );
     for (const t of PROJECT_DOC_TYPES) insDoc.run(id, t);
     setProjectCompanies(id, data?.companyIds);
+    setProjectSystems(id, data?.systemIds);
   });
   return getProject(userId, id);
 }
@@ -691,7 +733,7 @@ function createProject(userId, data) {
 // first — the list view's payload.
 function listProjects(userId) {
   return db.prepare(
-    `SELECT p.id, p.name, p.description, p.system_id AS systemId, p.status,
+    `SELECT p.id, p.name, p.description, p.status,
             p.created_at AS createdAt,
             (SELECT COUNT(*) FROM day_entries e WHERE e.project_id = p.id)
           + (SELECT COUNT(*) FROM backlog b WHERE b.project_id = p.id) AS taskCount
@@ -700,8 +742,8 @@ function listProjects(userId) {
       ORDER BY p.created_at DESC, p.id DESC`
   ).all(userId).map(p => ({
     ...p,
-    system: lkLabel(p.systemId),
     companies: projectCompanies(p.id),
+    systems: projectSystems(p.id),
   }));
 }
 
@@ -709,7 +751,7 @@ function listProjects(userId) {
 // day's date, and backlog tasks) + the three document statuses. null if not owned.
 function getProject(userId, id) {
   const p = db.prepare(
-    `SELECT id, name, description, system_id AS systemId, status, created_at AS createdAt
+    `SELECT id, name, description, status, created_at AS createdAt
        FROM projects WHERE id = ? AND user_id = ?`
   ).get(id, userId);
   if (!p) return null;
@@ -737,21 +779,21 @@ function getProject(userId, id) {
        FROM project_documents WHERE project_id = ? ORDER BY id`
   ).all(id).map(r => ({ id: r.id, documentType: r.documentType, isAvailable: !!r.isAvailable }));
 
-  return { ...p, system: lkLabel(p.systemId), companies: projectCompanies(id), tasks: { entries, backlog }, documents };
+  return { ...p, companies: projectCompanies(id), systems: projectSystems(id), tasks: { entries, backlog }, documents };
 }
 
 // Update a project's profile fields in place (documents/links untouched). Returns
 // the refreshed project, or null if the caller doesn't own it.
 function updateProject(userId, id, data) {
   if (!ownsProject(userId, id)) return null;
-  const systemId = isLookupId('SYSTEM', data?.systemId) ? Number(data.systemId) : null;
   tx(() => {
     db.prepare(
-      `UPDATE projects SET name = ?, description = ?, system_id = ?, status = ?
+      `UPDATE projects SET name = ?, description = ?, status = ?
         WHERE id = ? AND user_id = ?`
-    ).run(data?.name ?? '', data?.description ?? '', systemId,
+    ).run(data?.name ?? '', data?.description ?? '',
           data?.status || DEFAULT_PROJECT_STATUS, id, userId);
     setProjectCompanies(id, data?.companyIds);
+    setProjectSystems(id, data?.systemIds);
   });
   return getProject(userId, id);
 }
