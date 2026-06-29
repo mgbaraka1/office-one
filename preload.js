@@ -26,15 +26,15 @@ contextBridge.exposeInMainWorld('api', {
   /** @returns {Promise<import('./ipc-types').DayInRange[]>} */
   loadDaysRange:  (from, to)      => ipcRenderer.invoke('days:range', from, to),
 
-  // ── Companies / Projects (read-only views over day_entries) ──
+  // ── Companies / Systems (read-only views over day_entries) ──
   /** @returns {Promise<import('./ipc-types').CategoryValue[]>} */
   listCompanies:  ()        => ipcRenderer.invoke('companies:list'),
   /** @returns {Promise<import('./ipc-types').CategoryEntry[]>} */
   companyEntries: (name)    => ipcRenderer.invoke('companies:entries', name),
   /** @returns {Promise<import('./ipc-types').CategoryValue[]>} */
-  listProjects:   ()        => ipcRenderer.invoke('projects:list'),
+  listSystems:    ()        => ipcRenderer.invoke('systems:list'),
   /** @returns {Promise<import('./ipc-types').CategoryEntry[]>} */
-  projectEntries: (name)    => ipcRenderer.invoke('projects:entries', name),
+  systemEntries:  (name)    => ipcRenderer.invoke('systems:entries', name),
 
   // ── Analytics (aggregated in SQL) ──
   /** @returns {Promise<import('./ipc-types').AnalyticsSummary>} */
