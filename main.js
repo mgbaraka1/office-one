@@ -1,8 +1,9 @@
 const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
-const db   = require('./db');
-const auth = require('./auth');
+const db     = require('./db');
+const auth   = require('./auth');
+const backup = require('./backup');
 
 // Wrap a data IPC handler so it fails closed when no one is logged in. Every
 // handler that reads or writes user data goes through this — the renderer can
@@ -182,6 +183,27 @@ ipcMain.handle('db:backup', authed(async () => {
   if (canceled || !filePath) return { ok: false };
   try { db.backup(filePath); return { ok: true, path: filePath }; }
   catch (err) { return { ok: false, error: String(err?.message || err) }; }
+}));
+
+// On-demand backup of the entire project files tree (<userData>/projects/) into
+// a single .zip the user chooses. Independent of the launch DB-backup rotation —
+// this is a user-triggered export of uploaded project documents only. An empty
+// or missing projects/ folder still yields a valid (empty) zip; fileCount lets
+// the renderer message that case. Pure-JS zip, no native dependency (backup.js).
+ipcMain.handle('projects:backup', authed(async () => {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    title: 'Back up project files',
+    defaultPath: path.join(app.getPath('documents'), `timesheet-projects-backup-${stamp}.zip`),
+    filters: [{ name: 'Zip archive', extensions: ['zip'] }],
+  });
+  if (canceled || !filePath) return { ok: false };
+  try {
+    const { fileCount, byteCount } = backup.zipDirectory(db.projectsRootDir(), filePath);
+    return { ok: true, path: filePath, fileCount, byteCount };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err) };
+  }
 }));
 
 // ── Export a report HTML document to a PDF file (native "Save as" dialog) ──
