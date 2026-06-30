@@ -107,12 +107,34 @@
  */
 
 /**
+ * Metadata for a document's uploaded file (the bytes live on disk under userData;
+ * only this metadata is in SQLite). null when no file has been uploaded.
+ * @typedef {Object} ProjectDocumentFile
+ * @property {string} path         Path RELATIVE to userData (e.g. 'projects/12/documents/INVOICE-1719750000000.pdf').
+ * @property {string} originalName The user's original filename, for display/download.
+ * @property {number} size         File size in bytes.
+ * @property {string} mimeType     MIME type resolved from the extension.
+ * @property {string} uploadedAt   ISO timestamp of the upload.
+ * @property {boolean} exists      Whether the file is actually present on disk right now.
+ */
+
+/**
  * One of a project's tracked documents, derived from the PROJECT_DOCUMENT lookup
  * category (configurable in Settings → Project Documents).
  * @typedef {Object} ProjectDocument
- * @property {string} documentType  The stable PROJECT_DOCUMENT lookup code (used to toggle/persist).
+ * @property {string} documentType  The stable PROJECT_DOCUMENT lookup code (used to persist).
  * @property {string} label         The document's display label.
- * @property {boolean} isAvailable
+ * @property {boolean} isAvailable  True iff a file has been uploaded for this slot.
+ * @property {ProjectDocumentFile|null} file  Uploaded-file metadata, or null when none.
+ */
+
+/**
+ * Result of a document file mutation (upload / replace / remove / restore).
+ * @typedef {Object} DocFileResult
+ * @property {boolean} ok
+ * @property {Project} [project]   The refreshed project on success.
+ * @property {string} [error]      Failure reason (e.g. unsupported type).
+ * @property {boolean} [canceled]  True when the user dismissed the file dialog.
  */
 
 /**
