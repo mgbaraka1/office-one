@@ -171,6 +171,23 @@ function applyMigrations() {
 // Step 3 — best-effort housekeeping. Never throws; never blocks boot.
 function runMaintenance() {
   if (!dbWasNew) rotateBackups();   // snapshot an existing DB before the user touches it
+  sweepOrphanProjectFiles();        // drop file folders for projects that no longer exist
+}
+
+// Safety net for the deferred file purge: remove any projects/{id}/ folder whose
+// project row no longer exists (e.g. a delete whose undo window lapsed while the
+// app was closed). Runs once at boot, after backups. Best-effort; never throws.
+function sweepOrphanProjectFiles() {
+  try {
+    const root = projectsRootDir();
+    if (!fs.existsSync(root)) return;
+    const live = new Set(db.prepare('SELECT id FROM projects').all().map(r => String(r.id)));
+    for (const name of fs.readdirSync(root)) {
+      if (/^\d+$/.test(name) && !live.has(name)) {
+        fs.rmSync(path.join(root, name), { recursive: true, force: true });
+      }
+    }
+  } catch { /* non-critical */ }
 }
 
 // Was the database file freshly created this run? (e.g. first launch → show setup)
@@ -644,6 +661,26 @@ function saveSubscriptions(userId, data) {
 // stable lookup code, created lazily on first toggle.
 const DEFAULT_PROJECT_STATUS = 'ACTIVE';
 
+// Allowed upload types for project documents → mime, keyed by lowercase extension
+// (no leading dot). Enforced server-side on every upload; the renderer/dialog also
+// filters by these. PDF + Word + common web image formats only.
+const PROJECT_DOC_TYPES = {
+  pdf:  'application/pdf',
+  doc:  'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  png:  'image/png',
+  jpg:  'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif:  'image/gif',
+  webp: 'image/webp',
+};
+const PROJECT_DOC_EXTENSIONS = Object.keys(PROJECT_DOC_TYPES);
+
+// Lowercase extension (no dot) of a path, '' if none.
+function fileExt(p) {
+  return path.extname(String(p || '')).replace(/^\./, '').toLowerCase();
+}
+
 // Resolve a project the caller owns, or null. Used to gate document/link writes.
 function ownsProject(userId, projectId) {
   return !!db.prepare('SELECT 1 FROM projects WHERE id = ? AND user_id = ?').get(projectId, userId);
@@ -772,16 +809,30 @@ function getProject(userId, id) {
     tags: safeParse(t.tags, []),
   }));
 
-  // Tracked documents = the active PROJECT_DOCUMENT lookups (ordered), each with
-  // this project's availability. `documentType` is the stable lookup code (used to
-  // toggle/persist); `label` is the human name to display.
-  const availByCode = new Map(
-    db.prepare('SELECT document_type, is_available FROM project_documents WHERE project_id = ?')
-      .all(id).map(r => [r.document_type, !!r.is_available])
+  // Tracked documents = the active PROJECT_DOCUMENT lookups (ordered), each merged
+  // with this project's stored row. `documentType` is the stable lookup code;
+  // `label` is the human name. A document is "available" iff it has a stored file;
+  // `file` carries the on-disk metadata (or null) and a computed `exists` flag so
+  // the UI can surface a "file missing on disk" state without trusting the DB.
+  const rowByCode = new Map(
+    db.prepare(
+      `SELECT document_type, is_available, file_path, original_name, file_size, mime_type, uploaded_at
+         FROM project_documents WHERE project_id = ?`
+    ).all(id).map(r => [r.document_type, r])
   );
-  const documents = getLookupsByCategory('PROJECT_DOCUMENT', false).map(o => ({
-    documentType: o.code, label: o.label, isAvailable: availByCode.get(o.code) || false,
-  }));
+  const documents = getLookupsByCategory('PROJECT_DOCUMENT', false).map(o => {
+    const r = rowByCode.get(o.code);
+    const hasFile = !!r?.file_path;
+    const file = hasFile ? {
+      path: r.file_path,
+      originalName: r.original_name || '',
+      size: r.file_size || 0,
+      mimeType: r.mime_type || '',
+      uploadedAt: r.uploaded_at || '',
+      exists: fs.existsSync(path.join(userDataDir, r.file_path)),
+    } : null;
+    return { documentType: o.code, label: o.label, isAvailable: hasFile, file };
+  });
 
   return { ...p, companies: projectCompanies(id), systems: projectSystems(id), tasks: { entries, backlog }, documents };
 }
@@ -803,7 +854,10 @@ function updateProject(userId, id, data) {
 }
 
 // Delete a project. ON DELETE CASCADE drops its document rows; ON DELETE SET NULL
-// unlinks (but never deletes) any linked timesheet/backlog tasks.
+// unlinks (but never deletes) any linked timesheet/backlog tasks. The project's
+// file folder is intentionally NOT removed here — it must survive the renderer's
+// 5 s undo window, and is purged either when that window lapses (purgeProjectFiles)
+// or by the boot-time orphan sweep (sweepOrphanProjectFiles) as a safety net.
 function deleteProject(userId, id) {
   tx(() => {
     db.prepare('DELETE FROM projects WHERE id = ? AND user_id = ?').run(id, userId);
@@ -811,18 +865,138 @@ function deleteProject(userId, id) {
   return { ok: true };
 }
 
-// Toggle availability of one document type for a project. documentType must be a
-// stable code in the PROJECT_DOCUMENT lookup category. The availability row is
-// upserted (created lazily on first toggle). Returns the refreshed project, or
-// null if the caller doesn't own it / the code is unknown.
-function setProjectDocumentStatus(userId, projectId, documentType, isAvailable) {
-  if (!ownsProject(userId, projectId)) return null;
-  if (lkId('PROJECT_DOCUMENT', documentType) == null) return null;
+// ── Project document FILES (Option A: bytes on disk, metadata in SQLite) ──────
+// Files live at <userData>/projects/{projectId}/documents/{docType}-{ts}.{ext};
+// only the relative path + metadata is stored. All paths are constrained to the
+// project's own folder (projectId is coerced to an integer), so a renderer can
+// never reach outside the data root.
+
+// Copy a chosen file into the project's documents folder and record its metadata.
+// Validates ownership, the document code, and the extension allowlist. If a file
+// already exists for this (project, type) it is a REPLACE: the new file is written
+// first, then the old one removed (best-effort). Returns { ok, project } | { ok:false, error }.
+function saveProjectDocumentFile(userId, projectId, documentType, srcPath) {
+  if (!ownsProject(userId, projectId)) return { ok: false, error: 'Project not found' };
+  if (lkId('PROJECT_DOCUMENT', documentType) == null) return { ok: false, error: 'Unknown document type' };
+  const ext = fileExt(srcPath);
+  if (!PROJECT_DOC_EXTENSIONS.includes(ext)) {
+    return { ok: false, error: `Unsupported file type (.${ext || '?'}). Allowed: ${PROJECT_DOC_EXTENSIONS.join(', ')}` };
+  }
+  let size;
+  try { size = fs.statSync(srcPath).size; }
+  catch { return { ok: false, error: 'Could not read the selected file' }; }
+
+  // Prior file (for the replace case) — capture before we overwrite the row.
+  const prev = db.prepare('SELECT file_path FROM project_documents WHERE project_id = ? AND document_type = ?')
+    .get(projectId, documentType);
+
+  // {docType}-{timestamp}.{ext} — the timestamp makes duplicate filenames impossible.
+  const relPath = path.join('projects', String(projectId), 'documents', `${documentType}-${Date.now()}.${ext}`);
+  const absPath = path.join(userDataDir, relPath);
+  try {
+    fs.mkdirSync(path.dirname(absPath), { recursive: true });
+    fs.copyFileSync(srcPath, absPath);
+  } catch (err) {
+    return { ok: false, error: 'Could not save the file: ' + String(err?.message || err) };
+  }
+
+  try {
+    db.prepare(
+      `INSERT INTO project_documents(project_id, document_type, is_available, file_path, original_name, file_size, mime_type, uploaded_at)
+       VALUES(?, ?, 1, ?, ?, ?, ?, ?)
+       ON CONFLICT(project_id, document_type) DO UPDATE SET
+         is_available = 1, file_path = excluded.file_path, original_name = excluded.original_name,
+         file_size = excluded.file_size, mime_type = excluded.mime_type, uploaded_at = excluded.uploaded_at`
+    ).run(projectId, documentType, relPath, path.basename(srcPath), size, PROJECT_DOC_TYPES[ext], new Date().toISOString());
+  } catch (err) {
+    // Metadata write failed — don't leave the just-copied orphan on disk.
+    try { fs.rmSync(absPath, { force: true }); } catch { /* best effort */ }
+    return { ok: false, error: 'Could not record the file: ' + String(err?.message || err) };
+  }
+
+  // Replace succeeded — remove the superseded file (best-effort; never blocks).
+  if (prev?.file_path && prev.file_path !== relPath) {
+    try { fs.rmSync(path.join(userDataDir, prev.file_path), { force: true }); } catch { /* best effort */ }
+  }
+  return { ok: true, project: getProject(userId, projectId) };
+}
+
+// Resolve the absolute on-disk path of a stored document (for download / open),
+// after an ownership check. `exists` reflects whether the file is actually present.
+function resolveProjectDocumentFile(userId, projectId, documentType) {
+  if (!ownsProject(userId, projectId)) return { ok: false, error: 'Project not found' };
+  const r = db.prepare('SELECT file_path, original_name FROM project_documents WHERE project_id = ? AND document_type = ?')
+    .get(projectId, documentType);
+  if (!r?.file_path) return { ok: false, error: 'No file for this document' };
+  const absPath = path.join(userDataDir, r.file_path);
+  return { ok: true, absPath, originalName: r.original_name || path.basename(r.file_path), exists: fs.existsSync(absPath) };
+}
+
+// Remove a document's file from disk and clear its metadata (keeps the row so the
+// slot stays listed, just back to "not available"). Best-effort on the unlink.
+function removeProjectDocumentFile(userId, projectId, documentType) {
+  if (!ownsProject(userId, projectId)) return { ok: false, error: 'Project not found' };
+  const r = db.prepare('SELECT file_path FROM project_documents WHERE project_id = ? AND document_type = ?')
+    .get(projectId, documentType);
+  if (r?.file_path) {
+    try { fs.rmSync(path.join(userDataDir, r.file_path), { force: true }); } catch { /* best effort */ }
+  }
   db.prepare(
-    `INSERT INTO project_documents(project_id, document_type, is_available) VALUES(?, ?, ?)
-     ON CONFLICT(project_id, document_type) DO UPDATE SET is_available = excluded.is_available`
-  ).run(projectId, documentType, isAvailable ? 1 : 0);
-  return getProject(userId, projectId);
+    `UPDATE project_documents
+        SET is_available = 0, file_path = NULL, original_name = NULL, file_size = NULL, mime_type = NULL, uploaded_at = NULL
+      WHERE project_id = ? AND document_type = ?`
+  ).run(projectId, documentType);
+  return { ok: true, project: getProject(userId, projectId) };
+}
+
+// Delete a project's ENTIRE file folder (projects/{id}/ — not just documents/, so
+// future sibling file types go too). Called when the delete undo-window lapses.
+// No ownership check is possible (the row is already gone); the id is coerced to
+// an integer so the path can only ever resolve inside the data root.
+function purgeProjectFiles(projectId) {
+  const id = Number(projectId);
+  if (!Number.isInteger(id) || id <= 0) return { ok: false };
+  try { fs.rmSync(projectDir(id), { recursive: true, force: true }); } catch { /* best effort */ }
+  return { ok: true };
+}
+
+// Undo a delete: the project was re-created under a NEW id, so move its file
+// folder oldId → newId and re-insert each file's metadata (the old rows were
+// CASCADE-deleted). `fileDocs` is the snapshot's documents that had a file:
+// [{ documentType, file:{ path, originalName, size, mimeType, uploadedAt } }].
+function restoreProjectFiles(userId, oldProjectId, newProjectId, fileDocs) {
+  if (!ownsProject(userId, newProjectId)) return { ok: false, error: 'Project not found' };
+  const oldDir = projectDir(Number(oldProjectId));
+  const newDir = projectDir(Number(newProjectId));
+  // SQLite reuses the highest deleted rowid, so undoing the delete of the newest
+  // project re-creates it under the SAME id — the folder is already in place and
+  // must NOT be moved/cleared. Only relocate when the id actually changed.
+  if (path.resolve(oldDir) !== path.resolve(newDir)) {
+    try {
+      if (fs.existsSync(oldDir)) {
+        fs.mkdirSync(path.dirname(newDir), { recursive: true });
+        fs.rmSync(newDir, { recursive: true, force: true }); // freshly created project has no files
+        fs.renameSync(oldDir, newDir);
+      }
+    } catch { /* fall through — re-insert what metadata we can */ }
+  }
+
+  const ins = db.prepare(
+    `INSERT INTO project_documents(project_id, document_type, is_available, file_path, original_name, file_size, mime_type, uploaded_at)
+     VALUES(?, ?, 1, ?, ?, ?, ?, ?)
+     ON CONFLICT(project_id, document_type) DO UPDATE SET
+       is_available = 1, file_path = excluded.file_path, original_name = excluded.original_name,
+       file_size = excluded.file_size, mime_type = excluded.mime_type, uploaded_at = excluded.uploaded_at`
+  );
+  for (const d of (Array.isArray(fileDocs) ? fileDocs : [])) {
+    if (!d?.file?.path || lkId('PROJECT_DOCUMENT', d.documentType) == null) continue;
+    // Re-home the relative path onto the new id (same basename, new folder).
+    const relPath = path.join('projects', String(Number(newProjectId)), 'documents', path.basename(d.file.path));
+    if (!fs.existsSync(path.join(userDataDir, relPath))) continue; // file didn't survive — skip
+    ins.run(newProjectId, d.documentType, relPath, d.file.originalName || path.basename(relPath),
+            d.file.size || 0, d.file.mimeType || PROJECT_DOC_TYPES[fileExt(relPath)] || '', d.file.uploadedAt || new Date().toISOString());
+  }
+  return { ok: true, project: getProject(userId, newProjectId) };
 }
 
 // Link / unlink an existing task to a project. `kind` selects the table and is
@@ -899,16 +1073,37 @@ function dbPath() {
   return path.join(userDataDir, 'cooperation-tools.db');
 }
 
+// ── Project file storage (Option A: files on disk, metadata in SQLite) ────────
+// Uploaded project documents live under the SAME userData root as the DB, nested
+// per project so future project-scoped file types (attachments, exports) can sit
+// alongside `documents/` rather than under it. These helpers only RESOLVE paths —
+// they create/copy/delete nothing (that lands in Phase 2).
+//   projectsRootDir()      -> <userData>/projects
+//   projectDir(id)         -> <userData>/projects/{id}
+//   projectDocumentsDir(id)-> <userData>/projects/{id}/documents
+function projectsRootDir() {
+  return path.join(userDataDir, 'projects');
+}
+function projectDir(projectId) {
+  return path.join(projectsRootDir(), String(projectId));
+}
+function projectDocumentsDir(projectId) {
+  return path.join(projectDir(projectId), 'documents');
+}
+
 module.exports = {
   openConnection, applyMigrations, runMaintenance, isFreshDatabase,
   close, backup, dbPath,
+  projectsRootDir, projectDir, projectDocumentsDir,
   countUsers, getUserByUsername, getUserById, createUser, getUnclaimedUser, claimUser,
   saveDay, loadDay, listDays, loadDaysRange,
   listCompanies, listSystems, companyEntries, systemEntries,
   getAnalytics, getOverviewStats,
   loadBacklog, saveBacklog,
   createProject, listProjects, getProject, updateProject, deleteProject,
-  setProjectDocumentStatus, linkTask, unlinkTask, listLinkableTasks,
+  linkTask, unlinkTask, listLinkableTasks,
+  saveProjectDocumentFile, resolveProjectDocumentFile, removeProjectDocumentFile,
+  purgeProjectFiles, restoreProjectFiles,
   loadLookups, saveLookups, getLookupsByCategory,
   loadSubscriptions, saveSubscriptions,
   loadPrefs, savePrefs,

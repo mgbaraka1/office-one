@@ -69,13 +69,24 @@ contextBridge.exposeInMainWorld('api', {
   /** @returns {Promise<import('./ipc-types').Project|null>} */
   updateProject:  (id, data)      => ipcRenderer.invoke('projects:update', id, data),
   deleteProject:  (id)            => ipcRenderer.invoke('projects:delete', id),
-  /** @returns {Promise<import('./ipc-types').Project|null>} */
-  setProjectDocumentStatus: (projectId, documentType, isAvailable) =>
-                                     ipcRenderer.invoke('projects:update-document-status', projectId, documentType, isAvailable),
   linkProjectTask:   (projectId, kind, taskId) => ipcRenderer.invoke('projects:link-task', projectId, kind, taskId),
   unlinkProjectTask: (kind, taskId)            => ipcRenderer.invoke('projects:unlink-task', kind, taskId),
   /** @returns {Promise<import('./ipc-types').LinkableTasks>} */
   listLinkableTasks: ()           => ipcRenderer.invoke('projects:linkable-tasks'),
+
+  // ── Project document files (bytes on disk under userData) ──
+  /** @returns {Promise<import('./ipc-types').DocFileResult>} */
+  uploadProjectDocument:   (projectId, documentType) => ipcRenderer.invoke('projects:upload-document', projectId, documentType),
+  /** Replace = upload again; the prior file is removed server-side on conflict. */
+  /** @returns {Promise<import('./ipc-types').DocFileResult>} */
+  replaceProjectDocument:  (projectId, documentType) => ipcRenderer.invoke('projects:upload-document', projectId, documentType),
+  /** @returns {Promise<import('./ipc-types').FileResult>} */
+  downloadProjectDocument: (projectId, documentType) => ipcRenderer.invoke('projects:download-document', projectId, documentType),
+  openProjectDocument:     (projectId, documentType) => ipcRenderer.invoke('projects:open-document', projectId, documentType),
+  /** @returns {Promise<import('./ipc-types').DocFileResult>} */
+  removeProjectDocument:   (projectId, documentType) => ipcRenderer.invoke('projects:remove-document', projectId, documentType),
+  purgeProjectFiles:       (projectId)               => ipcRenderer.invoke('projects:purge-files', projectId),
+  restoreProjectFiles:     (oldId, newId, docs)      => ipcRenderer.invoke('projects:restore-files', oldId, newId, docs),
 
   // ── Backup / reports / window / shell ──
   /** @returns {Promise<import('./ipc-types').FileResult>} */
