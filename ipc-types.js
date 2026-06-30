@@ -107,10 +107,11 @@
  */
 
 /**
- * One of a project's three fixed tracked documents.
+ * One of a project's tracked documents, derived from the PROJECT_DOCUMENT lookup
+ * category (configurable in Settings → Project Documents).
  * @typedef {Object} ProjectDocument
- * @property {number} id
- * @property {'Quotation'|'Quotation Approval'|'Invoice'} documentType
+ * @property {string} documentType  The stable PROJECT_DOCUMENT lookup code (used to toggle/persist).
+ * @property {string} label         The document's display label.
  * @property {boolean} isAvailable
  */
 
