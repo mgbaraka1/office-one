@@ -508,22 +508,47 @@
 
     /* ══ PROJECTS ══ */
     .pj-scroll { flex: 1; overflow-y: auto; padding: var(--space-5) var(--space-6) var(--space-7); }
-    .pj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+    .pj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; }
     .pj-card {
-      display: flex; flex-direction: column; gap: 10px; cursor: pointer;
+      position: relative; overflow: hidden;
+      display: flex; flex-direction: column; gap: 12px; cursor: pointer;
       background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-      padding: var(--space-4) var(--space-5); box-shadow: var(--shadow-sm);
-      transition: transform .28s cubic-bezier(.22,1,.36,1), border-color .28s cubic-bezier(.22,1,.36,1);
+      padding: var(--space-5) var(--space-5) var(--space-4) calc(var(--space-5) + 4px); box-shadow: var(--shadow-sm);
+      transition: transform .28s cubic-bezier(.22,1,.36,1), border-color .28s cubic-bezier(.22,1,.36,1), box-shadow .28s cubic-bezier(.22,1,.36,1);
     }
-    .pj-card:hover { transform: translateY(-2px); border-color: var(--primary); }
+    /* status-keyed accent rail down the left edge */
+    .pj-card::before {
+      content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+      background: var(--muted); opacity: .55; transition: opacity .28s;
+    }
+    .pj-card.pj-accent-active::before    { background: #34d399; }
+    .pj-card.pj-accent-on-hold::before   { background: #f5b544; }
+    .pj-card.pj-accent-completed::before { background: var(--muted); }
+    .pj-card:hover { transform: translateY(-3px); border-color: var(--primary); box-shadow: var(--shadow); }
+    .pj-card:hover::before { opacity: 1; }
     .pj-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-    .pj-card-name { font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: -.2px; }
-    .pj-card-client { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
-    .pj-card-client .lic { width: 14px; height: 14px; }
+    .pj-card-name { font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: -.2px; line-height: 1.3; }
+    .pj-card-meta { display: flex; align-items: flex-start; gap: 8px; }
+    .pj-card-meta-ic { display: flex; flex-shrink: 0; color: var(--muted); padding-top: 3px; }
+    .pj-card-meta-ic .lic { width: 14px; height: 14px; }
+    .pj-card-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .pj-tag {
+      font-size: 11.5px; font-weight: 600; color: var(--text);
+      background: var(--surface2); border: 1px solid var(--border);
+      padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+    }
+    .pj-tag-more { color: var(--muted); background: transparent; }
     .pj-card-desc { font-size: 13px; color: var(--muted); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-    .pj-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 8px; }
-    .pj-card-count { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+    .pj-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border); }
+    .pj-card-count {
+      font-size: 12px; font-weight: 600; color: var(--muted);
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--surface2); padding: 4px 10px; border-radius: 999px;
+    }
     .pj-card-count .lic { width: 14px; height: 14px; }
+    .pj-card-open { font-size: 12px; font-weight: 600; color: var(--primary); display: inline-flex; align-items: center; gap: 4px; opacity: 0; transform: translateX(-4px); transition: opacity .28s, transform .28s; }
+    .pj-card-open .lic { width: 14px; height: 14px; }
+    .pj-card:hover .pj-card-open { opacity: 1; transform: translateX(0); }
 
     /* status pill — shared by cards, list, and the detail header */
     .pj-status { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
@@ -580,18 +605,39 @@
     }
     .tp-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); background: var(--input-focus-bg); }
     .tp-menu, .ss-menu {
-      position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 40;
       max-height: 220px; overflow-y: auto;
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius-sm); box-shadow: var(--shadow);
-      padding: 4px;
+      border-radius: var(--radius-sm); padding: 6px;
     }
+    /* Single-select combobox: floats over content (sits last in its modal, no overlap). */
+    .ss-menu {
+      position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 40;
+      box-shadow: var(--shadow);
+    }
+    /* Multi-select tag picker: expands INLINE (in normal flow) so it pushes the
+       fields below it down instead of covering them; the modal scrolls if needed. */
+    .tp-menu { margin-top: 6px; box-shadow: var(--shadow-sm); }
+    /* slim, themed scrollbar for the option menus */
+    .tp-menu::-webkit-scrollbar, .ss-menu::-webkit-scrollbar { width: 8px; }
+    .tp-menu::-webkit-scrollbar-thumb, .ss-menu::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; border: 2px solid var(--surface); }
+    .tp-menu::-webkit-scrollbar-thumb:hover, .ss-menu::-webkit-scrollbar-thumb:hover { background: var(--muted); }
     .tp-opt, .ss-opt {
-      padding: 8px 10px; border-radius: var(--radius-sm); font-size: 14px;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 9px 11px; border-radius: var(--radius-sm); font-size: 14px;
       color: var(--text); cursor: pointer;
+      transition: background var(--speed), color var(--speed);
     }
-    .tp-opt:hover, .tp-opt.active, .ss-opt:hover, .ss-opt.active { background: var(--surface2); }
+    .tp-opt:hover, .tp-opt.active, .ss-opt:hover, .ss-opt.active { background: rgba(20,184,166,.10); color: var(--primary); }
+    /* "click to add" affordance, revealed on hover/keyboard-active */
+    .tp-opt::after {
+      content: '+'; flex-shrink: 0;
+      font-size: 17px; font-weight: 600; line-height: 1; color: var(--primary);
+      opacity: 0; transform: scale(.7); transition: opacity var(--speed), transform var(--speed);
+    }
+    .tp-opt:hover::after, .tp-opt.active::after { opacity: 1; transform: scale(1); }
     .ss-opt.selected { font-weight: 600; color: var(--primary); }
+    /* checkmark on the currently-selected single-select option */
+    .ss-opt.selected::after { content: '✓'; flex-shrink: 0; font-size: 13px; font-weight: 700; color: var(--primary); }
 
     /* ── Searchable single-select (combobox) ── */
     .search-select { position: relative; }
@@ -1112,6 +1158,11 @@
     .stab:hover { background: var(--surface2); color: var(--text); }
     .stab.active { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
     .stab-icon { font-size: 15px; }
+    .settings-group-label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .6px; color: var(--muted);
+      padding: 12px 12px 4px; opacity: .8;
+    }
 
     /* Panels */
     .settings-panels { flex: 1; overflow-y: auto; padding: 16px 20px; }
@@ -1179,24 +1230,6 @@
     /* ══ SETTINGS MODULE (page) ══ */
     .settings-mod-title { margin-right: auto; }
     #module-settings .settings-body { background: var(--bg); }
-    /* Lookup category sub-tabs (inside the Lookups top-level tab) */
-    #tab-lookups.settings-panel.active { gap: 0; }
-    .lookup-subtabs {
-      display: flex; gap: 4px; flex-wrap: wrap;
-      border-bottom: 1px solid var(--border); margin-bottom: 14px; padding-bottom: 8px;
-    }
-    .ltab {
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 6px 12px; border-radius: 8px; cursor: pointer;
-      font-size: 13px; font-weight: 500; color: var(--muted);
-      transition: background .12s, color .12s; border: 1px solid transparent; background: none;
-      font-family: inherit;
-    }
-    .ltab:hover { background: var(--surface2); color: var(--text); }
-    .ltab.active { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
-    .lookup-subpanels { flex: 1; }
-    .lookup-panel { display: none; flex-direction: column; gap: 12px; }
-    .lookup-panel.active { display: flex; }
 
     /* ══ COMPANIES / SYSTEMS MODULES (read-only views) ══ */
     .cp-title { margin-right: auto; }
@@ -2220,10 +2253,17 @@
     </div>
   </div>
   <div class="settings-body">
-    <!-- Top-level tabs -->
+    <!-- Settings list -->
     <div class="settings-tabs">
       <button class="stab active" data-tab="general" onclick="switchTab(this)"><span class="stab-icon" data-ic="sliders-horizontal"></span> General</button>
-      <button class="stab"        data-tab="lookups" onclick="switchTab(this)"><span class="stab-icon" data-ic="list"></span> Lookups</button>
+      <div class="settings-group-label">Lookups</div>
+      <button class="stab" data-tab="companies"     onclick="switchTab(this)"><span class="stab-icon" data-ic="building-2"></span> Companies</button>
+      <button class="stab" data-tab="systems"       onclick="switchTab(this)"><span class="stab-icon" data-ic="folder"></span> Systems</button>
+      <button class="stab" data-tab="natural"       onclick="switchTab(this)"><span class="stab-icon" data-ic="tag"></span> Natural</button>
+      <button class="stab" data-tab="timeType"      onclick="switchTab(this)"><span class="stab-icon" data-ic="alarm-clock"></span> Time Type</button>
+      <button class="stab" data-tab="status"        onclick="switchTab(this)"><span class="stab-icon" data-ic="flag"></span> Status</button>
+      <button class="stab" data-tab="projectStatus" onclick="switchTab(this)"><span class="stab-icon" data-ic="clipboard-list"></span> Project Status</button>
+      <button class="stab" data-tab="projectDocument" onclick="switchTab(this)"><span class="stab-icon" data-ic="file-text"></span> Project Documents</button>
     </div>
     <!-- Panels -->
     <div class="settings-panels">
@@ -2234,25 +2274,13 @@
         </div>
         <p class="general-hint">Pre-fills the Name field when opening a new day with no existing data.</p>
       </div>
-      <div class="settings-panel" id="tab-lookups">
-        <!-- Lookup category sub-tabs -->
-        <div class="lookup-subtabs">
-          <button class="ltab active" data-ltab="companies" onclick="switchLookupTab(this)"><span class="stab-icon" data-ic="building-2"></span> Companies</button>
-          <button class="ltab"        data-ltab="systems"   onclick="switchLookupTab(this)"><span class="stab-icon" data-ic="folder"></span> Systems</button>
-          <button class="ltab"        data-ltab="natural"   onclick="switchLookupTab(this)"><span class="stab-icon" data-ic="tag"></span> Natural</button>
-          <button class="ltab"        data-ltab="timeType"  onclick="switchLookupTab(this)"><span class="stab-icon" data-ic="alarm-clock"></span> Time Type</button>
-          <button class="ltab"        data-ltab="status"    onclick="switchLookupTab(this)"><span class="stab-icon" data-ic="flag"></span> Status</button>
-          <button class="ltab"        data-ltab="projectStatus" onclick="switchLookupTab(this)"><span class="stab-icon" data-ic="clipboard-list"></span> Project Status</button>
-        </div>
-        <div class="lookup-subpanels">
-          <div class="lookup-panel active" id="tab-companies"></div>
-          <div class="lookup-panel" id="tab-systems"></div>
-          <div class="lookup-panel" id="tab-natural"></div>
-          <div class="lookup-panel" id="tab-timeType"></div>
-          <div class="lookup-panel" id="tab-status"></div>
-          <div class="lookup-panel" id="tab-projectStatus"></div>
-        </div>
-      </div>
+      <div class="settings-panel" id="tab-companies"></div>
+      <div class="settings-panel" id="tab-systems"></div>
+      <div class="settings-panel" id="tab-natural"></div>
+      <div class="settings-panel" id="tab-timeType"></div>
+      <div class="settings-panel" id="tab-status"></div>
+      <div class="settings-panel" id="tab-projectStatus"></div>
+      <div class="settings-panel" id="tab-projectDocument"></div>
     </div>
   </div>
 </div>
@@ -2421,6 +2449,7 @@ const ICONS = {
   "bell": "<path d=\"M10.268 21a2 2 0 0 0 3.464 0\" /><path d=\"M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326\" />",
   "calendar": "<path d=\"M8 2v4\" /><path d=\"M16 2v4\" /><rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\" /><path d=\"M3 10h18\" />",
   "chevron-down": "<path d=\"m6 9 6 6 6-6\" />",
+  "chevron-right": "<path d=\"m9 18 6-6-6-6\" />",
   "timer": "<line x1=\"10\" x2=\"14\" y1=\"2\" y2=\"2\" /><line x1=\"12\" x2=\"15\" y1=\"14\" y2=\"11\" /><circle cx=\"12\" cy=\"14\" r=\"8\" />",
   "play": "<path d=\"M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z\" />",
   "pause": "<rect x=\"14\" y=\"3\" width=\"5\" height=\"18\" rx=\"1\" /><rect x=\"5\" y=\"3\" width=\"5\" height=\"18\" rx=\"1\" />",
@@ -2485,12 +2514,12 @@ const LK_CAT = {
   companies: 'COMPANY', systems: 'SYSTEM', natural: 'ACTIVITY_TYPE',
   timeType: 'TIME_TYPE', status: 'ENTRY_STATUS',
   currency: 'CURRENCY', billingCycle: 'BILLING_CYCLE',
-  projectStatus: 'PROJECT_STATUS',
+  projectStatus: 'PROJECT_STATUS', projectDocument: 'PROJECT_DOCUMENT',
 };
 const LK_VALUE = {             // 'label' = stored as display label; 'code' = stored as code
   companies: 'label', systems: 'label', natural: 'label',
   timeType: 'code', status: 'code', currency: 'code', billingCycle: 'code',
-  projectStatus: 'code',
+  projectStatus: 'code', projectDocument: 'code',
 };
 
 // Active options for a category, ordered for dropdowns.
@@ -2780,7 +2809,7 @@ function buildSearchSelect(host, options, initialId, placeholder) {
 // The tabs edit a working copy of the catalog (lookupsDraft, keyed by category).
 // Existing entries are relabeled / reordered / soft-disabled in place; new entries
 // get a server-generated stable code on save. Codes are never edited or deleted.
-const SETTINGS_TABS = ['companies', 'systems', 'natural', 'timeType', 'status', 'projectStatus'];
+const SETTINGS_TABS = ['companies', 'systems', 'natural', 'timeType', 'status', 'projectStatus', 'projectDocument'];
 
 // Settings is a nav page (not a modal): switchModule('settings') calls this to
 // (re)load a working copy of the catalog and render the editors fresh each visit.
@@ -2809,20 +2838,12 @@ async function saveSettings() {
   toast('Settings saved');
 }
 
-// Top-level Settings tabs (General / Lookups).
+// Settings list items (General + each lookup category) — one flat left-hand list.
 function switchTab(btn) {
   document.querySelectorAll('#module-settings .stab').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('#module-settings .settings-panel').forEach(p => p.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-}
-
-// Lookup category sub-tabs (Companies / Systems / Natural / Time Type / Status).
-function switchLookupTab(btn) {
-  document.querySelectorAll('.ltab').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.lookup-panel').forEach(p => p.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('tab-' + btn.dataset.ltab).classList.add('active');
 }
 
 function renderLookupPanel(uiKey) {
@@ -3678,15 +3699,23 @@ function buildDailyReportHTML(srcRows, date, name) {
   const otHrs    = (otMin / 60).toFixed(2);
   const otherHrs = (otherMin / 60).toFixed(2);
 
-  const rowsHTML = printRows.map((r, i) => `
+  const rowsHTML = printRows.map((r, i) => {
+    // Show the time type only when it's Work Time or Over Time; Over Time renders red.
+    const showTime = r.time === 'WORK_TIME' || r.time === 'OVERTIME';
+    const timeCell = showTime
+      ? `<span${r.time === 'OVERTIME' ? ' style="color:#b91c1c;font-weight:700"' : ''}>${esc(lkLabel('TIME_TYPE', r.time))}</span>`
+      : '—';
+    return `
       <tr>
         <td style="text-align:center">${i + 1}</td>
         <td>${esc(r.company)}</td>
         <td>${esc(r.system)}</td>
+        <td>${timeCell}</td>
         <td>${esc(r.description)}${r.source ? `<div style="font-size:10px;color:#777;margin-top:3px">${esc(r.source)}</div>` : ''}</td>
         <td style="text-align:right">${r.minutes || '—'}</td>
         <td style="text-align:right">${r.minutes ? (parseFloat(r.minutes)/60).toFixed(2) : '—'}</td>
-      </tr>`).join('');
+      </tr>`;
+  }).join('');
 
   const printedOn = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
 
@@ -3715,6 +3744,7 @@ function buildDailyReportHTML(srcRows, date, name) {
           <th style="width:28px;text-align:center">#</th>
           <th style="width:100px">Company</th>
           <th style="width:100px">System</th>
+          <th style="width:80px">Time</th>
           <th>Description / Source</th>
           <th style="width:45px;text-align:right">Min</th>
           <th style="width:45px;text-align:right">Hrs</th>
@@ -3725,7 +3755,7 @@ function buildDailyReportHTML(srcRows, date, name) {
       </tbody>
       <tfoot>
         <tr>
-          <td colspan="4" style="text-align:right;font-size:10px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:.5px;padding:8px;border:1px solid #bbb;border-top:2px solid #111;background:#f0f0f0 !important">Total</td>
+          <td colspan="5" style="text-align:right;font-size:10px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:.5px;padding:8px;border:1px solid #bbb;border-top:2px solid #111;background:#f0f0f0 !important">Total</td>
           <td style="text-align:right;font-size:13px;font-weight:800;color:#111;padding:8px;border:1px solid #bbb;border-top:2px solid #111;background:#f0f0f0 !important">${totalMin}</td>
           <td style="text-align:right;font-size:13px;font-weight:800;color:#111;padding:8px;border:1px solid #bbb;border-top:2px solid #111;background:#f0f0f0 !important">${totalHrs}</td>
         </tr>
@@ -5729,36 +5759,50 @@ function renderProjectsList() {
   empty.style.display = 'none';
 
   shown.forEach(p => {
-    const card = pjMk('div', 'pj-card');
+    const card = pjMk('div', 'pj-card pj-accent-' + (PJ_STATUS_CLASS[p.status] || 'active'));
     card.addEventListener('click', () => openProjectDetail(p.id));
 
+    // Head — name + status pill
     const head = pjMk('div', 'pj-card-head');
-    const left = pjMk('div');
-    left.appendChild(pjMk('div', 'pj-card-name', p.name || 'Untitled project'));
-    const companyNames = (p.companies || []).map(c => c.label).filter(Boolean);
-    const systemNames  = (p.systems || []).map(s => s.label).filter(Boolean);
-    const subtitle = companyNames.length ? companyNames.join(', ') : systemNames.join(', ');
-    if (subtitle) {
-      const client = pjMk('div', 'pj-card-client');
-      client.innerHTML = ic('building-2');
-      client.appendChild(document.createTextNode(subtitle));
-      left.appendChild(client);
-    }
-    head.appendChild(left);
+    head.appendChild(pjMk('div', 'pj-card-name', p.name || 'Untitled project'));
     head.appendChild(pjMk('span', pjStatusClass(p.status), pjStatusLabel(p.status)));
     card.appendChild(head);
 
+    // Meta — companies and systems as pill rows (capped, with a +N overflow)
+    const companyNames = (p.companies || []).map(c => c.label).filter(Boolean);
+    const systemNames  = (p.systems || []).map(s => s.label).filter(Boolean);
+    if (companyNames.length) card.appendChild(pjCardMetaRow('building-2', companyNames));
+    if (systemNames.length)  card.appendChild(pjCardMetaRow('folder', systemNames));
+
     if (p.description) card.appendChild(pjMk('div', 'pj-card-desc', p.description));
 
+    // Footer — task-count chip + hover "Open" affordance
     const foot = pjMk('div', 'pj-card-foot');
-    const count = pjMk('div', 'pj-card-count');
+    const count = pjMk('span', 'pj-card-count');
     count.innerHTML = ic('clipboard-list');
     count.appendChild(document.createTextNode((p.taskCount || 0) + ' task' + (p.taskCount === 1 ? '' : 's')));
     foot.appendChild(count);
+    const open = pjMk('span', 'pj-card-open', 'Open');
+    open.insertAdjacentHTML('beforeend', ic('chevron-right'));
+    foot.appendChild(open);
     card.appendChild(foot);
 
     grid.appendChild(card);
   });
+}
+
+// One labeled meta row on a project card: an icon followed by up to `max` value
+// pills, with a "+N" overflow pill when there are more.
+function pjCardMetaRow(icon, names, max = 4) {
+  const row = pjMk('div', 'pj-card-meta');
+  const ico = pjMk('span', 'pj-card-meta-ic');
+  ico.innerHTML = ic(icon);
+  row.appendChild(ico);
+  const tags = pjMk('div', 'pj-card-tags');
+  names.slice(0, max).forEach(n => tags.appendChild(pjMk('span', 'pj-tag', n)));
+  if (names.length > max) tags.appendChild(pjMk('span', 'pj-tag pj-tag-more', '+' + (names.length - max)));
+  row.appendChild(tags);
+  return row;
 }
 
 async function openProjectDetail(id) {
@@ -5867,12 +5911,15 @@ function renderProjectDetail(p) {
   docs.appendChild(dHead);
 
   const docGrid = pjMk('div', 'pj-docs');
+  if (!(p.documents || []).length) {
+    docs.appendChild(pjMk('div', 'cp-records-empty', 'No document types configured — add them in Settings → Project Documents.'));
+  }
   (p.documents || []).forEach(doc => {
     const card = pjMk('div', 'pj-doc-card' + (doc.isAvailable ? ' available' : ''));
     const icon = pjMk('div', 'pj-doc-icon');
     icon.innerHTML = ic(doc.isAvailable ? 'circle-check' : 'file-text');
     card.appendChild(icon);
-    card.appendChild(pjMk('div', 'pj-doc-name', doc.documentType));
+    card.appendChild(pjMk('div', 'pj-doc-name', doc.label || doc.documentType));
     card.appendChild(pjMk('div', 'pj-doc-state', doc.isAvailable ? 'Available' : 'Not Available'));
     const toggle = pjMk('button', 'pj-doc-toggle');
     toggle.innerHTML = ic(doc.isAvailable ? 'check' : 'x');
