@@ -25,7 +25,7 @@ const fs   = require('node:fs');
 // table under one of these category discriminators. The renderer fetches options
 // per-category and stores a stable `code` (logic fields) or display `label`
 // (company/system/activity) — never a hardcoded string.
-const LOOKUP_CATEGORIES = ['COMPANY', 'SYSTEM', 'ACTIVITY_TYPE', 'TIME_TYPE', 'ENTRY_STATUS', 'CURRENCY', 'BILLING_CYCLE', 'PROJECT_STATUS'];
+const LOOKUP_CATEGORIES = ['COMPANY', 'SYSTEM', 'ACTIVITY_TYPE', 'TIME_TYPE', 'ENTRY_STATUS', 'CURRENCY', 'BILLING_CYCLE', 'PROJECT_STATUS', 'PROJECT_DOCUMENT'];
 
 let db;          // DatabaseSync instance
 let userDataDir; // resolved userData folder (backups, db file)
@@ -638,10 +638,10 @@ function saveSubscriptions(userId, data) {
 // project_id FK. A project also references one or more COMPANY lookup codes (its
 // clients, via the project_companies junction), one or more SYSTEM lookups (via
 // the project_systems junction), and a PROJECT_STATUS lookup code (status). Every
-// query is scoped to the
-// authenticated owner (`userId`); the document types are hardcoded (not a lookup
-// catalog) per the feature spec.
-const PROJECT_DOC_TYPES = ['Quotation', 'Quotation Approval', 'Invoice'];
+// query is scoped to the authenticated owner (`userId`). The tracked document
+// types are driven by the PROJECT_DOCUMENT lookup category (manageable in
+// Settings); a project_documents row stores availability keyed by the document's
+// stable lookup code, created lazily on first toggle.
 const DEFAULT_PROJECT_STATUS = 'ACTIVE';
 
 // Resolve a project the caller owns, or null. Used to gate document/link writes.
@@ -708,8 +708,10 @@ function projectSystems(projectId) {
   ).all(projectId);
 }
 
-// Insert a project and auto-create its three document rows (all unavailable), plus
-// its company links. Returns the full project (profile + tasks + documents).
+// Insert a project plus its company / system links. Returns the full project
+// (profile + tasks + documents). Document availability rows are not created here —
+// they are upserted lazily on first toggle; the tracked types come from the
+// PROJECT_DOCUMENT lookup catalog (see getProject).
 function createProject(userId, data) {
   const now = new Date().toISOString();
   let id;
@@ -719,10 +721,6 @@ function createProject(userId, data) {
        VALUES(?, ?, ?, ?, ?)`
     ).run(userId, data?.name ?? '', data?.description ?? '',
           data?.status || DEFAULT_PROJECT_STATUS, now).lastInsertRowid);
-    const insDoc = db.prepare(
-      'INSERT INTO project_documents(project_id, document_type, is_available) VALUES(?, ?, 0)'
-    );
-    for (const t of PROJECT_DOC_TYPES) insDoc.run(id, t);
     setProjectCompanies(id, data?.companyIds);
     setProjectSystems(id, data?.systemIds);
   });
@@ -774,10 +772,16 @@ function getProject(userId, id) {
     tags: safeParse(t.tags, []),
   }));
 
-  const documents = db.prepare(
-    `SELECT id, document_type AS documentType, is_available AS isAvailable
-       FROM project_documents WHERE project_id = ? ORDER BY id`
-  ).all(id).map(r => ({ id: r.id, documentType: r.documentType, isAvailable: !!r.isAvailable }));
+  // Tracked documents = the active PROJECT_DOCUMENT lookups (ordered), each with
+  // this project's availability. `documentType` is the stable lookup code (used to
+  // toggle/persist); `label` is the human name to display.
+  const availByCode = new Map(
+    db.prepare('SELECT document_type, is_available FROM project_documents WHERE project_id = ?')
+      .all(id).map(r => [r.document_type, !!r.is_available])
+  );
+  const documents = getLookupsByCategory('PROJECT_DOCUMENT', false).map(o => ({
+    documentType: o.code, label: o.label, isAvailable: availByCode.get(o.code) || false,
+  }));
 
   return { ...p, companies: projectCompanies(id), systems: projectSystems(id), tasks: { entries, backlog }, documents };
 }
@@ -807,15 +811,17 @@ function deleteProject(userId, id) {
   return { ok: true };
 }
 
-// Toggle availability of one document type for a project. documentType must be one
-// of the fixed PROJECT_DOC_TYPES. Returns the refreshed project, or null if the
-// caller doesn't own it / the type is unknown.
+// Toggle availability of one document type for a project. documentType must be a
+// stable code in the PROJECT_DOCUMENT lookup category. The availability row is
+// upserted (created lazily on first toggle). Returns the refreshed project, or
+// null if the caller doesn't own it / the code is unknown.
 function setProjectDocumentStatus(userId, projectId, documentType, isAvailable) {
   if (!ownsProject(userId, projectId)) return null;
-  if (!PROJECT_DOC_TYPES.includes(documentType)) return null;
+  if (lkId('PROJECT_DOCUMENT', documentType) == null) return null;
   db.prepare(
-    'UPDATE project_documents SET is_available = ? WHERE project_id = ? AND document_type = ?'
-  ).run(isAvailable ? 1 : 0, projectId, documentType);
+    `INSERT INTO project_documents(project_id, document_type, is_available) VALUES(?, ?, ?)
+     ON CONFLICT(project_id, document_type) DO UPDATE SET is_available = excluded.is_available`
+  ).run(projectId, documentType, isAvailable ? 1 : 0);
   return getProject(userId, projectId);
 }
 
