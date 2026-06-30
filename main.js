@@ -118,13 +118,58 @@ ipcMain.handle('projects:list',   authed(()             => db.listProjects(auth.
 ipcMain.handle('projects:get',    authed((_e, id)       => db.getProject(auth.requireUserId(), id)));
 ipcMain.handle('projects:update', authed((_e, id, data) => db.updateProject(auth.requireUserId(), id, data)));
 ipcMain.handle('projects:delete', authed((_e, id)       => db.deleteProject(auth.requireUserId(), id)));
-ipcMain.handle('projects:update-document-status', authed((_e, projectId, documentType, isAvailable) =>
-  db.setProjectDocumentStatus(auth.requireUserId(), projectId, documentType, isAvailable)));
 // Linking existing tasks (needed for the Phase 2 "link a task" picker) — extra
 // channels beyond the six in the spec, since the spec's UI requires task linking.
 ipcMain.handle('projects:link-task',   authed((_e, projectId, kind, taskId) => db.linkTask(auth.requireUserId(), projectId, kind, taskId)));
 ipcMain.handle('projects:unlink-task', authed((_e, kind, taskId)           => db.unlinkTask(auth.requireUserId(), kind, taskId)));
 ipcMain.handle('projects:linkable-tasks', authed(()                        => db.listLinkableTasks(auth.requireUserId())));
+
+// ── Project document files (Option A: bytes on disk under userData) ──
+// Allowlist mirrors db.PROJECT_DOC_TYPES; the native dialog also filters by it so
+// the user only sees permitted types (the db layer re-validates regardless).
+const DOC_UPLOAD_EXTENSIONS = ['pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'gif', 'webp'];
+// Upload (and replace — db.saveProjectDocumentFile deletes the prior file on conflict).
+ipcMain.handle('projects:upload-document', authed(async (_e, projectId, documentType) => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    title: 'Choose a document to upload',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Documents & images', extensions: DOC_UPLOAD_EXTENSIONS },
+      { name: 'PDF',    extensions: ['pdf'] },
+      { name: 'Word',   extensions: ['doc', 'docx'] },
+      { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },
+    ],
+  });
+  if (canceled || !filePaths?.[0]) return { ok: false, canceled: true };
+  return db.saveProjectDocumentFile(auth.requireUserId(), projectId, documentType, filePaths[0]);
+}));
+// Download — copy the stored file out to a user-chosen location.
+ipcMain.handle('projects:download-document', authed(async (_e, projectId, documentType) => {
+  const r = db.resolveProjectDocumentFile(auth.requireUserId(), projectId, documentType);
+  if (!r.ok) return r;
+  if (!r.exists) return { ok: false, error: 'The file is missing from disk' };
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    title: 'Save document as', defaultPath: r.originalName,
+  });
+  if (canceled || !filePath) return { ok: false, canceled: true };
+  try { fs.copyFileSync(r.absPath, filePath); return { ok: true, path: filePath }; }
+  catch (err) { return { ok: false, error: String(err?.message || err) }; }
+}));
+// Open with the OS default application.
+ipcMain.handle('projects:open-document', authed(async (_e, projectId, documentType) => {
+  const r = db.resolveProjectDocumentFile(auth.requireUserId(), projectId, documentType);
+  if (!r.ok) return r;
+  if (!r.exists) return { ok: false, error: 'The file is missing from disk' };
+  const errMsg = await shell.openPath(r.absPath);   // '' on success
+  return errMsg ? { ok: false, error: errMsg } : { ok: true };
+}));
+// Remove — delete the file from disk and clear its metadata.
+ipcMain.handle('projects:remove-document', authed((_e, projectId, documentType) =>
+  db.removeProjectDocumentFile(auth.requireUserId(), projectId, documentType)));
+// Delete-undo file handling: purge the whole folder when the undo window lapses,
+// or move it onto the re-created project's new id when the user undoes.
+ipcMain.handle('projects:purge-files',  authed((_e, projectId)            => db.purgeProjectFiles(projectId)));
+ipcMain.handle('projects:restore-files', authed((_e, oldId, newId, docs)  => db.restoreProjectFiles(auth.requireUserId(), oldId, newId, docs)));
 
 // ── Backup ──
 ipcMain.handle('db:backup', authed(async () => {
@@ -213,6 +258,12 @@ app.whenReady().then(() => {
   // migration runner, then run best-effort maintenance (backup rotation).
   try {
     db.openConnection(app.getPath('userData'));
+    // Path verification (Phase 1): confirm the project-files root shares the same
+    // userData root as the live DB BEFORE any file is ever written. Logged once at
+    // boot so the resolved locations can be eyeballed against the real data folder.
+    console.log('[paths] userData dir     :', app.getPath('userData'));
+    console.log('[paths] database file    :', db.dbPath());
+    console.log('[paths] project files root:', db.projectsRootDir());
     db.applyMigrations();
     db.runMaintenance();
   } catch (err) {
