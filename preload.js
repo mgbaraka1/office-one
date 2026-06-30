@@ -91,6 +91,8 @@ contextBridge.exposeInMainWorld('api', {
   // ── Backup / reports / window / shell ──
   /** @returns {Promise<import('./ipc-types').FileResult>} */
   backupDatabase:    ()           => ipcRenderer.invoke('db:backup'),
+  /** @returns {Promise<import('./ipc-types').ProjectsBackupResult>} */
+  backupProjects:    ()           => ipcRenderer.invoke('projects:backup'),
   /** @returns {Promise<import('./ipc-types').FileResult>} */
   exportPDF:         (html, name) => ipcRenderer.invoke('report:exportPDF', html, name),
   flushComplete:     ()           => ipcRenderer.invoke('app:flushComplete'),

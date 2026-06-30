@@ -2166,6 +2166,7 @@
     <span class="cp-title"><span class="ti-ic" data-ic="clipboard-list"></span>Projects</span>
     <div class="topbar-right">
       <input type="text" id="projects-filter" class="mod-search" placeholder="Search projects…" oninput="applyProjectFilter()">
+      <button id="projects-backup-btn" class="btn" onclick="backupProjects()" title="Save a .zip of all uploaded project files">Backup Projects</button>
       <button class="btn primary" onclick="openProjectModal()">+ New Project</button>
     </div>
   </div>
@@ -5414,6 +5415,30 @@ async function backupDatabase() {
   else if (res?.error) btn.innerHTML = '<span class="nav-icon">' + ic('triangle-alert') + '</span>Failed';
   else return;   // user canceled the save dialog
   setTimeout(() => { btn.innerHTML = orig; }, 2200);
+}
+
+// ── Project files backup ──
+// Zips the whole projects/ file tree to a user-chosen .zip. The zip runs in the
+// main process; show a loading state on the button so a large tree doesn't look
+// frozen, and toast the outcome (including the "nothing uploaded yet" case).
+async function backupProjects() {
+  const btn = document.getElementById('projects-backup-btn');
+  if (btn.disabled) return;
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.textContent = 'Backing up…';
+  let res;
+  try { res = await window.api.backupProjects(); }
+  catch { res = { ok: false, error: 'failed' }; }
+  finally { btn.disabled = false; btn.innerHTML = orig; }
+  if (!res) return;                                   // shouldn't happen
+  if (res.ok) {
+    if (res.fileCount === 0) toast('No project files to back up yet — saved an empty archive');
+    else toast(`Backed up ${res.fileCount} project file${res.fileCount === 1 ? '' : 's'} → ${res.path}`);
+  } else if (res.error) {
+    toast('Backup failed: ' + res.error);
+  }
+  // res.ok === false with no error = user canceled the dialog → stay silent
 }
 
 // ── Subscriptions: helpers ──

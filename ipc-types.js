@@ -264,4 +264,14 @@
  * @property {string} [error]
  */
 
+/**
+ * Result of zipping the project files tree (projects:backup).
+ * @typedef {Object} ProjectsBackupResult
+ * @property {boolean} ok
+ * @property {string} [path]        Saved .zip path on success.
+ * @property {number} [fileCount]   Number of files archived (0 = nothing to back up yet).
+ * @property {number} [byteCount]   Total uncompressed bytes archived.
+ * @property {string} [error]       Failure reason (cancel returns { ok:false } with no error).
+ */
+
 module.exports = {};   // documentation-only module
