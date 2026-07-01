@@ -8,9 +8,9 @@ Everything runs locally in an embedded SQLite database. No server, no network, n
 
 ## Features
 
-- **🕐 Timesheet** — per-day records (company, system, activity, time type, description, source, status, minutes, tags) with a live timer, bulk actions, month overview, and inline editing.
-- **📌 Not Yet** — a day-agnostic backlog of tasks you can later assign into a specific day.
-- **📋 Projects** — a container for a client/system engagement: a profile, a fixed set of tracked documents (Quotation, Quotation Approval, Invoice) shown as status cards, and links to existing timesheet/backlog tasks.
+- **🕐 Timesheet** — a per-day view of your **work sessions**. Work is modeled in two levels: a **task** (a named, date-independent unit — company, system, activity, status, source, tags) owns one or more **work logs** (individual sessions — date, what was done, minutes, time type). A task can span several sessions across several days; add sessions inline and edit task name, minutes, and status right in the table, with a live timer, bulk actions, and a month overview.
+- **📌 Not Yet** — the backlog: **tasks with no sessions logged yet**. Add them day-agnostically, then assign one to a date (which logs its first session and moves it into that day's timesheet).
+- **📋 Projects** — a container for a client/system engagement: a profile, a configurable set of tracked documents (seeded Quotation, Quotation Approval, Invoice) shown as file cards, and links to existing tasks (each shown with its work sessions).
 - **💳 Subscriptions** — recurring-cost manager with per-currency renewal tracking and "renews in" badges.
 - **📊 Analytics** — the home overview: KPIs, hours by company/system, daily-hours trend, donuts, and a GitHub-style activity heatmap. All totals are aggregated in SQL.
 - **📄 Reports** — one-click PDF reports (daily timesheet, monthly over-time request, subscriptions) via an in-app print/preview overlay.
@@ -80,12 +80,12 @@ On macOS the folder is `~/Library/Application Support/timesheet/`; on Linux `~/.
 - **`main.js`** — Electron main process: window lifecycle + thin, **authenticated** IPC handlers. Every data handler is scoped to the logged-in user's id taken from the main-process session (never trusted from the renderer).
 - **`auth.js`** — bcryptjs hashing + the in-memory session.
 - **`db.js`** — the data layer: connection, the versioned **migration runner** (`openConnection` → `applyMigrations` → `runMaintenance`), and all SQL (per-entry upserts, SQL-side analytics aggregation).
-- **`migrations/`** — numbered, append-only schema migrations (`000_baseline`, `001_auth`, `002_normalize`, …) tracked in a `schema_migrations` table.
+- **`migrations/`** — numbered, append-only schema migrations (`000_baseline`, `001_auth`, `002_normalize`, … up to `014_drop_backlog`) tracked in a `schema_migrations` table. Migration `012` introduced the two-level `tasks` + `work_logs` model (splitting the old `day_entries`); `013` merged the `backlog` pool into zero-session tasks, and `014` dropped the now-empty `backlog` table.
 - **`preload.js`** — `contextBridge` exposing `window.api`; each method calls a scoped `domain:action` IPC channel.
 - **`ipc-types.js`** — JSDoc type definitions for every IPC request/response shape.
 - **`index.html`** — the entire renderer UI (auth gate + all modules).
 
-Data is **normalized**: a `days` row owns child `day_entries`; `subscriptions` and `backlog` are owned per user; `projects` own their tracked `project_documents` and are linked from `day_entries`/`backlog` via a nullable `project_id`; shared config lives in `app_settings`, machine-only state in `machine_prefs`.
+Data is **normalized** around a two-level work model: a **`tasks`** row (date-independent) owns child **`work_logs`** (one per work session, carrying the date); a task with zero work_logs is a "Not Yet" backlog item. The `days` table is kept only as per-date metadata (the employee name for reports). `subscriptions` are owned per user; `projects` own their tracked `project_documents` and are linked from `tasks` via a nullable `project_id`; shared config lives in `app_settings`, machine-only state in `machine_prefs`.
 
 See [`CLAUDE.md`](CLAUDE.md) for the full developer reference.
 

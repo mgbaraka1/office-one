@@ -100,6 +100,83 @@
  * @property {BacklogTask[]} backlog
  */
 
+// ─────────────────────────────────────────────────────────────────────────────
+// v2 two-level model: Task (date-independent) + WorkLog (its dated sessions).
+// Added for the tasks:* / worklogs:* channels. The legacy DayEntryRow/BacklogTask
+// shapes above stay intact — the renderer still uses them until the Phase C rework.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A standalone, date-INDEPENDENT unit of work (the `tasks` table). Category fields
+ * round-trip like everywhere else: company/system/natural as display LABELs,
+ * status as a stable ENTRY_STATUS code. `workLogs` is present only on `tasks:get`.
+ * @typedef {Object} Task
+ * @property {number} id
+ * @property {string} name
+ * @property {'IN_PROGRESS'|'DONE'|string} status  ENTRY_STATUS lookup code.
+ * @property {string} company
+ * @property {string} system
+ * @property {string} natural       Activity type (label).
+ * @property {string} source
+ * @property {string[]} tags
+ * @property {number|null} projectId Linked Project id, or null when unlinked.
+ * @property {number} sortOrder
+ * @property {string} createdAt
+ * @property {number} logCount       Number of work logs on this task.
+ * @property {number} totalMinutes   Sum of the task's logged minutes.
+ * @property {string|null} firstDate Earliest work-log date (null if none).
+ * @property {string|null} lastDate  Latest work-log date (null if none).
+ * @property {WorkLog[]} [workLogs]  The task's ordered work logs (tasks:get only).
+ */
+
+/**
+ * A "Not Yet" item (`tasks:notyet`) — a task with zero work sessions. Merged from
+ * the old backlog in migration 013. `description` is the task name; there is no
+ * per-session `time` (chosen when the task is assigned to a day). Add/edit/delete
+ * go through tasks:create / tasks:update / tasks:delete.
+ * @typedef {Object} NotYetTask
+ * @property {number} id
+ * @property {string} description   The task name / "what to do".
+ * @property {string} company
+ * @property {string} system
+ * @property {string} natural
+ * @property {string} source
+ * @property {string[]} tags
+ * @property {number|null} projectId
+ */
+
+/**
+ * One dated work session on a task (the `work_logs` table). `time` is a TIME_TYPE
+ * lookup code (per-session, e.g. Work Time / Over Time).
+ * @typedef {Object} WorkLog
+ * @property {number} id
+ * @property {number} taskId
+ * @property {string} date          YYYY-MM-DD.
+ * @property {string} description    What was done this session.
+ * @property {number|''} minutes     Duration, or '' when unset.
+ * @property {string} time           TIME_TYPE lookup code ('' when unset).
+ * @property {number} sortOrder
+ */
+
+/**
+ * A work log flattened with its parent task's context — the `worklogs:byDate`
+ * ("day view") row shape.
+ * @typedef {WorkLog & {
+ *   taskName: string, status: string, company: string, system: string,
+ *   natural: string, projectId: number|null
+ * }} WorkLogOnDate
+ */
+
+/**
+ * Result of a work-log mutation (`worklogs:add|update|delete`). Carries the
+ * refreshed parent task so the caller can re-render.
+ * @typedef {Object} WorkLogMutationResult
+ * @property {boolean} ok
+ * @property {number} [id]        The new work-log id (add only).
+ * @property {Task|null} [task]   The refreshed parent task on success.
+ * @property {string} [error]     Failure reason (e.g. task not found).
+ */
+
 /**
  * A timesheet entry linked to a project — a DayEntryRow plus its day's date and a
  * `kind` discriminator. (Backlog tasks linked to a project use BacklogTask + kind.)
@@ -161,11 +238,14 @@
  * @property {ProjectSystem[]} systems     Linked systems (SYSTEM lookups, many-to-many).
  * @property {string} status               A PROJECT_STATUS lookup code (e.g. 'ACTIVE').
  * @property {string} createdAt
- * @property {number} taskCount            Linked timesheet entries + backlog tasks.
+ * @property {number} taskCount            Number of tasks linked to the project.
  */
 
 /**
- * A project in full — profile + linked tasks + document statuses (`projects:get`).
+ * A project in full — profile + its linked TASKS + document statuses (`projects:get`).
+ * As of Phase C4 `tasks` is a flat `Task[]`, each Task carrying its nested
+ * `workLogs`; zero-log tasks (Not-Yet items linked to the project) are included.
+ * The old {entries, backlog} tasks shape was retired.
  * @typedef {Object} Project
  * @property {number} id
  * @property {string} name
@@ -174,7 +254,7 @@
  * @property {ProjectSystem[]} systems     Linked systems (SYSTEM lookups, many-to-many).
  * @property {string} status               A PROJECT_STATUS lookup code (e.g. 'ACTIVE').
  * @property {string} createdAt
- * @property {{ entries: ProjectEntryTask[], backlog: Array<BacklogTask & {kind:'backlog'}> }} tasks
+ * @property {Task[]} tasks                Linked tasks, each with nested `workLogs`.
  * @property {ProjectDocument[]} documents
  */
 
@@ -189,10 +269,9 @@
  */
 
 /**
- * Unlinked tasks available to attach to a project (`projects:linkable-tasks`).
- * @typedef {Object} LinkableTasks
- * @property {ProjectEntryTask[]} entries
- * @property {Array<BacklogTask & {kind:'backlog'}>} backlog
+ * `projects:linkable-tasks` returns a flat `Task[]` — every task not linked to any
+ * project (with-sessions and zero-log alike), each with its rollups. (The old
+ * {entries, backlog} LinkableTasks shape was retired in Phase C4.)
  */
 
 /**
