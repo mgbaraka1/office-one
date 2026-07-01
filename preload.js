@@ -16,11 +16,10 @@ contextBridge.exposeInMainWorld('api', {
   /** @returns {Promise<import('./ipc-types').AuthUser|null>} */
   authCurrentUser: ()                 => ipcRenderer.invoke('auth:currentUser'),
 
-  // ── Days + entries ──
-  /** @returns {Promise<import('./ipc-types').SaveDayResult>} */
-  saveDay:        (dateStr, data) => ipcRenderer.invoke('day:save', dateStr, data),
-  /** @returns {Promise<import('./ipc-types').DayData|null>} */
-  loadDay:        (dateStr)       => ipcRenderer.invoke('day:get', dateStr),
+  // ── Days ──
+  // NB: day:save / day:get were retired in Phase C2 — the Timesheet now persists
+  // work sessions granularly through tasks:* / worklogs:*. listDays/loadDaysRange
+  // remain (calendar marks + range reads).
   /** @returns {Promise<string[]>} */
   listDays:       ()              => ipcRenderer.invoke('days:list'),
   /** @returns {Promise<import('./ipc-types').DayInRange[]>} */
@@ -54,10 +53,39 @@ contextBridge.exposeInMainWorld('api', {
   loadSubscriptions: ()           => ipcRenderer.invoke('subscriptions:list'),
   saveSubscriptions: (data)       => ipcRenderer.invoke('subscriptions:save', data),
 
-  // ── Backlog ("Not Yet" pool) ──
-  /** @returns {Promise<import('./ipc-types').BacklogPayload>} */
-  loadBacklog:    ()              => ipcRenderer.invoke('backlog:list'),
-  saveBacklog:    (data)          => ipcRenderer.invoke('backlog:save', data),
+  // ── "Not Yet" pool ──
+  // backlog:list / backlog:save retired in Phase C3 — a Not-Yet item is a task with
+  // zero work_logs. List via tasks:notyet; mutate via createTask/updateTask/
+  // deleteTask; "assign to day" adds a work_log.
+  /** @returns {Promise<import('./ipc-types').NotYetTask[]>} */
+  listNotYet:     ()              => ipcRenderer.invoke('tasks:notyet'),
+
+  // ── Tasks (v2 two-level model — standalone, date-independent unit of work) ──
+  /** @returns {Promise<import('./ipc-types').Task[]>} */
+  listTasks:      ()              => ipcRenderer.invoke('tasks:list'),
+  /** @returns {Promise<import('./ipc-types').Task|null>} */
+  getTask:        (id)            => ipcRenderer.invoke('tasks:get', id),
+  /** @returns {Promise<import('./ipc-types').Task>} */
+  createTask:     (data)          => ipcRenderer.invoke('tasks:create', data),
+  /** @returns {Promise<import('./ipc-types').Task|null>} */
+  updateTask:     (id, data)      => ipcRenderer.invoke('tasks:update', id, data),
+  deleteTask:     (id)            => ipcRenderer.invoke('tasks:delete', id),
+
+  // ── Work logs (v2 — dated work sessions belonging to a task) ──
+  /** @returns {Promise<import('./ipc-types').WorkLog[]>} */
+  listWorkLogs:   (taskId)        => ipcRenderer.invoke('worklogs:byTask', taskId),
+  /** @returns {Promise<import('./ipc-types').WorkLogOnDate[]>} */
+  workLogsByDate: (date)          => ipcRenderer.invoke('worklogs:byDate', date),
+  /** @returns {Promise<import('./ipc-types').WorkLogMutationResult>} */
+  addWorkLog:     (taskId, data)  => ipcRenderer.invoke('worklogs:add', taskId, data),
+  /** @returns {Promise<import('./ipc-types').WorkLogMutationResult>} */
+  updateWorkLog:  (id, data)      => ipcRenderer.invoke('worklogs:update', id, data),
+  /** @returns {Promise<import('./ipc-types').WorkLogMutationResult>} */
+  deleteWorkLog:  (id)            => ipcRenderer.invoke('worklogs:delete', id),
+  /** Per-date employee name (days metadata) — non-destructive; no work sessions touched. */
+  setDayName:     (date, name)    => ipcRenderer.invoke('day:setName', date, name),
+  /** @returns {Promise<string>} */
+  getDayName:     (date)          => ipcRenderer.invoke('day:getName', date),
 
   // ── Projects (container for tasks + tracked documents) ──
   /** @returns {Promise<import('./ipc-types').Project>} */
@@ -69,9 +97,9 @@ contextBridge.exposeInMainWorld('api', {
   /** @returns {Promise<import('./ipc-types').Project|null>} */
   updateProject:  (id, data)      => ipcRenderer.invoke('projects:update', id, data),
   deleteProject:  (id)            => ipcRenderer.invoke('projects:delete', id),
-  linkProjectTask:   (projectId, kind, taskId) => ipcRenderer.invoke('projects:link-task', projectId, kind, taskId),
-  unlinkProjectTask: (kind, taskId)            => ipcRenderer.invoke('projects:unlink-task', kind, taskId),
-  /** @returns {Promise<import('./ipc-types').LinkableTasks>} */
+  linkProjectTask:   (projectId, taskId) => ipcRenderer.invoke('projects:link-task', projectId, taskId),
+  unlinkProjectTask: (taskId)            => ipcRenderer.invoke('projects:unlink-task', taskId),
+  /** @returns {Promise<import('./ipc-types').Task[]>} */
   listLinkableTasks: ()           => ipcRenderer.invoke('projects:linkable-tasks'),
 
   // ── Project document files (bytes on disk under userData) ──

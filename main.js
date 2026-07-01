@@ -85,8 +85,9 @@ ipcMain.handle('auth:logout',      ()                     => auth.logout());
 ipcMain.handle('auth:currentUser', ()                     => auth.currentUser());
 
 // ── Days ── (userId always comes from the authenticated session, never the renderer)
-ipcMain.handle('day:save',  authed((_e, dateStr, data) => db.saveDay(auth.requireUserId(), dateStr, data)));
-ipcMain.handle('day:get',   authed((_e, dateStr)       => db.loadDay(auth.requireUserId(), dateStr)));
+// day:save / day:get retired in Phase C2 — the Timesheet persists work sessions
+// granularly via tasks:* / worklogs:*. days:list / days:range remain (calendar
+// marks + range reads), now driven by work_logs.
 ipcMain.handle('days:list', authed(()                  => db.listDays(auth.requireUserId())));
 ipcMain.handle('days:range', authed((_e, from, to)     => db.loadDaysRange(auth.requireUserId(), from, to)));
 
@@ -109,9 +110,33 @@ ipcMain.handle('lookups:save',        authed((_e, data)                      => 
 ipcMain.handle('subscriptions:list', authed(()         => db.loadSubscriptions(auth.requireUserId())));
 ipcMain.handle('subscriptions:save', authed((_e, data) => db.saveSubscriptions(auth.requireUserId(), data)));
 
-// ── Backlog ("Not Yet" pool) ──
-ipcMain.handle('backlog:list', authed(()         => db.loadBacklog(auth.requireUserId())));
-ipcMain.handle('backlog:save', authed((_e, data) => db.saveBacklog(auth.requireUserId(), data)));
+// ── "Not Yet" pool ──
+// backlog:list / backlog:save were retired in Phase C3 — a Not-Yet item is now a
+// task with zero work_logs (migration 013 merged the backlog table in; 014 dropped
+// it). The list comes from tasks:notyet; add/edit/delete use tasks:create/update/
+// delete; "assign to day" adds a work_log.
+ipcMain.handle('tasks:notyet', authed(() => db.listNotYetTasks(auth.requireUserId())));
+
+// ── Tasks (v2 two-level model — standalone, date-independent unit of work) ──
+// Added alongside day:*/backlog:* (which remain the renderer's live path until the
+// Phase C UI rework); both APIs operate on the same tables.
+ipcMain.handle('tasks:list',   authed(()             => db.listTasks(auth.requireUserId())));
+ipcMain.handle('tasks:get',    authed((_e, id)       => db.getTask(auth.requireUserId(), id)));
+ipcMain.handle('tasks:create', authed((_e, data)     => db.createTask(auth.requireUserId(), data)));
+ipcMain.handle('tasks:update', authed((_e, id, data) => db.updateTask(auth.requireUserId(), id, data)));
+ipcMain.handle('tasks:delete', authed((_e, id)       => db.deleteTask(auth.requireUserId(), id)));
+
+// ── Work logs (v2 — dated work sessions belonging to a task) ──
+ipcMain.handle('worklogs:byTask', authed((_e, taskId)      => db.listWorkLogs(auth.requireUserId(), taskId)));
+ipcMain.handle('worklogs:byDate', authed((_e, date)        => db.logsForDate(auth.requireUserId(), date)));
+ipcMain.handle('worklogs:add',    authed((_e, taskId, data) => db.addWorkLog(auth.requireUserId(), taskId, data)));
+ipcMain.handle('worklogs:update', authed((_e, id, data)    => db.updateWorkLog(auth.requireUserId(), id, data)));
+ipcMain.handle('worklogs:delete', authed((_e, id)          => db.deleteWorkLog(auth.requireUserId(), id)));
+
+// Per-date employee name (metadata on the `days` row), for the reworked Timesheet
+// which persists work sessions granularly instead of through day:save.
+ipcMain.handle('day:setName', authed((_e, date, name) => db.setDayName(auth.requireUserId(), date, name)));
+ipcMain.handle('day:getName', authed((_e, date)       => db.getDayName(auth.requireUserId(), date)));
 
 // ── Projects (container for tasks + tracked documents) ──
 ipcMain.handle('projects:create', authed((_e, data)     => db.createProject(auth.requireUserId(), data)));
@@ -119,11 +144,10 @@ ipcMain.handle('projects:list',   authed(()             => db.listProjects(auth.
 ipcMain.handle('projects:get',    authed((_e, id)       => db.getProject(auth.requireUserId(), id)));
 ipcMain.handle('projects:update', authed((_e, id, data) => db.updateProject(auth.requireUserId(), id, data)));
 ipcMain.handle('projects:delete', authed((_e, id)       => db.deleteProject(auth.requireUserId(), id)));
-// Linking existing tasks (needed for the Phase 2 "link a task" picker) — extra
-// channels beyond the six in the spec, since the spec's UI requires task linking.
-ipcMain.handle('projects:link-task',   authed((_e, projectId, kind, taskId) => db.linkTask(auth.requireUserId(), projectId, kind, taskId)));
-ipcMain.handle('projects:unlink-task', authed((_e, kind, taskId)           => db.unlinkTask(auth.requireUserId(), kind, taskId)));
-ipcMain.handle('projects:linkable-tasks', authed(()                        => db.listLinkableTasks(auth.requireUserId())));
+// Linking existing tasks to a project — addressed by task id (two-level model).
+ipcMain.handle('projects:link-task',   authed((_e, projectId, taskId) => db.linkTask(auth.requireUserId(), projectId, taskId)));
+ipcMain.handle('projects:unlink-task', authed((_e, taskId)            => db.unlinkTask(auth.requireUserId(), taskId)));
+ipcMain.handle('projects:linkable-tasks', authed(()                   => db.listLinkableTasks(auth.requireUserId())));
 
 // ── Project document files (Option A: bytes on disk under userData) ──
 // Allowlist mirrors db.PROJECT_DOC_TYPES; the native dialog also filters by it so
