@@ -190,11 +190,6 @@ function sweepOrphanProjectFiles() {
   } catch { /* non-critical */ }
 }
 
-// Was the database file freshly created this run? (e.g. first launch → show setup)
-function isFreshDatabase() {
-  return dbWasNew;
-}
-
 // Snapshot the current DB into <userData>/backups/, keeping the newest `keep`.
 // Best-effort: never blocks startup if it fails.
 function rotateBackups(keep = 5) {
@@ -257,47 +252,43 @@ function createUser(username, passwordHash) {
   return Number(info.lastInsertRowid);
 }
 
-// ── Days + entries ──────────────────────────────────────────────────────────
-// Storage is normalized: a `days` row (owner + date + employee_name) with child
-// `day_entries`. The renderer still works with the shape { name, rows[] } where
-// each row is { company, system, natural, time, description, source, status,
-// minutes, tags[] } — these functions translate between the two and scope every
-// query to the authenticated user (`userId`).
-
-// Stored day_entries row → renderer row shape (note the renamed columns:
-// activity_type→natural, time_type→time; minutes null → '' for the UI). `eid` is
-// the stable DB id, carried on the row so saveDay can update entries in place
-// (per-entry UPSERT) instead of rewriting them.
-// Category fields are stored as FK ids into lookup_codes. Display fields
+// ── Tasks + work logs (renderer sees the legacy "day rows" shape) ─────────────
+// Since migration 012 the unit of work is a date-INDEPENDENT `tasks` row with
+// child `work_logs` (one work session each). The `days` table survives only as
+// per-date metadata (employee_name for reports). The renderer still works with the
+// legacy shape { name, rows[] } where each row is one work session flattened with
+// its task: { company, system, natural, time, description, source, status, minutes,
+// tags[] }. These helpers translate between that shape and the two tables and scope
+// every query to the authenticated user (`userId`).
+//
+// Column split: task-level = name/status/company/system/activity/source/tags/
+// project; work-log-level = date/description/minutes/time_type. Display fields
 // (company/system/natural) round-trip as their LABEL; logic fields (time/status)
 // round-trip as their stable CODE, so the renderer compares codes, never strings.
-function entryToRow(e) {
-  return {
-    eid: e.id,
-    company: lkLabel(e.company_id), system: lkLabel(e.system_id),
-    natural: lkLabel(e.activity_type_id), time: lkCode(e.time_type_id),
-    description: e.description || '', source: e.source || '',
-    status: lkCode(e.status_id) || 'IN_PROGRESS',
-    minutes: (e.minutes === null || e.minutes === undefined) ? '' : e.minutes,
-    tags: safeParse(e.tags, []),
-    projectId: e.project_id ?? null,   // linked Project (nullable); rendered as a pill
-  };
-}
+//
+// A joined work_log(wl) + its parent task(t), aliased so one SELECT yields a flat
+// row. Phase A is 1:1 (one work_log per task), so `eid` = the work_log id and a
+// renderer row maps to exactly one (task, work_log) pair.
+const LOG_JOIN = 'FROM work_logs wl JOIN tasks t ON t.id = wl.task_id';
+const LOG_COLS = `wl.id AS wl_id, wl.task_id AS task_id, wl.date AS date,
+  wl.description AS description, wl.minutes AS minutes, wl.time_type_id AS time_type_id,
+  wl.sort_order AS sort_order,
+  t.name AS task_name,
+  t.company_id AS company_id, t.system_id AS system_id, t.activity_type_id AS activity_type_id,
+  t.status_id AS status_id, t.source AS source, t.tags AS tags, t.project_id AS project_id`;
 
-const ENTRY_COLS = 'id, company_id, system_id, activity_type_id, time_type_id, status_id, description, source, minutes, tags, project_id';
-
-// Renderer row → normalized FK column values (the inverse of entryToRow).
-function rowToEntry(r) {
-  const mins = (r.minutes === '' || r.minutes === null || r.minutes === undefined) ? null : Number(r.minutes);
+// Joined work_log+task row → renderer row shape (minutes null → '' for the UI).
+function logToRow(r) {
   return {
-    company_id: lkId('COMPANY', r.company), system_id: lkId('SYSTEM', r.system),
-    activity_type_id: lkId('ACTIVITY_TYPE', r.natural), time_type_id: lkId('TIME_TYPE', r.time),
-    status_id: lkId('ENTRY_STATUS', r.status) ?? lkId('ENTRY_STATUS', 'IN_PROGRESS'),
-    description: r.description ?? '', source: r.source ?? '',
-    minutes: Number.isFinite(mins) ? mins : null,
-    tags: JSON.stringify(Array.isArray(r.tags) ? r.tags : []),
-    // Linked Project id (validated against ownership in saveDay; null = unlinked).
-    project_id: (r.projectId == null || r.projectId === '') ? null : Number(r.projectId),
+    eid: r.wl_id,
+    taskId: r.task_id, taskName: r.task_name || '',
+    company: lkLabel(r.company_id), system: lkLabel(r.system_id),
+    natural: lkLabel(r.activity_type_id), time: lkCode(r.time_type_id),
+    description: r.description || '', source: r.source || '',
+    status: lkCode(r.status_id) || 'IN_PROGRESS',
+    minutes: (r.minutes === null || r.minutes === undefined) ? '' : r.minutes,
+    tags: safeParse(r.tags, []),
+    projectId: r.project_id ?? null,   // linked Project (nullable); rendered as a pill
   };
 }
 
@@ -306,136 +297,63 @@ function getDayRow(userId, dateStr) {
     .get(userId, dateStr) || null;
 }
 
-// Persist one day with a per-entry UPSERT (not a full rewrite):
-//   • a row whose `eid` matches an existing entry → UPDATE that entry in place
-//   • a new row (no/unknown eid) → INSERT
-//   • an existing entry no longer present in the rows → DELETE
-// Returns { eids: [...] } — the canonical entry id for each input row, in order,
-// so the renderer can adopt the ids of freshly-inserted rows (keeping subsequent
-// saves stable). A content-match fallback + a `consumed` guard make the operation
-// idempotent and safe under re-saves, duplicates, and cross-day moves even before
-// the renderer has reconciled ids.
-function saveDay(userId, dateStr, data) {
-  const name = data?.name || '';
-  const rows = Array.isArray(data?.rows) ? data.rows : [];
-  const now  = new Date().toISOString();
-  const eids = new Array(rows.length).fill(null);
-
-  tx(() => {
-    db.prepare(`INSERT INTO days(user_id, date, employee_name, created_at, updated_at)
-                VALUES(?, ?, ?, ?, ?)
-                ON CONFLICT(user_id, date)
-                DO UPDATE SET employee_name = excluded.employee_name, updated_at = excluded.updated_at`)
-      .run(userId, dateStr, name, now, now);
-    const day = getDayRow(userId, dateStr);
-
-    const existing = db.prepare(
-      `SELECT ${ENTRY_COLS} FROM day_entries WHERE day_id = ? ORDER BY sort_order, id`
-    ).all(day.id);
-    const byId = new Map(existing.map(e => [e.id, e]));
-    const consumed = new Set();
-
-    const upd = db.prepare(`UPDATE day_entries SET
-      company_id=?, system_id=?, activity_type_id=?, time_type_id=?, status_id=?, description=?, source=?, minutes=?, tags=?, project_id=?, sort_order=?, updated_at=?
-      WHERE id=?`);
-    const ins = db.prepare(`INSERT INTO day_entries
-      (user_id, day_id, company_id, system_id, activity_type_id, time_type_id, status_id, description, source, minutes, tags, project_id, sort_order, created_at, updated_at)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
-
-    const sameContent = (e, n) =>
-      e.company_id === n.company_id && e.system_id === n.system_id &&
-      e.activity_type_id === n.activity_type_id && e.time_type_id === n.time_type_id &&
-      e.status_id === n.status_id && e.description === n.description && e.source === n.source &&
-      (e.minutes ?? null) === n.minutes && (e.tags || '[]') === n.tags &&
-      (e.project_id ?? null) === n.project_id;
-
-    rows.forEach((r, i) => {
-      const n = rowToEntry(r);
-      n.project_id = ownedProjectId(userId, n.project_id);   // ignore links to projects the user doesn't own
-      let eid = null;
-      if (r.eid != null && byId.has(r.eid) && !consumed.has(r.eid)) {
-        eid = r.eid;                                   // 1) match by stable id
-      } else {
-        const m = existing.find(e => !consumed.has(e.id) && sameContent(e, n));
-        if (m) eid = m.id;                             // 2) content-match (idempotent re-save)
-      }
-      if (eid != null) {
-        consumed.add(eid);
-        upd.run(n.company_id, n.system_id, n.activity_type_id, n.time_type_id, n.status_id, n.description, n.source, n.minutes, n.tags, n.project_id, i, now, eid);
-      } else {
-        eid = Number(ins.run(userId, day.id, n.company_id, n.system_id, n.activity_type_id, n.time_type_id, n.status_id, n.description, n.source, n.minutes, n.tags, n.project_id, i, now, now).lastInsertRowid);
-        consumed.add(eid);
-      }
-      eids[i] = eid;
-    });
-
-    const del = db.prepare('DELETE FROM day_entries WHERE id = ?');
-    for (const e of existing) if (!consumed.has(e.id)) del.run(e.id);
-  });
-
-  return { eids };
-}
-
-function loadDay(userId, dateStr) {
-  const day = getDayRow(userId, dateStr);
-  if (!day) return null;
-  const rows = db.prepare(
-    `SELECT ${ENTRY_COLS} FROM day_entries WHERE day_id = ? ORDER BY sort_order, id`
-  ).all(day.id).map(entryToRow);
-  return { name: day.employee_name, rows };
-}
-
-// Only days that actually have entries (avoids phantom "has data" calendar marks
-// for an empty day row). Newest first.
+// Distinct dates that actually have work sessions, newest first. Driven by
+// work_logs (the source of truth for activity) — NOT the `days` table, which is
+// now metadata-only and may lack a row for a date that has sessions.
 function listDays(userId) {
   return db.prepare(
-    `SELECT d.date FROM days d
-     WHERE d.user_id = ? AND EXISTS (SELECT 1 FROM day_entries e WHERE e.day_id = d.id)
-     ORDER BY d.date DESC`
+    'SELECT DISTINCT date FROM work_logs WHERE user_id = ? ORDER BY date DESC'
   ).all(userId).map(r => r.date);
 }
 
-// All days in [from, to] inclusive, oldest first — two queries total (days, then
-// their entries) instead of N round-trips. Returns [{date, name, rows[]}].
+// All dates in [from, to] inclusive that have work sessions, oldest first, each as
+// {date, name, rows[]}. Driven by work_logs (so a date with sessions but no `days`
+// metadata row is still included); the employee name is looked up from `days`
+// (or '' when absent). Two queries total.
 function loadDaysRange(userId, from, to) {
-  const days = db.prepare(
-    'SELECT id, date, employee_name FROM days WHERE user_id = ? AND date >= ? AND date <= ? ORDER BY date ASC'
+  const logs = db.prepare(
+    `SELECT ${LOG_COLS} ${LOG_JOIN} WHERE wl.user_id = ? AND wl.date >= ? AND wl.date <= ? ORDER BY wl.date ASC, wl.sort_order, wl.id`
   ).all(userId, from, to);
-  if (days.length === 0) return [];
+  if (logs.length === 0) return [];
 
-  const byId = new Map(days.map(d => [d.id, { date: d.date, name: d.employee_name, rows: [] }]));
-  const placeholders = days.map(() => '?').join(',');
-  const entries = db.prepare(
-    `SELECT day_id, ${ENTRY_COLS} FROM day_entries WHERE day_id IN (${placeholders}) ORDER BY sort_order, id`
-  ).all(...days.map(d => d.id));
-  for (const e of entries) { const d = byId.get(e.day_id); if (d) d.rows.push(entryToRow(e)); }
-  return days.map(d => byId.get(d.id));
+  const names = new Map(
+    db.prepare('SELECT date, employee_name FROM days WHERE user_id = ? AND date >= ? AND date <= ?')
+      .all(userId, from, to).map(d => [d.date, d.employee_name])
+  );
+  const byDate = new Map();
+  const order = [];
+  for (const l of logs) {
+    let g = byDate.get(l.date);
+    if (!g) { g = { date: l.date, name: names.get(l.date) || '', rows: [] }; byDate.set(l.date, g); order.push(l.date); }
+    g.rows.push(logToRow(l));
+  }
+  return order.map(dt => byDate.get(dt));
 }
 
-// ── Companies / Systems views (read-only rollups over existing day_entries) ───
-// Both pages derive their data from the category FK columns already on
-// day_entries — no new table or schema change. Entries are grouped by the
-// display LABEL (the same value shown everywhere else). `fkCol` is a fixed,
-// internal column name (never user input), so interpolating it is injection-safe.
-// Every query is scoped to the authenticated `userId`.
+// ── Companies / Systems views (read-only rollups over tasks + work_logs) ──────
+// Both pages derive their data from the category FK columns on `tasks`, counting
+// the work sessions (`work_logs`) that reference them. Grouped by the display
+// LABEL (the same value shown everywhere else). `fkCol` is a fixed, internal
+// column name (never user input), so interpolating it is injection-safe. Every
+// query is scoped to the authenticated `userId`.
 function distinctCategory(userId, fkCol) {
   return db.prepare(
     `SELECT lc.label AS name, COUNT(*) AS count
-       FROM days d JOIN day_entries e ON e.day_id = d.id
-       JOIN lookup_codes lc ON lc.id = e.${fkCol}
-      WHERE d.user_id = ?
+       ${LOG_JOIN}
+       JOIN lookup_codes lc ON lc.id = t.${fkCol}
+      WHERE wl.user_id = ?
       GROUP BY lc.label
       ORDER BY lc.label COLLATE NOCASE`
   ).all(userId);
 }
 function categoryEntries(userId, fkCol, name) {
   return db.prepare(
-    `SELECT d.date AS date, e.*
-       FROM days d JOIN day_entries e ON e.day_id = d.id
-       JOIN lookup_codes lc ON lc.id = e.${fkCol}
-      WHERE d.user_id = ? AND lc.label = ?
-      ORDER BY d.date DESC, e.sort_order, e.id`
-  ).all(userId, name).map(e => ({ date: e.date, ...entryToRow(e) }));
+    `SELECT ${LOG_COLS}
+       ${LOG_JOIN}
+       JOIN lookup_codes lc ON lc.id = t.${fkCol}
+      WHERE wl.user_id = ? AND lc.label = ?
+      ORDER BY wl.date DESC, wl.sort_order, wl.id`
+  ).all(userId, name).map(r => ({ date: r.date, ...logToRow(r) }));
 }
 function listCompanies(userId)        { return distinctCategory(userId, 'company_id'); }
 function listSystems(userId)          { return distinctCategory(userId, 'system_id'); }
@@ -451,20 +369,20 @@ function systemEntries(userId, name)  { return categoryEntries(userId, 'system_i
 // Returns plain numbers + { key: minutes } maps; the renderer only draws them.
 function getAnalytics(userId, from, to, spanFrom, spanTo) {
   const period = [userId, from, to];
-  const FROM  = `FROM days d JOIN day_entries e ON e.day_id = d.id`;
-  const WHERE = `WHERE d.user_id = ? AND d.date >= ? AND d.date <= ?`;
+  const FROM  = `FROM work_logs wl JOIN tasks t ON t.id = wl.task_id`;
+  const WHERE = `WHERE wl.user_id = ? AND wl.date >= ? AND wl.date <= ?`;
   const doneId = lkId('ENTRY_STATUS', 'DONE');
   const otId   = lkId('TIME_TYPE', 'OVERTIME');
 
   const totals = db.prepare(
-    `SELECT COALESCE(SUM(e.minutes),0) AS totalMin,
+    `SELECT COALESCE(SUM(wl.minutes),0) AS totalMin,
             COUNT(*) AS recordCount,
-            SUM(CASE WHEN e.status_id = ? THEN 1 ELSE 0 END) AS doneCount ${FROM} ${WHERE}`
+            SUM(CASE WHEN t.status_id = ? THEN 1 ELSE 0 END) AS doneCount ${FROM} ${WHERE}`
   ).get(doneId, ...period);
 
   const activeDays = db.prepare(
     `SELECT COUNT(*) AS n FROM (
-       SELECT d.date ${FROM} ${WHERE} GROUP BY d.date HAVING COALESCE(SUM(e.minutes),0) > 0
+       SELECT wl.date ${FROM} ${WHERE} GROUP BY wl.date HAVING COALESCE(SUM(wl.minutes),0) > 0
      )`
   ).get(...period).n;
 
@@ -474,18 +392,18 @@ function getAnalytics(userId, from, to, spanFrom, spanTo) {
     return m;
   };
   // company/system/natural keyed by display LABEL (INNER JOIN drops unset FKs).
-  const byCompany = mapOf(`SELECT lc.label AS k, COALESCE(SUM(e.minutes),0) AS v ${FROM} JOIN lookup_codes lc ON lc.id = e.company_id ${WHERE} GROUP BY lc.label`);
-  const bySystem  = mapOf(`SELECT lc.label AS k, COALESCE(SUM(e.minutes),0) AS v ${FROM} JOIN lookup_codes lc ON lc.id = e.system_id ${WHERE} GROUP BY lc.label`);
-  // donuts only count entries with logged minutes.
-  const byNatural = mapOf(`SELECT lc.label AS k, SUM(e.minutes) AS v ${FROM} JOIN lookup_codes lc ON lc.id = e.activity_type_id ${WHERE} AND e.minutes > 0 GROUP BY lc.label`);
+  const byCompany = mapOf(`SELECT lc.label AS k, COALESCE(SUM(wl.minutes),0) AS v ${FROM} JOIN lookup_codes lc ON lc.id = t.company_id ${WHERE} GROUP BY lc.label`);
+  const bySystem  = mapOf(`SELECT lc.label AS k, COALESCE(SUM(wl.minutes),0) AS v ${FROM} JOIN lookup_codes lc ON lc.id = t.system_id ${WHERE} GROUP BY lc.label`);
+  // donuts only count sessions with logged minutes.
+  const byNatural = mapOf(`SELECT lc.label AS k, SUM(wl.minutes) AS v ${FROM} JOIN lookup_codes lc ON lc.id = t.activity_type_id ${WHERE} AND wl.minutes > 0 GROUP BY lc.label`);
   // time-type keyed by stable CODE; unset time_type buckets under 'OTHER'.
-  const byType    = mapOf(`SELECT COALESCE(lc.code, 'OTHER') AS k, SUM(e.minutes) AS v ${FROM} LEFT JOIN lookup_codes lc ON lc.id = e.time_type_id ${WHERE} AND e.minutes > 0 GROUP BY k`);
+  const byType    = mapOf(`SELECT COALESCE(lc.code, 'OTHER') AS k, SUM(wl.minutes) AS v ${FROM} LEFT JOIN lookup_codes lc ON lc.id = wl.time_type_id ${WHERE} AND wl.minutes > 0 GROUP BY k`);
 
   const perDay = (otOnly) => {
     const m = {};
-    const sql = `SELECT d.date AS date, COALESCE(SUM(e.minutes),0) AS mins
-                 ${FROM} ${WHERE} ${otOnly ? 'AND e.time_type_id = ?' : ''}
-                 GROUP BY d.date`;
+    const sql = `SELECT wl.date AS date, COALESCE(SUM(wl.minutes),0) AS mins
+                 ${FROM} ${WHERE} ${otOnly ? 'AND wl.time_type_id = ?' : ''}
+                 GROUP BY wl.date`;
     const args = otOnly ? [userId, spanFrom, spanTo, otId] : [userId, spanFrom, spanTo];
     for (const r of db.prepare(sql).all(...args)) m[r.date] = r.mins;
     return m;
@@ -501,60 +419,16 @@ function getAnalytics(userId, from, to, spanFrom, spanTo) {
 // Overview "now" numbers (today + month-to-date), computed in SQL.
 function getOverviewStats(userId, today, monthStart) {
   const t = db.prepare(
-    `SELECT COALESCE(SUM(e.minutes),0) AS mins, COUNT(*) AS recs
-     FROM days d JOIN day_entries e ON e.day_id = d.id
-     WHERE d.user_id = ? AND d.date = ?`
+    `SELECT COALESCE(SUM(wl.minutes),0) AS mins, COUNT(*) AS recs
+     FROM work_logs wl
+     WHERE wl.user_id = ? AND wl.date = ?`
   ).get(userId, today);
   const m = db.prepare(
-    `SELECT COALESCE(SUM(e.minutes),0) AS mins, COUNT(DISTINCT d.date) AS days
-     FROM days d JOIN day_entries e ON e.day_id = d.id
-     WHERE d.user_id = ? AND d.date >= ? AND d.date <= ?`
+    `SELECT COALESCE(SUM(wl.minutes),0) AS mins, COUNT(DISTINCT wl.date) AS days
+     FROM work_logs wl
+     WHERE wl.user_id = ? AND wl.date >= ? AND wl.date <= ?`
   ).get(userId, monthStart, today);
   return { todayMin: t.mins, todayRecs: t.recs, monthMin: m.mins, daysLogged: m.days };
-}
-
-// ── Backlog ("Not Yet" pool) ────────────────────────────────────────────────────
-// A day-agnostic list of tasks. Returns { backlog: [...] }; mirrors the
-// subscriptions IPC shape so the renderer treats it the same way.
-function loadBacklog(userId) {
-  const backlog = db.prepare(
-    'SELECT id, company_id, system_id, activity_type_id, time_type_id, description, source, tags, project_id FROM backlog WHERE user_id = ? ORDER BY sort_order'
-  ).all(userId).map(t => ({
-    id: t.id,
-    company: lkLabel(t.company_id), system: lkLabel(t.system_id), natural: lkLabel(t.activity_type_id), time: lkCode(t.time_type_id),
-    description: t.description || '', source: t.source || '',
-    tags: safeParse(t.tags, []),
-    projectId: t.project_id ?? null,   // linked Project (nullable); rendered as a pill
-  }));
-  return { backlog };
-}
-
-// Upsert each task in place and delete only the tasks that were removed — no
-// blanket delete-all + reinsert. Scoped to the owner.
-function saveBacklog(userId, data) {
-  const list = Array.isArray(data?.backlog) ? data.backlog : [];
-  tx(() => {
-    const keep = new Set(list.map(t => t.id));
-    const del = db.prepare('DELETE FROM backlog WHERE id = ? AND user_id = ?');
-    for (const row of db.prepare('SELECT id FROM backlog WHERE user_id = ?').all(userId)) {
-      if (!keep.has(row.id)) del.run(row.id, userId);
-    }
-    const up = db.prepare(`INSERT INTO backlog(id, user_id, company_id, system_id, activity_type_id, time_type_id, description, source, tags, project_id, sort_order)
-                           VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                           ON CONFLICT(id) DO UPDATE SET
-                             company_id=excluded.company_id, system_id=excluded.system_id,
-                             activity_type_id=excluded.activity_type_id, time_type_id=excluded.time_type_id,
-                             description=excluded.description, source=excluded.source,
-                             tags=excluded.tags, project_id=excluded.project_id, sort_order=excluded.sort_order`);
-    list.forEach((t, i) => up.run(
-      t.id, userId,
-      lkId('COMPANY', t.company), lkId('SYSTEM', t.system),
-      lkId('ACTIVITY_TYPE', t.natural), lkId('TIME_TYPE', t.time),
-      t.description ?? '', t.source ?? '',
-      JSON.stringify(Array.isArray(t.tags) ? t.tags : []),
-      ownedProjectId(userId, t.projectId), i
-    ));
-  });
 }
 
 // ── Lookups (normalized catalog — shared app config, not per-user) ────────────
@@ -651,8 +525,9 @@ function saveSubscriptions(userId, data) {
 // ── Projects ──────────────────────────────────────────────────────────────────
 // A Project is a container for a client/system engagement. It owns a fixed set of
 // tracked documents (auto-created on insert) and links to existing tasks — both
-// timesheet entries (day_entries) and "Not Yet" backlog tasks — via a nullable
-// project_id FK. A project also references one or more COMPANY lookup codes (its
+// timesheet tasks (the `tasks` table, surfaced per work session) and "Not Yet"
+// backlog tasks — via a nullable project_id FK. A project also references one or
+// more COMPANY lookup codes (its
 // clients, via the project_companies junction), one or more SYSTEM lookups (via
 // the project_systems junction), and a PROJECT_STATUS lookup code (status). Every
 // query is scoped to the authenticated owner (`userId`). The tracked document
@@ -764,14 +639,14 @@ function createProject(userId, data) {
   return getProject(userId, id);
 }
 
-// All of the user's projects with a linked-task count (entries + backlog), newest
-// first — the list view's payload.
+// All of the user's projects with a linked-task count, newest first — the list
+// view's payload. taskCount is the number of TASKS linked to the project (each may
+// have zero or many work sessions).
 function listProjects(userId) {
   return db.prepare(
     `SELECT p.id, p.name, p.description, p.status,
             p.created_at AS createdAt,
-            (SELECT COUNT(*) FROM day_entries e WHERE e.project_id = p.id)
-          + (SELECT COUNT(*) FROM backlog b WHERE b.project_id = p.id) AS taskCount
+            (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id) AS taskCount
        FROM projects p
       WHERE p.user_id = ?
       ORDER BY p.created_at DESC, p.id DESC`
@@ -782,8 +657,9 @@ function listProjects(userId) {
   }));
 }
 
-// One project in full: profile + linked tasks (timesheet entries, each with its
-// day's date, and backlog tasks) + the three document statuses. null if not owned.
+// One project in full: profile + its linked TASKS (each with nested work sessions,
+// including zero-log "Not Yet" tasks) + document statuses. null if not owned.
+// (ProjectTasksV2 shape — `tasks: Task[]`, replacing the old {entries, backlog}.)
 function getProject(userId, id) {
   const p = db.prepare(
     `SELECT id, name, description, status, created_at AS createdAt
@@ -791,23 +667,7 @@ function getProject(userId, id) {
   ).get(id, userId);
   if (!p) return null;
 
-  const entries = db.prepare(
-    `SELECT d.date AS date, e.* FROM day_entries e
-       JOIN days d ON d.id = e.day_id
-      WHERE e.project_id = ? AND e.user_id = ?
-      ORDER BY d.date DESC, e.sort_order, e.id`
-  ).all(id, userId).map(e => ({ kind: 'entry', date: e.date, ...entryToRow(e) }));
-
-  const backlog = db.prepare(
-    `SELECT id, company_id, system_id, activity_type_id, time_type_id, description, source, tags
-       FROM backlog WHERE project_id = ? AND user_id = ? ORDER BY sort_order`
-  ).all(id, userId).map(t => ({
-    kind: 'backlog', id: t.id,
-    company: lkLabel(t.company_id), system: lkLabel(t.system_id),
-    natural: lkLabel(t.activity_type_id), time: lkCode(t.time_type_id),
-    description: t.description || '', source: t.source || '',
-    tags: safeParse(t.tags, []),
-  }));
+  const tasks = projectTasks(userId, id);
 
   // Tracked documents = the active PROJECT_DOCUMENT lookups (ordered), each merged
   // with this project's stored row. `documentType` is the stable lookup code;
@@ -834,7 +694,27 @@ function getProject(userId, id) {
     return { documentType: o.code, label: o.label, isAvailable: hasFile, file };
   });
 
-  return { ...p, companies: projectCompanies(id), systems: projectSystems(id), tasks: { entries, backlog }, documents };
+  return { ...p, companies: projectCompanies(id), systems: projectSystems(id), tasks, documents };
+}
+
+// A project's linked tasks (ProjectTasksV2), each as a full Task with its ordered
+// work sessions + rollups. Includes zero-log tasks (Not-Yet items linked to the
+// project). Owner-scoped; ordered newest-first.
+function projectTasks(userId, projectId) {
+  return db.prepare(
+    `SELECT * FROM tasks WHERE project_id = ? AND user_id = ? ORDER BY created_at DESC, id DESC`
+  ).all(projectId, userId).map(t => {
+    const workLogs = db.prepare(
+      `SELECT ${WORK_LOG_COLS} FROM work_logs WHERE task_id = ? AND user_id = ? ORDER BY date DESC, sort_order, id`
+    ).all(t.id, userId).map(workLogToApi);
+    const roll = db.prepare(
+      `SELECT COUNT(*) AS logCount, COALESCE(SUM(minutes),0) AS totalMinutes, MIN(date) AS firstDate, MAX(date) AS lastDate
+         FROM work_logs WHERE task_id = ?`
+    ).get(t.id);
+    return taskToApi(t, {
+      logCount: roll.logCount, totalMinutes: roll.totalMinutes, firstDate: roll.firstDate, lastDate: roll.lastDate, workLogs,
+    });
+  });
 }
 
 // Update a project's profile fields in place (documents/links untouched). Returns
@@ -999,47 +879,301 @@ function restoreProjectFiles(userId, oldProjectId, newProjectId, fileDocs) {
   return { ok: true, project: getProject(userId, newProjectId) };
 }
 
-// Link / unlink an existing task to a project. `kind` selects the table and is
-// validated to a fixed set (injection-safe). Linking verifies project ownership;
-// the task UPDATE is scoped to the owner so a user can only touch their own rows.
-function projectTaskTable(kind) {
-  return kind === 'backlog' ? 'backlog' : 'day_entries';   // default: timesheet entry
-}
-function linkTask(userId, projectId, kind, taskId) {
+// Link / unlink a task to a project, addressed directly by its task id (the
+// two-level model — everything is a task now). Linking verifies project ownership;
+// each UPDATE is owner-scoped so a user can only touch their own rows.
+function linkTask(userId, projectId, taskId) {
   if (!ownsProject(userId, projectId)) return { ok: false, error: 'project not found' };
-  db.prepare(`UPDATE ${projectTaskTable(kind)} SET project_id = ? WHERE id = ? AND user_id = ?`)
+  db.prepare('UPDATE tasks SET project_id = ? WHERE id = ? AND user_id = ?')
     .run(projectId, taskId, userId);
   return { ok: true };
 }
-function unlinkTask(userId, kind, taskId) {
-  db.prepare(`UPDATE ${projectTaskTable(kind)} SET project_id = NULL WHERE id = ? AND user_id = ?`)
+function unlinkTask(userId, taskId) {
+  db.prepare('UPDATE tasks SET project_id = NULL WHERE id = ? AND user_id = ?')
     .run(taskId, userId);
   return { ok: true };
 }
 
-// Tasks not yet linked to ANY project, for the "link an existing task" picker:
-// the day-agnostic backlog pool plus every timesheet entry (with its date). Both
-// scoped to the owner. Kept read-only; the UI links via linkTask.
+// Tasks not linked to ANY project, for the "link an existing task" picker — every
+// unlinked task (with-sessions and zero-log alike), owner-scoped, newest first,
+// each with its rollups. Read-only; the UI links via linkTask.
 function listLinkableTasks(userId) {
-  const entries = db.prepare(
-    `SELECT d.date AS date, e.* FROM day_entries e
-       JOIN days d ON d.id = e.day_id
-      WHERE e.user_id = ? AND e.project_id IS NULL
-      ORDER BY d.date DESC, e.sort_order, e.id`
-  ).all(userId).map(e => ({ kind: 'entry', date: e.date, ...entryToRow(e) }));
+  return db.prepare(
+    `SELECT * FROM tasks WHERE user_id = ? AND project_id IS NULL ORDER BY created_at DESC, id DESC`
+  ).all(userId).map(t => {
+    const roll = db.prepare(
+      `SELECT COUNT(*) AS logCount, COALESCE(SUM(minutes),0) AS totalMinutes, MIN(date) AS firstDate, MAX(date) AS lastDate
+         FROM work_logs WHERE task_id = ?`
+    ).get(t.id);
+    return taskToApi(t, {
+      logCount: roll.logCount, totalMinutes: roll.totalMinutes, firstDate: roll.firstDate, lastDate: roll.lastDate,
+    });
+  });
+}
 
-  const backlog = db.prepare(
-    `SELECT id, company_id, system_id, activity_type_id, time_type_id, description, source, tags
-       FROM backlog WHERE user_id = ? AND project_id IS NULL ORDER BY sort_order`
-  ).all(userId).map(t => ({
-    kind: 'backlog', id: t.id,
+// ── Tasks + work logs (v2 API for the two-level model) ────────────────────────
+// The forward-looking data layer the renderer moves onto in Phase C. A `tasks` row
+// is a date-INDEPENDENT unit of work; its `work_logs` are the dated sessions.
+// Round-trips mirror the rest of the app: company/system/natural resolve as LABELs,
+// status/time as stable CODEs; tags are JSON; project links are validated against
+// ownership. These are ADDITIVE — the legacy day:*/backlog:* shims above are
+// untouched, so both APIs read/write the same tables side by side.
+
+// One task row → the renderer's Task shape. `extra` carries per-call rollups
+// (log counts / totals) and, from getTask, the ordered workLogs array.
+function taskToApi(t, extra = {}) {
+  return {
+    id: t.id,
+    name: t.name || '',
+    status: lkCode(t.status_id) || 'IN_PROGRESS',
     company: lkLabel(t.company_id), system: lkLabel(t.system_id),
-    natural: lkLabel(t.activity_type_id), time: lkCode(t.time_type_id),
-    description: t.description || '', source: t.source || '',
+    natural: lkLabel(t.activity_type_id),
+    source: t.source || '',
     tags: safeParse(t.tags, []),
-  }));
+    projectId: t.project_id ?? null,
+    sortOrder: t.sort_order ?? 0,
+    createdAt: t.created_at,
+    ...extra,
+  };
+}
 
-  return { entries, backlog };
+// One work_log row → the renderer's WorkLog shape (minutes null → '' for the UI).
+function workLogToApi(w) {
+  return {
+    id: w.id,
+    taskId: w.task_id,
+    date: w.date,
+    description: w.description || '',
+    minutes: (w.minutes === null || w.minutes === undefined) ? '' : w.minutes,
+    time: lkCode(w.time_type_id),
+    sortOrder: w.sort_order ?? 0,
+  };
+}
+
+const WORK_LOG_COLS = 'id, user_id, task_id, date, description, minutes, time_type_id, sort_order, created_at, updated_at';
+
+// API payload → task-level column values. Unknown/empty lookups → NULL (unset);
+// status defaults to IN_PROGRESS; the project link is ownership-validated.
+function taskWriteFields(userId, data) {
+  return {
+    name: String(data?.name ?? '').trim(),
+    status_id: lkId('ENTRY_STATUS', data?.status) ?? lkId('ENTRY_STATUS', 'IN_PROGRESS'),
+    company_id: lkId('COMPANY', data?.company),
+    system_id: lkId('SYSTEM', data?.system),
+    activity_type_id: lkId('ACTIVITY_TYPE', data?.natural),
+    project_id: ownedProjectId(userId, data?.projectId),
+    source: String(data?.source ?? ''),
+    tags: JSON.stringify(Array.isArray(data?.tags) ? data.tags : []),
+  };
+}
+
+// API payload → work-log column values (the session: what/when/how long).
+function workLogWriteFields(data) {
+  const mins = (data?.minutes === '' || data?.minutes === null || data?.minutes === undefined) ? null : Number(data.minutes);
+  return {
+    date: String(data?.date ?? '').slice(0, 10),
+    description: String(data?.description ?? ''),
+    minutes: Number.isFinite(mins) ? mins : null,
+    time_type_id: lkId('TIME_TYPE', data?.time),
+  };
+}
+
+// Ownership gates + append-order helpers (all owner-scoped).
+function ownsTask(userId, taskId) {
+  return !!db.prepare('SELECT 1 FROM tasks WHERE id = ? AND user_id = ?').get(taskId, userId);
+}
+function ownsWorkLog(userId, logId) {
+  return !!db.prepare('SELECT 1 FROM work_logs WHERE id = ? AND user_id = ?').get(logId, userId);
+}
+function nextTaskSort(userId) {
+  return db.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM tasks WHERE user_id = ?').get(userId).n;
+}
+function nextWorkLogSort(taskId) {
+  return db.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM work_logs WHERE task_id = ?').get(taskId).n;
+}
+
+// All of a user's tasks with rollups (log count / total minutes / first+last log
+// date), newest first — the Tasks list-view payload.
+function listTasks(userId) {
+  return db.prepare(
+    `SELECT t.*,
+            (SELECT COUNT(*)                 FROM work_logs w WHERE w.task_id = t.id) AS logCount,
+            (SELECT COALESCE(SUM(w.minutes),0) FROM work_logs w WHERE w.task_id = t.id) AS totalMinutes,
+            (SELECT MIN(w.date)              FROM work_logs w WHERE w.task_id = t.id) AS firstDate,
+            (SELECT MAX(w.date)              FROM work_logs w WHERE w.task_id = t.id) AS lastDate
+       FROM tasks t WHERE t.user_id = ?
+      ORDER BY t.created_at DESC, t.id DESC`
+  ).all(userId).map(t => taskToApi(t, {
+    logCount: t.logCount, totalMinutes: t.totalMinutes, firstDate: t.firstDate, lastDate: t.lastDate,
+  }));
+}
+
+// The "Not Yet" pool = tasks with no work sessions yet (the two-level replacement
+// for the old backlog table, merged in migration 013). Returned in the Not-Yet
+// item shape the renderer uses (description = the task name; no per-session `time`,
+// which is chosen when the task is assigned to a day). Owner-scoped, ordered.
+function listNotYetTasks(userId) {
+  return db.prepare(
+    `SELECT t.* FROM tasks t
+      WHERE t.user_id = ?
+        AND NOT EXISTS (SELECT 1 FROM work_logs w WHERE w.task_id = t.id)
+      ORDER BY t.sort_order, t.id`
+  ).all(userId).map(t => ({
+    id: t.id,
+    description: t.name || '',
+    company: lkLabel(t.company_id), system: lkLabel(t.system_id), natural: lkLabel(t.activity_type_id),
+    source: t.source || '', tags: safeParse(t.tags, []),
+    projectId: t.project_id ?? null,
+  }));
+}
+
+// One task in full: profile + rollups + its ordered work logs. null if not owned.
+function getTask(userId, id) {
+  const t = db.prepare('SELECT * FROM tasks WHERE id = ? AND user_id = ?').get(id, userId);
+  if (!t) return null;
+  const workLogs = db.prepare(
+    `SELECT ${WORK_LOG_COLS} FROM work_logs WHERE task_id = ? AND user_id = ? ORDER BY date DESC, sort_order, id`
+  ).all(id, userId).map(workLogToApi);
+  const roll = db.prepare(
+    `SELECT COUNT(*) AS logCount, COALESCE(SUM(minutes),0) AS totalMinutes, MIN(date) AS firstDate, MAX(date) AS lastDate
+       FROM work_logs WHERE task_id = ?`
+  ).get(id);
+  return taskToApi(t, {
+    logCount: roll.logCount, totalMinutes: roll.totalMinutes, firstDate: roll.firstDate, lastDate: roll.lastDate, workLogs,
+  });
+}
+
+// Insert a standalone task (no work logs yet — the two-level analogue of a
+// "Not Yet" item). Returns the full task.
+function createTask(userId, data) {
+  const now = new Date().toISOString();
+  const f = taskWriteFields(userId, data);
+  let id;
+  tx(() => {
+    id = Number(db.prepare(
+      `INSERT INTO tasks(user_id, name, status_id, company_id, system_id, activity_type_id, project_id, source, tags, sort_order, created_at, updated_at)
+       VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`
+    ).run(userId, f.name, f.status_id, f.company_id, f.system_id, f.activity_type_id, f.project_id, f.source, f.tags, nextTaskSort(userId), now, now).lastInsertRowid);
+  });
+  return getTask(userId, id);
+}
+
+// Update a task's profile fields in place (its work logs are untouched). Returns
+// the refreshed task, or null if the caller doesn't own it.
+function updateTask(userId, id, data) {
+  if (!ownsTask(userId, id)) return null;
+  const now = new Date().toISOString();
+  const f = taskWriteFields(userId, data);
+  tx(() => {
+    db.prepare(
+      `UPDATE tasks SET name=?, status_id=?, company_id=?, system_id=?, activity_type_id=?, project_id=?, source=?, tags=?, updated_at=?
+        WHERE id=? AND user_id=?`
+    ).run(f.name, f.status_id, f.company_id, f.system_id, f.activity_type_id, f.project_id, f.source, f.tags, now, id, userId);
+  });
+  return getTask(userId, id);
+}
+
+// Delete a task. ON DELETE CASCADE removes its work logs (its project link simply
+// vanishes with the row, exactly as a timesheet delete did before).
+function deleteTask(userId, id) {
+  tx(() => { db.prepare('DELETE FROM tasks WHERE id = ? AND user_id = ?').run(id, userId); });
+  return { ok: true };
+}
+
+// All work logs for one task, ordered. Empty if the task isn't owned.
+function listWorkLogs(userId, taskId) {
+  if (!ownsTask(userId, taskId)) return [];
+  return db.prepare(
+    `SELECT ${WORK_LOG_COLS} FROM work_logs WHERE task_id = ? AND user_id = ? ORDER BY date DESC, sort_order, id`
+  ).all(taskId, userId).map(workLogToApi);
+}
+
+// Every work session on a date, joined to its task for context — the log-centric
+// "day view" the Timesheet renders (via worklogs:byDate).
+function logsForDate(userId, date) {
+  return db.prepare(
+    `SELECT wl.id AS id, wl.task_id AS taskId, wl.date AS date, wl.description AS description,
+            wl.minutes AS minutes, wl.time_type_id AS time_type_id, wl.sort_order AS sortOrder,
+            t.name AS taskName, t.status_id AS status_id, t.company_id AS company_id,
+            t.system_id AS system_id, t.activity_type_id AS activity_type_id,
+            t.source AS source, t.tags AS tags, t.project_id AS projectId
+       FROM work_logs wl JOIN tasks t ON t.id = wl.task_id
+      WHERE wl.user_id = ? AND wl.date = ?
+      ORDER BY wl.sort_order, wl.id`
+  ).all(userId, date).map(r => ({
+    id: r.id, taskId: r.taskId, taskName: r.taskName || '',
+    date: r.date, description: r.description || '',
+    minutes: (r.minutes === null || r.minutes === undefined) ? '' : r.minutes,
+    time: lkCode(r.time_type_id),
+    status: lkCode(r.status_id) || 'IN_PROGRESS',
+    company: lkLabel(r.company_id), system: lkLabel(r.system_id), natural: lkLabel(r.activity_type_id),
+    source: r.source || '', tags: safeParse(r.tags, []),
+    projectId: r.projectId ?? null,
+    sortOrder: r.sortOrder ?? 0,
+  }));
+}
+
+// Upsert ONLY the per-date employee name on the `days` metadata row, without
+// touching any work sessions (used by the reworked Timesheet, which persists its
+// work logs granularly via tasks:* / worklogs:*). Returns { ok }.
+function setDayName(userId, date, name) {
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO days(user_id, date, employee_name, created_at, updated_at)
+     VALUES(?, ?, ?, ?, ?)
+     ON CONFLICT(user_id, date)
+     DO UPDATE SET employee_name = excluded.employee_name, updated_at = excluded.updated_at`
+  ).run(userId, date, String(name ?? ''), now, now);
+  return { ok: true };
+}
+
+// The employee name recorded for a date (from the `days` metadata row), or '' —
+// lets the reworked Timesheet show the day's name without loading its entries.
+function getDayName(userId, date) {
+  const d = getDayRow(userId, date);
+  return d ? (d.employee_name || '') : '';
+}
+
+// Add a work session to a task the user owns. Returns the refreshed task (with its
+// logs) plus the new log id, or { ok:false } when the task isn't owned.
+function addWorkLog(userId, taskId, data) {
+  if (!ownsTask(userId, taskId)) return { ok: false, error: 'task not found' };
+  const now = new Date().toISOString();
+  const f = workLogWriteFields(data);
+  let id;
+  tx(() => {
+    id = Number(db.prepare(
+      `INSERT INTO work_logs(user_id, task_id, date, description, minutes, time_type_id, sort_order, created_at, updated_at)
+       VALUES(?,?,?,?,?,?,?,?,?)`
+    ).run(userId, taskId, f.date, f.description, f.minutes, f.time_type_id, nextWorkLogSort(taskId), now, now).lastInsertRowid);
+  });
+  return { ok: true, id, task: getTask(userId, taskId) };
+}
+
+// Update a work log in place. Returns { ok, task } with the refreshed parent task.
+function updateWorkLog(userId, id, data) {
+  if (!ownsWorkLog(userId, id)) return { ok: false, error: 'work log not found' };
+  const now = new Date().toISOString();
+  const f = workLogWriteFields(data);
+  let taskId;
+  tx(() => {
+    db.prepare(
+      `UPDATE work_logs SET date=?, description=?, minutes=?, time_type_id=?, updated_at=? WHERE id=? AND user_id=?`
+    ).run(f.date, f.description, f.minutes, f.time_type_id, now, id, userId);
+    taskId = db.prepare('SELECT task_id FROM work_logs WHERE id = ?').get(id)?.task_id;
+  });
+  return { ok: true, task: (taskId != null) ? getTask(userId, taskId) : null };
+}
+
+// Delete a work log. Returns { ok, task } with the (still-standing) parent task so
+// the caller can re-render; the task itself is never removed here.
+function deleteWorkLog(userId, id) {
+  let taskId;
+  tx(() => {
+    taskId = db.prepare('SELECT task_id FROM work_logs WHERE id = ? AND user_id = ?').get(id, userId)?.task_id;
+    db.prepare('DELETE FROM work_logs WHERE id = ? AND user_id = ?').run(id, userId);
+  });
+  return { ok: true, task: (taskId != null) ? getTask(userId, taskId) : null };
 }
 
 // ── Window prefs (this machine only) ──────────────────────────────────────────
@@ -1092,16 +1226,18 @@ function projectDocumentsDir(projectId) {
 }
 
 module.exports = {
-  openConnection, applyMigrations, runMaintenance, isFreshDatabase,
+  openConnection, applyMigrations, runMaintenance,
   close, backup, dbPath,
   projectsRootDir, projectDir, projectDocumentsDir,
   countUsers, getUserByUsername, getUserById, createUser, getUnclaimedUser, claimUser,
-  saveDay, loadDay, listDays, loadDaysRange,
+  listDays, loadDaysRange,
   listCompanies, listSystems, companyEntries, systemEntries,
   getAnalytics, getOverviewStats,
-  loadBacklog, saveBacklog,
   createProject, listProjects, getProject, updateProject, deleteProject,
   linkTask, unlinkTask, listLinkableTasks,
+  listTasks, getTask, createTask, updateTask, deleteTask, listNotYetTasks,
+  listWorkLogs, logsForDate, addWorkLog, updateWorkLog, deleteWorkLog,
+  setDayName, getDayName,
   saveProjectDocumentFile, resolveProjectDocumentFile, removeProjectDocumentFile,
   purgeProjectFiles, restoreProjectFiles,
   loadLookups, saveLookups, getLookupsByCategory,

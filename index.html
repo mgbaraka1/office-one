@@ -1916,6 +1916,7 @@
       <thead>
         <tr>
           <th style="width:36px">#</th>
+          <th style="min-width:150px">Task</th>
           <th>Company</th>
           <th>System</th>
           <th>Natural</th>
@@ -1955,6 +1956,18 @@
       <button class="modal-close" onclick="closeModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Task <span style="text-transform:none;font-weight:500;color:var(--muted)">— the task this work belongs to (defaults to the description)</span></label>
+          <input id="f-taskname" type="text" placeholder="e.g. Q3 billing integration" />
+        </div>
+      </div>
+      <div class="form-row" id="f-existing-task-row">
+        <div class="form-group full">
+          <label>Or log against an existing task <span style="text-transform:none;font-weight:500;color:var(--muted)">— leave empty to create a new task</span></label>
+          <div id="f-existing-task"></div>
+        </div>
+      </div>
       <div class="form-row">
         <div class="form-group">
           <label>Company</label>
@@ -2113,7 +2126,6 @@
           <th>Company</th>
           <th>System</th>
           <th>Natural</th>
-          <th>Time</th>
           <th style="min-width:240px">Description</th>
           <th style="min-width:180px">Source</th>
           <th style="width:150px"></th>
@@ -2313,13 +2325,9 @@
         </div>
       </div>
       <div class="form-row">
-        <div class="form-group">
+        <div class="form-group full">
           <label>Natural</label>
           <select id="b-natural"></select>
-        </div>
-        <div class="form-group">
-          <label>Time Type</label>
-          <select id="b-time"></select>
         </div>
       </div>
       <div class="form-row">
@@ -2590,7 +2598,7 @@ let currentProject   = null;     // full project loaded in the detail view
 let projectEditId    = null;     // modal mode: null = create, else project id
 let undoProject      = null;     // snapshot of a just-deleted project (for undo)
 let _undoProjectTimer = null;
-let linkableTasks    = { entries: [], backlog: [] };   // picker source
+let linkableTasks    = [];   // picker source: unlinked Task[]
 let pCompaniesPicker = null;     // tag-picker handles for the project modal
 let pSystemsPicker   = null;
 let projectIndex     = [];       // lightweight [{id,name,status}] for the day/backlog Project field
@@ -2997,14 +3005,11 @@ async function switchDay(dateStr) {
 
   activeDate = dateStr;
 
-  let entry = dayCache[dateStr];
-  if (!entry) {
-    entry = await window.api.loadDay(dateStr);
-    if (entry) dayCache[dateStr] = entry;
-  }
+  const list = await window.api.workLogsByDate(dateStr);
+  rows = list.map(l => Object.assign({}, l, { eid: l.id }));
+  _tsBaseline = new Set(rows.map(r => r.eid));
 
-  rows = (entry?.rows || []).map(r => Object.assign({}, r));
-  document.getElementById('hName').value = entry?.name || LK.defaultName || '';
+  document.getElementById('hName').value = (await window.api.getDayName(dateStr)) || LK.defaultName || '';
   document.getElementById('hDate').value = dateStr;
 
   window.api.setTitle('Cooperation Tools — Timesheet — ' + dateStr);
@@ -3049,7 +3054,7 @@ function renderTable() {
       const divTr = document.createElement('tr');
       divTr.className = 'inprogress-divider';
       const divTd = document.createElement('td');
-      divTd.colSpan = 11;
+      divTd.colSpan = 12;
       divTd.innerHTML = '<div class="inprogress-divider-inner"><span class="inprogress-divider-label">' + ic('zap') + ' In Progress</span></div>';
       divTr.appendChild(divTd);
       tbody.appendChild(divTr);
@@ -3076,6 +3081,35 @@ function renderTable() {
     selWrap.appendChild(chk); selWrap.appendChild(numSpan);
     numCellDiv.appendChild(selWrap); numTd.appendChild(numCellDiv);
     tr.appendChild(numTd);
+
+    // Task name — the two-level entity this work session belongs to. Click to
+    // rename inline (persists the task, distinct from the session's description).
+    const taskTd = document.createElement('td');
+    const taskCell = document.createElement('div'); taskCell.className = 'cell';
+    const taskSpan = document.createElement('span');
+    taskSpan.className = 'task-name-cell';
+    taskSpan.textContent = row.taskName || row.description || '—';
+    taskSpan.title = 'Click to rename this task';
+    taskSpan.style.cursor = 'pointer'; taskSpan.style.fontWeight = '600';
+    taskSpan.addEventListener('click', () => {
+      const inp = document.createElement('input');
+      inp.type = 'text'; inp.className = 'min-inline-input'; inp.style.width = '100%';
+      inp.value = row.taskName || '';
+      taskCell.replaceChild(inp, taskSpan);
+      inp.focus(); inp.select();
+      const commit = () => {
+        rows[origIdx].taskName = inp.value.trim();
+        syncSiblingTasks(rows[origIdx]);   // task name is task-level
+        renderTable(); setUnsaved();
+      };
+      inp.addEventListener('blur', commit);
+      inp.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter')  { ev.preventDefault(); inp.blur(); }
+        if (ev.key === 'Escape') { ev.preventDefault(); renderTable(); }
+      });
+    });
+    taskCell.appendChild(taskSpan); taskTd.appendChild(taskCell);
+    tr.appendChild(taskTd);
 
     tr.appendChild(textCell(row.company));
     tr.appendChild(textCell(row.system));
@@ -3146,6 +3180,7 @@ function renderTable() {
         opt.addEventListener('click', (ev) => {
           ev.stopPropagation();
           rows[origIdx].status = o.code;
+          syncSiblingTasks(rows[origIdx]);   // status is task-level
           dropdown.remove();
           renderTable(); setUnsaved();
         });
@@ -3222,11 +3257,19 @@ function renderTable() {
     editBtn.className = 'row-btn'; editBtn.innerHTML = ic('pencil');
     editBtn.title = 'Edit'; editBtn.addEventListener('click', () => openModal(origIdx));
 
+    // Add session — log another work session against THIS row's task (same or a
+    // different day). The core two-level capability: one task, many work logs.
+    const sessionBtn = document.createElement('button');
+    sessionBtn.className = 'row-btn'; sessionBtn.innerHTML = ic('timer-reset') || ic('plus');
+    sessionBtn.title = 'Add another session to this task';
+    sessionBtn.addEventListener('click', () => openModal(null, { existingTaskId: row.taskId, prefill: row }));
+
     const dupBtn = document.createElement('button');
     dupBtn.className = 'row-btn'; dupBtn.innerHTML = ic('copy');
-    dupBtn.title = 'Duplicate';
+    dupBtn.title = 'Duplicate as a new task';
     dupBtn.addEventListener('click', () => {
-      rows.splice(origIdx + 1, 0, Object.assign({}, rows[origIdx]));
+      // A new, independent task+session (strip ids so the save creates fresh rows).
+      rows.splice(origIdx + 1, 0, Object.assign({}, rows[origIdx], { eid: undefined, taskId: undefined }));
       renderTable(); setUnsaved();
     });
 
@@ -3235,8 +3278,8 @@ function renderTable() {
     moveBtn.title = 'Move to another day';
     const restoreActs = () => {
       acts.innerHTML = '';
-      acts.appendChild(timerBtn); acts.appendChild(editBtn); acts.appendChild(dupBtn);
-      acts.appendChild(moveBtn); acts.appendChild(delBtn);
+      acts.appendChild(timerBtn); acts.appendChild(editBtn); acts.appendChild(sessionBtn);
+      acts.appendChild(dupBtn); acts.appendChild(moveBtn); acts.appendChild(delBtn);
     };
     moveBtn.addEventListener('click', () => {
       acts.innerHTML = '';
@@ -3267,7 +3310,7 @@ function renderTable() {
       renderTable(); setUnsaved();
     }, restoreActs));
 
-    acts.appendChild(timerBtn); acts.appendChild(editBtn); acts.appendChild(dupBtn); acts.appendChild(moveBtn); acts.appendChild(delBtn);
+    acts.appendChild(timerBtn); acts.appendChild(editBtn); acts.appendChild(sessionBtn); acts.appendChild(dupBtn); acts.appendChild(moveBtn); acts.appendChild(delBtn);
     actDiv.appendChild(acts); actTd.appendChild(actDiv);
     tr.appendChild(actTd);
 
@@ -3425,87 +3468,148 @@ function undoDelete() {
   }
   if (!undoRecord) return;
   const { row, idx } = undoRecord;
-  rows.splice(Math.min(idx, rows.length), 0, Object.assign({}, row));
+  // The deleted work_log is gone; strip its ids so the save recreates it fresh.
+  rows.splice(Math.min(idx, rows.length), 0, Object.assign({}, row, { eid: undefined, taskId: undefined }));
   hideUndoToast();
   renderTable();
   setUnsaved();
 }
 
-// ── Auto-save ──
-let _saveTimer = null;
-async function saveDay() {
-  if (!activeDate) return;
-  const savedDate = activeDate;
-  const savedRows = rows;                      // array reference captured at send time
-  const data = {
-    name: document.getElementById('hName').value,
-    rows: savedRows.map(r => Object.assign({}, r)),
+// ── Persistence (two-level: tasks + work logs) ────────────────────────────────
+// The Timesheet no longer saves a whole day through day:save. Each row is one
+// work session (work_log) belonging to a task; edits persist granularly via the
+// tasks:* / worklogs:* API. `setUnsaved()` funnels inline field edits + row
+// add/delete through a debounced reconciler; structural ops (move, backlog→day)
+// call the API directly and reload. `eid` = the work_log id; `taskId` = its task.
+
+// Task-level fields of a row (shared across all of a task's sessions).
+function tsTaskPayload(row) {
+  return {
+    name: (row.taskName && row.taskName.trim()) || row.description || '',
+    status: row.status, company: row.company, system: row.system, natural: row.natural,
+    source: row.source || '', tags: Array.isArray(row.tags) ? row.tags : [],
+    projectId: row.projectId ?? null,
   };
-  let res;
+}
+// Work-log-level fields of a row (this session only).
+function tsLogPayload(row) {
+  return {
+    date: row.date || activeDate,
+    description: row.description || '',
+    minutes: (row.minutes === '' || row.minutes == null) ? '' : row.minutes,
+    time: row.time || '',
+  };
+}
+// Propagate task-level fields from `row` onto sibling rows sharing its task, so a
+// task with several sessions on-screen stays consistent before we persist it once.
+function syncSiblingTasks(row) {
+  if (!row.taskId) return;
+  rows.forEach(r => {
+    if (r !== row && r.taskId === row.taskId) {
+      r.taskName = row.taskName; r.status = row.status; r.company = row.company;
+      r.system = row.system; r.natural = row.natural; r.source = row.source;
+      r.tags = Array.isArray(row.tags) ? row.tags.slice() : []; r.projectId = row.projectId;
+    }
+  });
+}
+function flashSaved() {
+  const el = document.getElementById('save-status');
+  el.innerHTML = ic('check') + ' Saved'; el.className = 'saved';
+  setTimeout(() => { if (el.className === 'saved') { el.textContent = ''; el.className = ''; } }, 1500);
+}
+async function refreshSavedDays() {
+  try { savedDays = new Set(await window.api.listDays()); } catch { /* keep prior */ }
+}
+// Reload the active day's work sessions from the DB and re-render (used after
+// structural changes). Resets the delete baseline to what's actually stored.
+async function reloadTimesheet() {
+  if (!activeDate) return;
+  const list = await window.api.workLogsByDate(activeDate);
+  rows = list.map(l => Object.assign({}, l, { eid: l.id }));
+  _tsBaseline = new Set(rows.map(r => r.eid));
+  clearSelection();
+  renderTable();
+  await refreshSavedDays();
+  renderCalendar();
+}
+
+// Debounced granular save of the current in-memory rows.
+let _saveTimer = null;
+let _tsBaseline = new Set();   // work-log ids present at the last load/persist
+function setUnsaved() {
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(persistTimesheet, 300);
+}
+function autoSave() { setUnsaved(); }   // legacy alias
+
+// Reconcile in-memory rows against the DB: upsert each (create task+log for a new
+// row, or update task + log for an existing one), then delete any work_log that
+// was removed on-screen (dropping its task too when that was its last session).
+async function persistTimesheet() {
+  if (!activeDate) return;
+  const seen = new Set();
+  const taskDone = new Set();
   try {
-    res = await window.api.saveDay(savedDate, data);
+    for (const row of rows) {
+      if (row.eid) {
+        seen.add(row.eid);
+        if (row.taskId && !taskDone.has(row.taskId)) {
+          taskDone.add(row.taskId);
+          await window.api.updateTask(row.taskId, tsTaskPayload(row));
+        }
+        await window.api.updateWorkLog(row.eid, tsLogPayload(row));
+      } else {
+        let taskId = row.taskId;
+        if (!taskId) { const c = await window.api.createTask(tsTaskPayload(row)); taskId = c.id; }
+        const r = await window.api.addWorkLog(taskId, tsLogPayload(row));
+        if (r && r.id) { row.eid = r.id; row.taskId = taskId; seen.add(r.id); }
+      }
+    }
+    for (const eid of _tsBaseline) {
+      if (!seen.has(eid)) {
+        const res = await window.api.deleteWorkLog(eid);
+        if (res && res.task && res.task.logCount === 0) await window.api.deleteTask(res.task.id);
+      }
+    }
+    _tsBaseline = seen;
+    flashSaved();
+    await refreshSavedDays();
+    renderCalendar();
   } catch (err) {
     const el = document.getElementById('save-status');
     el.innerHTML = ic('triangle-alert') + ' Save failed'; el.className = 'save-error';
     toast('Could not save — your changes are still on screen. Retrying on next edit.');
-    return;
   }
-  // Adopt the canonical entry ids so a freshly-inserted row updates in place on
-  // the next save (instead of inserting a duplicate). Only when we're still on
-  // the same day with the same rows array (the user didn't switch mid-save).
-  if (res && Array.isArray(res.eids) && rows === savedRows && res.eids.length === savedRows.length) {
-    savedRows.forEach((r, i) => { if (res.eids[i] != null) r.eid = res.eids[i]; });
-  }
-  dayCache[savedDate] = { name: data.name, rows: savedRows.map(r => Object.assign({}, r)) };
-  savedDays.add(savedDate);
-  renderCalendar();
-  const el = document.getElementById('save-status');
-  el.innerHTML = ic('check') + ' Saved'; el.className = 'saved';
-  setTimeout(() => { el.textContent = ''; el.className = ''; }, 1500);
 }
 
-function autoSave() {
-  clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(saveDay, 300);
-}
-
-// Move a single record from the active day to another day's file.
+// Move a single session to another day — just re-date its work_log, then reload.
 async function moveRowToDate(origIdx, targetDate) {
   if (!targetDate || targetDate === activeDate) { renderTable(); return; }
-  const [removed] = rows.splice(origIdx, 1);
-  if (!removed) { renderTable(); return; }
-
-  // Load destination day (cache → disk → fresh), append, persist.
-  let entry = dayCache[targetDate]
-    ? JSON.parse(JSON.stringify(dayCache[targetDate]))
-    : await window.api.loadDay(targetDate);
-  if (!entry) {
-    entry = { name: document.getElementById('hName').value || LK.defaultName || '', rows: [] };
-  }
-  entry.rows.push(Object.assign({}, removed));
-  await window.api.saveDay(targetDate, entry);
-  dayCache[targetDate] = entry;
-  savedDays.add(targetDate);
-
-  renderTable();
-  autoSave();           // persist the active day with the row removed
-  renderCalendar();
+  const row = rows[origIdx];
+  if (!row || !row.eid) { renderTable(); return; }
+  await window.api.updateWorkLog(row.eid, Object.assign(tsLogPayload(row), { date: targetDate }));
+  await reloadTimesheet();
 
   const el = document.getElementById('save-status');
   el.innerHTML = ic('check') + ' Moved to ' + esc(targetDate); el.className = 'saved';
   setTimeout(() => { el.textContent = ''; el.className = ''; }, 2000);
 }
 
-function setUnsaved() { autoSave(); }
 function clearStatus() { document.getElementById('save-status').textContent = ''; }
 
 // ── Modal ──
-function openModal(idx = null) {
+// opts.existingTaskId → open in "Add Session" mode preselected to that task
+// (prefilled from opts.prefill, the row whose task we're logging against).
+let fExistingTaskPicker = null;
+async function openModal(idx = null, opts = {}) {
   editIdx = idx;
-  const row = idx !== null ? rows[idx] : null;
   const isEdit = idx !== null;
-  document.getElementById('modal-title').textContent = isEdit ? 'Edit Record' : 'Add Record';
-  document.querySelector('#modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : 'Add Record';
+  const sessionTaskId = opts.existingTaskId ?? null;
+  const isSession = !isEdit && sessionTaskId != null;
+  const row = isEdit ? rows[idx] : (opts.prefill || null);
+
+  document.getElementById('modal-title').textContent = isEdit ? 'Edit Record' : (isSession ? 'Add Session' : 'Add Record');
+  document.querySelector('#modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : (isSession ? 'Add Session' : 'Add Record');
 
   populateSelect('f-company', 'companies', row?.company || '');
   populateSelect('f-system',  'systems',   row?.system  || '');
@@ -3513,7 +3617,7 @@ function openModal(idx = null) {
   populateSelect('f-time',    'timeType',  row?.time    || '');
   populateSelect('f-status',  'status',    row?.status  || '');
 
-  if (!isEdit) {
+  if (!isEdit && !isSession) {
     ['f-company','f-system','f-natural','f-time','f-status'].forEach(id => {
       const sel = document.getElementById(id);
       const blank = document.createElement('option');
@@ -3526,14 +3630,28 @@ function openModal(idx = null) {
   fProjectPicker = buildSearchSelect(document.getElementById('f-project'),
     projectFieldOptions(row?.projectId ?? null), row?.projectId ?? null, 'No project');
 
-  document.getElementById('f-description').value = row?.description || '';
+  // Existing-task picker: add mode only. In session mode it's locked to the row's
+  // task; while editing an existing record it's hidden entirely.
+  const etRow = document.getElementById('f-existing-task-row');
+  if (isEdit) {
+    etRow.style.display = 'none';
+    fExistingTaskPicker = null;
+  } else {
+    etRow.style.display = '';
+    let taskOpts = [];
+    try { taskOpts = (await window.api.listTasks()).map(t => ({ id: t.id, label: t.name || '(untitled task)' })); } catch { /* offline-safe */ }
+    fExistingTaskPicker = buildSearchSelect(document.getElementById('f-existing-task'), taskOpts, sessionTaskId, 'New task (none)');
+  }
+
+  document.getElementById('f-taskname').value    = row?.taskName    || '';
+  document.getElementById('f-description').value = isSession ? '' : (row?.description || '');
   document.getElementById('f-source').value      = row?.source      || '';
-  document.getElementById('f-minutes').value     = row?.minutes     || '';
+  document.getElementById('f-minutes').value     = isSession ? '' : (row?.minutes || '');
   document.getElementById('f-tags').value        = Array.isArray(row?.tags) ? row.tags.join(', ') : (row?.tags || '');
 
   clearErrors();
   document.getElementById('modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById('f-company').focus(), 80);
+  setTimeout(() => document.getElementById(isSession ? 'f-description' : 'f-company').focus(), 80);
 }
 
 function closeModal() {
@@ -3572,12 +3690,15 @@ async function submitModal() {
 
   if (!valid) return;
 
+  const descVal  = document.getElementById('f-description').value.trim();
+  const taskName = document.getElementById('f-taskname').value.trim() || descVal;
   const record = {
+    taskName:    taskName,
     company:     document.getElementById('f-company').value,
     system:      document.getElementById('f-system').value,
     natural:     document.getElementById('f-natural').value,
     time:        document.getElementById('f-time').value,
-    description: document.getElementById('f-description').value.trim(),
+    description: descVal,
     source:      document.getElementById('f-source').value.trim(),
     status:      document.getElementById('f-status').value,
     minutes:     minRaw === '' ? '' : parseInt(minRaw, 10),   // Number when set, '' when blank
@@ -3586,15 +3707,26 @@ async function submitModal() {
   };
 
   if (editIdx !== null) {
+    // Preserve the identity fields of the row being edited (task/work-log ids)
+    // so the save reconciles it in place instead of inserting a duplicate.
+    record.eid    = rows[editIdx]?.eid;
+    record.taskId = rows[editIdx]?.taskId;
     // If a timer is running on the row being edited, keep it attached to the
     // new record object (we replace the object, not mutate it).
     if (activeTimer.rowRef === rows[editIdx]) activeTimer.rowRef = record;
     rows[editIdx] = record;
-  } else { rows.push(record); }
+    syncSiblingTasks(record);          // task-level fields propagate to sessions
+  } else {
+    // Logging against an existing task → carry its id so the save adds a work_log
+    // to it (no new task). Otherwise a new task + first work_log is created.
+    const existingTaskId = fExistingTaskPicker ? fExistingTaskPicker.getSelectedId() : null;
+    if (existingTaskId != null) record.taskId = existingTaskId;
+    rows.push(record);
+  }
 
   closeModal();
   renderTable();
-  autoSave();
+  setUnsaved();
 }
 
 // Shared field-error helpers (used by every module's form validation).
@@ -3657,10 +3789,14 @@ document.getElementById('hDate').addEventListener('change', e => {
   switchDay(e.target.value);
 });
 
-// hName: auto-save + persist as defaultName
+// hName: persist the per-date employee name (days metadata) + the default name.
 let _nameSaveTimer = null;
+let _dayNameTimer  = null;
 document.getElementById('hName').addEventListener('input', () => {
-  autoSave();
+  clearTimeout(_dayNameTimer);
+  _dayNameTimer = setTimeout(() => {
+    if (activeDate) window.api.setDayName(activeDate, document.getElementById('hName').value);
+  }, 400);
   clearTimeout(_nameSaveTimer);
   _nameSaveTimer = setTimeout(() => {
     const name = document.getElementById('hName').value.trim();
@@ -3710,23 +3846,47 @@ function buildDailyReportHTML(srcRows, date, name) {
   const otHrs    = (otMin / 60).toFixed(2);
   const otherHrs = (otherMin / 60).toFixed(2);
 
-  const rowsHTML = printRows.map((r, i) => {
-    // Show the time type only when it's Work Time or Over Time; Over Time renders red.
-    const showTime = r.time === 'WORK_TIME' || r.time === 'OVERTIME';
-    const timeCell = showTime
-      ? `<span${r.time === 'OVERTIME' ? ' style="color:#b91c1c;font-weight:700"' : ''}>${esc(lkLabel('TIME_TYPE', r.time))}</span>`
-      : '—';
+  // Group the day's work sessions by their task (two-level model): a task header
+  // row (name + client/system/activity + subtotal) followed by each session's
+  // time / description / minutes. Order = first appearance in the day.
+  const groups = [];
+  const byTask = new Map();
+  printRows.forEach(r => {
+    const key = (r.taskId != null) ? ('id:' + r.taskId) : ('nm:' + (r.taskName || r.description || ''));
+    let g = byTask.get(key);
+    if (!g) {
+      g = { taskName: r.taskName || r.description || '(untitled task)',
+            company: r.company, system: r.system, natural: r.natural, sessions: [], subtotal: 0 };
+      byTask.set(key, g); groups.push(g);
+    }
+    g.sessions.push(r);
+    g.subtotal += (parseFloat(r.minutes) || 0);
+  });
+
+  const rowsHTML = groups.length ? groups.map((g, gi) => {
+    const metaBits = [g.company, g.system, g.natural].filter(Boolean).join(' · ');
+    const sessionsHTML = g.sessions.map(r => {
+      const showTime = r.time === 'WORK_TIME' || r.time === 'OVERTIME';
+      const timeCell = showTime
+        ? `<span${r.time === 'OVERTIME' ? ' style="color:#b91c1c;font-weight:700"' : ''}>${esc(lkLabel('TIME_TYPE', r.time))}</span>`
+        : '—';
+      return `
+        <tr>
+          <td>${timeCell}</td>
+          <td>${esc(r.description)}${r.source ? `<div style="font-size:10px;color:#777;margin-top:3px">${esc(r.source)}</div>` : ''}</td>
+          <td style="text-align:right">${r.minutes || '—'}</td>
+          <td style="text-align:right">${r.minutes ? (parseFloat(r.minutes) / 60).toFixed(2) : '—'}</td>
+        </tr>`;
+    }).join('');
     return `
       <tr>
-        <td style="text-align:center">${i + 1}</td>
-        <td>${esc(r.company)}</td>
-        <td>${esc(r.system)}</td>
-        <td>${timeCell}</td>
-        <td>${esc(r.description)}${r.source ? `<div style="font-size:10px;color:#777;margin-top:3px">${esc(r.source)}</div>` : ''}</td>
-        <td style="text-align:right">${r.minutes || '—'}</td>
-        <td style="text-align:right">${r.minutes ? (parseFloat(r.minutes)/60).toFixed(2) : '—'}</td>
-      </tr>`;
-  }).join('');
+        <td colspan="4" style="background:#f0f0f0 !important;font-weight:700;color:#111;padding:8px 8px">
+          ${gi + 1}. ${esc(g.taskName)}${metaBits ? `<span style="font-weight:500;color:#666;font-size:10px"> — ${esc(metaBits)}</span>` : ''}
+          <span style="float:right;font-weight:800">${g.subtotal} min · ${(g.subtotal / 60).toFixed(2)} h</span>
+        </td>
+      </tr>
+      ${sessionsHTML}`;
+  }).join('') : '<tr><td colspan="4" style="text-align:center;color:#999;padding:18px">No work recorded on this day.</td></tr>';
 
   const printedOn = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
 
@@ -3752,11 +3912,8 @@ function buildDailyReportHTML(srcRows, date, name) {
     <table class="rpt-table">
       <thead>
         <tr>
-          <th style="width:28px;text-align:center">#</th>
-          <th style="width:100px">Company</th>
-          <th style="width:100px">System</th>
-          <th style="width:80px">Time</th>
-          <th>Description / Source</th>
+          <th style="width:90px">Time</th>
+          <th>Description / Source <span style="font-weight:500;text-transform:none;letter-spacing:0;color:#888">(sessions grouped by task)</span></th>
           <th style="width:45px;text-align:right">Min</th>
           <th style="width:45px;text-align:right">Hrs</th>
         </tr>
@@ -3766,7 +3923,7 @@ function buildDailyReportHTML(srcRows, date, name) {
       </tbody>
       <tfoot>
         <tr>
-          <td colspan="5" style="text-align:right;font-size:10px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:.5px;padding:8px;border:1px solid #bbb;border-top:2px solid #111;background:#f0f0f0 !important">Total</td>
+          <td colspan="2" style="text-align:right;font-size:10px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:.5px;padding:8px;border:1px solid #bbb;border-top:2px solid #111;background:#f0f0f0 !important">Total</td>
           <td style="text-align:right;font-size:13px;font-weight:800;color:#111;padding:8px;border:1px solid #bbb;border-top:2px solid #111;background:#f0f0f0 !important">${totalMin}</td>
           <td style="text-align:right;font-size:13px;font-weight:800;color:#111;padding:8px;border:1px solid #bbb;border-top:2px solid #111;background:#f0f0f0 !important">${totalHrs}</td>
         </tr>
@@ -3859,8 +4016,8 @@ async function genDailyReport() {
   if (date === activeDate) {
     dayRows = rows;
   } else {
-    const entry = dayCache[date] || await window.api.loadDay(date);
-    dayRows = entry ? entry.rows : [];
+    const list = await window.api.workLogsByDate(date);
+    dayRows = list.map(l => Object.assign({}, l, { eid: l.id }));
   }
   if (!dayRows.length) toast('No records on that day — showing an empty report');
 
@@ -3913,7 +4070,7 @@ function buildOvertimeReportHTML(days, monthLabel, name) {
         <td>${dLabel}</td>
         <td>${esc(r.company)}</td>
         <td>${esc(r.system)}</td>
-        <td>${esc(r.natural)}</td>
+        <td>${esc(r.taskName || r.natural || '—')}</td>
         <td>${esc(r.description)}</td>
         <td style="text-align:right">${r.minutes || '—'}</td>
         <td style="text-align:right">${mins ? (mins / 60).toFixed(2) : '—'}</td>
@@ -4122,23 +4279,15 @@ function updateTodayBtn() {
 // visit (like Subscriptions), auto-saved with the same 300 ms debounce, and never
 // hard-deletes (5 s undo). Picking a task assigns it into a specific day.
 // ════════════════════════════════════════════════════════════════════════════
+// Not Yet = tasks with zero work sessions (merged from the old backlog in
+// migration 013). Loaded from tasks:notyet; add/edit/delete/assign persist
+// immediately via the tasks:* / worklogs:* API (no debounced whole-list save).
 async function loadBacklogData() {
-  let data;
-  try { data = await window.api.loadBacklog(); }
+  try { backlog = await window.api.listNotYet(); }
   catch { toast('Could not load Not Yet tasks'); return; }
-  backlog = (data && Array.isArray(data.backlog)) ? data.backlog : [];
+  if (!Array.isArray(backlog)) backlog = [];
   backlogLoaded = true;
   renderBacklog();
-}
-
-async function saveBacklogData() {
-  try { await window.api.saveBacklog({ backlog: backlog.map(t => Object.assign({}, t)) }); }
-  catch { toast('Could not save Not Yet tasks'); }
-}
-
-function autoSaveBacklog() {
-  clearTimeout(_backlogSaveTimer);
-  _backlogSaveTimer = setTimeout(saveBacklogData, 300);
 }
 
 function applyBacklogFilter() {
@@ -4161,11 +4310,11 @@ function renderBacklog() {
   empty.style.display = 'none';
 
   const shown = backlog.filter(t => textMatch(
-    [t.company, t.system, t.natural, t.time, t.description, t.source,
+    [t.company, t.system, t.natural, t.description, t.source,
      Array.isArray(t.tags) ? t.tags.join(' ') : ''], backlogFilter));
 
   if (shown.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" class="no-matches">No matches</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="no-matches">No matches</td></tr>';
     return;
   }
 
@@ -4179,14 +4328,6 @@ function renderBacklog() {
     tr.appendChild(textCell(task.company));
     tr.appendChild(textCell(task.system));
     tr.appendChild(textCell(task.natural));
-
-    const timeTd = document.createElement('td');
-    const timeDiv = document.createElement('div'); timeDiv.className = 'cell';
-    const timeSpan = document.createElement('span');
-    timeSpan.textContent = lkLabel('TIME_TYPE', task.time);
-    if (task.time === 'OVERTIME') timeSpan.style.color = '#dc2626';
-    timeDiv.appendChild(timeSpan); timeTd.appendChild(timeDiv);
-    tr.appendChild(timeTd);
 
     // Description (+ tag chips)
     const descTd = document.createElement('td');
@@ -4255,11 +4396,11 @@ function renderBacklog() {
       dateInp.focus();
     });
 
-    delBtn.addEventListener('click', () => showDeleteConfirm(acts, () => {
-      const idx = backlog.indexOf(task);
-      const removed = backlog.splice(idx, 1)[0];
-      showBacklogUndoToast(removed, idx);
-      renderBacklog(); autoSaveBacklog();
+    delBtn.addEventListener('click', () => showDeleteConfirm(acts, async () => {
+      const snap = Object.assign({}, task);
+      await window.api.deleteTask(task.id);
+      await loadBacklogData();
+      showBacklogUndoToast(snap, 0);
     }, restore));
 
     acts.appendChild(assignBtn); acts.appendChild(editBtn); acts.appendChild(delBtn);
@@ -4269,46 +4410,27 @@ function renderBacklog() {
   });
 }
 
-// Assign (pick) a backlog task into a day's task list, removing it from the pool.
+// Assign (pick) a Not-Yet task into a day: give the task its first work session.
+// It then has a work_log, so it drops out of the Not-Yet list automatically.
 async function assignBacklogToDay(id, targetDate) {
   if (!targetDate) return;
-  const idx = backlog.findIndex(t => t.id === id);
-  if (idx === -1) return;
-  const task = backlog[idx];
-  const row = {
-    company: task.company || '', system: task.system || '', natural: task.natural || '',
-    time: task.time || '', description: task.description || '', source: task.source || '',
-    status: 'IN_PROGRESS', minutes: '',
-    tags: Array.isArray(task.tags) ? task.tags.slice() : [],
-    projectId: task.projectId ?? null,   // carry the project link onto the new day entry
-  };
+  const task = backlog.find(t => t.id === id);
+  if (!task) return;
 
-  // Target == the day currently open in Timesheet: append to the in-memory rows
-  // (the live source of truth) rather than a possibly-stale disk copy.
+  try {
+    await window.api.addWorkLog(id, {
+      date: targetDate, description: task.description || '', minutes: '', time: '',
+    });
+  } catch { toast('Could not assign — save failed'); return; }
+
+  await loadBacklogData();     // the task now has a session → leaves Not Yet
+
   if (activeDate && targetDate === activeDate) {
-    rows.push(row);
-    backlog.splice(idx, 1);
-    renderTable(); autoSave();
-    renderBacklog(); autoSaveBacklog();
+    await reloadTimesheet();
+  } else {
+    await refreshSavedDays();
     renderCalendar();
-    toast('Assigned to ' + targetDate);
-    return;
   }
-
-  // Otherwise load the target day (cache → disk → fresh), append, persist.
-  let entry = dayCache[targetDate]
-    ? JSON.parse(JSON.stringify(dayCache[targetDate]))
-    : await window.api.loadDay(targetDate);
-  if (!entry) entry = { name: LK.defaultName || '', rows: [] };
-  entry.rows.push(row);
-  try { await window.api.saveDay(targetDate, entry); }
-  catch { toast('Could not assign — save failed'); return; }
-  dayCache[targetDate] = entry;
-  savedDays.add(targetDate);
-
-  backlog.splice(idx, 1);
-  renderBacklog(); autoSaveBacklog();
-  renderCalendar();
   toast('Assigned to ' + targetDate);
 }
 
@@ -4323,12 +4445,20 @@ function hideBacklogUndoToast() {
   document.getElementById('backlog-undo-toast').classList.remove('visible');
   undoBacklog = null;
 }
-function undoDeleteBacklog() {
+async function undoDeleteBacklog() {
   if (!undoBacklog) return;
-  const { task, idx } = undoBacklog;
-  backlog.splice(Math.min(idx, backlog.length), 0, Object.assign({}, task));
+  const { task } = undoBacklog;
   hideBacklogUndoToast();
-  renderBacklog(); autoSaveBacklog();
+  // The deleted task is gone; recreate it as a fresh Not-Yet task (no sessions).
+  try {
+    await window.api.createTask({
+      name: task.description || '', status: 'IN_PROGRESS',
+      company: task.company || '', system: task.system || '', natural: task.natural || '',
+      source: task.source || '', tags: Array.isArray(task.tags) ? task.tags.slice() : [],
+      projectId: task.projectId ?? null,
+    });
+  } catch { toast('Could not restore task'); return; }
+  await loadBacklogData();
 }
 
 // ── Not Yet: modal ──
@@ -4342,10 +4472,9 @@ function openBacklogModal(id = null) {
   populateSelect('b-company', 'companies', task?.company || '');
   populateSelect('b-system',  'systems',   task?.system  || '');
   populateSelect('b-natural', 'natural',   task?.natural || '');
-  populateSelect('b-time',    'timeType',  task?.time    || '');
 
   if (!isEdit) {
-    ['b-company','b-system','b-natural','b-time'].forEach(selId => {
+    ['b-company','b-system','b-natural'].forEach(selId => {
       const sel = document.getElementById(selId);
       const blank = document.createElement('option');
       blank.value = ''; blank.textContent = '— select —';
@@ -4374,42 +4503,39 @@ function backlogOverlayClick(e) {
 }
 function clearBacklogErrors() { clearErrorsIn('#backlog-modal'); }
 
-function submitBacklogModal() {
+async function submitBacklogModal() {
   clearBacklogErrors();
   const fields = [
     { id: 'b-company',     val: document.getElementById('b-company').value },
     { id: 'b-system',      val: document.getElementById('b-system').value },
     { id: 'b-natural',     val: document.getElementById('b-natural').value },
-    { id: 'b-time',        val: document.getElementById('b-time').value },
     { id: 'b-description', val: document.getElementById('b-description').value.trim() },
   ];
   let valid = true;
   fields.forEach(f => { if (!f.val) { markError(f.id); valid = false; } });
   if (!valid) return;
 
-  const record = {
-    id:          backlogEditId !== null ? backlogEditId : 'bl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+  // A Not-Yet item is a task with no work sessions. Its description is the task
+  // name; time type is per-session, chosen when it's assigned to a day.
+  const payload = {
+    name:        document.getElementById('b-description').value.trim(),
+    status:      'IN_PROGRESS',
     company:     document.getElementById('b-company').value,
     system:      document.getElementById('b-system').value,
     natural:     document.getElementById('b-natural').value,
-    time:        document.getElementById('b-time').value,
-    description: document.getElementById('b-description').value.trim(),
     source:      document.getElementById('b-source').value.trim(),
     tags:        parseTags(document.getElementById('b-tags').value),
     projectId:   bProjectPicker ? bProjectPicker.getSelectedId()
                    : (backlogEditId !== null ? backlog.find(t => t.id === backlogEditId)?.projectId ?? null : null),
   };
 
-  if (backlogEditId !== null) {
-    const i = backlog.findIndex(t => t.id === backlogEditId);
-    if (i !== -1) backlog[i] = record;
-  } else {
-    backlog.push(record);
-  }
+  try {
+    if (backlogEditId !== null) await window.api.updateTask(backlogEditId, payload);
+    else                        await window.api.createTask(payload);
+  } catch { toast('Could not save the task'); return; }
 
   closeBacklogModal();
-  renderBacklog();
-  autoSaveBacklog();
+  await loadBacklogData();
 }
 
 // ── Filter ──
@@ -4492,7 +4618,8 @@ function clearSelection() {
 }
 function bulkSetStatus(s) {
   if (!selectedRows.size) return;
-  selectedRows.forEach(r => { const i = rows.indexOf(r); if (i !== -1) rows[i].status = s; });
+  const targets = [...selectedRows];
+  targets.forEach(r => { const i = rows.indexOf(r); if (i !== -1) { rows[i].status = s; syncSiblingTasks(rows[i]); } });
   clearSelection();
   renderTable();
   setUnsaved();
@@ -4518,7 +4645,8 @@ function bulkDelete() {
   renderTable();
   setUnsaved();
   showGenericUndo(`${count} record${count === 1 ? '' : 's'} deleted`, () => {
-    ascending.forEach(x => rows.splice(Math.min(x.idx, rows.length), 0, x.row));
+    // The deleted work_logs are gone; strip ids so the save recreates them.
+    ascending.forEach(x => rows.splice(Math.min(x.idx, rows.length), 0, Object.assign({}, x.row, { eid: undefined, taskId: undefined })));
   });
 }
 function bulkMovePrompt() {
@@ -4538,23 +4666,11 @@ function bulkMovePrompt() {
 }
 async function moveRowsToDate(rowRefs, targetDate) {
   if (!targetDate || targetDate === activeDate) { clearSelection(); renderTable(); updateBulkBar(); return; }
-  let entry = dayCache[targetDate]
-    ? JSON.parse(JSON.stringify(dayCache[targetDate]))
-    : await window.api.loadDay(targetDate);
-  if (!entry) entry = { name: document.getElementById('hName').value || LK.defaultName || '', rows: [] };
-
-  const withIdx = rowRefs.map(r => ({ r, i: rows.indexOf(r) })).filter(x => x.i !== -1);
-  withIdx.slice().sort((a, b) => b.i - a.i).forEach(x => rows.splice(x.i, 1));     // remove (desc)
-  withIdx.slice().sort((a, b) => a.i - b.i).forEach(x => entry.rows.push(Object.assign({}, x.r))); // append (asc)
-
-  await window.api.saveDay(targetDate, entry);
-  dayCache[targetDate] = entry;
-  savedDays.add(targetDate);
+  const targets = rowRefs.map(r => ({ eid: r.eid, log: tsLogPayload(r) })).filter(x => x.eid);
   clearSelection();
-  renderTable();
-  autoSave();
-  renderCalendar();
-  toast(`Moved ${withIdx.length} record${withIdx.length === 1 ? '' : 's'} to ${targetDate}`);
+  for (const t of targets) await window.api.updateWorkLog(t.eid, Object.assign({}, t.log, { date: targetDate }));
+  await reloadTimesheet();
+  toast(`Moved ${targets.length} record${targets.length === 1 ? '' : 's'} to ${targetDate}`);
 }
 
 // ── Month overview ──
@@ -4972,12 +5088,12 @@ async function renderOverview() {
   const daysLogged = ov.daysLogged;
 
   // Cross-module attention data
-  const [subData, backlogData] = await Promise.all([
+  const [subData, notYetData] = await Promise.all([
     window.api.loadSubscriptions(),
-    window.api.loadBacklog(),
+    window.api.listNotYet(),
   ]);
   const subs = (subData && subData.subscriptions) || [];
-  const backlogCount = (backlogData && Array.isArray(backlogData.backlog)) ? backlogData.backlog.length : 0;
+  const backlogCount = Array.isArray(notYetData) ? notYetData.length : 0;
 
   const attention = [];
   subs.forEach(s => {
@@ -5953,64 +6069,86 @@ function renderProjectDetail(p) {
   docs.appendChild(docGrid);
   host.appendChild(docs);
 
-  // ── Tasks section ──
-  const tasks = pjMk('div', 'pj-section');
+  // ── Tasks section (ProjectTasksV2: each task with its work sessions nested) ──
+  const tasksSec = pjMk('div', 'pj-section');
   const tHead = pjMk('div', 'pj-section-head');
   const tTitle = pjMk('div', 'pj-section-title');
   tTitle.innerHTML = ic('list');
-  const total = (p.tasks.entries.length + p.tasks.backlog.length);
-  tTitle.appendChild(document.createTextNode('Tasks (' + total + ')'));
+  const list = Array.isArray(p.tasks) ? p.tasks : [];
+  tTitle.appendChild(document.createTextNode('Tasks (' + list.length + ')'));
   tHead.appendChild(tTitle);
   const linkBtn = pjMk('button', 'btn');
   linkBtn.innerHTML = ic('calendar-plus') + ' Link Task';
   linkBtn.addEventListener('click', openLinkModal);
   tHead.appendChild(linkBtn);
-  tasks.appendChild(tHead);
+  tasksSec.appendChild(tHead);
 
-  if (total === 0) {
-    tasks.appendChild(pjMk('div', 'cp-records-empty', 'No tasks linked yet — use “Link Task” to attach existing work.'));
+  if (list.length === 0) {
+    tasksSec.appendChild(pjMk('div', 'cp-records-empty', 'No tasks linked yet — use “Link Task” to attach existing work.'));
   } else {
-    const wrap = pjMk('div');
-    const table = document.createElement('table');
-    table.innerHTML = '<thead><tr>' +
-      '<th style="width:70px">Type</th><th style="width:110px">Date</th>' +
-      '<th>Company</th><th>System</th><th>Natural</th><th>Time</th>' +
-      '<th style="min-width:200px">Description</th><th>Status</th>' +
-      '<th style="width:70px"></th></tr></thead><tbody></tbody>';
-    const tbody = table.querySelector('tbody');
-
-    const addRow = (t) => {
-      const isEntry = t.kind === 'entry';
-      const tr = document.createElement('tr');
-      const kindTag = pjMk('span', 'pj-kind-tag', isEntry ? 'Timesheet' : 'Backlog');
-      tr.appendChild(cellWrap(kindTag, 'cell'));
-      tr.appendChild(textCell(isEntry ? (t.date || '—') : '—'));
-      tr.appendChild(textCell(t.company || '—'));
-      tr.appendChild(textCell(t.system || '—'));
-      tr.appendChild(textCell(t.natural || '—'));
-
-      const timeSpan = pjMk('span', null, lkLabel('TIME_TYPE', t.time) || '—');
-      if (t.time === 'OVERTIME') timeSpan.style.color = '#dc2626';
-      tr.appendChild(cellWrap(timeSpan, 'cell'));
-
-      tr.appendChild(textCell(t.description || '—'));
-      tr.appendChild(textCell(isEntry ? (lkLabel('ENTRY_STATUS', t.status) || '—') : '—'));
-
-      const acts = pjMk('div', 'row-actions');
-      const unlinkBtn = pjMk('button', 'row-btn del');
-      unlinkBtn.innerHTML = ic('x'); unlinkBtn.title = 'Unlink from this project';
-      unlinkBtn.addEventListener('click', () => doUnlinkTask(t.kind, isEntry ? t.eid : t.id));
-      acts.appendChild(unlinkBtn);
-      tr.appendChild(cellWrap(acts, 'cell'));
-      tbody.appendChild(tr);
-    };
-    p.tasks.entries.forEach(addRow);
-    p.tasks.backlog.forEach(addRow);
-
-    wrap.appendChild(table);
-    tasks.appendChild(wrap);
+    list.forEach(t => tasksSec.appendChild(buildProjectTaskCard(t)));
   }
-  host.appendChild(tasks);
+  host.appendChild(tasksSec);
+}
+
+// One linked task in the project detail: its profile + the list of its work
+// sessions (or a "Not Yet — no sessions" note). Zero-log tasks appear here too.
+function buildProjectTaskCard(t) {
+  const card = pjMk('div', 'pj-task-card');
+  card.style.cssText = 'border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:10px';
+
+  const head = pjMk('div', 'pj-task-head');
+  head.style.cssText = 'display:flex;align-items:center;gap:10px';
+  const title = pjMk('div', 'pj-task-title', t.name || '(untitled task)');
+  title.style.cssText = 'font-weight:600';
+  head.appendChild(title);
+  const statusPill = pjMk('span', 'status-badge ' + (t.status === 'DONE' ? 'status-done' : 'status-progress'),
+    lkLabel('ENTRY_STATUS', t.status) || '—');
+  head.appendChild(statusPill);
+  const spacer = pjMk('div'); spacer.style.flex = '1'; head.appendChild(spacer);
+  const unlinkBtn = pjMk('button', 'row-btn del');
+  unlinkBtn.innerHTML = ic('x'); unlinkBtn.title = 'Unlink from this project';
+  unlinkBtn.addEventListener('click', () => doUnlinkTask(t.id));
+  head.appendChild(unlinkBtn);
+  card.appendChild(head);
+
+  const metaBits = [t.company, t.system, t.natural].filter(Boolean).join(' · ');
+  const mins = t.totalMinutes || 0;
+  const logCount = t.logCount || 0;
+  const summary = pjMk('div', 'pj-task-meta',
+    (metaBits ? metaBits + '  ·  ' : '') + logCount + ' session' + (logCount === 1 ? '' : 's') +
+    (mins ? '  ·  ' + mins + ' min (' + (mins / 60).toFixed(2) + ' h)' : ''));
+  summary.style.cssText = 'color:var(--muted);font-size:12px;margin-top:4px';
+  card.appendChild(summary);
+
+  const logs = Array.isArray(t.workLogs) ? t.workLogs : [];
+  if (logs.length === 0) {
+    const empty = pjMk('div', 'pj-task-empty', 'No sessions yet — Not Yet');
+    empty.style.cssText = 'color:var(--muted);font-size:12px;font-style:italic;margin-top:8px';
+    card.appendChild(empty);
+  } else {
+    const table = document.createElement('table');
+    table.style.cssText = 'width:100%;margin-top:8px';
+    table.innerHTML = '<thead><tr>' +
+      '<th style="width:110px">Date</th><th style="width:100px">Time</th>' +
+      '<th style="width:70px;text-align:right">Min</th><th>What was done</th></tr></thead><tbody></tbody>';
+    const tb = table.querySelector('tbody');
+    logs.forEach(w => {
+      const tr = document.createElement('tr');
+      tr.appendChild(textCell(w.date || '—'));
+      const timeSpan = pjMk('span', null, lkLabel('TIME_TYPE', w.time) || '—');
+      if (w.time === 'OVERTIME') timeSpan.style.color = '#dc2626';
+      tr.appendChild(cellWrap(timeSpan, 'cell'));
+      const minTd = document.createElement('td'); minTd.style.textAlign = 'right';
+      const minDiv = pjMk('div', 'cell cell-right');
+      minDiv.appendChild(document.createTextNode((w.minutes === '' || w.minutes == null) ? '—' : String(w.minutes)));
+      minTd.appendChild(minDiv); tr.appendChild(minTd);
+      tr.appendChild(textCell(w.description || '—'));
+      tb.appendChild(tr);
+    });
+    card.appendChild(table);
+  }
+  return card;
 }
 
 // (Re)build the Edit / Delete buttons in the detail header's action container.
@@ -6227,8 +6365,7 @@ async function undoDeleteProject() {
       .filter(d => d.file)
       .map(d => ({ documentType: d.documentType, file: d.file }));
     if (fileDocs.length) await window.api.restoreProjectFiles(snap.id, created.id, fileDocs);
-    for (const t of (snap.tasks?.entries || []))  await window.api.linkProjectTask(created.id, 'entry', t.eid);
-    for (const t of (snap.tasks?.backlog || [])) await window.api.linkProjectTask(created.id, 'backlog', t.id);
+    for (const t of (snap.tasks || [])) await window.api.linkProjectTask(created.id, t.id);
     toast('Project restored');
   } catch { toast('Could not restore project'); }
   await loadProjectsList();
@@ -6238,7 +6375,7 @@ async function undoDeleteProject() {
 async function openLinkModal() {
   try { linkableTasks = await window.api.listLinkableTasks(); }
   catch { toast('Could not load tasks'); return; }
-  if (!linkableTasks || typeof linkableTasks !== 'object') linkableTasks = { entries: [], backlog: [] };
+  if (!Array.isArray(linkableTasks)) linkableTasks = [];
   document.getElementById('link-task-filter').value = '';
   renderLinkList();
   document.getElementById('link-task-overlay').classList.add('open');
@@ -6254,11 +6391,8 @@ function renderLinkList() {
   const q = (document.getElementById('link-task-filter').value || '').toLowerCase().trim();
   host.innerHTML = '';
 
-  const all = [
-    ...(linkableTasks.entries || []),
-    ...(linkableTasks.backlog || []),
-  ].filter(t => textMatch(
-    [t.company, t.system, t.natural, lkLabel('TIME_TYPE', t.time), t.description, t.source, t.date], q));
+  const all = (linkableTasks || []).filter(t => textMatch(
+    [t.name, t.company, t.system, t.natural, t.source], q));
 
   if (all.length === 0) {
     host.appendChild(pjMk('div', 'cp-records-empty', 'No unlinked tasks available.'));
@@ -6266,37 +6400,36 @@ function renderLinkList() {
   }
 
   all.forEach(t => {
-    const isEntry = t.kind === 'entry';
     const row = pjMk('div', 'pj-link-row');
     const info = pjMk('div', 'pj-link-info');
-    const main = pjMk('div', 'pj-link-main', t.description || '(no description)');
+    const main = pjMk('div', 'pj-link-main', t.name || '(untitled task)');
     info.appendChild(main);
     const metaBits = [t.company, t.system, t.natural].filter(Boolean).join(' · ');
-    const meta = pjMk('div', 'pj-link-meta',
-      (isEntry ? ('Timesheet · ' + (t.date || '')) : 'Backlog') + (metaBits ? ' · ' + metaBits : ''));
+    const logCount = t.logCount || 0;
+    const sess = logCount + ' session' + (logCount === 1 ? '' : 's');
+    const meta = pjMk('div', 'pj-link-meta', sess + (metaBits ? ' · ' + metaBits : ''));
     info.appendChild(meta);
     row.appendChild(info);
 
     const btn = pjMk('button', 'btn primary');
     btn.style.padding = '6px 14px';
     btn.textContent = 'Link';
-    btn.addEventListener('click', () => doLinkTask(t.kind, isEntry ? t.eid : t.id));
+    btn.addEventListener('click', () => doLinkTask(t.id));
     row.appendChild(btn);
     host.appendChild(row);
   });
 }
-async function doLinkTask(kind, taskId) {
-  try { await window.api.linkProjectTask(currentProject.id, kind, taskId); }
+async function doLinkTask(taskId) {
+  try { await window.api.linkProjectTask(currentProject.id, taskId); }
   catch { toast('Could not link task'); return; }
   // Drop the just-linked task from the picker source, refresh both views.
-  if (kind === 'entry') linkableTasks.entries = (linkableTasks.entries || []).filter(t => t.eid !== taskId);
-  else                  linkableTasks.backlog = (linkableTasks.backlog || []).filter(t => t.id !== taskId);
+  linkableTasks = (linkableTasks || []).filter(t => t.id !== taskId);
   renderLinkList();
   await reloadCurrentProject();
   toast('Task linked');
 }
-async function doUnlinkTask(kind, taskId) {
-  try { await window.api.unlinkProjectTask(kind, taskId); }
+async function doUnlinkTask(taskId) {
+  try { await window.api.unlinkProjectTask(taskId); }
   catch { toast('Could not unlink task'); return; }
   await reloadCurrentProject();
   toast('Task unlinked');
@@ -6309,12 +6442,16 @@ async function doUnlinkTask(kind, taskId) {
 async function flushPending() {
   clearTimeout(_saveTimer);
   clearTimeout(_nameSaveTimer);
+  clearTimeout(_dayNameTimer);
   clearTimeout(_subSaveTimer);
   clearTimeout(_backlogSaveTimer);
   const tasks = [];
-  if (activeDate)     tasks.push(saveDay());
+  if (activeDate) {
+    tasks.push(persistTimesheet());   // flush any pending granular work-log saves
+    tasks.push(window.api.setDayName(activeDate, document.getElementById('hName').value));
+  }
   if (subsLoaded)     tasks.push(saveSubscriptionsData());
-  if (backlogLoaded)  tasks.push(saveBacklogData());
+  // Not Yet persists immediately (no debounced save to flush).
   try { await Promise.all(tasks); } catch { /* best effort */ }
 }
 
