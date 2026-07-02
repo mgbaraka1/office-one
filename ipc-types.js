@@ -13,10 +13,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * One timesheet entry as seen by the renderer (legacy field names kept for the
- * UI). Stored normalized in `day_entries` — see db.js entryToRow/rowToEntry.
+ * One timesheet row (a work session) as seen by the renderer (legacy field names
+ * kept for the UI). Backed by a `work_logs` row joined to its parent `tasks` row —
+ * see db.js logToRow.
  * @typedef {Object} DayEntryRow
- * @property {number} [eid]      Stable DB entry id (absent on a not-yet-saved row).
+ * @property {number} [eid]      Stable work_log id (absent on a not-yet-saved row).
  * @property {string} company
  * @property {string} system
  * @property {string} natural    Activity type (stored as `activity_type`).
@@ -31,7 +32,7 @@
 
 /**
  * One company/system as listed on its page: the display label plus how many
- * day_entries reference it (for the current user).
+ * work sessions (work_logs, via their task) reference it (for the current user).
  * @typedef {Object} CategoryValue
  * @property {string} name
  * @property {number} count
