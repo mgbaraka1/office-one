@@ -28,16 +28,29 @@
       --bad: #f25e6b;
       --ease: cubic-bezier(.22,1,.36,1);
       --speed: .28s;
+      /* Type scale — one ramp for the whole app (sizes + tracking) */
+      --fs-display: 30px; --ls-display: -.8px;   /* page greetings / hero numbers */
+      --fs-title:   20px; --ls-title:   -.4px;   /* page + modal titles */
+      --fs-section: 15px;                        /* card/section titles */
+      --fs-body:    14px;                        /* default text */
+      --fs-sm:      12.5px;                      /* secondary text */
+      --fs-caption: 11px;  --ls-caption: .7px;   /* uppercase labels */
       /* Chrome (dark sidebar + topbar) — shared across themes */
       --sidebar-bg: #050506;
       --sidebar-fg: #f3f4f7;
       --sidebar-muted: #9095a3;
       --sidebar-hover: #161619;
       --sidebar-active: #14b8a6;
-      /* Content surfaces — cool blue-gray palette (light) */
-      --bg:         #f4f6fb;
-      --surface:    #ffffff;
-      --surface2:   #f6f8fc;
+      /* Surface ramp — 0 = page, 1 = card, 2 = nested/inputs, 3 = raised/hover.
+         The legacy names (--bg/--surface/--surface2/--elevate) alias into it. */
+      --surface-0:  #f4f6fb;
+      --surface-1:  #ffffff;
+      --surface-2:  #f6f8fc;
+      --surface-3:  #eef1f8;
+      --bg:         var(--surface-0);
+      --surface:    var(--surface-1);
+      --surface2:   var(--surface-2);
+      --elevate:    var(--surface-3);
       --border:     #e2e7f0;
       --text:       #1a1f2e;
       --muted:      #646c84;
@@ -57,18 +70,19 @@
       /* Spacing scale — use these instead of ad-hoc literals */
       --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
       --space-5: 20px; --space-6: 24px; --space-7: 32px; --space-8: 40px;
-      --shadow:     0 14px 40px -16px rgba(40,50,90,.25);
-      --shadow-sm:  0 4px 14px -6px rgba(40,50,90,.18);
-      --elevate:    #f1f3f9;
+      /* Shadows — quiet by default; borders carry the separation */
+      --shadow:     0 10px 30px -18px rgba(40,50,90,.30);
+      --shadow-sm:  0 2px 10px -6px rgba(40,50,90,.16);
       --chip-bg:    #f1f4fa;
       --track:      #e6eaf2;
     }
     /* ══ DARK THEME (content area; chrome stays dark) ══ */
     :root[data-theme="dark"] {
       color-scheme: dark;
-      --bg:         #000000;
-      --surface:    #0c0c0f;
-      --surface2:   #070708;
+      --surface-0:  #000000;
+      --surface-1:  #0c0c0f;
+      --surface-2:  #070708;
+      --surface-3:  #161619;
       --border:     #242428;
       --text:       #f3f4f7;
       --muted:      #9095a3;
@@ -83,9 +97,8 @@
       --renew-ok:   color-mix(in srgb, #34d399 15%, #0c0c0f); --renew-ok-text: #34d399;
       --renew-soon: color-mix(in srgb, #f5b544 15%, #0c0c0f); --renew-soon-text: #f5b544;
       --renew-urgent: color-mix(in srgb, #f25e6b 15%, #0c0c0f); --renew-urgent-text: #f25e6b;
-      --shadow:     0 12px 44px -8px rgba(0,0,0,.85);
-      --shadow-sm:  0 4px 16px -4px rgba(0,0,0,.75);
-      --elevate:    #161619;
+      --shadow:     0 10px 36px -12px rgba(0,0,0,.85);
+      --shadow-sm:  0 3px 12px -5px rgba(0,0,0,.7);
       --chip-bg:    #141417;
       --track:      #1c1c20;
     }
@@ -121,7 +134,13 @@
       padding: 0 6px;
     }
     .sidebar-brand span { color: var(--primary); font-size: 12px; letter-spacing: 3px; }
-    .sidebar-nav { display: flex; flex-direction: column; gap: 3px; }
+    .sidebar-nav { display: flex; flex-direction: column; gap: 3px; overflow-y: auto; }
+    .nav-section {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1.2px; color: var(--sidebar-muted);
+      padding: 14px 13px 5px; user-select: none;
+    }
+    .nav-section:first-child { padding-top: 0; }
     .nav-item {
       display: flex; align-items: center; gap: 12px;
       padding: 11px 13px; border-radius: var(--radius-sm); border: none; cursor: pointer;
@@ -150,12 +169,15 @@
 
     /* ══ MODULES ══ */
     .app-module { flex: 1; display: none; flex-direction: column; overflow: hidden; }
-    .app-module.active { display: flex; }
+    .app-module.active { display: flex; animation: moduleIn .22s var(--ease); }
+    @keyframes moduleIn {
+      from { opacity: 0; transform: translateY(5px); }
+      to   { opacity: 1; transform: none; }
+    }
+    @media (prefers-reduced-motion: reduce) { .app-module.active { animation: none; } }
 
-    /* ══ TOP BAR ══ */
-    /* ══ MODULE TOP BARS (shared) ══ */
-    #topbar, #an-topbar, #sub-topbar, #backlog-topbar,
-    #reports-topbar, .cp-topbar, #settings-topbar, #projects-topbar {
+    /* ══ PAGE HEADER (one shared component for every module top bar) ══ */
+    .page-header {
       display: flex; align-items: center; gap: 10px;
       padding: var(--space-3) 18px;
       background: var(--surface);
@@ -163,22 +185,35 @@
       flex-shrink: 0; flex-wrap: nowrap;
       -webkit-app-region: drag;   /* window is draggable from every topbar */
     }
-    #topbar > *, #an-topbar > *, #sub-topbar > *, #backlog-topbar > *,
-    #reports-topbar > *, .cp-topbar > *, #settings-topbar > *, #projects-topbar > * { -webkit-app-region: no-drag; }
-    /* Shared topbar title (leading label in every module) */
-    .topbar-title, .an-title, .sub-title, .backlog-title,
-    .reports-title, .cp-title, .settings-mod-title {
-      font-size: 15px; font-weight: 700; color: var(--text);
+    .page-header > * { -webkit-app-region: no-drag; }
+    /* Leading title label in every page header */
+    .page-title {
+      font-size: var(--fs-section); font-weight: 700; color: var(--text);
+      letter-spacing: -.1px; margin-right: 4px;
       display: inline-flex; align-items: center; gap: 8px;
     }
-    .topbar-title { margin-right: 4px; }
+
+    /* ══ SEGMENTED CONTROL (shared: analytics period, browse dimension,
+          timesheet view toggle, record-modal mode) ══ */
+    .seg-ctl {
+      display: flex; gap: 4px; background: var(--surface2);
+      border: 1px solid var(--border); padding: 3px; border-radius: var(--radius-sm);
+    }
+    .seg-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      border: none; background: none; color: var(--muted); cursor: pointer;
+      font-family: inherit; font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 8px;
+      transition: background var(--speed), color var(--speed); white-space: nowrap;
+    }
+    .seg-btn:hover { color: var(--text); }
+    .seg-btn.active { background: var(--primary); color: #fff; }
+    .seg-btn .lic { width: 13px; height: 13px; }
 
     /* ── Icon system (Lucide inline SVG) — themed via currentColor ── */
     .lic { display: inline-block; width: 16px; height: 16px; vertical-align: -0.18em;
            flex-shrink: 0; stroke-width: 2; overflow: visible; }
     /* Leading title / section icons take the accent color */
-    .topbar-title .lic, .an-title .lic, .sub-title .lic, .backlog-title .lic,
-    .reports-title .lic, .cp-title .lic, .settings-mod-title .lic,
+    .page-title .lic,
     .modal-title .lic { width: 18px; height: 18px; vertical-align: middle; color: var(--primary); }
     .an-section-title .lic { width: 14px; height: 14px; vertical-align: middle; color: var(--primary); }
     /* Sidebar nav glyphs inherit text color (so active = white) */
@@ -460,7 +495,6 @@
     }
 
     /* ══ NOT YET (BACKLOG) MODULE ══ */
-    .backlog-title { margin-right: 4px; }
     #backlog-table-wrap { flex: 1; overflow-y: auto; padding: var(--space-5) var(--space-6) var(--space-7); }
     .backlog-hint {
       font-size: 12px; color: var(--muted); margin: 0 0 12px; line-height: 1.5;
@@ -471,7 +505,7 @@
     /* ══ REPORTS MODULE ══ */
     .rmod-scroll { flex: 1; overflow-y: auto; padding: var(--space-6) var(--space-7) var(--space-8); max-width: 1100px; width: 100%; }
     .rmod-intro { margin-bottom: 24px; }
-    .rmod-intro h1 { font-size: 26px; font-weight: 700; color: var(--text); letter-spacing: -.4px; }
+    .rmod-intro h1 { font-size: var(--fs-display); font-weight: 700; color: var(--text); letter-spacing: var(--ls-display); }
     .rmod-intro p { font-size: 14px; color: var(--muted); margin-top: 4px; }
     .rmod-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 18px; }
     .rmod-card {
@@ -560,10 +594,17 @@
 
     /* detail view */
     .pj-detail-scroll { flex: 1; overflow-y: auto; padding: var(--space-5) var(--space-6) var(--space-7); }
-    .pj-back { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; padding: 4px 0; margin-bottom: 14px; }
-    .pj-back:hover { color: var(--primary); }
     .pj-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 6px; flex-wrap: wrap; }
-    .pj-detail-title { font-size: 24px; font-weight: 700; color: var(--text); letter-spacing: -.4px; display: flex; align-items: center; gap: 12px; }
+    .pj-detail-title { font-size: var(--fs-display); font-weight: 700; color: var(--text); letter-spacing: var(--ls-display); display: flex; align-items: center; gap: 12px; }
+    /* Breadcrumb trail above the detail title (Projects / <name>) */
+    .pj-crumbs { display: flex; align-items: center; gap: 7px; margin-bottom: 12px; font-size: var(--fs-sm); color: var(--muted); }
+    .pj-crumb-link {
+      background: none; border: none; padding: 2px 0; cursor: pointer; font-family: inherit;
+      font-size: var(--fs-sm); font-weight: 600; color: var(--muted); transition: color var(--speed);
+    }
+    .pj-crumb-link:hover { color: var(--primary); }
+    .pj-crumb-sep .lic { width: 13px; height: 13px; vertical-align: -.18em; }
+    .pj-crumb-here { font-weight: 600; color: var(--text); max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .pj-detail-actions { display: flex; gap: 8px; }
     .pj-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-5); margin-top: 18px; box-shadow: var(--shadow-sm); }
     .pj-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
@@ -709,7 +750,7 @@
 
     /* ══ HOME OVERVIEW (merged into the Analytics view) ══ */
     .dash-greeting { margin-bottom: 22px; }
-    .dash-greeting h1 { font-size: 26px; font-weight: 700; color: var(--text); letter-spacing: -.4px; }
+    .dash-greeting h1 { font-size: var(--fs-display); font-weight: 700; color: var(--text); letter-spacing: var(--ls-display); }
     .dash-greeting p { font-size: 14px; color: var(--muted); margin-top: 4px; }
     .dash-stats {
       display: grid; grid-template-columns: repeat(3, 1fr);
@@ -753,15 +794,6 @@
     }
 
     /* ══ ANALYTICS MODULE ══ */
-    .an-title { margin-right: 4px; }
-    .an-period { display: flex; gap: 4px; background: var(--surface2); border: 1px solid var(--border); padding: 3px; border-radius: var(--radius-sm); }
-    .an-period-btn {
-      border: none; background: none; color: var(--muted); cursor: pointer;
-      font-family: inherit; font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 8px;
-      transition: background var(--speed), color var(--speed);
-    }
-    .an-period-btn:hover { color: var(--text); }
-    .an-period-btn.active { background: var(--primary); color: #fff; }
     .an-range { display: none; align-items: center; gap: 6px; }
     .an-range.show { display: flex; }
     .an-range input {
@@ -966,18 +998,9 @@
     #timer-pause-btn:hover { background: color-mix(in srgb, var(--good) 28%, transparent); }
     #timer-chip.paused { opacity: .7; }
 
-    /* ══ MONTH OVERVIEW MODAL ══ */
-    #month-overlay {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,.45); backdrop-filter: blur(4px);
-      z-index: 150; align-items: center; justify-content: center;
-    }
-    #month-overlay.open { display: flex; }
-    #month-modal {
-      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-      width: 760px; max-width: 94vw; max-height: 92vh; overflow-y: auto;
-      box-shadow: var(--shadow); animation: modalIn .18s ease;
-    }
+    /* ══ MONTH OVERVIEW MODAL (shares the .modal-overlay/.modal-box base) ══ */
+    #month-overlay { z-index: 150; }
+    #month-modal { width: 760px; max-width: 94vw; max-height: 92vh; }
     .month-nav { display: flex; align-items: center; gap: 14px; padding: 10px 24px 0; }
     .month-summary { flex: 1; text-align: center; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
     .month-summary b { color: var(--accent); font-size: 15px; }
@@ -999,7 +1022,6 @@
     .mc-rec { font-size: 10.5px; color: var(--muted); margin-top: auto; }
     .mc-bar { height: 3px; border-radius: 2px; background: var(--accent); opacity: .35; }
 
-    .sub-title { margin-right: 4px; }
     .sub-cost { font-weight: 600; color: var(--accent); }
     .sub-cost .cur { font-size: 11px; color: var(--muted); font-weight: 500; }
     #sub-table-wrap { flex: 1; overflow-y: auto; padding: var(--space-5) var(--space-6) var(--space-7); }
@@ -1019,15 +1041,14 @@
     .mod-search:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
     td.no-matches { text-align: center; padding: 22px; color: var(--muted); }
 
-    /* ══ MODAL ══ */
-    #modal-overlay {
+    /* ══ MODAL (one shared base: .modal-overlay wraps a .modal-box) ══ */
+    .modal-overlay {
       display: none; position: fixed; inset: 0;
       background: color-mix(in srgb, #000 55%, transparent); backdrop-filter: blur(4px);
       z-index: 100; align-items: center; justify-content: center;
     }
-    #modal-overlay.open { display: flex; }
-
-    #modal {
+    .modal-overlay.open { display: flex; }
+    .modal-box {
       background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
       width: 440px; max-height: 90vh; overflow-y: auto;
       box-shadow: var(--shadow);
@@ -1037,60 +1058,8 @@
       from { opacity: 0; transform: translateY(14px) scale(.97); }
       to   { opacity: 1; transform: none; }
     }
-
-    /* ══ SUBSCRIPTION MODAL (mirrors #modal-overlay/#modal) ══ */
-    #sub-modal-overlay {
-      display: none; position: fixed; inset: 0;
-      background: color-mix(in srgb, #000 55%, transparent); backdrop-filter: blur(4px);
-      z-index: 100; align-items: center; justify-content: center;
-    }
-    #sub-modal-overlay.open { display: flex; }
-    #sub-modal {
-      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-      width: 440px; max-height: 90vh; overflow-y: auto;
-      box-shadow: var(--shadow);
-      animation: modalIn .32s var(--ease);
-    }
-    #sub-settings-overlay {
-      display: none; position: fixed; inset: 0;
-      background: color-mix(in srgb, #000 55%, transparent); backdrop-filter: blur(4px);
-      z-index: 100; align-items: center; justify-content: center;
-    }
-    #sub-settings-overlay.open { display: flex; }
-    #sub-settings-modal {
-      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-      width: 380px; max-height: 90vh; overflow-y: auto;
-      box-shadow: var(--shadow);
-      animation: modalIn .32s var(--ease);
-    }
-
-    /* ══ NOT YET TASK MODAL (mirrors #modal-overlay/#modal) ══ */
-    #backlog-modal-overlay {
-      display: none; position: fixed; inset: 0;
-      background: color-mix(in srgb, #000 55%, transparent); backdrop-filter: blur(4px);
-      z-index: 100; align-items: center; justify-content: center;
-    }
-    #backlog-modal-overlay.open { display: flex; }
-    #backlog-modal {
-      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-      width: 440px; max-height: 90vh; overflow-y: auto;
-      box-shadow: var(--shadow);
-      animation: modalIn .32s var(--ease);
-    }
-
-    /* ══ PROJECT + LINK-TASK MODALS (mirror #modal-overlay/#modal) ══ */
-    #project-modal-overlay, #link-task-overlay {
-      display: none; position: fixed; inset: 0;
-      background: color-mix(in srgb, #000 55%, transparent); backdrop-filter: blur(4px);
-      z-index: 100; align-items: center; justify-content: center;
-    }
-    #project-modal-overlay.open, #link-task-overlay.open { display: flex; }
-    #project-modal, #link-task-modal {
-      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-      max-height: 90vh; overflow-y: auto;
-      box-shadow: var(--shadow);
-      animation: modalIn .32s var(--ease);
-    }
+    /* Per-modal width overrides */
+    #sub-settings-modal { width: 380px; }
     #project-modal { width: 460px; }
     #link-task-modal { width: 540px; }
     .btn.del-action { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 28%, transparent); }
@@ -1100,7 +1069,7 @@
       display: flex; align-items: center; justify-content: space-between;
       padding: 22px 26px 0;
     }
-    .modal-title { font-size: 19px; font-weight: 700; }
+    .modal-title { font-size: var(--fs-title); font-weight: 700; letter-spacing: var(--ls-title); }
     .modal-close {
       background: var(--elevate); border: 1px solid var(--border); width: 28px; height: 28px;
       border-radius: 50%; cursor: pointer; font-size: 16px; color: var(--muted);
@@ -1244,11 +1213,9 @@
     .general-hint { font-size: 12px; color: var(--muted); line-height: 1.5; }
 
     /* ══ SETTINGS MODULE (page) ══ */
-    .settings-mod-title { margin-right: auto; }
     #module-settings .settings-body { background: var(--bg); }
 
-    /* ══ COMPANIES / SYSTEMS MODULES (read-only views) ══ */
-    .cp-title { margin-right: auto; }
+    /* ══ BROWSE MODULE (read-only Companies / Systems slices) ══ */
     .cp-body { flex: 1; display: flex; overflow: hidden; }
     .cp-list-panel {
       width: 280px; flex-shrink: 0; border-right: 1px solid var(--border);
@@ -1283,7 +1250,7 @@
 
     .cp-records-panel { flex: 1; overflow-y: auto; padding: var(--space-5) var(--space-6) var(--space-7); }
     .cp-records-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
-    .cp-records-title { font-size: 18px; font-weight: 700; }
+    .cp-records-title { font-size: var(--fs-title); font-weight: 700; letter-spacing: var(--ls-title); }
     .cp-filter-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-bottom: 14px; }
     .cp-filter-field { display: flex; flex-direction: column; gap: 4px; }
     .cp-filter-field label { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
@@ -1562,6 +1529,119 @@
     }
     #undo-toast-btn:hover, #sub-undo-toast-btn:hover, #backlog-undo-toast-btn:hover, #project-undo-toast-btn:hover { background: var(--primary-strong); }
 
+    /* ══ CROSS-LINKS (clickable data → related views) ══ */
+    .cell-link {
+      background: none; border: none; padding: 0; cursor: pointer; font-family: inherit;
+      font-size: inherit; color: var(--text); text-align: left;
+      border-bottom: 1px dashed transparent; transition: color var(--speed), border-color var(--speed);
+    }
+    .cell-link:hover { color: var(--primary); border-bottom-color: color-mix(in srgb, var(--primary) 55%, transparent); }
+    .row-project-tag.clickable { cursor: pointer; transition: color var(--speed), border-color var(--speed); }
+    .row-project-tag.clickable:hover { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 45%, transparent); }
+    .an-bar-row.clickable { cursor: pointer; border-radius: 6px; }
+    .an-bar-row.clickable:hover .an-bar-label { color: var(--primary); }
+    .an-bar-row.clickable:hover .an-bar-fill { filter: brightness(1.12); }
+
+    /* ══ TIMESHEET GROUPED VIEW (sessions nested under their task) ══ */
+    #ts-groups { display: none; flex-direction: column; gap: 12px; }
+    .tsg-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow-sm); overflow: hidden;
+    }
+    .tsg-head {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      padding: 12px 16px; border-bottom: 1px solid var(--border);
+      background: var(--surface2);
+    }
+    .tsg-title { font-size: var(--fs-body); font-weight: 700; color: var(--text); cursor: pointer; }
+    .tsg-title:hover { color: var(--primary); }
+    .tsg-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .tsg-pill {
+      font-size: 11px; font-weight: 600; color: var(--muted);
+      background: var(--surface); border: 1px solid var(--border);
+      padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+    }
+    .tsg-sub { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    .tsg-total { font-size: var(--fs-sm); font-weight: 700; color: var(--primary); font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+    .tsg-add {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: none; border: 1px solid var(--border); border-radius: 8px;
+      padding: 4px 10px; font-size: 11.5px; font-weight: 600; color: var(--muted);
+      cursor: pointer; font-family: inherit; transition: all var(--speed); white-space: nowrap;
+    }
+    .tsg-add:hover { border-color: var(--primary); color: var(--primary); }
+    .tsg-add .lic { width: 13px; height: 13px; }
+    .tsg-card table { width: 100%; }
+    .tsg-card tbody { box-shadow: none; }
+    .tsg-card thead th { position: static; background: var(--surface); font-size: 10.5px; padding: 9px 16px; }
+    .tsg-card td .cell { padding: 10px 16px; }
+    .tsg-card tbody tr:first-child td { border-radius: 0 !important; }
+    .tsg-card tbody tr:last-child td { border-radius: 0 !important; }
+
+    /* ══ COMMAND PALETTE (Ctrl+K) ══ */
+    #palette-overlay {
+      display: none; position: fixed; inset: 0;
+      background: color-mix(in srgb, #000 45%, transparent); backdrop-filter: blur(3px);
+      z-index: 800; align-items: flex-start; justify-content: center; padding-top: 14vh;
+    }
+    #palette-overlay.open { display: flex; }
+    #palette {
+      width: 560px; max-width: 92vw; max-height: 60vh; display: flex; flex-direction: column;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); overflow: hidden; animation: modalIn .18s var(--ease);
+    }
+    #palette-input-wrap { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+    #palette-input-wrap .lic { width: 17px; height: 17px; color: var(--muted); flex-shrink: 0; }
+    #palette-input {
+      flex: 1; border: none; background: none; outline: none;
+      font-family: inherit; font-size: 15px; color: var(--text);
+    }
+    #palette-input::placeholder { color: var(--muted); }
+    #palette-list { flex: 1; overflow-y: auto; padding: 6px; }
+    .pal-group {
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: var(--ls-caption);
+      color: var(--muted); padding: 10px 12px 4px;
+    }
+    .pal-item {
+      display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+      background: none; border: none; cursor: pointer; font-family: inherit;
+      padding: 9px 12px; border-radius: var(--radius-sm); font-size: var(--fs-body); color: var(--text);
+    }
+    .pal-item .lic { width: 15px; height: 15px; color: var(--muted); flex-shrink: 0; }
+    .pal-item.active { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary); }
+    .pal-item.active .lic { color: var(--primary); }
+    .pal-item-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pal-item-hint { font-size: 11px; color: var(--muted); white-space: nowrap; }
+    .pal-empty { text-align: center; color: var(--muted); font-size: var(--fs-sm); padding: 26px 12px; }
+    #palette-foot {
+      display: flex; align-items: center; gap: 14px; padding: 8px 16px;
+      border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); background: var(--surface2);
+    }
+    #palette-foot kbd { font-size: 10px; padding: 1px 6px; margin: 0 4px 0 0; }
+
+    /* ══ RECORD MODAL — two-path mode + collapsed extras ══ */
+    #modal .seg-ctl { margin-bottom: 2px; }
+    #modal .seg-btn { flex: 1; justify-content: center; padding: 7px 11px; }
+    #modal.mode-existing .modal-taskfields { display: none; }
+    #modal.mode-new #f-existing-task-row { display: none !important; }
+    .modal-task-summary {
+      display: none; font-size: var(--fs-sm); color: var(--muted); line-height: 1.5;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 9px 12px; margin-top: -4px;
+    }
+    .modal-task-summary b { color: var(--text); }
+    #modal.mode-existing .modal-task-summary.has-task { display: block; }
+    .modal-more-toggle {
+      display: inline-flex; align-items: center; gap: 6px; align-self: flex-start;
+      background: none; border: none; padding: 0; cursor: pointer; font-family: inherit;
+      font-size: var(--fs-sm); font-weight: 600; color: var(--muted); transition: color var(--speed);
+    }
+    .modal-more-toggle:hover { color: var(--primary); }
+    .modal-more-toggle .lic { width: 13px; height: 13px; transition: transform var(--speed); }
+    .modal-more-toggle.open .lic { transform: rotate(180deg); }
+    .modal-more { display: none; flex-direction: column; gap: 15px; }
+    .modal-more.open { display: flex; }
+
     /* ── Auth gate (setup / login) ── */
     #auth-overlay {
       position: fixed; inset: 0; z-index: 1000; display: none;
@@ -1631,29 +1711,29 @@
 <div id="sidebar">
   <div class="sidebar-brand">MOS TA FA<br><span>COOPERATION TOOLS</span></div>
   <nav class="sidebar-nav">
-    <button class="nav-item active" data-module="analytics" onclick="switchModule('analytics')">
-      <span class="nav-icon" data-ic="layout-dashboard"></span>Analytics
-    </button>
+    <div class="nav-section">Track</div>
     <button class="nav-item" data-module="timesheet" onclick="switchModule('timesheet')">
       <span class="nav-icon" data-ic="clock"></span>Timesheet
     </button>
     <button class="nav-item" data-module="backlog" onclick="switchModule('backlog')">
       <span class="nav-icon" data-ic="pin"></span>Not Yet
     </button>
+    <div class="nav-section">Analyze</div>
+    <button class="nav-item active" data-module="analytics" onclick="switchModule('analytics')">
+      <span class="nav-icon" data-ic="layout-dashboard"></span>Analytics
+    </button>
     <button class="nav-item" data-module="reports" onclick="switchModule('reports')">
       <span class="nav-icon" data-ic="file-text"></span>Reports
     </button>
-    <button class="nav-item" data-module="subscriptions" onclick="switchModule('subscriptions')">
-      <span class="nav-icon" data-ic="credit-card"></span>Subscriptions<span class="nav-badge" id="nav-badge-subscriptions"></span>
+    <button class="nav-item" data-module="browse" onclick="switchModule('browse')">
+      <span class="nav-icon" data-ic="compass"></span>Browse
     </button>
-    <button class="nav-item" data-module="companies" onclick="switchModule('companies')">
-      <span class="nav-icon" data-ic="building-2"></span>Companies
-    </button>
-    <button class="nav-item" data-module="systems" onclick="switchModule('systems')">
-      <span class="nav-icon" data-ic="folder"></span>Systems
-    </button>
+    <div class="nav-section">Manage</div>
     <button class="nav-item" data-module="projects" onclick="switchModule('projects')">
       <span class="nav-icon" data-ic="clipboard-list"></span>Projects
+    </button>
+    <button class="nav-item" data-module="subscriptions" onclick="switchModule('subscriptions')">
+      <span class="nav-icon" data-ic="credit-card"></span>Subscriptions<span class="nav-badge" id="nav-badge-subscriptions"></span>
     </button>
     <button class="nav-item" data-module="settings" onclick="switchModule('settings')">
       <span class="nav-icon" data-ic="settings"></span>Settings
@@ -1675,13 +1755,13 @@
 
 <!-- ══ ANALYTICS MODULE (home / overview) ══ -->
 <div id="module-analytics" class="app-module">
-  <div id="an-topbar">
-    <span class="an-title"><span class="ti-ic" data-ic="layout-dashboard"></span>Analytics</span>
-    <div class="an-period" id="an-period">
-      <button class="an-period-btn" data-period="week"  onclick="setAnPeriod('week')">This Week</button>
-      <button class="an-period-btn active" data-period="month" onclick="setAnPeriod('month')">This Month</button>
-      <button class="an-period-btn" data-period="year"  onclick="setAnPeriod('year')">This Year</button>
-      <button class="an-period-btn" data-period="custom" onclick="setAnPeriod('custom')">Custom</button>
+  <div id="an-topbar" class="page-header">
+    <span class="page-title"><span class="ti-ic" data-ic="layout-dashboard"></span>Analytics</span>
+    <div class="seg-ctl" id="an-period">
+      <button class="seg-btn" data-period="week"  onclick="setAnPeriod('week')">This Week</button>
+      <button class="seg-btn active" data-period="month" onclick="setAnPeriod('month')">This Month</button>
+      <button class="seg-btn" data-period="year"  onclick="setAnPeriod('year')">This Year</button>
+      <button class="seg-btn" data-period="custom" onclick="setAnPeriod('custom')">Custom</button>
     </div>
     <div class="an-range" id="an-range">
       <input type="month" id="an-from" onchange="renderAnalytics()" />
@@ -1783,8 +1863,8 @@
 
 <!-- ══ REPORTS MODULE ══ -->
 <div id="module-reports" class="app-module">
-  <div id="reports-topbar">
-    <span class="reports-title"><span class="ti-ic" data-ic="file-text"></span>Reports</span>
+  <div id="reports-topbar" class="page-header">
+    <span class="page-title"><span class="ti-ic" data-ic="file-text"></span>Reports</span>
   </div>
   <div class="rmod-scroll">
     <div class="rmod-intro">
@@ -1839,8 +1919,8 @@
 <div id="module-timesheet" class="app-module active">
 <div id="main">
   <!-- Top bar -->
-  <div id="topbar">
-    <span class="topbar-title"><span class="ti-ic" data-ic="clock"></span>Timesheet</span>
+  <div id="topbar" class="page-header">
+    <span class="page-title"><span class="ti-ic" data-ic="clock"></span>Timesheet</span>
     <!-- Calendar trigger -->
     <div id="cal-trigger" onclick="toggleCalendar(event)">
       <span class="cal-icon" data-ic="calendar"></span>
@@ -1915,12 +1995,16 @@
       <button class="filter-chip" data-status="DONE"        onclick="toggleStatusFilter(this)">Done</button>
       <button class="filter-chip" data-status="IN_PROGRESS" onclick="toggleStatusFilter(this)">In Progress</button>
     </div>
+    <div class="seg-ctl" id="ts-view-ctl" title="How the day's sessions are laid out">
+      <button class="seg-btn" data-view="grouped" onclick="setTsView('grouped')"><span data-ic="layers"></span>By Task</button>
+      <button class="seg-btn" data-view="flat" onclick="setTsView('flat')"><span data-ic="rows-3"></span>Flat</button>
+    </div>
     <span id="filter-count"></span>
   </div>
 
-  <!-- Table -->
+  <!-- Table (flat view) + grouped-by-task cards (grouped view) -->
   <div id="table-wrap">
-    <table>
+    <table id="ts-table">
       <thead>
         <tr>
           <th style="width:36px">#</th>
@@ -1939,6 +2023,7 @@
       </thead>
       <tbody id="tbody"></tbody>
     </table>
+    <div id="ts-groups"></div>
     <div id="empty-state">
       <div class="icon" data-ic="clipboard-list"></div>
       <p>No records yet — click <strong>+ Add Record</strong> to start</p>
@@ -1957,26 +2042,28 @@
 </div>
 
 <!-- ══ ADD / EDIT RECORD MODAL ══ -->
-<div id="modal-overlay" onclick="overlayClick(event)">
-  <div id="modal">
+<div id="modal-overlay" class="modal-overlay" onclick="overlayClick(event)">
+  <div id="modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title" id="modal-title">Add Record</span>
       <button class="modal-close" onclick="closeModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Task <span style="text-transform:none;font-weight:500;color:var(--muted)">— the task this work belongs to (defaults to the description)</span></label>
-          <input id="f-taskname" type="text" placeholder="e.g. Q3 billing integration" />
-        </div>
+      <!-- First choice: create a new task, or log a session on an existing one.
+           Hidden in edit mode (setRecordMode drives the #modal mode-* class). -->
+      <div class="seg-ctl" id="f-mode-ctl">
+        <button class="seg-btn" data-mode="new" onclick="setRecordMode('new')"><span data-ic="plus"></span>New task</button>
+        <button class="seg-btn" data-mode="existing" onclick="setRecordMode('existing')"><span data-ic="layers"></span>Log on existing task</button>
       </div>
       <div class="form-row" id="f-existing-task-row">
         <div class="form-group full">
-          <label>Or log against an existing task <span style="text-transform:none;font-weight:500;color:var(--muted)">— leave empty to create a new task</span></label>
+          <label>Task</label>
           <div id="f-existing-task"></div>
         </div>
       </div>
-      <div class="modal-hint" id="f-lock-hint" hidden>Logging a session against an existing task — its details are locked below; only the session (date, description, minutes, time) is added.</div>
+      <!-- Compact read-only summary of the chosen task (existing mode only). -->
+      <div class="modal-task-summary" id="f-task-summary"></div>
+      <div class="modal-hint" id="f-lock-hint" hidden>Only a session (date, time, description, minutes) is added — the task itself is never changed.</div>
       <div class="form-row">
         <div class="form-group">
           <label>Date <span style="text-transform:none;font-weight:500;color:var(--muted)">— the day this session was worked</span></label>
@@ -1985,32 +2072,6 @@
         <div class="form-group">
           <label>Time Type</label>
           <select id="f-time"></select>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Company</label>
-          <select id="f-company"></select>
-        </div>
-        <div class="form-group">
-          <label>System</label>
-          <select id="f-system"></select>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Natural</label>
-          <select id="f-natural"></select>
-        </div>
-        <div class="form-group">
-          <label>Status</label>
-          <select id="f-status"></select>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Project <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional, link this task to a project</span></label>
-          <div id="f-project"></div>
         </div>
       </div>
       <div class="form-row">
@@ -2024,15 +2085,55 @@
           <label>Minutes</label>
           <input id="f-minutes" type="number" min="1" max="1440" placeholder="e.g. 45" />
         </div>
-        <div class="form-group">
-          <label>Source</label>
-          <input id="f-source" type="text" placeholder="Email subject, Jira ticket URL…" />
+      </div>
+      <!-- Task-level fields — hidden entirely when logging on an existing task. -->
+      <div class="modal-taskfields form-row">
+        <div class="form-group full">
+          <label>Task Name <span style="text-transform:none;font-weight:500;color:var(--muted)">— defaults to the description</span></label>
+          <input id="f-taskname" type="text" placeholder="e.g. Q3 billing integration" />
         </div>
       </div>
-      <div class="form-row">
+      <div class="modal-taskfields form-row">
+        <div class="form-group">
+          <label>Company</label>
+          <select id="f-company"></select>
+        </div>
+        <div class="form-group">
+          <label>System</label>
+          <select id="f-system"></select>
+        </div>
+      </div>
+      <div class="modal-taskfields form-row">
+        <div class="form-group">
+          <label>Natural</label>
+          <select id="f-natural"></select>
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="f-status"></select>
+        </div>
+      </div>
+      <div class="modal-taskfields form-row">
         <div class="form-group full">
-          <label>Tags <span style="text-transform:none;font-weight:500;color:var(--muted)">— comma separated, optional</span></label>
-          <input id="f-tags" type="text" placeholder="e.g. urgent, billable, follow-up" />
+          <label>Project <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional, link this task to a project</span></label>
+          <div id="f-project"></div>
+        </div>
+      </div>
+      <button type="button" class="modal-more-toggle modal-taskfields" id="f-more-toggle" onclick="toggleModalMore()">
+        More options — source &amp; tags <span data-ic="chevron-down"></span>
+      </button>
+      <div class="modal-more modal-taskfields" id="f-more">
+        <div class="form-row">
+          <div class="form-group full">
+            <label>Source</label>
+            <input id="f-source" type="text" placeholder="Email subject, Jira ticket URL…" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group full">
+            <label>Tags <span style="text-transform:none;font-weight:500;color:var(--muted)">— comma separated, optional</span></label>
+            <input id="f-tags" type="text" placeholder="e.g. urgent, billable, follow-up" />
+          </div>
         </div>
       </div>
     </div>
@@ -2044,8 +2145,8 @@
 </div>
 
 <!-- ══ MONTH OVERVIEW MODAL ══ -->
-<div id="month-overlay" onclick="monthOverlayClick(event)">
-  <div id="month-modal">
+<div id="month-overlay" class="modal-overlay" onclick="monthOverlayClick(event)">
+  <div id="month-modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title"><span class="ti-ic" data-ic="calendar-days"></span><span id="month-title">Month</span></span>
       <button class="modal-close" onclick="closeMonthView()" data-ic="x"></button>
@@ -2089,8 +2190,8 @@
 
 <!-- ══ SUBSCRIPTIONS MODULE ══ -->
 <div id="module-subscriptions" class="app-module">
-  <div id="sub-topbar">
-    <span class="sub-title"><span class="ti-ic" data-ic="credit-card"></span>Subscriptions</span>
+  <div id="sub-topbar" class="page-header">
+    <span class="page-title"><span class="ti-ic" data-ic="credit-card"></span>Subscriptions</span>
     <div class="topbar-right">
       <input type="text" id="sub-filter" class="mod-search" placeholder="Search subscriptions…" oninput="applySubFilter()">
       <button class="btn" onclick="openSubSettings()" title="Settings"><span data-ic="settings"></span>Settings</button>
@@ -2122,8 +2223,8 @@
 
 <!-- ══ NOT YET (BACKLOG) MODULE ══ -->
 <div id="module-backlog" class="app-module">
-  <div id="backlog-topbar">
-    <span class="backlog-title"><span class="ti-ic" data-ic="pin"></span>Not Yet</span>
+  <div id="backlog-topbar" class="page-header">
+    <span class="page-title"><span class="ti-ic" data-ic="pin"></span>Not Yet</span>
     <div class="topbar-right">
       <input type="text" id="backlog-filter" class="mod-search" placeholder="Search tasks…" oninput="applyBacklogFilter()">
       <button class="btn primary" onclick="openBacklogModal()">+ Add Task</button>
@@ -2153,12 +2254,18 @@
   </div>
 </div>
 
-<!-- ══ COMPANIES MODULE (read-only view over tasks + work_logs) ══ -->
-<div id="module-companies" class="app-module">
-  <div class="cp-topbar">
-    <span class="cp-title"><span class="ti-ic" data-ic="building-2"></span>Companies</span>
+<!-- ══ BROWSE MODULE (read-only slices of tasks + work_logs, by Company or System) ══ -->
+<div id="module-browse" class="app-module">
+  <div class="page-header">
+    <span class="page-title"><span class="ti-ic" data-ic="compass"></span>Browse</span>
+    <div class="seg-ctl" id="browse-kind-ctl">
+      <button class="seg-btn active" data-kind="companies" onclick="setBrowseKind('companies')"><span data-ic="building-2"></span>Companies</button>
+      <button class="seg-btn" data-kind="systems" onclick="setBrowseKind('systems')"><span data-ic="folder"></span>Systems</button>
+    </div>
   </div>
-  <div class="cp-body">
+  <!-- Two dimension panels; the toggle above shows one at a time. Inner ids are
+       keyed by kind ('companies' | 'systems') and drive the shared renderer. -->
+  <div class="cp-body" id="browse-body-companies">
     <div class="cp-list-panel">
       <div class="cp-list-search">
         <input type="text" id="companies-search" class="cp-search" placeholder="Search companies…" oninput="renderCatList('companies')">
@@ -2167,14 +2274,7 @@
     </div>
     <div class="cp-records-panel" id="companies-records"></div>
   </div>
-</div>
-
-<!-- ══ SYSTEMS MODULE (read-only view over tasks + work_logs) ══ -->
-<div id="module-systems" class="app-module">
-  <div class="cp-topbar">
-    <span class="cp-title"><span class="ti-ic" data-ic="folder"></span>Systems</span>
-  </div>
-  <div class="cp-body">
+  <div class="cp-body" id="browse-body-systems" style="display:none">
     <div class="cp-list-panel">
       <div class="cp-list-search">
         <input type="text" id="systems-search" class="cp-search" placeholder="Search systems…" oninput="renderCatList('systems')">
@@ -2187,8 +2287,8 @@
 
 <!-- ══ PROJECTS MODULE (container: tasks + tracked documents) ══ -->
 <div id="module-projects" class="app-module">
-  <div id="projects-topbar">
-    <span class="cp-title"><span class="ti-ic" data-ic="clipboard-list"></span>Projects</span>
+  <div id="projects-topbar" class="page-header">
+    <span class="page-title"><span class="ti-ic" data-ic="clipboard-list"></span>Projects</span>
     <div class="topbar-right">
       <input type="text" id="projects-filter" class="mod-search" placeholder="Search projects…" oninput="applyProjectFilter()">
       <button id="projects-backup-btn" class="btn" onclick="backupProjects()" title="Save a .zip of all uploaded project files">Backup Projects</button>
@@ -2210,8 +2310,8 @@
 </div>
 
 <!-- ══ PROJECT ADD/EDIT MODAL ══ -->
-<div id="project-modal-overlay" onclick="projectOverlayClick(event)">
-  <div id="project-modal" class="modal">
+<div id="project-modal-overlay" class="modal-overlay" onclick="projectOverlayClick(event)">
+  <div id="project-modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title" id="project-modal-title">New Project</span>
       <button class="modal-close" onclick="closeProjectModal()" data-ic="x"></button>
@@ -2256,8 +2356,8 @@
 </div>
 
 <!-- ══ LINK EXISTING TASK MODAL ══ -->
-<div id="link-task-overlay" onclick="linkTaskOverlayClick(event)">
-  <div id="link-task-modal" class="modal">
+<div id="link-task-overlay" class="modal-overlay" onclick="linkTaskOverlayClick(event)">
+  <div id="link-task-modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title">Link an Existing Task</span>
       <button class="modal-close" onclick="closeLinkModal()" data-ic="x"></button>
@@ -2280,8 +2380,8 @@
 
 <!-- ══ SETTINGS MODULE (General + Lookups) ══ -->
 <div id="module-settings" class="app-module">
-  <div id="settings-topbar">
-    <span class="settings-mod-title"><span class="ti-ic" data-ic="settings"></span>Settings</span>
+  <div id="settings-topbar" class="page-header">
+    <span class="page-title"><span class="ti-ic" data-ic="settings"></span>Settings</span>
     <div class="topbar-right">
       <button class="btn primary" onclick="saveSettings()">Save Changes</button>
     </div>
@@ -2320,8 +2420,8 @@
 </div>
 
 <!-- ══ NOT YET TASK ADD/EDIT MODAL ══ -->
-<div id="backlog-modal-overlay" onclick="backlogOverlayClick(event)">
-  <div id="backlog-modal" class="modal">
+<div id="backlog-modal-overlay" class="modal-overlay" onclick="backlogOverlayClick(event)">
+  <div id="backlog-modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title" id="backlog-modal-title">Add Task</span>
       <button class="modal-close" onclick="closeBacklogModal()" data-ic="x"></button>
@@ -2382,8 +2482,8 @@
 </div>
 
 <!-- ══ SUBSCRIPTION ADD/EDIT MODAL ══ -->
-<div id="sub-modal-overlay" onclick="subOverlayClick(event)">
-  <div id="sub-modal">
+<div id="sub-modal-overlay" class="modal-overlay" onclick="subOverlayClick(event)">
+  <div id="sub-modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title" id="sub-modal-title">Add Subscription</span>
       <button class="modal-close" onclick="closeSubModal()" data-ic="x"></button>
@@ -2430,8 +2530,8 @@
 </div>
 
 <!-- ══ SUBSCRIPTIONS SETTINGS MODAL ══ -->
-<div id="sub-settings-overlay" onclick="subSettingsOverlayClick(event)">
-  <div id="sub-settings-modal" class="modal">
+<div id="sub-settings-overlay" class="modal-overlay" onclick="subSettingsOverlayClick(event)">
+  <div id="sub-settings-modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title"><span class="ti-ic" data-ic="settings"></span>Subscriptions Settings</span>
       <button class="modal-close" onclick="closeSubSettings()" data-ic="x"></button>
@@ -2455,6 +2555,24 @@
 <div id="sub-undo-toast">
   <span>Subscription deleted</span>
   <button id="sub-undo-toast-btn" onclick="undoDeleteSub()">Undo</button>
+</div>
+
+<!-- ══ COMMAND PALETTE (Ctrl+K) ══ -->
+<div id="palette-overlay" onclick="paletteOverlayClick(event)">
+  <div id="palette" onclick="event.stopPropagation()">
+    <div id="palette-input-wrap">
+      <span data-ic="search"></span>
+      <input id="palette-input" type="text" placeholder="Jump to a page, task, project or date…"
+             autocomplete="off" spellcheck="false" oninput="renderPalette()" />
+    </div>
+    <div id="palette-list"></div>
+    <div id="palette-foot">
+      <span><kbd>↑↓</kbd>navigate</span>
+      <span><kbd>Enter</kbd>select</span>
+      <span><kbd>Esc</kbd>close</span>
+      <span style="margin-left:auto">Tip: type a date like 2026-07-01</span>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -2509,7 +2627,12 @@ const ICONS = {
   "upload": "<path d=\"M12 3v12\" /><path d=\"m17 8-5-5-5 5\" /><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\" />",
   "external-link": "<path d=\"M15 3h6v6\" /><path d=\"M10 14 21 3\" /><path d=\"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\" />",
   "plus": "<path d=\"M5 12h14\" /><path d=\"M12 5v14\" />",
-  "timer-reset": "<path d=\"M10 2h4\" /><path d=\"M12 14v-4\" /><path d=\"M4 13a8 8 0 0 1 8-7 8 8 0 1 1-5.3 14L4 17.6\" /><path d=\"M9 17H4v5\" />"
+  "timer-reset": "<path d=\"M10 2h4\" /><path d=\"M12 14v-4\" /><path d=\"M4 13a8 8 0 0 1 8-7 8 8 0 1 1-5.3 14L4 17.6\" /><path d=\"M9 17H4v5\" />",
+  "compass": "<circle cx=\"12\" cy=\"12\" r=\"10\" /><polygon points=\"16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76\" />",
+  "layers": "<path d=\"M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z\" /><path d=\"m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65\" /><path d=\"m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65\" />",
+  "rows-3": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" /><path d=\"M21 9H3\" /><path d=\"M21 15H3\" />",
+  "command": "<path d=\"M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3\" />",
+  "arrow-right": "<path d=\"M5 12h14\" /><path d=\"m12 5 7 7-7 7\" />"
 };
 // Build an inline SVG string for icon `name`. Optional extra class via `cls`.
 function ic(name, cls) {
@@ -2645,6 +2768,23 @@ function toast(msg) {
   el.classList.add('show');
   clearTimeout(_toastTimer);
   _toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+// ── Loading skeletons ──
+// Fill `host` with shimmer placeholders while its async data loads; the next
+// real render replaces them. `kind`: 'cards' (grid tiles) or 'text' (lines).
+function showSkeleton(host, kind = 'text', count = 3) {
+  const el = typeof host === 'string' ? document.getElementById(host) : host;
+  if (!el) return;
+  el.innerHTML = (kind === 'cards'
+    ? '<div class="skeleton-card"></div>'.repeat(count)
+    : '<div class="skeleton-text"></div>'.repeat(count));
+}
+// Skeleton rows for a <tbody> while its table data loads.
+function showTableSkeleton(tbody, colSpan, rows = 3) {
+  const el = typeof tbody === 'string' ? document.getElementById(tbody) : tbody;
+  if (!el) return;
+  el.innerHTML = `<tr><td colspan="${colSpan}" style="padding:10px 18px"><div class="skeleton-text"></div></td></tr>`.repeat(rows);
 }
 
 function esc(s) {
@@ -3042,7 +3182,310 @@ function statusClass(s) {
   return 'status-progress';
 }
 
+// ── Day view mode: sessions grouped under their task (default) or a flat list ──
+let tsView = (localStorage.getItem('ct-ts-view') === 'flat') ? 'flat' : 'grouped';
+function setTsView(v) {
+  tsView = v === 'flat' ? 'flat' : 'grouped';
+  try { localStorage.setItem('ct-ts-view', tsView); } catch (e) { /* private mode */ }
+  if (tsView === 'grouped' && selectedRows.size) clearSelection();   // bulk select is flat-only
+  renderTable();
+}
+function syncTsViewCtl() {
+  document.querySelectorAll('#ts-view-ctl .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.view === tsView));
+}
 function renderTable() {
+  syncTsViewCtl();
+  const grouped = tsView === 'grouped';
+  document.getElementById('ts-table').style.display  = grouped ? 'none' : '';
+  document.getElementById('ts-groups').style.display = grouped ? 'flex' : 'none';
+  if (grouped) renderTableGrouped();
+  else renderTableFlat();
+}
+
+// Grouped view: one card per task, its sessions nested (mirrors the two-level model).
+function renderTableGrouped() {
+  const host = document.getElementById('ts-groups');
+  host.innerHTML = '';
+
+  const shown = rows.filter(rowMatchesFilter);
+  const isFiltered = filterText || filterStatuses.size > 0;
+  document.getElementById('filter-count').textContent = isFiltered ? `${shown.length} of ${rows.length} shown` : '';
+
+  // Group sessions by task; a not-yet-saved row (no taskId) is its own group.
+  const groups = new Map();
+  shown.forEach(r => {
+    const key = r.taskId != null ? 't' + r.taskId : r;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  });
+  // Done tasks first, then in-progress — same ordering as the flat view.
+  const list = [...groups.values()].sort((a, b) =>
+    (a[0].status === 'DONE' ? 0 : 1) - (b[0].status === 'DONE' ? 0 : 1));
+
+  const origIdxOf = new Map(rows.map((r, i) => [r, i]));
+  list.forEach(g => host.appendChild(buildTaskGroupCard(g, origIdxOf)));
+
+  updateTotals();
+  document.getElementById('empty-state').style.display = rows.length ? 'none' : 'flex';
+  document.getElementById('row-count').textContent = rows.length || '0';
+}
+
+// One task card in the grouped day view: header (name · pills · status ·
+// subtotal · add-session) + a mini table of its sessions with row actions.
+function buildTaskGroupCard(g, origIdxOf) {
+  const first = g[0];
+  const card = document.createElement('div');
+  card.className = 'tsg-card';
+
+  // ── Header ──
+  const head = document.createElement('div');
+  head.className = 'tsg-head';
+
+  const title = document.createElement('span');
+  title.className = 'tsg-title';
+  title.textContent = first.taskName || first.description || '(untitled task)';
+  title.title = 'Click to rename this task';
+  title.addEventListener('click', () => {
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.className = 'min-inline-input'; inp.style.width = '260px'; inp.style.textAlign = 'left';
+    inp.value = first.taskName || '';
+    title.replaceWith(inp);
+    inp.focus(); inp.select();
+    const commit = () => {
+      first.taskName = inp.value.trim();
+      syncSiblingTasks(first);
+      renderTable(); setUnsaved();
+    };
+    inp.addEventListener('blur', commit);
+    inp.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter')  { ev.preventDefault(); inp.blur(); }
+      if (ev.key === 'Escape') { ev.preventDefault(); renderTable(); }
+    });
+  });
+  head.appendChild(title);
+
+  // Status badge — same dropdown as the flat view; status is task-level.
+  const stBadgeWrap = document.createElement('span');
+  stBadgeWrap.className = statusClass(first.status);
+  const badge = document.createElement('span');
+  badge.className = 'status-badge'; badge.textContent = lkLabel('ENTRY_STATUS', first.status);
+  badge.title = 'Click to change status';
+  badge.addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.querySelector('.status-dropdown')?.remove();
+    const dropdown = document.createElement('div');
+    dropdown.className = 'status-dropdown';
+    lkOptions('ENTRY_STATUS').forEach(o => {
+      const opt = document.createElement('div');
+      opt.className = 'sd-opt ' + (o.code === 'DONE' ? 'done' : 'progress');
+      opt.textContent = o.label;
+      opt.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        first.status = o.code;
+        syncSiblingTasks(first);
+        dropdown.remove();
+        renderTable(); setUnsaved();
+      });
+      dropdown.appendChild(opt);
+    });
+    const rect = badge.getBoundingClientRect();
+    dropdown.style.top  = (rect.bottom + 4) + 'px';
+    dropdown.style.left = rect.left + 'px';
+    document.body.appendChild(dropdown);
+    const close = () => { dropdown.remove(); document.removeEventListener('click', close); };
+    setTimeout(() => document.addEventListener('click', close), 0);
+  });
+  stBadgeWrap.appendChild(badge);
+  head.appendChild(stBadgeWrap);
+
+  // Category pills (company / system / natural) — company & system are cross-links.
+  const meta = document.createElement('span');
+  meta.className = 'tsg-meta';
+  const pill = (text, kind) => {
+    if (!text) return;
+    if (kind) {
+      const b = document.createElement('button');
+      b.className = 'tsg-pill cell-link'; b.textContent = text;
+      b.title = 'Browse all work for ' + text;
+      b.addEventListener('click', () => openBrowseSlice(kind, text));
+      meta.appendChild(b);
+    } else {
+      const s = document.createElement('span');
+      s.className = 'tsg-pill'; s.textContent = text;
+      meta.appendChild(s);
+    }
+  };
+  pill(first.company, 'companies');
+  pill(first.system, 'systems');
+  pill(first.natural, null);
+  const projTag = projectRowTag(first.projectId);
+  if (projTag) meta.appendChild(projTag);
+  head.appendChild(meta);
+
+  // Right side: per-task subtotal + add-session.
+  const sub = document.createElement('span');
+  sub.className = 'tsg-sub';
+  const tMin = totalMins(g);
+  const total = document.createElement('span');
+  total.className = 'tsg-total';
+  total.textContent = tMin ? (tMin + ' min · ' + (tMin / 60).toFixed(2) + ' h') : '—';
+  sub.appendChild(total);
+  const addBtn = document.createElement('button');
+  addBtn.className = 'tsg-add';
+  addBtn.innerHTML = ic('plus') + 'Session';
+  addBtn.title = 'Log another session on this task';
+  if (first.taskId) addBtn.addEventListener('click', () => openModal(null, { existingTaskId: first.taskId, prefill: first }));
+  else { addBtn.disabled = true; addBtn.style.opacity = '.45'; addBtn.title = 'Saving… try again in a moment'; }
+  sub.appendChild(addBtn);
+  head.appendChild(sub);
+  card.appendChild(head);
+
+  // ── Sessions table ──
+  const table = document.createElement('table');
+  table.innerHTML = '<thead><tr>' +
+    '<th style="width:90px">Time</th>' +
+    '<th style="min-width:260px">Description</th>' +
+    '<th style="min-width:160px">Source</th>' +
+    '<th style="width:80px;text-align:right">Minutes</th>' +
+    '<th style="width:70px;text-align:right">Hours</th>' +
+    '<th style="width:100px"></th></tr></thead>';
+  const tb = document.createElement('tbody');
+
+  g.forEach(row => {
+    const origIdx = origIdxOf.get(row);
+    const tr = document.createElement('tr');
+    if (activeTimer.rowRef === row) tr.classList.add('timer-running');
+
+    // Time type
+    const timeSpan = document.createElement('span');
+    timeSpan.textContent = lkLabel('TIME_TYPE', row.time) || '—';
+    if (row.time === 'OVERTIME') timeSpan.style.color = '#dc2626';
+    tr.appendChild(cellWrap(timeSpan, 'cell'));
+
+    // Description + tag chips
+    const descTd = document.createElement('td');
+    const descDiv = document.createElement('div'); descDiv.className = 'cell desc-cell';
+    const descSpan = document.createElement('span');
+    descSpan.className = 'desc-text'; descSpan.textContent = row.description;
+    descDiv.appendChild(descSpan);
+    const tags = Array.isArray(row.tags) ? row.tags : [];
+    if (tags.length) {
+      const tw = document.createElement('div'); tw.className = 'row-tags';
+      tags.forEach(t => { const c = document.createElement('span'); c.className = 'row-tag'; c.textContent = t; tw.appendChild(c); });
+      descDiv.appendChild(tw);
+    }
+    descTd.appendChild(descDiv);
+    tr.appendChild(descTd);
+
+    // Source
+    const srcDiv = document.createElement('div'); srcDiv.className = 'cell';
+    if (isURL(row.source)) {
+      const link = document.createElement('button');
+      link.className = 'source-link'; link.textContent = row.source; link.title = 'Open ' + row.source;
+      link.addEventListener('click', () => window.api.openExternal(row.source));
+      srcDiv.appendChild(link);
+    } else {
+      const s = document.createElement('span'); s.className = 'source-text'; s.textContent = row.source || '';
+      srcDiv.appendChild(s);
+    }
+    const srcTd = document.createElement('td'); srcTd.appendChild(srcDiv);
+    tr.appendChild(srcTd);
+
+    // Minutes — click to edit inline (same behavior as the flat view)
+    const minTd = document.createElement('td'); minTd.style.textAlign = 'right';
+    const minCell = document.createElement('div'); minCell.className = 'cell cell-right';
+    const minSpan = document.createElement('span');
+    minSpan.textContent = row.minutes || '—';
+    minSpan.style.cursor = 'pointer'; minSpan.title = 'Click to edit minutes';
+    minSpan.addEventListener('click', () => {
+      const inp = document.createElement('input');
+      inp.type = 'number'; inp.min = 1; inp.max = 1440; inp.className = 'min-inline-input';
+      inp.value = row.minutes || '';
+      minCell.replaceChild(inp, minSpan);
+      inp.focus(); inp.select();
+      const commit = () => {
+        const val = parseInt(inp.value, 10);
+        if (!isNaN(val) && val >= 1 && val <= 1440) rows[origIdx].minutes = val;
+        renderTable(); setUnsaved();
+      };
+      inp.addEventListener('blur', commit);
+      inp.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') { ev.preventDefault(); inp.blur(); }
+        if (ev.key === 'Escape') { ev.preventDefault(); renderTable(); }
+      });
+    });
+    minCell.appendChild(minSpan);
+    minTd.appendChild(minCell);
+    tr.appendChild(minTd);
+
+    // Hours
+    const m = parseFloat(row.minutes);
+    const hrsSpan = document.createElement('span');
+    hrsSpan.className = 'hours-val';
+    hrsSpan.textContent = isNaN(m) ? '—' : (m / 60).toFixed(2);
+    tr.appendChild(cellWrap(hrsSpan, 'cell cell-right'));
+
+    // Actions: timer · edit · move · delete
+    const acts = document.createElement('div'); acts.className = 'row-actions';
+    const timerBtn = document.createElement('button');
+    if (activeTimer.rowRef === row) {
+      timerBtn.className = 'row-btn timer-stop'; timerBtn.innerHTML = ic('square');
+      timerBtn.title = 'Stop timer';
+      timerBtn.addEventListener('click', () => stopTimer());
+    } else {
+      timerBtn.className = 'row-btn timer-start'; timerBtn.innerHTML = ic('play');
+      timerBtn.title = 'Start timer';
+      timerBtn.addEventListener('click', () => startTimer(origIdx));
+    }
+    const editBtn = document.createElement('button');
+    editBtn.className = 'row-btn'; editBtn.innerHTML = ic('pencil');
+    editBtn.title = 'Edit'; editBtn.addEventListener('click', () => openModal(origIdx));
+    const moveBtn = document.createElement('button');
+    moveBtn.className = 'row-btn'; moveBtn.innerHTML = ic('calendar-clock');
+    moveBtn.title = 'Move to another day';
+    const delBtn = document.createElement('button');
+    delBtn.className = 'row-btn del'; delBtn.innerHTML = ic('trash-2');
+    delBtn.title = 'Delete';
+    const restoreActs = () => {
+      acts.innerHTML = '';
+      acts.appendChild(timerBtn); acts.appendChild(editBtn); acts.appendChild(moveBtn); acts.appendChild(delBtn);
+    };
+    moveBtn.addEventListener('click', () => {
+      acts.innerHTML = '';
+      const conf = document.createElement('div'); conf.className = 'del-confirm move-confirm';
+      const dateInp = document.createElement('input');
+      dateInp.type = 'date'; dateInp.className = 'move-date-input'; dateInp.value = activeDate;
+      const yes = document.createElement('button'); yes.className = 'row-btn move-yes'; yes.innerHTML = ic('check');
+      yes.title = 'Move record to this day';
+      yes.addEventListener('click', () => moveRowToDate(origIdx, dateInp.value));
+      const no = document.createElement('button'); no.className = 'row-btn del-no'; no.innerHTML = ic('x');
+      no.title = 'Cancel';
+      no.addEventListener('click', restoreActs);
+      dateInp.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') { ev.preventDefault(); moveRowToDate(origIdx, dateInp.value); }
+        if (ev.key === 'Escape') { ev.preventDefault(); restoreActs(); }
+      });
+      conf.appendChild(dateInp); conf.appendChild(yes); conf.appendChild(no);
+      acts.appendChild(conf);
+      dateInp.focus();
+    });
+    delBtn.addEventListener('click', () => showDeleteConfirm(acts, () => {
+      const removed = rows.splice(origIdx, 1)[0];
+      showUndoToast(removed, origIdx);
+      renderTable(); setUnsaved();
+    }, restoreActs));
+    restoreActs();
+    tr.appendChild(cellWrap(acts, 'cell'));
+
+    tb.appendChild(tr);
+  });
+
+  table.appendChild(tb);
+  card.appendChild(table);
+  return card;
+}
+
+function renderTableFlat() {
   const tbody = document.getElementById('tbody');
   tbody.innerHTML = '';
 
@@ -3127,8 +3570,8 @@ function renderTable() {
     taskCell.appendChild(taskSpan); taskTd.appendChild(taskCell);
     tr.appendChild(taskTd);
 
-    tr.appendChild(textCell(row.company));
-    tr.appendChild(textCell(row.system));
+    tr.appendChild(linkCell(row.company, 'companies'));
+    tr.appendChild(linkCell(row.system, 'systems'));
     tr.appendChild(textCell(row.natural));
     const timeTd = document.createElement('td');
     const timeDiv = document.createElement('div'); timeDiv.className = 'cell';
@@ -3346,6 +3789,15 @@ function cellWrap(el, cls) {
 function textCell(val) {
   const span = document.createElement('span'); span.textContent = val;
   return cellWrap(span, 'cell');
+}
+// A company/system cell that cross-links into the Browse slice for that value.
+function linkCell(val, kind) {
+  if (!val) return textCell(val);
+  const btn = document.createElement('button');
+  btn.className = 'cell-link'; btn.textContent = val;
+  btn.title = 'Browse all work for ' + val;
+  btn.addEventListener('click', () => openBrowseSlice(kind, val));
+  return cellWrap(btn, 'cell');
 }
 
 // Shared inline "Delete?" confirm used by every module's row delete button.
@@ -3614,14 +4066,51 @@ async function moveRowToDate(origIdx, targetDate) {
 function clearStatus() { document.getElementById('save-status').textContent = ''; }
 
 // ── Modal ──
-// opts.existingTaskId → open preselected to that task ("Add Session"), logging a
-// new work session against it (its task-level metadata is prefilled + locked).
+// Two-path Add flow: "New task" (full task form) vs "Log on existing task"
+// (searchable picker + session fields only — the task is never modified).
+// opts.existingTaskId → open directly on the existing path with that task chosen.
 let fExistingTaskPicker = null;
+let recordMode = 'new';   // 'new' | 'existing' (add mode only; edit shows the full form)
 
-// The task-level fields (locked when the record logs against an existing task —
-// adding a session must never rewrite the task). Session-level fields (date,
+// The task-level fields (prefilled + locked when logging against an existing
+// task; hidden entirely on the existing path). Session-level fields (date,
 // time, description, minutes) stay editable.
 const MODAL_TASK_FIELDS = ['f-taskname','f-company','f-system','f-natural','f-status','f-source','f-tags'];
+
+// Switch the Add-Record path. 'existing' hides the task form and shows the task
+// picker + a read-only summary; 'new' shows the full task form.
+function setRecordMode(mode) {
+  recordMode = mode === 'existing' ? 'existing' : 'new';
+  const modal = document.getElementById('modal');
+  modal.classList.toggle('mode-existing', recordMode === 'existing');
+  modal.classList.toggle('mode-new', recordMode === 'new');
+  document.querySelectorAll('#f-mode-ctl .seg-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.mode === recordMode));
+  if (recordMode === 'new') {
+    // Leaving the existing path resets any picked task back to a blank new-task form.
+    rebuildExistingTaskPicker(null);
+    applyExistingTaskSelection(null);
+    setTimeout(() => document.getElementById('f-description').focus(), 60);
+  } else {
+    setTimeout(() => document.querySelector('#f-existing-task .ss-input')?.focus(), 60);
+  }
+}
+
+// (Re)build the searchable existing-task picker with `selectedId` preselected.
+function rebuildExistingTaskPicker(selectedId) {
+  const taskOpts = modalTaskList.map(t => ({ id: t.id, label: t.name || '(untitled task)' }));
+  fExistingTaskPicker = buildSearchSelect(document.getElementById('f-existing-task'),
+    taskOpts, selectedId, 'Search your tasks…', applyExistingTaskSelection);
+}
+
+// Collapsible Source & Tags block (rarely used — keep the form short).
+function toggleModalMore(open) {
+  const more = document.getElementById('f-more');
+  const btn = document.getElementById('f-more-toggle');
+  const willOpen = typeof open === 'boolean' ? open : !more.classList.contains('open');
+  more.classList.toggle('open', willOpen);
+  btn.classList.toggle('open', willOpen);
+}
 
 // Blank a select and prepend a "— select —" placeholder (the empty-new-task state).
 function blankSelect(id) {
@@ -3633,10 +4122,11 @@ function blankSelect(id) {
 }
 
 // React to the "existing task" picker: with a task chosen, prefill its task-level
-// metadata and lock those fields (only the session is added); with none chosen,
-// reset to a blank, editable "new task" state.
+// metadata (the hidden form still feeds the on-screen row) and show a compact
+// summary; with none chosen, reset to a blank, editable "new task" state.
 function applyExistingTaskSelection(taskId) {
   const task = taskId != null ? modalTaskList.find(t => t.id === taskId) : null;
+  const summary = document.getElementById('f-task-summary');
   if (task) {
     document.getElementById('f-taskname').value = task.name || '';
     populateSelect('f-company', 'companies', task.company || '');
@@ -3647,6 +4137,13 @@ function applyExistingTaskSelection(taskId) {
     document.getElementById('f-tags').value   = Array.isArray(task.tags) ? task.tags.join(', ') : '';
     fProjectPicker = buildSearchSelect(document.getElementById('f-project'),
       projectFieldOptions(task.projectId ?? null), task.projectId ?? null, 'No project');
+    // Read-only summary of what the session will be logged against.
+    const bits = [task.company, task.system, task.natural].filter(Boolean).join(' · ');
+    const projName = projectNameById(task.projectId);
+    summary.innerHTML = '<b>' + esc(task.name || '(untitled task)') + '</b>'
+      + (bits ? ' — ' + esc(bits) : '')
+      + (projName ? ' · ' + ic('clipboard-list') + ' ' + esc(projName) : '');
+    summary.classList.add('has-task');
   } else {
     document.getElementById('f-taskname').value = '';
     populateSelect('f-company', 'companies', ''); blankSelect('f-company');
@@ -3657,6 +4154,8 @@ function applyExistingTaskSelection(taskId) {
     document.getElementById('f-tags').value   = '';
     fProjectPicker = buildSearchSelect(document.getElementById('f-project'),
       projectFieldOptions(null), null, 'No project');
+    summary.innerHTML = '';
+    summary.classList.remove('has-task');
   }
   const locked = !!task;
   MODAL_TASK_FIELDS.forEach(id => { document.getElementById(id).disabled = locked; });
@@ -3672,6 +4171,7 @@ async function openModal(idx = null, opts = {}) {
   const sessionTaskId = opts.existingTaskId ?? null;
   const isSession = !isEdit && sessionTaskId != null;
   const row = isEdit ? rows[idx] : (opts.prefill || null);
+  const modal = document.getElementById('modal');
 
   document.getElementById('modal-title').textContent = isEdit ? 'Edit Record' : (isSession ? 'Add Session' : 'Add Record');
   document.querySelector('#modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : (isSession ? 'Add Session' : 'Add Record');
@@ -3682,12 +4182,16 @@ async function openModal(idx = null, opts = {}) {
   document.getElementById('f-description').value = isSession ? '' : (row?.description || '');
   document.getElementById('f-minutes').value     = isSession ? '' : (row?.minutes || '');
 
-  const etRow = document.getElementById('f-existing-task-row');
+  const modeCtl = document.getElementById('f-mode-ctl');
   if (isEdit) {
-    // Editing an existing record — no picker; every field editable, prefilled from the row.
-    etRow.style.display = 'none';
+    // Editing an existing record — no path choice; the full form, prefilled from the row.
+    modeCtl.style.display = 'none';
+    recordMode = 'new';
+    modal.classList.remove('mode-existing');
+    modal.classList.add('mode-new');
     fExistingTaskPicker = null;
     document.getElementById('f-lock-hint').hidden = true;
+    document.getElementById('f-task-summary').classList.remove('has-task');
     populateSelect('f-company', 'companies', row?.company || '');
     populateSelect('f-system',  'systems',   row?.system  || '');
     populateSelect('f-natural', 'natural',   row?.natural || '');
@@ -3698,14 +4202,15 @@ async function openModal(idx = null, opts = {}) {
     MODAL_TASK_FIELDS.forEach(id => { document.getElementById(id).disabled = false; });
     fProjectPicker = buildSearchSelect(document.getElementById('f-project'),
       projectFieldOptions(row?.projectId ?? null), row?.projectId ?? null, 'No project');
+    toggleModalMore(!!(row?.source || (Array.isArray(row?.tags) && row.tags.length)));
   } else {
-    // Add mode — searchable picker of every existing task; blank the session time too.
-    etRow.style.display = '';
+    // Add mode — the first choice is the path: new task, or session on an existing one.
+    modeCtl.style.display = '';
     if (sessionTaskId == null) blankSelect('f-time');
     try { modalTaskList = await window.api.listTasks(); } catch { modalTaskList = []; }
     if (!Array.isArray(modalTaskList)) modalTaskList = [];
     // Safety: if we're logging against a specific task but the fetch missed it
-    // (offline/error), synthesize it from the source row so prefill+lock still work.
+    // (offline/error), synthesize it from the source row so the prefill still works.
     if (sessionTaskId != null && !modalTaskList.some(t => t.id === sessionTaskId) && row) {
       modalTaskList = modalTaskList.concat([{
         id: sessionTaskId, name: row.taskName || row.description || '',
@@ -3713,16 +4218,17 @@ async function openModal(idx = null, opts = {}) {
         status: row.status, source: row.source, tags: row.tags, projectId: row.projectId ?? null,
       }]);
     }
-    const taskOpts = modalTaskList.map(t => ({ id: t.id, label: t.name || '(untitled task)' }));
-    fExistingTaskPicker = buildSearchSelect(document.getElementById('f-existing-task'),
-      taskOpts, sessionTaskId, 'New task (none)', applyExistingTaskSelection);
-    applyExistingTaskSelection(sessionTaskId);   // prefill + lock (task chosen) or blank state
+    rebuildExistingTaskPicker(sessionTaskId);
+    applyExistingTaskSelection(sessionTaskId);   // prefill (task chosen) or blank state
+    toggleModalMore(false);
+    // setRecordMode focuses the right field for the chosen path.
+    setRecordMode(sessionTaskId != null ? 'existing' : 'new');
+    if (isSession) setTimeout(() => document.getElementById('f-description').focus(), 80);
   }
 
   clearErrorsIn('#modal');
   document.getElementById('modal-overlay').classList.add('open');
-  const focusId = (isSession || (!isEdit && sessionTaskId != null)) ? 'f-description' : (isEdit ? 'f-taskname' : 'f-existing-task');
-  setTimeout(() => { const el = document.querySelector('#' + focusId + ' .ss-input') || document.getElementById(focusId); el?.focus(); }, 80);
+  if (isEdit) setTimeout(() => document.getElementById('f-description').focus(), 80);
 }
 
 function closeModal() {
@@ -3737,9 +4243,21 @@ function overlayClick(e) {
 async function submitModal() {
   clearErrorsIn('#modal');
   const isEdit = editIdx !== null;
-  // Logging against an existing task locks its metadata (only the session is added).
-  const existingTaskId = (!isEdit && fExistingTaskPicker) ? fExistingTaskPicker.getSelectedId() : null;
+  // On the existing path the session logs against the picked task (its metadata
+  // is never modified); the new path creates a task + first session.
+  const onExistingPath = !isEdit && recordMode === 'existing';
+  const existingTaskId = (onExistingPath && fExistingTaskPicker) ? fExistingTaskPicker.getSelectedId() : null;
   const loggingExisting = existingTaskId != null;
+  if (onExistingPath && !loggingExisting) {
+    // Existing path with no task picked — flag the picker itself.
+    const pInp = document.querySelector('#f-existing-task .ss-input');
+    if (pInp) {
+      pInp.classList.add('field-error');
+      pInp.addEventListener('focus', () => pInp.classList.remove('field-error'), { once: true });
+      pInp.focus();
+    }
+    return;
+  }
 
   // Session-level fields are always required; task-level fields only when creating
   // a new task (when locked, they are prefilled from the task and can't be edited).
@@ -3853,12 +4371,20 @@ function clearErrors() { clearErrorsIn('body'); }
 // ── Keyboard shortcuts ──
 document.addEventListener('keydown', e => {
   const inputFocused = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
-  const anyOpen = ['modal-overlay','print-overlay','month-overlay','sub-modal-overlay','sub-settings-overlay','backlog-modal-overlay','project-modal-overlay','link-task-overlay']
+  const anyOpen = ['modal-overlay','print-overlay','month-overlay','sub-modal-overlay','sub-settings-overlay','backlog-modal-overlay','project-modal-overlay','link-task-overlay','palette-overlay']
     .some(id => document.getElementById(id).classList.contains('open'));
+
+  // Command palette — available everywhere, even while typing in a field.
+  if (e.ctrlKey && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
+    e.preventDefault();
+    if (paletteIsOpen()) closePalette();
+    else openPalette();
+    return;
+  }
 
   if (e.key === 'Escape') {
     closeModal(); closePrint(); closeMonthView(); closeSubModal(); closeSubSettings(); closeBacklogModal();
-    closeProjectModal(); closeLinkModal();
+    closeProjectModal(); closeLinkModal(); closePalette();
     document.querySelectorAll('.top-menu.open').forEach(m => m.classList.remove('open'));
     if (selectedRows.size) clearSelection();
   }
@@ -4392,6 +4918,10 @@ function updateTodayBtn() {
 // migration 013). Loaded from tasks:notyet; add/edit/delete/assign persist
 // immediately via the tasks:* / worklogs:* API (no debounced whole-list save).
 async function loadBacklogData() {
+  if (!backlogLoaded) {
+    document.getElementById('backlog-table').style.display = '';
+    showTableSkeleton('backlog-tbody', 7);
+  }
   try { backlog = await window.api.listNotYet(); }
   catch { toast('Could not load Not Yet tasks'); return; }
   if (!Array.isArray(backlog)) backlog = [];
@@ -4434,8 +4964,8 @@ function renderBacklog() {
     numSpan.className = 'cell-num'; numSpan.textContent = n + 1;
     tr.appendChild(cellWrap(numSpan, 'cell cell-center'));
 
-    tr.appendChild(textCell(task.company));
-    tr.appendChild(textCell(task.system));
+    tr.appendChild(linkCell(task.company, 'companies'));
+    tr.appendChild(linkCell(task.system, 'systems'));
     tr.appendChild(textCell(task.natural));
 
     // Description (+ tag chips)
@@ -4862,7 +5392,18 @@ async function renderMonthView() {
 
 // ── Module switching ──
 function switchModule(name) {
-  if (activeModule === name) return;
+  // The old Companies / Systems pages are now the two dimensions of Browse;
+  // keep the old names working as aliases (cross-links, month view, etc.).
+  if (name === 'companies' || name === 'systems') {
+    const kind = name;
+    if (activeModule === 'browse') { setBrowseKind(kind); return; }
+    browseKind = kind;
+    name = 'browse';
+  }
+  if (activeModule === name) {
+    if (name === 'browse') setBrowseKind(browseKind);
+    return;
+  }
   if (name !== 'timesheet' && selectedRows.size) clearSelection();
   activeModule = name;
 
@@ -4893,16 +5434,32 @@ function switchModule(name) {
   } else if (name === 'settings') {
     window.api.setTitle('Cooperation Tools — Settings');
     initSettingsModule();
-  } else if (name === 'companies') {
-    window.api.setTitle('Cooperation Tools — Companies');
-    openCatPage('companies');
-  } else if (name === 'systems') {
-    window.api.setTitle('Cooperation Tools — Systems');
-    openCatPage('systems');
+  } else if (name === 'browse') {
+    setBrowseKind(browseKind);
   } else if (name === 'projects') {
     window.api.setTitle('Cooperation Tools — Projects');
     initProjectsModule();
   }
+}
+
+// ── Browse dimension (Companies | Systems) ──
+let browseKind = 'companies';
+function setBrowseKind(kind) {
+  browseKind = kind;
+  document.querySelectorAll('#browse-kind-ctl .seg-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.kind === kind));
+  document.getElementById('browse-body-companies').style.display = kind === 'companies' ? '' : 'none';
+  document.getElementById('browse-body-systems').style.display  = kind === 'systems'  ? '' : 'none';
+  window.api.setTitle('Cooperation Tools — Browse — ' + (kind === 'companies' ? 'Companies' : 'Systems'));
+  openCatPage(kind);
+}
+// Cross-link entry point: open Browse pre-selected on one company / system value.
+function openBrowseSlice(kind, name) {
+  cpState[kind].selected = name;
+  cpState[kind].from = ''; cpState[kind].to = ''; cpState[kind].type = '';
+  browseKind = kind;
+  if (activeModule === 'browse') setBrowseKind(kind);
+  else switchModule('browse');
 }
 
 // ══ COMPANIES / SYSTEMS — read-only views over tasks + work_logs ════════════
@@ -4922,6 +5479,7 @@ let cpState = {
 // Entered via switchModule(kind): (re)load the value list, keep a valid selection.
 async function openCatPage(kind) {
   const def = CP_DEF[kind]; const st = cpState[kind];
+  if (!document.getElementById(kind + '-list').childElementCount) showSkeleton(kind + '-list', 'text', 6);
   let list;
   try { list = await window.api[def.listApi](); }
   catch { toast('Could not load ' + kind); return; }
@@ -4965,6 +5523,7 @@ function selectCat(kind, name) {
 
 async function loadCatEntries(kind, name) {
   const def = CP_DEF[kind]; const st = cpState[kind];
+  showSkeleton(kind + '-records', 'text', 6);
   let entries;
   try { entries = await window.api[def.entriesApi](name); }
   catch { toast('Could not load records'); return; }
@@ -5093,11 +5652,15 @@ function buildReadonlyRow(r, i) {
 
   const dateTd = document.createElement('td');
   const dateDiv = document.createElement('div'); dateDiv.className = 'cell';
-  const dateSpan = document.createElement('span'); dateSpan.className = 'cp-date-cell'; dateSpan.textContent = r.date;
-  dateDiv.appendChild(dateSpan); dateTd.appendChild(dateDiv); tr.appendChild(dateTd);
+  // Date cross-links to that day's timesheet.
+  const dateBtn = document.createElement('button');
+  dateBtn.className = 'cell-link cp-date-cell'; dateBtn.textContent = r.date;
+  dateBtn.title = 'Open this day in the Timesheet';
+  dateBtn.addEventListener('click', () => { switchModule('timesheet'); switchDay(r.date); });
+  dateDiv.appendChild(dateBtn); dateTd.appendChild(dateDiv); tr.appendChild(dateTd);
 
-  tr.appendChild(textCell(r.company));
-  tr.appendChild(textCell(r.system));
+  tr.appendChild(linkCell(r.company, 'companies'));
+  tr.appendChild(linkCell(r.system, 'systems'));
   tr.appendChild(textCell(r.natural));
 
   const timeTd = document.createElement('td');
@@ -5152,6 +5715,10 @@ function buildReadonlyRow(r, i) {
 
 // ── Subscriptions: data ──
 async function loadSubscriptionsData() {
+  if (!subsLoaded) {
+    document.getElementById('sub-table').style.display = '';
+    showTableSkeleton('sub-tbody', 7);
+  }
   let data;
   try { data = await window.api.loadSubscriptions(); }
   catch { toast('Could not load subscriptions'); return; }
@@ -5209,6 +5776,7 @@ async function renderOverview() {
     new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
   // Today + month-to-date hours — aggregated in SQL (no day blobs shipped).
+  if (!document.getElementById('dash-stats').childElementCount) showSkeleton('dash-stats', 'cards', 3);
   const now = new Date();
   const today = fmt(now);
   const monthStart = fmt(new Date(now.getFullYear(), now.getMonth(), 1));
@@ -5295,7 +5863,7 @@ function anFmtHrs(mins) {
 
 function setAnPeriod(p) {
   anPeriod = p;
-  document.querySelectorAll('#an-period .an-period-btn').forEach(b => b.classList.toggle('active', b.dataset.period === p));
+  document.querySelectorAll('#an-period .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.period === p));
   const range = document.getElementById('an-range');
   range.classList.toggle('show', p === 'custom');
   if (p === 'custom' && !document.getElementById('an-from').value) {
@@ -5365,6 +5933,14 @@ async function renderAnalytics() {
   // One aggregation call spanning both the period (KPIs/bars/donuts) and the
   // heatmap/trend window (per-day series). All group-bys + sums run in SQL — the
   // renderer receives only small maps + scalars, never the raw rows.
+  // First paint: shimmer placeholders in the KPI/chart slots while SQL runs.
+  if (!document.getElementById('an-kpis').childElementCount) {
+    showSkeleton('an-kpis', 'cards', 5);
+    showSkeleton('an-company', 'text', 5);
+    showSkeleton('an-system', 'text', 5);
+    showSkeleton('an-trend', 'text', 4);
+    showSkeleton('an-trend-ot', 'text', 4);
+  }
   const fetchFrom = heatFrom < from ? heatFrom : from;
   const fetchTo   = to > fmt(todayD) ? to : fmt(todayD);
   const an = await window.api.loadAnalytics(from, to, fetchFrom, fetchTo);
@@ -5393,9 +5969,9 @@ async function renderAnalytics() {
       <span class="an-kpi-foot">${k.foot}</span>
     </div>`).join('');
 
-  // ── Bar charts: company + system ──
-  renderAnBars('an-company', byCompany, 'an-company-sub');
-  renderAnBars('an-system', bySystem, 'an-system-sub');
+  // ── Bar charts: company + system (each bar cross-links into Browse) ──
+  renderAnBars('an-company', byCompany, 'an-company-sub', 'companies');
+  renderAnBars('an-system', bySystem, 'an-system-sub', 'systems');
 
   // ── Daily hours + companion Over-Time trend ──
   // These follow the selected period so the charts reflect the searched range.
@@ -5433,22 +6009,27 @@ async function renderAnalytics() {
   renderAnSpend();
 }
 
-// Render a top-N horizontal bar chart of {key: minutes} into `elId`.
-function renderAnBars(elId, map, subId) {
+// Render a top-N horizontal bar chart of {key: minutes} into `elId`. With a
+// `linkKind` ('companies' | 'systems'), each row cross-links into that Browse slice.
+function renderAnBars(elId, map, subId, linkKind) {
   const items = Object.entries(map).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
   const el = document.getElementById(elId);
   if (subId) document.getElementById(subId).textContent = items.length ? `${items.length}` : '';
   if (!items.length) { el.innerHTML = `<div class="an-empty">No tracked time in this period.</div>`; return; }
   const top = items.slice(0, 8);
   const max = top[0][1];
-  el.innerHTML = `<div class="an-bars">${top.map(([k, v]) => anBarRow(k, v, max, anFmtHrs(v))).join('')}</div>`;
+  el.innerHTML = `<div class="an-bars">${top.map(([k, v]) => anBarRow(k, v, max, anFmtHrs(v), null, linkKind)).join('')}</div>`;
 }
 
-function anBarRow(label, value, max, display, color) {
+function anBarRow(label, value, max, display, color, linkKind) {
   const w = Math.max(2, Math.round((value / max) * 100));
   const style = `width:${w}%${color ? `;background:${color}` : ''}`;
+  const linkAttrs = linkKind
+    ? ` data-kind="${linkKind}" data-name="${esc(label)}" title="Browse all work for ${esc(label)}"` +
+      ` onclick="openBrowseSlice(this.dataset.kind, this.dataset.name)"`
+    : '';
   return `
-    <div class="an-bar-row">
+    <div class="an-bar-row${linkKind ? ' clickable' : ''}"${linkAttrs}>
       <span class="an-bar-label" title="${esc(label)}">${esc(label)}</span>
       <span class="an-bar-track"><span class="an-bar-fill" style="${style}"></span></span>
       <span class="an-bar-val">${esc(display)}</span>
@@ -5948,6 +6529,8 @@ function initProjectsModule() {
 }
 
 async function loadProjectsList() {
+  const grid = document.getElementById('projects-grid');
+  if (!grid.childElementCount) { grid.style.display = ''; showSkeleton(grid, 'cards', 3); }
   let list;
   try { list = await window.api.listProjects(); }
   catch { toast('Could not load projects'); return; }
@@ -5987,16 +6570,23 @@ function projectFieldOptions(currentId) {
   }
   return opts;
 }
-// Build a compact muted pill naming the linked project (for a table row), or null.
+// Build a compact pill naming the linked project (for a table row), or null.
+// The pill cross-links into the project's detail view.
 function projectRowTag(projectId) {
   const name = projectNameById(projectId);
   if (!name) return null;
   const tag = document.createElement('span');
-  tag.className = 'row-project-tag';
+  tag.className = 'row-project-tag clickable';
   tag.innerHTML = ic('clipboard-list');
   tag.appendChild(document.createTextNode(name));
-  tag.title = 'Linked to project: ' + name;
+  tag.title = 'Open project: ' + name;
+  tag.addEventListener('click', (e) => { e.stopPropagation(); openProjectById(Number(projectId)); });
   return tag;
+}
+// Jump straight to a project's detail view from anywhere in the app.
+function openProjectById(id) {
+  switchModule('projects');
+  openProjectDetail(id);
 }
 
 function applyProjectFilter() {
@@ -6115,11 +6705,16 @@ function renderProjectDetail(p) {
   const host = document.getElementById('projects-detail-view');
   host.innerHTML = '';
 
-  // Back link
-  const back = pjMk('button', 'pj-back');
-  back.innerHTML = '<span style="font-size:16px;line-height:1">‹</span> All Projects';
-  back.addEventListener('click', backToProjectsList);
-  host.appendChild(back);
+  // Breadcrumb trail: Projects / <name>
+  const crumbs = pjMk('div', 'pj-crumbs');
+  const crumbRoot = pjMk('button', 'pj-crumb-link', 'Projects');
+  crumbRoot.addEventListener('click', backToProjectsList);
+  crumbs.appendChild(crumbRoot);
+  const sep = pjMk('span', 'pj-crumb-sep');
+  sep.innerHTML = ic('chevron-right');
+  crumbs.appendChild(sep);
+  crumbs.appendChild(pjMk('span', 'pj-crumb-here', p.name || 'Untitled project'));
+  host.appendChild(crumbs);
 
   // Header: title + status + actions
   const head = pjMk('div', 'pj-detail-head');
@@ -6151,28 +6746,26 @@ function renderProjectDetail(p) {
     f.appendChild(pjMk('div', 'pj-field-val', value || '—'));
     return f;
   };
-  // Companies as pills (a project can have several clients).
-  const companiesField = pjMk('div');
-  companiesField.appendChild(pjMk('div', 'pj-field-label', 'Companies'));
-  if ((p.companies || []).length) {
-    const pills = pjMk('div', 'pj-pills');
-    p.companies.forEach(c => pills.appendChild(pjMk('span', 'pj-pill', c.label)));
-    companiesField.appendChild(pills);
-  } else {
-    companiesField.appendChild(pjMk('div', 'pj-field-val', '—'));
-  }
-  grid.appendChild(companiesField);
-  // Systems as pills (a project can span several).
-  const systemsField = pjMk('div');
-  systemsField.appendChild(pjMk('div', 'pj-field-label', 'Systems'));
-  if ((p.systems || []).length) {
-    const pills = pjMk('div', 'pj-pills');
-    p.systems.forEach(s => pills.appendChild(pjMk('span', 'pj-pill', s.label)));
-    systemsField.appendChild(pills);
-  } else {
-    systemsField.appendChild(pjMk('div', 'pj-field-val', '—'));
-  }
-  grid.appendChild(systemsField);
+  // Companies / Systems as pills — each cross-links into its Browse slice.
+  const pillField = (label, items, kind) => {
+    const f = pjMk('div');
+    f.appendChild(pjMk('div', 'pj-field-label', label));
+    if ((items || []).length) {
+      const pills = pjMk('div', 'pj-pills');
+      items.forEach(it => {
+        const b = pjMk('button', 'pj-pill cell-link', it.label);
+        b.title = 'Browse all work for ' + it.label;
+        b.addEventListener('click', () => openBrowseSlice(kind, it.label));
+        pills.appendChild(b);
+      });
+      f.appendChild(pills);
+    } else {
+      f.appendChild(pjMk('div', 'pj-field-val', '—'));
+    }
+    return f;
+  };
+  grid.appendChild(pillField('Companies', p.companies, 'companies'));
+  grid.appendChild(pillField('Systems', p.systems, 'systems'));
   grid.appendChild(field('Status', pjStatusLabel(p.status)));
   const descField = pjMk('div'); descField.style.gridColumn = '1 / -1';
   descField.appendChild(pjMk('div', 'pj-field-label', 'Description'));
@@ -6570,6 +7163,141 @@ async function doUnlinkTask(taskId) {
   await reloadCurrentProject();
   toast('Task unlinked');
 }
+
+// ══ COMMAND PALETTE (Ctrl+K) ════════════════════════════════════════════════
+// One keyboard entry point to everything: navigate to a page, run a quick
+// action, jump to a date (type it), open a project, or log a session on any
+// task (picks it in the Add Record modal's existing path).
+let _palItems = [];      // flattened, currently-rendered items
+let _palActive = 0;
+let _palTasks = [];      // Task[] fetched once per open
+
+const PAL_PAGES = [
+  { icon: 'clock',            label: 'Timesheet',     go: 'timesheet' },
+  { icon: 'pin',              label: 'Not Yet',       go: 'backlog' },
+  { icon: 'layout-dashboard', label: 'Analytics',     go: 'analytics' },
+  { icon: 'file-text',        label: 'Reports',       go: 'reports' },
+  { icon: 'building-2',       label: 'Browse — Companies', go: 'companies' },
+  { icon: 'folder',           label: 'Browse — Systems',   go: 'systems' },
+  { icon: 'clipboard-list',   label: 'Projects',      go: 'projects' },
+  { icon: 'credit-card',      label: 'Subscriptions', go: 'subscriptions' },
+  { icon: 'settings',         label: 'Settings',      go: 'settings' },
+];
+
+async function openPalette() {
+  document.getElementById('palette-overlay').classList.add('open');
+  const inp = document.getElementById('palette-input');
+  inp.value = '';
+  _palTasks = [];
+  renderPalette();
+  setTimeout(() => inp.focus(), 40);
+  // Tasks load in the background; re-render once they arrive (if still open).
+  try {
+    const list = await window.api.listTasks();
+    if (Array.isArray(list)) { _palTasks = list; if (paletteIsOpen()) renderPalette(); }
+  } catch { /* tasks just won't appear in results */ }
+}
+function closePalette() { document.getElementById('palette-overlay').classList.remove('open'); }
+function paletteIsOpen() { return document.getElementById('palette-overlay').classList.contains('open'); }
+function paletteOverlayClick(e) { if (e.target === document.getElementById('palette-overlay')) closePalette(); }
+
+// Parse a "jump to date" query: full YYYY-MM-DD, or the words today / yesterday.
+function palParseDate(q) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(q)) return q;
+  const t = new Date();
+  if (q === 'today') return fmt(t);
+  if (q === 'yesterday') { t.setDate(t.getDate() - 1); return fmt(t); }
+  return null;
+}
+
+function renderPalette() {
+  const q = document.getElementById('palette-input').value.toLowerCase().trim();
+  const host = document.getElementById('palette-list');
+  const groups = [];
+
+  // Jump to a date (exact date syntax or today/yesterday)
+  const dateQ = palParseDate(q);
+  if (dateQ) {
+    groups.push({ label: 'Jump to date', items: [{
+      icon: 'calendar-check', label: 'Open ' + dateQ + ' in the Timesheet',
+      run: () => { switchModule('timesheet'); switchDay(dateQ); },
+    }]});
+  }
+
+  // Pages
+  const pages = PAL_PAGES.filter(p => !q || p.label.toLowerCase().includes(q))
+    .map(p => ({ icon: p.icon, label: p.label, hint: 'Go to', run: () => switchModule(p.go) }));
+  if (pages.length) groups.push({ label: 'Go to', items: pages });
+
+  // Quick actions
+  const acts = [
+    { icon: 'plus',          label: 'Add record — log work',      match: 'add record log work session new', run: () => { switchModule('timesheet'); openModal(); } },
+    { icon: 'pin',           label: 'Add a Not Yet task',         match: 'add task not yet backlog new',    run: () => { switchModule('backlog'); openBacklogModal(); } },
+    { icon: 'clipboard-list',label: 'New project',                match: 'new project create',              run: () => { switchModule('projects'); openProjectModal(); } },
+    { icon: 'calendar-check',label: 'Go to today',                match: 'today now current day',           run: () => { switchModule('timesheet'); goToday(); } },
+    { icon: 'moon',          label: 'Toggle dark / light theme',  match: 'theme dark light mode toggle',    run: toggleTheme },
+    { icon: 'save',          label: 'Back up the database',       match: 'backup database save export',     run: backupDatabase },
+  ].filter(a => !q || a.match.includes(q) || a.label.toLowerCase().includes(q))
+   .map(a => ({ icon: a.icon, label: a.label, hint: 'Action', run: a.run }));
+  if (acts.length) groups.push({ label: 'Actions', items: acts });
+
+  // Projects (from the always-loaded lightweight index)
+  const projs = projectIndex.filter(p => q && p.name.toLowerCase().includes(q))
+    .slice(0, 5)
+    .map(p => ({ icon: 'clipboard-list', label: p.name, hint: 'Open project', run: () => openProjectById(p.id) }));
+  if (projs.length) groups.push({ label: 'Projects', items: projs });
+
+  // Tasks — selecting one opens Add Record on the existing path with it picked.
+  const tasks = q ? _palTasks.filter(t => textMatch([t.name, t.company, t.system], q)).slice(0, 6)
+    .map(t => ({
+      icon: 'layers',
+      label: (t.name || '(untitled task)') + ([t.company, t.system].filter(Boolean).length ? ' — ' + [t.company, t.system].filter(Boolean).join(' · ') : ''),
+      hint: 'Log session',
+      run: () => { switchModule('timesheet'); openModal(null, { existingTaskId: t.id, prefill: t }); },
+    })) : [];
+  if (tasks.length) groups.push({ label: 'Log a session on…', items: tasks });
+
+  _palItems = groups.flatMap(g => g.items);
+  _palActive = 0;
+
+  if (!_palItems.length) {
+    host.innerHTML = '<div class="pal-empty">No matches — try a page name, task, project, or a date like 2026-07-01</div>';
+    return;
+  }
+  host.innerHTML = groups.map(g =>
+    '<div class="pal-group">' + esc(g.label) + '</div>' +
+    g.items.map(it => {
+      const idx = _palItems.indexOf(it);
+      return '<button class="pal-item' + (idx === _palActive ? ' active' : '') + '" data-idx="' + idx + '">' +
+        ic(it.icon) + '<span class="pal-item-label">' + esc(it.label) + '</span>' +
+        (it.hint ? '<span class="pal-item-hint">' + esc(it.hint) + '</span>' : '') + '</button>';
+    }).join('')
+  ).join('');
+  host.querySelectorAll('.pal-item').forEach(btn =>
+    btn.addEventListener('click', () => runPaletteItem(Number(btn.dataset.idx))));
+}
+
+function runPaletteItem(idx) {
+  const item = _palItems[idx];
+  if (!item) return;
+  closePalette();
+  item.run();
+}
+
+function palMove(delta) {
+  if (!_palItems.length) return;
+  _palActive = (_palActive + delta + _palItems.length) % _palItems.length;
+  const host = document.getElementById('palette-list');
+  host.querySelectorAll('.pal-item').forEach(b =>
+    b.classList.toggle('active', Number(b.dataset.idx) === _palActive));
+  host.querySelector('.pal-item.active')?.scrollIntoView({ block: 'nearest' });
+}
+
+document.getElementById('palette-input').addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown') { e.preventDefault(); palMove(1); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); palMove(-1); }
+  else if (e.key === 'Enter') { e.preventDefault(); runPaletteItem(_palActive); }
+});
 
 // ── Flush pending saves before the window closes ──
 // Saves are 300 ms-debounced; on close we cancel the timers and persist
