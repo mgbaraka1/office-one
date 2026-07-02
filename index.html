@@ -567,6 +567,7 @@
     .pj-detail-actions { display: flex; gap: 8px; }
     .pj-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-5); margin-top: 18px; box-shadow: var(--shadow-sm); }
     .pj-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
+    .pj-section-actions { display: flex; align-items: center; gap: 8px; }
     .pj-section-title { font-size: 15px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
     .pj-section-title .lic { width: 18px; height: 18px; color: var(--primary); }
     .pj-profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px 24px; }
@@ -650,7 +651,7 @@
     }
     .ss-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); background: var(--input-focus-bg); }
 
-    /* Compact "linked project" pill shown on day-entry / backlog rows */
+    /* Compact "linked project" pill shown on timesheet / Not Yet task rows */
     .row-project-tag {
       display: inline-flex; align-items: center; gap: 4px; margin-top: 4px;
       font-size: 11px; font-weight: 600; color: var(--muted);
@@ -1129,6 +1130,13 @@
     .form-group select:focus,
     .form-group textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); background: var(--input-focus-bg); }
     .form-group textarea { resize: vertical; min-height: 70px; }
+    /* Fields locked because the record logs against an existing task (its metadata is fixed). */
+    .form-group input:disabled,
+    .form-group select:disabled,
+    .form-group textarea:disabled,
+    .search-select .ss-input:disabled { opacity: .55; cursor: not-allowed; background: var(--surface); }
+    .modal-hint { font-size: 12px; color: var(--muted); margin: -4px 0 2px; line-height: 1.4; }
+    .modal-hint[hidden] { display: none; }
 
     .modal-footer {
       display: flex; justify-content: flex-end; gap: 10px;
@@ -1883,7 +1891,7 @@
       <span class="stat-value" id="total-hrs">0.00</span>
     </div>
     <div class="total-chip" id="row-count-card">
-      <span class="lbl">Entries</span>
+      <span class="lbl">Sessions</span>
       <span class="stat-value" id="row-count">0</span>
     </div>
     <div class="total-chip ot-chip">
@@ -1968,6 +1976,17 @@
           <div id="f-existing-task"></div>
         </div>
       </div>
+      <div class="modal-hint" id="f-lock-hint" hidden>Logging a session against an existing task — its details are locked below; only the session (date, description, minutes, time) is added.</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Date <span style="text-transform:none;font-weight:500;color:var(--muted)">— the day this session was worked</span></label>
+          <input id="f-date" type="date" />
+        </div>
+        <div class="form-group">
+          <label>Time Type</label>
+          <select id="f-time"></select>
+        </div>
+      </div>
       <div class="form-row">
         <div class="form-group">
           <label>Company</label>
@@ -1984,13 +2003,13 @@
           <select id="f-natural"></select>
         </div>
         <div class="form-group">
-          <label>Time Type</label>
-          <select id="f-time"></select>
+          <label>Status</label>
+          <select id="f-status"></select>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group full">
-          <label>Project <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional, link this entry to a project</span></label>
+          <label>Project <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional, link this task to a project</span></label>
           <div id="f-project"></div>
         </div>
       </div>
@@ -2001,19 +2020,13 @@
         </div>
       </div>
       <div class="form-row">
-        <div class="form-group full">
-          <label>Source</label>
-          <input id="f-source" type="text" placeholder="Email subject, Jira ticket URL…" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Status</label>
-          <select id="f-status"></select>
-        </div>
         <div class="form-group">
           <label>Minutes</label>
           <input id="f-minutes" type="number" min="1" max="1440" placeholder="e.g. 45" />
+        </div>
+        <div class="form-group">
+          <label>Source</label>
+          <input id="f-source" type="text" placeholder="Email subject, Jira ticket URL…" />
         </div>
       </div>
       <div class="form-row">
@@ -2140,7 +2153,7 @@
   </div>
 </div>
 
-<!-- ══ COMPANIES MODULE (read-only view over day_entries) ══ -->
+<!-- ══ COMPANIES MODULE (read-only view over tasks + work_logs) ══ -->
 <div id="module-companies" class="app-module">
   <div class="cp-topbar">
     <span class="cp-title"><span class="ti-ic" data-ic="building-2"></span>Companies</span>
@@ -2156,7 +2169,7 @@
   </div>
 </div>
 
-<!-- ══ SYSTEMS MODULE (read-only view over day_entries) ══ -->
+<!-- ══ SYSTEMS MODULE (read-only view over tasks + work_logs) ══ -->
 <div id="module-systems" class="app-module">
   <div class="cp-topbar">
     <span class="cp-title"><span class="ti-ic" data-ic="folder"></span>Systems</span>
@@ -2494,7 +2507,9 @@ const ICONS = {
   "clipboard-list": "<rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\" ry=\"1\" /><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\" /><path d=\"M12 11h4\" /><path d=\"M12 16h4\" /><path d=\"M8 11h.01\" /><path d=\"M8 16h.01\" />",
   "copy": "<rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\" ry=\"2\" /><path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\" />",
   "upload": "<path d=\"M12 3v12\" /><path d=\"m17 8-5-5-5 5\" /><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\" />",
-  "external-link": "<path d=\"M15 3h6v6\" /><path d=\"M10 14 21 3\" /><path d=\"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\" />"
+  "external-link": "<path d=\"M15 3h6v6\" /><path d=\"M10 14 21 3\" /><path d=\"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\" />",
+  "plus": "<path d=\"M5 12h14\" /><path d=\"M12 5v14\" />",
+  "timer-reset": "<path d=\"M10 2h4\" /><path d=\"M12 14v-4\" /><path d=\"M4 13a8 8 0 0 1 8-7 8 8 0 1 1-5.3 14L4 17.6\" /><path d=\"M9 17H4v5\" />"
 };
 // Build an inline SVG string for icon `name`. Optional extra class via `cls`.
 function ic(name, cls) {
@@ -2602,8 +2617,9 @@ let linkableTasks    = [];   // picker source: unlinked Task[]
 let pCompaniesPicker = null;     // tag-picker handles for the project modal
 let pSystemsPicker   = null;
 let projectIndex     = [];       // lightweight [{id,name,status}] for the day/backlog Project field
-let fProjectPicker   = null;     // search-select handle in the day-entry modal
+let fProjectPicker   = null;     // search-select handle in the timesheet record modal
 let bProjectPicker   = null;     // search-select handle in the backlog modal
+let modalTaskList    = [];       // full Task[] backing the Add Record "existing task" picker
 
 // ── Analytics state ──
 let analyticsLoaded = false;
@@ -2770,8 +2786,8 @@ function buildTagPicker(host, options, initialIds, placeholder) {
 // { id, label }; `initialId` the preselected id (or null). Typing filters; clicking
 // or Entering an option selects it (showing its label in the field); a built-in
 // "— None —" entry clears it. The handle's getSelectedId() returns the id or null.
-// Used by the day-entry and backlog modals' Project field (single project per task).
-function buildSearchSelect(host, options, initialId, placeholder) {
+// Used by the timesheet record and Not Yet modals' Project field (single project per task).
+function buildSearchSelect(host, options, initialId, placeholder, onChange) {
   host.innerHTML = '';
   host.className = 'search-select';
   const optById = new Map((options || []).map(o => [Number(o.id), o.label]));
@@ -2807,7 +2823,7 @@ function buildSearchSelect(host, options, initialId, placeholder) {
 
   const openMenu = () => { open = true; input.readOnly = false; input.value = ''; activeIdx = 0; renderMenu(); };
   const closeMenu = () => { open = false; input.readOnly = true; menu.style.display = 'none'; showLabel(); };
-  const pick = (id) => { selectedId = id; closeMenu(); };
+  const pick = (id) => { const changed = id !== selectedId; selectedId = id; closeMenu(); if (changed && typeof onChange === 'function') onChange(selectedId); };
 
   input.addEventListener('focus', openMenu);
   input.addEventListener('click', () => { if (!open) openMenu(); });
@@ -3598,9 +3614,58 @@ async function moveRowToDate(origIdx, targetDate) {
 function clearStatus() { document.getElementById('save-status').textContent = ''; }
 
 // ── Modal ──
-// opts.existingTaskId → open in "Add Session" mode preselected to that task
-// (prefilled from opts.prefill, the row whose task we're logging against).
+// opts.existingTaskId → open preselected to that task ("Add Session"), logging a
+// new work session against it (its task-level metadata is prefilled + locked).
 let fExistingTaskPicker = null;
+
+// The task-level fields (locked when the record logs against an existing task —
+// adding a session must never rewrite the task). Session-level fields (date,
+// time, description, minutes) stay editable.
+const MODAL_TASK_FIELDS = ['f-taskname','f-company','f-system','f-natural','f-status','f-source','f-tags'];
+
+// Blank a select and prepend a "— select —" placeholder (the empty-new-task state).
+function blankSelect(id) {
+  const sel = document.getElementById(id);
+  const blank = document.createElement('option');
+  blank.value = ''; blank.textContent = '— select —';
+  sel.insertBefore(blank, sel.firstChild);
+  sel.value = '';
+}
+
+// React to the "existing task" picker: with a task chosen, prefill its task-level
+// metadata and lock those fields (only the session is added); with none chosen,
+// reset to a blank, editable "new task" state.
+function applyExistingTaskSelection(taskId) {
+  const task = taskId != null ? modalTaskList.find(t => t.id === taskId) : null;
+  if (task) {
+    document.getElementById('f-taskname').value = task.name || '';
+    populateSelect('f-company', 'companies', task.company || '');
+    populateSelect('f-system',  'systems',   task.system  || '');
+    populateSelect('f-natural', 'natural',   task.natural || '');
+    populateSelect('f-status',  'status',    task.status  || 'IN_PROGRESS');
+    document.getElementById('f-source').value = task.source || '';
+    document.getElementById('f-tags').value   = Array.isArray(task.tags) ? task.tags.join(', ') : '';
+    fProjectPicker = buildSearchSelect(document.getElementById('f-project'),
+      projectFieldOptions(task.projectId ?? null), task.projectId ?? null, 'No project');
+  } else {
+    document.getElementById('f-taskname').value = '';
+    populateSelect('f-company', 'companies', ''); blankSelect('f-company');
+    populateSelect('f-system',  'systems',   ''); blankSelect('f-system');
+    populateSelect('f-natural', 'natural',   ''); blankSelect('f-natural');
+    populateSelect('f-status',  'status',    ''); blankSelect('f-status');
+    document.getElementById('f-source').value = '';
+    document.getElementById('f-tags').value   = '';
+    fProjectPicker = buildSearchSelect(document.getElementById('f-project'),
+      projectFieldOptions(null), null, 'No project');
+  }
+  const locked = !!task;
+  MODAL_TASK_FIELDS.forEach(id => { document.getElementById(id).disabled = locked; });
+  const pInput = document.querySelector('#f-project .ss-input');
+  if (pInput) pInput.disabled = locked;
+  document.getElementById('f-lock-hint').hidden = !locked;
+  if (locked) clearErrorsIn('#modal');   // drop any stale required-field flags now moot
+}
+
 async function openModal(idx = null, opts = {}) {
   editIdx = idx;
   const isEdit = idx !== null;
@@ -3611,47 +3676,53 @@ async function openModal(idx = null, opts = {}) {
   document.getElementById('modal-title').textContent = isEdit ? 'Edit Record' : (isSession ? 'Add Session' : 'Add Record');
   document.querySelector('#modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : (isSession ? 'Add Session' : 'Add Record');
 
-  populateSelect('f-company', 'companies', row?.company || '');
-  populateSelect('f-system',  'systems',   row?.system  || '');
-  populateSelect('f-natural', 'natural',   row?.natural || '');
-  populateSelect('f-time',    'timeType',  row?.time    || '');
-  populateSelect('f-status',  'status',    row?.status  || '');
+  // Session-level fields (always editable).
+  populateSelect('f-time', 'timeType', row?.time || '');
+  document.getElementById('f-date').value        = (isEdit ? (row?.date || activeDate) : activeDate) || fmt(new Date());
+  document.getElementById('f-description').value = isSession ? '' : (row?.description || '');
+  document.getElementById('f-minutes').value     = isSession ? '' : (row?.minutes || '');
 
-  if (!isEdit && !isSession) {
-    ['f-company','f-system','f-natural','f-time','f-status'].forEach(id => {
-      const sel = document.getElementById(id);
-      const blank = document.createElement('option');
-      blank.value = ''; blank.textContent = '— select —';
-      sel.insertBefore(blank, sel.firstChild);
-      sel.value = '';
-    });
-  }
-
-  fProjectPicker = buildSearchSelect(document.getElementById('f-project'),
-    projectFieldOptions(row?.projectId ?? null), row?.projectId ?? null, 'No project');
-
-  // Existing-task picker: add mode only. In session mode it's locked to the row's
-  // task; while editing an existing record it's hidden entirely.
   const etRow = document.getElementById('f-existing-task-row');
   if (isEdit) {
+    // Editing an existing record — no picker; every field editable, prefilled from the row.
     etRow.style.display = 'none';
     fExistingTaskPicker = null;
+    document.getElementById('f-lock-hint').hidden = true;
+    populateSelect('f-company', 'companies', row?.company || '');
+    populateSelect('f-system',  'systems',   row?.system  || '');
+    populateSelect('f-natural', 'natural',   row?.natural || '');
+    populateSelect('f-status',  'status',    row?.status  || '');
+    document.getElementById('f-taskname').value = row?.taskName || '';
+    document.getElementById('f-source').value   = row?.source   || '';
+    document.getElementById('f-tags').value     = Array.isArray(row?.tags) ? row.tags.join(', ') : (row?.tags || '');
+    MODAL_TASK_FIELDS.forEach(id => { document.getElementById(id).disabled = false; });
+    fProjectPicker = buildSearchSelect(document.getElementById('f-project'),
+      projectFieldOptions(row?.projectId ?? null), row?.projectId ?? null, 'No project');
   } else {
+    // Add mode — searchable picker of every existing task; blank the session time too.
     etRow.style.display = '';
-    let taskOpts = [];
-    try { taskOpts = (await window.api.listTasks()).map(t => ({ id: t.id, label: t.name || '(untitled task)' })); } catch { /* offline-safe */ }
-    fExistingTaskPicker = buildSearchSelect(document.getElementById('f-existing-task'), taskOpts, sessionTaskId, 'New task (none)');
+    if (sessionTaskId == null) blankSelect('f-time');
+    try { modalTaskList = await window.api.listTasks(); } catch { modalTaskList = []; }
+    if (!Array.isArray(modalTaskList)) modalTaskList = [];
+    // Safety: if we're logging against a specific task but the fetch missed it
+    // (offline/error), synthesize it from the source row so prefill+lock still work.
+    if (sessionTaskId != null && !modalTaskList.some(t => t.id === sessionTaskId) && row) {
+      modalTaskList = modalTaskList.concat([{
+        id: sessionTaskId, name: row.taskName || row.description || '',
+        company: row.company, system: row.system, natural: row.natural,
+        status: row.status, source: row.source, tags: row.tags, projectId: row.projectId ?? null,
+      }]);
+    }
+    const taskOpts = modalTaskList.map(t => ({ id: t.id, label: t.name || '(untitled task)' }));
+    fExistingTaskPicker = buildSearchSelect(document.getElementById('f-existing-task'),
+      taskOpts, sessionTaskId, 'New task (none)', applyExistingTaskSelection);
+    applyExistingTaskSelection(sessionTaskId);   // prefill + lock (task chosen) or blank state
   }
 
-  document.getElementById('f-taskname').value    = row?.taskName    || '';
-  document.getElementById('f-description').value = isSession ? '' : (row?.description || '');
-  document.getElementById('f-source').value      = row?.source      || '';
-  document.getElementById('f-minutes').value     = isSession ? '' : (row?.minutes || '');
-  document.getElementById('f-tags').value        = Array.isArray(row?.tags) ? row.tags.join(', ') : (row?.tags || '');
-
-  clearErrors();
+  clearErrorsIn('#modal');
   document.getElementById('modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById(isSession ? 'f-description' : 'f-company').focus(), 80);
+  const focusId = (isSession || (!isEdit && sessionTaskId != null)) ? 'f-description' : (isEdit ? 'f-taskname' : 'f-existing-task');
+  setTimeout(() => { const el = document.querySelector('#' + focusId + ' .ss-input') || document.getElementById(focusId); el?.focus(); }, 80);
 }
 
 function closeModal() {
@@ -3664,20 +3735,30 @@ function overlayClick(e) {
 }
 
 async function submitModal() {
-  clearErrors();
-  const fields = [
-    { id: 'f-company',     val: document.getElementById('f-company').value },
-    { id: 'f-system',      val: document.getElementById('f-system').value },
-    { id: 'f-natural',     val: document.getElementById('f-natural').value },
+  clearErrorsIn('#modal');
+  const isEdit = editIdx !== null;
+  // Logging against an existing task locks its metadata (only the session is added).
+  const existingTaskId = (!isEdit && fExistingTaskPicker) ? fExistingTaskPicker.getSelectedId() : null;
+  const loggingExisting = existingTaskId != null;
+
+  // Session-level fields are always required; task-level fields only when creating
+  // a new task (when locked, they are prefilled from the task and can't be edited).
+  const required = [
+    { id: 'f-date',        val: document.getElementById('f-date').value },
     { id: 'f-time',        val: document.getElementById('f-time').value },
     { id: 'f-description', val: document.getElementById('f-description').value.trim() },
-    { id: 'f-status',      val: document.getElementById('f-status').value },
   ];
+  if (!loggingExisting) {
+    required.push(
+      { id: 'f-company', val: document.getElementById('f-company').value },
+      { id: 'f-system',  val: document.getElementById('f-system').value },
+      { id: 'f-natural', val: document.getElementById('f-natural').value },
+      { id: 'f-status',  val: document.getElementById('f-status').value },
+    );
+  }
 
   let valid = true;
-  fields.forEach(f => {
-    if (!f.val) { markError(f.id); valid = false; }
-  });
+  required.forEach(f => { if (!f.val) { markError(f.id); valid = false; } });
 
   // Validate minutes: optional but must be a positive integer ≤ 1440 if provided
   const minRaw = document.getElementById('f-minutes').value.trim();
@@ -3690,8 +3771,9 @@ async function submitModal() {
 
   if (!valid) return;
 
-  const descVal  = document.getElementById('f-description').value.trim();
-  const taskName = document.getElementById('f-taskname').value.trim() || descVal;
+  const descVal   = document.getElementById('f-description').value.trim();
+  const taskName  = document.getElementById('f-taskname').value.trim() || descVal;
+  const dateVal   = document.getElementById('f-date').value;
   const record = {
     taskName:    taskName,
     company:     document.getElementById('f-company').value,
@@ -3703,10 +3785,12 @@ async function submitModal() {
     status:      document.getElementById('f-status').value,
     minutes:     minRaw === '' ? '' : parseInt(minRaw, 10),   // Number when set, '' when blank
     tags:        parseTags(document.getElementById('f-tags').value),
-    projectId:   fProjectPicker ? fProjectPicker.getSelectedId() : (editIdx !== null ? rows[editIdx]?.projectId ?? null : null),
+    projectId:   fProjectPicker ? fProjectPicker.getSelectedId() : null,
+    date:        dateVal,
   };
+  const targetDate = dateVal || activeDate;
 
-  if (editIdx !== null) {
+  if (isEdit) {
     // Preserve the identity fields of the row being edited (task/work-log ids)
     // so the save reconciles it in place instead of inserting a duplicate.
     record.eid    = rows[editIdx]?.eid;
@@ -3716,17 +3800,42 @@ async function submitModal() {
     if (activeTimer.rowRef === rows[editIdx]) activeTimer.rowRef = record;
     rows[editIdx] = record;
     syncSiblingTasks(record);          // task-level fields propagate to sessions
-  } else {
-    // Logging against an existing task → carry its id so the save adds a work_log
-    // to it (no new task). Otherwise a new task + first work_log is created.
-    const existingTaskId = fExistingTaskPicker ? fExistingTaskPicker.getSelectedId() : null;
-    if (existingTaskId != null) record.taskId = existingTaskId;
-    rows.push(record);
+    closeModal();
+    renderTable();
+    // Date changed to another day → persist, then follow the session to that day.
+    if (targetDate !== activeDate) {
+      await persistTimesheet();
+      await refreshSavedDays();
+      await switchDay(targetDate);
+      toast('Moved to ' + targetDate);
+    } else {
+      setUnsaved();
+    }
+    return;
   }
 
-  closeModal();
-  renderTable();
-  setUnsaved();
+  // Add mode. Logging against an existing task carries its id (adds a work_log to
+  // it, no new task); otherwise a new task + first work_log is created.
+  if (loggingExisting) record.taskId = existingTaskId;
+
+  if (targetDate === activeDate) {
+    rows.push(record);
+    closeModal();
+    renderTable();
+    setUnsaved();
+  } else {
+    // A different day than the one on screen → persist directly and jump there so
+    // the new session is visible (the current day's view is unaffected).
+    closeModal();
+    try {
+      let taskId = existingTaskId;
+      if (taskId == null) { const c = await window.api.createTask(tsTaskPayload(record)); taskId = c.id; }
+      await window.api.addWorkLog(taskId, tsLogPayload(record));
+      await refreshSavedDays();
+      await switchDay(targetDate);
+      toast('Session logged to ' + targetDate);
+    } catch { toast('Could not save the session'); }
+  }
 }
 
 // Shared field-error helpers (used by every module's form validation).
@@ -4462,11 +4571,18 @@ async function undoDeleteBacklog() {
 }
 
 // ── Not Yet: modal ──
-function openBacklogModal(id = null) {
+// Shared by the Not Yet page and the Projects detail "New Task" action. opts:
+//   projectId → preset + lock the Project field to that project (Projects context)
+//   onSaved   → called after a successful save instead of reloading the Not Yet page
+let _backlogCtx = { projectId: null, onSaved: null };
+function openBacklogModal(id = null, opts = {}) {
   backlogEditId = id;
+  _backlogCtx = { projectId: opts.projectId ?? null, onSaved: opts.onSaved || null };
+  const lockedProject = _backlogCtx.projectId != null;
   const task = id !== null ? backlog.find(t => t.id === id) : null;
   const isEdit = !!task;
-  document.getElementById('backlog-modal-title').textContent = isEdit ? 'Edit Task' : 'Add Task';
+  document.getElementById('backlog-modal-title').textContent =
+    isEdit ? 'Edit Task' : (lockedProject ? 'New Project Task' : 'Add Task');
   document.querySelector('#backlog-modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : 'Add Task';
 
   populateSelect('b-company', 'companies', task?.company || '');
@@ -4483,8 +4599,12 @@ function openBacklogModal(id = null) {
     });
   }
 
+  const initialProject = lockedProject ? _backlogCtx.projectId : (task?.projectId ?? null);
   bProjectPicker = buildSearchSelect(document.getElementById('b-project'),
-    projectFieldOptions(task?.projectId ?? null), task?.projectId ?? null, 'No project');
+    projectFieldOptions(initialProject), initialProject, 'No project');
+  // In the Projects context the link is fixed — lock the picker to this project.
+  const bpInput = document.querySelector('#b-project .ss-input');
+  if (bpInput) bpInput.disabled = lockedProject;
 
   document.getElementById('b-description').value = task?.description || '';
   document.getElementById('b-source').value      = task?.source      || '';
@@ -4492,11 +4612,18 @@ function openBacklogModal(id = null) {
 
   clearBacklogErrors();
   document.getElementById('backlog-modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById('b-company').focus(), 80);
+  setTimeout(() => document.getElementById(lockedProject ? 'b-description' : 'b-company').focus(), 80);
 }
 function closeBacklogModal() {
   document.getElementById('backlog-modal-overlay').classList.remove('open');
   backlogEditId = null;
+  _backlogCtx = { projectId: null, onSaved: null };
+}
+
+// Create a new task already linked to the open project (Projects detail → New Task).
+function openProjectNewTask() {
+  if (!currentProject) return;
+  openBacklogModal(null, { projectId: currentProject.id, onSaved: reloadCurrentProject });
 }
 function backlogOverlayClick(e) {
   if (e.target === document.getElementById('backlog-modal-overlay')) closeBacklogModal();
@@ -4534,8 +4661,10 @@ async function submitBacklogModal() {
     else                        await window.api.createTask(payload);
   } catch { toast('Could not save the task'); return; }
 
+  const onSaved = _backlogCtx.onSaved;
   closeBacklogModal();
-  await loadBacklogData();
+  if (onSaved) { await onSaved(); toast('Task created'); }
+  else await loadBacklogData();
 }
 
 // ── Filter ──
@@ -4776,7 +4905,7 @@ function switchModule(name) {
   }
 }
 
-// ══ COMPANIES / SYSTEMS — read-only views over day_entries ══════════════════
+// ══ COMPANIES / SYSTEMS — read-only views over tasks + work_logs ════════════
 // Both pages are identical except for which category column they group by, so a
 // single parameterized renderer drives them (kind = 'companies' | 'systems').
 // Data is read via the companies:/systems: IPC channels (always scoped to the
@@ -5829,7 +5958,7 @@ async function loadProjectsList() {
 }
 
 // ── Project index (lightweight {id,name,status} cache for the Project field) ──
-// The day-entry and backlog views let a task be linked to a project; both need the
+// The timesheet and Not Yet views let a task be linked to a project; both need the
 // project names available even before the Projects module is first opened. This
 // cache is loaded at boot (refreshProjectIndex) and kept in sync whenever the full
 // list is (re)loaded (syncProjectIndex).
@@ -6077,10 +6206,17 @@ function renderProjectDetail(p) {
   const list = Array.isArray(p.tasks) ? p.tasks : [];
   tTitle.appendChild(document.createTextNode('Tasks (' + list.length + ')'));
   tHead.appendChild(tTitle);
+  const tActions = pjMk('div', 'pj-section-actions');
+  const newBtn = pjMk('button', 'btn primary');
+  newBtn.innerHTML = ic('plus') + ' New Task';
+  newBtn.title = 'Create a new task already linked to this project';
+  newBtn.addEventListener('click', openProjectNewTask);
   const linkBtn = pjMk('button', 'btn');
   linkBtn.innerHTML = ic('calendar-plus') + ' Link Task';
   linkBtn.addEventListener('click', openLinkModal);
-  tHead.appendChild(linkBtn);
+  tActions.appendChild(newBtn);
+  tActions.appendChild(linkBtn);
+  tHead.appendChild(tActions);
   tasksSec.appendChild(tHead);
 
   if (list.length === 0) {
