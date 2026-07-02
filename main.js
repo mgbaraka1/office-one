@@ -91,7 +91,7 @@ ipcMain.handle('auth:currentUser', ()                     => auth.currentUser())
 ipcMain.handle('days:list', authed(()                  => db.listDays(auth.requireUserId())));
 ipcMain.handle('days:range', authed((_e, from, to)     => db.loadDaysRange(auth.requireUserId(), from, to)));
 
-// ── Companies / Systems (read-only views over existing day_entries) ──
+// ── Companies / Systems (read-only views over tasks + work_logs) ──
 ipcMain.handle('companies:list',    authed(()         => db.listCompanies(auth.requireUserId())));
 ipcMain.handle('companies:entries', authed((_e, name) => db.companyEntries(auth.requireUserId(), name)));
 ipcMain.handle('systems:list',      authed(()         => db.listSystems(auth.requireUserId())));

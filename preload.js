@@ -25,7 +25,7 @@ contextBridge.exposeInMainWorld('api', {
   /** @returns {Promise<import('./ipc-types').DayInRange[]>} */
   loadDaysRange:  (from, to)      => ipcRenderer.invoke('days:range', from, to),
 
-  // ── Companies / Systems (read-only views over day_entries) ──
+  // ── Companies / Systems (read-only views over tasks + work_logs) ──
   /** @returns {Promise<import('./ipc-types').CategoryValue[]>} */
   listCompanies:  ()        => ipcRenderer.invoke('companies:list'),
   /** @returns {Promise<import('./ipc-types').CategoryEntry[]>} */
