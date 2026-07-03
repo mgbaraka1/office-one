@@ -1428,26 +1428,11 @@ function companyDocumentDir(id) {
 // hold small, per-user reference records keyed to a COMPANY lookup id, the
 // same shape `project_companies` uses to link a project to its clients.
 
-function ownsClientVpn(userId, id) {
-  return !!db.prepare('SELECT 1 FROM client_vpn_connections WHERE id = ? AND user_id = ?').get(id, userId);
-}
-function ownsClientServer(userId, id) {
-  return !!db.prepare('SELECT 1 FROM client_servers WHERE id = ? AND user_id = ?').get(id, userId);
-}
-function ownsClientDatabase(userId, id) {
-  return !!db.prepare('SELECT 1 FROM client_databases WHERE id = ? AND user_id = ?').get(id, userId);
-}
-function ownsClientExternalService(userId, id) {
-  return !!db.prepare('SELECT 1 FROM client_external_services WHERE id = ? AND user_id = ?').get(id, userId);
-}
-function ownsClientInternalSystem(userId, id) {
-  return !!db.prepare('SELECT 1 FROM client_internal_systems WHERE id = ? AND user_id = ?').get(id, userId);
-}
-
 function clientVpnToApi(r) {
   return {
     id: r.id, companyId: r.company_id, connectionName: r.connection_name, vpnType: r.vpn_type,
     endpoint: r.endpoint, port: r.port, username: r.username, password: r.password,
+    expiryDate: r.expiry_date || '', credentialLocation: r.credential_location || '',
     notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
   };
 }
@@ -1455,29 +1440,97 @@ function clientServerToApi(r) {
   return {
     id: r.id, companyId: r.company_id, serverName: r.server_name, host: r.host, environment: r.environment,
     os: r.os, hostname: r.hostname, username: r.username, password: r.password, systemName: r.system_name,
+    role: r.role || '', credentialLocation: r.credential_location || '',
     notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
   };
 }
 function clientDatabaseToApi(r) {
   return {
     id: r.id, companyId: r.company_id, name: r.name, engine: r.engine, host: r.host, port: r.port,
-    username: r.username, password: r.password, notes: r.notes,
-    sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
+    username: r.username, password: r.password, version: r.version || '', credentialLocation: r.credential_location || '',
+    notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
   };
 }
 function clientExternalServiceToApi(r) {
   return {
     id: r.id, companyId: r.company_id, name: r.name, url: r.url, companyCode: r.company_code,
-    secretKey: r.secret_key, notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
+    secretKey: r.secret_key, expiryDate: r.expiry_date || '', contact: r.contact || '',
+    notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
   };
 }
 function clientInternalSystemToApi(r) {
   return {
     id: r.id, companyId: r.company_id, name: r.name, url: r.url, username: r.username, password: r.password,
     systemName: r.system_name, environment: r.environment, companyCode: r.company_code, secretKey: r.secret_key,
+    expiryDate: r.expiry_date || '', role: r.role || '',
     subServices: safeParse(r.sub_services, []),
     notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
   };
+}
+
+// ── Field-edit history (audit trail) ────────────────────────────────────────
+// One row per changed field on an UPDATE to any of the five client_* tables
+// (never on create/delete — delete-undo re-creates from a snapshot, which is
+// a create, not an edit). `record_type` distinguishes which of the five
+// tables `record_id` points into (see migration 027 for why there's no FK).
+// Field-def lists below double as: (a) which columns participate in the
+// diff, (b) the human label shown in the confirm dialog / history view, and
+// (c) which fields are `sensitive` — those log a fixed '(hidden)' placeholder
+// instead of the real value, so a permanent, potentially-backed-up audit
+// table doesn't become a second store of every credential's full history.
+const VPN_HISTORY_FIELDS = [
+  ['connection_name', 'Connection Name'], ['vpn_type', 'Type'], ['endpoint', 'Endpoint'],
+  ['port', 'Port'], ['username', 'Username'], ['password', 'Password', true],
+  ['expiry_date', 'Expiry Date'], ['credential_location', 'Credential Location'], ['notes', 'Notes'],
+];
+const SERVER_HISTORY_FIELDS = [
+  ['server_name', 'Server Name'], ['host', 'Host (IP)'], ['environment', 'Environment'], ['os', 'Operating System'],
+  ['hostname', 'Hostname'], ['username', 'Username'], ['password', 'Password', true], ['system_name', 'System Name'],
+  ['role', 'Role'], ['credential_location', 'Credential Location'], ['notes', 'Notes'],
+];
+const DATABASE_HISTORY_FIELDS = [
+  ['name', 'Name'], ['engine', 'Engine'], ['host', 'Host'], ['port', 'Port'], ['username', 'Username'],
+  ['password', 'Password', true], ['version', 'Version'], ['credential_location', 'Credential Location'], ['notes', 'Notes'],
+];
+const EXTERNAL_HISTORY_FIELDS = [
+  ['name', 'Name'], ['url', 'URL'], ['company_code', 'Company Code'], ['secret_key', 'Secret Key', true],
+  ['expiry_date', 'Expiry Date'], ['contact', 'Contact'], ['notes', 'Notes'],
+];
+const INTERNAL_HISTORY_FIELDS = [
+  ['name', 'Name'], ['url', 'URL'], ['username', 'Username'], ['password', 'Password', true],
+  ['system_name', 'System Name'], ['environment', 'Environment'], ['company_code', 'Company Code'],
+  ['secret_key', 'Secret Key', true], ['expiry_date', 'Expiry Date'], ['role', 'Role'],
+  ['sub_services', 'Sub-Services'], ['notes', 'Notes'],
+];
+
+// Diffs `before` (a raw DB row) against `nextValues` (the same shape of
+// column -> new value the UPDATE is about to write) and inserts one
+// client_field_history row per field that actually changed. Must be called
+// inside the same tx() as the UPDATE so an edit can never commit without its
+// audit row (or vice versa).
+function recordClientFieldHistory(userId, recordType, recordId, before, nextValues, fieldDefs) {
+  const now = new Date().toISOString();
+  fieldDefs.forEach(([column, label, sensitive]) => {
+    const oldVal = before[column] ?? '';
+    const newVal = nextValues[column] ?? '';
+    if (String(oldVal) === String(newVal)) return;
+    const oldStr = sensitive ? '(hidden)' : String(oldVal);
+    const newStr = sensitive ? '(hidden)' : String(newVal);
+    db.prepare(
+      `INSERT INTO client_field_history(user_id, record_type, record_id, field_name, old_value, new_value, changed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).run(userId, recordType, recordId, label, oldStr, newStr, now);
+  });
+}
+
+// Read-only: a record's history, newest first. `recordType` matches the
+// discriminator used above ('vpn'|'server'|'database'|'external'|'internal').
+function getClientFieldHistory(userId, recordType, recordId) {
+  return db.prepare(
+    `SELECT id, field_name AS fieldName, old_value AS oldValue, new_value AS newValue, changed_at AS changedAt
+       FROM client_field_history WHERE user_id = ? AND record_type = ? AND record_id = ?
+       ORDER BY changed_at DESC, id DESC`
+  ).all(userId, recordType, Number(recordId));
 }
 
 // The Clients list page: every active COMPANY lookup, each with its auth/
@@ -1540,19 +1593,30 @@ function createClientVpn(userId, companyId, data) {
   if (!isLookupId('COMPANY', Number(companyId))) return null;
   const now = new Date().toISOString();
   const id = Number(db.prepare(
-    `INSERT INTO client_vpn_connections(user_id, company_id, connection_name, vpn_type, endpoint, port, username, password, notes, sort_order, created_at, updated_at)
-     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+    `INSERT INTO client_vpn_connections(user_id, company_id, connection_name, vpn_type, endpoint, port, username, password, expiry_date, credential_location, notes, sort_order, created_at, updated_at)
+     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
   ).run(userId, companyId, data?.connectionName ?? '', data?.vpnType ?? '', data?.endpoint ?? '',
-        data?.port ?? '', data?.username ?? '', data?.password ?? '', data?.notes ?? '', now, now).lastInsertRowid);
+        data?.port ?? '', data?.username ?? '', data?.password ?? '', data?.expiryDate ?? null,
+        data?.credentialLocation ?? '', data?.notes ?? '', now, now).lastInsertRowid);
   return clientVpnToApi(db.prepare('SELECT * FROM client_vpn_connections WHERE id = ?').get(id));
 }
 function updateClientVpn(userId, id, data) {
-  if (!ownsClientVpn(userId, id)) return null;
-  db.prepare(
-    `UPDATE client_vpn_connections SET connection_name = ?, vpn_type = ?, endpoint = ?, port = ?, username = ?, password = ?, notes = ?, updated_at = ?
-      WHERE id = ? AND user_id = ?`
-  ).run(data?.connectionName ?? '', data?.vpnType ?? '', data?.endpoint ?? '', data?.port ?? '', data?.username ?? '', data?.password ?? '',
-        data?.notes ?? '', new Date().toISOString(), id, userId);
+  const before = db.prepare('SELECT * FROM client_vpn_connections WHERE id = ? AND user_id = ?').get(id, userId);
+  if (!before) return null;
+  const next = {
+    connection_name: data?.connectionName ?? '', vpn_type: data?.vpnType ?? '', endpoint: data?.endpoint ?? '',
+    port: data?.port ?? '', username: data?.username ?? '', password: data?.password ?? '',
+    expiry_date: data?.expiryDate ?? null, credential_location: data?.credentialLocation ?? '', notes: data?.notes ?? '',
+  };
+  tx(() => {
+    recordClientFieldHistory(userId, 'vpn', id, before, next, VPN_HISTORY_FIELDS);
+    db.prepare(
+      `UPDATE client_vpn_connections SET connection_name = ?, vpn_type = ?, endpoint = ?, port = ?, username = ?, password = ?,
+         expiry_date = ?, credential_location = ?, notes = ?, updated_at = ?
+        WHERE id = ? AND user_id = ?`
+    ).run(next.connection_name, next.vpn_type, next.endpoint, next.port, next.username, next.password,
+          next.expiry_date, next.credential_location, next.notes, new Date().toISOString(), id, userId);
+  });
   return clientVpnToApi(db.prepare('SELECT * FROM client_vpn_connections WHERE id = ?').get(id));
 }
 function deleteClientVpn(userId, id) {
@@ -1564,19 +1628,30 @@ function createClientServer(userId, companyId, data) {
   if (!isLookupId('COMPANY', Number(companyId))) return null;
   const now = new Date().toISOString();
   const id = Number(db.prepare(
-    `INSERT INTO client_servers(user_id, company_id, server_name, host, environment, os, hostname, username, password, system_name, notes, sort_order, created_at, updated_at)
-     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+    `INSERT INTO client_servers(user_id, company_id, server_name, host, environment, os, hostname, username, password, system_name, role, port, credential_location, notes, sort_order, created_at, updated_at)
+     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
   ).run(userId, companyId, data?.serverName ?? '', data?.host ?? '', data?.environment ?? '', data?.os ?? '',
-        data?.hostname ?? '', data?.username ?? '', data?.password ?? '', data?.systemName ?? '', data?.notes ?? '', now, now).lastInsertRowid);
+        data?.hostname ?? '', data?.username ?? '', data?.password ?? '', data?.systemName ?? '',
+        data?.role ?? '', data?.port ?? '', data?.credentialLocation ?? '', data?.notes ?? '', now, now).lastInsertRowid);
   return clientServerToApi(db.prepare('SELECT * FROM client_servers WHERE id = ?').get(id));
 }
 function updateClientServer(userId, id, data) {
-  if (!ownsClientServer(userId, id)) return null;
-  db.prepare(
-    `UPDATE client_servers SET server_name = ?, host = ?, environment = ?, os = ?, hostname = ?, username = ?, password = ?, system_name = ?, notes = ?, updated_at = ?
-      WHERE id = ? AND user_id = ?`
-  ).run(data?.serverName ?? '', data?.host ?? '', data?.environment ?? '', data?.os ?? '', data?.hostname ?? '',
-        data?.username ?? '', data?.password ?? '', data?.systemName ?? '', data?.notes ?? '', new Date().toISOString(), id, userId);
+  const before = db.prepare('SELECT * FROM client_servers WHERE id = ? AND user_id = ?').get(id, userId);
+  if (!before) return null;
+  const next = {
+    server_name: data?.serverName ?? '', host: data?.host ?? '', environment: data?.environment ?? '', os: data?.os ?? '',
+    hostname: data?.hostname ?? '', username: data?.username ?? '', password: data?.password ?? '', system_name: data?.systemName ?? '',
+    role: data?.role ?? '', port: data?.port ?? '', credential_location: data?.credentialLocation ?? '', notes: data?.notes ?? '',
+  };
+  tx(() => {
+    recordClientFieldHistory(userId, 'server', id, before, next, SERVER_HISTORY_FIELDS);
+    db.prepare(
+      `UPDATE client_servers SET server_name = ?, host = ?, environment = ?, os = ?, hostname = ?, username = ?, password = ?,
+         system_name = ?, role = ?, port = ?, credential_location = ?, notes = ?, updated_at = ?
+        WHERE id = ? AND user_id = ?`
+    ).run(next.server_name, next.host, next.environment, next.os, next.hostname, next.username, next.password,
+          next.system_name, next.role, next.port, next.credential_location, next.notes, new Date().toISOString(), id, userId);
+  });
   return clientServerToApi(db.prepare('SELECT * FROM client_servers WHERE id = ?').get(id));
 }
 function deleteClientServer(userId, id) {
@@ -1598,19 +1673,30 @@ function createClientDatabase(userId, companyId, data) {
   if (!isLookupId('COMPANY', Number(companyId))) return null;
   const now = new Date().toISOString();
   const id = Number(db.prepare(
-    `INSERT INTO client_databases(user_id, company_id, name, engine, host, port, username, password, notes, sort_order, created_at, updated_at)
-     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+    `INSERT INTO client_databases(user_id, company_id, name, engine, host, port, username, password, version, credential_location, notes, sort_order, created_at, updated_at)
+     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
   ).run(userId, companyId, data?.name ?? '', data?.engine ?? '', data?.host ?? '',
-        data?.port ?? '', data?.username ?? '', data?.password ?? '', data?.notes ?? '', now, now).lastInsertRowid);
+        data?.port ?? '', data?.username ?? '', data?.password ?? '', data?.version ?? '',
+        data?.credentialLocation ?? '', data?.notes ?? '', now, now).lastInsertRowid);
   return clientDatabaseToApi(db.prepare('SELECT * FROM client_databases WHERE id = ?').get(id));
 }
 function updateClientDatabase(userId, id, data) {
-  if (!ownsClientDatabase(userId, id)) return null;
-  db.prepare(
-    `UPDATE client_databases SET name = ?, engine = ?, host = ?, port = ?, username = ?, password = ?, notes = ?, updated_at = ?
-      WHERE id = ? AND user_id = ?`
-  ).run(data?.name ?? '', data?.engine ?? '', data?.host ?? '', data?.port ?? '', data?.username ?? '', data?.password ?? '',
-        data?.notes ?? '', new Date().toISOString(), id, userId);
+  const before = db.prepare('SELECT * FROM client_databases WHERE id = ? AND user_id = ?').get(id, userId);
+  if (!before) return null;
+  const next = {
+    name: data?.name ?? '', engine: data?.engine ?? '', host: data?.host ?? '', port: data?.port ?? '',
+    username: data?.username ?? '', password: data?.password ?? '',
+    version: data?.version ?? '', credential_location: data?.credentialLocation ?? '', notes: data?.notes ?? '',
+  };
+  tx(() => {
+    recordClientFieldHistory(userId, 'database', id, before, next, DATABASE_HISTORY_FIELDS);
+    db.prepare(
+      `UPDATE client_databases SET name = ?, engine = ?, host = ?, port = ?, username = ?, password = ?,
+         version = ?, credential_location = ?, notes = ?, updated_at = ?
+        WHERE id = ? AND user_id = ?`
+    ).run(next.name, next.engine, next.host, next.port, next.username, next.password,
+          next.version, next.credential_location, next.notes, new Date().toISOString(), id, userId);
+  });
   return clientDatabaseToApi(db.prepare('SELECT * FROM client_databases WHERE id = ?').get(id));
 }
 function deleteClientDatabase(userId, id) {
@@ -1622,17 +1708,27 @@ function createClientExternalService(userId, companyId, data) {
   if (!isLookupId('COMPANY', Number(companyId))) return null;
   const now = new Date().toISOString();
   const id = Number(db.prepare(
-    `INSERT INTO client_external_services(user_id, company_id, name, url, company_code, secret_key, notes, sort_order, created_at, updated_at)
-     VALUES(?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
-  ).run(userId, companyId, data?.name ?? '', data?.url ?? '', data?.companyCode ?? '', data?.secretKey ?? '', data?.notes ?? '', now, now).lastInsertRowid);
+    `INSERT INTO client_external_services(user_id, company_id, name, url, company_code, secret_key, expiry_date, contact, notes, sort_order, created_at, updated_at)
+     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+  ).run(userId, companyId, data?.name ?? '', data?.url ?? '', data?.companyCode ?? '', data?.secretKey ?? '',
+        data?.expiryDate ?? null, data?.contact ?? '', data?.notes ?? '', now, now).lastInsertRowid);
   return clientExternalServiceToApi(db.prepare('SELECT * FROM client_external_services WHERE id = ?').get(id));
 }
 function updateClientExternalService(userId, id, data) {
-  if (!ownsClientExternalService(userId, id)) return null;
-  db.prepare(
-    `UPDATE client_external_services SET name = ?, url = ?, company_code = ?, secret_key = ?, notes = ?, updated_at = ?
-      WHERE id = ? AND user_id = ?`
-  ).run(data?.name ?? '', data?.url ?? '', data?.companyCode ?? '', data?.secretKey ?? '', data?.notes ?? '', new Date().toISOString(), id, userId);
+  const before = db.prepare('SELECT * FROM client_external_services WHERE id = ? AND user_id = ?').get(id, userId);
+  if (!before) return null;
+  const next = {
+    name: data?.name ?? '', url: data?.url ?? '', company_code: data?.companyCode ?? '', secret_key: data?.secretKey ?? '',
+    expiry_date: data?.expiryDate ?? null, contact: data?.contact ?? '', notes: data?.notes ?? '',
+  };
+  tx(() => {
+    recordClientFieldHistory(userId, 'external', id, before, next, EXTERNAL_HISTORY_FIELDS);
+    db.prepare(
+      `UPDATE client_external_services SET name = ?, url = ?, company_code = ?, secret_key = ?, expiry_date = ?, contact = ?, notes = ?, updated_at = ?
+        WHERE id = ? AND user_id = ?`
+    ).run(next.name, next.url, next.company_code, next.secret_key, next.expiry_date, next.contact, next.notes,
+          new Date().toISOString(), id, userId);
+  });
   return clientExternalServiceToApi(db.prepare('SELECT * FROM client_external_services WHERE id = ?').get(id));
 }
 function deleteClientExternalService(userId, id) {
@@ -1651,21 +1747,33 @@ function createClientInternalSystem(userId, companyId, data) {
   if (!isLookupId('COMPANY', Number(companyId))) return null;
   const now = new Date().toISOString();
   const id = Number(db.prepare(
-    `INSERT INTO client_internal_systems(user_id, company_id, name, url, username, password, system_name, environment, company_code, secret_key, sub_services, notes, sort_order, created_at, updated_at)
-     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+    `INSERT INTO client_internal_systems(user_id, company_id, name, url, username, password, system_name, environment, company_code, secret_key, expiry_date, role, sub_services, notes, sort_order, created_at, updated_at)
+     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
   ).run(userId, companyId, data?.name ?? '', data?.url ?? '', data?.username ?? '', data?.password ?? '',
         data?.systemName ?? '', data?.environment ?? '', data?.companyCode ?? '', data?.secretKey ?? '',
+        data?.expiryDate ?? null, data?.role ?? '',
         JSON.stringify(normalizeSubServices(data?.subServices)), data?.notes ?? '', now, now).lastInsertRowid);
   return clientInternalSystemToApi(db.prepare('SELECT * FROM client_internal_systems WHERE id = ?').get(id));
 }
 function updateClientInternalSystem(userId, id, data) {
-  if (!ownsClientInternalSystem(userId, id)) return null;
-  db.prepare(
-    `UPDATE client_internal_systems SET name = ?, url = ?, username = ?, password = ?, system_name = ?, environment = ?, company_code = ?, secret_key = ?, sub_services = ?, notes = ?, updated_at = ?
-      WHERE id = ? AND user_id = ?`
-  ).run(data?.name ?? '', data?.url ?? '', data?.username ?? '', data?.password ?? '', data?.systemName ?? '',
-        data?.environment ?? '', data?.companyCode ?? '', data?.secretKey ?? '', JSON.stringify(normalizeSubServices(data?.subServices)),
-        data?.notes ?? '', new Date().toISOString(), id, userId);
+  const before = db.prepare('SELECT * FROM client_internal_systems WHERE id = ? AND user_id = ?').get(id, userId);
+  if (!before) return null;
+  const next = {
+    name: data?.name ?? '', url: data?.url ?? '', username: data?.username ?? '', password: data?.password ?? '',
+    system_name: data?.systemName ?? '', environment: data?.environment ?? '', company_code: data?.companyCode ?? '',
+    secret_key: data?.secretKey ?? '', expiry_date: data?.expiryDate ?? null, role: data?.role ?? '',
+    sub_services: JSON.stringify(normalizeSubServices(data?.subServices)), notes: data?.notes ?? '',
+  };
+  tx(() => {
+    recordClientFieldHistory(userId, 'internal', id, before, next, INTERNAL_HISTORY_FIELDS);
+    db.prepare(
+      `UPDATE client_internal_systems SET name = ?, url = ?, username = ?, password = ?, system_name = ?, environment = ?,
+         company_code = ?, secret_key = ?, expiry_date = ?, role = ?, sub_services = ?, notes = ?, updated_at = ?
+        WHERE id = ? AND user_id = ?`
+    ).run(next.name, next.url, next.username, next.password, next.system_name, next.environment,
+          next.company_code, next.secret_key, next.expiry_date, next.role, next.sub_services, next.notes,
+          new Date().toISOString(), id, userId);
+  });
   return clientInternalSystemToApi(db.prepare('SELECT * FROM client_internal_systems WHERE id = ?').get(id));
 }
 function deleteClientInternalSystem(userId, id) {
@@ -1701,7 +1809,7 @@ module.exports = {
   listCompanyDocuments, getCompanyDocument, createCompanyDocument, updateCompanyDocument, deleteCompanyDocument,
   saveCompanyDocumentFile, resolveCompanyDocumentFile, removeCompanyDocumentFile,
   purgeCompanyDocumentFiles, restoreCompanyDocumentFile, companyDocumentsRootDir,
-  listClients, getClient,
+  listClients, getClient, getClientFieldHistory,
   createClientVpn, updateClientVpn, deleteClientVpn,
   createClientServer, updateClientServer, deleteClientServer, renameClientServerSystemGroup,
   createClientDatabase, updateClientDatabase, deleteClientDatabase,
