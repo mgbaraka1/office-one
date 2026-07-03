@@ -25,7 +25,7 @@ const fs   = require('node:fs');
 // table under one of these category discriminators. The renderer fetches options
 // per-category and stores a stable `code` (logic fields) or display `label`
 // (company/system/activity) — never a hardcoded string.
-const LOOKUP_CATEGORIES = ['COMPANY', 'SYSTEM', 'ACTIVITY_TYPE', 'TIME_TYPE', 'ENTRY_STATUS', 'CURRENCY', 'BILLING_CYCLE', 'PROJECT_STATUS', 'PROJECT_DOCUMENT'];
+const LOOKUP_CATEGORIES = ['COMPANY', 'SYSTEM', 'ACTIVITY_TYPE', 'TIME_TYPE', 'ENTRY_STATUS', 'CURRENCY', 'BILLING_CYCLE', 'PROJECT_STATUS', 'PROJECT_DOCUMENT', 'COMPANY_DOCUMENT_CATEGORY'];
 
 let db;          // DatabaseSync instance
 let userDataDir; // resolved userData folder (backups, db file)
@@ -172,6 +172,7 @@ function applyMigrations() {
 function runMaintenance() {
   if (!dbWasNew) rotateBackups();   // snapshot an existing DB before the user touches it
   sweepOrphanProjectFiles();        // drop file folders for projects that no longer exist
+  sweepOrphanCompanyDocumentFiles(); // same, for company_documents/{id}/ folders
 }
 
 // Safety net for the deferred file purge: remove any projects/{id}/ folder whose
@@ -182,6 +183,20 @@ function sweepOrphanProjectFiles() {
     const root = projectsRootDir();
     if (!fs.existsSync(root)) return;
     const live = new Set(db.prepare('SELECT id FROM projects').all().map(r => String(r.id)));
+    for (const name of fs.readdirSync(root)) {
+      if (/^\d+$/.test(name) && !live.has(name)) {
+        fs.rmSync(path.join(root, name), { recursive: true, force: true });
+      }
+    }
+  } catch { /* non-critical */ }
+}
+
+// Same safety net as sweepOrphanProjectFiles, for company_documents/{id}/ folders.
+function sweepOrphanCompanyDocumentFiles() {
+  try {
+    const root = companyDocumentsRootDir();
+    if (!fs.existsSync(root)) return;
+    const live = new Set(db.prepare('SELECT id FROM company_documents').all().map(r => String(r.id)));
     for (const name of fs.readdirSync(root)) {
       if (/^\d+$/.test(name) && !live.has(name)) {
         fs.rmSync(path.join(root, name), { recursive: true, force: true });
@@ -879,6 +894,195 @@ function restoreProjectFiles(userId, oldProjectId, newProjectId, fileDocs) {
   return { ok: true, project: getProject(userId, newProjectId) };
 }
 
+// ── Company Documents (standalone card-per-document module, independent of
+// Projects) ────────────────────────────────────────────────────────────────
+// Each row IS a user-created card — unlike `project_documents` (a fixed catalog
+// slot per project that survives file removal), there is no catalog: `category`
+// is a COMPANY_DOCUMENT_CATEGORY lookup code the user picks per card, and the
+// row itself is deleted (not just its file) when the card is removed. At most
+// one file per card (Option A: bytes on disk under
+// <userData>/company_documents/{id}/, metadata here). Deleting a card leaves
+// its file on disk so it survives the renderer's 5 s undo window;
+// purgeCompanyDocumentFiles/restoreCompanyDocumentFile mirror the Projects
+// delete/undo pattern (including the SQLite rowid-reuse caveat).
+
+function ownsCompanyDocument(userId, id) {
+  return !!db.prepare('SELECT 1 FROM company_documents WHERE id = ? AND user_id = ?').get(id, userId);
+}
+
+function companyDocumentToApi(r) {
+  const hasFile = !!r.file_path;
+  return {
+    id: r.id, name: r.name, category: r.category || '', renewalDate: r.renewal_date || '',
+    notes: r.notes || '', sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
+    file: hasFile ? {
+      path: r.file_path, originalName: r.original_name || '', size: r.file_size || 0,
+      mimeType: r.mime_type || '', uploadedAt: r.uploaded_at || '',
+      exists: fs.existsSync(path.join(userDataDir, r.file_path)),
+    } : null,
+  };
+}
+
+// All of the user's company documents, newest first — the list view's payload.
+function listCompanyDocuments(userId) {
+  return db.prepare(
+    'SELECT * FROM company_documents WHERE user_id = ? ORDER BY created_at DESC, id DESC'
+  ).all(userId).map(companyDocumentToApi);
+}
+function getCompanyDocument(userId, id) {
+  const r = db.prepare('SELECT * FROM company_documents WHERE id = ? AND user_id = ?').get(id, userId);
+  return r ? companyDocumentToApi(r) : null;
+}
+function createCompanyDocument(userId, data) {
+  const now = new Date().toISOString();
+  const category = lkId('COMPANY_DOCUMENT_CATEGORY', data?.category) != null ? data.category : null;
+  const id = Number(db.prepare(
+    `INSERT INTO company_documents(user_id, name, category, renewal_date, notes, sort_order, created_at, updated_at)
+     VALUES(?, ?, ?, ?, ?, 0, ?, ?)`
+  ).run(userId, data?.name ?? '', category, data?.renewalDate || null, data?.notes ?? '', now, now).lastInsertRowid);
+  return getCompanyDocument(userId, id);
+}
+// Update a card's profile fields in place (file untouched). Returns the
+// refreshed card, or null if the caller doesn't own it.
+function updateCompanyDocument(userId, id, data) {
+  if (!ownsCompanyDocument(userId, id)) return null;
+  const category = lkId('COMPANY_DOCUMENT_CATEGORY', data?.category) != null ? data.category : null;
+  db.prepare(
+    `UPDATE company_documents SET name = ?, category = ?, renewal_date = ?, notes = ?, updated_at = ?
+      WHERE id = ? AND user_id = ?`
+  ).run(data?.name ?? '', category, data?.renewalDate || null, data?.notes ?? '', new Date().toISOString(), id, userId);
+  return getCompanyDocument(userId, id);
+}
+// Delete a card. The file (if any) is intentionally NOT removed here — it must
+// survive the renderer's 5 s undo window; purgeCompanyDocumentFiles removes it
+// once that window lapses, restoreCompanyDocumentFile moves it onto the
+// re-created card's new id if the user undoes.
+function deleteCompanyDocument(userId, id) {
+  db.prepare('DELETE FROM company_documents WHERE id = ? AND user_id = ?').run(id, userId);
+  return { ok: true };
+}
+
+// Copy a chosen file into the card's folder and record its metadata. Validates
+// ownership and the extension allowlist (shared with Project Documents). If a
+// file already exists for this card it is a REPLACE: the new file is written
+// first, then the old one removed (best-effort). Returns
+// { ok, document } | { ok:false, error }.
+function saveCompanyDocumentFile(userId, id, srcPath) {
+  if (!ownsCompanyDocument(userId, id)) return { ok: false, error: 'Document not found' };
+  const ext = fileExt(srcPath);
+  if (!PROJECT_DOC_EXTENSIONS.includes(ext)) {
+    return { ok: false, error: `Unsupported file type (.${ext || '?'}). Allowed: ${PROJECT_DOC_EXTENSIONS.join(', ')}` };
+  }
+  let size;
+  try { size = fs.statSync(srcPath).size; }
+  catch { return { ok: false, error: 'Could not read the selected file' }; }
+
+  const prev = db.prepare('SELECT file_path FROM company_documents WHERE id = ?').get(id);
+
+  // {timestamp}.{ext} — one file slot per card, so no type prefix is needed.
+  const relPath = path.join('company_documents', String(id), `${Date.now()}.${ext}`);
+  const absPath = path.join(userDataDir, relPath);
+  try {
+    fs.mkdirSync(path.dirname(absPath), { recursive: true });
+    fs.copyFileSync(srcPath, absPath);
+  } catch (err) {
+    return { ok: false, error: 'Could not save the file: ' + String(err?.message || err) };
+  }
+
+  try {
+    db.prepare(
+      `UPDATE company_documents
+          SET file_path = ?, original_name = ?, file_size = ?, mime_type = ?, uploaded_at = ?, updated_at = ?
+        WHERE id = ? AND user_id = ?`
+    ).run(relPath, path.basename(srcPath), size, PROJECT_DOC_TYPES[ext], new Date().toISOString(),
+          new Date().toISOString(), id, userId);
+  } catch (err) {
+    // Metadata write failed — don't leave the just-copied orphan on disk.
+    try { fs.rmSync(absPath, { force: true }); } catch { /* best effort */ }
+    return { ok: false, error: 'Could not record the file: ' + String(err?.message || err) };
+  }
+
+  // Replace succeeded — remove the superseded file (best-effort; never blocks).
+  if (prev?.file_path && prev.file_path !== relPath) {
+    try { fs.rmSync(path.join(userDataDir, prev.file_path), { force: true }); } catch { /* best effort */ }
+  }
+  return { ok: true, document: getCompanyDocument(userId, id) };
+}
+
+// Resolve the absolute on-disk path of a card's file (for download / open),
+// after an ownership check. `exists` reflects whether the file is actually present.
+function resolveCompanyDocumentFile(userId, id) {
+  if (!ownsCompanyDocument(userId, id)) return { ok: false, error: 'Document not found' };
+  const r = db.prepare('SELECT file_path, original_name FROM company_documents WHERE id = ?').get(id);
+  if (!r?.file_path) return { ok: false, error: 'No file for this document' };
+  const absPath = path.join(userDataDir, r.file_path);
+  return { ok: true, absPath, originalName: r.original_name || path.basename(r.file_path), exists: fs.existsSync(absPath) };
+}
+
+// Remove a card's file from disk and clear its metadata (keeps the card itself,
+// just back to "no file"). Best-effort on the unlink.
+function removeCompanyDocumentFile(userId, id) {
+  if (!ownsCompanyDocument(userId, id)) return { ok: false, error: 'Document not found' };
+  const r = db.prepare('SELECT file_path FROM company_documents WHERE id = ?').get(id);
+  if (r?.file_path) {
+    try { fs.rmSync(path.join(userDataDir, r.file_path), { force: true }); } catch { /* best effort */ }
+  }
+  db.prepare(
+    `UPDATE company_documents
+        SET file_path = NULL, original_name = NULL, file_size = NULL, mime_type = NULL, uploaded_at = NULL, updated_at = ?
+      WHERE id = ? AND user_id = ?`
+  ).run(new Date().toISOString(), id, userId);
+  return { ok: true, document: getCompanyDocument(userId, id) };
+}
+
+// Delete a card's entire file folder (company_documents/{id}/). Called when the
+// delete undo-window lapses. No ownership check is possible (the row is already
+// gone); the id is coerced to an integer so the path can only ever resolve
+// inside the data root.
+function purgeCompanyDocumentFiles(id) {
+  const n = Number(id);
+  if (!Number.isInteger(n) || n <= 0) return { ok: false };
+  try { fs.rmSync(companyDocumentDir(n), { recursive: true, force: true }); } catch { /* best effort */ }
+  return { ok: true };
+}
+
+// Undo a delete: the card was re-created under a NEW id, so move its file
+// folder oldId → newId and re-stamp the file metadata onto the new row (the old
+// row was hard-deleted). `fileMeta` is the deleted card's `.file` snapshot, or
+// null/undefined if it never had one.
+function restoreCompanyDocumentFile(userId, oldId, newId, fileMeta) {
+  if (!ownsCompanyDocument(userId, newId)) return { ok: false, error: 'Document not found' };
+  if (!fileMeta?.path) return { ok: true, document: getCompanyDocument(userId, newId) };
+
+  const oldDir = companyDocumentDir(Number(oldId));
+  const newDir = companyDocumentDir(Number(newId));
+  // SQLite reuses the highest deleted rowid, so undoing the delete of the newest
+  // card re-creates it under the SAME id — the folder is already in place and
+  // must NOT be moved/cleared. Only relocate when the id actually changed.
+  if (path.resolve(oldDir) !== path.resolve(newDir)) {
+    try {
+      if (fs.existsSync(oldDir)) {
+        fs.mkdirSync(path.dirname(newDir), { recursive: true });
+        fs.rmSync(newDir, { recursive: true, force: true }); // freshly created card has no files
+        fs.renameSync(oldDir, newDir);
+      }
+    } catch { /* fall through — re-stamp what metadata we can */ }
+  }
+
+  // Re-home the relative path onto the new id (same basename, new folder).
+  const relPath = path.join('company_documents', String(Number(newId)), path.basename(fileMeta.path));
+  if (!fs.existsSync(path.join(userDataDir, relPath))) return { ok: true, document: getCompanyDocument(userId, newId) }; // file didn't survive — skip
+
+  db.prepare(
+    `UPDATE company_documents
+        SET file_path = ?, original_name = ?, file_size = ?, mime_type = ?, uploaded_at = ?, updated_at = ?
+      WHERE id = ? AND user_id = ?`
+  ).run(relPath, fileMeta.originalName || path.basename(relPath), fileMeta.size || 0,
+        fileMeta.mimeType || PROJECT_DOC_TYPES[fileExt(relPath)] || '', fileMeta.uploadedAt || new Date().toISOString(),
+        new Date().toISOString(), newId, userId);
+  return { ok: true, document: getCompanyDocument(userId, newId) };
+}
+
 // Link / unlink a task to a project, addressed directly by its task id (the
 // two-level model — everything is a task now). Linking verifies project ownership;
 // each UPDATE is owner-scoped so a user can only touch their own rows.
@@ -1005,25 +1209,6 @@ function listTasks(userId) {
       ORDER BY t.created_at DESC, t.id DESC`
   ).all(userId).map(t => taskToApi(t, {
     logCount: t.logCount, totalMinutes: t.totalMinutes, firstDate: t.firstDate, lastDate: t.lastDate,
-  }));
-}
-
-// The "Not Yet" pool = tasks with no work sessions yet (the two-level replacement
-// for the old backlog table, merged in migration 013). Returned in the Not-Yet
-// item shape the renderer uses (description = the task name; no per-session `time`,
-// which is chosen when the task is assigned to a day). Owner-scoped, ordered.
-function listNotYetTasks(userId) {
-  return db.prepare(
-    `SELECT t.* FROM tasks t
-      WHERE t.user_id = ?
-        AND NOT EXISTS (SELECT 1 FROM work_logs w WHERE w.task_id = t.id)
-      ORDER BY t.sort_order, t.id`
-  ).all(userId).map(t => ({
-    id: t.id,
-    description: t.name || '',
-    company: lkLabel(t.company_id), system: lkLabel(t.system_id), natural: lkLabel(t.activity_type_id),
-    source: t.source || '', tags: safeParse(t.tags, []),
-    projectId: t.project_id ?? null,
   }));
 }
 
@@ -1224,6 +1409,119 @@ function projectDir(projectId) {
 function projectDocumentsDir(projectId) {
   return path.join(projectDir(projectId), 'documents');
 }
+// Company Documents mirrors the same layout, one level up (no per-type
+// subfolder needed — each card owns at most one file):
+//   companyDocumentsRootDir() -> <userData>/company_documents
+//   companyDocumentDir(id)    -> <userData>/company_documents/{id}
+function companyDocumentsRootDir() {
+  return path.join(userDataDir, 'company_documents');
+}
+function companyDocumentDir(id) {
+  return path.join(companyDocumentsRootDir(), String(id));
+}
+
+// ── Clients (VPN Connectivity + Server Information, per COMPANY lookup) ──────
+// There is no standalone "clients" table — the client roster IS the active
+// COMPANY lookup catalog (managed from Settings → Companies, same place every
+// other company dropdown in the app is sourced from). These two child tables
+// hold small, per-user reference records keyed to a COMPANY lookup id, the
+// same shape `project_companies` uses to link a project to its clients.
+
+function ownsClientVpn(userId, id) {
+  return !!db.prepare('SELECT 1 FROM client_vpn_connections WHERE id = ? AND user_id = ?').get(id, userId);
+}
+function ownsClientServer(userId, id) {
+  return !!db.prepare('SELECT 1 FROM client_servers WHERE id = ? AND user_id = ?').get(id, userId);
+}
+
+function clientVpnToApi(r) {
+  return {
+    id: r.id, companyId: r.company_id, connectionName: r.connection_name, vpnType: r.vpn_type,
+    endpoint: r.endpoint, notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
+  };
+}
+function clientServerToApi(r) {
+  return {
+    id: r.id, companyId: r.company_id, serverName: r.server_name, host: r.host, environment: r.environment,
+    os: r.os, notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
+  };
+}
+
+// The Clients list page: every active COMPANY lookup, each with its VPN/server
+// counts for this user (zero-activity companies still show — this is the
+// catalog roster, not a work-log rollup like Browse's company list).
+function listClients(userId) {
+  const companies = getLookupsByCategory('COMPANY');
+  const vpnCounts = new Map(
+    db.prepare('SELECT company_id, COUNT(*) AS c FROM client_vpn_connections WHERE user_id = ? GROUP BY company_id')
+      .all(userId).map(r => [r.company_id, r.c])
+  );
+  const srvCounts = new Map(
+    db.prepare('SELECT company_id, COUNT(*) AS c FROM client_servers WHERE user_id = ? GROUP BY company_id')
+      .all(userId).map(r => [r.company_id, r.c])
+  );
+  return companies.map(c => ({
+    id: c.id, label: c.label,
+    vpnCount: vpnCounts.get(c.id) || 0, serverCount: srvCounts.get(c.id) || 0,
+  }));
+}
+
+// One client's detail: the COMPANY lookup's label + its VPN connections and
+// servers (both ordered). Returns null if companyId isn't a real COMPANY row.
+function getClient(userId, companyId) {
+  if (!isLookupId('COMPANY', Number(companyId))) return null;
+  const vpnConnections = db.prepare(
+    'SELECT * FROM client_vpn_connections WHERE company_id = ? AND user_id = ? ORDER BY sort_order, id'
+  ).all(companyId, userId).map(clientVpnToApi);
+  const servers = db.prepare(
+    'SELECT * FROM client_servers WHERE company_id = ? AND user_id = ? ORDER BY sort_order, id'
+  ).all(companyId, userId).map(clientServerToApi);
+  return { id: Number(companyId), label: lkLabel(Number(companyId)), vpnConnections, servers };
+}
+
+function createClientVpn(userId, companyId, data) {
+  if (!isLookupId('COMPANY', Number(companyId))) return null;
+  const now = new Date().toISOString();
+  const id = Number(db.prepare(
+    `INSERT INTO client_vpn_connections(user_id, company_id, connection_name, vpn_type, endpoint, notes, sort_order, created_at, updated_at)
+     VALUES(?, ?, ?, ?, ?, ?, 0, ?, ?)`
+  ).run(userId, companyId, data?.connectionName ?? '', data?.vpnType ?? '', data?.endpoint ?? '', data?.notes ?? '', now, now).lastInsertRowid);
+  return clientVpnToApi(db.prepare('SELECT * FROM client_vpn_connections WHERE id = ?').get(id));
+}
+function updateClientVpn(userId, id, data) {
+  if (!ownsClientVpn(userId, id)) return null;
+  db.prepare(
+    `UPDATE client_vpn_connections SET connection_name = ?, vpn_type = ?, endpoint = ?, notes = ?, updated_at = ?
+      WHERE id = ? AND user_id = ?`
+  ).run(data?.connectionName ?? '', data?.vpnType ?? '', data?.endpoint ?? '', data?.notes ?? '', new Date().toISOString(), id, userId);
+  return clientVpnToApi(db.prepare('SELECT * FROM client_vpn_connections WHERE id = ?').get(id));
+}
+function deleteClientVpn(userId, id) {
+  db.prepare('DELETE FROM client_vpn_connections WHERE id = ? AND user_id = ?').run(id, userId);
+  return { ok: true };
+}
+
+function createClientServer(userId, companyId, data) {
+  if (!isLookupId('COMPANY', Number(companyId))) return null;
+  const now = new Date().toISOString();
+  const id = Number(db.prepare(
+    `INSERT INTO client_servers(user_id, company_id, server_name, host, environment, os, notes, sort_order, created_at, updated_at)
+     VALUES(?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+  ).run(userId, companyId, data?.serverName ?? '', data?.host ?? '', data?.environment ?? '', data?.os ?? '', data?.notes ?? '', now, now).lastInsertRowid);
+  return clientServerToApi(db.prepare('SELECT * FROM client_servers WHERE id = ?').get(id));
+}
+function updateClientServer(userId, id, data) {
+  if (!ownsClientServer(userId, id)) return null;
+  db.prepare(
+    `UPDATE client_servers SET server_name = ?, host = ?, environment = ?, os = ?, notes = ?, updated_at = ?
+      WHERE id = ? AND user_id = ?`
+  ).run(data?.serverName ?? '', data?.host ?? '', data?.environment ?? '', data?.os ?? '', data?.notes ?? '', new Date().toISOString(), id, userId);
+  return clientServerToApi(db.prepare('SELECT * FROM client_servers WHERE id = ?').get(id));
+}
+function deleteClientServer(userId, id) {
+  db.prepare('DELETE FROM client_servers WHERE id = ? AND user_id = ?').run(id, userId);
+  return { ok: true };
+}
 
 module.exports = {
   openConnection, applyMigrations, runMaintenance,
@@ -1235,11 +1533,17 @@ module.exports = {
   getAnalytics, getOverviewStats,
   createProject, listProjects, getProject, updateProject, deleteProject,
   linkTask, unlinkTask, listLinkableTasks,
-  listTasks, getTask, createTask, updateTask, deleteTask, listNotYetTasks,
+  listTasks, getTask, createTask, updateTask, deleteTask,
   listWorkLogs, logsForDate, addWorkLog, updateWorkLog, deleteWorkLog,
   setDayName, getDayName,
   saveProjectDocumentFile, resolveProjectDocumentFile, removeProjectDocumentFile,
   purgeProjectFiles, restoreProjectFiles,
+  listCompanyDocuments, getCompanyDocument, createCompanyDocument, updateCompanyDocument, deleteCompanyDocument,
+  saveCompanyDocumentFile, resolveCompanyDocumentFile, removeCompanyDocumentFile,
+  purgeCompanyDocumentFiles, restoreCompanyDocumentFile, companyDocumentsRootDir,
+  listClients, getClient,
+  createClientVpn, updateClientVpn, deleteClientVpn,
+  createClientServer, updateClientServer, deleteClientServer,
   loadLookups, saveLookups, getLookupsByCategory,
   loadSubscriptions, saveSubscriptions,
   loadPrefs, savePrefs,
