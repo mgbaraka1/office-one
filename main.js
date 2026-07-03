@@ -258,6 +258,7 @@ ipcMain.handle('clients:internal-create', authed((_e, companyId, data) => db.cre
 ipcMain.handle('clients:internal-update', authed((_e, id, data)        => db.updateClientInternalSystem(auth.requireUserId(), id, data)));
 ipcMain.handle('clients:internal-delete', authed((_e, id)              => db.deleteClientInternalSystem(auth.requireUserId(), id)));
 ipcMain.handle('clients:internal-rename-group', authed((_e, companyId, oldName, newName) => db.renameClientInternalSystemGroup(auth.requireUserId(), companyId, oldName, newName)));
+ipcMain.handle('clients:field-history', authed((_e, recordType, recordId) => db.getClientFieldHistory(auth.requireUserId(), recordType, recordId)));
 
 // ── Backup ──
 ipcMain.handle('db:backup', authed(async () => {

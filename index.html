@@ -806,6 +806,22 @@
     .cl-subsvc-list { margin-top: 6px; border-top: 1px dashed var(--border); padding-top: 6px; }
     .cl-subsvc-row-view { font-size: 12.5px; color: var(--muted); font-family: 'JetBrains Mono', monospace; display: flex; gap: 8px; padding: 2px 0; }
     .cl-subsvc-row-view .cl-subsvc-label { color: var(--text); font-weight: 600; flex-shrink: 0; }
+    /* Detail-view search + type-filter toolbar (sits above the 5 sections) */
+    .cl-detail-toolbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 14px 0 4px; }
+    .cl-detail-search { width: 280px; }
+    .cl-item-updated { font-size: 11px; color: var(--muted); opacity: .75; margin-top: 6px; }
+    /* Field-history rows — shared by the read-only History modal and the
+       pre-commit edit-confirmation modal (same visual language, one shows
+       past changes, the other a pending one). */
+    .cl-history-row { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 8px; }
+    .cl-history-row:last-child { margin-bottom: 0; }
+    .cl-history-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+    .cl-history-field { font-size: 13px; font-weight: 700; color: var(--text); }
+    .cl-history-when { font-size: 11.5px; color: var(--muted); }
+    .cl-history-diff { font-size: 12.5px; font-family: 'JetBrains Mono', monospace; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .cl-history-old { color: var(--muted); text-decoration: line-through; }
+    .cl-history-new { color: var(--text); font-weight: 600; }
+    .cl-history-arrow { color: var(--muted); }
     .cint-subsvc-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
     .cint-subsvc-row input { flex: 1; min-width: 0; }
     .cint-subsvc-row input:first-child { flex: 0 0 30%; }
@@ -2460,6 +2476,16 @@
         </div>
       </div>
       <div class="form-row">
+        <div class="form-group">
+          <label>Expiry Date (optional)</label>
+          <input id="cv-expiry" type="date" />
+        </div>
+        <div class="form-group">
+          <label>Credential Location (optional)</label>
+          <input id="cv-cred-location" type="text" placeholder="e.g. Bitwarden — IT-Ops vault" />
+        </div>
+      </div>
+      <div class="form-row">
         <div class="form-group full">
           <label>Notes</label>
           <textarea id="cv-notes" placeholder="Reference notes only"></textarea>
@@ -2527,6 +2553,22 @@
         </div>
       </div>
       <div class="form-row">
+        <div class="form-group">
+          <label>Role / Purpose (optional)</label>
+          <input id="cs-role" type="text" placeholder="e.g. Web/App server, DB host, Load Balancer" />
+        </div>
+        <div class="form-group">
+          <label>Port (optional)</label>
+          <input id="cs-port" type="text" placeholder="e.g. 22 (SSH), 3389 (RDP)" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Credential Location (optional)</label>
+          <input id="cs-cred-location" type="text" placeholder="e.g. Bitwarden — IT-Ops vault" />
+        </div>
+      </div>
+      <div class="form-row">
         <div class="form-group full">
           <label>Notes</label>
           <textarea id="cs-notes" placeholder="Anything worth remembering about this server"></textarea>
@@ -2581,6 +2623,16 @@
         </div>
       </div>
       <div class="form-row">
+        <div class="form-group">
+          <label>Version (optional)</label>
+          <input id="cdb-version" type="text" placeholder="e.g. PostgreSQL 15" />
+        </div>
+        <div class="form-group">
+          <label>Credential Location (optional)</label>
+          <input id="cdb-cred-location" type="text" placeholder="e.g. Bitwarden — IT-Ops vault" />
+        </div>
+      </div>
+      <div class="form-row">
         <div class="form-group full">
           <label>Notes</label>
           <textarea id="cdb-notes" placeholder="Reference notes only"></textarea>
@@ -2622,6 +2674,16 @@
         <div class="form-group">
           <label>Secret Key</label>
           <input id="cext-secret-key" type="text" placeholder="Integration secret key" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Expiry Date (optional)</label>
+          <input id="cext-expiry" type="date" />
+        </div>
+        <div class="form-group">
+          <label>Contact (optional)</label>
+          <input id="cext-contact" type="text" placeholder="e.g. support@vendor.com" />
         </div>
       </div>
       <div class="form-row">
@@ -2693,6 +2755,16 @@
         </div>
       </div>
       <div class="form-row">
+        <div class="form-group">
+          <label>Expiry Date (optional)</label>
+          <input id="cint-expiry" type="date" />
+        </div>
+        <div class="form-group">
+          <label>Role / Purpose (optional)</label>
+          <input id="cint-role" type="text" placeholder="e.g. Message queue admin console" />
+        </div>
+      </div>
+      <div class="form-row">
         <div class="form-group full">
           <label>Sub-Services (optional) — sibling endpoints of this one service</label>
           <div id="cint-subservices-list"></div>
@@ -2731,6 +2803,40 @@
     <div class="modal-footer">
       <button class="btn" onclick="closeClientGroupRenameModal()">Cancel</button>
       <button class="btn primary" onclick="submitClientGroupRename()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CLIENT EDIT CONFIRMATION MODAL (old value → new value, before an edit commits) ══ -->
+<div id="client-edit-confirm-overlay" class="modal-overlay" onclick="clientEditConfirmOverlayClick(event)">
+  <div id="client-edit-confirm-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title">Confirm Changes</span>
+      <button class="modal-close" onclick="cancelClientEditConfirm()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <p style="color:var(--muted);font-size:13px;margin-bottom:12px">You're changing the following field(s) on this existing record:</p>
+      <div id="client-edit-confirm-list"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="cancelClientEditConfirm()">Cancel</button>
+      <button class="btn primary" onclick="acceptClientEditConfirm()">Confirm & Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CLIENT RECORD HISTORY MODAL (read-only) ══ -->
+<div id="client-history-overlay" class="modal-overlay" onclick="clientHistoryOverlayClick(event)">
+  <div id="client-history-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="client-history-modal-title">History</span>
+      <button class="modal-close" onclick="closeClientHistoryModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div id="client-history-list"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeClientHistoryModal()">Close</button>
     </div>
   </div>
 </div>
@@ -7986,6 +8092,19 @@ let clientInternalEditId = null; // null = create mode in the Internal System mo
 let clientGroupRenameKind = null;    // 'server' | 'internal' — which section's group is being renamed
 let clientGroupRenameOldName = null; // the group's current systemName
 
+// Detail-view search (per human-identifying fields only — never credentials)
+// + type filter (all 5 sections shown by default). Reset per client on open;
+// preserved across an in-place reload (post-CRUD refresh of the same client).
+let clientDetailSearch = '';
+const CLIENT_DETAIL_TYPES = [
+  { key: 'auth',      label: 'Auth' },
+  { key: 'servers',   label: 'Servers' },
+  { key: 'databases', label: 'Databases' },
+  { key: 'external',  label: 'External' },
+  { key: 'internal',  label: 'Internal' },
+];
+let clientDetailTypes = new Set(CLIENT_DETAIL_TYPES.map(t => t.key));
+
 function initClientsModule() {
   showClientsListView();
   if (!clientsLoaded) loadClientsList();
@@ -8071,6 +8190,7 @@ async function openClientDetail(companyId) {
   catch { toast('Could not open client'); return; }
   if (!client) { toast('Client not found'); return; }
   currentClient = client;
+  clientDetailSearch = ''; // fresh search context per client; type filter persists
   showClientDetailView();
   renderClientDetail(client);
 }
@@ -8107,123 +8227,218 @@ function renderClientDetail(c) {
   head.appendChild(pjMk('div', 'pj-detail-title', c.label || 'Untitled'));
   host.appendChild(head);
 
+  // Search + type-filter toolbar. Kept out of the re-rendered sections
+  // container so typing in the search box never rebuilds (and loses focus
+  // on) the input itself — only #client-detail-sections is rebuilt below.
+  const toolbar = pjMk('div', 'cl-detail-toolbar');
+  const searchInput = document.createElement('input');
+  searchInput.type = 'text';
+  searchInput.id = 'client-detail-search';
+  searchInput.className = 'mod-search cl-detail-search';
+  searchInput.placeholder = "Search this client's records…";
+  searchInput.value = clientDetailSearch;
+  searchInput.addEventListener('input', applyClientDetailSearch);
+  toolbar.appendChild(searchInput);
+  const typeChips = pjMk('div', 'filter-chips');
+  CLIENT_DETAIL_TYPES.forEach(t => {
+    const btn = pjMk('button', 'filter-chip' + (clientDetailTypes.has(t.key) ? ' active' : ''), t.label);
+    btn.addEventListener('click', () => toggleClientDetailType(t.key, btn));
+    typeChips.appendChild(btn);
+  });
+  toolbar.appendChild(typeChips);
+  host.appendChild(toolbar);
+
+  const sectionsHost = pjMk('div', 'cl-detail-sections');
+  sectionsHost.id = 'client-detail-sections';
+  host.appendChild(sectionsHost);
+
+  renderClientDetailSections(c);
+}
+
+// Rebuilds only the 5 record sections (not the toolbar/search input above),
+// filtered by `clientDetailSearch` (human-identifying fields only — never
+// password/secretKey, per the no-credential-search rule) and `clientDetailTypes`.
+// Called on every search keystroke / type-chip toggle, and once from
+// renderClientDetail on open/reload.
+function renderClientDetailSections(c) {
+  const host = document.getElementById('client-detail-sections');
+  if (!host) return;
+  host.innerHTML = '';
+
+  const q = clientDetailSearch;
   const allServers = Array.isArray(c.servers) ? c.servers : [];
   const allInternalSystems = Array.isArray(c.internalSystems) ? c.internalSystems : [];
+  const vpns = Array.isArray(c.vpnConnections) ? c.vpnConnections : [];
+  const databases = Array.isArray(c.databases) ? c.databases : [];
+  const externalServices = Array.isArray(c.externalServices) ? c.externalServices : [];
+
+  if (clientDetailTypes.size === 0) {
+    host.appendChild(pjMk('div', 'cp-records-empty', 'All sections are hidden — enable at least one filter above.'));
+    return;
+  }
 
   // ── Auth section (VPN, PAM, and other login/connection records) ──
-  const vpns = Array.isArray(c.vpnConnections) ? c.vpnConnections : [];
-  const vpnSec = pjMk('div', 'pj-section');
-  const vHead = pjMk('div', 'pj-section-head');
-  const vTitle = pjMk('div', 'pj-section-title');
-  vTitle.innerHTML = ic('zap');
-  vTitle.appendChild(document.createTextNode('Auth (' + vpns.length + ')'));
-  vHead.appendChild(vTitle);
-  const vActions = pjMk('div', 'pj-section-actions');
-  const vAddBtn = pjMk('button', 'btn primary');
-  vAddBtn.innerHTML = ic('plus') + ' Add Connection';
-  vAddBtn.addEventListener('click', () => openClientVpnModal());
-  vActions.appendChild(vAddBtn);
-  vHead.appendChild(vActions);
-  vpnSec.appendChild(vHead);
-  if (vpns.length === 0) vpnSec.appendChild(pjMk('div', 'cp-records-empty', 'No auth connections recorded yet.'));
-  else vpns.forEach(v => vpnSec.appendChild(buildClientVpnCard(v)));
-  host.appendChild(vpnSec);
+  if (clientDetailTypes.has('auth')) {
+    const vpnSec = pjMk('div', 'pj-section');
+    const vHead = pjMk('div', 'pj-section-head');
+    const vTitle = pjMk('div', 'pj-section-title');
+    vTitle.innerHTML = ic('zap');
+    vTitle.appendChild(document.createTextNode('Auth (' + vpns.length + ')'));
+    vHead.appendChild(vTitle);
+    const vActions = pjMk('div', 'pj-section-actions');
+    const vAddBtn = pjMk('button', 'btn primary');
+    vAddBtn.innerHTML = ic('plus') + ' Add Connection';
+    vAddBtn.addEventListener('click', () => openClientVpnModal());
+    vActions.appendChild(vAddBtn);
+    vHead.appendChild(vActions);
+    vpnSec.appendChild(vHead);
+    const shownVpns = vpns.filter(v => textMatch([v.connectionName, v.vpnType, v.endpoint], q));
+    if (vpns.length === 0) vpnSec.appendChild(pjMk('div', 'cp-records-empty', 'No auth connections recorded yet.'));
+    else if (shownVpns.length === 0) vpnSec.appendChild(pjMk('div', 'cp-records-empty', 'No auth connections match your search.'));
+    else shownVpns.forEach(v => vpnSec.appendChild(buildClientVpnCard(v)));
+    host.appendChild(vpnSec);
+  }
 
   // ── Server Information section (servers sharing a System name are grouped
   // into a sub-card, split into one page per environment; the rest render flat) ──
-  const srvSec = pjMk('div', 'pj-section');
-  const sHead = pjMk('div', 'pj-section-head');
-  const sTitle = pjMk('div', 'pj-section-title');
-  sTitle.innerHTML = ic('folder');
-  sTitle.appendChild(document.createTextNode('Server Information (' + allServers.length + ')'));
-  sHead.appendChild(sTitle);
-  const sActions = pjMk('div', 'pj-section-actions');
-  const sAddGroupBtn = pjMk('button', 'btn');
-  sAddGroupBtn.innerHTML = ic('plus') + ' New Group';
-  sAddGroupBtn.title = 'Add a server that starts a new System group';
-  sAddGroupBtn.addEventListener('click', () => openClientServerModal(null, true));
-  sActions.appendChild(sAddGroupBtn);
-  const sAddBtn = pjMk('button', 'btn primary');
-  sAddBtn.innerHTML = ic('plus') + ' Add Server';
-  sAddBtn.addEventListener('click', () => openClientServerModal());
-  sActions.appendChild(sAddBtn);
-  sHead.appendChild(sActions);
-  srvSec.appendChild(sHead);
-  if (allServers.length === 0) {
-    srvSec.appendChild(pjMk('div', 'cp-records-empty', 'No servers recorded yet.'));
-  } else {
-    const { groups: serverGroups, ungrouped: ungroupedServers } = groupBySystemName(allServers);
-    serverGroups.forEach(g => srvSec.appendChild(buildSystemGroupCard(g, buildClientServerCard, 'server')));
-    ungroupedServers.forEach(s => srvSec.appendChild(buildClientServerCard(s)));
+  if (clientDetailTypes.has('servers')) {
+    const srvSec = pjMk('div', 'pj-section');
+    const sHead = pjMk('div', 'pj-section-head');
+    const sTitle = pjMk('div', 'pj-section-title');
+    sTitle.innerHTML = ic('folder');
+    sTitle.appendChild(document.createTextNode('Server Information (' + allServers.length + ')'));
+    sHead.appendChild(sTitle);
+    const sActions = pjMk('div', 'pj-section-actions');
+    const sAddGroupBtn = pjMk('button', 'btn');
+    sAddGroupBtn.innerHTML = ic('plus') + ' New Group';
+    sAddGroupBtn.title = 'Add a server that starts a new System group';
+    sAddGroupBtn.addEventListener('click', () => openClientServerModal(null, true));
+    sActions.appendChild(sAddGroupBtn);
+    const sAddBtn = pjMk('button', 'btn primary');
+    sAddBtn.innerHTML = ic('plus') + ' Add Server';
+    sAddBtn.addEventListener('click', () => openClientServerModal());
+    sActions.appendChild(sAddBtn);
+    sHead.appendChild(sActions);
+    srvSec.appendChild(sHead);
+    const shownServers = allServers.filter(s => textMatch([s.serverName, s.host, s.hostname, s.systemName], q));
+    if (allServers.length === 0) {
+      srvSec.appendChild(pjMk('div', 'cp-records-empty', 'No servers recorded yet.'));
+    } else if (shownServers.length === 0) {
+      srvSec.appendChild(pjMk('div', 'cp-records-empty', 'No servers match your search.'));
+    } else {
+      const { groups: serverGroups, ungrouped: ungroupedServers } = groupBySystemName(shownServers);
+      serverGroups.forEach(g => srvSec.appendChild(buildSystemGroupCard(g, buildClientServerCard, 'server')));
+      ungroupedServers.forEach(s => srvSec.appendChild(buildClientServerCard(s)));
+    }
+    host.appendChild(srvSec);
   }
-  host.appendChild(srvSec);
 
   // ── Databases section ──
-  const databases = Array.isArray(c.databases) ? c.databases : [];
-  const dbSec = pjMk('div', 'pj-section');
-  const dHead = pjMk('div', 'pj-section-head');
-  const dTitle = pjMk('div', 'pj-section-title');
-  dTitle.innerHTML = ic('layers');
-  dTitle.appendChild(document.createTextNode('Databases (' + databases.length + ')'));
-  dHead.appendChild(dTitle);
-  const dActions = pjMk('div', 'pj-section-actions');
-  const dAddBtn = pjMk('button', 'btn primary');
-  dAddBtn.innerHTML = ic('plus') + ' Add Database';
-  dAddBtn.addEventListener('click', () => openClientDatabaseModal());
-  dActions.appendChild(dAddBtn);
-  dHead.appendChild(dActions);
-  dbSec.appendChild(dHead);
-  if (databases.length === 0) dbSec.appendChild(pjMk('div', 'cp-records-empty', 'No databases recorded yet.'));
-  else databases.forEach(d => dbSec.appendChild(buildClientDatabaseCard(d)));
-  host.appendChild(dbSec);
+  if (clientDetailTypes.has('databases')) {
+    const dbSec = pjMk('div', 'pj-section');
+    const dHead = pjMk('div', 'pj-section-head');
+    const dTitle = pjMk('div', 'pj-section-title');
+    dTitle.innerHTML = ic('layers');
+    dTitle.appendChild(document.createTextNode('Databases (' + databases.length + ')'));
+    dHead.appendChild(dTitle);
+    const dActions = pjMk('div', 'pj-section-actions');
+    const dAddBtn = pjMk('button', 'btn primary');
+    dAddBtn.innerHTML = ic('plus') + ' Add Database';
+    dAddBtn.addEventListener('click', () => openClientDatabaseModal());
+    dActions.appendChild(dAddBtn);
+    dHead.appendChild(dActions);
+    dbSec.appendChild(dHead);
+    const shownDatabases = databases.filter(d => textMatch([d.name, d.engine, d.host], q));
+    if (databases.length === 0) dbSec.appendChild(pjMk('div', 'cp-records-empty', 'No databases recorded yet.'));
+    else if (shownDatabases.length === 0) dbSec.appendChild(pjMk('div', 'cp-records-empty', 'No databases match your search.'));
+    else shownDatabases.forEach(d => dbSec.appendChild(buildClientDatabaseCard(d)));
+    host.appendChild(dbSec);
+  }
 
   // ── External Services section ──
-  const externalServices = Array.isArray(c.externalServices) ? c.externalServices : [];
-  const extSec = pjMk('div', 'pj-section');
-  const eHead = pjMk('div', 'pj-section-head');
-  const eTitle = pjMk('div', 'pj-section-title');
-  eTitle.innerHTML = ic('external-link');
-  eTitle.appendChild(document.createTextNode('External Services (' + externalServices.length + ')'));
-  eHead.appendChild(eTitle);
-  const eActions = pjMk('div', 'pj-section-actions');
-  const eAddBtn = pjMk('button', 'btn primary');
-  eAddBtn.innerHTML = ic('plus') + ' Add Service';
-  eAddBtn.addEventListener('click', () => openClientExternalModal());
-  eActions.appendChild(eAddBtn);
-  eHead.appendChild(eActions);
-  extSec.appendChild(eHead);
-  if (externalServices.length === 0) extSec.appendChild(pjMk('div', 'cp-records-empty', 'No external services recorded yet.'));
-  else externalServices.forEach(x => extSec.appendChild(buildClientExternalServiceCard(x)));
-  host.appendChild(extSec);
+  if (clientDetailTypes.has('external')) {
+    const extSec = pjMk('div', 'pj-section');
+    const eHead = pjMk('div', 'pj-section-head');
+    const eTitle = pjMk('div', 'pj-section-title');
+    eTitle.innerHTML = ic('external-link');
+    eTitle.appendChild(document.createTextNode('External Services (' + externalServices.length + ')'));
+    eHead.appendChild(eTitle);
+    const eActions = pjMk('div', 'pj-section-actions');
+    const eAddBtn = pjMk('button', 'btn primary');
+    eAddBtn.innerHTML = ic('plus') + ' Add Service';
+    eAddBtn.addEventListener('click', () => openClientExternalModal());
+    eActions.appendChild(eAddBtn);
+    eHead.appendChild(eActions);
+    extSec.appendChild(eHead);
+    const shownExternal = externalServices.filter(x => textMatch([x.name, x.url], q));
+    if (externalServices.length === 0) extSec.appendChild(pjMk('div', 'cp-records-empty', 'No external services recorded yet.'));
+    else if (shownExternal.length === 0) extSec.appendChild(pjMk('div', 'cp-records-empty', 'No external services match your search.'));
+    else shownExternal.forEach(x => extSec.appendChild(buildClientExternalServiceCard(x)));
+    host.appendChild(extSec);
+  }
 
   // ── Internal Systems section (portals sharing a System name are grouped
   // into a sub-card, split into one page per environment; the rest render flat) ──
-  const intSec = pjMk('div', 'pj-section');
-  const iHead = pjMk('div', 'pj-section-head');
-  const iTitle = pjMk('div', 'pj-section-title');
-  iTitle.innerHTML = ic('layout-dashboard');
-  iTitle.appendChild(document.createTextNode('Internal Systems (' + allInternalSystems.length + ')'));
-  iHead.appendChild(iTitle);
-  const iActions = pjMk('div', 'pj-section-actions');
-  const iAddGroupBtn = pjMk('button', 'btn');
-  iAddGroupBtn.innerHTML = ic('plus') + ' New Group';
-  iAddGroupBtn.title = 'Add an internal system that starts a new System group';
-  iAddGroupBtn.addEventListener('click', () => openClientInternalModal(null, true));
-  iActions.appendChild(iAddGroupBtn);
-  const iAddBtn = pjMk('button', 'btn primary');
-  iAddBtn.innerHTML = ic('plus') + ' Add System';
-  iAddBtn.addEventListener('click', () => openClientInternalModal());
-  iActions.appendChild(iAddBtn);
-  iHead.appendChild(iActions);
-  intSec.appendChild(iHead);
-  if (allInternalSystems.length === 0) {
-    intSec.appendChild(pjMk('div', 'cp-records-empty', 'No internal systems recorded yet.'));
-  } else {
-    const { groups: internalGroups, ungrouped: ungroupedInternal } = groupBySystemName(allInternalSystems);
-    internalGroups.forEach(g => intSec.appendChild(buildSystemGroupCard(g, buildClientInternalSystemCard, 'internal')));
-    ungroupedInternal.forEach(s => intSec.appendChild(buildClientInternalSystemCard(s)));
+  if (clientDetailTypes.has('internal')) {
+    const intSec = pjMk('div', 'pj-section');
+    const iHead = pjMk('div', 'pj-section-head');
+    const iTitle = pjMk('div', 'pj-section-title');
+    iTitle.innerHTML = ic('layout-dashboard');
+    iTitle.appendChild(document.createTextNode('Internal Systems (' + allInternalSystems.length + ')'));
+    iHead.appendChild(iTitle);
+    const iActions = pjMk('div', 'pj-section-actions');
+    const iAddGroupBtn = pjMk('button', 'btn');
+    iAddGroupBtn.innerHTML = ic('plus') + ' New Group';
+    iAddGroupBtn.title = 'Add an internal system that starts a new System group';
+    iAddGroupBtn.addEventListener('click', () => openClientInternalModal(null, true));
+    iActions.appendChild(iAddGroupBtn);
+    const iAddBtn = pjMk('button', 'btn primary');
+    iAddBtn.innerHTML = ic('plus') + ' Add System';
+    iAddBtn.addEventListener('click', () => openClientInternalModal());
+    iActions.appendChild(iAddBtn);
+    iHead.appendChild(iActions);
+    intSec.appendChild(iHead);
+    const shownInternal = allInternalSystems.filter(s => textMatch([s.name, s.url, s.systemName], q));
+    if (allInternalSystems.length === 0) {
+      intSec.appendChild(pjMk('div', 'cp-records-empty', 'No internal systems recorded yet.'));
+    } else if (shownInternal.length === 0) {
+      intSec.appendChild(pjMk('div', 'cp-records-empty', 'No internal systems match your search.'));
+    } else {
+      const { groups: internalGroups, ungrouped: ungroupedInternal } = groupBySystemName(shownInternal);
+      internalGroups.forEach(g => intSec.appendChild(buildSystemGroupCard(g, buildClientInternalSystemCard, 'internal')));
+      ungroupedInternal.forEach(s => intSec.appendChild(buildClientInternalSystemCard(s)));
+    }
+    host.appendChild(intSec);
   }
-  host.appendChild(intSec);
+}
+
+function applyClientDetailSearch() {
+  clientDetailSearch = (document.getElementById('client-detail-search').value || '').toLowerCase().trim();
+  renderClientDetailSections(currentClient);
+}
+
+function toggleClientDetailType(key, btn) {
+  if (clientDetailTypes.has(key)) { clientDetailTypes.delete(key); btn.classList.remove('active'); }
+  else                             { clientDetailTypes.add(key);    btn.classList.add('active'); }
+  renderClientDetailSections(currentClient);
+}
+
+// "Updated 3 days ago" / "Updated today" / falls back to an absolute date
+// past 30 days — reads the updatedAt (or createdAt) already returned by every
+// client_* mapper in db.js; no schema/IPC change needed.
+function clUpdatedLabel(record) {
+  const iso = record?.updatedAt || record?.createdAt;
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const diffDays = Math.floor((Date.now() - d.getTime()) / 86400000);
+  let label;
+  if (diffDays <= 0) label = 'today';
+  else if (diffDays === 1) label = '1 day ago';
+  else if (diffDays < 7) label = diffDays + ' days ago';
+  else if (diffDays < 30) { const w = Math.floor(diffDays / 7); label = w + (w === 1 ? ' week ago' : ' weeks ago'); }
+  else label = d.toLocaleDateString();
+  return 'Updated ' + label;
 }
 
 // Groups a single section's items (Servers, or Internal Systems) that share a
@@ -8302,6 +8517,126 @@ async function submitClientGroupRename() {
   await reloadCurrentClient();
 }
 
+// ── Field-edit confirmation + read-only history (shared across all 5 record types) ──
+// Field-def lists mirror db.js's *_HISTORY_FIELDS (same labels), keyed by the
+// camelCase API field name instead of the raw column name.
+const VPN_CONFIRM_FIELDS = [
+  ['connectionName', 'Connection Name'], ['vpnType', 'Type'], ['endpoint', 'Endpoint'],
+  ['port', 'Port'], ['username', 'Username'], ['password', 'Password'],
+  ['expiryDate', 'Expiry Date'], ['credentialLocation', 'Credential Location'], ['notes', 'Notes'],
+];
+const SERVER_CONFIRM_FIELDS = [
+  ['serverName', 'Server Name'], ['host', 'Host (IP)'], ['environment', 'Environment'], ['os', 'Operating System'],
+  ['hostname', 'Hostname'], ['username', 'Username'], ['password', 'Password'], ['systemName', 'System Name'],
+  ['role', 'Role'], ['port', 'Port'], ['credentialLocation', 'Credential Location'], ['notes', 'Notes'],
+];
+const DATABASE_CONFIRM_FIELDS = [
+  ['name', 'Name'], ['engine', 'Engine'], ['host', 'Host'], ['port', 'Port'], ['username', 'Username'],
+  ['password', 'Password'], ['version', 'Version'], ['credentialLocation', 'Credential Location'], ['notes', 'Notes'],
+];
+const EXTERNAL_CONFIRM_FIELDS = [
+  ['name', 'Name'], ['url', 'URL'], ['companyCode', 'Company Code'], ['secretKey', 'Secret Key'],
+  ['expiryDate', 'Expiry Date'], ['contact', 'Contact'], ['notes', 'Notes'],
+];
+const INTERNAL_CONFIRM_FIELDS = [
+  ['name', 'Name'], ['url', 'URL'], ['username', 'Username'], ['password', 'Password'],
+  ['systemName', 'System Name'], ['environment', 'Environment'], ['companyCode', 'Company Code'],
+  ['secretKey', 'Secret Key'], ['expiryDate', 'Expiry Date'], ['role', 'Role'],
+  ['subServices', 'Sub-Services'], ['notes', 'Notes'],
+];
+
+// String form of a field value for diffing/display — arrays (subServices)
+// compare/display as JSON since a plain String() on an array of objects is unreadable.
+function clFieldStr(v) {
+  if (v == null) return '';
+  if (Array.isArray(v)) return JSON.stringify(v);
+  return String(v);
+}
+
+// Diffs the existing record against the form's new values. Only fields whose
+// OLD value was non-empty AND actually changed are returned — a previously-
+// empty field being filled in for the first time is a fill-in, not an edit,
+// and per the Phase 2 spec never needs confirmation.
+function diffClientFields(before, next, fieldDefs) {
+  const changes = [];
+  fieldDefs.forEach(([key, label]) => {
+    const oldStr = before ? clFieldStr(before[key]) : '';
+    const newStr = clFieldStr(next[key]);
+    if (!oldStr || oldStr === newStr) return;
+    changes.push({ label, oldValue: oldStr, newValue: newStr });
+  });
+  return changes;
+}
+
+// Promise-based confirm dialog showing old → new per changed field. Resolves
+// true (proceed) / false (cancelled) — callers must await it before calling
+// the update API so an edit can never commit without the user seeing the diff.
+let _clientEditConfirmResolve = null;
+function confirmClientFieldChanges(changes) {
+  return new Promise(resolve => {
+    _clientEditConfirmResolve = resolve;
+    const list = document.getElementById('client-edit-confirm-list');
+    list.innerHTML = '';
+    changes.forEach(c => {
+      const row = pjMk('div', 'cl-history-row');
+      row.appendChild(pjMk('div', 'cl-history-field', c.label));
+      const diff = pjMk('div', 'cl-history-diff');
+      diff.appendChild(pjMk('span', 'cl-history-old', c.oldValue || '(empty)'));
+      diff.appendChild(pjMk('span', 'cl-history-arrow', '→'));
+      diff.appendChild(pjMk('span', 'cl-history-new', c.newValue || '(empty)'));
+      row.appendChild(diff);
+      list.appendChild(row);
+    });
+    document.getElementById('client-edit-confirm-overlay').classList.add('open');
+  });
+}
+function acceptClientEditConfirm() {
+  document.getElementById('client-edit-confirm-overlay').classList.remove('open');
+  if (_clientEditConfirmResolve) { _clientEditConfirmResolve(true); _clientEditConfirmResolve = null; }
+}
+function cancelClientEditConfirm() {
+  document.getElementById('client-edit-confirm-overlay').classList.remove('open');
+  if (_clientEditConfirmResolve) { _clientEditConfirmResolve(false); _clientEditConfirmResolve = null; }
+}
+function clientEditConfirmOverlayClick(e) {
+  if (e.target === document.getElementById('client-edit-confirm-overlay')) cancelClientEditConfirm();
+}
+
+// Read-only history view — one modal shared by all 5 record types.
+async function openClientHistoryModal(recordType, recordId, title) {
+  document.getElementById('client-history-modal-title').textContent = 'History — ' + (title || 'record');
+  const list = document.getElementById('client-history-list');
+  list.innerHTML = '<div class="cp-records-empty">Loading…</div>';
+  document.getElementById('client-history-overlay').classList.add('open');
+  let rows;
+  try { rows = await window.api.getClientFieldHistory(recordType, recordId); }
+  catch { list.innerHTML = '<div class="cp-records-empty">Could not load history.</div>'; return; }
+  if (!Array.isArray(rows) || rows.length === 0) {
+    list.innerHTML = '<div class="cp-records-empty">No changes recorded yet.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  rows.forEach(r => {
+    const row = pjMk('div', 'cl-history-row');
+    const head = pjMk('div', 'cl-history-head');
+    head.appendChild(pjMk('span', 'cl-history-field', r.fieldName));
+    head.appendChild(pjMk('span', 'cl-history-when', new Date(r.changedAt).toLocaleString()));
+    row.appendChild(head);
+    const diff = pjMk('div', 'cl-history-diff');
+    diff.appendChild(pjMk('span', 'cl-history-old', r.oldValue || '(empty)'));
+    diff.appendChild(pjMk('span', 'cl-history-arrow', '→'));
+    diff.appendChild(pjMk('span', 'cl-history-new', r.newValue || '(empty)'));
+    row.appendChild(diff);
+    list.appendChild(row);
+  });
+}
+function closeClientHistoryModal() {
+  document.getElementById('client-history-overlay').classList.remove('open');
+}
+function clientHistoryOverlayClick(e) {
+  if (e.target === document.getElementById('client-history-overlay')) closeClientHistoryModal();
+}
+
 function buildClientVpnCard(v) {
   const card = pjMk('div', 'cl-item-card');
   const main = pjMk('div', 'cl-item-main');
@@ -8331,10 +8666,25 @@ function buildClientVpnCard(v) {
     }
     main.appendChild(cred);
   }
+  if (v.credentialLocation) main.appendChild(pjMk('div', 'cl-item-meta', 'Credential location: ' + v.credentialLocation));
+  if (v.expiryDate) {
+    const status = cdRenewalStatus(v.expiryDate);
+    const row = pjMk('div', 'cd-renewal' + (status ? ' ' + status : ''));
+    row.innerHTML = ic('calendar-clock');
+    const prefix = status === 'overdue' ? 'Overdue — ' : status === 'soon' ? 'Expires soon — ' : 'Expires ';
+    row.appendChild(document.createTextNode(prefix + new Date(v.expiryDate + 'T00:00:00').toLocaleDateString()));
+    main.appendChild(row);
+  }
   if (v.notes) main.appendChild(pjMk('div', 'cl-item-notes', v.notes));
+  main.appendChild(pjMk('div', 'cl-item-updated', clUpdatedLabel(v)));
   card.appendChild(main);
 
   const actions = pjMk('div', 'cl-item-actions');
+  const histBtn = pjMk('button', 'cd-icon-btn');
+  histBtn.innerHTML = ic('clock');
+  histBtn.title = 'View history';
+  histBtn.addEventListener('click', () => openClientHistoryModal('vpn', v.id, v.connectionName));
+  actions.appendChild(histBtn);
   const editBtn = pjMk('button', 'cd-icon-btn');
   editBtn.innerHTML = ic('pencil');
   editBtn.title = 'Edit';
@@ -8360,7 +8710,7 @@ function buildClientServerCard(s) {
     title.appendChild(pjMk('span', 'cl-env-badge ' + s.environment.toLowerCase(), envLabel));
   }
   main.appendChild(title);
-  const metaBits = [s.host, s.hostname, s.os].filter(Boolean).join(' · ');
+  const metaBits = [s.host, s.hostname, s.os, s.role, s.port ? ('Port ' + s.port) : ''].filter(Boolean).join(' · ');
   if (metaBits) main.appendChild(pjMk('div', 'cl-item-meta', metaBits));
   if (s.username || s.password) {
     const cred = pjMk('div', 'cl-item-meta cl-item-cred');
@@ -8385,10 +8735,17 @@ function buildClientServerCard(s) {
     }
     main.appendChild(cred);
   }
+  if (s.credentialLocation) main.appendChild(pjMk('div', 'cl-item-meta', 'Credential location: ' + s.credentialLocation));
   if (s.notes) main.appendChild(pjMk('div', 'cl-item-notes', s.notes));
+  main.appendChild(pjMk('div', 'cl-item-updated', clUpdatedLabel(s)));
   card.appendChild(main);
 
   const actions = pjMk('div', 'cl-item-actions');
+  const histBtn = pjMk('button', 'cd-icon-btn');
+  histBtn.innerHTML = ic('clock');
+  histBtn.title = 'View history';
+  histBtn.addEventListener('click', () => openClientHistoryModal('server', s.id, s.serverName));
+  actions.appendChild(histBtn);
   const editBtn = pjMk('button', 'cd-icon-btn');
   editBtn.innerHTML = ic('pencil');
   editBtn.title = 'Edit';
@@ -8415,6 +8772,8 @@ function openClientVpnModal(v) {
   document.getElementById('cv-port').value = v ? (v.port || '') : '';
   document.getElementById('cv-username').value = v ? (v.username || '') : '';
   document.getElementById('cv-password').value = v ? (v.password || '') : '';
+  document.getElementById('cv-expiry').value = v ? (v.expiryDate || '') : '';
+  document.getElementById('cv-cred-location').value = v ? (v.credentialLocation || '') : '';
   document.getElementById('cv-notes').value = v ? (v.notes || '') : '';
   clearErrorsIn('#client-vpn-modal');
   document.getElementById('client-vpn-modal-overlay').classList.add('open');
@@ -8438,8 +8797,15 @@ async function submitClientVpnModal() {
     port:     document.getElementById('cv-port').value.trim(),
     username: document.getElementById('cv-username').value.trim(),
     password: document.getElementById('cv-password').value.trim(),
+    expiryDate: document.getElementById('cv-expiry').value || null,
+    credentialLocation: document.getElementById('cv-cred-location').value.trim(),
     notes:    document.getElementById('cv-notes').value.trim(),
   };
+  if (clientVpnEditId != null) {
+    const before = (currentClient?.vpnConnections || []).find(v => v.id === clientVpnEditId);
+    const changes = diffClientFields(before, data, VPN_CONFIRM_FIELDS);
+    if (changes.length && !(await confirmClientFieldChanges(changes))) return;
+  }
   try {
     if (clientVpnEditId != null) await window.api.updateClientVpn(clientVpnEditId, data);
     else await window.api.createClientVpn(currentClient.id, data);
@@ -8461,7 +8827,8 @@ async function deleteClientVpnEntry(id) {
       await window.api.createClientVpn(snapshot.companyId, {
         connectionName: snapshot.connectionName, vpnType: snapshot.vpnType,
         endpoint: snapshot.endpoint, port: snapshot.port, username: snapshot.username,
-        password: snapshot.password, notes: snapshot.notes,
+        password: snapshot.password, expiryDate: snapshot.expiryDate, credentialLocation: snapshot.credentialLocation,
+        notes: snapshot.notes,
       });
     } catch { toast('Could not restore VPN connection'); return; }
     await reloadCurrentClient();
@@ -8481,6 +8848,9 @@ function openClientServerModal(s, focusSystem) {
   document.getElementById('cs-os').value = s ? (s.os || '') : '';
   document.getElementById('cs-username').value = s ? (s.username || '') : '';
   document.getElementById('cs-password').value = s ? (s.password || '') : '';
+  document.getElementById('cs-role').value = s ? (s.role || '') : '';
+  document.getElementById('cs-port').value = s ? (s.port || '') : '';
+  document.getElementById('cs-cred-location').value = s ? (s.credentialLocation || '') : '';
   document.getElementById('cs-notes').value = s ? (s.notes || '') : '';
   clearErrorsIn('#client-server-modal');
   document.getElementById('client-server-modal-overlay').classList.add('open');
@@ -8506,8 +8876,16 @@ async function submitClientServerModal() {
     os:          document.getElementById('cs-os').value.trim(),
     username:    document.getElementById('cs-username').value.trim(),
     password:    document.getElementById('cs-password').value.trim(),
+    role:        document.getElementById('cs-role').value.trim(),
+    port:        document.getElementById('cs-port').value.trim(),
+    credentialLocation: document.getElementById('cs-cred-location').value.trim(),
     notes:       document.getElementById('cs-notes').value.trim(),
   };
+  if (clientServerEditId != null) {
+    const before = (currentClient?.servers || []).find(s => s.id === clientServerEditId);
+    const changes = diffClientFields(before, data, SERVER_CONFIRM_FIELDS);
+    if (changes.length && !(await confirmClientFieldChanges(changes))) return;
+  }
   try {
     if (clientServerEditId != null) await window.api.updateClientServer(clientServerEditId, data);
     else await window.api.createClientServer(currentClient.id, data);
@@ -8527,7 +8905,8 @@ async function deleteClientServerEntry(id) {
       await window.api.createClientServer(snapshot.companyId, {
         serverName: snapshot.serverName, host: snapshot.host, environment: snapshot.environment,
         systemName: snapshot.systemName, hostname: snapshot.hostname, os: snapshot.os, username: snapshot.username,
-        password: snapshot.password, notes: snapshot.notes,
+        password: snapshot.password, role: snapshot.role, port: snapshot.port, credentialLocation: snapshot.credentialLocation,
+        notes: snapshot.notes,
       });
     } catch { toast('Could not restore server'); return; }
     await reloadCurrentClient();
@@ -8538,7 +8917,7 @@ function buildClientDatabaseCard(d) {
   const card = pjMk('div', 'cl-item-card');
   const main = pjMk('div', 'cl-item-main');
   main.appendChild(pjMk('div', 'cl-item-title', d.name || '(unnamed database)'));
-  const metaBits = [d.engine, d.host, d.port ? ('Port ' + d.port) : ''].filter(Boolean).join(' · ');
+  const metaBits = [d.engine, d.version, d.host, d.port ? ('Port ' + d.port) : ''].filter(Boolean).join(' · ');
   if (metaBits) main.appendChild(pjMk('div', 'cl-item-meta', metaBits));
   if (d.username || d.password) {
     const cred = pjMk('div', 'cl-item-meta cl-item-cred');
@@ -8563,10 +8942,17 @@ function buildClientDatabaseCard(d) {
     }
     main.appendChild(cred);
   }
+  if (d.credentialLocation) main.appendChild(pjMk('div', 'cl-item-meta', 'Credential location: ' + d.credentialLocation));
   if (d.notes) main.appendChild(pjMk('div', 'cl-item-notes', d.notes));
+  main.appendChild(pjMk('div', 'cl-item-updated', clUpdatedLabel(d)));
   card.appendChild(main);
 
   const actions = pjMk('div', 'cl-item-actions');
+  const histBtn = pjMk('button', 'cd-icon-btn');
+  histBtn.innerHTML = ic('clock');
+  histBtn.title = 'View history';
+  histBtn.addEventListener('click', () => openClientHistoryModal('database', d.id, d.name));
+  actions.appendChild(histBtn);
   const editBtn = pjMk('button', 'cd-icon-btn');
   editBtn.innerHTML = ic('pencil');
   editBtn.title = 'Edit';
@@ -8593,6 +8979,8 @@ function openClientDatabaseModal(d) {
   document.getElementById('cdb-port').value = d ? (d.port || '') : '';
   document.getElementById('cdb-username').value = d ? (d.username || '') : '';
   document.getElementById('cdb-password').value = d ? (d.password || '') : '';
+  document.getElementById('cdb-version').value = d ? (d.version || '') : '';
+  document.getElementById('cdb-cred-location').value = d ? (d.credentialLocation || '') : '';
   document.getElementById('cdb-notes').value = d ? (d.notes || '') : '';
   clearErrorsIn('#client-database-modal');
   document.getElementById('client-database-modal-overlay').classList.add('open');
@@ -8616,8 +9004,15 @@ async function submitClientDatabaseModal() {
     port:     document.getElementById('cdb-port').value.trim(),
     username: document.getElementById('cdb-username').value.trim(),
     password: document.getElementById('cdb-password').value.trim(),
+    version:  document.getElementById('cdb-version').value.trim(),
+    credentialLocation: document.getElementById('cdb-cred-location').value.trim(),
     notes:    document.getElementById('cdb-notes').value.trim(),
   };
+  if (clientDatabaseEditId != null) {
+    const before = (currentClient?.databases || []).find(d => d.id === clientDatabaseEditId);
+    const changes = diffClientFields(before, data, DATABASE_CONFIRM_FIELDS);
+    if (changes.length && !(await confirmClientFieldChanges(changes))) return;
+  }
   try {
     if (clientDatabaseEditId != null) await window.api.updateClientDatabase(clientDatabaseEditId, data);
     else await window.api.createClientDatabase(currentClient.id, data);
@@ -8636,7 +9031,8 @@ async function deleteClientDatabaseEntry(id) {
     try {
       await window.api.createClientDatabase(snapshot.companyId, {
         name: snapshot.name, engine: snapshot.engine, host: snapshot.host, port: snapshot.port,
-        username: snapshot.username, password: snapshot.password, notes: snapshot.notes,
+        username: snapshot.username, password: snapshot.password,
+        version: snapshot.version, credentialLocation: snapshot.credentialLocation, notes: snapshot.notes,
       });
     } catch { toast('Could not restore database'); return; }
     await reloadCurrentClient();
@@ -8671,10 +9067,25 @@ function buildClientExternalServiceCard(x) {
     }
     main.appendChild(cred);
   }
+  if (x.contact) main.appendChild(pjMk('div', 'cl-item-meta', 'Contact: ' + x.contact));
+  if (x.expiryDate) {
+    const status = cdRenewalStatus(x.expiryDate);
+    const row = pjMk('div', 'cd-renewal' + (status ? ' ' + status : ''));
+    row.innerHTML = ic('calendar-clock');
+    const prefix = status === 'overdue' ? 'Overdue — ' : status === 'soon' ? 'Expires soon — ' : 'Expires ';
+    row.appendChild(document.createTextNode(prefix + new Date(x.expiryDate + 'T00:00:00').toLocaleDateString()));
+    main.appendChild(row);
+  }
   if (x.notes) main.appendChild(pjMk('div', 'cl-item-notes', x.notes));
+  main.appendChild(pjMk('div', 'cl-item-updated', clUpdatedLabel(x)));
   card.appendChild(main);
 
   const actions = pjMk('div', 'cl-item-actions');
+  const histBtn = pjMk('button', 'cd-icon-btn');
+  histBtn.innerHTML = ic('clock');
+  histBtn.title = 'View history';
+  histBtn.addEventListener('click', () => openClientHistoryModal('external', x.id, x.name));
+  actions.appendChild(histBtn);
   const editBtn = pjMk('button', 'cd-icon-btn');
   editBtn.innerHTML = ic('pencil');
   editBtn.title = 'Edit';
@@ -8699,6 +9110,8 @@ function openClientExternalModal(x) {
   document.getElementById('cext-url').value = x ? (x.url || '') : '';
   document.getElementById('cext-company-code').value = x ? (x.companyCode || '') : '';
   document.getElementById('cext-secret-key').value = x ? (x.secretKey || '') : '';
+  document.getElementById('cext-expiry').value = x ? (x.expiryDate || '') : '';
+  document.getElementById('cext-contact').value = x ? (x.contact || '') : '';
   document.getElementById('cext-notes').value = x ? (x.notes || '') : '';
   clearErrorsIn('#client-external-modal');
   document.getElementById('client-external-modal-overlay').classList.add('open');
@@ -8720,8 +9133,15 @@ async function submitClientExternalModal() {
     url:         document.getElementById('cext-url').value.trim(),
     companyCode: document.getElementById('cext-company-code').value.trim(),
     secretKey:   document.getElementById('cext-secret-key').value.trim(),
+    expiryDate:  document.getElementById('cext-expiry').value || null,
+    contact:     document.getElementById('cext-contact').value.trim(),
     notes:       document.getElementById('cext-notes').value.trim(),
   };
+  if (clientExternalEditId != null) {
+    const before = (currentClient?.externalServices || []).find(x => x.id === clientExternalEditId);
+    const changes = diffClientFields(before, data, EXTERNAL_CONFIRM_FIELDS);
+    if (changes.length && !(await confirmClientFieldChanges(changes))) return;
+  }
   try {
     if (clientExternalEditId != null) await window.api.updateClientExternalService(clientExternalEditId, data);
     else await window.api.createClientExternalService(currentClient.id, data);
@@ -8740,7 +9160,7 @@ async function deleteClientExternalServiceEntry(id) {
     try {
       await window.api.createClientExternalService(snapshot.companyId, {
         name: snapshot.name, url: snapshot.url, companyCode: snapshot.companyCode,
-        secretKey: snapshot.secretKey, notes: snapshot.notes,
+        secretKey: snapshot.secretKey, expiryDate: snapshot.expiryDate, contact: snapshot.contact, notes: snapshot.notes,
       });
     } catch { toast('Could not restore external service'); return; }
     await reloadCurrentClient();
@@ -8814,10 +9234,25 @@ function buildClientInternalSystemCard(s) {
     });
     main.appendChild(subList);
   }
+  if (s.role) main.appendChild(pjMk('div', 'cl-item-meta', 'Role: ' + s.role));
+  if (s.expiryDate) {
+    const status = cdRenewalStatus(s.expiryDate);
+    const row = pjMk('div', 'cd-renewal' + (status ? ' ' + status : ''));
+    row.innerHTML = ic('calendar-clock');
+    const prefix = status === 'overdue' ? 'Overdue — ' : status === 'soon' ? 'Expires soon — ' : 'Expires ';
+    row.appendChild(document.createTextNode(prefix + new Date(s.expiryDate + 'T00:00:00').toLocaleDateString()));
+    main.appendChild(row);
+  }
   if (s.notes) main.appendChild(pjMk('div', 'cl-item-notes', s.notes));
+  main.appendChild(pjMk('div', 'cl-item-updated', clUpdatedLabel(s)));
   card.appendChild(main);
 
   const actions = pjMk('div', 'cl-item-actions');
+  const histBtn = pjMk('button', 'cd-icon-btn');
+  histBtn.innerHTML = ic('clock');
+  histBtn.title = 'View history';
+  histBtn.addEventListener('click', () => openClientHistoryModal('internal', s.id, s.name));
+  actions.appendChild(histBtn);
   const editBtn = pjMk('button', 'cd-icon-btn');
   editBtn.innerHTML = ic('pencil');
   editBtn.title = 'Edit';
@@ -8875,6 +9310,8 @@ function openClientInternalModal(s, focusSystem) {
   document.getElementById('cint-password').value = s ? (s.password || '') : '';
   document.getElementById('cint-company-code').value = s ? (s.companyCode || '') : '';
   document.getElementById('cint-secret-key').value = s ? (s.secretKey || '') : '';
+  document.getElementById('cint-expiry').value = s ? (s.expiryDate || '') : '';
+  document.getElementById('cint-role').value = s ? (s.role || '') : '';
   document.getElementById('cint-notes').value = s ? (s.notes || '') : '';
   document.getElementById('cint-subservices-list').innerHTML = '';
   (s && Array.isArray(s.subServices) ? s.subServices : []).forEach(sub => addClientInternalSubServiceRow(sub.label, sub.url));
@@ -8902,9 +9339,16 @@ async function submitClientInternalModal() {
     password: document.getElementById('cint-password').value.trim(),
     companyCode: document.getElementById('cint-company-code').value.trim(),
     secretKey:   document.getElementById('cint-secret-key').value.trim(),
+    expiryDate:  document.getElementById('cint-expiry').value || null,
+    role:        document.getElementById('cint-role').value.trim(),
     subServices: readClientInternalSubServiceRows(),
     notes:    document.getElementById('cint-notes').value.trim(),
   };
+  if (clientInternalEditId != null) {
+    const before = (currentClient?.internalSystems || []).find(s => s.id === clientInternalEditId);
+    const changes = diffClientFields(before, data, INTERNAL_CONFIRM_FIELDS);
+    if (changes.length && !(await confirmClientFieldChanges(changes))) return;
+  }
   try {
     if (clientInternalEditId != null) await window.api.updateClientInternalSystem(clientInternalEditId, data);
     else await window.api.createClientInternalSystem(currentClient.id, data);
@@ -8923,7 +9367,9 @@ async function deleteClientInternalSystemEntry(id) {
     try {
       await window.api.createClientInternalSystem(snapshot.companyId, {
         name: snapshot.name, systemName: snapshot.systemName, environment: snapshot.environment,
-        url: snapshot.url, username: snapshot.username, password: snapshot.password, notes: snapshot.notes,
+        url: snapshot.url, username: snapshot.username, password: snapshot.password,
+        companyCode: snapshot.companyCode, secretKey: snapshot.secretKey,
+        expiryDate: snapshot.expiryDate, role: snapshot.role, subServices: snapshot.subServices, notes: snapshot.notes,
       });
     } catch { toast('Could not restore internal system'); return; }
     await reloadCurrentClient();
