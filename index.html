@@ -2115,12 +2115,6 @@
       <button class="modal-close" onclick="closeModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
-      <!-- First choice: create a new task, or log a session on an existing one.
-           Hidden in edit mode (setRecordMode drives the #modal mode-* class). -->
-      <div class="seg-ctl" id="f-mode-ctl">
-        <button class="seg-btn" data-mode="new" onclick="setRecordMode('new')"><span data-ic="plus"></span>New task</button>
-        <button class="seg-btn" data-mode="existing" onclick="setRecordMode('existing')"><span data-ic="layers"></span>Log on existing task</button>
-      </div>
       <div class="form-row" id="f-existing-task-row">
         <div class="form-group full">
           <label>Task</label>
@@ -4552,35 +4546,18 @@ async function moveRowToDate(origIdx, targetDate) {
 function clearStatus() { document.getElementById('save-status').textContent = ''; }
 
 // ── Modal ──
-// Two-path Add flow: "New task" (full task form) vs "Log on existing task"
-// (searchable picker + session fields only — the task is never modified).
-// opts.existingTaskId → open directly on the existing path with that task chosen.
+// Add flow: pick an existing task (searchable picker), then fill in the session
+// fields only (date, time type, description, minutes) — tasks are created only
+// via Projects, never here. Edit mode is unchanged: it opens the full task-field
+// form so a record's task-level metadata can still be corrected in place.
+// opts.existingTaskId → open directly with that task pre-chosen (Add Session).
 let fExistingTaskPicker = null;
-let recordMode = 'new';   // 'new' | 'existing' (add mode only; edit shows the full form)
+let recordMode = 'existing';   // 'existing' (add mode); edit mode uses 'new' internally to show the full task form
 
 // The task-level fields (prefilled + locked when logging against an existing
 // task; hidden entirely on the existing path). Session-level fields (date,
 // time, description, minutes) stay editable.
 const MODAL_TASK_FIELDS = ['f-taskname','f-company','f-system','f-natural','f-status','f-source','f-tags'];
-
-// Switch the Add-Record path. 'existing' hides the task form and shows the task
-// picker + a read-only summary; 'new' shows the full task form.
-function setRecordMode(mode) {
-  recordMode = mode === 'existing' ? 'existing' : 'new';
-  const modal = document.getElementById('modal');
-  modal.classList.toggle('mode-existing', recordMode === 'existing');
-  modal.classList.toggle('mode-new', recordMode === 'new');
-  document.querySelectorAll('#f-mode-ctl .seg-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.mode === recordMode));
-  if (recordMode === 'new') {
-    // Leaving the existing path resets any picked task back to a blank new-task form.
-    rebuildExistingTaskPicker(null);
-    applyExistingTaskSelection(null);
-    setTimeout(() => document.getElementById('f-description').focus(), 60);
-  } else {
-    setTimeout(() => document.querySelector('#f-existing-task .ss-input')?.focus(), 60);
-  }
-}
 
 // (Re)build the searchable existing-task picker with `selectedId` preselected.
 function rebuildExistingTaskPicker(selectedId) {
@@ -4668,10 +4645,8 @@ async function openModal(idx = null, opts = {}) {
   document.getElementById('f-description').value = isSession ? '' : (row?.description || '');
   document.getElementById('f-minutes').value     = isSession ? '' : (row?.minutes || '');
 
-  const modeCtl = document.getElementById('f-mode-ctl');
   if (isEdit) {
-    // Editing an existing record — no path choice; the full form, prefilled from the row.
-    modeCtl.style.display = 'none';
+    // Editing an existing record — the full task-field form, prefilled from the row.
     recordMode = 'new';
     modal.classList.remove('mode-existing');
     modal.classList.add('mode-new');
@@ -4690,8 +4665,11 @@ async function openModal(idx = null, opts = {}) {
       projectFieldOptions(row?.projectId ?? null), row?.projectId ?? null, 'No project');
     toggleModalMore(!!(row?.source || (Array.isArray(row?.tags) && row.tags.length)));
   } else {
-    // Add mode — the first choice is the path: new task, or session on an existing one.
-    modeCtl.style.display = '';
+    // Add mode — always logs a session against an existing task (tasks are
+    // created only via Projects): pick the task, then fill in the session.
+    recordMode = 'existing';
+    modal.classList.add('mode-existing');
+    modal.classList.remove('mode-new');
     if (sessionTaskId == null) blankSelect('f-time');
     try { modalTaskList = await window.api.listTasks(); } catch { modalTaskList = []; }
     if (!Array.isArray(modalTaskList)) modalTaskList = [];
@@ -4705,11 +4683,13 @@ async function openModal(idx = null, opts = {}) {
       }]);
     }
     rebuildExistingTaskPicker(sessionTaskId);
-    applyExistingTaskSelection(sessionTaskId);   // prefill (task chosen) or blank state
+    applyExistingTaskSelection(sessionTaskId);   // prefill from the chosen task, if any
     toggleModalMore(false);
-    // setRecordMode focuses the right field for the chosen path.
-    setRecordMode(sessionTaskId != null ? 'existing' : 'new');
-    if (isSession) setTimeout(() => document.getElementById('f-description').focus(), 80);
+    if (isSession) {
+      setTimeout(() => document.getElementById('f-description').focus(), 80);
+    } else {
+      setTimeout(() => document.querySelector('#f-existing-task .ss-input')?.focus(), 60);
+    }
   }
 
   clearErrorsIn('#modal');
@@ -4729,8 +4709,8 @@ function overlayClick(e) {
 async function submitModal() {
   clearErrorsIn('#modal');
   const isEdit = editIdx !== null;
-  // On the existing path the session logs against the picked task (its metadata
-  // is never modified); the new path creates a task + first session.
+  // Add mode always logs a session against the picked task (its metadata is never
+  // modified here); edit mode uses the full task-field form instead.
   const onExistingPath = !isEdit && recordMode === 'existing';
   const existingTaskId = (onExistingPath && fExistingTaskPicker) ? fExistingTaskPicker.getSelectedId() : null;
   const loggingExisting = existingTaskId != null;
@@ -4818,9 +4798,8 @@ async function submitModal() {
     return;
   }
 
-  // Add mode. Logging against an existing task carries its id (adds a work_log to
-  // it, no new task); otherwise a new task + first work_log is created.
-  if (loggingExisting) record.taskId = existingTaskId;
+  // Add mode always logs against the picked existing task — no new task is created here.
+  record.taskId = existingTaskId;
 
   if (targetDate === activeDate) {
     rows.push(record);
@@ -4832,9 +4811,7 @@ async function submitModal() {
     // the new session is visible (the current day's view is unaffected).
     closeModal();
     try {
-      let taskId = existingTaskId;
-      if (taskId == null) { const c = await window.api.createTask(tsTaskPayload(record)); taskId = c.id; }
-      await window.api.addWorkLog(taskId, tsLogPayload(record));
+      await window.api.addWorkLog(existingTaskId, tsLogPayload(record));
       await refreshSavedDays();
       await switchDay(targetDate);
       toast('Session logged to ' + targetDate);
