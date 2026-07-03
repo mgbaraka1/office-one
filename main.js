@@ -238,7 +238,7 @@ ipcMain.handle('companydocs:remove-document', authed((_e, id) => db.removeCompan
 ipcMain.handle('companydocs:purge-files',   authed((_e, id)                     => db.purgeCompanyDocumentFiles(id)));
 ipcMain.handle('companydocs:restore-file',  authed((_e, oldId, newId, fileMeta) => db.restoreCompanyDocumentFile(auth.requireUserId(), oldId, newId, fileMeta)));
 
-// ── Clients (VPN Connectivity + Server Information per COMPANY lookup) ──
+// ── Clients (Auth + Server Information + Databases per COMPANY lookup) ──
 ipcMain.handle('clients:list', authed(()               => db.listClients(auth.requireUserId())));
 ipcMain.handle('clients:get',  authed((_e, companyId)  => db.getClient(auth.requireUserId(), companyId)));
 ipcMain.handle('clients:vpn-create', authed((_e, companyId, data) => db.createClientVpn(auth.requireUserId(), companyId, data)));
@@ -247,6 +247,17 @@ ipcMain.handle('clients:vpn-delete', authed((_e, id)              => db.deleteCl
 ipcMain.handle('clients:server-create', authed((_e, companyId, data) => db.createClientServer(auth.requireUserId(), companyId, data)));
 ipcMain.handle('clients:server-update', authed((_e, id, data)        => db.updateClientServer(auth.requireUserId(), id, data)));
 ipcMain.handle('clients:server-delete', authed((_e, id)              => db.deleteClientServer(auth.requireUserId(), id)));
+ipcMain.handle('clients:server-rename-group', authed((_e, companyId, oldName, newName) => db.renameClientServerSystemGroup(auth.requireUserId(), companyId, oldName, newName)));
+ipcMain.handle('clients:database-create', authed((_e, companyId, data) => db.createClientDatabase(auth.requireUserId(), companyId, data)));
+ipcMain.handle('clients:database-update', authed((_e, id, data)        => db.updateClientDatabase(auth.requireUserId(), id, data)));
+ipcMain.handle('clients:database-delete', authed((_e, id)              => db.deleteClientDatabase(auth.requireUserId(), id)));
+ipcMain.handle('clients:external-create', authed((_e, companyId, data) => db.createClientExternalService(auth.requireUserId(), companyId, data)));
+ipcMain.handle('clients:external-update', authed((_e, id, data)        => db.updateClientExternalService(auth.requireUserId(), id, data)));
+ipcMain.handle('clients:external-delete', authed((_e, id)              => db.deleteClientExternalService(auth.requireUserId(), id)));
+ipcMain.handle('clients:internal-create', authed((_e, companyId, data) => db.createClientInternalSystem(auth.requireUserId(), companyId, data)));
+ipcMain.handle('clients:internal-update', authed((_e, id, data)        => db.updateClientInternalSystem(auth.requireUserId(), id, data)));
+ipcMain.handle('clients:internal-delete', authed((_e, id)              => db.deleteClientInternalSystem(auth.requireUserId(), id)));
+ipcMain.handle('clients:internal-rename-group', authed((_e, companyId, oldName, newName) => db.renameClientInternalSystemGroup(auth.requireUserId(), companyId, oldName, newName)));
 
 // ── Backup ──
 ipcMain.handle('db:backup', authed(async () => {

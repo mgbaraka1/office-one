@@ -1420,10 +1420,11 @@ function companyDocumentDir(id) {
   return path.join(companyDocumentsRootDir(), String(id));
 }
 
-// ── Clients (VPN Connectivity + Server Information, per COMPANY lookup) ──────
+// ── Clients (Auth + Server Information + Databases + External Services +
+// Internal Systems, per COMPANY lookup) ───────────────────────────────────────
 // There is no standalone "clients" table — the client roster IS the active
 // COMPANY lookup catalog (managed from Settings → Companies, same place every
-// other company dropdown in the app is sourced from). These two child tables
+// other company dropdown in the app is sourced from). These five child tables
 // hold small, per-user reference records keyed to a COMPANY lookup id, the
 // same shape `project_companies` uses to link a project to its clients.
 
@@ -1433,23 +1434,56 @@ function ownsClientVpn(userId, id) {
 function ownsClientServer(userId, id) {
   return !!db.prepare('SELECT 1 FROM client_servers WHERE id = ? AND user_id = ?').get(id, userId);
 }
+function ownsClientDatabase(userId, id) {
+  return !!db.prepare('SELECT 1 FROM client_databases WHERE id = ? AND user_id = ?').get(id, userId);
+}
+function ownsClientExternalService(userId, id) {
+  return !!db.prepare('SELECT 1 FROM client_external_services WHERE id = ? AND user_id = ?').get(id, userId);
+}
+function ownsClientInternalSystem(userId, id) {
+  return !!db.prepare('SELECT 1 FROM client_internal_systems WHERE id = ? AND user_id = ?').get(id, userId);
+}
 
 function clientVpnToApi(r) {
   return {
     id: r.id, companyId: r.company_id, connectionName: r.connection_name, vpnType: r.vpn_type,
-    endpoint: r.endpoint, notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
+    endpoint: r.endpoint, port: r.port, username: r.username, password: r.password,
+    notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
   };
 }
 function clientServerToApi(r) {
   return {
     id: r.id, companyId: r.company_id, serverName: r.server_name, host: r.host, environment: r.environment,
-    os: r.os, notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
+    os: r.os, hostname: r.hostname, username: r.username, password: r.password, systemName: r.system_name,
+    notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
+  };
+}
+function clientDatabaseToApi(r) {
+  return {
+    id: r.id, companyId: r.company_id, name: r.name, engine: r.engine, host: r.host, port: r.port,
+    username: r.username, password: r.password, notes: r.notes,
+    sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
+  };
+}
+function clientExternalServiceToApi(r) {
+  return {
+    id: r.id, companyId: r.company_id, name: r.name, url: r.url, companyCode: r.company_code,
+    secretKey: r.secret_key, notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
+  };
+}
+function clientInternalSystemToApi(r) {
+  return {
+    id: r.id, companyId: r.company_id, name: r.name, url: r.url, username: r.username, password: r.password,
+    systemName: r.system_name, environment: r.environment, companyCode: r.company_code, secretKey: r.secret_key,
+    subServices: safeParse(r.sub_services, []),
+    notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
   };
 }
 
-// The Clients list page: every active COMPANY lookup, each with its VPN/server
-// counts for this user (zero-activity companies still show — this is the
-// catalog roster, not a work-log rollup like Browse's company list).
+// The Clients list page: every active COMPANY lookup, each with its auth/
+// server/database/external-service/internal-system counts for this user
+// (zero-activity companies still show — this is the catalog roster, not a
+// work-log rollup like Browse's company list).
 function listClients(userId) {
   const companies = getLookupsByCategory('COMPANY');
   const vpnCounts = new Map(
@@ -1460,14 +1494,28 @@ function listClients(userId) {
     db.prepare('SELECT company_id, COUNT(*) AS c FROM client_servers WHERE user_id = ? GROUP BY company_id')
       .all(userId).map(r => [r.company_id, r.c])
   );
+  const dbCounts = new Map(
+    db.prepare('SELECT company_id, COUNT(*) AS c FROM client_databases WHERE user_id = ? GROUP BY company_id')
+      .all(userId).map(r => [r.company_id, r.c])
+  );
+  const extCounts = new Map(
+    db.prepare('SELECT company_id, COUNT(*) AS c FROM client_external_services WHERE user_id = ? GROUP BY company_id')
+      .all(userId).map(r => [r.company_id, r.c])
+  );
+  const intCounts = new Map(
+    db.prepare('SELECT company_id, COUNT(*) AS c FROM client_internal_systems WHERE user_id = ? GROUP BY company_id')
+      .all(userId).map(r => [r.company_id, r.c])
+  );
   return companies.map(c => ({
     id: c.id, label: c.label,
-    vpnCount: vpnCounts.get(c.id) || 0, serverCount: srvCounts.get(c.id) || 0,
+    vpnCount: vpnCounts.get(c.id) || 0, serverCount: srvCounts.get(c.id) || 0, databaseCount: dbCounts.get(c.id) || 0,
+    externalServiceCount: extCounts.get(c.id) || 0, internalSystemCount: intCounts.get(c.id) || 0,
   }));
 }
 
-// One client's detail: the COMPANY lookup's label + its VPN connections and
-// servers (both ordered). Returns null if companyId isn't a real COMPANY row.
+// One client's detail: the COMPANY lookup's label + its auth connections,
+// servers, databases, external services, and internal systems (all ordered).
+// Returns null if companyId isn't a real COMPANY row.
 function getClient(userId, companyId) {
   if (!isLookupId('COMPANY', Number(companyId))) return null;
   const vpnConnections = db.prepare(
@@ -1476,24 +1524,35 @@ function getClient(userId, companyId) {
   const servers = db.prepare(
     'SELECT * FROM client_servers WHERE company_id = ? AND user_id = ? ORDER BY sort_order, id'
   ).all(companyId, userId).map(clientServerToApi);
-  return { id: Number(companyId), label: lkLabel(Number(companyId)), vpnConnections, servers };
+  const databases = db.prepare(
+    'SELECT * FROM client_databases WHERE company_id = ? AND user_id = ? ORDER BY sort_order, id'
+  ).all(companyId, userId).map(clientDatabaseToApi);
+  const externalServices = db.prepare(
+    'SELECT * FROM client_external_services WHERE company_id = ? AND user_id = ? ORDER BY sort_order, id'
+  ).all(companyId, userId).map(clientExternalServiceToApi);
+  const internalSystems = db.prepare(
+    'SELECT * FROM client_internal_systems WHERE company_id = ? AND user_id = ? ORDER BY sort_order, id'
+  ).all(companyId, userId).map(clientInternalSystemToApi);
+  return { id: Number(companyId), label: lkLabel(Number(companyId)), vpnConnections, servers, databases, externalServices, internalSystems };
 }
 
 function createClientVpn(userId, companyId, data) {
   if (!isLookupId('COMPANY', Number(companyId))) return null;
   const now = new Date().toISOString();
   const id = Number(db.prepare(
-    `INSERT INTO client_vpn_connections(user_id, company_id, connection_name, vpn_type, endpoint, notes, sort_order, created_at, updated_at)
-     VALUES(?, ?, ?, ?, ?, ?, 0, ?, ?)`
-  ).run(userId, companyId, data?.connectionName ?? '', data?.vpnType ?? '', data?.endpoint ?? '', data?.notes ?? '', now, now).lastInsertRowid);
+    `INSERT INTO client_vpn_connections(user_id, company_id, connection_name, vpn_type, endpoint, port, username, password, notes, sort_order, created_at, updated_at)
+     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+  ).run(userId, companyId, data?.connectionName ?? '', data?.vpnType ?? '', data?.endpoint ?? '',
+        data?.port ?? '', data?.username ?? '', data?.password ?? '', data?.notes ?? '', now, now).lastInsertRowid);
   return clientVpnToApi(db.prepare('SELECT * FROM client_vpn_connections WHERE id = ?').get(id));
 }
 function updateClientVpn(userId, id, data) {
   if (!ownsClientVpn(userId, id)) return null;
   db.prepare(
-    `UPDATE client_vpn_connections SET connection_name = ?, vpn_type = ?, endpoint = ?, notes = ?, updated_at = ?
+    `UPDATE client_vpn_connections SET connection_name = ?, vpn_type = ?, endpoint = ?, port = ?, username = ?, password = ?, notes = ?, updated_at = ?
       WHERE id = ? AND user_id = ?`
-  ).run(data?.connectionName ?? '', data?.vpnType ?? '', data?.endpoint ?? '', data?.notes ?? '', new Date().toISOString(), id, userId);
+  ).run(data?.connectionName ?? '', data?.vpnType ?? '', data?.endpoint ?? '', data?.port ?? '', data?.username ?? '', data?.password ?? '',
+        data?.notes ?? '', new Date().toISOString(), id, userId);
   return clientVpnToApi(db.prepare('SELECT * FROM client_vpn_connections WHERE id = ?').get(id));
 }
 function deleteClientVpn(userId, id) {
@@ -1505,22 +1564,123 @@ function createClientServer(userId, companyId, data) {
   if (!isLookupId('COMPANY', Number(companyId))) return null;
   const now = new Date().toISOString();
   const id = Number(db.prepare(
-    `INSERT INTO client_servers(user_id, company_id, server_name, host, environment, os, notes, sort_order, created_at, updated_at)
-     VALUES(?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
-  ).run(userId, companyId, data?.serverName ?? '', data?.host ?? '', data?.environment ?? '', data?.os ?? '', data?.notes ?? '', now, now).lastInsertRowid);
+    `INSERT INTO client_servers(user_id, company_id, server_name, host, environment, os, hostname, username, password, system_name, notes, sort_order, created_at, updated_at)
+     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+  ).run(userId, companyId, data?.serverName ?? '', data?.host ?? '', data?.environment ?? '', data?.os ?? '',
+        data?.hostname ?? '', data?.username ?? '', data?.password ?? '', data?.systemName ?? '', data?.notes ?? '', now, now).lastInsertRowid);
   return clientServerToApi(db.prepare('SELECT * FROM client_servers WHERE id = ?').get(id));
 }
 function updateClientServer(userId, id, data) {
   if (!ownsClientServer(userId, id)) return null;
   db.prepare(
-    `UPDATE client_servers SET server_name = ?, host = ?, environment = ?, os = ?, notes = ?, updated_at = ?
+    `UPDATE client_servers SET server_name = ?, host = ?, environment = ?, os = ?, hostname = ?, username = ?, password = ?, system_name = ?, notes = ?, updated_at = ?
       WHERE id = ? AND user_id = ?`
-  ).run(data?.serverName ?? '', data?.host ?? '', data?.environment ?? '', data?.os ?? '', data?.notes ?? '', new Date().toISOString(), id, userId);
+  ).run(data?.serverName ?? '', data?.host ?? '', data?.environment ?? '', data?.os ?? '', data?.hostname ?? '',
+        data?.username ?? '', data?.password ?? '', data?.systemName ?? '', data?.notes ?? '', new Date().toISOString(), id, userId);
   return clientServerToApi(db.prepare('SELECT * FROM client_servers WHERE id = ?').get(id));
 }
 function deleteClientServer(userId, id) {
   db.prepare('DELETE FROM client_servers WHERE id = ? AND user_id = ?').run(id, userId);
   return { ok: true };
+}
+function renameClientServerSystemGroup(userId, companyId, oldName, newName) {
+  const from = String(oldName ?? '').trim();
+  const to = String(newName ?? '').trim();
+  if (!from || !to) return { ok: false, count: 0 };
+  const info = db.prepare(
+    `UPDATE client_servers SET system_name = ?, updated_at = ?
+      WHERE user_id = ? AND company_id = ? AND LOWER(system_name) = LOWER(?)`
+  ).run(to, new Date().toISOString(), userId, companyId, from);
+  return { ok: true, count: info.changes };
+}
+
+function createClientDatabase(userId, companyId, data) {
+  if (!isLookupId('COMPANY', Number(companyId))) return null;
+  const now = new Date().toISOString();
+  const id = Number(db.prepare(
+    `INSERT INTO client_databases(user_id, company_id, name, engine, host, port, username, password, notes, sort_order, created_at, updated_at)
+     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+  ).run(userId, companyId, data?.name ?? '', data?.engine ?? '', data?.host ?? '',
+        data?.port ?? '', data?.username ?? '', data?.password ?? '', data?.notes ?? '', now, now).lastInsertRowid);
+  return clientDatabaseToApi(db.prepare('SELECT * FROM client_databases WHERE id = ?').get(id));
+}
+function updateClientDatabase(userId, id, data) {
+  if (!ownsClientDatabase(userId, id)) return null;
+  db.prepare(
+    `UPDATE client_databases SET name = ?, engine = ?, host = ?, port = ?, username = ?, password = ?, notes = ?, updated_at = ?
+      WHERE id = ? AND user_id = ?`
+  ).run(data?.name ?? '', data?.engine ?? '', data?.host ?? '', data?.port ?? '', data?.username ?? '', data?.password ?? '',
+        data?.notes ?? '', new Date().toISOString(), id, userId);
+  return clientDatabaseToApi(db.prepare('SELECT * FROM client_databases WHERE id = ?').get(id));
+}
+function deleteClientDatabase(userId, id) {
+  db.prepare('DELETE FROM client_databases WHERE id = ? AND user_id = ?').run(id, userId);
+  return { ok: true };
+}
+
+function createClientExternalService(userId, companyId, data) {
+  if (!isLookupId('COMPANY', Number(companyId))) return null;
+  const now = new Date().toISOString();
+  const id = Number(db.prepare(
+    `INSERT INTO client_external_services(user_id, company_id, name, url, company_code, secret_key, notes, sort_order, created_at, updated_at)
+     VALUES(?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+  ).run(userId, companyId, data?.name ?? '', data?.url ?? '', data?.companyCode ?? '', data?.secretKey ?? '', data?.notes ?? '', now, now).lastInsertRowid);
+  return clientExternalServiceToApi(db.prepare('SELECT * FROM client_external_services WHERE id = ?').get(id));
+}
+function updateClientExternalService(userId, id, data) {
+  if (!ownsClientExternalService(userId, id)) return null;
+  db.prepare(
+    `UPDATE client_external_services SET name = ?, url = ?, company_code = ?, secret_key = ?, notes = ?, updated_at = ?
+      WHERE id = ? AND user_id = ?`
+  ).run(data?.name ?? '', data?.url ?? '', data?.companyCode ?? '', data?.secretKey ?? '', data?.notes ?? '', new Date().toISOString(), id, userId);
+  return clientExternalServiceToApi(db.prepare('SELECT * FROM client_external_services WHERE id = ?').get(id));
+}
+function deleteClientExternalService(userId, id) {
+  db.prepare('DELETE FROM client_external_services WHERE id = ? AND user_id = ?').run(id, userId);
+  return { ok: true };
+}
+
+function normalizeSubServices(subServices) {
+  if (!Array.isArray(subServices)) return [];
+  return subServices
+    .map(s => ({ label: String(s?.label ?? '').trim(), url: String(s?.url ?? '').trim() }))
+    .filter(s => s.label || s.url);
+}
+
+function createClientInternalSystem(userId, companyId, data) {
+  if (!isLookupId('COMPANY', Number(companyId))) return null;
+  const now = new Date().toISOString();
+  const id = Number(db.prepare(
+    `INSERT INTO client_internal_systems(user_id, company_id, name, url, username, password, system_name, environment, company_code, secret_key, sub_services, notes, sort_order, created_at, updated_at)
+     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+  ).run(userId, companyId, data?.name ?? '', data?.url ?? '', data?.username ?? '', data?.password ?? '',
+        data?.systemName ?? '', data?.environment ?? '', data?.companyCode ?? '', data?.secretKey ?? '',
+        JSON.stringify(normalizeSubServices(data?.subServices)), data?.notes ?? '', now, now).lastInsertRowid);
+  return clientInternalSystemToApi(db.prepare('SELECT * FROM client_internal_systems WHERE id = ?').get(id));
+}
+function updateClientInternalSystem(userId, id, data) {
+  if (!ownsClientInternalSystem(userId, id)) return null;
+  db.prepare(
+    `UPDATE client_internal_systems SET name = ?, url = ?, username = ?, password = ?, system_name = ?, environment = ?, company_code = ?, secret_key = ?, sub_services = ?, notes = ?, updated_at = ?
+      WHERE id = ? AND user_id = ?`
+  ).run(data?.name ?? '', data?.url ?? '', data?.username ?? '', data?.password ?? '', data?.systemName ?? '',
+        data?.environment ?? '', data?.companyCode ?? '', data?.secretKey ?? '', JSON.stringify(normalizeSubServices(data?.subServices)),
+        data?.notes ?? '', new Date().toISOString(), id, userId);
+  return clientInternalSystemToApi(db.prepare('SELECT * FROM client_internal_systems WHERE id = ?').get(id));
+}
+function deleteClientInternalSystem(userId, id) {
+  db.prepare('DELETE FROM client_internal_systems WHERE id = ? AND user_id = ?').run(id, userId);
+  return { ok: true };
+}
+function renameClientInternalSystemGroup(userId, companyId, oldName, newName) {
+  const from = String(oldName ?? '').trim();
+  const to = String(newName ?? '').trim();
+  if (!from || !to) return { ok: false, count: 0 };
+  const info = db.prepare(
+    `UPDATE client_internal_systems SET system_name = ?, updated_at = ?
+      WHERE user_id = ? AND company_id = ? AND LOWER(system_name) = LOWER(?)`
+  ).run(to, new Date().toISOString(), userId, companyId, from);
+  return { ok: true, count: info.changes };
 }
 
 module.exports = {
@@ -1543,7 +1703,10 @@ module.exports = {
   purgeCompanyDocumentFiles, restoreCompanyDocumentFile, companyDocumentsRootDir,
   listClients, getClient,
   createClientVpn, updateClientVpn, deleteClientVpn,
-  createClientServer, updateClientServer, deleteClientServer,
+  createClientServer, updateClientServer, deleteClientServer, renameClientServerSystemGroup,
+  createClientDatabase, updateClientDatabase, deleteClientDatabase,
+  createClientExternalService, updateClientExternalService, deleteClientExternalService,
+  createClientInternalSystem, updateClientInternalSystem, deleteClientInternalSystem, renameClientInternalSystemGroup,
   loadLookups, saveLookups, getLookupsByCategory,
   loadSubscriptions, saveSubscriptions,
   loadPrefs, savePrefs,

@@ -779,7 +779,7 @@
     .cd-file-warn { color: var(--bad); font-weight: 600; }
     .cd-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 4px; }
 
-    /* ══ CLIENTS (VPN Connectivity + Server Information) ══ */
+    /* ══ CLIENTS (Auth + Server Information) ══ */
     .cl-item-card {
       display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
       border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 10px;
@@ -792,6 +792,23 @@
     .cl-env-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; padding: 2px 8px; border-radius: 999px; }
     .cl-env-badge.production { background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--good); }
     .cl-env-badge.test { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+    .cl-item-cred { display: flex; gap: 14px; flex-wrap: wrap; }
+    .cl-pw-wrap { display: inline-flex; align-items: center; gap: 4px; }
+    .cl-pw-toggle { width: 20px; height: 20px; padding: 2px; }
+    .cl-pw-toggle svg { width: 13px; height: 13px; }
+    .cl-system-group {
+      border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 12px;
+      background: color-mix(in srgb, var(--accent) 4%, transparent);
+    }
+    .cl-system-group-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+    .cl-system-env { margin-bottom: 12px; }
+    .cl-system-env:last-child { margin-bottom: 0; }
+    .cl-subsvc-list { margin-top: 6px; border-top: 1px dashed var(--border); padding-top: 6px; }
+    .cl-subsvc-row-view { font-size: 12.5px; color: var(--muted); font-family: 'JetBrains Mono', monospace; display: flex; gap: 8px; padding: 2px 0; }
+    .cl-subsvc-row-view .cl-subsvc-label { color: var(--text); font-weight: 600; flex-shrink: 0; }
+    .cint-subsvc-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .cint-subsvc-row input { flex: 1; min-width: 0; }
+    .cint-subsvc-row input:first-child { flex: 0 0 30%; }
 
     /* ══ HOME OVERVIEW (merged into the Analytics view) ══ */
     .dash-greeting { margin-bottom: 22px; }
@@ -2404,15 +2421,15 @@
     </div>
   </div>
 
-  <!-- Detail view: VPN Connectivity + Server Information (built by JS) -->
+  <!-- Detail view: Auth + Server Information (built by JS) -->
   <div id="clients-detail-view" class="pj-detail-scroll" style="display:none"></div>
 </div>
 
-<!-- ══ CLIENT VPN CONNECTION ADD/EDIT MODAL ══ -->
+<!-- ══ CLIENT AUTH CONNECTION ADD/EDIT MODAL (VPN, PAM, etc.) ══ -->
 <div id="client-vpn-modal-overlay" class="modal-overlay" onclick="clientVpnOverlayClick(event)">
   <div id="client-vpn-modal" class="modal-box">
     <div class="modal-header">
-      <span class="modal-title" id="client-vpn-modal-title">Add VPN Connection</span>
+      <span class="modal-title" id="client-vpn-modal-title">Add Auth Connection</span>
       <button class="modal-close" onclick="closeClientVpnModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
@@ -2424,18 +2441,34 @@
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>VPN Type / Protocol</label>
-          <input id="cv-type" type="text" placeholder="e.g. WireGuard, IPSec" />
+          <label>Type</label>
+          <input id="cv-type" type="text" placeholder="e.g. VPN, PAM, WireGuard, IPSec" />
         </div>
         <div class="form-group">
-          <label>Endpoint / IP</label>
+          <label>Endpoint / URL</label>
           <input id="cv-endpoint" type="text" placeholder="e.g. vpn.client.com" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Port</label>
+          <input id="cv-port" type="text" placeholder="e.g. 65000" />
+        </div>
+        <div class="form-group">
+          <label>Username</label>
+          <input id="cv-username" type="text" placeholder="e.g. jane.doe" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Password</label>
+          <input id="cv-password" type="text" placeholder="VPN login password" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group full">
           <label>Notes</label>
-          <textarea id="cv-notes" placeholder="No credentials/secrets here — reference notes only"></textarea>
+          <textarea id="cv-notes" placeholder="Reference notes only"></textarea>
         </div>
       </div>
     </div>
@@ -2462,21 +2495,41 @@
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>IP / Hostname</label>
-          <input id="cs-host" type="text" placeholder="e.g. 10.0.0.5" />
+          <label>System (optional)</label>
+          <input id="cs-system" type="text" placeholder="e.g. RabbitMQ — groups with a matching portal" />
         </div>
         <div class="form-group">
           <label>Environment</label>
           <select id="cs-environment">
             <option value="PRODUCTION">Production</option>
-            <option value="TEST">Test</option>
+            <option value="TEST">UAT</option>
           </select>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group full">
+          <label>IP Address</label>
+          <input id="cs-host" type="text" placeholder="e.g. 10.0.0.5" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Hostname</label>
+          <input id="cs-hostname" type="text" placeholder="e.g. ACME-Rabbit" />
+        </div>
+        <div class="form-group">
           <label>Operating System</label>
-          <input id="cs-os" type="text" placeholder="e.g. Ubuntu 22.04" />
+          <input id="cs-os" type="text" placeholder="e.g. Ubuntu Server" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Username</label>
+          <input id="cs-username" type="text" placeholder="e.g. admin" />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input id="cs-password" type="text" placeholder="Login password" />
         </div>
       </div>
       <div class="form-row">
@@ -2489,6 +2542,201 @@
     <div class="modal-footer">
       <button class="btn" onclick="closeClientServerModal()">Cancel</button>
       <button class="btn primary" id="client-server-modal-submit" onclick="submitClientServerModal()">Add Server</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CLIENT DATABASE ADD/EDIT MODAL ══ -->
+<div id="client-database-modal-overlay" class="modal-overlay" onclick="clientDatabaseOverlayClick(event)">
+  <div id="client-database-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="client-database-modal-title">Add Database</span>
+      <button class="modal-close" onclick="closeClientDatabaseModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Database Name</label>
+          <input id="cdb-name" type="text" placeholder="e.g. Middleware Database" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Engine</label>
+          <input id="cdb-engine" type="text" placeholder="e.g. PostgreSQL, SQL Server" />
+        </div>
+        <div class="form-group">
+          <label>Host</label>
+          <input id="cdb-host" type="text" placeholder="e.g. db.client.com" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Port</label>
+          <input id="cdb-port" type="text" placeholder="e.g. 5432" />
+        </div>
+        <div class="form-group">
+          <label>Username</label>
+          <input id="cdb-username" type="text" placeholder="e.g. middleware" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Password</label>
+          <input id="cdb-password" type="text" placeholder="Database login password" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Notes</label>
+          <textarea id="cdb-notes" placeholder="Reference notes only"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeClientDatabaseModal()">Cancel</button>
+      <button class="btn primary" id="client-database-modal-submit" onclick="submitClientDatabaseModal()">Add Database</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CLIENT EXTERNAL SERVICE ADD/EDIT MODAL ══ -->
+<div id="client-external-modal-overlay" class="modal-overlay" onclick="clientExternalOverlayClick(event)">
+  <div id="client-external-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="client-external-modal-title">Add External Service</span>
+      <button class="modal-close" onclick="closeClientExternalModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Service Name</label>
+          <input id="cext-name" type="text" placeholder="e.g. Uploader Service - Production" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>URL</label>
+          <input id="cext-url" type="text" placeholder="e.g. https://apis.example.gov.sa/v1?API_KEY=..." />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Company Code</label>
+          <input id="cext-company-code" type="text" placeholder="e.g. 131" />
+        </div>
+        <div class="form-group">
+          <label>Secret Key</label>
+          <input id="cext-secret-key" type="text" placeholder="Integration secret key" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Notes</label>
+          <textarea id="cext-notes" placeholder="Reference notes only"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeClientExternalModal()">Cancel</button>
+      <button class="btn primary" id="client-external-modal-submit" onclick="submitClientExternalModal()">Add Service</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CLIENT INTERNAL SYSTEM ADD/EDIT MODAL ══ -->
+<div id="client-internal-modal-overlay" class="modal-overlay" onclick="clientInternalOverlayClick(event)">
+  <div id="client-internal-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="client-internal-modal-title">Add Internal System</span>
+      <button class="modal-close" onclick="closeClientInternalModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Name</label>
+          <input id="cint-name" type="text" placeholder="e.g. RabbitMQ Portal - Production" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>System (optional)</label>
+          <input id="cint-system" type="text" placeholder="e.g. RabbitMQ — groups with a matching server" />
+        </div>
+        <div class="form-group">
+          <label>Environment</label>
+          <select id="cint-environment">
+            <option value="">—</option>
+            <option value="PRODUCTION">Production</option>
+            <option value="TEST">UAT</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>URL</label>
+          <input id="cint-url" type="text" placeholder="e.g. http://10.0.0.20:15672/" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Username</label>
+          <input id="cint-username" type="text" placeholder="e.g. admin" />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input id="cint-password" type="text" placeholder="Login password" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Company Code (optional)</label>
+          <input id="cint-company-code" type="text" placeholder="e.g. 105" />
+        </div>
+        <div class="form-group">
+          <label>Secret Key (optional)</label>
+          <input id="cint-secret-key" type="text" placeholder="Integration secret key" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Sub-Services (optional) — sibling endpoints of this one service</label>
+          <div id="cint-subservices-list"></div>
+          <button type="button" class="btn" id="cint-add-subservice" onclick="addClientInternalSubServiceRow()">+ Add Sub-Service</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Notes</label>
+          <textarea id="cint-notes" placeholder="Reference notes only"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeClientInternalModal()">Cancel</button>
+      <button class="btn primary" id="client-internal-modal-submit" onclick="submitClientInternalModal()">Add System</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CLIENT SYSTEM GROUP RENAME MODAL ══ -->
+<div id="client-group-rename-modal-overlay" class="modal-overlay" onclick="clientGroupRenameOverlayClick(event)">
+  <div id="client-group-rename-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title">Rename System Group</span>
+      <button class="modal-close" onclick="closeClientGroupRenameModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Group Name</label>
+          <input id="cgr-name" type="text" placeholder="e.g. Travel Cover" />
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeClientGroupRenameModal()">Cancel</button>
+      <button class="btn primary" onclick="submitClientGroupRename()">Save Changes</button>
     </div>
   </div>
 </div>
@@ -4623,7 +4871,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     closeModal(); closePrint(); closeMonthView(); closeSubModal(); closeSubSettings(); closeBacklogModal();
     closeProjectModal(); closeLinkModal(); closePalette(); closeTaskDetail(); closeCompanyDocModal();
-    closeClientVpnModal(); closeClientServerModal();
+    closeClientVpnModal(); closeClientServerModal(); closeClientDatabaseModal(); closeClientExternalModal(); closeClientInternalModal(); closeClientGroupRenameModal();
     document.querySelectorAll('.top-menu.open').forEach(m => m.classList.remove('open'));
     if (selectedRows.size) clearSelection();
   }
@@ -4636,6 +4884,10 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('companydoc-modal-overlay').classList.contains('open')) submitCompanyDocModal();
     if (document.getElementById('client-vpn-modal-overlay').classList.contains('open')) submitClientVpnModal();
     if (document.getElementById('client-server-modal-overlay').classList.contains('open')) submitClientServerModal();
+    if (document.getElementById('client-database-modal-overlay').classList.contains('open')) submitClientDatabaseModal();
+    if (document.getElementById('client-external-modal-overlay').classList.contains('open')) submitClientExternalModal();
+    if (document.getElementById('client-internal-modal-overlay').classList.contains('open')) submitClientInternalModal();
+    if (document.getElementById('client-group-rename-modal-overlay').classList.contains('open')) submitClientGroupRename();
   }
   if (!anyOpen && !inputFocused) {
     if (e.ctrlKey && !e.shiftKey && e.key === 'n') {
@@ -7749,8 +8001,13 @@ let clientsList = [];
 let clientsLoaded = false;
 let clientFilter = '';
 let currentClient = null;       // Client (from clients:get) shown in the detail view
-let clientVpnEditId = null;     // null = create mode in the VPN modal
-let clientServerEditId = null;  // null = create mode in the Server modal
+let clientVpnEditId = null;      // null = create mode in the Auth modal
+let clientServerEditId = null;   // null = create mode in the Server modal
+let clientDatabaseEditId = null; // null = create mode in the Database modal
+let clientExternalEditId = null; // null = create mode in the External Service modal
+let clientInternalEditId = null; // null = create mode in the Internal System modal
+let clientGroupRenameKind = null;    // 'server' | 'internal' — which section's group is being renamed
+let clientGroupRenameOldName = null; // the group's current systemName
 
 function initClientsModule() {
   showClientsListView();
@@ -7818,7 +8075,9 @@ function renderClientsList() {
     const count = pjMk('span', 'pj-card-count');
     count.innerHTML = ic('zap');
     count.appendChild(document.createTextNode(
-      c.vpnCount + ' VPN' + (c.vpnCount === 1 ? '' : 's') + ' · ' + c.serverCount + ' server' + (c.serverCount === 1 ? '' : 's')));
+      c.vpnCount + ' auth' + ' · ' + c.serverCount + ' server' + (c.serverCount === 1 ? '' : 's')
+      + ' · ' + c.databaseCount + ' database' + (c.databaseCount === 1 ? '' : 's')
+      + ' · ' + c.externalServiceCount + ' external' + ' · ' + c.internalSystemCount + ' internal'));
     foot.appendChild(count);
     const open = pjMk('span', 'pj-card-open', 'Open');
     open.insertAdjacentHTML('beforeend', ic('chevron-right'));
@@ -7871,13 +8130,16 @@ function renderClientDetail(c) {
   head.appendChild(pjMk('div', 'pj-detail-title', c.label || 'Untitled'));
   host.appendChild(head);
 
-  // ── VPN Connectivity section ──
+  const allServers = Array.isArray(c.servers) ? c.servers : [];
+  const allInternalSystems = Array.isArray(c.internalSystems) ? c.internalSystems : [];
+
+  // ── Auth section (VPN, PAM, and other login/connection records) ──
   const vpns = Array.isArray(c.vpnConnections) ? c.vpnConnections : [];
   const vpnSec = pjMk('div', 'pj-section');
   const vHead = pjMk('div', 'pj-section-head');
   const vTitle = pjMk('div', 'pj-section-title');
   vTitle.innerHTML = ic('zap');
-  vTitle.appendChild(document.createTextNode('VPN Connectivity (' + vpns.length + ')'));
+  vTitle.appendChild(document.createTextNode('Auth (' + vpns.length + ')'));
   vHead.appendChild(vTitle);
   const vActions = pjMk('div', 'pj-section-actions');
   const vAddBtn = pjMk('button', 'btn primary');
@@ -7886,36 +8148,212 @@ function renderClientDetail(c) {
   vActions.appendChild(vAddBtn);
   vHead.appendChild(vActions);
   vpnSec.appendChild(vHead);
-  if (vpns.length === 0) vpnSec.appendChild(pjMk('div', 'cp-records-empty', 'No VPN connections recorded yet.'));
+  if (vpns.length === 0) vpnSec.appendChild(pjMk('div', 'cp-records-empty', 'No auth connections recorded yet.'));
   else vpns.forEach(v => vpnSec.appendChild(buildClientVpnCard(v)));
   host.appendChild(vpnSec);
 
-  // ── Server Information section ──
-  const servers = Array.isArray(c.servers) ? c.servers : [];
+  // ── Server Information section (servers sharing a System name are grouped
+  // into a sub-card, split into one page per environment; the rest render flat) ──
   const srvSec = pjMk('div', 'pj-section');
   const sHead = pjMk('div', 'pj-section-head');
   const sTitle = pjMk('div', 'pj-section-title');
   sTitle.innerHTML = ic('folder');
-  sTitle.appendChild(document.createTextNode('Server Information (' + servers.length + ')'));
+  sTitle.appendChild(document.createTextNode('Server Information (' + allServers.length + ')'));
   sHead.appendChild(sTitle);
   const sActions = pjMk('div', 'pj-section-actions');
+  const sAddGroupBtn = pjMk('button', 'btn');
+  sAddGroupBtn.innerHTML = ic('plus') + ' New Group';
+  sAddGroupBtn.title = 'Add a server that starts a new System group';
+  sAddGroupBtn.addEventListener('click', () => openClientServerModal(null, true));
+  sActions.appendChild(sAddGroupBtn);
   const sAddBtn = pjMk('button', 'btn primary');
   sAddBtn.innerHTML = ic('plus') + ' Add Server';
   sAddBtn.addEventListener('click', () => openClientServerModal());
   sActions.appendChild(sAddBtn);
   sHead.appendChild(sActions);
   srvSec.appendChild(sHead);
-  if (servers.length === 0) srvSec.appendChild(pjMk('div', 'cp-records-empty', 'No servers recorded yet.'));
-  else servers.forEach(s => srvSec.appendChild(buildClientServerCard(s)));
+  if (allServers.length === 0) {
+    srvSec.appendChild(pjMk('div', 'cp-records-empty', 'No servers recorded yet.'));
+  } else {
+    const { groups: serverGroups, ungrouped: ungroupedServers } = groupBySystemName(allServers);
+    serverGroups.forEach(g => srvSec.appendChild(buildSystemGroupCard(g, buildClientServerCard, 'server')));
+    ungroupedServers.forEach(s => srvSec.appendChild(buildClientServerCard(s)));
+  }
   host.appendChild(srvSec);
+
+  // ── Databases section ──
+  const databases = Array.isArray(c.databases) ? c.databases : [];
+  const dbSec = pjMk('div', 'pj-section');
+  const dHead = pjMk('div', 'pj-section-head');
+  const dTitle = pjMk('div', 'pj-section-title');
+  dTitle.innerHTML = ic('layers');
+  dTitle.appendChild(document.createTextNode('Databases (' + databases.length + ')'));
+  dHead.appendChild(dTitle);
+  const dActions = pjMk('div', 'pj-section-actions');
+  const dAddBtn = pjMk('button', 'btn primary');
+  dAddBtn.innerHTML = ic('plus') + ' Add Database';
+  dAddBtn.addEventListener('click', () => openClientDatabaseModal());
+  dActions.appendChild(dAddBtn);
+  dHead.appendChild(dActions);
+  dbSec.appendChild(dHead);
+  if (databases.length === 0) dbSec.appendChild(pjMk('div', 'cp-records-empty', 'No databases recorded yet.'));
+  else databases.forEach(d => dbSec.appendChild(buildClientDatabaseCard(d)));
+  host.appendChild(dbSec);
+
+  // ── External Services section ──
+  const externalServices = Array.isArray(c.externalServices) ? c.externalServices : [];
+  const extSec = pjMk('div', 'pj-section');
+  const eHead = pjMk('div', 'pj-section-head');
+  const eTitle = pjMk('div', 'pj-section-title');
+  eTitle.innerHTML = ic('external-link');
+  eTitle.appendChild(document.createTextNode('External Services (' + externalServices.length + ')'));
+  eHead.appendChild(eTitle);
+  const eActions = pjMk('div', 'pj-section-actions');
+  const eAddBtn = pjMk('button', 'btn primary');
+  eAddBtn.innerHTML = ic('plus') + ' Add Service';
+  eAddBtn.addEventListener('click', () => openClientExternalModal());
+  eActions.appendChild(eAddBtn);
+  eHead.appendChild(eActions);
+  extSec.appendChild(eHead);
+  if (externalServices.length === 0) extSec.appendChild(pjMk('div', 'cp-records-empty', 'No external services recorded yet.'));
+  else externalServices.forEach(x => extSec.appendChild(buildClientExternalServiceCard(x)));
+  host.appendChild(extSec);
+
+  // ── Internal Systems section (portals sharing a System name are grouped
+  // into a sub-card, split into one page per environment; the rest render flat) ──
+  const intSec = pjMk('div', 'pj-section');
+  const iHead = pjMk('div', 'pj-section-head');
+  const iTitle = pjMk('div', 'pj-section-title');
+  iTitle.innerHTML = ic('layout-dashboard');
+  iTitle.appendChild(document.createTextNode('Internal Systems (' + allInternalSystems.length + ')'));
+  iHead.appendChild(iTitle);
+  const iActions = pjMk('div', 'pj-section-actions');
+  const iAddGroupBtn = pjMk('button', 'btn');
+  iAddGroupBtn.innerHTML = ic('plus') + ' New Group';
+  iAddGroupBtn.title = 'Add an internal system that starts a new System group';
+  iAddGroupBtn.addEventListener('click', () => openClientInternalModal(null, true));
+  iActions.appendChild(iAddGroupBtn);
+  const iAddBtn = pjMk('button', 'btn primary');
+  iAddBtn.innerHTML = ic('plus') + ' Add System';
+  iAddBtn.addEventListener('click', () => openClientInternalModal());
+  iActions.appendChild(iAddBtn);
+  iHead.appendChild(iActions);
+  intSec.appendChild(iHead);
+  if (allInternalSystems.length === 0) {
+    intSec.appendChild(pjMk('div', 'cp-records-empty', 'No internal systems recorded yet.'));
+  } else {
+    const { groups: internalGroups, ungrouped: ungroupedInternal } = groupBySystemName(allInternalSystems);
+    internalGroups.forEach(g => intSec.appendChild(buildSystemGroupCard(g, buildClientInternalSystemCard, 'internal')));
+    ungroupedInternal.forEach(s => intSec.appendChild(buildClientInternalSystemCard(s)));
+  }
+  host.appendChild(intSec);
+}
+
+// Groups a single section's items (Servers, or Internal Systems) that share a
+// non-empty System name into one entry per (systemName, environment) pair —
+// e.g. "RabbitMQ" gets a Production page and a Test/UAT page. Items with no
+// System name are returned in `ungrouped` and render flat as before.
+const SYSTEM_ENV_ORDER = ['PRODUCTION', 'TEST', ''];
+function groupBySystemName(items) {
+  const groups = new Map();
+  const ungrouped = [];
+  items.forEach(item => {
+    const raw = (item.systemName || '').trim();
+    if (!raw) { ungrouped.push(item); return; }
+    const key = raw.toLowerCase();
+    if (!groups.has(key)) groups.set(key, { name: raw, envs: new Map() });
+    const group = groups.get(key);
+    const envKey = item.environment || '';
+    if (!group.envs.has(envKey)) group.envs.set(envKey, { env: envKey, items: [] });
+    group.envs.get(envKey).items.push(item);
+  });
+  const sortedGroups = Array.from(groups.values())
+    .map(g => ({
+      name: g.name,
+      envs: Array.from(g.envs.values()).sort((a, b) => SYSTEM_ENV_ORDER.indexOf(a.env) - SYSTEM_ENV_ORDER.indexOf(b.env)),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return { groups: sortedGroups, ungrouped };
+}
+
+function buildSystemGroupCard(group, cardBuilder, kind) {
+  const card = pjMk('div', 'cl-system-group');
+  const titleRow = pjMk('div', 'cl-system-group-title');
+  titleRow.appendChild(document.createTextNode(group.name));
+  const renameBtn = pjMk('button', 'cd-icon-btn');
+  renameBtn.innerHTML = ic('pencil');
+  renameBtn.title = 'Rename group';
+  renameBtn.addEventListener('click', () => openClientGroupRenameModal(kind, group.name));
+  titleRow.appendChild(renameBtn);
+  card.appendChild(titleRow);
+  group.envs.forEach(e => {
+    const envSec = pjMk('div', 'cl-system-env');
+    e.items.forEach(item => envSec.appendChild(cardBuilder(item)));
+    card.appendChild(envSec);
+  });
+  return card;
+}
+
+// ── System group rename modal — bulk-renames systemName on every record in
+// the group within one section (servers or internal systems); no groups table. ──
+function openClientGroupRenameModal(kind, name) {
+  clientGroupRenameKind = kind;
+  clientGroupRenameOldName = name;
+  document.getElementById('cgr-name').value = name;
+  clearErrorsIn('#client-group-rename-modal');
+  document.getElementById('client-group-rename-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('cgr-name').focus(), 80);
+}
+function closeClientGroupRenameModal() {
+  document.getElementById('client-group-rename-modal-overlay').classList.remove('open');
+  clientGroupRenameKind = null;
+  clientGroupRenameOldName = null;
+}
+function clientGroupRenameOverlayClick(e) {
+  if (e.target === document.getElementById('client-group-rename-modal-overlay')) closeClientGroupRenameModal();
+}
+async function submitClientGroupRename() {
+  clearErrorsIn('#client-group-rename-modal');
+  const newName = document.getElementById('cgr-name').value.trim();
+  if (!newName) { markError('cgr-name'); return; }
+  try {
+    if (clientGroupRenameKind === 'server') await window.api.renameClientServerSystemGroup(currentClient.id, clientGroupRenameOldName, newName);
+    else await window.api.renameClientInternalSystemGroup(currentClient.id, clientGroupRenameOldName, newName);
+    closeClientGroupRenameModal();
+    toast('Group renamed');
+  } catch { toast('Could not rename group'); return; }
+  await reloadCurrentClient();
 }
 
 function buildClientVpnCard(v) {
   const card = pjMk('div', 'cl-item-card');
   const main = pjMk('div', 'cl-item-main');
   main.appendChild(pjMk('div', 'cl-item-title', v.connectionName || '(unnamed connection)'));
-  const metaBits = [v.vpnType, v.endpoint].filter(Boolean).join(' · ');
+  const metaBits = [v.vpnType, v.endpoint, v.port ? ('Port ' + v.port) : ''].filter(Boolean).join(' · ');
   if (metaBits) main.appendChild(pjMk('div', 'cl-item-meta', metaBits));
+  if (v.username || v.password) {
+    const cred = pjMk('div', 'cl-item-meta cl-item-cred');
+    if (v.username) cred.appendChild(pjMk('span', null, 'User: ' + v.username));
+    if (v.password) {
+      const pwWrap = pjMk('span', 'cl-pw-wrap');
+      const pwText = pjMk('span', 'cl-pw-text', '••••••••');
+      pwText.dataset.value = v.password;
+      pwText.dataset.masked = 'true';
+      const pwToggle = pjMk('button', 'cd-icon-btn cl-pw-toggle');
+      pwToggle.innerHTML = ic('eye');
+      pwToggle.title = 'Show/hide password';
+      pwToggle.addEventListener('click', () => {
+        const masked = pwText.dataset.masked === 'true';
+        pwText.textContent = masked ? pwText.dataset.value : '••••••••';
+        pwText.dataset.masked = masked ? 'false' : 'true';
+      });
+      pwWrap.appendChild(document.createTextNode('Pass: '));
+      pwWrap.appendChild(pwText);
+      pwWrap.appendChild(pwToggle);
+      cred.appendChild(pwWrap);
+    }
+    main.appendChild(cred);
+  }
   if (v.notes) main.appendChild(pjMk('div', 'cl-item-notes', v.notes));
   card.appendChild(main);
 
@@ -7941,12 +8379,35 @@ function buildClientServerCard(s) {
   const title = pjMk('div', 'cl-item-title');
   title.appendChild(document.createTextNode(s.serverName || '(unnamed server)'));
   if (s.environment) {
-    const envLabel = s.environment === 'PRODUCTION' ? 'Production' : (s.environment === 'TEST' ? 'Test' : s.environment);
+    const envLabel = s.environment === 'PRODUCTION' ? 'Production' : (s.environment === 'TEST' ? 'UAT' : s.environment);
     title.appendChild(pjMk('span', 'cl-env-badge ' + s.environment.toLowerCase(), envLabel));
   }
   main.appendChild(title);
-  const metaBits = [s.host, s.os].filter(Boolean).join(' · ');
+  const metaBits = [s.host, s.hostname, s.os].filter(Boolean).join(' · ');
   if (metaBits) main.appendChild(pjMk('div', 'cl-item-meta', metaBits));
+  if (s.username || s.password) {
+    const cred = pjMk('div', 'cl-item-meta cl-item-cred');
+    if (s.username) cred.appendChild(pjMk('span', null, 'User: ' + s.username));
+    if (s.password) {
+      const pwWrap = pjMk('span', 'cl-pw-wrap');
+      const pwText = pjMk('span', 'cl-pw-text', '••••••••');
+      pwText.dataset.value = s.password;
+      pwText.dataset.masked = 'true';
+      const pwToggle = pjMk('button', 'cd-icon-btn cl-pw-toggle');
+      pwToggle.innerHTML = ic('eye');
+      pwToggle.title = 'Show/hide password';
+      pwToggle.addEventListener('click', () => {
+        const masked = pwText.dataset.masked === 'true';
+        pwText.textContent = masked ? pwText.dataset.value : '••••••••';
+        pwText.dataset.masked = masked ? 'false' : 'true';
+      });
+      pwWrap.appendChild(document.createTextNode('Pass: '));
+      pwWrap.appendChild(pwText);
+      pwWrap.appendChild(pwToggle);
+      cred.appendChild(pwWrap);
+    }
+    main.appendChild(cred);
+  }
   if (s.notes) main.appendChild(pjMk('div', 'cl-item-notes', s.notes));
   card.appendChild(main);
 
@@ -7966,14 +8427,17 @@ function buildClientServerCard(s) {
   return card;
 }
 
-// ── VPN connection modal ──
+// ── Auth connection modal (VPN, PAM, etc.) ──
 function openClientVpnModal(v) {
   clientVpnEditId = v ? v.id : null;
-  document.getElementById('client-vpn-modal-title').textContent = v ? 'Edit VPN Connection' : 'Add VPN Connection';
+  document.getElementById('client-vpn-modal-title').textContent = v ? 'Edit Auth Connection' : 'Add Auth Connection';
   document.getElementById('client-vpn-modal-submit').textContent = v ? 'Save Changes' : 'Add Connection';
   document.getElementById('cv-name').value = v ? (v.connectionName || '') : '';
   document.getElementById('cv-type').value = v ? (v.vpnType || '') : '';
   document.getElementById('cv-endpoint').value = v ? (v.endpoint || '') : '';
+  document.getElementById('cv-port').value = v ? (v.port || '') : '';
+  document.getElementById('cv-username').value = v ? (v.username || '') : '';
+  document.getElementById('cv-password').value = v ? (v.password || '') : '';
   document.getElementById('cv-notes').value = v ? (v.notes || '') : '';
   clearErrorsIn('#client-vpn-modal');
   document.getElementById('client-vpn-modal-overlay').classList.add('open');
@@ -7994,6 +8458,9 @@ async function submitClientVpnModal() {
     connectionName,
     vpnType:  document.getElementById('cv-type').value.trim(),
     endpoint: document.getElementById('cv-endpoint').value.trim(),
+    port:     document.getElementById('cv-port').value.trim(),
+    username: document.getElementById('cv-username').value.trim(),
+    password: document.getElementById('cv-password').value.trim(),
     notes:    document.getElementById('cv-notes').value.trim(),
   };
   try {
@@ -8016,7 +8483,8 @@ async function deleteClientVpnEntry(id) {
     try {
       await window.api.createClientVpn(snapshot.companyId, {
         connectionName: snapshot.connectionName, vpnType: snapshot.vpnType,
-        endpoint: snapshot.endpoint, notes: snapshot.notes,
+        endpoint: snapshot.endpoint, port: snapshot.port, username: snapshot.username,
+        password: snapshot.password, notes: snapshot.notes,
       });
     } catch { toast('Could not restore VPN connection'); return; }
     await reloadCurrentClient();
@@ -8024,18 +8492,22 @@ async function deleteClientVpnEntry(id) {
 }
 
 // ── Server modal ──
-function openClientServerModal(s) {
+function openClientServerModal(s, focusSystem) {
   clientServerEditId = s ? s.id : null;
-  document.getElementById('client-server-modal-title').textContent = s ? 'Edit Server' : 'Add Server';
+  document.getElementById('client-server-modal-title').textContent = s ? 'Edit Server' : (focusSystem ? 'Add Server (New Group)' : 'Add Server');
   document.getElementById('client-server-modal-submit').textContent = s ? 'Save Changes' : 'Add Server';
   document.getElementById('cs-name').value = s ? (s.serverName || '') : '';
   document.getElementById('cs-host').value = s ? (s.host || '') : '';
   document.getElementById('cs-environment').value = s ? (s.environment || 'PRODUCTION') : 'PRODUCTION';
+  document.getElementById('cs-system').value = s ? (s.systemName || '') : '';
+  document.getElementById('cs-hostname').value = s ? (s.hostname || '') : '';
   document.getElementById('cs-os').value = s ? (s.os || '') : '';
+  document.getElementById('cs-username').value = s ? (s.username || '') : '';
+  document.getElementById('cs-password').value = s ? (s.password || '') : '';
   document.getElementById('cs-notes').value = s ? (s.notes || '') : '';
   clearErrorsIn('#client-server-modal');
   document.getElementById('client-server-modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById('cs-name').focus(), 80);
+  setTimeout(() => document.getElementById(focusSystem ? 'cs-system' : 'cs-name').focus(), 80);
 }
 function closeClientServerModal() {
   document.getElementById('client-server-modal-overlay').classList.remove('open');
@@ -8052,7 +8524,11 @@ async function submitClientServerModal() {
     serverName,
     host:        document.getElementById('cs-host').value.trim(),
     environment: document.getElementById('cs-environment').value || 'PRODUCTION',
+    systemName:  document.getElementById('cs-system').value.trim(),
+    hostname:    document.getElementById('cs-hostname').value.trim(),
     os:          document.getElementById('cs-os').value.trim(),
+    username:    document.getElementById('cs-username').value.trim(),
+    password:    document.getElementById('cs-password').value.trim(),
     notes:       document.getElementById('cs-notes').value.trim(),
   };
   try {
@@ -8072,10 +8548,407 @@ async function deleteClientServerEntry(id) {
   showGenericUndo('Server deleted', async () => {
     try {
       await window.api.createClientServer(snapshot.companyId, {
-        serverName: snapshot.serverName, host: snapshot.host,
-        environment: snapshot.environment, os: snapshot.os, notes: snapshot.notes,
+        serverName: snapshot.serverName, host: snapshot.host, environment: snapshot.environment,
+        systemName: snapshot.systemName, hostname: snapshot.hostname, os: snapshot.os, username: snapshot.username,
+        password: snapshot.password, notes: snapshot.notes,
       });
     } catch { toast('Could not restore server'); return; }
+    await reloadCurrentClient();
+  });
+}
+
+function buildClientDatabaseCard(d) {
+  const card = pjMk('div', 'cl-item-card');
+  const main = pjMk('div', 'cl-item-main');
+  main.appendChild(pjMk('div', 'cl-item-title', d.name || '(unnamed database)'));
+  const metaBits = [d.engine, d.host, d.port ? ('Port ' + d.port) : ''].filter(Boolean).join(' · ');
+  if (metaBits) main.appendChild(pjMk('div', 'cl-item-meta', metaBits));
+  if (d.username || d.password) {
+    const cred = pjMk('div', 'cl-item-meta cl-item-cred');
+    if (d.username) cred.appendChild(pjMk('span', null, 'User: ' + d.username));
+    if (d.password) {
+      const pwWrap = pjMk('span', 'cl-pw-wrap');
+      const pwText = pjMk('span', 'cl-pw-text', '••••••••');
+      pwText.dataset.value = d.password;
+      pwText.dataset.masked = 'true';
+      const pwToggle = pjMk('button', 'cd-icon-btn cl-pw-toggle');
+      pwToggle.innerHTML = ic('eye');
+      pwToggle.title = 'Show/hide password';
+      pwToggle.addEventListener('click', () => {
+        const masked = pwText.dataset.masked === 'true';
+        pwText.textContent = masked ? pwText.dataset.value : '••••••••';
+        pwText.dataset.masked = masked ? 'false' : 'true';
+      });
+      pwWrap.appendChild(document.createTextNode('Pass: '));
+      pwWrap.appendChild(pwText);
+      pwWrap.appendChild(pwToggle);
+      cred.appendChild(pwWrap);
+    }
+    main.appendChild(cred);
+  }
+  if (d.notes) main.appendChild(pjMk('div', 'cl-item-notes', d.notes));
+  card.appendChild(main);
+
+  const actions = pjMk('div', 'cl-item-actions');
+  const editBtn = pjMk('button', 'cd-icon-btn');
+  editBtn.innerHTML = ic('pencil');
+  editBtn.title = 'Edit';
+  editBtn.addEventListener('click', () => openClientDatabaseModal(d));
+  actions.appendChild(editBtn);
+  const delBtn = pjMk('button', 'cd-icon-btn danger');
+  delBtn.innerHTML = ic('trash-2');
+  delBtn.title = 'Delete';
+  delBtn.addEventListener('click', () =>
+    showDeleteConfirm(actions, () => deleteClientDatabaseEntry(d.id), () => renderClientDetail(currentClient)));
+  actions.appendChild(delBtn);
+  card.appendChild(actions);
+  return card;
+}
+
+// ── Database modal ──
+function openClientDatabaseModal(d) {
+  clientDatabaseEditId = d ? d.id : null;
+  document.getElementById('client-database-modal-title').textContent = d ? 'Edit Database' : 'Add Database';
+  document.getElementById('client-database-modal-submit').textContent = d ? 'Save Changes' : 'Add Database';
+  document.getElementById('cdb-name').value = d ? (d.name || '') : '';
+  document.getElementById('cdb-engine').value = d ? (d.engine || '') : '';
+  document.getElementById('cdb-host').value = d ? (d.host || '') : '';
+  document.getElementById('cdb-port').value = d ? (d.port || '') : '';
+  document.getElementById('cdb-username').value = d ? (d.username || '') : '';
+  document.getElementById('cdb-password').value = d ? (d.password || '') : '';
+  document.getElementById('cdb-notes').value = d ? (d.notes || '') : '';
+  clearErrorsIn('#client-database-modal');
+  document.getElementById('client-database-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('cdb-name').focus(), 80);
+}
+function closeClientDatabaseModal() {
+  document.getElementById('client-database-modal-overlay').classList.remove('open');
+  clientDatabaseEditId = null;
+}
+function clientDatabaseOverlayClick(e) {
+  if (e.target === document.getElementById('client-database-modal-overlay')) closeClientDatabaseModal();
+}
+async function submitClientDatabaseModal() {
+  clearErrorsIn('#client-database-modal');
+  const name = document.getElementById('cdb-name').value.trim();
+  if (!name) { markError('cdb-name'); return; }
+  const data = {
+    name,
+    engine:   document.getElementById('cdb-engine').value.trim(),
+    host:     document.getElementById('cdb-host').value.trim(),
+    port:     document.getElementById('cdb-port').value.trim(),
+    username: document.getElementById('cdb-username').value.trim(),
+    password: document.getElementById('cdb-password').value.trim(),
+    notes:    document.getElementById('cdb-notes').value.trim(),
+  };
+  try {
+    if (clientDatabaseEditId != null) await window.api.updateClientDatabase(clientDatabaseEditId, data);
+    else await window.api.createClientDatabase(currentClient.id, data);
+    closeClientDatabaseModal();
+    toast('Database saved');
+  } catch { toast('Could not save database'); return; }
+  await reloadCurrentClient();
+}
+async function deleteClientDatabaseEntry(id) {
+  const snapshot = (currentClient?.databases || []).find(d => d.id === id);
+  try { await window.api.deleteClientDatabase(id); }
+  catch { toast('Could not delete database'); renderClientDetail(currentClient); return; }
+  await reloadCurrentClient();
+  if (!snapshot) return;
+  showGenericUndo('Database deleted', async () => {
+    try {
+      await window.api.createClientDatabase(snapshot.companyId, {
+        name: snapshot.name, engine: snapshot.engine, host: snapshot.host, port: snapshot.port,
+        username: snapshot.username, password: snapshot.password, notes: snapshot.notes,
+      });
+    } catch { toast('Could not restore database'); return; }
+    await reloadCurrentClient();
+  });
+}
+
+function buildClientExternalServiceCard(x) {
+  const card = pjMk('div', 'cl-item-card');
+  const main = pjMk('div', 'cl-item-main');
+  main.appendChild(pjMk('div', 'cl-item-title', x.name || '(unnamed service)'));
+  if (x.url) main.appendChild(pjMk('div', 'cl-item-meta', x.url));
+  if (x.companyCode || x.secretKey) {
+    const cred = pjMk('div', 'cl-item-meta cl-item-cred');
+    if (x.companyCode) cred.appendChild(pjMk('span', null, 'Company Code: ' + x.companyCode));
+    if (x.secretKey) {
+      const skWrap = pjMk('span', 'cl-pw-wrap');
+      const skText = pjMk('span', 'cl-pw-text', '••••••••');
+      skText.dataset.value = x.secretKey;
+      skText.dataset.masked = 'true';
+      const skToggle = pjMk('button', 'cd-icon-btn cl-pw-toggle');
+      skToggle.innerHTML = ic('eye');
+      skToggle.title = 'Show/hide secret key';
+      skToggle.addEventListener('click', () => {
+        const masked = skText.dataset.masked === 'true';
+        skText.textContent = masked ? skText.dataset.value : '••••••••';
+        skText.dataset.masked = masked ? 'false' : 'true';
+      });
+      skWrap.appendChild(document.createTextNode('Secret Key: '));
+      skWrap.appendChild(skText);
+      skWrap.appendChild(skToggle);
+      cred.appendChild(skWrap);
+    }
+    main.appendChild(cred);
+  }
+  if (x.notes) main.appendChild(pjMk('div', 'cl-item-notes', x.notes));
+  card.appendChild(main);
+
+  const actions = pjMk('div', 'cl-item-actions');
+  const editBtn = pjMk('button', 'cd-icon-btn');
+  editBtn.innerHTML = ic('pencil');
+  editBtn.title = 'Edit';
+  editBtn.addEventListener('click', () => openClientExternalModal(x));
+  actions.appendChild(editBtn);
+  const delBtn = pjMk('button', 'cd-icon-btn danger');
+  delBtn.innerHTML = ic('trash-2');
+  delBtn.title = 'Delete';
+  delBtn.addEventListener('click', () =>
+    showDeleteConfirm(actions, () => deleteClientExternalServiceEntry(x.id), () => renderClientDetail(currentClient)));
+  actions.appendChild(delBtn);
+  card.appendChild(actions);
+  return card;
+}
+
+// ── External Service modal ──
+function openClientExternalModal(x) {
+  clientExternalEditId = x ? x.id : null;
+  document.getElementById('client-external-modal-title').textContent = x ? 'Edit External Service' : 'Add External Service';
+  document.getElementById('client-external-modal-submit').textContent = x ? 'Save Changes' : 'Add Service';
+  document.getElementById('cext-name').value = x ? (x.name || '') : '';
+  document.getElementById('cext-url').value = x ? (x.url || '') : '';
+  document.getElementById('cext-company-code').value = x ? (x.companyCode || '') : '';
+  document.getElementById('cext-secret-key').value = x ? (x.secretKey || '') : '';
+  document.getElementById('cext-notes').value = x ? (x.notes || '') : '';
+  clearErrorsIn('#client-external-modal');
+  document.getElementById('client-external-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('cext-name').focus(), 80);
+}
+function closeClientExternalModal() {
+  document.getElementById('client-external-modal-overlay').classList.remove('open');
+  clientExternalEditId = null;
+}
+function clientExternalOverlayClick(e) {
+  if (e.target === document.getElementById('client-external-modal-overlay')) closeClientExternalModal();
+}
+async function submitClientExternalModal() {
+  clearErrorsIn('#client-external-modal');
+  const name = document.getElementById('cext-name').value.trim();
+  if (!name) { markError('cext-name'); return; }
+  const data = {
+    name,
+    url:         document.getElementById('cext-url').value.trim(),
+    companyCode: document.getElementById('cext-company-code').value.trim(),
+    secretKey:   document.getElementById('cext-secret-key').value.trim(),
+    notes:       document.getElementById('cext-notes').value.trim(),
+  };
+  try {
+    if (clientExternalEditId != null) await window.api.updateClientExternalService(clientExternalEditId, data);
+    else await window.api.createClientExternalService(currentClient.id, data);
+    closeClientExternalModal();
+    toast('External service saved');
+  } catch { toast('Could not save external service'); return; }
+  await reloadCurrentClient();
+}
+async function deleteClientExternalServiceEntry(id) {
+  const snapshot = (currentClient?.externalServices || []).find(x => x.id === id);
+  try { await window.api.deleteClientExternalService(id); }
+  catch { toast('Could not delete external service'); renderClientDetail(currentClient); return; }
+  await reloadCurrentClient();
+  if (!snapshot) return;
+  showGenericUndo('External service deleted', async () => {
+    try {
+      await window.api.createClientExternalService(snapshot.companyId, {
+        name: snapshot.name, url: snapshot.url, companyCode: snapshot.companyCode,
+        secretKey: snapshot.secretKey, notes: snapshot.notes,
+      });
+    } catch { toast('Could not restore external service'); return; }
+    await reloadCurrentClient();
+  });
+}
+
+function buildClientInternalSystemCard(s) {
+  const card = pjMk('div', 'cl-item-card');
+  const main = pjMk('div', 'cl-item-main');
+  const title = pjMk('div', 'cl-item-title');
+  title.appendChild(document.createTextNode(s.name || '(unnamed system)'));
+  if (s.environment) {
+    const envLabel = s.environment === 'PRODUCTION' ? 'Production' : (s.environment === 'TEST' ? 'UAT' : s.environment);
+    title.appendChild(pjMk('span', 'cl-env-badge ' + s.environment.toLowerCase(), envLabel));
+  }
+  main.appendChild(title);
+  if (s.url) main.appendChild(pjMk('div', 'cl-item-meta', s.url));
+  if (s.username || s.password) {
+    const cred = pjMk('div', 'cl-item-meta cl-item-cred');
+    if (s.username) cred.appendChild(pjMk('span', null, 'User: ' + s.username));
+    if (s.password) {
+      const pwWrap = pjMk('span', 'cl-pw-wrap');
+      const pwText = pjMk('span', 'cl-pw-text', '••••••••');
+      pwText.dataset.value = s.password;
+      pwText.dataset.masked = 'true';
+      const pwToggle = pjMk('button', 'cd-icon-btn cl-pw-toggle');
+      pwToggle.innerHTML = ic('eye');
+      pwToggle.title = 'Show/hide password';
+      pwToggle.addEventListener('click', () => {
+        const masked = pwText.dataset.masked === 'true';
+        pwText.textContent = masked ? pwText.dataset.value : '••••••••';
+        pwText.dataset.masked = masked ? 'false' : 'true';
+      });
+      pwWrap.appendChild(document.createTextNode('Pass: '));
+      pwWrap.appendChild(pwText);
+      pwWrap.appendChild(pwToggle);
+      cred.appendChild(pwWrap);
+    }
+    main.appendChild(cred);
+  }
+  if (s.companyCode || s.secretKey) {
+    const svcCred = pjMk('div', 'cl-item-meta cl-item-cred');
+    if (s.companyCode) svcCred.appendChild(pjMk('span', null, 'Company Code: ' + s.companyCode));
+    if (s.secretKey) {
+      const skWrap = pjMk('span', 'cl-pw-wrap');
+      const skText = pjMk('span', 'cl-pw-text', '••••••••');
+      skText.dataset.value = s.secretKey;
+      skText.dataset.masked = 'true';
+      const skToggle = pjMk('button', 'cd-icon-btn cl-pw-toggle');
+      skToggle.innerHTML = ic('eye');
+      skToggle.title = 'Show/hide secret key';
+      skToggle.addEventListener('click', () => {
+        const masked = skText.dataset.masked === 'true';
+        skText.textContent = masked ? skText.dataset.value : '••••••••';
+        skText.dataset.masked = masked ? 'false' : 'true';
+      });
+      skWrap.appendChild(document.createTextNode('Secret Key: '));
+      skWrap.appendChild(skText);
+      skWrap.appendChild(skToggle);
+      svcCred.appendChild(skWrap);
+    }
+    main.appendChild(svcCred);
+  }
+  if (Array.isArray(s.subServices) && s.subServices.length) {
+    const subList = pjMk('div', 'cl-subsvc-list');
+    s.subServices.forEach(sub => {
+      const row = pjMk('div', 'cl-subsvc-row-view');
+      if (sub.label) row.appendChild(pjMk('span', 'cl-subsvc-label', sub.label + ':'));
+      if (sub.url) row.appendChild(pjMk('span', null, sub.url));
+      subList.appendChild(row);
+    });
+    main.appendChild(subList);
+  }
+  if (s.notes) main.appendChild(pjMk('div', 'cl-item-notes', s.notes));
+  card.appendChild(main);
+
+  const actions = pjMk('div', 'cl-item-actions');
+  const editBtn = pjMk('button', 'cd-icon-btn');
+  editBtn.innerHTML = ic('pencil');
+  editBtn.title = 'Edit';
+  editBtn.addEventListener('click', () => openClientInternalModal(s));
+  actions.appendChild(editBtn);
+  const delBtn = pjMk('button', 'cd-icon-btn danger');
+  delBtn.innerHTML = ic('trash-2');
+  delBtn.title = 'Delete';
+  delBtn.addEventListener('click', () =>
+    showDeleteConfirm(actions, () => deleteClientInternalSystemEntry(s.id), () => renderClientDetail(currentClient)));
+  actions.appendChild(delBtn);
+  card.appendChild(actions);
+  return card;
+}
+
+// ── Internal System modal ──
+function addClientInternalSubServiceRow(label, url) {
+  const list = document.getElementById('cint-subservices-list');
+  const row = pjMk('div', 'cint-subsvc-row');
+  const labelInput = document.createElement('input');
+  labelInput.type = 'text';
+  labelInput.placeholder = 'Label (e.g. Bookings)';
+  labelInput.className = 'cint-subsvc-label-input';
+  labelInput.value = label || '';
+  const urlInput = document.createElement('input');
+  urlInput.type = 'text';
+  urlInput.placeholder = 'https://...';
+  urlInput.className = 'cint-subsvc-url-input';
+  urlInput.value = url || '';
+  const removeBtn = pjMk('button', 'cd-icon-btn danger');
+  removeBtn.type = 'button';
+  removeBtn.innerHTML = ic('trash-2');
+  removeBtn.title = 'Remove';
+  removeBtn.addEventListener('click', () => row.remove());
+  row.appendChild(labelInput);
+  row.appendChild(urlInput);
+  row.appendChild(removeBtn);
+  list.appendChild(row);
+}
+function readClientInternalSubServiceRows() {
+  return [...document.querySelectorAll('#cint-subservices-list .cint-subsvc-row')].map(row => ({
+    label: row.querySelector('.cint-subsvc-label-input').value.trim(),
+    url: row.querySelector('.cint-subsvc-url-input').value.trim(),
+  })).filter(s => s.label || s.url);
+}
+function openClientInternalModal(s, focusSystem) {
+  clientInternalEditId = s ? s.id : null;
+  document.getElementById('client-internal-modal-title').textContent = s ? 'Edit Internal System' : (focusSystem ? 'Add Internal System (New Group)' : 'Add Internal System');
+  document.getElementById('client-internal-modal-submit').textContent = s ? 'Save Changes' : 'Add System';
+  document.getElementById('cint-name').value = s ? (s.name || '') : '';
+  document.getElementById('cint-system').value = s ? (s.systemName || '') : '';
+  document.getElementById('cint-environment').value = s ? (s.environment || '') : '';
+  document.getElementById('cint-url').value = s ? (s.url || '') : '';
+  document.getElementById('cint-username').value = s ? (s.username || '') : '';
+  document.getElementById('cint-password').value = s ? (s.password || '') : '';
+  document.getElementById('cint-company-code').value = s ? (s.companyCode || '') : '';
+  document.getElementById('cint-secret-key').value = s ? (s.secretKey || '') : '';
+  document.getElementById('cint-notes').value = s ? (s.notes || '') : '';
+  document.getElementById('cint-subservices-list').innerHTML = '';
+  (s && Array.isArray(s.subServices) ? s.subServices : []).forEach(sub => addClientInternalSubServiceRow(sub.label, sub.url));
+  clearErrorsIn('#client-internal-modal');
+  document.getElementById('client-internal-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById(focusSystem ? 'cint-system' : 'cint-name').focus(), 80);
+}
+function closeClientInternalModal() {
+  document.getElementById('client-internal-modal-overlay').classList.remove('open');
+  clientInternalEditId = null;
+}
+function clientInternalOverlayClick(e) {
+  if (e.target === document.getElementById('client-internal-modal-overlay')) closeClientInternalModal();
+}
+async function submitClientInternalModal() {
+  clearErrorsIn('#client-internal-modal');
+  const name = document.getElementById('cint-name').value.trim();
+  if (!name) { markError('cint-name'); return; }
+  const data = {
+    name,
+    systemName:  document.getElementById('cint-system').value.trim(),
+    environment: document.getElementById('cint-environment').value,
+    url:      document.getElementById('cint-url').value.trim(),
+    username: document.getElementById('cint-username').value.trim(),
+    password: document.getElementById('cint-password').value.trim(),
+    companyCode: document.getElementById('cint-company-code').value.trim(),
+    secretKey:   document.getElementById('cint-secret-key').value.trim(),
+    subServices: readClientInternalSubServiceRows(),
+    notes:    document.getElementById('cint-notes').value.trim(),
+  };
+  try {
+    if (clientInternalEditId != null) await window.api.updateClientInternalSystem(clientInternalEditId, data);
+    else await window.api.createClientInternalSystem(currentClient.id, data);
+    closeClientInternalModal();
+    toast('Internal system saved');
+  } catch { toast('Could not save internal system'); return; }
+  await reloadCurrentClient();
+}
+async function deleteClientInternalSystemEntry(id) {
+  const snapshot = (currentClient?.internalSystems || []).find(s => s.id === id);
+  try { await window.api.deleteClientInternalSystem(id); }
+  catch { toast('Could not delete internal system'); renderClientDetail(currentClient); return; }
+  await reloadCurrentClient();
+  if (!snapshot) return;
+  showGenericUndo('Internal system deleted', async () => {
+    try {
+      await window.api.createClientInternalSystem(snapshot.companyId, {
+        name: snapshot.name, systemName: snapshot.systemName, environment: snapshot.environment,
+        url: snapshot.url, username: snapshot.username, password: snapshot.password, notes: snapshot.notes,
+      });
+    } catch { toast('Could not restore internal system'); return; }
     await reloadCurrentClient();
   });
 }
