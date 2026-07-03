@@ -157,6 +157,8 @@ contextBridge.exposeInMainWorld('api', {
   updateClientInternalSystem: (id, data)        => ipcRenderer.invoke('clients:internal-update', id, data),
   deleteClientInternalSystem: (id)              => ipcRenderer.invoke('clients:internal-delete', id),
   renameClientInternalSystemGroup: (companyId, oldName, newName) => ipcRenderer.invoke('clients:internal-rename-group', companyId, oldName, newName),
+  /** @returns {Promise<import('./ipc-types').ClientFieldHistoryEntry[]>} */
+  getClientFieldHistory: (recordType, recordId) => ipcRenderer.invoke('clients:field-history', recordType, recordId),
 
   // ── Backup / reports / window / shell ──
   /** @returns {Promise<import('./ipc-types').FileResult>} */

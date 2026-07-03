@@ -320,6 +320,8 @@
  * @property {string} port           Free text port number, since migration 018.
  * @property {string} username       Since migration 018. Stored in plain text (no encryption layer in this app).
  * @property {string} password       Since migration 018. Stored in plain text (no encryption layer in this app).
+ * @property {string} expiryDate         Since migration 026 — YYYY-MM-DD or '' (unset). Display only, no reminders.
+ * @property {string} credentialLocation  Since migration 026 — free text reference to where the real secret is managed (e.g. a password manager entry), for records where this table's own password field isn't the source of truth.
  * @property {string} notes
  * @property {number} sortOrder
  * @property {string} createdAt
@@ -339,6 +341,9 @@
  * @property {string} username   Since migration 022. Stored in plain text (no encryption layer in this app).
  * @property {string} password   Since migration 022. Stored in plain text (no encryption layer in this app).
  * @property {string} systemName Free text (e.g. 'RabbitMQ'), since migration 023 — groups with a ClientInternalSystem sharing the same systemName + environment on the Clients "Systems" grouped view.
+ * @property {string} role                Since migration 026 — free text purpose/role (e.g. 'Web/App server', 'DB host', 'Load Balancer').
+ * @property {string} port                Since migration 026 — free text (e.g. SSH/RDP port); distinct from a database's port.
+ * @property {string} credentialLocation  Since migration 026 — free text reference to where the real login is managed, for records where this table's own password field isn't the source of truth.
  * @property {string} notes
  * @property {number} sortOrder
  * @property {string} createdAt
@@ -356,6 +361,8 @@
  * @property {string} port       Free text port number.
  * @property {string} username   Stored in plain text (no encryption layer in this app).
  * @property {string} password   Stored in plain text (no encryption layer in this app).
+ * @property {string} version             Since migration 026 — free text engine version (e.g. 'PostgreSQL 15').
+ * @property {string} credentialLocation  Since migration 026 — free text reference to where the real login is managed, for records where this table's own password field isn't the source of truth.
  * @property {string} notes
  * @property {number} sortOrder
  * @property {string} createdAt
@@ -372,6 +379,8 @@
  * @property {string} url         Free text, often includes a query-string API key.
  * @property {string} companyCode Free text — the integration's own company/client code (not our COMPANY lookup id).
  * @property {string} secretKey   Stored in plain text (no encryption layer in this app).
+ * @property {string} expiryDate Since migration 026 — YYYY-MM-DD or '' (unset), e.g. an API key/contract renewal date. Display only, no reminders.
+ * @property {string} contact     Since migration 026 — free text support contact for this integration.
  * @property {string} notes
  * @property {number} sortOrder
  * @property {string} createdAt
@@ -396,11 +405,28 @@
  * @property {string} environment 'PRODUCTION' | 'TEST' | '' (unset), since migration 023 — same hardcoded codes as ClientServer.environment.
  * @property {string} companyCode Since migration 024 — a third-party integration's own client/company code, unrelated to the app's COMPANY lookup.
  * @property {string} secretKey   Since migration 024 — stored in plain text (no encryption layer in this app).
+ * @property {string} expiryDate Since migration 026 — YYYY-MM-DD or '' (unset), e.g. a credential/contract expiry. Display only, no reminders.
+ * @property {string} role       Since migration 026 — free text purpose/description of this system.
  * @property {{label: string, url: string}[]} subServices Since migration 025 — structured sibling endpoints of one logical service (e.g. a government API's Bookings/Reports/Admin* endpoints sharing this record's companyCode/secretKey). Empty array when unused.
  * @property {string} notes
  * @property {number} sortOrder
  * @property {string} createdAt
  * @property {string} updatedAt
+ */
+
+/**
+ * One audit-history row for an edit to an existing Clients-page record
+ * (`clients:field-history`, migration 027). Written only on UPDATE (never
+ * create/delete) to one of the five client_* tables, one row per field that
+ * actually changed. `oldValue`/`newValue` are '(hidden)' for the password/
+ * secretKey fields — the change is still recorded, but the real credential
+ * text is not duplicated into a permanent, potentially-backed-up table.
+ * @typedef {Object} ClientFieldHistoryEntry
+ * @property {number} id
+ * @property {string} fieldName  Human label (e.g. 'Password', 'Host (IP)'), not the raw column name.
+ * @property {string} oldValue
+ * @property {string} newValue
+ * @property {string} changedAt
  */
 
 /**
