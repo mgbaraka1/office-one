@@ -307,13 +307,19 @@
  */
 
 /**
- * One VPN connection recorded against a client (`clients:vpn-*`).
+ * One Auth connection recorded against a client (`clients:vpn-*`) — despite the
+ * channel/field names (kept for backward compatibility), the UI labels this
+ * section "Auth" and it holds VPN, PAM, and similar login records; `vpnType`
+ * is free text distinguishing them (e.g. 'VPN', 'PAM', 'WireGuard').
  * @typedef {Object} ClientVpnConnection
  * @property {number} id
  * @property {number} companyId      The COMPANY lookup_codes id this belongs to.
  * @property {string} connectionName
- * @property {string} vpnType        Free text (e.g. 'WireGuard', 'IPSec') — not lookup-driven.
- * @property {string} endpoint       Free text host/IP.
+ * @property {string} vpnType        Free text (e.g. 'VPN', 'PAM', 'WireGuard', 'IPSec') — not lookup-driven.
+ * @property {string} endpoint       Free text host/URL.
+ * @property {string} port           Free text port number, since migration 018.
+ * @property {string} username       Since migration 018. Stored in plain text (no encryption layer in this app).
+ * @property {string} password       Since migration 018. Stored in plain text (no encryption layer in this app).
  * @property {string} notes
  * @property {number} sortOrder
  * @property {string} createdAt
@@ -329,6 +335,68 @@
  * @property {string} host       Free text IP/hostname.
  * @property {string} environment 'PRODUCTION' | 'TEST' (hardcoded, not lookup-driven).
  * @property {string} os         Free text (e.g. 'Ubuntu 22.04').
+ * @property {string} hostname   Free text — a separate hostname distinct from `host` (the IP). Since migration 022.
+ * @property {string} username   Since migration 022. Stored in plain text (no encryption layer in this app).
+ * @property {string} password   Since migration 022. Stored in plain text (no encryption layer in this app).
+ * @property {string} systemName Free text (e.g. 'RabbitMQ'), since migration 023 — groups with a ClientInternalSystem sharing the same systemName + environment on the Clients "Systems" grouped view.
+ * @property {string} notes
+ * @property {number} sortOrder
+ * @property {string} createdAt
+ * @property {string} updatedAt
+ */
+
+/**
+ * One database recorded against a client (`clients:database-*`, migration 019).
+ * @typedef {Object} ClientDatabase
+ * @property {number} id
+ * @property {number} companyId  The COMPANY lookup_codes id this belongs to.
+ * @property {string} name
+ * @property {string} engine     Free text (e.g. 'PostgreSQL', 'SQL Server') — not lookup-driven.
+ * @property {string} host       Free text host/IP.
+ * @property {string} port       Free text port number.
+ * @property {string} username   Stored in plain text (no encryption layer in this app).
+ * @property {string} password   Stored in plain text (no encryption layer in this app).
+ * @property {string} notes
+ * @property {number} sortOrder
+ * @property {string} createdAt
+ * @property {string} updatedAt
+ */
+
+/**
+ * One third-party API integration recorded against a client
+ * (`clients:external-*`, migration 020) — e.g. a government/partner API.
+ * @typedef {Object} ClientExternalService
+ * @property {number} id
+ * @property {number} companyId   The COMPANY lookup_codes id this belongs to.
+ * @property {string} name
+ * @property {string} url         Free text, often includes a query-string API key.
+ * @property {string} companyCode Free text — the integration's own company/client code (not our COMPANY lookup id).
+ * @property {string} secretKey   Stored in plain text (no encryption layer in this app).
+ * @property {string} notes
+ * @property {number} sortOrder
+ * @property {string} createdAt
+ * @property {string} updatedAt
+ */
+
+/**
+ * One internal web tool/portal recorded against a client
+ * (`clients:internal-*`, migration 021) — e.g. an internal RabbitMQ console.
+ * A plain name/url/username/password login, plus (since migration 024) an
+ * optional companyCode/secretKey pair for records that are really a
+ * third-party API integration (the ClientExternalService shape) grouped
+ * alongside servers/portals instead.
+ * @typedef {Object} ClientInternalSystem
+ * @property {number} id
+ * @property {number} companyId  The COMPANY lookup_codes id this belongs to.
+ * @property {string} name
+ * @property {string} url        Free text.
+ * @property {string} username   Stored in plain text (no encryption layer in this app).
+ * @property {string} password   Stored in plain text (no encryption layer in this app).
+ * @property {string} systemName Free text (e.g. 'RabbitMQ'), since migration 023 — groups with a ClientServer sharing the same systemName + environment.
+ * @property {string} environment 'PRODUCTION' | 'TEST' | '' (unset), since migration 023 — same hardcoded codes as ClientServer.environment.
+ * @property {string} companyCode Since migration 024 — a third-party integration's own client/company code, unrelated to the app's COMPANY lookup.
+ * @property {string} secretKey   Since migration 024 — stored in plain text (no encryption layer in this app).
+ * @property {{label: string, url: string}[]} subServices Since migration 025 — structured sibling endpoints of one logical service (e.g. a government API's Bookings/Reports/Admin* endpoints sharing this record's companyCode/secretKey). Empty array when unused.
  * @property {string} notes
  * @property {number} sortOrder
  * @property {string} createdAt
@@ -344,15 +412,22 @@
  * @property {string} label
  * @property {number} vpnCount
  * @property {number} serverCount
+ * @property {number} databaseCount
+ * @property {number} externalServiceCount
+ * @property {number} internalSystemCount
  */
 
 /**
- * A client in full (`clients:get`): its label + ordered VPN connections and servers.
+ * A client in full (`clients:get`): its label + ordered auth connections,
+ * servers, databases, external services, and internal systems.
  * @typedef {Object} Client
  * @property {number} id     The COMPANY lookup_codes id.
  * @property {string} label
  * @property {ClientVpnConnection[]} vpnConnections
  * @property {ClientServer[]} servers
+ * @property {ClientDatabase[]} databases
+ * @property {ClientExternalService[]} externalServices
+ * @property {ClientInternalSystem[]} internalSystems
  */
 
 /**
