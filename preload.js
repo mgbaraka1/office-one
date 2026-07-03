@@ -53,14 +53,10 @@ contextBridge.exposeInMainWorld('api', {
   loadSubscriptions: ()           => ipcRenderer.invoke('subscriptions:list'),
   saveSubscriptions: (data)       => ipcRenderer.invoke('subscriptions:save', data),
 
-  // ── "Not Yet" pool ──
-  // backlog:list / backlog:save retired in Phase C3 — a Not-Yet item is a task with
-  // zero work_logs. List via tasks:notyet; mutate via createTask/updateTask/
-  // deleteTask; "assign to day" adds a work_log.
-  /** @returns {Promise<import('./ipc-types').NotYetTask[]>} */
-  listNotYet:     ()              => ipcRenderer.invoke('tasks:notyet'),
-
-  // ── Tasks (v2 two-level model — standalone, date-independent unit of work) ──
+  // ── Tasks (two-level model — standalone, date-independent unit of work) ──
+  // A task with zero work_logs is a "not yet started" task, created only through
+  // Projects (which requires a project link) since there's no day-agnostic browse
+  // page for it anymore.
   /** @returns {Promise<import('./ipc-types').Task[]>} */
   listTasks:      ()              => ipcRenderer.invoke('tasks:list'),
   /** @returns {Promise<import('./ipc-types').Task|null>} */
@@ -115,6 +111,41 @@ contextBridge.exposeInMainWorld('api', {
   removeProjectDocument:   (projectId, documentType) => ipcRenderer.invoke('projects:remove-document', projectId, documentType),
   purgeProjectFiles:       (projectId)               => ipcRenderer.invoke('projects:purge-files', projectId),
   restoreProjectFiles:     (oldId, newId, docs)      => ipcRenderer.invoke('projects:restore-files', oldId, newId, docs),
+
+  // ── Company Documents (standalone card-per-document module) ──
+  /** @returns {Promise<import('./ipc-types').CompanyDocument[]>} */
+  listCompanyDocuments:  ()          => ipcRenderer.invoke('companydocs:list'),
+  /** @returns {Promise<import('./ipc-types').CompanyDocument|null>} */
+  getCompanyDocument:    (id)        => ipcRenderer.invoke('companydocs:get', id),
+  /** @returns {Promise<import('./ipc-types').CompanyDocument>} */
+  createCompanyDocument: (data)      => ipcRenderer.invoke('companydocs:create', data),
+  /** @returns {Promise<import('./ipc-types').CompanyDocument|null>} */
+  updateCompanyDocument: (id, data)  => ipcRenderer.invoke('companydocs:update', id, data),
+  deleteCompanyDocument: (id)        => ipcRenderer.invoke('companydocs:delete', id),
+  /** @returns {Promise<import('./ipc-types').CompanyDocFileResult>} */
+  uploadCompanyDocument:   (id) => ipcRenderer.invoke('companydocs:upload-document', id),
+  /** Replace = upload again; the prior file is removed server-side on conflict. */
+  /** @returns {Promise<import('./ipc-types').CompanyDocFileResult>} */
+  replaceCompanyDocument:  (id) => ipcRenderer.invoke('companydocs:upload-document', id),
+  /** @returns {Promise<import('./ipc-types').FileResult>} */
+  downloadCompanyDocument: (id) => ipcRenderer.invoke('companydocs:download-document', id),
+  openCompanyDocument:     (id) => ipcRenderer.invoke('companydocs:open-document', id),
+  /** @returns {Promise<import('./ipc-types').CompanyDocFileResult>} */
+  removeCompanyDocument:   (id) => ipcRenderer.invoke('companydocs:remove-document', id),
+  purgeCompanyDocumentFiles: (id)                    => ipcRenderer.invoke('companydocs:purge-files', id),
+  restoreCompanyDocumentFile: (oldId, newId, fileMeta) => ipcRenderer.invoke('companydocs:restore-file', oldId, newId, fileMeta),
+
+  // ── Clients (VPN Connectivity + Server Information per COMPANY lookup) ──
+  /** @returns {Promise<import('./ipc-types').ClientListItem[]>} */
+  listClients: ()                     => ipcRenderer.invoke('clients:list'),
+  /** @returns {Promise<import('./ipc-types').Client|null>} */
+  getClient:   (companyId)            => ipcRenderer.invoke('clients:get', companyId),
+  createClientVpn: (companyId, data)  => ipcRenderer.invoke('clients:vpn-create', companyId, data),
+  updateClientVpn: (id, data)         => ipcRenderer.invoke('clients:vpn-update', id, data),
+  deleteClientVpn: (id)               => ipcRenderer.invoke('clients:vpn-delete', id),
+  createClientServer: (companyId, data) => ipcRenderer.invoke('clients:server-create', companyId, data),
+  updateClientServer: (id, data)        => ipcRenderer.invoke('clients:server-update', id, data),
+  deleteClientServer: (id)              => ipcRenderer.invoke('clients:server-delete', id),
 
   // ── Backup / reports / window / shell ──
   /** @returns {Promise<import('./ipc-types').FileResult>} */

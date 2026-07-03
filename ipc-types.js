@@ -131,22 +131,6 @@
  */
 
 /**
- * A "Not Yet" item (`tasks:notyet`) — a task with zero work sessions. Merged from
- * the old backlog in migration 013. `description` is the task name; there is no
- * per-session `time` (chosen when the task is assigned to a day). Add/edit/delete
- * go through tasks:create / tasks:update / tasks:delete.
- * @typedef {Object} NotYetTask
- * @property {number} id
- * @property {string} description   The task name / "what to do".
- * @property {string} company
- * @property {string} system
- * @property {string} natural
- * @property {string} source
- * @property {string[]} tags
- * @property {number|null} projectId
- */
-
-/**
  * One dated work session on a task (the `work_logs` table). `time` is a TIME_TYPE
  * lookup code (per-session, e.g. Work Time / Over Time).
  * @typedef {Object} WorkLog
@@ -273,6 +257,102 @@
  * `projects:linkable-tasks` returns a flat `Task[]` — every task not linked to any
  * project (with-sessions and zero-log alike), each with its rollups. (The old
  * {entries, backlog} LinkableTasks shape was retired in Phase C4.)
+ */
+
+/**
+ * Metadata for a Company Document's uploaded file (bytes live on disk under
+ * userData; only this metadata is in SQLite). null when no file has been
+ * uploaded. Shape mirrors ProjectDocumentFile.
+ * @typedef {Object} CompanyDocumentFile
+ * @property {string} path         Path RELATIVE to userData (e.g. 'company_documents/12/1719750000000.pdf').
+ * @property {string} originalName The user's original filename, for display/download.
+ * @property {number} size         File size in bytes.
+ * @property {string} mimeType     MIME type resolved from the extension.
+ * @property {string} uploadedAt   ISO timestamp of the upload.
+ * @property {boolean} exists      Whether the file is actually present on disk right now.
+ */
+
+/**
+ * A Company Document card (`companydocs:*`). Unlike ProjectDocument (a fixed
+ * catalog slot per project), each row IS the user-created entity — deleting it
+ * deletes the card, not just its file.
+ * @typedef {Object} CompanyDocument
+ * @property {number} id
+ * @property {string} name         User-entered title (e.g. 'VAT Certificate').
+ * @property {string} category     A COMPANY_DOCUMENT_CATEGORY lookup code, or '' if unset.
+ * @property {string} renewalDate  YYYY-MM-DD, or '' if not tracked.
+ * @property {string} notes
+ * @property {number} sortOrder
+ * @property {string} createdAt
+ * @property {string} updatedAt
+ * @property {CompanyDocumentFile|null} file  Uploaded-file metadata, or null when none.
+ */
+
+/**
+ * Write shape for `companydocs:create` / `companydocs:update`.
+ * @typedef {Object} CompanyDocumentInput
+ * @property {string} name
+ * @property {string} [category]     A COMPANY_DOCUMENT_CATEGORY lookup code; unknown/empty → unset.
+ * @property {string} [renewalDate]  YYYY-MM-DD, or omitted/empty to clear.
+ * @property {string} [notes]
+ */
+
+/**
+ * Result of a Company Document file mutation (upload / replace / remove / restore).
+ * @typedef {Object} CompanyDocFileResult
+ * @property {boolean} ok
+ * @property {CompanyDocument} [document]  The refreshed card on success.
+ * @property {string} [error]              Failure reason (e.g. unsupported type).
+ * @property {boolean} [canceled]          True when the user dismissed the file dialog.
+ */
+
+/**
+ * One VPN connection recorded against a client (`clients:vpn-*`).
+ * @typedef {Object} ClientVpnConnection
+ * @property {number} id
+ * @property {number} companyId      The COMPANY lookup_codes id this belongs to.
+ * @property {string} connectionName
+ * @property {string} vpnType        Free text (e.g. 'WireGuard', 'IPSec') — not lookup-driven.
+ * @property {string} endpoint       Free text host/IP.
+ * @property {string} notes
+ * @property {number} sortOrder
+ * @property {string} createdAt
+ * @property {string} updatedAt
+ */
+
+/**
+ * One server recorded against a client (`clients:server-*`).
+ * @typedef {Object} ClientServer
+ * @property {number} id
+ * @property {number} companyId  The COMPANY lookup_codes id this belongs to.
+ * @property {string} serverName
+ * @property {string} host       Free text IP/hostname.
+ * @property {string} environment 'PRODUCTION' | 'TEST' (hardcoded, not lookup-driven).
+ * @property {string} os         Free text (e.g. 'Ubuntu 22.04').
+ * @property {string} notes
+ * @property {number} sortOrder
+ * @property {string} createdAt
+ * @property {string} updatedAt
+ */
+
+/**
+ * One client on the Clients list page — a COMPANY lookup row + its record
+ * counts. There is no standalone clients table; the roster IS the active
+ * COMPANY lookup catalog.
+ * @typedef {Object} ClientListItem
+ * @property {number} id          The COMPANY lookup_codes id.
+ * @property {string} label
+ * @property {number} vpnCount
+ * @property {number} serverCount
+ */
+
+/**
+ * A client in full (`clients:get`): its label + ordered VPN connections and servers.
+ * @typedef {Object} Client
+ * @property {number} id     The COMPANY lookup_codes id.
+ * @property {string} label
+ * @property {ClientVpnConnection[]} vpnConnections
+ * @property {ClientServer[]} servers
  */
 
 /**

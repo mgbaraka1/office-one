@@ -110,16 +110,10 @@ ipcMain.handle('lookups:save',        authed((_e, data)                      => 
 ipcMain.handle('subscriptions:list', authed(()         => db.loadSubscriptions(auth.requireUserId())));
 ipcMain.handle('subscriptions:save', authed((_e, data) => db.saveSubscriptions(auth.requireUserId(), data)));
 
-// ── "Not Yet" pool ──
-// backlog:list / backlog:save were retired in Phase C3 — a Not-Yet item is now a
-// task with zero work_logs (migration 013 merged the backlog table in; 014 dropped
-// it). The list comes from tasks:notyet; add/edit/delete use tasks:create/update/
-// delete; "assign to day" adds a work_log.
-ipcMain.handle('tasks:notyet', authed(() => db.listNotYetTasks(auth.requireUserId())));
-
-// ── Tasks (v2 two-level model — standalone, date-independent unit of work) ──
-// Added alongside day:*/backlog:* (which remain the renderer's live path until the
-// Phase C UI rework); both APIs operate on the same tables.
+// ── Tasks (two-level model — standalone, date-independent unit of work) ──
+// A task with zero work_logs is a "not yet started" task, created only through
+// Projects (which requires a project link) since there's no day-agnostic browse
+// page for it anymore.
 ipcMain.handle('tasks:list',   authed(()             => db.listTasks(auth.requireUserId())));
 ipcMain.handle('tasks:get',    authed((_e, id)       => db.getTask(auth.requireUserId(), id)));
 ipcMain.handle('tasks:create', authed((_e, data)     => db.createTask(auth.requireUserId(), data)));
@@ -195,6 +189,64 @@ ipcMain.handle('projects:remove-document', authed((_e, projectId, documentType) 
 // or move it onto the re-created project's new id when the user undoes.
 ipcMain.handle('projects:purge-files',  authed((_e, projectId)            => db.purgeProjectFiles(projectId)));
 ipcMain.handle('projects:restore-files', authed((_e, oldId, newId, docs)  => db.restoreProjectFiles(auth.requireUserId(), oldId, newId, docs)));
+
+// ── Company Documents (standalone card-per-document module) ──
+ipcMain.handle('companydocs:list',   authed(()             => db.listCompanyDocuments(auth.requireUserId())));
+ipcMain.handle('companydocs:get',    authed((_e, id)       => db.getCompanyDocument(auth.requireUserId(), id)));
+ipcMain.handle('companydocs:create', authed((_e, data)     => db.createCompanyDocument(auth.requireUserId(), data)));
+ipcMain.handle('companydocs:update', authed((_e, id, data) => db.updateCompanyDocument(auth.requireUserId(), id, data)));
+ipcMain.handle('companydocs:delete', authed((_e, id)       => db.deleteCompanyDocument(auth.requireUserId(), id)));
+// Upload (and replace — db.saveCompanyDocumentFile deletes the prior file on conflict).
+ipcMain.handle('companydocs:upload-document', authed(async (_e, id) => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    title: 'Choose a document to upload',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Documents & images', extensions: DOC_UPLOAD_EXTENSIONS },
+      { name: 'PDF',    extensions: ['pdf'] },
+      { name: 'Word',   extensions: ['doc', 'docx'] },
+      { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },
+    ],
+  });
+  if (canceled || !filePaths?.[0]) return { ok: false, canceled: true };
+  return db.saveCompanyDocumentFile(auth.requireUserId(), id, filePaths[0]);
+}));
+// Download — copy the stored file out to a user-chosen location.
+ipcMain.handle('companydocs:download-document', authed(async (_e, id) => {
+  const r = db.resolveCompanyDocumentFile(auth.requireUserId(), id);
+  if (!r.ok) return r;
+  if (!r.exists) return { ok: false, error: 'The file is missing from disk' };
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    title: 'Save document as', defaultPath: r.originalName,
+  });
+  if (canceled || !filePath) return { ok: false, canceled: true };
+  try { fs.copyFileSync(r.absPath, filePath); return { ok: true, path: filePath }; }
+  catch (err) { return { ok: false, error: String(err?.message || err) }; }
+}));
+// Open with the OS default application.
+ipcMain.handle('companydocs:open-document', authed(async (_e, id) => {
+  const r = db.resolveCompanyDocumentFile(auth.requireUserId(), id);
+  if (!r.ok) return r;
+  if (!r.exists) return { ok: false, error: 'The file is missing from disk' };
+  const errMsg = await shell.openPath(r.absPath);   // '' on success
+  return errMsg ? { ok: false, error: errMsg } : { ok: true };
+}));
+// Remove — delete the file from disk and clear its metadata (keeps the card).
+ipcMain.handle('companydocs:remove-document', authed((_e, id) => db.removeCompanyDocumentFile(auth.requireUserId(), id)));
+// Delete-undo file handling: purge the card's folder when the undo window
+// lapses, or move it onto the re-created card's new id when the user undoes.
+ipcMain.handle('companydocs:purge-files',   authed((_e, id)                     => db.purgeCompanyDocumentFiles(id)));
+ipcMain.handle('companydocs:restore-file',  authed((_e, oldId, newId, fileMeta) => db.restoreCompanyDocumentFile(auth.requireUserId(), oldId, newId, fileMeta)));
+
+// ── Clients (VPN Connectivity + Server Information per COMPANY lookup) ──
+ipcMain.handle('clients:list', authed(()               => db.listClients(auth.requireUserId())));
+ipcMain.handle('clients:get',  authed((_e, companyId)  => db.getClient(auth.requireUserId(), companyId)));
+ipcMain.handle('clients:vpn-create', authed((_e, companyId, data) => db.createClientVpn(auth.requireUserId(), companyId, data)));
+ipcMain.handle('clients:vpn-update', authed((_e, id, data)        => db.updateClientVpn(auth.requireUserId(), id, data)));
+ipcMain.handle('clients:vpn-delete', authed((_e, id)              => db.deleteClientVpn(auth.requireUserId(), id)));
+ipcMain.handle('clients:server-create', authed((_e, companyId, data) => db.createClientServer(auth.requireUserId(), companyId, data)));
+ipcMain.handle('clients:server-update', authed((_e, id, data)        => db.updateClientServer(auth.requireUserId(), id, data)));
+ipcMain.handle('clients:server-delete', authed((_e, id)              => db.deleteClientServer(auth.requireUserId(), id)));
 
 // ── Backup ──
 ipcMain.handle('db:backup', authed(async () => {

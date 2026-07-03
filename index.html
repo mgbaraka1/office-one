@@ -61,6 +61,8 @@
       --error-bg:   #fff5f5;
       --done:       #dcfce7; --done-text: #16a34a;
       --prog:       #fef9c3; --prog-text: #a16207;
+      --open:       #dbeafe; --open-text: #2563eb;
+      --blocked:    #fee2e2; --blocked-text: #dc2626;
       --notyet:     color-mix(in srgb, #14b8a6 10%, #f4f6fb); --notyet-text: #0d9488;
       --renew-ok:   #dcfce7; --renew-ok-text: #16a34a;
       --renew-soon: #fef9c3; --renew-soon-text: #a16207;
@@ -93,6 +95,8 @@
       --error-bg:   color-mix(in srgb, #f25e6b 12%, #0c0c0f);
       --done:       color-mix(in srgb, #34d399 15%, #0c0c0f); --done-text: #34d399;
       --prog:       color-mix(in srgb, #f5b544 15%, #0c0c0f); --prog-text: #f5b544;
+      --open:       color-mix(in srgb, #60a5fa 15%, #0c0c0f); --open-text: #60a5fa;
+      --blocked:    color-mix(in srgb, #f25e6b 15%, #0c0c0f); --blocked-text: #f25e6b;
       --notyet:     color-mix(in srgb, #14b8a6 12%, #0c0c0f); --notyet-text: #14b8a6;
       --renew-ok:   color-mix(in srgb, #34d399 15%, #0c0c0f); --renew-ok-text: #34d399;
       --renew-soon: color-mix(in srgb, #f5b544 15%, #0c0c0f); --renew-soon-text: #f5b544;
@@ -232,7 +236,7 @@
     .inprogress-divider-label .lic { width: 13px; height: 13px; vertical-align: -0.12em; }
     /* Decorative empty-state icons — larger, lighter stroke */
     #empty-state .icon .lic, #sub-empty-state .icon .lic,
-    #backlog-empty-state .icon .lic, .cp-placeholder .icon .lic,
+    .cp-placeholder .icon .lic,
     #projects-empty-state .icon .lic { width: 46px; height: 46px; stroke-width: 1.5; }
     .dash-empty .de-icon .lic { width: 30px; height: 30px; stroke-width: 1.75; }
     /* Filter clear, timer chip, calendar caret, lookup toggle, cp filter clear */
@@ -396,6 +400,8 @@
     .status-badge:active { transform: scale(.93); }
     .status-done .status-badge     { background: var(--done);   color: var(--done-text); }
     .status-progress .status-badge { background: var(--prog);   color: var(--prog-text); }
+    .status-open .status-badge     { background: var(--open);   color: var(--open-text); }
+    .status-blocked .status-badge  { background: var(--blocked); color: var(--blocked-text); }
 
     /* Renewal badges (Subscriptions) */
     .renew-badge {
@@ -419,6 +425,8 @@
     .status-dropdown .sd-opt:hover { opacity: .8; }
     .status-dropdown .sd-opt.done     { background: var(--done);   color: var(--done-text); }
     .status-dropdown .sd-opt.progress { background: var(--prog);   color: var(--prog-text); }
+    .status-dropdown .sd-opt.open     { background: var(--open);   color: var(--open-text); }
+    .status-dropdown .sd-opt.blocked  { background: var(--blocked); color: var(--blocked-text); }
 
     .min-inline-input {
       width: 60px; background: var(--surface2); border: 1.5px solid var(--primary);
@@ -463,12 +471,12 @@
     tbody tr.timer-running:hover td { background: color-mix(in srgb, var(--good) 14%, var(--surface)) !important; }
 
     /* ══ EMPTY STATES (one shared family) ══ */
-    #empty-state, #sub-empty-state, #backlog-empty-state, .cp-placeholder, #projects-empty-state {
+    #empty-state, #sub-empty-state, .cp-placeholder, #projects-empty-state {
       display: flex; flex-direction: column; align-items: center; text-align: center;
       justify-content: center; gap: var(--space-3); padding: var(--space-8) var(--space-5); color: var(--muted);
     }
-    #empty-state .icon, #sub-empty-state .icon, #backlog-empty-state .icon, .cp-placeholder .icon, #projects-empty-state .icon { font-size: 44px; opacity: .4; margin: 0; }
-    #empty-state p, #sub-empty-state p, #backlog-empty-state p, #projects-empty-state p { font-size: 15px; }
+    #empty-state .icon, #sub-empty-state .icon, .cp-placeholder .icon, #projects-empty-state .icon { font-size: 44px; opacity: .4; margin: 0; }
+    #empty-state p, #sub-empty-state p, #projects-empty-state p { font-size: 15px; }
     /* In-card empties (analytics cards, read-only lists/records) */
     .an-empty, .dash-empty, .cp-records-empty, .cp-list-empty {
       text-align: center; color: var(--muted); font-size: 13px; padding: var(--space-7) var(--space-3);
@@ -493,14 +501,6 @@
     @media (prefers-reduced-motion: reduce) {
       .skeleton::after, .skeleton-text::after, .skeleton-card::after { animation: none; }
     }
-
-    /* ══ NOT YET (BACKLOG) MODULE ══ */
-    #backlog-table-wrap { flex: 1; overflow-y: auto; padding: var(--space-5) var(--space-6) var(--space-7); }
-    .backlog-hint {
-      font-size: 12px; color: var(--muted); margin: 0 0 12px; line-height: 1.5;
-    }
-    /* Inline "assign to day" date confirm (reuses the row move-confirm look). */
-    .backlog-assign { display: inline-flex; align-items: center; gap: 4px; }
 
     /* ══ REPORTS MODULE ══ */
     .rmod-scroll { flex: 1; overflow-y: auto; padding: var(--space-6) var(--space-7) var(--space-8); max-width: 1100px; width: 100%; }
@@ -692,7 +692,7 @@
     }
     .ss-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); background: var(--input-focus-bg); }
 
-    /* Compact "linked project" pill shown on timesheet / Not Yet task rows */
+    /* Compact "linked project" pill shown on timesheet / project task rows */
     .row-project-tag {
       display: inline-flex; align-items: center; gap: 4px; margin-top: 4px;
       font-size: 11px; font-weight: 600; color: var(--muted);
@@ -748,12 +748,57 @@
     .pj-link-meta { font-size: 12px; color: var(--muted); }
     .pj-kind-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; padding: 2px 7px; border-radius: 999px; background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
 
+    /* ══ COMPANY DOCUMENTS ══ */
+    .cd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px; }
+    .cd-card {
+      display: flex; flex-direction: column; gap: 10px;
+      border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-5);
+      background: var(--surface); transition: border-color .28s cubic-bezier(.22,1,.36,1), box-shadow .28s cubic-bezier(.22,1,.36,1);
+    }
+    .cd-card:hover { border-color: var(--primary); box-shadow: var(--shadow-sm); }
+    .cd-card-head { display: flex; align-items: flex-start; gap: 10px; }
+    .cd-card-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--border); color: var(--muted); flex-shrink: 0; }
+    .cd-card-icon .lic { width: 18px; height: 18px; }
+    .cd-card.available .cd-card-icon { background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--good); }
+    .cd-card.missing .cd-card-icon { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad); }
+    .cd-card-title { flex: 1; min-width: 0; }
+    .cd-card-name { font-size: 15px; font-weight: 700; color: var(--text); letter-spacing: -.2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cd-card-cat { display: inline-block; margin-top: 4px; font-size: 11px; font-weight: 600; color: var(--muted); background: var(--surface2); border: 1px solid var(--border); padding: 1px 8px; border-radius: 999px; }
+    .cd-card-icons { display: flex; gap: 4px; flex-shrink: 0; }
+    .cd-icon-btn { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid transparent; color: var(--muted); cursor: pointer; background: none; transition: all .2s; }
+    .cd-icon-btn:hover { background: var(--surface2); border-color: var(--border); color: var(--text); }
+    .cd-icon-btn.danger:hover { color: var(--bad); border-color: var(--bad); }
+    .cd-icon-btn .lic { width: 14px; height: 14px; }
+    .cd-renewal { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--muted); }
+    .cd-renewal .lic { width: 13px; height: 13px; }
+    .cd-renewal.overdue { color: var(--bad); }
+    .cd-renewal.soon { color: var(--warn); }
+    .cd-notes { font-size: 12.5px; color: var(--muted); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .cd-file-row { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cd-file-row .fname { font-weight: 600; color: var(--text); }
+    .cd-file-warn { color: var(--bad); font-weight: 600; }
+    .cd-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 4px; }
+
+    /* ══ CLIENTS (VPN Connectivity + Server Information) ══ */
+    .cl-item-card {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+      border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 10px;
+    }
+    .cl-item-main { min-width: 0; flex: 1; }
+    .cl-item-title { font-size: 14px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .cl-item-meta { font-size: 12.5px; color: var(--muted); margin-top: 3px; font-family: 'JetBrains Mono', monospace; }
+    .cl-item-notes { font-size: 12.5px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+    .cl-item-actions { display: flex; gap: 4px; flex-shrink: 0; }
+    .cl-env-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; padding: 2px 8px; border-radius: 999px; }
+    .cl-env-badge.production { background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--good); }
+    .cl-env-badge.test { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+
     /* ══ HOME OVERVIEW (merged into the Analytics view) ══ */
     .dash-greeting { margin-bottom: 22px; }
     .dash-greeting h1 { font-size: var(--fs-display); font-weight: 700; color: var(--text); letter-spacing: var(--ls-display); }
     .dash-greeting p { font-size: 14px; color: var(--muted); margin-top: 4px; }
     .dash-stats {
-      display: grid; grid-template-columns: repeat(3, 1fr);
+      display: grid; grid-template-columns: repeat(2, 1fr);
       gap: 16px; margin-bottom: 4px;
     }
     .dash-stat {
@@ -1062,6 +1107,10 @@
     #sub-settings-modal { width: 380px; }
     #project-modal { width: 460px; }
     #link-task-modal { width: 540px; }
+    #task-detail-modal { width: 720px; max-width: 94vw; max-height: 90vh; }
+    #task-detail-overlay { z-index: 150; }
+    .td-stats { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+    .td-sessions-empty { color: var(--muted); font-size: 13px; font-style: italic; padding: 8px 0; }
     .btn.del-action { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 28%, transparent); }
     .btn.del-action:hover { background: var(--bad); border-color: var(--bad); color: #fff; }
 
@@ -1508,7 +1557,7 @@
     #timer-stop-btn:hover { background: var(--good); color: #fff; border-color: var(--good); }
 
     /* ══ UNDO TOAST ══ */
-    #undo-toast, #sub-undo-toast, #backlog-undo-toast, #project-undo-toast {
+    #undo-toast, #sub-undo-toast, #project-undo-toast, #companydoc-undo-toast {
       position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
       background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
       padding: 13px 22px; display: none; align-items: center; gap: 12px;
@@ -1517,17 +1566,17 @@
       animation: toastIn .2s var(--ease);
       white-space: nowrap;
     }
-    #undo-toast.visible, #sub-undo-toast.visible, #backlog-undo-toast.visible, #project-undo-toast.visible { display: flex; }
+    #undo-toast.visible, #sub-undo-toast.visible, #project-undo-toast.visible, #companydoc-undo-toast.visible { display: flex; }
     @keyframes toastIn {
       from { opacity: 0; transform: translateX(-50%) translateY(8px); }
       to   { opacity: 1; transform: translateX(-50%) translateY(0); }
     }
-    #undo-toast-btn, #sub-undo-toast-btn, #backlog-undo-toast-btn, #project-undo-toast-btn {
+    #undo-toast-btn, #sub-undo-toast-btn, #project-undo-toast-btn, #companydoc-undo-toast-btn {
       background: var(--primary); border: none; border-radius: 8px;
       padding: 3px 12px; font-size: 12px; font-weight: 700;
       color: #fff; cursor: pointer; font-family: inherit; transition: background var(--speed);
     }
-    #undo-toast-btn:hover, #sub-undo-toast-btn:hover, #backlog-undo-toast-btn:hover, #project-undo-toast-btn:hover { background: var(--primary-strong); }
+    #undo-toast-btn:hover, #sub-undo-toast-btn:hover, #project-undo-toast-btn:hover, #companydoc-undo-toast-btn:hover { background: var(--primary-strong); }
 
     /* ══ CROSS-LINKS (clickable data → related views) ══ */
     .cell-link {
@@ -1715,9 +1764,6 @@
     <button class="nav-item" data-module="timesheet" onclick="switchModule('timesheet')">
       <span class="nav-icon" data-ic="clock"></span>Timesheet
     </button>
-    <button class="nav-item" data-module="backlog" onclick="switchModule('backlog')">
-      <span class="nav-icon" data-ic="pin"></span>Not Yet
-    </button>
     <div class="nav-section">Analyze</div>
     <button class="nav-item active" data-module="analytics" onclick="switchModule('analytics')">
       <span class="nav-icon" data-ic="layout-dashboard"></span>Analytics
@@ -1732,8 +1778,14 @@
     <button class="nav-item" data-module="projects" onclick="switchModule('projects')">
       <span class="nav-icon" data-ic="clipboard-list"></span>Projects
     </button>
+    <button class="nav-item" data-module="clients" onclick="switchModule('clients')">
+      <span class="nav-icon" data-ic="layers"></span>Clients
+    </button>
     <button class="nav-item" data-module="subscriptions" onclick="switchModule('subscriptions')">
       <span class="nav-icon" data-ic="credit-card"></span>Subscriptions<span class="nav-badge" id="nav-badge-subscriptions"></span>
+    </button>
+    <button class="nav-item" data-module="companydocs" onclick="switchModule('companydocs')">
+      <span class="nav-icon" data-ic="calendar-check"></span>Company Docs
     </button>
     <button class="nav-item" data-module="settings" onclick="switchModule('settings')">
       <span class="nav-icon" data-ic="settings"></span>Settings
@@ -1991,10 +2043,7 @@
       <input id="filter-input" type="text" placeholder="Filter rows…" oninput="applyFilter()" />
       <button id="filter-clear" onclick="clearFilter()" title="Clear filter" data-ic="x"></button>
     </div>
-    <div class="filter-chips">
-      <button class="filter-chip" data-status="DONE"        onclick="toggleStatusFilter(this)">Done</button>
-      <button class="filter-chip" data-status="IN_PROGRESS" onclick="toggleStatusFilter(this)">In Progress</button>
-    </div>
+    <div class="filter-chips" id="filter-chips"></div>
     <div class="seg-ctl" id="ts-view-ctl" title="How the day's sessions are laid out">
       <button class="seg-btn" data-view="grouped" onclick="setTsView('grouped')"><span data-ic="layers"></span>By Task</button>
       <button class="seg-btn" data-view="flat" onclick="setTsView('flat')"><span data-ic="rows-3"></span>Flat</button>
@@ -2170,10 +2219,7 @@
   <span id="bulk-count">0 selected</span>
   <div class="menu-wrap">
     <button class="bulk-btn" onclick="toggleTopMenu(event,'bulk-status-menu')">Set Status <span data-ic="chevron-down"></span></button>
-    <div class="top-menu" id="bulk-status-menu">
-      <button onclick="bulkSetStatus('DONE')">Done</button>
-      <button onclick="bulkSetStatus('IN_PROGRESS')">In Progress</button>
-    </div>
+    <div class="top-menu" id="bulk-status-menu"></div>
   </div>
   <button class="bulk-btn" onclick="bulkMovePrompt()"><span data-ic="calendar-clock"></span>Move…</button>
   <button class="bulk-btn danger" onclick="bulkDelete()"><span data-ic="trash-2"></span>Delete</button>
@@ -2217,39 +2263,6 @@
     <div id="sub-empty-state">
       <div class="icon" data-ic="credit-card"></div>
       <p>No subscriptions yet — click <strong>+ Add Subscription</strong> to start tracking</p>
-    </div>
-  </div>
-</div>
-
-<!-- ══ NOT YET (BACKLOG) MODULE ══ -->
-<div id="module-backlog" class="app-module">
-  <div id="backlog-topbar" class="page-header">
-    <span class="page-title"><span class="ti-ic" data-ic="pin"></span>Not Yet</span>
-    <div class="topbar-right">
-      <input type="text" id="backlog-filter" class="mod-search" placeholder="Search tasks…" oninput="applyBacklogFilter()">
-      <button class="btn primary" onclick="openBacklogModal()">+ Add Task</button>
-    </div>
-  </div>
-
-  <div id="backlog-table-wrap">
-    <p class="backlog-hint">A day-agnostic backlog of tasks you haven't started. Pick one with <strong>→ Day</strong> to move it into a specific day when you're ready to work on it.</p>
-    <table id="backlog-table" style="display:none">
-      <thead>
-        <tr>
-          <th style="width:36px">#</th>
-          <th>Company</th>
-          <th>System</th>
-          <th>Natural</th>
-          <th style="min-width:240px">Description</th>
-          <th style="min-width:180px">Source</th>
-          <th style="width:150px"></th>
-        </tr>
-      </thead>
-      <tbody id="backlog-tbody"></tbody>
-    </table>
-    <div id="backlog-empty-state">
-      <div class="icon" data-ic="pin"></div>
-      <p>Nothing waiting — click <strong>+ Add Task</strong> to add to the Not Yet backlog</p>
     </div>
   </div>
 </div>
@@ -2307,6 +2320,177 @@
 
   <!-- Detail view: profile + documents + linked tasks (built by JS) -->
   <div id="projects-detail-view" class="pj-detail-scroll" style="display:none"></div>
+</div>
+
+<!-- ══ COMPANY DOCUMENTS MODULE ══ -->
+<div id="module-companydocs" class="app-module">
+  <div id="companydocs-topbar" class="page-header">
+    <span class="page-title"><span class="ti-ic" data-ic="calendar-check"></span>Company Documents</span>
+    <div class="topbar-right">
+      <input type="text" id="companydocs-filter" class="mod-search" placeholder="Search documents…" oninput="applyCompanyDocFilter()">
+      <button class="btn primary" onclick="openCompanyDocModal()">+ New Document</button>
+    </div>
+  </div>
+  <div class="pj-scroll">
+    <div class="cd-grid" id="companydocs-grid"></div>
+    <div id="companydocs-empty-state" style="display:none">
+      <div class="icon" data-ic="calendar-check"></div>
+      <p>No company documents yet — click <strong>+ New Document</strong> to add one</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══ COMPANY DOCUMENT ADD/EDIT MODAL ══ -->
+<div id="companydoc-modal-overlay" class="modal-overlay" onclick="companyDocOverlayClick(event)">
+  <div id="companydoc-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="companydoc-modal-title">New Document</span>
+      <button class="modal-close" onclick="closeCompanyDocModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Name</label>
+          <input id="cd-name" type="text" placeholder="e.g. VAT Certificate" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Category</label>
+          <select id="cd-category"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Renewal Date <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional</span></label>
+          <input id="cd-renewal" type="date" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Notes</label>
+          <textarea id="cd-notes" placeholder="Anything worth remembering about this document"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeCompanyDocModal()">Cancel</button>
+      <button class="btn primary" id="companydoc-modal-submit" onclick="submitCompanyDocModal()">Add Document</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ COMPANY DOCUMENT DELETE UNDO TOAST ══ -->
+<div id="companydoc-undo-toast">
+  <span>Document deleted</span>
+  <button id="companydoc-undo-toast-btn" onclick="undoDeleteCompanyDoc()">Undo</button>
+</div>
+
+<!-- ══ CLIENTS MODULE ══ -->
+<div id="module-clients" class="app-module">
+  <div id="clients-topbar" class="page-header">
+    <span class="page-title"><span class="ti-ic" data-ic="layers"></span>Clients</span>
+    <div class="topbar-right">
+      <input type="text" id="clients-filter" class="mod-search" placeholder="Search clients…" oninput="applyClientFilter()">
+    </div>
+  </div>
+
+  <!-- List view: every active COMPANY lookup, as cards -->
+  <div id="clients-list-view" class="pj-scroll">
+    <div class="pj-grid" id="clients-grid"></div>
+    <div id="clients-empty-state" style="display:none">
+      <div class="icon" data-ic="layers"></div>
+      <p>No companies yet — add one in <strong>Settings → Companies</strong></p>
+    </div>
+  </div>
+
+  <!-- Detail view: VPN Connectivity + Server Information (built by JS) -->
+  <div id="clients-detail-view" class="pj-detail-scroll" style="display:none"></div>
+</div>
+
+<!-- ══ CLIENT VPN CONNECTION ADD/EDIT MODAL ══ -->
+<div id="client-vpn-modal-overlay" class="modal-overlay" onclick="clientVpnOverlayClick(event)">
+  <div id="client-vpn-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="client-vpn-modal-title">Add VPN Connection</span>
+      <button class="modal-close" onclick="closeClientVpnModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Connection Name</label>
+          <input id="cv-name" type="text" placeholder="e.g. HQ Site-to-Site" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>VPN Type / Protocol</label>
+          <input id="cv-type" type="text" placeholder="e.g. WireGuard, IPSec" />
+        </div>
+        <div class="form-group">
+          <label>Endpoint / IP</label>
+          <input id="cv-endpoint" type="text" placeholder="e.g. vpn.client.com" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Notes</label>
+          <textarea id="cv-notes" placeholder="No credentials/secrets here — reference notes only"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeClientVpnModal()">Cancel</button>
+      <button class="btn primary" id="client-vpn-modal-submit" onclick="submitClientVpnModal()">Add Connection</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CLIENT SERVER ADD/EDIT MODAL ══ -->
+<div id="client-server-modal-overlay" class="modal-overlay" onclick="clientServerOverlayClick(event)">
+  <div id="client-server-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="client-server-modal-title">Add Server</span>
+      <button class="modal-close" onclick="closeClientServerModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Server Name</label>
+          <input id="cs-name" type="text" placeholder="e.g. App Server 1" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>IP / Hostname</label>
+          <input id="cs-host" type="text" placeholder="e.g. 10.0.0.5" />
+        </div>
+        <div class="form-group">
+          <label>Environment</label>
+          <select id="cs-environment">
+            <option value="PRODUCTION">Production</option>
+            <option value="TEST">Test</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Operating System</label>
+          <input id="cs-os" type="text" placeholder="e.g. Ubuntu 22.04" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Notes</label>
+          <textarea id="cs-notes" placeholder="Anything worth remembering about this server"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeClientServerModal()">Cancel</button>
+      <button class="btn primary" id="client-server-modal-submit" onclick="submitClientServerModal()">Add Server</button>
+    </div>
+  </div>
 </div>
 
 <!-- ══ PROJECT ADD/EDIT MODAL ══ -->
@@ -2372,6 +2556,17 @@
   </div>
 </div>
 
+<!-- ══ TASK DETAIL MODAL ══ -->
+<div id="task-detail-overlay" class="modal-overlay" onclick="taskDetailOverlayClick(event)">
+  <div id="task-detail-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="td-title">Task</span>
+      <button class="modal-close" onclick="closeTaskDetail()" data-ic="x"></button>
+    </div>
+    <div class="modal-body" id="td-body"></div>
+  </div>
+</div>
+
 <!-- ══ PROJECT DELETE UNDO TOAST ══ -->
 <div id="project-undo-toast">
   <span>Project deleted</span>
@@ -2398,6 +2593,7 @@
       <button class="stab" data-tab="status"        onclick="switchTab(this)"><span class="stab-icon" data-ic="flag"></span> Status</button>
       <button class="stab" data-tab="projectStatus" onclick="switchTab(this)"><span class="stab-icon" data-ic="clipboard-list"></span> Project Status</button>
       <button class="stab" data-tab="projectDocument" onclick="switchTab(this)"><span class="stab-icon" data-ic="file-text"></span> Project Documents</button>
+      <button class="stab" data-tab="companyDocCategory" onclick="switchTab(this)"><span class="stab-icon" data-ic="calendar-check"></span> Company Doc Categories</button>
     </div>
     <!-- Panels -->
     <div class="settings-panels">
@@ -2415,11 +2611,12 @@
       <div class="settings-panel" id="tab-status"></div>
       <div class="settings-panel" id="tab-projectStatus"></div>
       <div class="settings-panel" id="tab-projectDocument"></div>
+      <div class="settings-panel" id="tab-companyDocCategory"></div>
     </div>
   </div>
 </div>
 
-<!-- ══ NOT YET TASK ADD/EDIT MODAL ══ -->
+<!-- ══ PROJECT TASK ADD/EDIT MODAL ══ -->
 <div id="backlog-modal-overlay" class="modal-overlay" onclick="backlogOverlayClick(event)">
   <div id="backlog-modal" class="modal-box">
     <div class="modal-header">
@@ -2438,9 +2635,13 @@
         </div>
       </div>
       <div class="form-row">
-        <div class="form-group full">
+        <div class="form-group">
           <label>Natural</label>
           <select id="b-natural"></select>
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="b-status"></select>
         </div>
       </div>
       <div class="form-row">
@@ -2473,12 +2674,6 @@
       <button class="btn primary" onclick="submitBacklogModal()">Add Task</button>
     </div>
   </div>
-</div>
-
-<!-- ══ NOT YET TASK UNDO TOAST ══ -->
-<div id="backlog-undo-toast">
-  <span>Task deleted</span>
-  <button id="backlog-undo-toast-btn" onclick="undoDeleteBacklog()">Undo</button>
 </div>
 
 <!-- ══ SUBSCRIPTION ADD/EDIT MODAL ══ -->
@@ -2632,7 +2827,10 @@ const ICONS = {
   "layers": "<path d=\"M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z\" /><path d=\"m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65\" /><path d=\"m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65\" />",
   "rows-3": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" /><path d=\"M21 9H3\" /><path d=\"M21 15H3\" />",
   "command": "<path d=\"M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3\" />",
-  "arrow-right": "<path d=\"M5 12h14\" /><path d=\"m12 5 7 7-7 7\" />"
+  "arrow-right": "<path d=\"M5 12h14\" /><path d=\"m12 5 7 7-7 7\" />",
+  "eye": "<path d=\"M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0\" /><circle cx=\"12\" cy=\"12\" r=\"3\" />",
+  "circle": "<circle cx=\"12\" cy=\"12\" r=\"10\" />",
+  "ban": "<circle cx=\"12\" cy=\"12\" r=\"10\" /><path d=\"m4.9 4.9 14.2 14.2\" />"
 };
 // Build an inline SVG string for icon `name`. Optional extra class via `cls`.
 function ic(name, cls) {
@@ -2672,11 +2870,12 @@ const LK_CAT = {
   timeType: 'TIME_TYPE', status: 'ENTRY_STATUS',
   currency: 'CURRENCY', billingCycle: 'BILLING_CYCLE',
   projectStatus: 'PROJECT_STATUS', projectDocument: 'PROJECT_DOCUMENT',
+  companyDocCategory: 'COMPANY_DOCUMENT_CATEGORY',
 };
 const LK_VALUE = {             // 'label' = stored as display label; 'code' = stored as code
   companies: 'label', systems: 'label', natural: 'label',
   timeType: 'code', status: 'code', currency: 'code', billingCycle: 'code',
-  projectStatus: 'code', projectDocument: 'code',
+  projectStatus: 'code', projectDocument: 'code', companyDocCategory: 'code',
 };
 
 // Active options for a category, ordered for dropdowns.
@@ -2719,14 +2918,8 @@ let _subSaveTimer = null;
 let undoSubscription = null; // { sub, idx }
 let _undoSubTimer    = null;
 
-// ── Not Yet (backlog) state ──
-let backlog          = [];
-let backlogLoaded    = false;
+// ── Project task modal state (add/edit a project's zero-log or logged task) ──
 let backlogEditId    = null;
-let backlogFilter    = '';
-let _backlogSaveTimer = null;
-let undoBacklog      = null;   // { task, idx }
-let _undoBacklogTimer = null;
 
 // ── Projects state ──
 let projectsList     = [];       // [{id, name, companies[], systems[], status, taskCount, …}]
@@ -2739,9 +2932,9 @@ let _undoProjectTimer = null;
 let linkableTasks    = [];   // picker source: unlinked Task[]
 let pCompaniesPicker = null;     // tag-picker handles for the project modal
 let pSystemsPicker   = null;
-let projectIndex     = [];       // lightweight [{id,name,status}] for the day/backlog Project field
+let projectIndex     = [];       // lightweight [{id,name,status}] for the Timesheet/Project task Project field
 let fProjectPicker   = null;     // search-select handle in the timesheet record modal
-let bProjectPicker   = null;     // search-select handle in the backlog modal
+let bProjectPicker   = null;     // search-select handle in the project task modal
 let modalTaskList    = [];       // full Task[] backing the Add Record "existing task" picker
 
 // ── Analytics state ──
@@ -2926,7 +3119,7 @@ function buildTagPicker(host, options, initialIds, placeholder) {
 // { id, label }; `initialId` the preselected id (or null). Typing filters; clicking
 // or Entering an option selects it (showing its label in the field); a built-in
 // "— None —" entry clears it. The handle's getSelectedId() returns the id or null.
-// Used by the timesheet record and Not Yet modals' Project field (single project per task).
+// Used by the timesheet record and project task modals' Project field (single project per task).
 function buildSearchSelect(host, options, initialId, placeholder, onChange) {
   host.innerHTML = '';
   host.className = 'search-select';
@@ -2984,7 +3177,7 @@ function buildSearchSelect(host, options, initialId, placeholder, onChange) {
 // The tabs edit a working copy of the catalog (lookupsDraft, keyed by category).
 // Existing entries are relabeled / reordered / soft-disabled in place; new entries
 // get a server-generated stable code on save. Codes are never edited or deleted.
-const SETTINGS_TABS = ['companies', 'systems', 'natural', 'timeType', 'status', 'projectStatus', 'projectDocument'];
+const SETTINGS_TABS = ['companies', 'systems', 'natural', 'timeType', 'status', 'projectStatus', 'projectDocument', 'companyDocCategory'];
 
 // Settings is a nav page (not a modal): switchModule('settings') calls this to
 // (re)load a working copy of the catalog and render the editors fresh each visit.
@@ -3010,6 +3203,8 @@ async function saveSettings() {
   } catch { toast('Could not save settings'); return; }
   initSettingsModule();                     // re-sync the draft with server-assigned codes
   renderTable();                            // reflect any relabeled values immediately
+  renderBulkStatusMenu();                   // reflect any relabeled/added statuses
+  renderFilterChips();
   toast('Settings saved');
 }
 
@@ -3177,9 +3372,15 @@ async function switchDay(dateStr) {
 }
 
 // ── Table ──
+// Single source of truth mapping an ENTRY_STATUS code to its display suffix
+// ('done'/'progress'/'open'/'blocked'), shared by the badge class (status-badge
+// container, 'status-' + suffix) and the status-dropdown option class (bare suffix).
+// Unknown/legacy codes fall back to 'progress' rather than throwing.
+function statusSuffix(code) {
+  return { DONE: 'done', IN_PROGRESS: 'progress', OPEN: 'open', BLOCKED: 'blocked' }[code] || 'progress';
+}
 function statusClass(s) {
-  if (s === 'DONE') return 'status-done';
-  return 'status-progress';
+  return 'status-' + statusSuffix(s);
 }
 
 // ── Day view mode: sessions grouped under their task (default) or a flat list ──
@@ -3277,7 +3478,7 @@ function buildTaskGroupCard(g, origIdxOf) {
     dropdown.className = 'status-dropdown';
     lkOptions('ENTRY_STATUS').forEach(o => {
       const opt = document.createElement('div');
-      opt.className = 'sd-opt ' + (o.code === 'DONE' ? 'done' : 'progress');
+      opt.className = 'sd-opt ' + statusSuffix(o.code);
       opt.textContent = o.label;
       opt.addEventListener('click', (ev) => {
         ev.stopPropagation();
@@ -3297,6 +3498,14 @@ function buildTaskGroupCard(g, origIdxOf) {
   });
   stBadgeWrap.appendChild(badge);
   head.appendChild(stBadgeWrap);
+
+  // View task detail (metadata + rollups + full session history).
+  const viewBtn = document.createElement('button');
+  viewBtn.className = 'row-btn'; viewBtn.innerHTML = ic('eye');
+  viewBtn.title = 'View task details';
+  if (first.taskId) viewBtn.addEventListener('click', () => openTaskDetail(first.taskId));
+  else { viewBtn.disabled = true; viewBtn.style.opacity = '.45'; viewBtn.title = 'Saving… try again in a moment'; }
+  head.appendChild(viewBtn);
 
   // Category pills (company / system / natural) — company & system are cross-links.
   const meta = document.createElement('span');
@@ -3485,14 +3694,29 @@ function buildTaskGroupCard(g, origIdxOf) {
   return card;
 }
 
+// Icon shown in the row-group divider for each non-DONE status. Falls back to
+// 'circle' for any status without a specific icon (keeps new lookup codes safe).
+const STATUS_DIVIDER_ICON = { IN_PROGRESS: 'zap', OPEN: 'circle', BLOCKED: 'ban' };
+
 function renderTableFlat() {
   const tbody = document.getElementById('tbody');
   tbody.innerHTML = '';
 
-  const doneRows   = rows.filter(r => r.status === 'DONE'        && rowMatchesFilter(r));
-  const inProgRows = rows.filter(r => r.status === 'IN_PROGRESS' && rowMatchesFilter(r));
-  const otherRows  = rows.filter(r => !['DONE','IN_PROGRESS'].includes(r.status) && rowMatchesFilter(r));
-  const ordered    = [...doneRows, ...inProgRows, ...otherRows];
+  // Done rows are always surfaced first, unlabeled — a pre-existing, intentional
+  // exception (completed work reviewed first) to the ENTRY_STATUS workflow order.
+  // Every other status gets its own bucket + divider, in the lookup's sort_order
+  // (currently Open → In Progress → Blocked), so new statuses need no code change.
+  const doneRows = rows.filter(r => r.status === 'DONE' && rowMatchesFilter(r));
+  const nonDoneCodes = lkOptions('ENTRY_STATUS').map(o => o.code).filter(c => c !== 'DONE');
+  const buckets = nonDoneCodes.map(code => ({
+    code, label: lkLabel('ENTRY_STATUS', code),
+    rows: rows.filter(r => r.status === code && rowMatchesFilter(r)),
+  }));
+  // Defensive: a row with an unrecognized/legacy status still renders (grouped
+  // at the end, no divider) instead of silently vanishing from the view.
+  const known = new Set(['DONE', ...nonDoneCodes]);
+  const unknownRows = rows.filter(r => !known.has(r.status) && rowMatchesFilter(r));
+  const ordered = [...doneRows, ...buckets.flatMap(b => b.rows), ...unknownRows];
 
   const isFiltered = filterText || filterStatuses.size > 0;
   const countEl    = document.getElementById('filter-count');
@@ -3503,18 +3727,26 @@ function renderTableFlat() {
   const origIdxOf = new Map(rows.map((r, i) => [r, i]));
   const getOrigIdx = (row) => origIdxOf.get(row);
 
-  const inProgStart = doneRows.length;
+  // Which `ordered` index starts each non-empty bucket (skip index 0 — the very
+  // first visible row never needs a "new section" label).
+  const dividerStarts = new Map();
+  let cursor = doneRows.length;
+  buckets.forEach(b => {
+    if (b.rows.length > 0 && cursor > 0) dividerStarts.set(cursor, b);
+    cursor += b.rows.length;
+  });
 
   ordered.forEach((row, i) => {
     const origIdx = getOrigIdx(row);
 
-    // In Progress divider
-    if (inProgRows.length > 0 && doneRows.length > 0 && i === inProgStart) {
+    const startingBucket = dividerStarts.get(i);
+    if (startingBucket) {
       const divTr = document.createElement('tr');
       divTr.className = 'inprogress-divider';
       const divTd = document.createElement('td');
       divTd.colSpan = 12;
-      divTd.innerHTML = '<div class="inprogress-divider-inner"><span class="inprogress-divider-label">' + ic('zap') + ' In Progress</span></div>';
+      divTd.innerHTML = '<div class="inprogress-divider-inner"><span class="inprogress-divider-label">' +
+        ic(STATUS_DIVIDER_ICON[startingBucket.code] || 'circle') + ' ' + esc(startingBucket.label) + '</span></div>';
       divTr.appendChild(divTd);
       tbody.appendChild(divTr);
     }
@@ -3634,7 +3866,7 @@ function renderTableFlat() {
       dropdown.className = 'status-dropdown';
       lkOptions('ENTRY_STATUS').forEach(o => {
         const opt = document.createElement('div');
-        opt.className = 'sd-opt ' + (o.code === 'DONE' ? 'done' : 'progress');
+        opt.className = 'sd-opt ' + statusSuffix(o.code);
         opt.textContent = o.label;
         opt.addEventListener('click', (ev) => {
           ev.stopPropagation();
@@ -3716,6 +3948,12 @@ function renderTableFlat() {
     editBtn.className = 'row-btn'; editBtn.innerHTML = ic('pencil');
     editBtn.title = 'Edit'; editBtn.addEventListener('click', () => openModal(origIdx));
 
+    const viewBtn = document.createElement('button');
+    viewBtn.className = 'row-btn'; viewBtn.innerHTML = ic('eye');
+    viewBtn.title = 'View task details';
+    if (row.taskId) viewBtn.addEventListener('click', () => openTaskDetail(row.taskId));
+    else { viewBtn.disabled = true; viewBtn.style.opacity = '.45'; viewBtn.title = 'Saving… try again in a moment'; }
+
     // Add session — log another work session against THIS row's task (same or a
     // different day). The core two-level capability: one task, many work logs.
     const sessionBtn = document.createElement('button');
@@ -3737,7 +3975,7 @@ function renderTableFlat() {
     moveBtn.title = 'Move to another day';
     const restoreActs = () => {
       acts.innerHTML = '';
-      acts.appendChild(timerBtn); acts.appendChild(editBtn); acts.appendChild(sessionBtn);
+      acts.appendChild(timerBtn); acts.appendChild(editBtn); acts.appendChild(viewBtn); acts.appendChild(sessionBtn);
       acts.appendChild(dupBtn); acts.appendChild(moveBtn); acts.appendChild(delBtn);
     };
     moveBtn.addEventListener('click', () => {
@@ -3947,7 +4185,7 @@ function undoDelete() {
 // The Timesheet no longer saves a whole day through day:save. Each row is one
 // work session (work_log) belonging to a task; edits persist granularly via the
 // tasks:* / worklogs:* API. `setUnsaved()` funnels inline field edits + row
-// add/delete through a debounced reconciler; structural ops (move, backlog→day)
+// add/delete through a debounced reconciler; structural ops (e.g. move-to-date)
 // call the API directly and reload. `eid` = the work_log id; `taskId` = its task.
 
 // Task-level fields of a row (shared across all of a task's sessions).
@@ -4371,7 +4609,7 @@ function clearErrors() { clearErrorsIn('body'); }
 // ── Keyboard shortcuts ──
 document.addEventListener('keydown', e => {
   const inputFocused = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
-  const anyOpen = ['modal-overlay','print-overlay','month-overlay','sub-modal-overlay','sub-settings-overlay','backlog-modal-overlay','project-modal-overlay','link-task-overlay','palette-overlay']
+  const anyOpen = ['modal-overlay','print-overlay','month-overlay','sub-modal-overlay','sub-settings-overlay','backlog-modal-overlay','project-modal-overlay','link-task-overlay','palette-overlay','task-detail-overlay','companydoc-modal-overlay','client-vpn-modal-overlay','client-server-modal-overlay']
     .some(id => document.getElementById(id).classList.contains('open'));
 
   // Command palette — available everywhere, even while typing in a field.
@@ -4384,7 +4622,8 @@ document.addEventListener('keydown', e => {
 
   if (e.key === 'Escape') {
     closeModal(); closePrint(); closeMonthView(); closeSubModal(); closeSubSettings(); closeBacklogModal();
-    closeProjectModal(); closeLinkModal(); closePalette();
+    closeProjectModal(); closeLinkModal(); closePalette(); closeTaskDetail(); closeCompanyDocModal();
+    closeClientVpnModal(); closeClientServerModal();
     document.querySelectorAll('.top-menu.open').forEach(m => m.classList.remove('open'));
     if (selectedRows.size) clearSelection();
   }
@@ -4394,14 +4633,17 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('sub-modal-overlay').classList.contains('open')) submitSubModal();
     if (document.getElementById('backlog-modal-overlay').classList.contains('open')) submitBacklogModal();
     if (document.getElementById('project-modal-overlay').classList.contains('open')) submitProjectModal();
+    if (document.getElementById('companydoc-modal-overlay').classList.contains('open')) submitCompanyDocModal();
+    if (document.getElementById('client-vpn-modal-overlay').classList.contains('open')) submitClientVpnModal();
+    if (document.getElementById('client-server-modal-overlay').classList.contains('open')) submitClientServerModal();
   }
   if (!anyOpen && !inputFocused) {
     if (e.ctrlKey && !e.shiftKey && e.key === 'n') {
       e.preventDefault();
       if      (activeModule === 'subscriptions') openSubModal();
       else if (activeModule === 'timesheet')     openModal();
-      else if (activeModule === 'backlog')       openBacklogModal();
       else if (activeModule === 'projects')      openProjectModal();
+      else if (activeModule === 'companydocs')   openCompanyDocModal();
       // analytics / reports have no Add action — Ctrl+N is a no-op there
     }
     // Day navigation: Ctrl+Left = earlier day, Ctrl+Right = later day
@@ -4910,206 +5152,20 @@ function updateTodayBtn() {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// NOT YET (BACKLOG) MODULE — a day-agnostic pool of tasks. Loaded lazily on first
-// visit (like Subscriptions), auto-saved with the same 300 ms debounce, and never
-// hard-deletes (5 s undo). Picking a task assigns it into a specific day.
+// PROJECT TASK MODAL — add a zero-log task to a project, or edit any project
+// task's profile fields. Persists immediately (no debounced whole-list save).
 // ════════════════════════════════════════════════════════════════════════════
-// Not Yet = tasks with zero work sessions (merged from the old backlog in
-// migration 013). Loaded from tasks:notyet; add/edit/delete/assign persist
-// immediately via the tasks:* / worklogs:* API (no debounced whole-list save).
-async function loadBacklogData() {
-  if (!backlogLoaded) {
-    document.getElementById('backlog-table').style.display = '';
-    showTableSkeleton('backlog-tbody', 7);
-  }
-  try { backlog = await window.api.listNotYet(); }
-  catch { toast('Could not load Not Yet tasks'); return; }
-  if (!Array.isArray(backlog)) backlog = [];
-  backlogLoaded = true;
-  renderBacklog();
-}
-
-function applyBacklogFilter() {
-  backlogFilter = document.getElementById('backlog-filter').value.toLowerCase().trim();
-  renderBacklog();
-}
-
-function renderBacklog() {
-  const tbody = document.getElementById('backlog-tbody');
-  const table = document.getElementById('backlog-table');
-  const empty = document.getElementById('backlog-empty-state');
-  tbody.innerHTML = '';
-
-  if (backlog.length === 0) {
-    table.style.display = 'none';
-    empty.style.display = 'flex';
-    return;
-  }
-  table.style.display = '';
-  empty.style.display = 'none';
-
-  const shown = backlog.filter(t => textMatch(
-    [t.company, t.system, t.natural, t.description, t.source,
-     Array.isArray(t.tags) ? t.tags.join(' ') : ''], backlogFilter));
-
-  if (shown.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="no-matches">No matches</td></tr>';
-    return;
-  }
-
-  shown.forEach((task, n) => {
-    const tr = document.createElement('tr');
-
-    const numSpan = document.createElement('span');
-    numSpan.className = 'cell-num'; numSpan.textContent = n + 1;
-    tr.appendChild(cellWrap(numSpan, 'cell cell-center'));
-
-    tr.appendChild(linkCell(task.company, 'companies'));
-    tr.appendChild(linkCell(task.system, 'systems'));
-    tr.appendChild(textCell(task.natural));
-
-    // Description (+ tag chips)
-    const descTd = document.createElement('td');
-    const descDiv = document.createElement('div'); descDiv.className = 'cell desc-cell';
-    const descSpan = document.createElement('span');
-    descSpan.className = 'desc-text'; descSpan.textContent = task.description;
-    descDiv.appendChild(descSpan);
-    const tags = Array.isArray(task.tags) ? task.tags : [];
-    if (tags.length) {
-      const tagWrap = document.createElement('div'); tagWrap.className = 'row-tags';
-      tags.forEach(t => { const chip = document.createElement('span'); chip.className = 'row-tag'; chip.textContent = t; tagWrap.appendChild(chip); });
-      descDiv.appendChild(tagWrap);
-    }
-    const projTag = projectRowTag(task.projectId);
-    if (projTag) descDiv.appendChild(projTag);
-    descTd.appendChild(descDiv);
-    tr.appendChild(descTd);
-
-    // Source — clickable link if URL
-    const srcTd = document.createElement('td');
-    const srcDiv = document.createElement('div'); srcDiv.className = 'cell';
-    if (isURL(task.source)) {
-      const link = document.createElement('button');
-      link.className = 'source-link'; link.textContent = task.source; link.title = 'Open ' + task.source;
-      link.addEventListener('click', () => window.api.openExternal(task.source));
-      srcDiv.appendChild(link);
-    } else {
-      const srcSpan = document.createElement('span');
-      srcSpan.className = 'source-text'; srcSpan.textContent = task.source || '';
-      srcDiv.appendChild(srcSpan);
-    }
-    srcTd.appendChild(srcDiv);
-    tr.appendChild(srcTd);
-
-    // Actions: → Day (assign/pick), Edit, Delete
-    const acts = document.createElement('div'); acts.className = 'row-actions';
-
-    const assignBtn = document.createElement('button');
-    assignBtn.className = 'row-btn'; assignBtn.innerHTML = ic('calendar-plus') + ' Day';
-    assignBtn.title = 'Assign this task to a day';
-
-    const editBtn = document.createElement('button');
-    editBtn.className = 'row-btn'; editBtn.innerHTML = ic('pencil');
-    editBtn.title = 'Edit'; editBtn.addEventListener('click', () => openBacklogModal(task.id));
-
-    const delBtn = document.createElement('button');
-    delBtn.className = 'row-btn del'; delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete';
-
-    const restore = () => { acts.innerHTML = ''; acts.appendChild(assignBtn); acts.appendChild(editBtn); acts.appendChild(delBtn); };
-
-    assignBtn.addEventListener('click', () => {
-      acts.innerHTML = '';
-      const conf = document.createElement('div'); conf.className = 'del-confirm move-confirm backlog-assign';
-      const dateInp = document.createElement('input');
-      dateInp.type = 'date'; dateInp.className = 'move-date-input'; dateInp.value = activeDate || fmt(new Date());
-      const yes = document.createElement('button'); yes.className = 'row-btn move-yes'; yes.innerHTML = ic('check'); yes.title = 'Assign to this day';
-      yes.addEventListener('click', () => assignBacklogToDay(task.id, dateInp.value));
-      const no = document.createElement('button'); no.className = 'row-btn del-no'; no.innerHTML = ic('x'); no.title = 'Cancel';
-      no.addEventListener('click', restore);
-      dateInp.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Enter') { ev.preventDefault(); assignBacklogToDay(task.id, dateInp.value); }
-        if (ev.key === 'Escape') { ev.preventDefault(); restore(); }
-      });
-      conf.appendChild(dateInp); conf.appendChild(yes); conf.appendChild(no);
-      acts.appendChild(conf);
-      dateInp.focus();
-    });
-
-    delBtn.addEventListener('click', () => showDeleteConfirm(acts, async () => {
-      const snap = Object.assign({}, task);
-      await window.api.deleteTask(task.id);
-      await loadBacklogData();
-      showBacklogUndoToast(snap, 0);
-    }, restore));
-
-    acts.appendChild(assignBtn); acts.appendChild(editBtn); acts.appendChild(delBtn);
-    tr.appendChild(cellWrap(acts, 'cell'));
-
-    tbody.appendChild(tr);
-  });
-}
-
-// Assign (pick) a Not-Yet task into a day: give the task its first work session.
-// It then has a work_log, so it drops out of the Not-Yet list automatically.
-async function assignBacklogToDay(id, targetDate) {
-  if (!targetDate) return;
-  const task = backlog.find(t => t.id === id);
-  if (!task) return;
-
-  try {
-    await window.api.addWorkLog(id, {
-      date: targetDate, description: task.description || '', minutes: '', time: '',
-    });
-  } catch { toast('Could not assign — save failed'); return; }
-
-  await loadBacklogData();     // the task now has a session → leaves Not Yet
-
-  if (activeDate && targetDate === activeDate) {
-    await reloadTimesheet();
-  } else {
-    await refreshSavedDays();
-    renderCalendar();
-  }
-  toast('Assigned to ' + targetDate);
-}
-
-// ── Not Yet: undo ──
-function showBacklogUndoToast(task, idx) {
-  undoBacklog = { task, idx };
-  clearTimeout(_undoBacklogTimer);
-  document.getElementById('backlog-undo-toast').classList.add('visible');
-  _undoBacklogTimer = setTimeout(hideBacklogUndoToast, 5000);
-}
-function hideBacklogUndoToast() {
-  document.getElementById('backlog-undo-toast').classList.remove('visible');
-  undoBacklog = null;
-}
-async function undoDeleteBacklog() {
-  if (!undoBacklog) return;
-  const { task } = undoBacklog;
-  hideBacklogUndoToast();
-  // The deleted task is gone; recreate it as a fresh Not-Yet task (no sessions).
-  try {
-    await window.api.createTask({
-      name: task.description || '', status: 'IN_PROGRESS',
-      company: task.company || '', system: task.system || '', natural: task.natural || '',
-      source: task.source || '', tags: Array.isArray(task.tags) ? task.tags.slice() : [],
-      projectId: task.projectId ?? null,
-    });
-  } catch { toast('Could not restore task'); return; }
-  await loadBacklogData();
-}
-
-// ── Not Yet: modal ──
-// Shared by the Not Yet page and the Projects detail "New Task" action. opts:
-//   projectId → preset + lock the Project field to that project (Projects context)
-//   onSaved   → called after a successful save instead of reloading the Not Yet page
+// ── Project task modal (add a zero-log task, or edit any project task's profile) ──
+// Used by Projects detail "New Task" and "Edit". opts:
+//   task      → the task being edited (its own shape, from currentProject.tasks) — omit to create
+//   projectId → preset + lock the Project field to that project
+//   onSaved   → called after a successful save to refresh the caller's view
 let _backlogCtx = { projectId: null, onSaved: null };
 function openBacklogModal(id = null, opts = {}) {
   backlogEditId = id;
   _backlogCtx = { projectId: opts.projectId ?? null, onSaved: opts.onSaved || null };
   const lockedProject = _backlogCtx.projectId != null;
-  const task = id !== null ? backlog.find(t => t.id === id) : null;
+  const task = opts.task || null;
   const isEdit = !!task;
   document.getElementById('backlog-modal-title').textContent =
     isEdit ? 'Edit Task' : (lockedProject ? 'New Project Task' : 'Add Task');
@@ -5118,6 +5174,7 @@ function openBacklogModal(id = null, opts = {}) {
   populateSelect('b-company', 'companies', task?.company || '');
   populateSelect('b-system',  'systems',   task?.system  || '');
   populateSelect('b-natural', 'natural',   task?.natural || '');
+  populateSelect('b-status',  'status',    task?.status  || 'IN_PROGRESS');
 
   if (!isEdit) {
     ['b-company','b-system','b-natural'].forEach(selId => {
@@ -5136,8 +5193,8 @@ function openBacklogModal(id = null, opts = {}) {
   const bpInput = document.querySelector('#b-project .ss-input');
   if (bpInput) bpInput.disabled = lockedProject;
 
-  document.getElementById('b-description').value = task?.description || '';
-  document.getElementById('b-source').value      = task?.source      || '';
+  document.getElementById('b-description').value = task?.name   || '';
+  document.getElementById('b-source').value      = task?.source || '';
   document.getElementById('b-tags').value        = Array.isArray(task?.tags) ? task.tags.join(', ') : '';
 
   clearBacklogErrors();
@@ -5154,6 +5211,13 @@ function closeBacklogModal() {
 function openProjectNewTask() {
   if (!currentProject) return;
   openBacklogModal(null, { projectId: currentProject.id, onSaved: reloadCurrentProject });
+}
+// Edit an existing project task's profile fields (Projects detail → task card Edit).
+function openProjectEditTask(taskId) {
+  if (!currentProject) return;
+  const task = (currentProject.tasks || []).find(t => t.id === taskId);
+  if (!task) return;
+  openBacklogModal(taskId, { task, projectId: task.projectId ?? currentProject.id, onSaved: reloadCurrentProject });
 }
 function backlogOverlayClick(e) {
   if (e.target === document.getElementById('backlog-modal-overlay')) closeBacklogModal();
@@ -5172,29 +5236,29 @@ async function submitBacklogModal() {
   fields.forEach(f => { if (!f.val) { markError(f.id); valid = false; } });
   if (!valid) return;
 
-  // A Not-Yet item is a task with no work sessions. Its description is the task
-  // name; time type is per-session, chosen when it's assigned to a day.
+  const isEdit = backlogEditId !== null;
+  // A zero-log task's description is the task name; time type is per-session,
+  // chosen when it's assigned to a day.
   const payload = {
     name:        document.getElementById('b-description').value.trim(),
-    status:      'IN_PROGRESS',
+    status:      document.getElementById('b-status').value,
     company:     document.getElementById('b-company').value,
     system:      document.getElementById('b-system').value,
     natural:     document.getElementById('b-natural').value,
     source:      document.getElementById('b-source').value.trim(),
     tags:        parseTags(document.getElementById('b-tags').value),
-    projectId:   bProjectPicker ? bProjectPicker.getSelectedId()
-                   : (backlogEditId !== null ? backlog.find(t => t.id === backlogEditId)?.projectId ?? null : null),
+    projectId:   bProjectPicker ? bProjectPicker.getSelectedId() : null,
   };
 
   try {
-    if (backlogEditId !== null) await window.api.updateTask(backlogEditId, payload);
-    else                        await window.api.createTask(payload);
+    if (isEdit) await window.api.updateTask(backlogEditId, payload);
+    else        await window.api.createTask(payload);
   } catch { toast('Could not save the task'); return; }
 
   const onSaved = _backlogCtx.onSaved;
   closeBacklogModal();
-  if (onSaved) { await onSaved(); toast('Task created'); }
-  else await loadBacklogData();
+  if (onSaved) await onSaved();
+  toast(isEdit ? 'Task updated' : 'Task created');
 }
 
 // ── Filter ──
@@ -5219,6 +5283,21 @@ function toggleStatusFilter(btn) {
   if (filterStatuses.has(s)) { filterStatuses.delete(s); btn.classList.remove('active'); }
   else                        { filterStatuses.add(s);    btn.classList.add('active'); }
   renderTable();
+}
+// Populate the Timesheet filter chips from the ENTRY_STATUS lookup category —
+// called once at boot after LK loads. Preserves any active selection across a
+// Settings-triggered rebuild (relabel/add).
+function renderFilterChips() {
+  const wrap = document.getElementById('filter-chips');
+  wrap.innerHTML = '';
+  lkOptions('ENTRY_STATUS').forEach(o => {
+    const btn = document.createElement('button');
+    btn.className = 'filter-chip' + (filterStatuses.has(o.code) ? ' active' : '');
+    btn.dataset.status = o.code;
+    btn.textContent = o.label;
+    btn.addEventListener('click', () => toggleStatusFilter(btn));
+    wrap.appendChild(btn);
+  });
 }
 
 function rowMatchesFilter(row) {
@@ -5282,6 +5361,18 @@ function bulkSetStatus(s) {
   clearSelection();
   renderTable();
   setUnsaved();
+}
+// Populate the bulk "Set Status" menu from the ENTRY_STATUS lookup category
+// (never hardcode the status set) — called once at boot after LK loads.
+function renderBulkStatusMenu() {
+  const menu = document.getElementById('bulk-status-menu');
+  menu.innerHTML = '';
+  lkOptions('ENTRY_STATUS').forEach(o => {
+    const btn = document.createElement('button');
+    btn.textContent = o.label;
+    btn.addEventListener('click', () => bulkSetStatus(o.code));
+    menu.appendChild(btn);
+  });
 }
 function bulkDelete() {
   if (!selectedRows.size) return;
@@ -5416,10 +5507,6 @@ function switchModule(name) {
 
   if (name === 'timesheet') {
     window.api.setTitle('Cooperation Tools — Timesheet — ' + activeDate);
-  } else if (name === 'backlog') {
-    window.api.setTitle('Cooperation Tools — Not Yet');
-    if (!backlogLoaded) loadBacklogData();
-    else renderBacklog();
   } else if (name === 'subscriptions') {
     window.api.setTitle('Cooperation Tools — Subscriptions');
     if (!subsLoaded) loadSubscriptionsData();
@@ -5439,6 +5526,12 @@ function switchModule(name) {
   } else if (name === 'projects') {
     window.api.setTitle('Cooperation Tools — Projects');
     initProjectsModule();
+  } else if (name === 'companydocs') {
+    window.api.setTitle('Cooperation Tools — Company Documents');
+    initCompanyDocsModule();
+  } else if (name === 'clients') {
+    window.api.setTitle('Cooperation Tools — Clients');
+    initClientsModule();
   }
 }
 
@@ -5776,7 +5869,7 @@ async function renderOverview() {
     new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
   // Today + month-to-date hours — aggregated in SQL (no day blobs shipped).
-  if (!document.getElementById('dash-stats').childElementCount) showSkeleton('dash-stats', 'cards', 3);
+  if (!document.getElementById('dash-stats').childElementCount) showSkeleton('dash-stats', 'cards', 2);
   const now = new Date();
   const today = fmt(now);
   const monthStart = fmt(new Date(now.getFullYear(), now.getMonth(), 1));
@@ -5785,12 +5878,8 @@ async function renderOverview() {
   const daysLogged = ov.daysLogged;
 
   // Cross-module attention data
-  const [subData, notYetData] = await Promise.all([
-    window.api.loadSubscriptions(),
-    window.api.listNotYet(),
-  ]);
+  const subData = await window.api.loadSubscriptions();
   const subs = (subData && subData.subscriptions) || [];
-  const backlogCount = Array.isArray(notYetData) ? notYetData.length : 0;
 
   const attention = [];
   subs.forEach(s => {
@@ -5803,7 +5892,6 @@ async function renderOverview() {
   const stats = [
     { label: ic('clock') + ' Today',      value: (todayMin / 60).toFixed(1), unit: 'h', foot: `${todayRecs} record${todayRecs === 1 ? '' : 's'}`, cls: 'accent', go: 'timesheet' },
     { label: ic('calendar') + ' This Month', value: (monthMin / 60).toFixed(1), unit: 'h', foot: `${daysLogged} day${daysLogged === 1 ? '' : 's'} logged`, cls: '', go: 'timesheet' },
-    { label: ic('pin') + ' Not Yet',    value: String(backlogCount), unit: '', foot: 'in backlog', cls: '', go: 'backlog' },
   ];
   document.getElementById('dash-stats').innerHTML = stats.map(s => `
     <div class="dash-stat ${s.cls}" ${s.go ? `onclick="switchModule('${s.go}')"` : ''}>
@@ -6541,7 +6629,7 @@ async function loadProjectsList() {
 }
 
 // ── Project index (lightweight {id,name,status} cache for the Project field) ──
-// The timesheet and Not Yet views let a task be linked to a project; both need the
+// The timesheet and project task views let a task be linked to a project; both need the
 // project names available even before the Projects module is first opened. This
 // cache is loaded at boot (refreshProjectIndex) and kept in sync whenever the full
 // list is (re)loaded (syncProjectIndex).
@@ -6587,6 +6675,117 @@ function projectRowTag(projectId) {
 function openProjectById(id) {
   switchModule('projects');
   openProjectDetail(id);
+}
+
+// ── Task Detail modal — a read-only single-task view: metadata, rollups, and
+// every work_log session, reachable from Timesheet rows and Project task cards.
+// Sourced from tasks:get, which already returns the full task +
+// its ordered workLogs, so no new IPC channel is needed.
+async function openTaskDetail(taskId) {
+  if (!taskId) return;
+  let task;
+  try { task = await window.api.getTask(taskId); }
+  catch { toast('Could not load task'); return; }
+  if (!task) { toast('Task not found'); return; }
+  renderTaskDetail(task);
+  document.getElementById('task-detail-overlay').classList.add('open');
+}
+function closeTaskDetail() {
+  document.getElementById('task-detail-overlay').classList.remove('open');
+}
+function taskDetailOverlayClick(e) {
+  if (e.target === document.getElementById('task-detail-overlay')) closeTaskDetail();
+}
+
+function renderTaskDetail(t) {
+  document.getElementById('td-title').textContent = t.name || '(untitled task)';
+
+  const body = document.getElementById('td-body');
+  body.innerHTML = '';
+
+  // Status badge under the title.
+  const statusWrap = pjMk('div', statusClass(t.status));
+  statusWrap.style.marginBottom = '4px';
+  const badge = pjMk('span', 'status-badge', lkLabel('ENTRY_STATUS', t.status));
+  statusWrap.appendChild(badge);
+  body.appendChild(statusWrap);
+
+  // ── Metadata grid ──
+  const grid = pjMk('div', 'pj-profile-grid');
+  const field = (label, valueNode) => {
+    const f = pjMk('div');
+    f.appendChild(pjMk('div', 'pj-field-label', label));
+    const val = pjMk('div', 'pj-field-val');
+    if (valueNode instanceof Node) val.appendChild(valueNode); else val.textContent = valueNode || '—';
+    f.appendChild(val);
+    return f;
+  };
+  grid.appendChild(field('Source', t.source));
+  grid.appendChild(field('Company', t.company));
+  grid.appendChild(field('System', t.system));
+  grid.appendChild(field('Natural', t.natural));
+  if (t.projectId != null) {
+    const tag = projectRowTag(t.projectId);
+    grid.appendChild(field('Project', tag || projectNameById(t.projectId)));
+  } else {
+    grid.appendChild(field('Project', null));
+  }
+  grid.appendChild(field('Created', t.createdAt
+    ? new Date(t.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    : null));
+  body.appendChild(grid);
+
+  // ── Analytics: total time, entry count, breakdown by time type ──
+  const logs = Array.isArray(t.workLogs) ? t.workLogs : [];
+  const totalMin = t.totalMinutes || 0;
+  const byType = {};
+  logs.forEach(w => {
+    const key = w.time || '—';
+    byType[key] = (byType[key] || 0) + (Number(w.minutes) || 0);
+  });
+
+  const stats = pjMk('div', 'td-stats');
+  const chip = (label, value) => {
+    const c = pjMk('div', 'total-chip');
+    c.appendChild(pjMk('span', 'lbl', label));
+    c.appendChild(pjMk('span', 'stat-value', value));
+    return c;
+  };
+  stats.appendChild(chip('Total Minutes', String(totalMin)));
+  stats.appendChild(chip('Total Hours', (totalMin / 60).toFixed(2)));
+  stats.appendChild(chip('Entries', String(t.logCount || logs.length)));
+  Object.keys(byType).forEach(code => {
+    stats.appendChild(chip(lkLabel('TIME_TYPE', code) || code, String(byType[code]) + ' min'));
+  });
+  body.appendChild(stats);
+
+  // ── Sessions ──
+  const sessTitle = pjMk('div', 'pj-section-title', 'Sessions');
+  sessTitle.style.cssText = 'margin-top:18px;margin-bottom:10px';
+  body.appendChild(sessTitle);
+
+  if (logs.length === 0) {
+    body.appendChild(pjMk('div', 'td-sessions-empty', 'No sessions yet — this task hasn\'t been worked on.'));
+  } else {
+    const table = document.createElement('table');
+    table.innerHTML = '<thead><tr>' +
+      '<th style="width:110px">Date</th><th style="width:100px">Time</th>' +
+      '<th style="width:70px;text-align:right">Min</th><th>What was done</th></tr></thead><tbody></tbody>';
+    const tb = table.querySelector('tbody');
+    logs.forEach(w => {
+      const tr = document.createElement('tr');
+      tr.appendChild(textCell(w.date || '—'));
+      const timeSpan = pjMk('span', null, lkLabel('TIME_TYPE', w.time) || '—');
+      if (w.time === 'OVERTIME') timeSpan.style.color = '#dc2626';
+      tr.appendChild(cellWrap(timeSpan, 'cell'));
+      const minTd = document.createElement('td'); minTd.style.textAlign = 'right';
+      minTd.appendChild(cellWrap(pjMk('span', null, (w.minutes === '' || w.minutes == null) ? '—' : String(w.minutes)), 'cell cell-right'));
+      tr.appendChild(minTd);
+      tr.appendChild(textCell(w.description || '—'));
+      tb.appendChild(tr);
+    });
+    body.appendChild(table);
+  }
 }
 
 function applyProjectFilter() {
@@ -6774,6 +6973,43 @@ function renderProjectDetail(p) {
   profile.appendChild(grid);
   host.appendChild(profile);
 
+  // ── Time Tracking section — aggregated across every linked task's sessions.
+  // No dedicated IPC: p.tasks[].workLogs already carries everything needed. ──
+  const timeSec = pjMk('div', 'pj-section');
+  const tmHead = pjMk('div', 'pj-section-head');
+  const tmTitle = pjMk('div', 'pj-section-title');
+  tmTitle.innerHTML = ic('clock');
+  tmTitle.appendChild(document.createTextNode('Time Tracking'));
+  tmHead.appendChild(tmTitle);
+  timeSec.appendChild(tmHead);
+
+  const projTasks = Array.isArray(p.tasks) ? p.tasks : [];
+  const allLogs = projTasks.flatMap(t => Array.isArray(t.workLogs) ? t.workLogs : []);
+  const projTotalMin = allLogs.reduce((s, w) => s + (Number(w.minutes) || 0), 0);
+  const byType = {};
+  allLogs.forEach(w => {
+    const key = w.time || '—';
+    byType[key] = (byType[key] || 0) + (Number(w.minutes) || 0);
+  });
+
+  const timeStats = pjMk('div', 'td-stats');
+  const timeChip = (label, value) => {
+    const c = pjMk('div', 'total-chip');
+    c.appendChild(pjMk('span', 'lbl', label));
+    c.appendChild(pjMk('span', 'stat-value', value));
+    return c;
+  };
+  timeStats.appendChild(timeChip('Total Hours', (projTotalMin / 60).toFixed(2)));
+  timeStats.appendChild(timeChip('Total Minutes', String(projTotalMin)));
+  timeStats.appendChild(timeChip('Sessions', String(allLogs.length)));
+  timeStats.appendChild(timeChip('Tasks', String(projTasks.length)));
+  Object.keys(byType).forEach(code => {
+    timeStats.appendChild(timeChip(lkLabel('TIME_TYPE', code) || code, (byType[code] / 60).toFixed(2) + 'h'));
+  });
+  timeSec.appendChild(timeStats);
+  if (!allLogs.length) timeSec.appendChild(pjMk('div', 'cp-records-empty', 'No sessions logged on this project yet.'));
+  host.appendChild(timeSec);
+
   // ── Documents section ──
   const docs = pjMk('div', 'pj-section');
   const dHead = pjMk('div', 'pj-section-head');
@@ -6821,7 +7057,7 @@ function renderProjectDetail(p) {
 }
 
 // One linked task in the project detail: its profile + the list of its work
-// sessions (or a "Not Yet — no sessions" note). Zero-log tasks appear here too.
+// sessions (or a "No sessions yet" note). Zero-log tasks appear here too.
 function buildProjectTaskCard(t) {
   const card = pjMk('div', 'pj-task-card');
   card.style.cssText = 'border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:10px';
@@ -6831,14 +7067,41 @@ function buildProjectTaskCard(t) {
   const title = pjMk('div', 'pj-task-title', t.name || '(untitled task)');
   title.style.cssText = 'font-weight:600';
   head.appendChild(title);
-  const statusPill = pjMk('span', 'status-badge ' + (t.status === 'DONE' ? 'status-done' : 'status-progress'),
+  const statusPill = pjMk('span', 'status-badge ' + statusClass(t.status),
     lkLabel('ENTRY_STATUS', t.status) || '—');
   head.appendChild(statusPill);
   const spacer = pjMk('div'); spacer.style.flex = '1'; head.appendChild(spacer);
-  const unlinkBtn = pjMk('button', 'row-btn del');
-  unlinkBtn.innerHTML = ic('x'); unlinkBtn.title = 'Unlink from this project';
-  unlinkBtn.addEventListener('click', () => doUnlinkTask(t.id));
-  head.appendChild(unlinkBtn);
+  const viewBtn = pjMk('button', 'row-btn');
+  viewBtn.innerHTML = ic('eye'); viewBtn.title = 'View task details';
+  viewBtn.addEventListener('click', () => openTaskDetail(t.id));
+  head.appendChild(viewBtn);
+  const editBtn = pjMk('button', 'row-btn');
+  editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit task';
+  editBtn.addEventListener('click', () => openProjectEditTask(t.id));
+  head.appendChild(editBtn);
+
+  // A zero-log task has no other identity once it loses this project link (there's
+  // no day-agnostic pool to find it in anymore) — delete it outright instead of
+  // offering an unlink that would silently orphan it. A task with sessions stays
+  // reachable via Timesheet/Browse either way, so unlink remains safe there.
+  const hasLogs = (t.logCount || 0) > 0;
+  const actsWrap = pjMk('div', 'row-actions');
+  const restoreActs = () => {
+    actsWrap.innerHTML = '';
+    if (hasLogs) {
+      const unlinkBtn = pjMk('button', 'row-btn del');
+      unlinkBtn.innerHTML = ic('x'); unlinkBtn.title = 'Unlink from this project';
+      unlinkBtn.addEventListener('click', () => doUnlinkTask(t.id));
+      actsWrap.appendChild(unlinkBtn);
+    } else {
+      const delBtn = pjMk('button', 'row-btn del');
+      delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete task';
+      delBtn.addEventListener('click', () => showDeleteConfirm(actsWrap, () => doDeleteProjectTask(t), restoreActs));
+      actsWrap.appendChild(delBtn);
+    }
+  };
+  restoreActs();
+  head.appendChild(actsWrap);
   card.appendChild(head);
 
   const metaBits = [t.company, t.system, t.natural].filter(Boolean).join(' · ');
@@ -6852,7 +7115,7 @@ function buildProjectTaskCard(t) {
 
   const logs = Array.isArray(t.workLogs) ? t.workLogs : [];
   if (logs.length === 0) {
-    const empty = pjMk('div', 'pj-task-empty', 'No sessions yet — Not Yet');
+    const empty = pjMk('div', 'pj-task-empty', 'No sessions yet');
     empty.style.cssText = 'color:var(--muted);font-size:12px;font-style:italic;margin-top:8px';
     card.appendChild(empty);
   } else {
@@ -7074,7 +7337,14 @@ function hideProjectUndoToast() {
   document.getElementById('project-undo-toast').classList.remove('visible');
   // Undo window lapsed without an undo → the deletion is final; purge the
   // project's entire file folder (best-effort; the boot orphan-sweep is backup).
-  if (undoProject) window.api.purgeProjectFiles(undoProject.id).catch(() => {});
+  if (undoProject) {
+    window.api.purgeProjectFiles(undoProject.id).catch(() => {});
+    // Zero-log tasks have no other identity once their project is gone for good
+    // (there's no day-agnostic pool to find them in) — clean them up so they don't
+    // become permanently unreachable orphans. Tasks with sessions stay untouched;
+    // they're already unlinked (SET NULL) and remain visible via Timesheet/Browse.
+    (undoProject.tasks || []).filter(t => !t.logCount).forEach(t => window.api.deleteTask(t.id).catch(() => {}));
+  }
   undoProject = null;
 }
 async function undoDeleteProject() {
@@ -7163,6 +7433,652 @@ async function doUnlinkTask(taskId) {
   await reloadCurrentProject();
   toast('Task unlinked');
 }
+// Delete a zero-log project task outright (see buildProjectTaskCard for why: it
+// has no other identity once unlinked). Undo re-creates an equivalent task.
+async function doDeleteProjectTask(task) {
+  try { await window.api.deleteTask(task.id); }
+  catch { toast('Could not delete task'); return; }
+  await reloadCurrentProject();
+  showGenericUndo('Task deleted', async () => {
+    try {
+      await window.api.createTask({
+        name: task.name, status: task.status, company: task.company, system: task.system,
+        natural: task.natural, source: task.source, tags: task.tags, projectId: task.projectId,
+      });
+    } catch { toast('Could not restore task'); return; }
+    await reloadCurrentProject();
+  });
+}
+
+// ══ COMPANY DOCUMENTS — standalone card-per-document module ════════════════
+// Independent of Projects: each card IS the entity (name/category/renewal
+// date/notes + at most one file), not a slot in a per-project catalog. Delete
+// removes the card itself; the file/undo dance mirrors the Projects
+// delete/restore pattern (showProjectUndoToast et al.) one level simpler
+// (no linked tasks to re-attach).
+let companyDocs = [];
+let companyDocsLoaded = false;
+let companyDocFilter = '';
+let companyDocEditId = null;     // null = create mode in the modal
+let undoCompanyDoc = null;
+let _undoCompanyDocTimer = null;
+
+function initCompanyDocsModule() {
+  if (!companyDocsLoaded) loadCompanyDocsList();
+  else renderCompanyDocsList();
+}
+
+async function loadCompanyDocsList() {
+  const grid = document.getElementById('companydocs-grid');
+  if (!grid.childElementCount) { grid.style.display = ''; showSkeleton(grid, 'cards', 3); }
+  let list;
+  try { list = await window.api.listCompanyDocuments(); }
+  catch { toast('Could not load company documents'); return; }
+  companyDocs = Array.isArray(list) ? list : [];
+  companyDocsLoaded = true;
+  renderCompanyDocsList();
+}
+
+function applyCompanyDocFilter() {
+  companyDocFilter = (document.getElementById('companydocs-filter').value || '').toLowerCase().trim();
+  renderCompanyDocsList();
+}
+
+function renderCompanyDocsList() {
+  const grid  = document.getElementById('companydocs-grid');
+  const empty = document.getElementById('companydocs-empty-state');
+  grid.innerHTML = '';
+
+  if (companyDocs.length === 0) {
+    grid.style.display = 'none';
+    empty.style.display = 'flex';
+    empty.querySelector('p').innerHTML = 'No company documents yet — click <strong>+ New Document</strong> to add one';
+    return;
+  }
+
+  const shown = companyDocs.filter(d => textMatch(
+    [d.name, lkLabel('COMPANY_DOCUMENT_CATEGORY', d.category), d.notes, d.file && d.file.originalName],
+    companyDocFilter));
+
+  if (shown.length === 0) {
+    grid.style.display = 'none';
+    empty.style.display = 'flex';
+    empty.querySelector('p').textContent = 'No documents match your search';
+    return;
+  }
+  grid.style.display = '';
+  empty.style.display = 'none';
+  shown.forEach(d => grid.appendChild(buildCompanyDocCard(d)));
+}
+
+// Overdue / due-soon (<=30 days) classification for the renewal-date row.
+// Display only — no reminders/notifications, per the Phase 5 scope.
+function cdRenewalStatus(dateStr) {
+  if (!dateStr) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const d = new Date(dateStr + 'T00:00:00');
+  const diffDays = Math.round((d - today) / 86400000);
+  if (diffDays < 0) return 'overdue';
+  if (diffDays <= 30) return 'soon';
+  return null;
+}
+
+// One card: header (icon + name + category pill + edit/delete), optional
+// renewal-date row, optional notes, file status line, file action buttons.
+function buildCompanyDocCard(doc) {
+  const f = doc.file;
+  const present = !!(f && f.exists);
+  const missing = !!(f && !f.exists);
+  const card = pjMk('div', 'cd-card' + (present ? ' available' : '') + (missing ? ' missing' : ''));
+
+  const head = pjMk('div', 'cd-card-head');
+  const icon = pjMk('div', 'cd-card-icon');
+  icon.innerHTML = ic(present ? 'circle-check' : (missing ? 'triangle-alert' : 'file-text'));
+  head.appendChild(icon);
+
+  const titleWrap = pjMk('div', 'cd-card-title');
+  titleWrap.appendChild(pjMk('div', 'cd-card-name', doc.name || 'Untitled document'));
+  if (doc.category) titleWrap.appendChild(pjMk('span', 'cd-card-cat', lkLabel('COMPANY_DOCUMENT_CATEGORY', doc.category)));
+  head.appendChild(titleWrap);
+
+  const headIcons = pjMk('div', 'cd-card-icons');
+  const editBtn = pjMk('button', 'cd-icon-btn');
+  editBtn.innerHTML = ic('pencil');
+  editBtn.title = 'Edit';
+  editBtn.addEventListener('click', () => openCompanyDocModal(doc));
+  headIcons.appendChild(editBtn);
+  const delBtn = pjMk('button', 'cd-icon-btn danger');
+  delBtn.innerHTML = ic('trash-2');
+  delBtn.title = 'Delete';
+  delBtn.addEventListener('click', () =>
+    showDeleteConfirm(headIcons, () => deleteCompanyDoc(doc.id), () => renderCompanyDocsList()));
+  headIcons.appendChild(delBtn);
+  head.appendChild(headIcons);
+  card.appendChild(head);
+
+  if (doc.renewalDate) {
+    const status = cdRenewalStatus(doc.renewalDate);
+    const row = pjMk('div', 'cd-renewal' + (status ? ' ' + status : ''));
+    row.innerHTML = ic('calendar-clock');
+    const prefix = status === 'overdue' ? 'Overdue — ' : status === 'soon' ? 'Renews soon — ' : 'Renews ';
+    row.appendChild(document.createTextNode(prefix + new Date(doc.renewalDate + 'T00:00:00').toLocaleDateString()));
+    card.appendChild(row);
+  }
+
+  if (doc.notes) card.appendChild(pjMk('div', 'cd-notes', doc.notes));
+
+  const fileRow = pjMk('div', 'cd-file-row');
+  if (!f) {
+    fileRow.textContent = 'No file uploaded';
+  } else {
+    fileRow.appendChild(pjMk('span', 'fname', f.originalName || '(file)'));
+    fileRow.appendChild(document.createTextNode(
+      ' · ' + fmtFileSize(f.size) + (f.uploadedAt ? ' · ' + new Date(f.uploadedAt).toLocaleDateString() : '')));
+  }
+  card.appendChild(fileRow);
+  if (missing) card.appendChild(pjMk('div', 'cd-file-warn', 'File missing from disk'));
+
+  const actions = pjMk('div', 'cd-actions');
+  const mkBtn = (cls, iconName, label, title, fn) => {
+    const b = pjMk('button', 'pj-doc-btn' + (cls ? ' ' + cls : ''));
+    b.innerHTML = ic(iconName);
+    b.appendChild(document.createTextNode(label));
+    b.title = title;
+    b.addEventListener('click', fn);
+    return b;
+  };
+  if (!f) {
+    actions.appendChild(mkBtn('primary', 'upload', 'Upload', 'Upload a file', () => uploadCompanyDocFile(doc.id)));
+  } else {
+    if (present) {
+      actions.appendChild(mkBtn('', 'download', 'Download', 'Save a copy', () => downloadCompanyDocFile(doc.id)));
+      actions.appendChild(mkBtn('', 'external-link', 'Open', 'Open with default app', () => openCompanyDocFile(doc.id)));
+    }
+    actions.appendChild(mkBtn('', 'upload', 'Replace', 'Replace with another file', () => uploadCompanyDocFile(doc.id)));
+    actions.appendChild(mkBtn('danger', 'trash-2', 'Remove file', 'Remove this file', () =>
+      showDeleteConfirm(actions, () => removeCompanyDocFile(doc.id), () => renderCompanyDocsList())));
+  }
+  card.appendChild(actions);
+  return card;
+}
+
+// A leading "no category" option, since category is optional (unlike the
+// required, defaulted lookup selects populateSelect() is built for).
+function populateCompanyDocCategorySelect(currentVal) {
+  const el = document.getElementById('cd-category');
+  el.innerHTML = '';
+  const none = document.createElement('option');
+  none.value = ''; none.textContent = '— No category —';
+  el.appendChild(none);
+  lkOptions('COMPANY_DOCUMENT_CATEGORY').forEach(opt => {
+    const o = document.createElement('option');
+    o.value = opt.code; o.textContent = opt.label;
+    if (opt.code === currentVal) o.selected = true;
+    el.appendChild(o);
+  });
+  if (!currentVal) none.selected = true;
+}
+
+function openCompanyDocModal(doc) {
+  companyDocEditId = doc ? doc.id : null;
+  document.getElementById('companydoc-modal-title').textContent = doc ? 'Edit Document' : 'New Document';
+  document.getElementById('companydoc-modal-submit').textContent = doc ? 'Save Changes' : 'Add Document';
+  document.getElementById('cd-name').value = doc ? (doc.name || '') : '';
+  document.getElementById('cd-renewal').value = doc ? (doc.renewalDate || '') : '';
+  document.getElementById('cd-notes').value = doc ? (doc.notes || '') : '';
+  populateCompanyDocCategorySelect(doc ? doc.category : '');
+
+  clearErrorsIn('#companydoc-modal');
+  document.getElementById('companydoc-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('cd-name').focus(), 80);
+}
+function closeCompanyDocModal() {
+  document.getElementById('companydoc-modal-overlay').classList.remove('open');
+  companyDocEditId = null;
+}
+function companyDocOverlayClick(e) {
+  if (e.target === document.getElementById('companydoc-modal-overlay')) closeCompanyDocModal();
+}
+
+async function submitCompanyDocModal() {
+  clearErrorsIn('#companydoc-modal');
+  const name = document.getElementById('cd-name').value.trim();
+  if (!name) { markError('cd-name'); return; }
+  const data = {
+    name,
+    category:    document.getElementById('cd-category').value || '',
+    renewalDate: document.getElementById('cd-renewal').value || '',
+    notes:       document.getElementById('cd-notes').value.trim(),
+  };
+  try {
+    if (companyDocEditId != null) {
+      await window.api.updateCompanyDocument(companyDocEditId, data);
+      closeCompanyDocModal();
+      toast('Document saved');
+    } else {
+      await window.api.createCompanyDocument(data);
+      closeCompanyDocModal();
+      toast('Document created');
+    }
+  } catch { toast('Could not save document'); return; }
+  await loadCompanyDocsList();
+}
+
+// Apply a CompanyDocFileResult ({ ok, document, error, canceled }) to the grid.
+function applyCompanyDocFileResult(res, failMsg) {
+  if (!res || res.canceled) return false;
+  if (!res.ok || !res.document) { toast(res?.error || failMsg); return false; }
+  companyDocs = companyDocs.map(d => d.id === res.document.id ? res.document : d);
+  renderCompanyDocsList();
+  return true;
+}
+async function uploadCompanyDocFile(id) {
+  let res;
+  try { res = await window.api.uploadCompanyDocument(id); }
+  catch { toast('Could not upload file'); return; }
+  if (applyCompanyDocFileResult(res, 'Could not upload file')) toast('File saved');
+}
+async function removeCompanyDocFile(id) {
+  let res;
+  try { res = await window.api.removeCompanyDocument(id); }
+  catch { toast('Could not remove file'); return; }
+  if (applyCompanyDocFileResult(res, 'Could not remove file')) toast('File removed');
+}
+async function downloadCompanyDocFile(id) {
+  let res;
+  try { res = await window.api.downloadCompanyDocument(id); }
+  catch { toast('Could not download file'); return; }
+  if (!res || res.canceled) return;
+  toast(res.ok ? 'File saved' : (res.error || 'Could not download file'));
+}
+async function openCompanyDocFile(id) {
+  let res;
+  try { res = await window.api.openCompanyDocument(id); }
+  catch { toast('Could not open file'); return; }
+  if (!res.ok) toast(res.error || 'Could not open file');
+}
+
+// ── Delete + undo (re-creates the card on undo: no hard loss) ──
+async function deleteCompanyDoc(id) {
+  const snapshot = companyDocs.find(d => d.id === id);
+  if (!snapshot) return;
+  try { await window.api.deleteCompanyDocument(id); }
+  catch { toast('Could not delete document'); renderCompanyDocsList(); return; }
+  companyDocs = companyDocs.filter(d => d.id !== id);
+  renderCompanyDocsList();
+  showCompanyDocUndoToast(snapshot);
+}
+function showCompanyDocUndoToast(snapshot) {
+  undoCompanyDoc = snapshot;
+  clearTimeout(_undoCompanyDocTimer);
+  document.getElementById('companydoc-undo-toast').classList.add('visible');
+  _undoCompanyDocTimer = setTimeout(hideCompanyDocUndoToast, 5000);
+}
+function hideCompanyDocUndoToast() {
+  document.getElementById('companydoc-undo-toast').classList.remove('visible');
+  // Undo window lapsed without an undo → the deletion is final; purge the
+  // card's file folder (best-effort; the boot orphan-sweep is backup).
+  if (undoCompanyDoc) window.api.purgeCompanyDocumentFiles(undoCompanyDoc.id).catch(() => {});
+  undoCompanyDoc = null;
+}
+async function undoDeleteCompanyDoc() {
+  if (!undoCompanyDoc) return;
+  const snap = undoCompanyDoc;
+  undoCompanyDoc = null;
+  clearTimeout(_undoCompanyDocTimer);
+  document.getElementById('companydoc-undo-toast').classList.remove('visible');
+  try {
+    const created = await window.api.createCompanyDocument({
+      name: snap.name, category: snap.category, renewalDate: snap.renewalDate, notes: snap.notes,
+    });
+    // Move the still-on-disk file (if any) onto the re-created card and re-record
+    // its metadata (the row was hard-deleted; the bytes survived the undo window).
+    if (snap.file) await window.api.restoreCompanyDocumentFile(snap.id, created.id, snap.file);
+    toast('Document restored');
+  } catch { toast('Could not restore document'); }
+  await loadCompanyDocsList();
+}
+
+// ══ CLIENTS — VPN Connectivity + Server Information per COMPANY lookup ═════
+// No standalone clients table: the roster IS the active COMPANY lookup
+// catalog (Settings → Companies). This module only adds two small per-user
+// child record types (VPN connections, servers) keyed to a company id, shown
+// via a Projects-style list+detail view (list = card grid, detail = two
+// editable sub-list sections).
+let clientsList = [];
+let clientsLoaded = false;
+let clientFilter = '';
+let currentClient = null;       // Client (from clients:get) shown in the detail view
+let clientVpnEditId = null;     // null = create mode in the VPN modal
+let clientServerEditId = null;  // null = create mode in the Server modal
+
+function initClientsModule() {
+  showClientsListView();
+  if (!clientsLoaded) loadClientsList();
+  else renderClientsList();
+}
+
+async function loadClientsList() {
+  const grid = document.getElementById('clients-grid');
+  if (!grid.childElementCount) { grid.style.display = ''; showSkeleton(grid, 'cards', 3); }
+  let list;
+  try { list = await window.api.listClients(); }
+  catch { toast('Could not load clients'); return; }
+  clientsList = Array.isArray(list) ? list : [];
+  clientsLoaded = true;
+  renderClientsList();
+}
+
+function applyClientFilter() {
+  clientFilter = (document.getElementById('clients-filter').value || '').toLowerCase().trim();
+  renderClientsList();
+}
+
+function showClientsListView() {
+  document.getElementById('clients-detail-view').style.display = 'none';
+  document.getElementById('clients-list-view').style.display = '';
+}
+function showClientDetailView() {
+  document.getElementById('clients-list-view').style.display = 'none';
+  document.getElementById('clients-detail-view').style.display = '';
+}
+
+function renderClientsList() {
+  const grid  = document.getElementById('clients-grid');
+  const empty = document.getElementById('clients-empty-state');
+  grid.innerHTML = '';
+
+  if (clientsList.length === 0) {
+    grid.style.display = 'none';
+    empty.style.display = 'flex';
+    empty.querySelector('p').innerHTML = 'No companies yet — add one in <strong>Settings → Companies</strong>';
+    return;
+  }
+
+  const shown = clientsList.filter(c => textMatch([c.label], clientFilter));
+
+  if (shown.length === 0) {
+    grid.style.display = 'none';
+    empty.style.display = 'flex';
+    empty.querySelector('p').textContent = 'No clients match your search';
+    return;
+  }
+  grid.style.display = '';
+  empty.style.display = 'none';
+
+  shown.forEach(c => {
+    const card = pjMk('div', 'pj-card');
+    card.addEventListener('click', () => openClientDetail(c.id));
+
+    const head = pjMk('div', 'pj-card-head');
+    head.appendChild(pjMk('div', 'pj-card-name', c.label || 'Untitled'));
+    card.appendChild(head);
+
+    const foot = pjMk('div', 'pj-card-foot');
+    const count = pjMk('span', 'pj-card-count');
+    count.innerHTML = ic('zap');
+    count.appendChild(document.createTextNode(
+      c.vpnCount + ' VPN' + (c.vpnCount === 1 ? '' : 's') + ' · ' + c.serverCount + ' server' + (c.serverCount === 1 ? '' : 's')));
+    foot.appendChild(count);
+    const open = pjMk('span', 'pj-card-open', 'Open');
+    open.insertAdjacentHTML('beforeend', ic('chevron-right'));
+    foot.appendChild(open);
+    card.appendChild(foot);
+
+    grid.appendChild(card);
+  });
+}
+
+async function openClientDetail(companyId) {
+  let client;
+  try { client = await window.api.getClient(companyId); }
+  catch { toast('Could not open client'); return; }
+  if (!client) { toast('Client not found'); return; }
+  currentClient = client;
+  showClientDetailView();
+  renderClientDetail(client);
+}
+async function reloadCurrentClient() {
+  if (!currentClient) return;
+  let client;
+  try { client = await window.api.getClient(currentClient.id); }
+  catch { return; }
+  if (!client) { backToClientsList(); return; }
+  currentClient = client;
+  renderClientDetail(client);
+}
+function backToClientsList() {
+  currentClient = null;
+  showClientsListView();
+  loadClientsList();
+}
+
+function renderClientDetail(c) {
+  const host = document.getElementById('clients-detail-view');
+  host.innerHTML = '';
+
+  const crumbs = pjMk('div', 'pj-crumbs');
+  const crumbRoot = pjMk('button', 'pj-crumb-link', 'Clients');
+  crumbRoot.addEventListener('click', backToClientsList);
+  crumbs.appendChild(crumbRoot);
+  const sep = pjMk('span', 'pj-crumb-sep');
+  sep.innerHTML = ic('chevron-right');
+  crumbs.appendChild(sep);
+  crumbs.appendChild(pjMk('span', 'pj-crumb-here', c.label || 'Untitled'));
+  host.appendChild(crumbs);
+
+  const head = pjMk('div', 'pj-detail-head');
+  head.appendChild(pjMk('div', 'pj-detail-title', c.label || 'Untitled'));
+  host.appendChild(head);
+
+  // ── VPN Connectivity section ──
+  const vpns = Array.isArray(c.vpnConnections) ? c.vpnConnections : [];
+  const vpnSec = pjMk('div', 'pj-section');
+  const vHead = pjMk('div', 'pj-section-head');
+  const vTitle = pjMk('div', 'pj-section-title');
+  vTitle.innerHTML = ic('zap');
+  vTitle.appendChild(document.createTextNode('VPN Connectivity (' + vpns.length + ')'));
+  vHead.appendChild(vTitle);
+  const vActions = pjMk('div', 'pj-section-actions');
+  const vAddBtn = pjMk('button', 'btn primary');
+  vAddBtn.innerHTML = ic('plus') + ' Add Connection';
+  vAddBtn.addEventListener('click', () => openClientVpnModal());
+  vActions.appendChild(vAddBtn);
+  vHead.appendChild(vActions);
+  vpnSec.appendChild(vHead);
+  if (vpns.length === 0) vpnSec.appendChild(pjMk('div', 'cp-records-empty', 'No VPN connections recorded yet.'));
+  else vpns.forEach(v => vpnSec.appendChild(buildClientVpnCard(v)));
+  host.appendChild(vpnSec);
+
+  // ── Server Information section ──
+  const servers = Array.isArray(c.servers) ? c.servers : [];
+  const srvSec = pjMk('div', 'pj-section');
+  const sHead = pjMk('div', 'pj-section-head');
+  const sTitle = pjMk('div', 'pj-section-title');
+  sTitle.innerHTML = ic('folder');
+  sTitle.appendChild(document.createTextNode('Server Information (' + servers.length + ')'));
+  sHead.appendChild(sTitle);
+  const sActions = pjMk('div', 'pj-section-actions');
+  const sAddBtn = pjMk('button', 'btn primary');
+  sAddBtn.innerHTML = ic('plus') + ' Add Server';
+  sAddBtn.addEventListener('click', () => openClientServerModal());
+  sActions.appendChild(sAddBtn);
+  sHead.appendChild(sActions);
+  srvSec.appendChild(sHead);
+  if (servers.length === 0) srvSec.appendChild(pjMk('div', 'cp-records-empty', 'No servers recorded yet.'));
+  else servers.forEach(s => srvSec.appendChild(buildClientServerCard(s)));
+  host.appendChild(srvSec);
+}
+
+function buildClientVpnCard(v) {
+  const card = pjMk('div', 'cl-item-card');
+  const main = pjMk('div', 'cl-item-main');
+  main.appendChild(pjMk('div', 'cl-item-title', v.connectionName || '(unnamed connection)'));
+  const metaBits = [v.vpnType, v.endpoint].filter(Boolean).join(' · ');
+  if (metaBits) main.appendChild(pjMk('div', 'cl-item-meta', metaBits));
+  if (v.notes) main.appendChild(pjMk('div', 'cl-item-notes', v.notes));
+  card.appendChild(main);
+
+  const actions = pjMk('div', 'cl-item-actions');
+  const editBtn = pjMk('button', 'cd-icon-btn');
+  editBtn.innerHTML = ic('pencil');
+  editBtn.title = 'Edit';
+  editBtn.addEventListener('click', () => openClientVpnModal(v));
+  actions.appendChild(editBtn);
+  const delBtn = pjMk('button', 'cd-icon-btn danger');
+  delBtn.innerHTML = ic('trash-2');
+  delBtn.title = 'Delete';
+  delBtn.addEventListener('click', () =>
+    showDeleteConfirm(actions, () => deleteClientVpnEntry(v.id), () => renderClientDetail(currentClient)));
+  actions.appendChild(delBtn);
+  card.appendChild(actions);
+  return card;
+}
+
+function buildClientServerCard(s) {
+  const card = pjMk('div', 'cl-item-card');
+  const main = pjMk('div', 'cl-item-main');
+  const title = pjMk('div', 'cl-item-title');
+  title.appendChild(document.createTextNode(s.serverName || '(unnamed server)'));
+  if (s.environment) {
+    const envLabel = s.environment === 'PRODUCTION' ? 'Production' : (s.environment === 'TEST' ? 'Test' : s.environment);
+    title.appendChild(pjMk('span', 'cl-env-badge ' + s.environment.toLowerCase(), envLabel));
+  }
+  main.appendChild(title);
+  const metaBits = [s.host, s.os].filter(Boolean).join(' · ');
+  if (metaBits) main.appendChild(pjMk('div', 'cl-item-meta', metaBits));
+  if (s.notes) main.appendChild(pjMk('div', 'cl-item-notes', s.notes));
+  card.appendChild(main);
+
+  const actions = pjMk('div', 'cl-item-actions');
+  const editBtn = pjMk('button', 'cd-icon-btn');
+  editBtn.innerHTML = ic('pencil');
+  editBtn.title = 'Edit';
+  editBtn.addEventListener('click', () => openClientServerModal(s));
+  actions.appendChild(editBtn);
+  const delBtn = pjMk('button', 'cd-icon-btn danger');
+  delBtn.innerHTML = ic('trash-2');
+  delBtn.title = 'Delete';
+  delBtn.addEventListener('click', () =>
+    showDeleteConfirm(actions, () => deleteClientServerEntry(s.id), () => renderClientDetail(currentClient)));
+  actions.appendChild(delBtn);
+  card.appendChild(actions);
+  return card;
+}
+
+// ── VPN connection modal ──
+function openClientVpnModal(v) {
+  clientVpnEditId = v ? v.id : null;
+  document.getElementById('client-vpn-modal-title').textContent = v ? 'Edit VPN Connection' : 'Add VPN Connection';
+  document.getElementById('client-vpn-modal-submit').textContent = v ? 'Save Changes' : 'Add Connection';
+  document.getElementById('cv-name').value = v ? (v.connectionName || '') : '';
+  document.getElementById('cv-type').value = v ? (v.vpnType || '') : '';
+  document.getElementById('cv-endpoint').value = v ? (v.endpoint || '') : '';
+  document.getElementById('cv-notes').value = v ? (v.notes || '') : '';
+  clearErrorsIn('#client-vpn-modal');
+  document.getElementById('client-vpn-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('cv-name').focus(), 80);
+}
+function closeClientVpnModal() {
+  document.getElementById('client-vpn-modal-overlay').classList.remove('open');
+  clientVpnEditId = null;
+}
+function clientVpnOverlayClick(e) {
+  if (e.target === document.getElementById('client-vpn-modal-overlay')) closeClientVpnModal();
+}
+async function submitClientVpnModal() {
+  clearErrorsIn('#client-vpn-modal');
+  const connectionName = document.getElementById('cv-name').value.trim();
+  if (!connectionName) { markError('cv-name'); return; }
+  const data = {
+    connectionName,
+    vpnType:  document.getElementById('cv-type').value.trim(),
+    endpoint: document.getElementById('cv-endpoint').value.trim(),
+    notes:    document.getElementById('cv-notes').value.trim(),
+  };
+  try {
+    if (clientVpnEditId != null) await window.api.updateClientVpn(clientVpnEditId, data);
+    else await window.api.createClientVpn(currentClient.id, data);
+    closeClientVpnModal();
+    toast('VPN connection saved');
+  } catch { toast('Could not save VPN connection'); return; }
+  await reloadCurrentClient();
+}
+// Delete + undo (re-creates the connection on undo — same pattern as
+// doDeleteProjectTask's zero-log task undo; no file involved here).
+async function deleteClientVpnEntry(id) {
+  const snapshot = (currentClient?.vpnConnections || []).find(v => v.id === id);
+  try { await window.api.deleteClientVpn(id); }
+  catch { toast('Could not delete VPN connection'); renderClientDetail(currentClient); return; }
+  await reloadCurrentClient();
+  if (!snapshot) return;
+  showGenericUndo('VPN connection deleted', async () => {
+    try {
+      await window.api.createClientVpn(snapshot.companyId, {
+        connectionName: snapshot.connectionName, vpnType: snapshot.vpnType,
+        endpoint: snapshot.endpoint, notes: snapshot.notes,
+      });
+    } catch { toast('Could not restore VPN connection'); return; }
+    await reloadCurrentClient();
+  });
+}
+
+// ── Server modal ──
+function openClientServerModal(s) {
+  clientServerEditId = s ? s.id : null;
+  document.getElementById('client-server-modal-title').textContent = s ? 'Edit Server' : 'Add Server';
+  document.getElementById('client-server-modal-submit').textContent = s ? 'Save Changes' : 'Add Server';
+  document.getElementById('cs-name').value = s ? (s.serverName || '') : '';
+  document.getElementById('cs-host').value = s ? (s.host || '') : '';
+  document.getElementById('cs-environment').value = s ? (s.environment || 'PRODUCTION') : 'PRODUCTION';
+  document.getElementById('cs-os').value = s ? (s.os || '') : '';
+  document.getElementById('cs-notes').value = s ? (s.notes || '') : '';
+  clearErrorsIn('#client-server-modal');
+  document.getElementById('client-server-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('cs-name').focus(), 80);
+}
+function closeClientServerModal() {
+  document.getElementById('client-server-modal-overlay').classList.remove('open');
+  clientServerEditId = null;
+}
+function clientServerOverlayClick(e) {
+  if (e.target === document.getElementById('client-server-modal-overlay')) closeClientServerModal();
+}
+async function submitClientServerModal() {
+  clearErrorsIn('#client-server-modal');
+  const serverName = document.getElementById('cs-name').value.trim();
+  if (!serverName) { markError('cs-name'); return; }
+  const data = {
+    serverName,
+    host:        document.getElementById('cs-host').value.trim(),
+    environment: document.getElementById('cs-environment').value || 'PRODUCTION',
+    os:          document.getElementById('cs-os').value.trim(),
+    notes:       document.getElementById('cs-notes').value.trim(),
+  };
+  try {
+    if (clientServerEditId != null) await window.api.updateClientServer(clientServerEditId, data);
+    else await window.api.createClientServer(currentClient.id, data);
+    closeClientServerModal();
+    toast('Server saved');
+  } catch { toast('Could not save server'); return; }
+  await reloadCurrentClient();
+}
+async function deleteClientServerEntry(id) {
+  const snapshot = (currentClient?.servers || []).find(s => s.id === id);
+  try { await window.api.deleteClientServer(id); }
+  catch { toast('Could not delete server'); renderClientDetail(currentClient); return; }
+  await reloadCurrentClient();
+  if (!snapshot) return;
+  showGenericUndo('Server deleted', async () => {
+    try {
+      await window.api.createClientServer(snapshot.companyId, {
+        serverName: snapshot.serverName, host: snapshot.host,
+        environment: snapshot.environment, os: snapshot.os, notes: snapshot.notes,
+      });
+    } catch { toast('Could not restore server'); return; }
+    await reloadCurrentClient();
+  });
+}
 
 // ══ COMMAND PALETTE (Ctrl+K) ════════════════════════════════════════════════
 // One keyboard entry point to everything: navigate to a page, run a quick
@@ -7174,13 +8090,14 @@ let _palTasks = [];      // Task[] fetched once per open
 
 const PAL_PAGES = [
   { icon: 'clock',            label: 'Timesheet',     go: 'timesheet' },
-  { icon: 'pin',              label: 'Not Yet',       go: 'backlog' },
   { icon: 'layout-dashboard', label: 'Analytics',     go: 'analytics' },
   { icon: 'file-text',        label: 'Reports',       go: 'reports' },
   { icon: 'building-2',       label: 'Browse — Companies', go: 'companies' },
   { icon: 'folder',           label: 'Browse — Systems',   go: 'systems' },
   { icon: 'clipboard-list',   label: 'Projects',      go: 'projects' },
+  { icon: 'layers',           label: 'Clients',       go: 'clients' },
   { icon: 'credit-card',      label: 'Subscriptions', go: 'subscriptions' },
+  { icon: 'calendar-check',   label: 'Company Documents', go: 'companydocs' },
   { icon: 'settings',         label: 'Settings',      go: 'settings' },
 ];
 
@@ -7232,7 +8149,6 @@ function renderPalette() {
   // Quick actions
   const acts = [
     { icon: 'plus',          label: 'Add record — log work',      match: 'add record log work session new', run: () => { switchModule('timesheet'); openModal(); } },
-    { icon: 'pin',           label: 'Add a Not Yet task',         match: 'add task not yet backlog new',    run: () => { switchModule('backlog'); openBacklogModal(); } },
     { icon: 'clipboard-list',label: 'New project',                match: 'new project create',              run: () => { switchModule('projects'); openProjectModal(); } },
     { icon: 'calendar-check',label: 'Go to today',                match: 'today now current day',           run: () => { switchModule('timesheet'); goToday(); } },
     { icon: 'moon',          label: 'Toggle dark / light theme',  match: 'theme dark light mode toggle',    run: toggleTheme },
@@ -7308,14 +8224,12 @@ async function flushPending() {
   clearTimeout(_nameSaveTimer);
   clearTimeout(_dayNameTimer);
   clearTimeout(_subSaveTimer);
-  clearTimeout(_backlogSaveTimer);
   const tasks = [];
   if (activeDate) {
     tasks.push(persistTimesheet());   // flush any pending granular work-log saves
     tasks.push(window.api.setDayName(activeDate, document.getElementById('hName').value));
   }
   if (subsLoaded)     tasks.push(saveSubscriptionsData());
-  // Not Yet persists immediately (no debounced save to flush).
   try { await Promise.all(tasks); } catch { /* best effort */ }
 }
 
@@ -7332,7 +8246,9 @@ async function init() {
 
   try {
     LK = await window.api.loadLookups();
-    await refreshProjectIndex();   // names for the day/backlog Project field + row pills
+    renderBulkStatusMenu();
+    renderFilterChips();
+    await refreshProjectIndex();   // names for the Timesheet/Project-task Project field + row pills
     await refreshDayList();
     const today = fmt(t);
     await switchDay(today);
