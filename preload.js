@@ -135,7 +135,7 @@ contextBridge.exposeInMainWorld('api', {
   purgeCompanyDocumentFiles: (id)                    => ipcRenderer.invoke('companydocs:purge-files', id),
   restoreCompanyDocumentFile: (oldId, newId, fileMeta) => ipcRenderer.invoke('companydocs:restore-file', oldId, newId, fileMeta),
 
-  // ── Clients (VPN Connectivity + Server Information per COMPANY lookup) ──
+  // ── Clients (Auth + Server Information + Databases per COMPANY lookup) ──
   /** @returns {Promise<import('./ipc-types').ClientListItem[]>} */
   listClients: ()                     => ipcRenderer.invoke('clients:list'),
   /** @returns {Promise<import('./ipc-types').Client|null>} */
@@ -146,6 +146,17 @@ contextBridge.exposeInMainWorld('api', {
   createClientServer: (companyId, data) => ipcRenderer.invoke('clients:server-create', companyId, data),
   updateClientServer: (id, data)        => ipcRenderer.invoke('clients:server-update', id, data),
   deleteClientServer: (id)              => ipcRenderer.invoke('clients:server-delete', id),
+  renameClientServerSystemGroup: (companyId, oldName, newName) => ipcRenderer.invoke('clients:server-rename-group', companyId, oldName, newName),
+  createClientDatabase: (companyId, data) => ipcRenderer.invoke('clients:database-create', companyId, data),
+  updateClientDatabase: (id, data)        => ipcRenderer.invoke('clients:database-update', id, data),
+  deleteClientDatabase: (id)              => ipcRenderer.invoke('clients:database-delete', id),
+  createClientExternalService: (companyId, data) => ipcRenderer.invoke('clients:external-create', companyId, data),
+  updateClientExternalService: (id, data)        => ipcRenderer.invoke('clients:external-update', id, data),
+  deleteClientExternalService: (id)              => ipcRenderer.invoke('clients:external-delete', id),
+  createClientInternalSystem: (companyId, data) => ipcRenderer.invoke('clients:internal-create', companyId, data),
+  updateClientInternalSystem: (id, data)        => ipcRenderer.invoke('clients:internal-update', id, data),
+  deleteClientInternalSystem: (id)              => ipcRenderer.invoke('clients:internal-delete', id),
+  renameClientInternalSystemGroup: (companyId, oldName, newName) => ipcRenderer.invoke('clients:internal-rename-group', companyId, oldName, newName),
 
   // ── Backup / reports / window / shell ──
   /** @returns {Promise<import('./ipc-types').FileResult>} */
