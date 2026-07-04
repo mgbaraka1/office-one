@@ -216,7 +216,9 @@ function rotateBackups(keep = 5) {
     fs.copyFileSync(dbPath(), path.join(dir, `cooperation-tools-${stamp}.db`));
     const files = fs.readdirSync(dir)
       .filter(f => /^cooperation-tools-.*\.db$/.test(f))
-      .sort();   // lexicographic === chronological for this stamp format
+      .map(f => ({ name: f, mtimeMs: fs.statSync(path.join(dir, f)).mtimeMs }))
+      .sort((a, b) => a.mtimeMs - b.mtimeMs)   // oldest first, by actual mtime — not filename text
+      .map(f => f.name);
     while (files.length > keep) fs.rmSync(path.join(dir, files.shift()), { force: true });
   } catch { /* non-critical */ }
 }
