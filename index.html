@@ -819,6 +819,48 @@
     /* Detail-view search + type-filter toolbar (sits above the 5 sections) */
     .cl-detail-toolbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 14px 0 4px; }
     .cl-detail-search { width: 280px; }
+    /* List-view records search (searches every client's own records, not just its name) */
+    .cl-records-search-wrap { position: relative; margin-bottom: 22px; }
+    .cl-records-search-icon { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+    .cl-records-search-icon .lic { width: 19px; height: 19px; }
+    .cl-records-search-input {
+      width: 100%; border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 17px 20px 17px 50px; font-size: 16px; font-family: inherit;
+      background: var(--surface); color: var(--text); outline: none; box-shadow: var(--shadow-sm);
+      transition: border-color var(--speed), box-shadow var(--speed);
+    }
+    .cl-records-search-input::placeholder { color: var(--muted); }
+    .cl-records-search-input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-glow); }
+    /* Record-info popup (opened from a records-search result row) — every field is its
+       own click-to-copy row; sensitive fields (password/secretKey) stay masked. */
+    .cl-info-subtitle { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+    .cl-info-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 14px;
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 10px 12px; margin-bottom: 8px; cursor: pointer;
+      transition: background var(--speed), border-color var(--speed);
+    }
+    .cl-info-row:last-child { margin-bottom: 0; }
+    .cl-info-row:hover { background: var(--row-hover); border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); }
+    .cl-info-row.not-copyable { cursor: default; }
+    .cl-info-row.not-copyable:hover { background: none; border-color: var(--border); }
+    .cl-info-main { min-width: 0; }
+    .cl-info-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: 3px; }
+    .cl-info-value { font-size: 13.5px; color: var(--text); word-break: break-word; }
+    .cl-info-value.empty { color: var(--muted); opacity: .6; font-style: italic; }
+    .cl-info-copy-hint { font-size: 11px; font-weight: 600; color: var(--primary); opacity: 0; transition: opacity var(--speed); flex-shrink: 0; white-space: nowrap; }
+    .cl-info-row:hover .cl-info-copy-hint { opacity: 1; }
+    .cl-info-subrow { padding-left: 12px; margin-top: 6px; border-left: 2px solid var(--border); }
+    .cl-info-subrow-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 8px; border-radius: var(--radius-sm); cursor: pointer; }
+    .cl-info-subrow-line:hover { background: var(--row-hover); }
+    /* Records-search results table (replaces the card grid while the search box holds text) */
+    .cl-search-summary { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-bottom: 12px; }
+    .cl-search-table tbody tr { cursor: pointer; }
+    .cl-type-pill {
+      display: inline-block; padding: 3px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px;
+      background: var(--surface2); color: var(--muted); border: 1px solid var(--border); white-space: nowrap;
+    }
     .cl-item-updated { font-size: 11px; color: var(--muted); opacity: .75; margin-top: 6px; }
     /* Field-history rows — shared by the read-only History modal and the
        pre-commit edit-confirmation modal (same visual language, one shows
@@ -1138,7 +1180,7 @@
     .modal-overlay.open { display: flex; }
     .modal-box {
       background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-      width: 440px; max-height: 90vh; overflow-y: auto;
+      width: 480px; max-height: 90vh; overflow-y: auto;
       box-shadow: var(--shadow);
       animation: modalIn .32s var(--ease);
     }
@@ -1148,8 +1190,10 @@
     }
     /* Per-modal width overrides */
     #sub-settings-modal { width: 380px; }
-    #project-modal { width: 460px; }
+    #project-modal { width: 520px; }
     #link-task-modal { width: 540px; }
+    #modal, #backlog-modal, #sub-modal,
+    #client-vpn-modal, #client-database-modal, #client-external-modal,
     #client-server-modal, #client-internal-modal { width: 640px; max-width: 94vw; }
     #task-detail-modal { width: 720px; max-width: 94vw; max-height: 90vh; }
     #task-detail-overlay { z-index: 150; }
@@ -2428,14 +2472,21 @@
 <div id="module-clients" class="app-module">
   <div id="clients-topbar" class="page-header">
     <span class="page-title"><span class="ti-ic" data-ic="layers"></span>Clients</span>
-    <div class="topbar-right">
-      <input type="text" id="clients-filter" class="mod-search" placeholder="Search clients…" oninput="applyClientFilter()">
-    </div>
   </div>
 
-  <!-- List view: every active COMPANY lookup, as cards -->
+  <!-- List view: every active COMPANY lookup, as cards. The large search bar
+       above the grid searches every client's own records (auth/servers/
+       databases/external/internal) — while it holds text the card grid is
+       swapped for a flat table of the matching records (see
+       renderClientsList/renderClientSearchResults). -->
   <div id="clients-list-view" class="pj-scroll">
+    <div class="cl-records-search-wrap">
+      <span class="cl-records-search-icon" data-ic="search"></span>
+      <input type="text" id="clients-records-filter" class="cl-records-search-input"
+             placeholder="Search all client records… e.g. “VPN” or “Amana Visa”" oninput="applyClientRecordFilter()">
+    </div>
     <div class="pj-grid" id="clients-grid"></div>
+    <div id="clients-search-results" style="display:none"></div>
     <div id="clients-empty-state" style="display:none">
       <div class="icon" data-ic="layers"></div>
       <p>No companies yet — add one in <strong>Settings → Companies</strong></p>
@@ -2876,6 +2927,26 @@
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeClientHistoryModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CLIENT RECORD INFO MODAL (read-only; click any field to copy it) ══ -->
+<div id="client-record-info-overlay" class="modal-overlay" onclick="clientRecordInfoOverlayClick(event)">
+  <div id="client-record-info-modal" class="modal-box">
+    <div class="modal-header">
+      <div>
+        <span class="modal-title" id="client-record-info-title">Record</span>
+        <div class="cl-info-subtitle" id="client-record-info-sub"></div>
+      </div>
+      <button class="modal-close" onclick="closeClientRecordInfoModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div id="client-record-info-list"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeClientRecordInfoModal()">Close</button>
+      <button class="btn primary" onclick="openClientFromRecordInfo()">Open Client</button>
     </div>
   </div>
 </div>
@@ -3373,10 +3444,16 @@ function esc(s) {
 function isURL(s) {
   return /^https?:\/\//i.test(s || '');
 }
-// True if any of `values` contains the (already-lowercased) query `q`. Empty q matches all.
+// True if `values` together satisfy the (already-lowercased) query `q`. Empty q matches all.
+// `q` is split on whitespace into words; every word must appear as a substring somewhere
+// across `values` (words can match different fields — e.g. "amana visa" matches a company
+// field containing "amana" and a type field containing "visa").
 function textMatch(values, q) {
   if (!q) return true;
-  return values.some(v => String(v ?? '').toLowerCase().includes(q));
+  const words = q.split(/\s+/).filter(Boolean);
+  if (!words.length) return true;
+  const hay = values.map(v => String(v ?? '').toLowerCase()).join('   ');
+  return words.every(w => hay.includes(w));
 }
 
 // ── Lookup helpers ──
@@ -4979,7 +5056,7 @@ function clearErrors() { clearErrorsIn('body'); }
 // ── Keyboard shortcuts ──
 document.addEventListener('keydown', e => {
   const inputFocused = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
-  const anyOpen = ['modal-overlay','print-overlay','month-overlay','sub-modal-overlay','sub-settings-overlay','backlog-modal-overlay','project-modal-overlay','link-task-overlay','palette-overlay','task-detail-overlay','companydoc-modal-overlay','client-vpn-modal-overlay','client-server-modal-overlay']
+  const anyOpen = ['modal-overlay','print-overlay','month-overlay','sub-modal-overlay','sub-settings-overlay','backlog-modal-overlay','project-modal-overlay','link-task-overlay','palette-overlay','task-detail-overlay','companydoc-modal-overlay','client-vpn-modal-overlay','client-server-modal-overlay','client-record-info-overlay']
     .some(id => document.getElementById(id).classList.contains('open'));
 
   // Command palette — available everywhere, even while typing in a field.
@@ -4994,6 +5071,7 @@ document.addEventListener('keydown', e => {
     closeModal(); closePrint(); closeMonthView(); closeSubModal(); closeSubSettings(); closeBacklogModal();
     closeProjectModal(); closeLinkModal(); closePalette(); closeTaskDetail(); closeCompanyDocModal();
     closeClientVpnModal(); closeClientServerModal(); closeClientDatabaseModal(); closeClientExternalModal(); closeClientInternalModal(); closeClientGroupRenameModal(); closeClientNewGroupModal();
+    closeClientRecordInfoModal();
     document.querySelectorAll('.top-menu.open').forEach(m => m.classList.remove('open'));
     if (selectedRows.size) clearSelection();
   }
@@ -5868,6 +5946,8 @@ function switchModule(name) {
   }
   if (activeModule === name) {
     if (name === 'browse') setBrowseKind(browseKind);
+    else if (name === 'projects') backToProjectsList();
+    else if (name === 'clients') backToClientsList();
     return;
   }
   if (name !== 'timesheet' && selectedRows.size) clearSelection();
@@ -8122,7 +8202,7 @@ async function undoDeleteCompanyDoc() {
 // editable sub-list sections).
 let clientsList = [];
 let clientsLoaded = false;
-let clientFilter = '';
+let clientRecordFilter = '';  // matches within each client's own records (auth/servers/databases/external/internal)
 let currentClient = null;       // Client (from clients:get) shown in the detail view
 let clientVpnEditId = null;      // null = create mode in the Auth modal
 let clientServerEditId = null;   // null = create mode in the Server modal
@@ -8163,8 +8243,8 @@ async function loadClientsList() {
   renderClientsList();
 }
 
-function applyClientFilter() {
-  clientFilter = (document.getElementById('clients-filter').value || '').toLowerCase().trim();
+function applyClientRecordFilter() {
+  clientRecordFilter = (document.getElementById('clients-records-filter').value || '').toLowerCase().trim();
   renderClientsList();
 }
 
@@ -8177,61 +8257,132 @@ function showClientDetailView() {
   document.getElementById('clients-detail-view').style.display = '';
 }
 
+function buildClientCard(c) {
+  const card = pjMk('div', 'pj-card');
+  card.addEventListener('click', () => openClientDetail(c.id));
+
+  const head = pjMk('div', 'pj-card-head');
+  head.appendChild(pjMk('div', 'pj-card-name', c.label || 'Untitled'));
+  card.appendChild(head);
+
+  const foot = pjMk('div', 'pj-card-foot');
+  const count = pjMk('span', 'pj-card-count');
+  count.innerHTML = ic('zap');
+  count.appendChild(document.createTextNode(
+    c.vpnCount + ' auth' + ' · ' + c.serverCount + ' server' + (c.serverCount === 1 ? '' : 's')
+    + ' · ' + c.databaseCount + ' database' + (c.databaseCount === 1 ? '' : 's')
+    + ' · ' + c.externalServiceCount + ' external' + ' · ' + c.internalSystemCount + ' internal'));
+  foot.appendChild(count);
+  const open = pjMk('span', 'pj-card-open', 'Open');
+  open.insertAdjacentHTML('beforeend', ic('chevron-right'));
+  foot.appendChild(open);
+  card.appendChild(foot);
+
+  return card;
+}
+
+// List view: an empty search box shows the usual card grid; typing in it
+// switches to a flat table of every matching record (across all clients),
+// built from each client's `records` (see listClients() in db.js).
 function renderClientsList() {
-  const grid  = document.getElementById('clients-grid');
-  const empty = document.getElementById('clients-empty-state');
+  const grid    = document.getElementById('clients-grid');
+  const results = document.getElementById('clients-search-results');
+  const empty   = document.getElementById('clients-empty-state');
   grid.innerHTML = '';
+  results.innerHTML = '';
 
   if (clientsList.length === 0) {
     grid.style.display = 'none';
+    results.style.display = 'none';
     empty.style.display = 'flex';
     empty.querySelector('p').innerHTML = 'No companies yet — add one in <strong>Settings → Companies</strong>';
     return;
   }
 
-  const shown = clientsList.filter(c => textMatch([c.label], clientFilter));
-
-  if (shown.length === 0) {
-    grid.style.display = 'none';
-    empty.style.display = 'flex';
-    empty.querySelector('p').textContent = 'No clients match your search';
+  const q = clientRecordFilter;
+  if (!q) {
+    results.style.display = 'none';
+    grid.style.display = '';
+    empty.style.display = 'none';
+    clientsList.forEach(c => grid.appendChild(buildClientCard(c)));
     return;
   }
-  grid.style.display = '';
-  empty.style.display = 'none';
 
-  shown.forEach(c => {
-    const card = pjMk('div', 'pj-card');
-    card.addEventListener('click', () => openClientDetail(c.id));
-
-    const head = pjMk('div', 'pj-card-head');
-    head.appendChild(pjMk('div', 'pj-card-name', c.label || 'Untitled'));
-    card.appendChild(head);
-
-    const foot = pjMk('div', 'pj-card-foot');
-    const count = pjMk('span', 'pj-card-count');
-    count.innerHTML = ic('zap');
-    count.appendChild(document.createTextNode(
-      c.vpnCount + ' auth' + ' · ' + c.serverCount + ' server' + (c.serverCount === 1 ? '' : 's')
-      + ' · ' + c.databaseCount + ' database' + (c.databaseCount === 1 ? '' : 's')
-      + ' · ' + c.externalServiceCount + ' external' + ' · ' + c.internalSystemCount + ' internal'));
-    foot.appendChild(count);
-    const open = pjMk('span', 'pj-card-open', 'Open');
-    open.insertAdjacentHTML('beforeend', ic('chevron-right'));
-    foot.appendChild(open);
-    card.appendChild(foot);
-
-    grid.appendChild(card);
+  grid.style.display = 'none';
+  const matches = [];
+  clientsList.forEach(c => {
+    (c.records || []).forEach(r => {
+      if (textMatch(r.fields, q)) matches.push({ companyId: c.id, companyLabel: c.label, ...r });
+    });
   });
+
+  if (matches.length === 0) {
+    results.style.display = 'none';
+    empty.style.display = 'flex';
+    empty.querySelector('p').textContent = 'No records match your search';
+    return;
+  }
+  empty.style.display = 'none';
+  results.style.display = '';
+  renderClientSearchResults(matches, q);
 }
 
-async function openClientDetail(companyId) {
+// Renders the records-search results table: one row per matched record
+// (across every client), clicking a row opens that client's detail view
+// with the same search term preset so the match is already visible there.
+function renderClientSearchResults(matches, q) {
+  const host = document.getElementById('clients-search-results');
+  host.innerHTML = '';
+
+  const summary = pjMk('div', 'cl-search-summary',
+    matches.length + ' record' + (matches.length === 1 ? '' : 's') + ' matched');
+  host.appendChild(summary);
+
+  const table = document.createElement('table');
+  table.className = 'cl-search-table';
+  table.innerHTML = '<thead><tr><th>Client</th><th>Type</th><th>Name</th><th>Details</th><th></th></tr></thead>';
+  const tbody = document.createElement('tbody');
+
+  matches.forEach(m => {
+    const tr = document.createElement('tr');
+    tr.addEventListener('click', () => openClientRecordInfoModal(m, q));
+
+    const tdClient = document.createElement('td');
+    tdClient.innerHTML = '<div class="cell"><strong>' + esc(m.companyLabel) + '</strong></div>';
+    tr.appendChild(tdClient);
+
+    const tdType = document.createElement('td');
+    tdType.innerHTML = '<div class="cell"><span class="cl-type-pill">' + esc(m.typeLabel) + '</span></div>';
+    tr.appendChild(tdType);
+
+    const tdName = document.createElement('td');
+    tdName.innerHTML = '<div class="cell">' + esc(m.name) + '</div>';
+    tr.appendChild(tdName);
+
+    const tdDetail = document.createElement('td');
+    tdDetail.innerHTML = '<div class="cell cell-muted">' + esc(m.detail || '') + '</div>';
+    tr.appendChild(tdDetail);
+
+    const tdOpen = document.createElement('td');
+    tdOpen.innerHTML = '<div class="cell cell-right"><span class="pj-card-open" style="opacity:1;transform:none">View' + ic('eye') + '</span></div>';
+    tr.appendChild(tdOpen);
+
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  host.appendChild(table);
+}
+
+// `presetSearch`, when given (drilling in from the list view's records-search
+// results table), seeds the detail view's own search box with the same query
+// instead of resetting it, so the matched record is already visible/highlighted.
+async function openClientDetail(companyId, presetSearch) {
   let client;
   try { client = await window.api.getClient(companyId); }
   catch { toast('Could not open client'); return; }
   if (!client) { toast('Client not found'); return; }
   currentClient = client;
-  clientDetailSearch = ''; // fresh search context per client; type filter persists
+  clientDetailSearch = presetSearch || ''; // fresh search context per client; type filter persists
   showClientDetailView();
   renderClientDetail(client);
 }
@@ -8243,6 +8394,125 @@ async function reloadCurrentClient() {
   if (!client) { backToClientsList(); return; }
   currentClient = client;
   renderClientDetail(client);
+}
+
+// ── Record info popup (opened from a records-search result row) ──
+// One field-def list per record `type`, mirroring db.js's *_HISTORY_FIELDS
+// (same columns, same 'sensitive' flag) but keyed to the camelCase shape
+// `clients:get` actually returns. Every non-empty field is a click-to-copy row.
+const CLIENT_RECORD_INFO_FIELDS = {
+  auth: [
+    ['connectionName', 'Connection Name'], ['vpnType', 'Type'], ['endpoint', 'Endpoint'], ['port', 'Port'],
+    ['username', 'Username'], ['password', 'Password', true], ['expiryDate', 'Expiry Date'],
+    ['credentialLocation', 'Credential Location'], ['notes', 'Notes'],
+  ],
+  servers: [
+    ['serverName', 'Server Name'], ['host', 'Host (IP)'], ['environment', 'Environment'], ['os', 'Operating System'],
+    ['hostname', 'Hostname'], ['username', 'Username'], ['password', 'Password', true], ['systemName', 'System Name'],
+    ['role', 'Role'], ['port', 'Port'], ['credentialLocation', 'Credential Location'], ['notes', 'Notes'],
+  ],
+  databases: [
+    ['name', 'Name'], ['engine', 'Engine'], ['host', 'Host'], ['port', 'Port'], ['username', 'Username'],
+    ['password', 'Password', true], ['version', 'Version'], ['credentialLocation', 'Credential Location'], ['notes', 'Notes'],
+  ],
+  external: [
+    ['name', 'Name'], ['url', 'URL'], ['companyCode', 'Company Code'], ['secretKey', 'Secret Key', true],
+    ['expiryDate', 'Expiry Date'], ['contact', 'Contact'], ['notes', 'Notes'],
+  ],
+  internal: [
+    ['name', 'Name'], ['url', 'URL'], ['username', 'Username'], ['password', 'Password', true],
+    ['systemName', 'System Name'], ['environment', 'Environment'], ['companyCode', 'Company Code'],
+    ['secretKey', 'Secret Key', true], ['expiryDate', 'Expiry Date'], ['role', 'Role'], ['notes', 'Notes'],
+  ],
+};
+const CLIENT_RECORD_ARRAY_KEY = {
+  auth: 'vpnConnections', servers: 'servers', databases: 'databases',
+  external: 'externalServices', internal: 'internalSystems',
+};
+let _clientRecordInfoCurrent = null; // { companyId, presetSearch } — for the "Open Client" footer button
+
+// `record` is a row from the records-search results table ({companyId, companyLabel,
+// type, typeLabel, name, id, ...}); `presetSearch` is carried through to "Open Client".
+async function openClientRecordInfoModal(record, presetSearch) {
+  _clientRecordInfoCurrent = { companyId: record.companyId, presetSearch: presetSearch || '' };
+  document.getElementById('client-record-info-title').textContent = record.name || 'Record';
+  document.getElementById('client-record-info-sub').textContent = record.companyLabel + ' · ' + record.typeLabel;
+  const list = document.getElementById('client-record-info-list');
+  list.innerHTML = '<div class="cp-records-empty">Loading…</div>';
+  document.getElementById('client-record-info-overlay').classList.add('open');
+
+  let client;
+  try { client = await window.api.getClient(record.companyId); }
+  catch { list.innerHTML = '<div class="cp-records-empty">Could not load record.</div>'; return; }
+  const arr = client ? client[CLIENT_RECORD_ARRAY_KEY[record.type]] : null;
+  const full = Array.isArray(arr) ? arr.find(r => r.id === record.id) : null;
+  if (!full) { list.innerHTML = '<div class="cp-records-empty">This record no longer exists.</div>'; return; }
+
+  list.innerHTML = '';
+  (CLIENT_RECORD_INFO_FIELDS[record.type] || []).forEach(([key, label, sensitive]) => {
+    const value = full[key];
+    const row = pjMk('div', 'cl-info-row' + (value ? '' : ' not-copyable'));
+    const main = pjMk('div', 'cl-info-main');
+    main.appendChild(pjMk('div', 'cl-info-label', label));
+    main.appendChild(pjMk('div', 'cl-info-value' + (value ? '' : ' empty'), value ? (sensitive ? '••••••••' : value) : '(empty)'));
+    row.appendChild(main);
+    if (value) {
+      row.appendChild(pjMk('div', 'cl-info-copy-hint', 'Click to copy'));
+      row.addEventListener('click', () => copyClientFieldValue(value, label));
+    }
+    list.appendChild(row);
+  });
+
+  // Sub-Services (internal systems only) — a structured list, not a flat field;
+  // each sub-endpoint's URL is its own copy target.
+  if (record.type === 'internal' && Array.isArray(full.subServices) && full.subServices.length) {
+    const row = pjMk('div', 'cl-info-row not-copyable');
+    const main = pjMk('div', 'cl-info-main');
+    main.appendChild(pjMk('div', 'cl-info-label', 'Sub-Services'));
+    const sub = pjMk('div', 'cl-info-subrow');
+    full.subServices.forEach(s => {
+      const line = pjMk('div', 'cl-info-subrow-line');
+      line.appendChild(pjMk('span', 'cl-info-value', (s.label || 'Endpoint') + ': ' + s.url));
+      line.appendChild(pjMk('span', 'cl-info-copy-hint', 'Click to copy'));
+      line.addEventListener('click', (e) => { e.stopPropagation(); copyClientFieldValue(s.url, s.label || 'Endpoint'); });
+      sub.appendChild(line);
+    });
+    main.appendChild(sub);
+    row.appendChild(main);
+    list.appendChild(row);
+  }
+}
+function closeClientRecordInfoModal() {
+  document.getElementById('client-record-info-overlay').classList.remove('open');
+  _clientRecordInfoCurrent = null;
+}
+function clientRecordInfoOverlayClick(e) {
+  if (e.target === document.getElementById('client-record-info-overlay')) closeClientRecordInfoModal();
+}
+function openClientFromRecordInfo() {
+  if (!_clientRecordInfoCurrent) return;
+  const { companyId, presetSearch } = _clientRecordInfoCurrent;
+  closeClientRecordInfoModal();
+  openClientDetail(companyId, presetSearch);
+}
+
+async function copyClientFieldValue(value, label) {
+  const text = String(value ?? '');
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    let copied = false;
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      copied = document.execCommand('copy');
+      document.body.removeChild(ta);
+    } catch { copied = false; }
+    if (!copied) { toast('Could not copy to clipboard'); return; }
+  }
+  toast((label || 'Value') + ' copied to clipboard');
 }
 function backToClientsList() {
   currentClient = null;
