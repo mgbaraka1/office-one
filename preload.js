@@ -147,6 +147,7 @@ contextBridge.exposeInMainWorld('api', {
   updateClientServer: (id, data)        => ipcRenderer.invoke('clients:server-update', id, data),
   deleteClientServer: (id)              => ipcRenderer.invoke('clients:server-delete', id),
   renameClientServerSystemGroup: (companyId, oldName, newName) => ipcRenderer.invoke('clients:server-rename-group', companyId, oldName, newName),
+  assignClientServerGroup: (companyId, recordIds, groupName) => ipcRenderer.invoke('clients:server-assign-group', companyId, recordIds, groupName),
   createClientDatabase: (companyId, data) => ipcRenderer.invoke('clients:database-create', companyId, data),
   updateClientDatabase: (id, data)        => ipcRenderer.invoke('clients:database-update', id, data),
   deleteClientDatabase: (id)              => ipcRenderer.invoke('clients:database-delete', id),
@@ -157,6 +158,7 @@ contextBridge.exposeInMainWorld('api', {
   updateClientInternalSystem: (id, data)        => ipcRenderer.invoke('clients:internal-update', id, data),
   deleteClientInternalSystem: (id)              => ipcRenderer.invoke('clients:internal-delete', id),
   renameClientInternalSystemGroup: (companyId, oldName, newName) => ipcRenderer.invoke('clients:internal-rename-group', companyId, oldName, newName),
+  assignClientInternalGroup: (companyId, recordIds, groupName) => ipcRenderer.invoke('clients:internal-assign-group', companyId, recordIds, groupName),
   /** @returns {Promise<import('./ipc-types').ClientFieldHistoryEntry[]>} */
   getClientFieldHistory: (recordType, recordId) => ipcRenderer.invoke('clients:field-history', recordType, recordId),
 
