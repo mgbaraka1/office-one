@@ -42,8 +42,21 @@ module.exports = {
 
     for (const [category, targetCode, sourceCodes] of MERGES) {
       const targetId = idOf(category, targetCode);
-      if (targetId == null) throw new Error(`004 merge: target ${category}/${targetCode} not found`);
       const cols = FK_COLUMNS[category];
+
+      if (targetId == null) {
+        // Neither the target nor its source duplicates are production-specific
+        // historical codes that exist on every DB — e.g. a genuinely fresh
+        // install never seeds them at all (003 seeds only from data that's
+        // actually present). Nothing to merge in that case, so skip. But if a
+        // source DOES exist without its target, that's a real anomaly worth
+        // failing loudly on, same as the original unconditional throw did.
+        const orphanSource = sourceCodes.find(code => idOf(category, code) != null);
+        if (orphanSource) {
+          throw new Error(`004 merge: target ${category}/${targetCode} not found, but source ${category}/${orphanSource} exists`);
+        }
+        continue;
+      }
 
       for (const srcCode of sourceCodes) {
         const srcId = idOf(category, srcCode);

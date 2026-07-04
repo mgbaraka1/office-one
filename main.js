@@ -187,7 +187,7 @@ ipcMain.handle('projects:remove-document', authed((_e, projectId, documentType) 
   db.removeProjectDocumentFile(auth.requireUserId(), projectId, documentType)));
 // Delete-undo file handling: purge the whole folder when the undo window lapses,
 // or move it onto the re-created project's new id when the user undoes.
-ipcMain.handle('projects:purge-files',  authed((_e, projectId)            => db.purgeProjectFiles(projectId)));
+ipcMain.handle('projects:purge-files',  authed((_e, projectId)            => db.purgeProjectFiles(auth.requireUserId(), projectId)));
 ipcMain.handle('projects:restore-files', authed((_e, oldId, newId, docs)  => db.restoreProjectFiles(auth.requireUserId(), oldId, newId, docs)));
 
 // ── Company Documents (standalone card-per-document module) ──
@@ -235,7 +235,7 @@ ipcMain.handle('companydocs:open-document', authed(async (_e, id) => {
 ipcMain.handle('companydocs:remove-document', authed((_e, id) => db.removeCompanyDocumentFile(auth.requireUserId(), id)));
 // Delete-undo file handling: purge the card's folder when the undo window
 // lapses, or move it onto the re-created card's new id when the user undoes.
-ipcMain.handle('companydocs:purge-files',   authed((_e, id)                     => db.purgeCompanyDocumentFiles(id)));
+ipcMain.handle('companydocs:purge-files',   authed((_e, id)                     => db.purgeCompanyDocumentFiles(auth.requireUserId(), id)));
 ipcMain.handle('companydocs:restore-file',  authed((_e, oldId, newId, fileMeta) => db.restoreCompanyDocumentFile(auth.requireUserId(), oldId, newId, fileMeta)));
 
 // ── Clients (Auth + Server Information + Databases per COMPANY lookup) ──

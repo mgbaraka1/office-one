@@ -106,6 +106,8 @@ module.exports = {
       `);
 
       // ── Copy days + explode rows JSON into day_entries ───────────────────────
+      // (r.status match below is case/whitespace-tolerant so a differently-cased
+      // legacy value doesn't silently collapse into "In Progress" with no trace.)
       const insDay = db.prepare(
         'INSERT INTO days_new(user_id, date, employee_name, created_at, updated_at) VALUES(?,?,?,?,?)'
       );
@@ -124,7 +126,7 @@ module.exports = {
             ownerId, dayId,
             r.company ?? '', r.project ?? '', r.natural ?? '', r.time ?? '',
             r.description ?? '', r.source ?? '',
-            r.status === 'Done' ? 'Done' : 'In Progress',
+            String(r.status ?? '').trim().toLowerCase() === 'done' ? 'Done' : 'In Progress',
             Number.isFinite(mins) ? mins : null,
             JSON.stringify(Array.isArray(r.tags) ? r.tags : []),
             i, now, now
