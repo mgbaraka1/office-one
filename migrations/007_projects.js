@@ -20,8 +20,10 @@ module.exports = {
   name: 'projects',
   up(db) {
     // ── Project container ───────────────────────────────────────────────────────
+    // CREATE TABLE/INDEX guarded (IF NOT EXISTS) so a hypothetical re-run is a
+    // no-op instead of throwing "table projects already exists".
     db.exec(`
-      CREATE TABLE projects (
+      CREATE TABLE IF NOT EXISTS projects (
         id          INTEGER PRIMARY KEY,
         user_id     INTEGER NOT NULL REFERENCES users(id),
         name        TEXT NOT NULL DEFAULT '',
@@ -30,23 +32,30 @@ module.exports = {
         status      TEXT NOT NULL DEFAULT 'active',
         created_at  TEXT NOT NULL
       );
-      CREATE INDEX idx_projects_user ON projects(user_id, id);
+      CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id, id);
 
-      CREATE TABLE project_documents (
+      CREATE TABLE IF NOT EXISTS project_documents (
         id            INTEGER PRIMARY KEY,
         project_id    INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
         document_type TEXT NOT NULL,
         is_available  INTEGER NOT NULL DEFAULT 0
       );
-      CREATE INDEX idx_project_documents_project ON project_documents(project_id);
+      CREATE INDEX IF NOT EXISTS idx_project_documents_project ON project_documents(project_id);
     `);
 
     // ── Link existing tasks to a project (nullable; existing rows unaffected) ────
     // ON DELETE SET NULL: deleting a project unlinks its tasks, never deletes them.
-    db.exec('ALTER TABLE day_entries ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL');
-    db.exec('ALTER TABLE backlog     ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL');
-    db.exec('CREATE INDEX idx_day_entries_project_id ON day_entries(project_id)');
-    db.exec('CREATE INDEX idx_backlog_project_id     ON backlog(project_id)');
+    // ADD COLUMN existence-guarded; CREATE INDEX already IF NOT EXISTS-safe on its own.
+    const deCols = new Set(db.prepare('PRAGMA table_info(day_entries)').all().map(c => c.name));
+    if (!deCols.has('project_id')) {
+      db.exec('ALTER TABLE day_entries ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL');
+    }
+    const blCols = new Set(db.prepare('PRAGMA table_info(backlog)').all().map(c => c.name));
+    if (!blCols.has('project_id')) {
+      db.exec('ALTER TABLE backlog ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL');
+    }
+    db.exec('CREATE INDEX IF NOT EXISTS idx_day_entries_project_id ON day_entries(project_id)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_backlog_project_id     ON backlog(project_id)');
 
     // Integrity: every FK must still point at a real row (or be NULL).
     const violations = db.prepare('PRAGMA foreign_key_check').all();

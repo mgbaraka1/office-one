@@ -18,23 +18,34 @@ module.exports = {
   name: 'project_systems',
   up(db) {
     // ── 1. project_systems junction (project ↔ SYSTEM lookup, many-to-many) ──
+    // CREATE TABLE/INDEX guarded (IF NOT EXISTS) so a hypothetical re-run is a
+    // no-op instead of throwing "table project_systems already exists".
     db.exec(`
-      CREATE TABLE project_systems (
+      CREATE TABLE IF NOT EXISTS project_systems (
         project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
         system_id  INTEGER NOT NULL REFERENCES lookup_codes(id),
         PRIMARY KEY (project_id, system_id)
       );
-      CREATE INDEX idx_project_systems_system ON project_systems(system_id);
+      CREATE INDEX IF NOT EXISTS idx_project_systems_system ON project_systems(system_id);
     `);
 
     // ── 2. Migrate existing single system_id values into the junction ──
-    const link = db.prepare('INSERT OR IGNORE INTO project_systems(project_id, system_id) VALUES(?, ?)');
-    for (const p of db.prepare('SELECT id, system_id FROM projects WHERE system_id IS NOT NULL').all()) {
-      link.run(p.id, p.system_id);
+    // (Only meaningful while projects.system_id still exists — see the guard below;
+    // INSERT OR IGNORE already makes this loop naturally idempotent on its own.)
+    const hasSystemId = db.prepare('PRAGMA table_info(projects)').all().some(c => c.name === 'system_id');
+    if (hasSystemId) {
+      const link = db.prepare('INSERT OR IGNORE INTO project_systems(project_id, system_id) VALUES(?, ?)');
+      for (const p of db.prepare('SELECT id, system_id FROM projects WHERE system_id IS NOT NULL').all()) {
+        link.run(p.id, p.system_id);
+      }
     }
 
     // ── 3. Drop the now-migrated single-system column ──
-    db.exec('ALTER TABLE projects DROP COLUMN system_id');
+    // Existence-guarded so a hypothetical re-run is a no-op instead of throwing
+    // "no such column: system_id" once it's already been dropped.
+    if (hasSystemId) {
+      db.exec('ALTER TABLE projects DROP COLUMN system_id');
+    }
 
     // Integrity: every FK must still point at a real row (or be NULL).
     const violations = db.prepare('PRAGMA foreign_key_check').all();

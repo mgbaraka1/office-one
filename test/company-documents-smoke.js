@@ -179,7 +179,7 @@ try {
 
   // Purge lifecycle: delete again, then simulate the undo window lapsing.
   db.deleteCompanyDocument(userId, recreated.id);
-  const purgeRes = db.purgeCompanyDocumentFiles(recreated.id);
+  const purgeRes = db.purgeCompanyDocumentFiles(userId, recreated.id);
   const purgedDirGone = !fs.existsSync(path.join(userDataDirOf(workDir), 'company_documents', String(recreated.id)));
   record('Purge: whole folder removed on undo-window lapse', purgeRes.ok && purgedDirGone, JSON.stringify({ purgeRes, purgedDirGone }));
 
