@@ -254,12 +254,6 @@ function getUserByUsername(username) {
   ).get(username) || null;
 }
 
-function getUserById(id) {
-  return db.prepare(
-    'SELECT id, username, created_at, is_active FROM users WHERE id = ?'
-  ).get(id) || null;
-}
-
 // Insert a new account and return its generated id. Caller supplies an already
 // hashed password. Throws on a duplicate username (UNIQUE constraint).
 function createUser(username, passwordHash) {
@@ -295,7 +289,9 @@ const LOG_COLS = `wl.id AS wl_id, wl.task_id AS task_id, wl.date AS date,
   t.status_id AS status_id, t.source AS source, t.tags AS tags, t.project_id AS project_id`;
 
 // Joined work_log+task row → renderer row shape (minutes null → '' for the UI).
-function logToRow(r) {
+// Named to match the *ToApi convention used elsewhere (taskToApi, workLogToApi,
+// etc.) — this is the mapper for the DayEntryRow shape (see ipc-types.js).
+function dayEntryRowToApi(r) {
   return {
     eid: r.wl_id,
     taskId: r.task_id, taskName: r.task_name || '',
@@ -342,7 +338,7 @@ function loadDaysRange(userId, from, to) {
   for (const l of logs) {
     let g = byDate.get(l.date);
     if (!g) { g = { date: l.date, name: names.get(l.date) || '', rows: [] }; byDate.set(l.date, g); order.push(l.date); }
-    g.rows.push(logToRow(l));
+    g.rows.push(dayEntryRowToApi(l));
   }
   return order.map(dt => byDate.get(dt));
 }
@@ -370,7 +366,7 @@ function categoryEntries(userId, fkCol, name) {
        JOIN lookup_codes lc ON lc.id = t.${fkCol}
       WHERE wl.user_id = ? AND lc.label = ?
       ORDER BY wl.date DESC, wl.sort_order, wl.id`
-  ).all(userId, name).map(r => ({ date: r.date, ...logToRow(r) }));
+  ).all(userId, name).map(r => ({ date: r.date, ...dayEntryRowToApi(r) }));
 }
 function listCompanies(userId)        { return distinctCategory(userId, 'company_id'); }
 function listSystems(userId)          { return distinctCategory(userId, 'system_id'); }
@@ -475,16 +471,36 @@ function saveLookups(data) {
       const ins = db.prepare('INSERT INTO lookup_codes(category, code, label, sort_order, is_active, created_at) VALUES(?,?,?,?,?,?)');
       for (const [cat, list] of Object.entries(data.categories)) {
         if (!LOOKUP_CATEGORIES.includes(cat) || !Array.isArray(list)) continue;
+        // Existing case-insensitive labels in this category, keyed by
+        // lowercased-trimmed label -> the row id that currently owns it. Updated
+        // as the batch is processed so two new items in the same save can't
+        // collide with each other either. Prevents ever re-creating the kind of
+        // case-only duplicate (e.g. "Acme" / "ACME") migration 003 could
+        // historically seed — a relabel/add that would collide is skipped
+        // rather than silently producing a second code for the same value.
+        const usedLabels = new Map(
+          db.prepare('SELECT id, label FROM lookup_codes WHERE category = ?').all(cat)
+            .map(r => [r.label.trim().toLowerCase(), r.id])
+        );
         list.forEach((item, i) => {
           const label = String(item.label ?? '').trim();
           if (!label) return;
+          // Coerce once so a stringified id (e.g. from a JSON round-trip) still
+          // matches the numeric ids lk().idTo/usedLabels are keyed by, instead of
+          // silently falling through to the insert branch and creating a duplicate row.
+          const itemId = (item.id != null && Number.isFinite(Number(item.id))) ? Number(item.id) : null;
+          const key = label.toLowerCase();
+          const owner = usedLabels.get(key);
+          if (owner != null && owner !== itemId) return; // another code already owns this label — skip
           const sort   = Number.isInteger(item.sortOrder) ? item.sortOrder : i;
           const active = item.isActive === false ? 0 : 1;
-          if (item.id != null && lk().idTo.has(item.id)) {
-            upd.run(label, sort, active, item.id);
+          if (itemId != null && lk().idTo.has(itemId)) {
+            upd.run(label, sort, active, itemId);
+            usedLabels.set(key, itemId);
           } else {
             const code = uniqueCode(cat, String(item.code || '').trim().toUpperCase() || slugCode(label));
-            ins.run(cat, code, label, sort, active, now);
+            const newId = Number(ins.run(cat, code, label, sort, active, now).lastInsertRowid);
+            usedLabels.set(key, newId);
           }
         });
       }
@@ -492,6 +508,7 @@ function saveLookups(data) {
     if (data && typeof data.defaultName === 'string') appSet('default_employee_name', data.defaultName.trim());
   });
   lkInvalidate();
+  return { ok: true };
 }
 
 // ── Subscriptions ───────────────────────────────────────────────────────────────
@@ -514,29 +531,31 @@ function loadSubscriptions(userId) {
 function saveSubscriptions(userId, data) {
   const list = Array.isArray(data?.subscriptions) ? data.subscriptions : [];
   const currency = data?.defaultCurrency || 'USD';
+  const now = new Date().toISOString();
   tx(() => {
     const keep = new Set(list.map(s => s.id));
     const del = db.prepare('DELETE FROM subscriptions WHERE id = ? AND user_id = ?');
     for (const row of db.prepare('SELECT id FROM subscriptions WHERE user_id = ?').all(userId)) {
       if (!keep.has(row.id)) del.run(row.id, userId);
     }
-    const up = db.prepare(`INSERT INTO subscriptions(id, user_id, name, cost, currency_id, billing_cycle_id, end_date, renewal_date, sort_order)
-                           VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+    const up = db.prepare(`INSERT INTO subscriptions(id, user_id, name, cost, currency_id, billing_cycle_id, end_date, renewal_date, sort_order, updated_at)
+                           VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                            ON CONFLICT(id) DO UPDATE SET
                              name=excluded.name, cost=excluded.cost, currency_id=excluded.currency_id,
                              billing_cycle_id=excluded.billing_cycle_id, end_date=excluded.end_date,
-                             renewal_date=excluded.renewal_date, sort_order=excluded.sort_order`);
+                             renewal_date=excluded.renewal_date, sort_order=excluded.sort_order, updated_at=excluded.updated_at`);
     list.forEach((s, i) => {
       const cost = Number.parseFloat(String(s.cost ?? '').replace(/[^0-9.]/g, '')) || 0;
       const currencyId = lkId('CURRENCY', s.currency) ?? lkId('CURRENCY', 'USD');
       const cycleId    = lkId('BILLING_CYCLE', s.billingCycle) ?? lkId('BILLING_CYCLE', 'MONTHLY');
       up.run(
         s.id, userId, s.name ?? '', cost, currencyId, cycleId,
-        s.endDate || null, s.renewalDate || null, i
+        s.endDate || null, s.renewalDate || null, i, now
       );
     });
     appSet('subscriptions_default_currency', currency);
   });
+  return { ok: true };
 }
 
 // ── Projects ──────────────────────────────────────────────────────────────────
@@ -646,10 +665,10 @@ function createProject(userId, data) {
   let id;
   tx(() => {
     id = Number(db.prepare(
-      `INSERT INTO projects(user_id, name, description, status, created_at)
-       VALUES(?, ?, ?, ?, ?)`
+      `INSERT INTO projects(user_id, name, description, status, created_at, updated_at)
+       VALUES(?, ?, ?, ?, ?, ?)`
     ).run(userId, data?.name ?? '', data?.description ?? '',
-          data?.status || DEFAULT_PROJECT_STATUS, now).lastInsertRowid);
+          data?.status || DEFAULT_PROJECT_STATUS, now, now).lastInsertRowid);
     setProjectCompanies(id, data?.companyIds);
     setProjectSystems(id, data?.systemIds);
   });
@@ -740,15 +759,24 @@ function updateProject(userId, id, data) {
   if (!ownsProject(userId, id)) return null;
   tx(() => {
     db.prepare(
-      `UPDATE projects SET name = ?, description = ?, status = ?
+      `UPDATE projects SET name = ?, description = ?, status = ?, updated_at = ?
         WHERE id = ? AND user_id = ?`
     ).run(data?.name ?? '', data?.description ?? '',
-          data?.status || DEFAULT_PROJECT_STATUS, id, userId);
+          data?.status || DEFAULT_PROJECT_STATUS, new Date().toISOString(), id, userId);
     setProjectCompanies(id, data?.companyIds);
     setProjectSystems(id, data?.systemIds);
   });
   return getProject(userId, id);
 }
+
+// In-memory record of which user just deleted which project id, kept only for the
+// lifetime of this process (never persisted). By the time purgeProjectFiles/
+// restoreProjectFiles run, the project row is already gone, so an ordinary
+// "WHERE id=? AND user_id=?" ownership check is no longer possible — this map is
+// the only record of who is allowed to purge or restore a given id's files. Only
+// set when deleteProject actually removed a row the caller owned (never on a
+// no-op delete of someone else's id); consumed (deleted) the moment it's checked.
+const pendingProjectDeletes = new Map(); // projectId -> userId
 
 // Delete a project. ON DELETE CASCADE drops its document rows; ON DELETE SET NULL
 // unlinks (but never deletes) any linked timesheet/backlog tasks. The project's
@@ -756,9 +784,11 @@ function updateProject(userId, id, data) {
 // 5 s undo window, and is purged either when that window lapses (purgeProjectFiles)
 // or by the boot-time orphan sweep (sweepOrphanProjectFiles) as a safety net.
 function deleteProject(userId, id) {
+  let changes = 0;
   tx(() => {
-    db.prepare('DELETE FROM projects WHERE id = ? AND user_id = ?').run(id, userId);
+    changes = db.prepare('DELETE FROM projects WHERE id = ? AND user_id = ?').run(id, userId).changes;
   });
+  if (changes > 0) pendingProjectDeletes.set(Number(id), userId);
   return { ok: true };
 }
 
@@ -848,11 +878,14 @@ function removeProjectDocumentFile(userId, projectId, documentType) {
 
 // Delete a project's ENTIRE file folder (projects/{id}/ — not just documents/, so
 // future sibling file types go too). Called when the delete undo-window lapses.
-// No ownership check is possible (the row is already gone); the id is coerced to
-// an integer so the path can only ever resolve inside the data root.
-function purgeProjectFiles(projectId) {
+// The project row is already gone by this point, so ownership is checked against
+// pendingProjectDeletes (set by deleteProject) instead of a DB row; the id is also
+// coerced to an integer so the path can only ever resolve inside the data root.
+function purgeProjectFiles(userId, projectId) {
   const id = Number(projectId);
   if (!Number.isInteger(id) || id <= 0) return { ok: false };
+  if (pendingProjectDeletes.get(id) !== userId) return { ok: false, error: 'Not authorized to purge this project' };
+  pendingProjectDeletes.delete(id);
   try { fs.rmSync(projectDir(id), { recursive: true, force: true }); } catch { /* best effort */ }
   return { ok: true };
 }
@@ -863,7 +896,10 @@ function purgeProjectFiles(projectId) {
 // [{ documentType, file:{ path, originalName, size, mimeType, uploadedAt } }].
 function restoreProjectFiles(userId, oldProjectId, newProjectId, fileDocs) {
   if (!ownsProject(userId, newProjectId)) return { ok: false, error: 'Project not found' };
-  const oldDir = projectDir(Number(oldProjectId));
+  const oldId = Number(oldProjectId);
+  if (pendingProjectDeletes.get(oldId) !== userId) return { ok: false, error: 'Not authorized to restore this project' };
+  pendingProjectDeletes.delete(oldId);
+  const oldDir = projectDir(oldId);
   const newDir = projectDir(Number(newProjectId));
   // SQLite reuses the highest deleted rowid, so undoing the delete of the newest
   // project re-creates it under the SAME id — the folder is already in place and
@@ -955,12 +991,18 @@ function updateCompanyDocument(userId, id, data) {
   ).run(data?.name ?? '', category, data?.renewalDate || null, data?.notes ?? '', new Date().toISOString(), id, userId);
   return getCompanyDocument(userId, id);
 }
+// In-memory record of which user just deleted which company-document id — same
+// rationale as pendingProjectDeletes above (the row is gone by the time purge/
+// restore runs, so this is the only ownership check still possible for those).
+const pendingCompanyDocDeletes = new Map(); // companyDocId -> userId
+
 // Delete a card. The file (if any) is intentionally NOT removed here — it must
 // survive the renderer's 5 s undo window; purgeCompanyDocumentFiles removes it
 // once that window lapses, restoreCompanyDocumentFile moves it onto the
 // re-created card's new id if the user undoes.
 function deleteCompanyDocument(userId, id) {
-  db.prepare('DELETE FROM company_documents WHERE id = ? AND user_id = ?').run(id, userId);
+  const changes = db.prepare('DELETE FROM company_documents WHERE id = ? AND user_id = ?').run(id, userId).changes;
+  if (changes > 0) pendingCompanyDocDeletes.set(Number(id), userId);
   return { ok: true };
 }
 
@@ -1038,12 +1080,15 @@ function removeCompanyDocumentFile(userId, id) {
 }
 
 // Delete a card's entire file folder (company_documents/{id}/). Called when the
-// delete undo-window lapses. No ownership check is possible (the row is already
-// gone); the id is coerced to an integer so the path can only ever resolve
-// inside the data root.
-function purgeCompanyDocumentFiles(id) {
+// delete undo-window lapses. The card row is already gone by this point, so
+// ownership is checked against pendingCompanyDocDeletes (set by
+// deleteCompanyDocument) instead of a DB row; the id is also coerced to an
+// integer so the path can only ever resolve inside the data root.
+function purgeCompanyDocumentFiles(userId, id) {
   const n = Number(id);
   if (!Number.isInteger(n) || n <= 0) return { ok: false };
+  if (pendingCompanyDocDeletes.get(n) !== userId) return { ok: false, error: 'Not authorized to purge this document' };
+  pendingCompanyDocDeletes.delete(n);
   try { fs.rmSync(companyDocumentDir(n), { recursive: true, force: true }); } catch { /* best effort */ }
   return { ok: true };
 }
@@ -1054,9 +1099,12 @@ function purgeCompanyDocumentFiles(id) {
 // null/undefined if it never had one.
 function restoreCompanyDocumentFile(userId, oldId, newId, fileMeta) {
   if (!ownsCompanyDocument(userId, newId)) return { ok: false, error: 'Document not found' };
+  const oldIdNum = Number(oldId);
+  if (pendingCompanyDocDeletes.get(oldIdNum) !== userId) return { ok: false, error: 'Not authorized to restore this document' };
+  pendingCompanyDocDeletes.delete(oldIdNum);
   if (!fileMeta?.path) return { ok: true, document: getCompanyDocument(userId, newId) };
 
-  const oldDir = companyDocumentDir(Number(oldId));
+  const oldDir = companyDocumentDir(oldIdNum);
   const newDir = companyDocumentDir(Number(newId));
   // SQLite reuses the highest deleted rowid, so undoing the delete of the newest
   // card re-creates it under the SAME id — the folder is already in place and
@@ -1174,12 +1222,21 @@ function taskWriteFields(userId, data) {
 }
 
 // API payload → work-log column values (the session: what/when/how long).
+// A real calendar date in YYYY-MM-DD form (rejects out-of-range month/day like
+// "2026-13-45" or "2026-02-30", not just the digit-grouping shape).
+function isValidDateStr(s) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(s + 'T00:00:00Z');
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}
+
 function workLogWriteFields(data) {
   const mins = (data?.minutes === '' || data?.minutes === null || data?.minutes === undefined) ? null : Number(data.minutes);
+  const rawDate = String(data?.date ?? '').slice(0, 10);
   return {
-    date: String(data?.date ?? '').slice(0, 10),
+    date: isValidDateStr(rawDate) ? rawDate : new Date().toISOString().slice(0, 10),
     description: String(data?.description ?? ''),
-    minutes: Number.isFinite(mins) ? mins : null,
+    minutes: (Number.isFinite(mins) && mins >= 0) ? mins : null,
     time_type_id: lkId('TIME_TYPE', data?.time),
   };
 }
@@ -1337,13 +1394,60 @@ function addWorkLog(userId, taskId, data) {
   return { ok: true, id, task: getTask(userId, taskId) };
 }
 
+// Field-def list — same shape/role as the Clients-page history fields above
+// (VPN_HISTORY_FIELDS etc.): which columns participate in the diff, and the
+// human label for each. No field here is sensitive (work_logs carries no
+// credentials), so there's no third "sensitive" element to mask. time_type_id
+// is diffed by its lookup CODE, not the raw FK id, so old/new values stay a
+// human-facing string — the same intent client_field_history's fields have by
+// simply being plain TEXT columns already.
+const WORK_LOG_HISTORY_FIELDS = [
+  ['date', 'Date'], ['description', 'Description'], ['minutes', 'Minutes'], ['time_type_id', 'Time Type'],
+];
+
+// Diffs `before` against `nextValues` (both keyed by the column names above)
+// and inserts one work_log_history row per field that actually changed. Must
+// be called inside the same tx() as the UPDATE — mirrors recordClientFieldHistory
+// exactly: only on genuine edits to an existing row, never on create or delete.
+function recordWorkLogHistory(userId, workLogId, before, nextValues) {
+  const now = new Date().toISOString();
+  WORK_LOG_HISTORY_FIELDS.forEach(([column, label]) => {
+    const oldVal = before[column] ?? '';
+    const newVal = nextValues[column] ?? '';
+    if (String(oldVal) === String(newVal)) return;
+    db.prepare(
+      `INSERT INTO work_log_history(user_id, work_log_id, field_name, old_value, new_value, changed_at)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(userId, workLogId, label, String(oldVal), String(newVal), now);
+  });
+}
+
+// Read-only: a work log's history, newest first — mirrors getClientFieldHistory.
+function getWorkLogHistory(userId, workLogId) {
+  return db.prepare(
+    `SELECT id, field_name AS fieldName, old_value AS oldValue, new_value AS newValue, changed_at AS changedAt
+       FROM work_log_history WHERE user_id = ? AND work_log_id = ?
+       ORDER BY changed_at DESC, id DESC`
+  ).all(userId, Number(workLogId));
+}
+
 // Update a work log in place. Returns { ok, task } with the refreshed parent task.
 function updateWorkLog(userId, id, data) {
   if (!ownsWorkLog(userId, id)) return { ok: false, error: 'work log not found' };
+  const before = db.prepare('SELECT * FROM work_logs WHERE id = ?').get(id);
   const now = new Date().toISOString();
   const f = workLogWriteFields(data);
+  const beforeForDiff = {
+    date: before.date, description: before.description, minutes: before.minutes,
+    time_type_id: lkCode(before.time_type_id),
+  };
+  const next = {
+    date: f.date, description: f.description, minutes: f.minutes,
+    time_type_id: lkCode(f.time_type_id),
+  };
   let taskId;
   tx(() => {
+    recordWorkLogHistory(userId, id, beforeForDiff, next);
     db.prepare(
       `UPDATE work_logs SET date=?, description=?, minutes=?, time_type_id=?, updated_at=? WHERE id=? AND user_id=?`
     ).run(f.date, f.description, f.minutes, f.time_type_id, now, id, userId);
@@ -1401,15 +1505,11 @@ function dbPath() {
 // they create/copy/delete nothing (that lands in Phase 2).
 //   projectsRootDir()      -> <userData>/projects
 //   projectDir(id)         -> <userData>/projects/{id}
-//   projectDocumentsDir(id)-> <userData>/projects/{id}/documents
 function projectsRootDir() {
   return path.join(userDataDir, 'projects');
 }
 function projectDir(projectId) {
   return path.join(projectsRootDir(), String(projectId));
-}
-function projectDocumentsDir(projectId) {
-  return path.join(projectDir(projectId), 'documents');
 }
 // Company Documents mirrors the same layout, one level up (no per-type
 // subfolder needed — each card owns at most one file):
@@ -1488,7 +1588,7 @@ const VPN_HISTORY_FIELDS = [
 const SERVER_HISTORY_FIELDS = [
   ['server_name', 'Server Name'], ['host', 'Host (IP)'], ['environment', 'Environment'], ['os', 'Operating System'],
   ['hostname', 'Hostname'], ['username', 'Username'], ['password', 'Password', true], ['system_name', 'System Name'],
-  ['role', 'Role'], ['credential_location', 'Credential Location'], ['notes', 'Notes'],
+  ['role', 'Role'], ['port', 'Port'], ['credential_location', 'Credential Location'], ['notes', 'Notes'],
 ];
 const DATABASE_HISTORY_FIELDS = [
   ['name', 'Name'], ['engine', 'Engine'], ['host', 'Host'], ['port', 'Port'], ['username', 'Username'],
@@ -1864,15 +1964,15 @@ function assignClientInternalGroup(userId, companyId, recordIds, groupName) {
 module.exports = {
   openConnection, applyMigrations, runMaintenance,
   close, backup, dbPath,
-  projectsRootDir, projectDir, projectDocumentsDir,
-  countUsers, getUserByUsername, getUserById, createUser, getUnclaimedUser, claimUser,
+  projectsRootDir, projectDir,
+  countUsers, getUserByUsername, createUser, getUnclaimedUser, claimUser,
   listDays, loadDaysRange,
   listCompanies, listSystems, companyEntries, systemEntries,
   getAnalytics, getOverviewStats,
   createProject, listProjects, getProject, updateProject, deleteProject,
   linkTask, unlinkTask, listLinkableTasks,
   listTasks, getTask, createTask, updateTask, deleteTask,
-  listWorkLogs, logsForDate, addWorkLog, updateWorkLog, deleteWorkLog,
+  listWorkLogs, logsForDate, addWorkLog, updateWorkLog, deleteWorkLog, getWorkLogHistory,
   setDayName, getDayName,
   saveProjectDocumentFile, resolveProjectDocumentFile, removeProjectDocumentFile,
   purgeProjectFiles, restoreProjectFiles,
