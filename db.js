@@ -1668,6 +1668,20 @@ function renameClientServerSystemGroup(userId, companyId, oldName, newName) {
   ).run(to, new Date().toISOString(), userId, companyId, from);
   return { ok: true, count: info.changes };
 }
+// Bulk-assigns an explicit set of servers into a (new or existing) System group,
+// as opposed to renameClientServerSystemGroup's match-by-old-name bulk rename.
+function assignClientServerGroup(userId, companyId, recordIds, groupName) {
+  const name = String(groupName ?? '').trim();
+  if (!name || !Array.isArray(recordIds) || !recordIds.length) return { ok: false, count: 0 };
+  const now = new Date().toISOString();
+  const stmt = db.prepare(
+    `UPDATE client_servers SET system_name = ?, updated_at = ?
+      WHERE id = ? AND user_id = ? AND company_id = ?`
+  );
+  let count = 0;
+  tx(() => { recordIds.forEach(id => { count += stmt.run(name, now, id, userId, companyId).changes; }); });
+  return { ok: true, count };
+}
 
 function createClientDatabase(userId, companyId, data) {
   if (!isLookupId('COMPANY', Number(companyId))) return null;
@@ -1790,6 +1804,20 @@ function renameClientInternalSystemGroup(userId, companyId, oldName, newName) {
   ).run(to, new Date().toISOString(), userId, companyId, from);
   return { ok: true, count: info.changes };
 }
+// Bulk-assigns an explicit set of internal systems into a (new or existing) System
+// group, as opposed to renameClientInternalSystemGroup's match-by-old-name bulk rename.
+function assignClientInternalGroup(userId, companyId, recordIds, groupName) {
+  const name = String(groupName ?? '').trim();
+  if (!name || !Array.isArray(recordIds) || !recordIds.length) return { ok: false, count: 0 };
+  const now = new Date().toISOString();
+  const stmt = db.prepare(
+    `UPDATE client_internal_systems SET system_name = ?, updated_at = ?
+      WHERE id = ? AND user_id = ? AND company_id = ?`
+  );
+  let count = 0;
+  tx(() => { recordIds.forEach(id => { count += stmt.run(name, now, id, userId, companyId).changes; }); });
+  return { ok: true, count };
+}
 
 module.exports = {
   openConnection, applyMigrations, runMaintenance,
@@ -1811,10 +1839,10 @@ module.exports = {
   purgeCompanyDocumentFiles, restoreCompanyDocumentFile, companyDocumentsRootDir,
   listClients, getClient, getClientFieldHistory,
   createClientVpn, updateClientVpn, deleteClientVpn,
-  createClientServer, updateClientServer, deleteClientServer, renameClientServerSystemGroup,
+  createClientServer, updateClientServer, deleteClientServer, renameClientServerSystemGroup, assignClientServerGroup,
   createClientDatabase, updateClientDatabase, deleteClientDatabase,
   createClientExternalService, updateClientExternalService, deleteClientExternalService,
-  createClientInternalSystem, updateClientInternalSystem, deleteClientInternalSystem, renameClientInternalSystemGroup,
+  createClientInternalSystem, updateClientInternalSystem, deleteClientInternalSystem, renameClientInternalSystemGroup, assignClientInternalGroup,
   loadLookups, saveLookups, getLookupsByCategory,
   loadSubscriptions, saveSubscriptions,
   loadPrefs, savePrefs,

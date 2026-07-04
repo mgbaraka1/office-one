@@ -651,6 +651,16 @@
       background: var(--surface); border: 1px solid var(--border);
       border-radius: var(--radius-sm); padding: 6px;
     }
+    /* ── New-group checklist (Clients page: fold existing servers/systems into a group) ── */
+    .cng-list {
+      max-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px;
+      background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px;
+    }
+    .cng-row { display: flex; align-items: center; gap: 10px; padding: 8px 8px; border-radius: var(--radius-sm); }
+    .cng-row:hover { background: var(--surface); }
+    .cng-row input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; accent-color: var(--primary); cursor: pointer; }
+    .cng-row label { flex: 1; font-size: 13px; color: var(--text); cursor: pointer; }
+    .cng-row-group { font-size: 11px; color: var(--muted); white-space: nowrap; }
     /* Single-select combobox: floats over content (sits last in its modal, no overlap). */
     .ss-menu {
       position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 40;
@@ -1140,6 +1150,7 @@
     #sub-settings-modal { width: 380px; }
     #project-modal { width: 460px; }
     #link-task-modal { width: 540px; }
+    #client-server-modal, #client-internal-modal { width: 640px; max-width: 94vw; }
     #task-detail-modal { width: 720px; max-width: 94vw; max-height: 90vh; }
     #task-detail-overlay { z-index: 150; }
     .td-stats { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
@@ -2803,6 +2814,34 @@
     <div class="modal-footer">
       <button class="btn" onclick="closeClientGroupRenameModal()">Cancel</button>
       <button class="btn primary" onclick="submitClientGroupRename()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CLIENT NEW SYSTEM GROUP MODAL — folds existing servers/internal systems into a (new or existing) group ══ -->
+<div id="client-new-group-modal-overlay" class="modal-overlay" onclick="clientNewGroupModalOverlayClick(event)">
+  <div id="client-new-group-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="client-new-group-modal-title">New Group</span>
+      <button class="modal-close" onclick="closeClientNewGroupModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Group Name</label>
+          <input id="cng-name" type="text" placeholder="e.g. Travel Cover" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Include Records</label>
+          <div id="cng-list" class="cng-list"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeClientNewGroupModal()">Cancel</button>
+      <button class="btn primary" id="client-new-group-modal-submit" onclick="submitClientNewGroupModal()">Create Group</button>
     </div>
   </div>
 </div>
@@ -4954,7 +4993,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     closeModal(); closePrint(); closeMonthView(); closeSubModal(); closeSubSettings(); closeBacklogModal();
     closeProjectModal(); closeLinkModal(); closePalette(); closeTaskDetail(); closeCompanyDocModal();
-    closeClientVpnModal(); closeClientServerModal(); closeClientDatabaseModal(); closeClientExternalModal(); closeClientInternalModal(); closeClientGroupRenameModal();
+    closeClientVpnModal(); closeClientServerModal(); closeClientDatabaseModal(); closeClientExternalModal(); closeClientInternalModal(); closeClientGroupRenameModal(); closeClientNewGroupModal();
     document.querySelectorAll('.top-menu.open').forEach(m => m.classList.remove('open'));
     if (selectedRows.size) clearSelection();
   }
@@ -4971,6 +5010,7 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('client-external-modal-overlay').classList.contains('open')) submitClientExternalModal();
     if (document.getElementById('client-internal-modal-overlay').classList.contains('open')) submitClientInternalModal();
     if (document.getElementById('client-group-rename-modal-overlay').classList.contains('open')) submitClientGroupRename();
+    if (document.getElementById('client-new-group-modal-overlay').classList.contains('open')) submitClientNewGroupModal();
   }
   if (!anyOpen && !inputFocused) {
     if (e.ctrlKey && !e.shiftKey && e.key === 'n') {
@@ -8091,6 +8131,7 @@ let clientExternalEditId = null; // null = create mode in the External Service m
 let clientInternalEditId = null; // null = create mode in the Internal System modal
 let clientGroupRenameKind = null;    // 'server' | 'internal' — which section's group is being renamed
 let clientGroupRenameOldName = null; // the group's current systemName
+let clientNewGroupKind = null;       // 'server' | 'internal' — which section's "+ New Group" modal is open
 
 // Detail-view search (per human-identifying fields only — never credentials)
 // + type filter (all 5 sections shown by default). Reset per client on open;
@@ -8311,8 +8352,8 @@ function renderClientDetailSections(c) {
     const sActions = pjMk('div', 'pj-section-actions');
     const sAddGroupBtn = pjMk('button', 'btn');
     sAddGroupBtn.innerHTML = ic('plus') + ' New Group';
-    sAddGroupBtn.title = 'Add a server that starts a new System group';
-    sAddGroupBtn.addEventListener('click', () => openClientServerModal(null, true));
+    sAddGroupBtn.title = 'Group existing servers under a new (or existing) System name';
+    sAddGroupBtn.addEventListener('click', () => openClientNewGroupModal('server'));
     sActions.appendChild(sAddGroupBtn);
     const sAddBtn = pjMk('button', 'btn primary');
     sAddBtn.innerHTML = ic('plus') + ' Add Server';
@@ -8389,8 +8430,8 @@ function renderClientDetailSections(c) {
     const iActions = pjMk('div', 'pj-section-actions');
     const iAddGroupBtn = pjMk('button', 'btn');
     iAddGroupBtn.innerHTML = ic('plus') + ' New Group';
-    iAddGroupBtn.title = 'Add an internal system that starts a new System group';
-    iAddGroupBtn.addEventListener('click', () => openClientInternalModal(null, true));
+    iAddGroupBtn.title = 'Group existing internal systems under a new (or existing) System name';
+    iAddGroupBtn.addEventListener('click', () => openClientNewGroupModal('internal'));
     iActions.appendChild(iAddGroupBtn);
     const iAddBtn = pjMk('button', 'btn primary');
     iAddBtn.innerHTML = ic('plus') + ' Add System';
@@ -8514,6 +8555,63 @@ async function submitClientGroupRename() {
     closeClientGroupRenameModal();
     toast('Group renamed');
   } catch { toast('Could not rename group'); return; }
+  await reloadCurrentClient();
+}
+
+// ── "+ New Group" modal — folds a chosen set of EXISTING servers/internal systems
+// into a new (or existing) System group; a group is just a shared systemName, so
+// this is a bulk field assignment, not a create of a new entity. ──
+function openClientNewGroupModal(kind) {
+  clientNewGroupKind = kind;
+  const isServer = kind === 'server';
+  document.getElementById('client-new-group-modal-title').textContent = isServer ? 'New Server Group' : 'New System Group';
+  const records = (isServer ? currentClient?.servers : currentClient?.internalSystems) || [];
+  document.getElementById('cng-name').value = '';
+  const list = document.getElementById('cng-list');
+  list.innerHTML = '';
+  const submitBtn = document.getElementById('client-new-group-modal-submit');
+  if (!records.length) {
+    list.appendChild(pjMk('div', 'cp-records-empty', isServer
+      ? 'No servers recorded yet — add a server first, then group it here.'
+      : 'No internal systems recorded yet — add one first, then group it here.'));
+    submitBtn.disabled = true;
+  } else {
+    submitBtn.disabled = false;
+    records.forEach(r => {
+      const row = pjMk('div', 'cng-row');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.id = 'cng-item-' + r.id; cb.value = String(r.id);
+      row.appendChild(cb);
+      const label = pjMk('label', null, isServer ? r.serverName : r.name);
+      label.htmlFor = cb.id;
+      row.appendChild(label);
+      if (r.systemName) row.appendChild(pjMk('span', 'cng-row-group', 'in “' + r.systemName + '”'));
+      list.appendChild(row);
+    });
+  }
+  clearErrorsIn('#client-new-group-modal');
+  document.getElementById('client-new-group-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('cng-name').focus(), 80);
+}
+function closeClientNewGroupModal() {
+  document.getElementById('client-new-group-modal-overlay').classList.remove('open');
+  clientNewGroupKind = null;
+}
+function clientNewGroupModalOverlayClick(e) {
+  if (e.target === document.getElementById('client-new-group-modal-overlay')) closeClientNewGroupModal();
+}
+async function submitClientNewGroupModal() {
+  clearErrorsIn('#client-new-group-modal');
+  const name = document.getElementById('cng-name').value.trim();
+  if (!name) { markError('cng-name'); return; }
+  const ids = Array.from(document.querySelectorAll('#cng-list input[type="checkbox"]:checked')).map(cb => Number(cb.value));
+  if (!ids.length) { toast('Select at least one record to include'); return; }
+  try {
+    if (clientNewGroupKind === 'server') await window.api.assignClientServerGroup(currentClient.id, ids, name);
+    else await window.api.assignClientInternalGroup(currentClient.id, ids, name);
+    closeClientNewGroupModal();
+    toast('Group created');
+  } catch { toast('Could not create group'); return; }
   await reloadCurrentClient();
 }
 
@@ -8836,9 +8934,9 @@ async function deleteClientVpnEntry(id) {
 }
 
 // ── Server modal ──
-function openClientServerModal(s, focusSystem) {
+function openClientServerModal(s) {
   clientServerEditId = s ? s.id : null;
-  document.getElementById('client-server-modal-title').textContent = s ? 'Edit Server' : (focusSystem ? 'Add Server (New Group)' : 'Add Server');
+  document.getElementById('client-server-modal-title').textContent = s ? 'Edit Server' : 'Add Server';
   document.getElementById('client-server-modal-submit').textContent = s ? 'Save Changes' : 'Add Server';
   document.getElementById('cs-name').value = s ? (s.serverName || '') : '';
   document.getElementById('cs-host').value = s ? (s.host || '') : '';
@@ -8854,7 +8952,7 @@ function openClientServerModal(s, focusSystem) {
   document.getElementById('cs-notes').value = s ? (s.notes || '') : '';
   clearErrorsIn('#client-server-modal');
   document.getElementById('client-server-modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById(focusSystem ? 'cs-system' : 'cs-name').focus(), 80);
+  setTimeout(() => document.getElementById('cs-name').focus(), 80);
 }
 function closeClientServerModal() {
   document.getElementById('client-server-modal-overlay').classList.remove('open');
@@ -9298,9 +9396,9 @@ function readClientInternalSubServiceRows() {
     url: row.querySelector('.cint-subsvc-url-input').value.trim(),
   })).filter(s => s.label || s.url);
 }
-function openClientInternalModal(s, focusSystem) {
+function openClientInternalModal(s) {
   clientInternalEditId = s ? s.id : null;
-  document.getElementById('client-internal-modal-title').textContent = s ? 'Edit Internal System' : (focusSystem ? 'Add Internal System (New Group)' : 'Add Internal System');
+  document.getElementById('client-internal-modal-title').textContent = s ? 'Edit Internal System' : 'Add Internal System';
   document.getElementById('client-internal-modal-submit').textContent = s ? 'Save Changes' : 'Add System';
   document.getElementById('cint-name').value = s ? (s.name || '') : '';
   document.getElementById('cint-system').value = s ? (s.systemName || '') : '';
@@ -9317,7 +9415,7 @@ function openClientInternalModal(s, focusSystem) {
   (s && Array.isArray(s.subServices) ? s.subServices : []).forEach(sub => addClientInternalSubServiceRow(sub.label, sub.url));
   clearErrorsIn('#client-internal-modal');
   document.getElementById('client-internal-modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById(focusSystem ? 'cint-system' : 'cint-name').focus(), 80);
+  setTimeout(() => document.getElementById('cint-name').focus(), 80);
 }
 function closeClientInternalModal() {
   document.getElementById('client-internal-modal-overlay').classList.remove('open');

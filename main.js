@@ -248,6 +248,7 @@ ipcMain.handle('clients:server-create', authed((_e, companyId, data) => db.creat
 ipcMain.handle('clients:server-update', authed((_e, id, data)        => db.updateClientServer(auth.requireUserId(), id, data)));
 ipcMain.handle('clients:server-delete', authed((_e, id)              => db.deleteClientServer(auth.requireUserId(), id)));
 ipcMain.handle('clients:server-rename-group', authed((_e, companyId, oldName, newName) => db.renameClientServerSystemGroup(auth.requireUserId(), companyId, oldName, newName)));
+ipcMain.handle('clients:server-assign-group', authed((_e, companyId, recordIds, groupName) => db.assignClientServerGroup(auth.requireUserId(), companyId, recordIds, groupName)));
 ipcMain.handle('clients:database-create', authed((_e, companyId, data) => db.createClientDatabase(auth.requireUserId(), companyId, data)));
 ipcMain.handle('clients:database-update', authed((_e, id, data)        => db.updateClientDatabase(auth.requireUserId(), id, data)));
 ipcMain.handle('clients:database-delete', authed((_e, id)              => db.deleteClientDatabase(auth.requireUserId(), id)));
@@ -258,6 +259,7 @@ ipcMain.handle('clients:internal-create', authed((_e, companyId, data) => db.cre
 ipcMain.handle('clients:internal-update', authed((_e, id, data)        => db.updateClientInternalSystem(auth.requireUserId(), id, data)));
 ipcMain.handle('clients:internal-delete', authed((_e, id)              => db.deleteClientInternalSystem(auth.requireUserId(), id)));
 ipcMain.handle('clients:internal-rename-group', authed((_e, companyId, oldName, newName) => db.renameClientInternalSystemGroup(auth.requireUserId(), companyId, oldName, newName)));
+ipcMain.handle('clients:internal-assign-group', authed((_e, companyId, recordIds, groupName) => db.assignClientInternalGroup(auth.requireUserId(), companyId, recordIds, groupName)));
 ipcMain.handle('clients:field-history', authed((_e, recordType, recordId) => db.getClientFieldHistory(auth.requireUserId(), recordType, recordId)));
 
 // ── Backup ──
