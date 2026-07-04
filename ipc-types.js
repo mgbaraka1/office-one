@@ -15,7 +15,7 @@
 /**
  * One timesheet row (a work session) as seen by the renderer (legacy field names
  * kept for the UI). Backed by a `work_logs` row joined to its parent `tasks` row —
- * see db.js logToRow.
+ * see db.js dayEntryRowToApi.
  * @typedef {Object} DayEntryRow
  * @property {number} [eid]      Stable work_log id (absent on a not-yet-saved row).
  * @property {string} company
@@ -45,25 +45,11 @@
  */
 
 /**
- * A day's payload. `name` is the employee name for that day.
- * @typedef {Object} DayData
- * @property {string} name
- * @property {DayEntryRow[]} rows
- */
-
-/**
  * One day within a range query.
  * @typedef {Object} DayInRange
  * @property {string} date  YYYY-MM-DD
  * @property {string} name
  * @property {DayEntryRow[]} rows
- */
-
-/**
- * Result of a day save — the canonical entry id for each input row, in order,
- * so the renderer can adopt ids of freshly-inserted rows.
- * @typedef {Object} SaveDayResult
- * @property {Array<number|null>} eids
  */
 
 /**
@@ -83,28 +69,12 @@
  * @property {string} defaultCurrency
  */
 
-/**
- * @typedef {Object} BacklogTask
- * @property {string} id
- * @property {string} company
- * @property {string} system
- * @property {string} natural
- * @property {string} time
- * @property {string} description
- * @property {string} source
- * @property {string[]} tags
- * @property {number|null} [projectId]  Linked Project id, or null when unlinked.
- */
-
-/**
- * @typedef {Object} BacklogPayload
- * @property {BacklogTask[]} backlog
- */
-
 // ─────────────────────────────────────────────────────────────────────────────
-// v2 two-level model: Task (date-independent) + WorkLog (its dated sessions).
-// Added for the tasks:* / worklogs:* channels. The legacy DayEntryRow/BacklogTask
-// shapes above stay intact — the renderer still uses them until the Phase C rework.
+// Two-level model: Task (date-independent) + WorkLog (its dated sessions) — the
+// current primary shape for the tasks:* / worklogs:* channels. DayEntryRow above
+// stays intact too: it's still the row shape for the read-only Companies/Systems
+// pages and days:range, just backed by a work_logs+tasks join now (see db.js
+// dayEntryRowToApi) rather than the old day_entries table.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -160,12 +130,6 @@
  * @property {number} [id]        The new work-log id (add only).
  * @property {Task|null} [task]   The refreshed parent task on success.
  * @property {string} [error]     Failure reason (e.g. task not found).
- */
-
-/**
- * A timesheet entry linked to a project — a DayEntryRow plus its day's date and a
- * `kind` discriminator. (Backlog tasks linked to a project use BacklogTask + kind.)
- * @typedef {DayEntryRow & { kind: 'entry', date: string }} ProjectEntryTask
  */
 
 /**
@@ -486,7 +450,8 @@
 /**
  * The full lookup catalog returned by `lookups:get`. `categories` is keyed by the
  * category discriminator (COMPANY, SYSTEM, ACTIVITY_TYPE, TIME_TYPE, ENTRY_STATUS,
- * CURRENCY, BILLING_CYCLE), each an ordered list of options (incl. inactive).
+ * CURRENCY, BILLING_CYCLE, PROJECT_STATUS, PROJECT_DOCUMENT,
+ * COMPANY_DOCUMENT_CATEGORY), each an ordered list of options (incl. inactive).
  * @typedef {Object} Lookups
  * @property {Object<string, LookupOption[]>} categories
  * @property {string} [defaultName]
@@ -540,6 +505,7 @@
  * @property {boolean} ok
  * @property {string} [path]
  * @property {string} [error]
+ * @property {boolean} [canceled]  Present (true) when the user dismissed the save/open dialog.
  */
 
 /**

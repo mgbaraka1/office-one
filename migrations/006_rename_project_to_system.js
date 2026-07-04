@@ -20,9 +20,17 @@ module.exports = {
     // 1. Relabel the lookup category (codes/labels/ids all unchanged).
     db.prepare("UPDATE lookup_codes SET category = 'SYSTEM' WHERE category = 'PROJECT'").run();
 
-    // 2. Rename the FK columns; existing values are preserved in place.
-    db.exec('ALTER TABLE day_entries RENAME COLUMN project_id TO system_id');
-    db.exec('ALTER TABLE backlog     RENAME COLUMN project_id TO system_id');
+    // 2. Rename the FK columns; existing values are preserved in place. Guarded
+    // (existence-checked) so a hypothetical re-run is a no-op instead of throwing
+    // "no such column: project_id" once the rename has already happened.
+    const deCols = new Set(db.prepare('PRAGMA table_info(day_entries)').all().map(c => c.name));
+    if (deCols.has('project_id') && !deCols.has('system_id')) {
+      db.exec('ALTER TABLE day_entries RENAME COLUMN project_id TO system_id');
+    }
+    const blCols = new Set(db.prepare('PRAGMA table_info(backlog)').all().map(c => c.name));
+    if (blCols.has('project_id') && !blCols.has('system_id')) {
+      db.exec('ALTER TABLE backlog RENAME COLUMN project_id TO system_id');
+    }
 
     // 3. Recreate the analytics index under the new column name.
     db.exec('DROP INDEX IF EXISTS idx_day_entries_project');

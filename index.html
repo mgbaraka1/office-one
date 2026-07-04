@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
@@ -40,7 +40,6 @@
       --sidebar-fg: #f3f4f7;
       --sidebar-muted: #9095a3;
       --sidebar-hover: #161619;
-      --sidebar-active: #14b8a6;
       /* Surface ramp — 0 = page, 1 = card, 2 = nested/inputs, 3 = raised/hover.
          The legacy names (--bg/--surface/--surface2/--elevate) alias into it. */
       --surface-0:  #f4f6fb;
@@ -63,7 +62,6 @@
       --prog:       #fef9c3; --prog-text: #a16207;
       --open:       #dbeafe; --open-text: #2563eb;
       --blocked:    #fee2e2; --blocked-text: #dc2626;
-      --notyet:     color-mix(in srgb, #14b8a6 10%, #f4f6fb); --notyet-text: #0d9488;
       --renew-ok:   #dcfce7; --renew-ok-text: #16a34a;
       --renew-soon: #fef9c3; --renew-soon-text: #a16207;
       --renew-urgent: #fee2e2; --renew-urgent-text: #dc2626;
@@ -97,7 +95,6 @@
       --prog:       color-mix(in srgb, #f5b544 15%, #0c0c0f); --prog-text: #f5b544;
       --open:       color-mix(in srgb, #60a5fa 15%, #0c0c0f); --open-text: #60a5fa;
       --blocked:    color-mix(in srgb, #f25e6b 15%, #0c0c0f); --blocked-text: #f25e6b;
-      --notyet:     color-mix(in srgb, #14b8a6 12%, #0c0c0f); --notyet-text: #14b8a6;
       --renew-ok:   color-mix(in srgb, #34d399 15%, #0c0c0f); --renew-ok-text: #34d399;
       --renew-soon: color-mix(in srgb, #f5b544 15%, #0c0c0f); --renew-soon-text: #f5b544;
       --renew-urgent: color-mix(in srgb, #f25e6b 15%, #0c0c0f); --renew-urgent-text: #f25e6b;
@@ -586,11 +583,9 @@
 
     /* status pill — shared by cards, list, and the detail header */
     .pj-status { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
-    .pj-status-active    { background: rgba(52,211,153,.16);  color: #059669; }
-    .pj-status-on-hold   { background: rgba(245,181,68,.18);  color: #b7791f; }
+    .pj-status-active    { background: rgba(52,211,153,.16);  color: var(--good); }
+    .pj-status-on-hold   { background: rgba(245,181,68,.18);  color: var(--warn); }
     .pj-status-completed { background: rgba(100,108,132,.16); color: var(--muted); }
-    :root[data-theme="dark"] .pj-status-active    { color: #34d399; }
-    :root[data-theme="dark"] .pj-status-on-hold   { color: #f5b544; }
 
     /* detail view */
     .pj-detail-scroll { flex: 1; overflow-y: auto; padding: var(--space-5) var(--space-6) var(--space-7); }
@@ -723,18 +718,14 @@
     .pj-doc-card.missing { border-color: rgba(242,94,107,.5); background: rgba(242,94,107,.06); }
     .pj-doc-icon { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--border); color: var(--muted); flex-shrink: 0; }
     .pj-doc-icon .lic { width: 20px; height: 20px; }
-    .pj-doc-card.available .pj-doc-icon { background: rgba(52,211,153,.18); color: #059669; }
-    :root[data-theme="dark"] .pj-doc-card.available .pj-doc-icon { color: #34d399; }
-    .pj-doc-card.missing .pj-doc-icon { background: rgba(242,94,107,.16); color: #dc2626; }
-    :root[data-theme="dark"] .pj-doc-card.missing .pj-doc-icon { color: #f25e6b; }
+    .pj-doc-card.available .pj-doc-icon { background: rgba(52,211,153,.18); color: var(--good); }
+    .pj-doc-card.missing .pj-doc-icon { background: rgba(242,94,107,.16); color: var(--bad); }
     .pj-doc-name { font-size: 14px; font-weight: 700; color: var(--text); }
     .pj-doc-filename { font-size: 12px; font-weight: 600; color: var(--text); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .pj-doc-meta { font-size: 11px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
     .pj-doc-state { font-size: 12px; font-weight: 600; color: var(--muted); }
-    .pj-doc-card.available .pj-doc-state { color: #059669; }
-    :root[data-theme="dark"] .pj-doc-card.available .pj-doc-state { color: #34d399; }
-    .pj-doc-warn { color: #dc2626 !important; }
-    :root[data-theme="dark"] .pj-doc-warn { color: #f25e6b !important; }
+    .pj-doc-card.available .pj-doc-state { color: var(--good); }
+    .pj-doc-warn { color: var(--bad) !important; }
     .pj-doc-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 2px; }
     .pj-doc-btn {
       display: inline-flex; align-items: center; gap: 5px; cursor: pointer; border: 1px solid var(--border);
@@ -757,6 +748,13 @@
     .pj-link-main { font-size: 13px; color: var(--text); font-weight: 600; }
     .pj-link-meta { font-size: 12px; color: var(--muted); }
     .pj-kind-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; padding: 2px 7px; border-radius: 999px; background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+
+    /* project task cards (buildProjectTaskCard) */
+    .pj-task-card { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 10px; }
+    .pj-task-head { display: flex; align-items: center; gap: 10px; }
+    .pj-task-title { font-weight: 600; color: var(--text); }
+    .pj-task-meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .pj-task-empty { color: var(--muted); font-size: 12px; font-style: italic; margin-top: 8px; }
 
     /* ══ COMPANY DOCUMENTS ══ */
     .cd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px; }
@@ -1250,7 +1248,7 @@
     }
 
     .field-error {
-      border-color: #dc2626 !important;
+      border-color: var(--bad) !important;
       background: var(--error-bg) !important;
       animation: shake .25s ease;
     }
@@ -1315,7 +1313,7 @@
       font-size: 16px; line-height: 1; padding: 0 2px;
       transition: color .12s;
     }
-    .lookup-item-del:hover { color: #dc2626; }
+    .lookup-item-del:hover { color: var(--bad); }
 
     .lookup-add-row {
       display: flex; gap: 8px;
@@ -2089,7 +2087,7 @@
       <button class="btn today-btn" id="btn-today" onclick="goToday()"><span data-ic="calendar-check"></span>Today</button>
       <button class="btn" onclick="switchModule('settings')" title="Settings"><span data-ic="settings"></span>Settings</button>
       <button class="btn" onclick="openMonthView()" title="Month overview"><span data-ic="calendar-days"></span>Month</button>
-      <button class="btn primary" onclick="openModal()">+ Add Record <kbd>⌃N</kbd></button>
+      <button class="btn primary" onclick="openModal()"><span data-ic="plus"></span>Add Record <kbd>⌃N</kbd></button>
     </div>
   </div>
 
@@ -2323,7 +2321,7 @@
     <div class="topbar-right">
       <input type="text" id="sub-filter" class="mod-search" placeholder="Search subscriptions…" oninput="applySubFilter()">
       <button class="btn" onclick="openSubSettings()" title="Settings"><span data-ic="settings"></span>Settings</button>
-      <button class="btn primary" onclick="openSubModal()">+ Add Subscription</button>
+      <button class="btn primary" onclick="openSubModal()"><span data-ic="plus"></span>Add Subscription</button>
     </div>
   </div>
 
@@ -2387,7 +2385,7 @@
     <div class="topbar-right">
       <input type="text" id="projects-filter" class="mod-search" placeholder="Search projects…" oninput="applyProjectFilter()">
       <button id="projects-backup-btn" class="btn" onclick="backupProjects()" title="Save a .zip of all uploaded project files">Backup Projects</button>
-      <button class="btn primary" onclick="openProjectModal()">+ New Project</button>
+      <button class="btn primary" onclick="openProjectModal()"><span data-ic="plus"></span>New Project</button>
     </div>
   </div>
 
@@ -2410,7 +2408,7 @@
     <span class="page-title"><span class="ti-ic" data-ic="calendar-check"></span>Company Documents</span>
     <div class="topbar-right">
       <input type="text" id="companydocs-filter" class="mod-search" placeholder="Search documents…" oninput="applyCompanyDocFilter()">
-      <button class="btn primary" onclick="openCompanyDocModal()">+ New Document</button>
+      <button class="btn primary" onclick="openCompanyDocModal()"><span data-ic="plus"></span>New Document</button>
     </div>
   </div>
   <div class="pj-scroll">
@@ -3305,6 +3303,34 @@ function hydrateIcons(root) {
   });
 }
 
+// Accessibility: every icon-only button across the app already sets a `title`
+// tooltip; mirror it onto `aria-label` too so assistive tech gets a reliable
+// accessible name (title alone isn't consistently exposed as one). Rather than
+// touching every individual button-builder call site, this runs once at boot
+// for the initial DOM, then a MutationObserver keeps it in sync forever after —
+// any button created (or re-titled) anywhere in the app gets it automatically.
+function syncAriaLabelFromTitle(el) {
+  if (el.nodeType === 1 && el.tagName === 'BUTTON' && el.title && !el.hasAttribute('aria-label')) {
+    el.setAttribute('aria-label', el.title);
+  }
+}
+function syncAriaLabelsFromTitle(root) {
+  (root || document).querySelectorAll('button[title]:not([aria-label])').forEach(syncAriaLabelFromTitle);
+}
+function watchAriaLabels() {
+  syncAriaLabelsFromTitle();
+  new MutationObserver(mutations => {
+    for (const m of mutations) {
+      if (m.type === 'attributes') { syncAriaLabelFromTitle(m.target); continue; }
+      m.addedNodes.forEach(node => {
+        if (node.nodeType !== 1) return;
+        syncAriaLabelFromTitle(node);
+        syncAriaLabelsFromTitle(node);
+      });
+    }
+  }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['title'] });
+}
+
 // ── State ──
 let savedDays  = new Set();
 let dayCache   = {};
@@ -4032,7 +4058,7 @@ function buildTaskGroupCard(g, origIdxOf) {
     // Time type
     const timeSpan = document.createElement('span');
     timeSpan.textContent = lkLabel('TIME_TYPE', row.time) || '—';
-    if (row.time === 'OVERTIME') timeSpan.style.color = '#dc2626';
+    if (row.time === 'OVERTIME') timeSpan.style.color = 'var(--bad)';
     tr.appendChild(cellWrap(timeSpan, 'cell'));
 
     // Description + tag chips
@@ -4273,7 +4299,7 @@ function renderTableFlat() {
     const timeDiv = document.createElement('div'); timeDiv.className = 'cell';
     const timeSpan = document.createElement('span');
     timeSpan.textContent = lkLabel('TIME_TYPE', row.time);
-    if (row.time === 'OVERTIME') timeSpan.style.color = '#dc2626';
+    if (row.time === 'OVERTIME') timeSpan.style.color = 'var(--bad)';
     timeDiv.appendChild(timeSpan); timeTd.appendChild(timeDiv);
     tr.appendChild(timeTd);
 
@@ -5056,7 +5082,7 @@ function clearErrors() { clearErrorsIn('body'); }
 // ── Keyboard shortcuts ──
 document.addEventListener('keydown', e => {
   const inputFocused = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
-  const anyOpen = ['modal-overlay','print-overlay','month-overlay','sub-modal-overlay','sub-settings-overlay','backlog-modal-overlay','project-modal-overlay','link-task-overlay','palette-overlay','task-detail-overlay','companydoc-modal-overlay','client-vpn-modal-overlay','client-server-modal-overlay','client-record-info-overlay']
+  const anyOpen = ['modal-overlay','print-overlay','month-overlay','sub-modal-overlay','sub-settings-overlay','backlog-modal-overlay','project-modal-overlay','link-task-overlay','palette-overlay','task-detail-overlay','companydoc-modal-overlay','client-vpn-modal-overlay','client-server-modal-overlay','client-database-modal-overlay','client-external-modal-overlay','client-internal-modal-overlay','client-group-rename-modal-overlay','client-new-group-modal-overlay','client-record-info-overlay','client-edit-confirm-overlay','client-history-overlay']
     .some(id => document.getElementById(id).classList.contains('open'));
 
   // Command palette — available everywhere, even while typing in a field.
@@ -5071,7 +5097,7 @@ document.addEventListener('keydown', e => {
     closeModal(); closePrint(); closeMonthView(); closeSubModal(); closeSubSettings(); closeBacklogModal();
     closeProjectModal(); closeLinkModal(); closePalette(); closeTaskDetail(); closeCompanyDocModal();
     closeClientVpnModal(); closeClientServerModal(); closeClientDatabaseModal(); closeClientExternalModal(); closeClientInternalModal(); closeClientGroupRenameModal(); closeClientNewGroupModal();
-    closeClientRecordInfoModal();
+    closeClientRecordInfoModal(); cancelClientEditConfirm(); closeClientHistoryModal();
     document.querySelectorAll('.top-menu.open').forEach(m => m.classList.remove('open'));
     if (selectedRows.size) clearSelection();
   }
@@ -5126,7 +5152,7 @@ document.getElementById('hName').addEventListener('input', () => {
   clearTimeout(_dayNameTimer);
   _dayNameTimer = setTimeout(() => {
     if (activeDate) window.api.setDayName(activeDate, document.getElementById('hName').value);
-  }, 400);
+  }, 300);
   clearTimeout(_nameSaveTimer);
   _nameSaveTimer = setTimeout(() => {
     const name = document.getElementById('hName').value.trim();
@@ -5134,7 +5160,7 @@ document.getElementById('hName').addEventListener('input', () => {
       LK.defaultName = name;
       persistLookups();
     }
-  }, 2000);
+  }, 300);
 });
 
 // ── Print ──
@@ -5282,6 +5308,7 @@ function buildReportDoc(innerHTML, title) {
   ).join('\n');
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'none'">
     <title>${esc(title || 'Report')}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -6214,7 +6241,7 @@ function buildReadonlyRow(r, i) {
   const timeTd = document.createElement('td');
   const timeDiv = document.createElement('div'); timeDiv.className = 'cell';
   const timeSpan = document.createElement('span'); timeSpan.textContent = lkLabel('TIME_TYPE', r.time);
-  if (r.time === 'OVERTIME') timeSpan.style.color = '#dc2626';
+  if (r.time === 'OVERTIME') timeSpan.style.color = 'var(--bad)';
   timeDiv.appendChild(timeSpan); timeTd.appendChild(timeDiv); tr.appendChild(timeTd);
 
   const descTd = document.createElement('td');
@@ -6758,6 +6785,7 @@ async function exportAnalyticsPDF() {
   const { label } = anRange();
   const body = document.getElementById('an-scroll').innerHTML;
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'none'">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
     <style>${css}
       body { font-family:'Inter',sans-serif; background:#fff; padding:28px 32px; display:block; }
@@ -7231,7 +7259,7 @@ function renderTaskDetail(t) {
       const tr = document.createElement('tr');
       tr.appendChild(textCell(w.date || '—'));
       const timeSpan = pjMk('span', null, lkLabel('TIME_TYPE', w.time) || '—');
-      if (w.time === 'OVERTIME') timeSpan.style.color = '#dc2626';
+      if (w.time === 'OVERTIME') timeSpan.style.color = 'var(--bad)';
       tr.appendChild(cellWrap(timeSpan, 'cell'));
       const minTd = document.createElement('td'); minTd.style.textAlign = 'right';
       minTd.appendChild(cellWrap(pjMk('span', null, (w.minutes === '' || w.minutes == null) ? '—' : String(w.minutes)), 'cell cell-right'));
@@ -7515,12 +7543,9 @@ function renderProjectDetail(p) {
 // sessions (or a "No sessions yet" note). Zero-log tasks appear here too.
 function buildProjectTaskCard(t) {
   const card = pjMk('div', 'pj-task-card');
-  card.style.cssText = 'border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:10px';
 
   const head = pjMk('div', 'pj-task-head');
-  head.style.cssText = 'display:flex;align-items:center;gap:10px';
   const title = pjMk('div', 'pj-task-title', t.name || '(untitled task)');
-  title.style.cssText = 'font-weight:600';
   head.appendChild(title);
   const statusPill = pjMk('span', 'status-badge ' + statusClass(t.status),
     lkLabel('ENTRY_STATUS', t.status) || '—');
@@ -7565,13 +7590,11 @@ function buildProjectTaskCard(t) {
   const summary = pjMk('div', 'pj-task-meta',
     (metaBits ? metaBits + '  ·  ' : '') + logCount + ' session' + (logCount === 1 ? '' : 's') +
     (mins ? '  ·  ' + mins + ' min (' + (mins / 60).toFixed(2) + ' h)' : ''));
-  summary.style.cssText = 'color:var(--muted);font-size:12px;margin-top:4px';
   card.appendChild(summary);
 
   const logs = Array.isArray(t.workLogs) ? t.workLogs : [];
   if (logs.length === 0) {
     const empty = pjMk('div', 'pj-task-empty', 'No sessions yet');
-    empty.style.cssText = 'color:var(--muted);font-size:12px;font-style:italic;margin-top:8px';
     card.appendChild(empty);
   } else {
     const table = document.createElement('table');
@@ -7584,7 +7607,7 @@ function buildProjectTaskCard(t) {
       const tr = document.createElement('tr');
       tr.appendChild(textCell(w.date || '—'));
       const timeSpan = pjMk('span', null, lkLabel('TIME_TYPE', w.time) || '—');
-      if (w.time === 'OVERTIME') timeSpan.style.color = '#dc2626';
+      if (w.time === 'OVERTIME') timeSpan.style.color = 'var(--bad)';
       tr.appendChild(cellWrap(timeSpan, 'cell'));
       const minTd = document.createElement('td'); minTd.style.textAlign = 'right';
       const minDiv = pjMk('div', 'cell cell-right');
@@ -9017,15 +9040,17 @@ function buildClientVpnCard(v) {
     if (v.password) {
       const pwWrap = pjMk('span', 'cl-pw-wrap');
       const pwText = pjMk('span', 'cl-pw-text', '••••••••');
-      pwText.dataset.value = v.password;
-      pwText.dataset.masked = 'true';
+      // The real value is read only from the closed-over `v` record inside the
+      // click handler below — never written to a DOM attribute — so it isn't
+      // present in the DOM at all while masked (not even inspectable via
+      // document.querySelectorAll('.cl-pw-text').dataset).
+      let pwMasked = true;
       const pwToggle = pjMk('button', 'cd-icon-btn cl-pw-toggle');
       pwToggle.innerHTML = ic('eye');
       pwToggle.title = 'Show/hide password';
       pwToggle.addEventListener('click', () => {
-        const masked = pwText.dataset.masked === 'true';
-        pwText.textContent = masked ? pwText.dataset.value : '••••••••';
-        pwText.dataset.masked = masked ? 'false' : 'true';
+        pwMasked = !pwMasked;
+        pwText.textContent = pwMasked ? '••••••••' : v.password;
       });
       pwWrap.appendChild(document.createTextNode('Pass: '));
       pwWrap.appendChild(pwText);
@@ -9086,15 +9111,15 @@ function buildClientServerCard(s) {
     if (s.password) {
       const pwWrap = pjMk('span', 'cl-pw-wrap');
       const pwText = pjMk('span', 'cl-pw-text', '••••••••');
-      pwText.dataset.value = s.password;
-      pwText.dataset.masked = 'true';
+      // See buildClientVpnCard's identical comment: value stays in the closed-
+      // over `s` record, never in a DOM attribute.
+      let pwMasked = true;
       const pwToggle = pjMk('button', 'cd-icon-btn cl-pw-toggle');
       pwToggle.innerHTML = ic('eye');
       pwToggle.title = 'Show/hide password';
       pwToggle.addEventListener('click', () => {
-        const masked = pwText.dataset.masked === 'true';
-        pwText.textContent = masked ? pwText.dataset.value : '••••••••';
-        pwText.dataset.masked = masked ? 'false' : 'true';
+        pwMasked = !pwMasked;
+        pwText.textContent = pwMasked ? '••••••••' : s.password;
       });
       pwWrap.appendChild(document.createTextNode('Pass: '));
       pwWrap.appendChild(pwText);
@@ -9293,15 +9318,15 @@ function buildClientDatabaseCard(d) {
     if (d.password) {
       const pwWrap = pjMk('span', 'cl-pw-wrap');
       const pwText = pjMk('span', 'cl-pw-text', '••••••••');
-      pwText.dataset.value = d.password;
-      pwText.dataset.masked = 'true';
+      // See buildClientVpnCard's identical comment: value stays in the closed-
+      // over `d` record, never in a DOM attribute.
+      let pwMasked = true;
       const pwToggle = pjMk('button', 'cd-icon-btn cl-pw-toggle');
       pwToggle.innerHTML = ic('eye');
       pwToggle.title = 'Show/hide password';
       pwToggle.addEventListener('click', () => {
-        const masked = pwText.dataset.masked === 'true';
-        pwText.textContent = masked ? pwText.dataset.value : '••••••••';
-        pwText.dataset.masked = masked ? 'false' : 'true';
+        pwMasked = !pwMasked;
+        pwText.textContent = pwMasked ? '••••••••' : d.password;
       });
       pwWrap.appendChild(document.createTextNode('Pass: '));
       pwWrap.appendChild(pwText);
@@ -9418,15 +9443,15 @@ function buildClientExternalServiceCard(x) {
     if (x.secretKey) {
       const skWrap = pjMk('span', 'cl-pw-wrap');
       const skText = pjMk('span', 'cl-pw-text', '••••••••');
-      skText.dataset.value = x.secretKey;
-      skText.dataset.masked = 'true';
+      // See buildClientVpnCard's identical comment: value stays in the closed-
+      // over `x` record, never in a DOM attribute.
+      let skMasked = true;
       const skToggle = pjMk('button', 'cd-icon-btn cl-pw-toggle');
       skToggle.innerHTML = ic('eye');
       skToggle.title = 'Show/hide secret key';
       skToggle.addEventListener('click', () => {
-        const masked = skText.dataset.masked === 'true';
-        skText.textContent = masked ? skText.dataset.value : '••••••••';
-        skText.dataset.masked = masked ? 'false' : 'true';
+        skMasked = !skMasked;
+        skText.textContent = skMasked ? '••••••••' : x.secretKey;
       });
       skWrap.appendChild(document.createTextNode('Secret Key: '));
       skWrap.appendChild(skText);
@@ -9552,15 +9577,15 @@ function buildClientInternalSystemCard(s) {
     if (s.password) {
       const pwWrap = pjMk('span', 'cl-pw-wrap');
       const pwText = pjMk('span', 'cl-pw-text', '••••••••');
-      pwText.dataset.value = s.password;
-      pwText.dataset.masked = 'true';
+      // See buildClientVpnCard's identical comment: value stays in the closed-
+      // over `s` record, never in a DOM attribute.
+      let pwMasked = true;
       const pwToggle = pjMk('button', 'cd-icon-btn cl-pw-toggle');
       pwToggle.innerHTML = ic('eye');
       pwToggle.title = 'Show/hide password';
       pwToggle.addEventListener('click', () => {
-        const masked = pwText.dataset.masked === 'true';
-        pwText.textContent = masked ? pwText.dataset.value : '••••••••';
-        pwText.dataset.masked = masked ? 'false' : 'true';
+        pwMasked = !pwMasked;
+        pwText.textContent = pwMasked ? '••••••••' : s.password;
       });
       pwWrap.appendChild(document.createTextNode('Pass: '));
       pwWrap.appendChild(pwText);
@@ -9575,15 +9600,15 @@ function buildClientInternalSystemCard(s) {
     if (s.secretKey) {
       const skWrap = pjMk('span', 'cl-pw-wrap');
       const skText = pjMk('span', 'cl-pw-text', '••••••••');
-      skText.dataset.value = s.secretKey;
-      skText.dataset.masked = 'true';
+      // See buildClientVpnCard's identical comment: value stays in the closed-
+      // over `s` record, never in a DOM attribute.
+      let skMasked = true;
       const skToggle = pjMk('button', 'cd-icon-btn cl-pw-toggle');
       skToggle.innerHTML = ic('eye');
       skToggle.title = 'Show/hide secret key';
       skToggle.addEventListener('click', () => {
-        const masked = skText.dataset.masked === 'true';
-        skText.textContent = masked ? skText.dataset.value : '••••••••';
-        skText.dataset.masked = masked ? 'false' : 'true';
+        skMasked = !skMasked;
+        skText.textContent = skMasked ? '••••••••' : s.secretKey;
       });
       skWrap.appendChild(document.createTextNode('Secret Key: '));
       skWrap.appendChild(skText);
@@ -10013,6 +10038,7 @@ async function doLogout() {
 }
 
 hydrateIcons();   // swap all static [data-ic] placeholders for inline Lucide SVG
+watchAriaLabels(); // mirror every button's title onto aria-label, now and going forward
 bootAuth();
 </script>
 <div id="app-toast" class="app-toast"></div>
