@@ -1440,7 +1440,7 @@ function clientServerToApi(r) {
   return {
     id: r.id, companyId: r.company_id, serverName: r.server_name, host: r.host, environment: r.environment,
     os: r.os, hostname: r.hostname, username: r.username, password: r.password, systemName: r.system_name,
-    role: r.role || '', credentialLocation: r.credential_location || '',
+    role: r.role || '', port: r.port || '', credentialLocation: r.credential_location || '',
     notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
   };
 }
@@ -1537,32 +1537,72 @@ function getClientFieldHistory(userId, recordType, recordId) {
 // server/database/external-service/internal-system counts for this user
 // (zero-activity companies still show — this is the catalog roster, not a
 // work-log rollup like Browse's company list).
+// Groups rows by company_id: `counts` for the card's "N servers"-style tally,
+// `records` building one search-result-table row per record via `toRecord`
+// — { type, typeLabel, name, detail, fields } using only human-identifying
+// (never password/secretKey) columns — used by the list-view records search
+// so a client with e.g. a "VPN"-typed Auth entry surfaces without opening
+// its detail view first.
+function groupClientRows(rows, toRecord) {
+  const counts = new Map();
+  const records = new Map();
+  for (const r of rows) {
+    counts.set(r.company_id, (counts.get(r.company_id) || 0) + 1);
+    if (!records.has(r.company_id)) records.set(r.company_id, []);
+    records.get(r.company_id).push(toRecord(r));
+  }
+  return { counts, records };
+}
+
 function listClients(userId) {
   const companies = getLookupsByCategory('COMPANY');
-  const vpnCounts = new Map(
-    db.prepare('SELECT company_id, COUNT(*) AS c FROM client_vpn_connections WHERE user_id = ? GROUP BY company_id')
-      .all(userId).map(r => [r.company_id, r.c])
+  const vpn = groupClientRows(
+    db.prepare('SELECT id, company_id, connection_name, vpn_type, endpoint FROM client_vpn_connections WHERE user_id = ?').all(userId),
+    r => ({
+      id: r.id, type: 'auth', typeLabel: 'Auth', name: r.connection_name || r.vpn_type || '(unnamed)',
+      detail: [r.vpn_type, r.endpoint].filter(Boolean).join(' · '),
+      fields: [r.connection_name, r.vpn_type, r.endpoint].filter(Boolean),
+    })
   );
-  const srvCounts = new Map(
-    db.prepare('SELECT company_id, COUNT(*) AS c FROM client_servers WHERE user_id = ? GROUP BY company_id')
-      .all(userId).map(r => [r.company_id, r.c])
+  const srv = groupClientRows(
+    db.prepare('SELECT id, company_id, server_name, host, hostname, system_name FROM client_servers WHERE user_id = ?').all(userId),
+    r => ({
+      id: r.id, type: 'servers', typeLabel: 'Server', name: r.server_name || '(unnamed)',
+      detail: [r.host, r.hostname, r.system_name].filter(Boolean).join(' · '),
+      fields: [r.server_name, r.host, r.hostname, r.system_name].filter(Boolean),
+    })
   );
-  const dbCounts = new Map(
-    db.prepare('SELECT company_id, COUNT(*) AS c FROM client_databases WHERE user_id = ? GROUP BY company_id')
-      .all(userId).map(r => [r.company_id, r.c])
+  const dbase = groupClientRows(
+    db.prepare('SELECT id, company_id, name, engine, host FROM client_databases WHERE user_id = ?').all(userId),
+    r => ({
+      id: r.id, type: 'databases', typeLabel: 'Database', name: r.name || '(unnamed)',
+      detail: [r.engine, r.host].filter(Boolean).join(' · '),
+      fields: [r.name, r.engine, r.host].filter(Boolean),
+    })
   );
-  const extCounts = new Map(
-    db.prepare('SELECT company_id, COUNT(*) AS c FROM client_external_services WHERE user_id = ? GROUP BY company_id')
-      .all(userId).map(r => [r.company_id, r.c])
+  const ext = groupClientRows(
+    db.prepare('SELECT id, company_id, name, url FROM client_external_services WHERE user_id = ?').all(userId),
+    r => ({
+      id: r.id, type: 'external', typeLabel: 'External', name: r.name || '(unnamed)',
+      detail: r.url || '', fields: [r.name, r.url].filter(Boolean),
+    })
   );
-  const intCounts = new Map(
-    db.prepare('SELECT company_id, COUNT(*) AS c FROM client_internal_systems WHERE user_id = ? GROUP BY company_id')
-      .all(userId).map(r => [r.company_id, r.c])
+  const int_ = groupClientRows(
+    db.prepare('SELECT id, company_id, name, url, system_name FROM client_internal_systems WHERE user_id = ?').all(userId),
+    r => ({
+      id: r.id, type: 'internal', typeLabel: 'Internal', name: r.name || '(unnamed)',
+      detail: [r.system_name, r.url].filter(Boolean).join(' · '),
+      fields: [r.name, r.url, r.system_name].filter(Boolean),
+    })
   );
   return companies.map(c => ({
     id: c.id, label: c.label,
-    vpnCount: vpnCounts.get(c.id) || 0, serverCount: srvCounts.get(c.id) || 0, databaseCount: dbCounts.get(c.id) || 0,
-    externalServiceCount: extCounts.get(c.id) || 0, internalSystemCount: intCounts.get(c.id) || 0,
+    vpnCount: vpn.counts.get(c.id) || 0, serverCount: srv.counts.get(c.id) || 0, databaseCount: dbase.counts.get(c.id) || 0,
+    externalServiceCount: ext.counts.get(c.id) || 0, internalSystemCount: int_.counts.get(c.id) || 0,
+    records: [
+      ...(vpn.records.get(c.id) || []), ...(srv.records.get(c.id) || []), ...(dbase.records.get(c.id) || []),
+      ...(ext.records.get(c.id) || []), ...(int_.records.get(c.id) || []),
+    ],
   }));
 }
 
