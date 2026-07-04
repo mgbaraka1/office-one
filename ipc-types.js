@@ -441,6 +441,23 @@
  * @property {number} databaseCount
  * @property {number} externalServiceCount
  * @property {number} internalSystemCount
+ * @property {ClientSearchRecord[]} records  One entry per auth/server/database/external/
+ *   internal record this client owns — human-identifying fields only, never password/
+ *   secretKey. Powers the list view's records search (flattened into a results table
+ *   across all clients) — see `groupClientRows()` in db.js.
+ */
+
+/**
+ * One searchable record within a {@link ClientListItem}, surfaced as a row in the
+ * Clients list view's records-search results table.
+ * @typedef {Object} ClientSearchRecord
+ * @property {number} id         The underlying row's id in its own client_* table (scoped by `type`)
+ *   — looked back up via `clients:get` to show the record-info popup with every field.
+ * @property {'auth'|'servers'|'databases'|'external'|'internal'} type
+ * @property {string} typeLabel  Human label for `type` ('Auth'/'Server'/'Database'/'External'/'Internal').
+ * @property {string} name       The record's primary display name.
+ * @property {string} detail     Secondary display text (e.g. host/url), joined with ' · '.
+ * @property {string[]} fields   Every human-identifying field value on this record, for matching.
  */
 
 /**
