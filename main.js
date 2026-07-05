@@ -119,6 +119,7 @@ ipcMain.handle('tasks:get',    authed((_e, id)       => db.getTask(auth.requireU
 ipcMain.handle('tasks:create', authed((_e, data)     => db.createTask(auth.requireUserId(), data)));
 ipcMain.handle('tasks:update', authed((_e, id, data) => db.updateTask(auth.requireUserId(), id, data)));
 ipcMain.handle('tasks:delete', authed((_e, id)       => db.deleteTask(auth.requireUserId(), id)));
+ipcMain.handle('tasks:merge',  authed((_e, sourceId, targetId) => db.mergeTasks(auth.requireUserId(), sourceId, targetId)));
 
 // ── Work logs (v2 — dated work sessions belonging to a task) ──
 ipcMain.handle('worklogs:byTask', authed((_e, taskId)      => db.listWorkLogs(auth.requireUserId(), taskId)));
