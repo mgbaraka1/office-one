@@ -711,6 +711,12 @@
       cursor: pointer; padding: 4px 7px; border-radius: var(--radius-sm);
     }
     .ss-toggle-btn:hover { background: rgba(20,184,166,.10); }
+    /* Compact Add Session modal — read-only one-line task summary (create mode) */
+    .sm-task-summary {
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 9px 11px; font-size: 14px; color: var(--text); background: var(--surface2);
+    }
+    .sm-task-summary .status-badge { margin-left: 8px; }
 
     /* ── Searchable single-select (combobox) ── */
     .search-select { position: relative; }
@@ -3107,7 +3113,7 @@
 <div id="session-modal-overlay" class="modal-overlay" onclick="sessionOverlayClick(event)">
   <div id="session-modal" class="modal-box">
     <div class="modal-header">
-      <span class="modal-title">Edit Session</span>
+      <span class="modal-title" id="session-modal-title">Edit Session</span>
       <button class="modal-close" onclick="closeSessionModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
@@ -3115,6 +3121,7 @@
         <div class="form-group full">
           <label>Task</label>
           <div id="sm-task"></div>
+          <div id="sm-task-summary" class="sm-task-summary" style="display:none"></div>
         </div>
       </div>
       <div class="form-row">
@@ -3148,7 +3155,24 @@
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeSessionModal()">Cancel</button>
-      <button class="btn primary" onclick="submitSessionModal()">Save Changes</button>
+      <button class="btn primary" id="session-modal-submit" onclick="submitSessionModal()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ WORK-LOG (SESSION) HISTORY MODAL — read-only, mirrors the Clients page's
+     History modal (openClientHistoryModal), scoped to one work_log's edits. ══ -->
+<div id="wl-history-overlay" class="modal-overlay" onclick="wlHistoryOverlayClick(event)">
+  <div id="wl-history-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="wl-history-modal-title">History</span>
+      <button class="modal-close" onclick="closeWlHistoryModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div id="wl-history-list"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeWlHistoryModal()">Close</button>
     </div>
   </div>
 </div>
@@ -4742,10 +4766,10 @@ function linkCell(val, kind) {
 // Shared inline "Delete?" confirm used by every module's row delete button.
 // Replaces the action buttons in `actsEl` with a Delete?/Yes/No prompt;
 // `onYes` performs the deletion, `restore` puts the original buttons back.
-function showDeleteConfirm(actsEl, onYes, restore) {
+function showDeleteConfirm(actsEl, onYes, restore, label) {
   actsEl.innerHTML = '';
   const conf = document.createElement('div'); conf.className = 'del-confirm';
-  const lbl  = document.createElement('span'); lbl.textContent = 'Delete?';
+  const lbl  = document.createElement('span'); lbl.textContent = label || 'Delete?';
   const yes  = document.createElement('button'); yes.className = 'row-btn del-yes'; yes.textContent = 'Yes';
   yes.addEventListener('click', onYes);
   const no   = document.createElement('button'); no.className = 'row-btn del-no'; no.textContent = 'No';
@@ -7449,11 +7473,17 @@ function openProjectById(id) {
   openProjectDetail(id);
 }
 
-// ── Task Detail modal — metadata + rollups (read-only) plus every work_log
-// session, reachable from Timesheet rows and Project task cards. Each session
-// row has its own edit action (see the Edit Session modal below). Sourced from
-// tasks:get, which already returns the full task + its ordered workLogs, so no
-// new IPC channel is needed.
+// ── Task Detail modal — the task's session hub: metadata + rollups (read-only)
+// plus every work_log session, newest first, reachable from Timesheet rows and
+// every buildLinkedTaskCard (Projects/Internal Tasks/All Tasks). Each session
+// row can be edited (pencil → Session edit modal), its date clicked through to
+// that Timesheet day, its history viewed (clock → Session edit modal's history,
+// worklogs:history), and deleted (trash, inline-confirm + undo — deleting a
+// task's last session deletes the task too, same as the Timesheet reconciler).
+// A "+ Add Session" button next to the section title opens the same modal in
+// create mode with this task fixed. Sourced from tasks:get, which already
+// returns the full task + its ordered workLogs, so no new IPC channel is
+// needed for the task/session data itself (only worklogs:history is new).
 async function openTaskDetail(taskId) {
   if (!taskId) return;
   let task;
@@ -7478,26 +7508,49 @@ function taskDetailOverlayClick(e) {
 // reloads the Timesheet's in-memory day (if one is loaded) so a later debounced
 // Timesheet save can't clobber this edit with stale data, before refreshing the
 // caller's own view via opts.onSaved.
-let _sessionModalCtx = { workLog: null, onSaved: null };
+let _sessionModalCtx = { mode: 'edit', workLog: null, task: null, onSaved: null };
 let smTaskPicker = null;
+// `workLog` is the session to edit; pass null with opts.mode = 'create' and
+// opts.task (the fixed parent Task) to log a brand-new session against a known
+// task instead — the compact "Add Session" entry point used across Task Detail,
+// the grouped/flat Timesheet row actions, and the palette (see submitSessionModal).
 async function openSessionModal(workLog, opts = {}) {
-  _sessionModalCtx = { workLog, onSaved: opts.onSaved || null };
-  document.getElementById('sm-date').value = workLog.date || '';
-  populateSelect('sm-time', 'timeType', workLog.time || '');
-  populateSelect('sm-natural', 'natural', workLog.natural || '');
-  document.getElementById('sm-description').value = workLog.description || '';
-  document.getElementById('sm-minutes').value = (workLog.minutes === '' || workLog.minutes == null) ? '' : workLog.minutes;
+  const mode = opts.mode === 'create' ? 'create' : 'edit';
+  _sessionModalCtx = { mode, workLog, task: opts.task || null, onSaved: opts.onSaved || null };
 
-  // Task reassignment picker — searchable, preselected to this session's current
-  // task; picking a different one moves the session there on save (worklogs:move).
-  let taskList = [];
-  try { taskList = await window.api.listTasks(); } catch { taskList = []; }
-  if (!Array.isArray(taskList)) taskList = [];
-  if (workLog.taskId != null && !taskList.some(t => t.id === workLog.taskId)) {
-    taskList = taskList.concat([{ id: workLog.taskId, name: workLog.taskName || '(untitled task)' }]);
+  document.getElementById('session-modal-title').textContent = mode === 'create' ? 'Add Session' : 'Edit Session';
+  document.getElementById('session-modal-submit').textContent = mode === 'create' ? 'Add Session' : 'Save Changes';
+
+  document.getElementById('sm-date').value = mode === 'create' ? (opts.defaultDate || fmt(new Date())) : (workLog.date || '');
+  populateSelect('sm-time', 'timeType', mode === 'create' ? '' : (workLog.time || ''));
+  populateSelect('sm-natural', 'natural', mode === 'create' ? '' : (workLog.natural || ''));
+  document.getElementById('sm-description').value = mode === 'create' ? '' : (workLog.description || '');
+  document.getElementById('sm-minutes').value = mode === 'create' ? '' :
+    ((workLog.minutes === '' || workLog.minutes == null) ? '' : workLog.minutes);
+
+  const pickerHost = document.getElementById('sm-task');
+  const summaryHost = document.getElementById('sm-task-summary');
+  if (mode === 'create') {
+    // Fixed task — a read-only one-line summary instead of the reassignment picker.
+    pickerHost.style.display = 'none';
+    summaryHost.style.display = '';
+    const t = opts.task || {};
+    summaryHost.innerHTML = esc(t.name || '(untitled task)') +
+      '<span class="status-badge ' + esc(statusClass(t.status)) + '">' + esc(lkLabel('ENTRY_STATUS', t.status) || '—') + '</span>';
+    smTaskPicker = null;
+  } else {
+    pickerHost.style.display = '';
+    summaryHost.style.display = 'none';
+    // Task reassignment picker — searchable, preselected to this session's current
+    // task; picking a different one moves the session there on save (worklogs:move).
+    let taskList = [];
+    try { taskList = await window.api.listTasks(); } catch { taskList = []; }
+    if (!Array.isArray(taskList)) taskList = [];
+    if (workLog.taskId != null && !taskList.some(t => t.id === workLog.taskId)) {
+      taskList = taskList.concat([{ id: workLog.taskId, name: workLog.taskName || '(untitled task)' }]);
+    }
+    smTaskPicker = buildTaskSearchSelect(pickerHost, taskList, workLog.taskId ?? null, 'Search tasks…');
   }
-  smTaskPicker = buildTaskSearchSelect(document.getElementById('sm-task'),
-    taskList, workLog.taskId ?? null, 'Search tasks…');
 
   clearErrorsIn('#session-modal');
   document.getElementById('session-modal-overlay').classList.add('open');
@@ -7505,7 +7558,7 @@ async function openSessionModal(workLog, opts = {}) {
 }
 function closeSessionModal() {
   document.getElementById('session-modal-overlay').classList.remove('open');
-  _sessionModalCtx = { workLog: null, onSaved: null };
+  _sessionModalCtx = { mode: 'edit', workLog: null, task: null, onSaved: null };
   smTaskPicker = null;
 }
 function sessionOverlayClick(e) {
@@ -7538,7 +7591,18 @@ async function submitSessionModal() {
     description: document.getElementById('sm-description').value.trim(),
     minutes:     minRaw === '' ? '' : parseInt(minRaw, 10),
   };
-  const workLog = _sessionModalCtx.workLog;
+
+  const { mode, workLog, task, onSaved } = _sessionModalCtx;
+  if (mode === 'create') {
+    try { await window.api.addWorkLog(task.id, payload); }
+    catch { toast('Could not add session'); return; }
+    closeSessionModal();
+    await reloadTimesheet();
+    if (onSaved) await onSaved();
+    toast('Session added');
+    return;
+  }
+
   // A session always belongs to some task — silently keep the current one if the
   // picker was cleared to "— None —" rather than surfacing a required-field error
   // for what's normally a one-click reassignment, not a create form.
@@ -7550,12 +7614,44 @@ async function submitSessionModal() {
   }
   catch { toast('Could not save session'); return; }
 
-  const onSaved = _sessionModalCtx.onSaved;
   closeSessionModal();
   await reloadTimesheet();          // resync any loaded Timesheet day
   if (onSaved) await onSaved();
   toast(targetTaskId !== workLog.taskId ? 'Session moved to a different task' : 'Session updated');
 }
+
+// Read-only work-log edit history (worklogs:history → db.getWorkLogHistory) —
+// recorded since migration 028 but never surfaced in the UI until now. Mirrors
+// openClientHistoryModal's shape/CSS classes exactly, scoped to one session.
+async function openWlHistoryModal(workLogId, title) {
+  document.getElementById('wl-history-modal-title').textContent = 'History — ' + (title || 'session');
+  const list = document.getElementById('wl-history-list');
+  list.innerHTML = '<div class="cp-records-empty">Loading…</div>';
+  document.getElementById('wl-history-overlay').classList.add('open');
+  let rows;
+  try { rows = await window.api.getWorkLogHistory(workLogId); }
+  catch { list.innerHTML = '<div class="cp-records-empty">Could not load history.</div>'; return; }
+  if (!Array.isArray(rows) || rows.length === 0) {
+    list.innerHTML = '<div class="cp-records-empty">No changes recorded yet.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  rows.forEach(r => {
+    const row = pjMk('div', 'cl-history-row');
+    const head = pjMk('div', 'cl-history-head');
+    head.appendChild(pjMk('span', 'cl-history-field', r.fieldName));
+    head.appendChild(pjMk('span', 'cl-history-when', new Date(r.changedAt).toLocaleString()));
+    row.appendChild(head);
+    const diff = pjMk('div', 'cl-history-diff');
+    diff.appendChild(pjMk('span', 'cl-history-old', r.oldValue || '(empty)'));
+    diff.appendChild(pjMk('span', 'cl-history-arrow', '→'));
+    diff.appendChild(pjMk('span', 'cl-history-new', r.newValue || '(empty)'));
+    row.appendChild(diff);
+    list.appendChild(row);
+  });
+}
+function closeWlHistoryModal() { document.getElementById('wl-history-overlay').classList.remove('open'); }
+function wlHistoryOverlayClick(e) { if (e.target === document.getElementById('wl-history-overlay')) closeWlHistoryModal(); }
 
 function renderTaskDetail(t) {
   document.getElementById('td-title').textContent = t.name || '(untitled task)';
@@ -7618,12 +7714,25 @@ function renderTaskDetail(t) {
   });
   body.appendChild(stats);
 
-  // ── Sessions ──
-  const sessTitle = pjMk('div', 'pj-section-title', 'Sessions');
-  sessTitle.style.cssText = 'margin-top:18px;margin-bottom:10px';
-  body.appendChild(sessTitle);
+  // ── Sessions (newest first) ──
+  const sessHead = pjMk('div', 'pj-section-head');
+  sessHead.style.marginTop = '18px';
+  const sessTitle = pjMk('div', 'pj-section-title', 'Sessions (' + logs.length + ')');
+  sessHead.appendChild(sessTitle);
+  const sessActions = pjMk('div', 'pj-section-actions');
+  const addSessBtn = pjMk('button', 'btn primary');
+  addSessBtn.innerHTML = ic('plus') + ' Add Session';
+  addSessBtn.title = 'Log a new session against this task';
+  addSessBtn.addEventListener('click', () => openSessionModal(null, {
+    mode: 'create', task: t, onSaved: () => openTaskDetail(t.id),
+  }));
+  sessActions.appendChild(addSessBtn);
+  sessHead.appendChild(sessActions);
+  body.appendChild(sessHead);
 
-  if (logs.length === 0) {
+  const sorted = [...logs].sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id - a.id));
+
+  if (sorted.length === 0) {
     body.appendChild(pjMk('div', 'td-sessions-empty', 'No sessions yet — this task hasn\'t been worked on.'));
   } else {
     const table = document.createElement('table');
@@ -7631,27 +7740,89 @@ function renderTaskDetail(t) {
       '<th style="width:110px">Date</th><th style="width:100px">Time</th>' +
       '<th style="width:100px">Natural</th>' +
       '<th style="width:70px;text-align:right">Min</th><th>What was done</th>' +
-      '<th style="width:44px"></th></tr></thead><tbody></tbody>';
+      '<th style="width:96px"></th></tr></thead><tbody></tbody>';
     const tb = table.querySelector('tbody');
-    logs.forEach(w => {
+    sorted.forEach(w => {
       const tr = document.createElement('tr');
-      tr.appendChild(textCell(w.date || '—'));
+      const dateSpan = pjMk('span', 'clickable', w.date || '—');
+      if (w.date) {
+        dateSpan.title = 'Open ' + w.date + ' in the Timesheet';
+        dateSpan.addEventListener('click', () => {
+          closeTaskDetail();
+          switchModule('timesheet');
+          switchDay(w.date);
+        });
+      }
+      tr.appendChild(cellWrap(dateSpan, 'cell'));
       const timeSpan = pjMk('span', null, lkLabel('TIME_TYPE', w.time) || '—');
       if (w.time === 'OVERTIME') timeSpan.style.color = 'var(--bad)';
       tr.appendChild(cellWrap(timeSpan, 'cell'));
       tr.appendChild(textCell(w.natural || '—'));
-      const minTd = document.createElement('td'); minTd.style.textAlign = 'right';
-      minTd.appendChild(cellWrap(pjMk('span', null, (w.minutes === '' || w.minutes == null) ? '—' : String(w.minutes)), 'cell cell-right'));
-      tr.appendChild(minTd);
+      const minCell = cellWrap(pjMk('span', null, (w.minutes === '' || w.minutes == null) ? '—' : String(w.minutes)), 'cell cell-right');
+      minCell.style.textAlign = 'right';
+      tr.appendChild(minCell);
       tr.appendChild(textCell(w.description || '—'));
-      const editBtn = pjMk('button', 'row-btn');
-      editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit session';
-      editBtn.addEventListener('click', () => openSessionModal(w, { onSaved: () => openTaskDetail(t.id) }));
-      tr.appendChild(cellWrap(editBtn, 'cell'));
+
+      const actsWrap = pjMk('div', 'row-actions');
+      const restoreActs = () => {
+        actsWrap.innerHTML = '';
+        const histBtn = pjMk('button', 'row-btn');
+        histBtn.innerHTML = ic('clock'); histBtn.title = 'View history';
+        histBtn.addEventListener('click', () => openWlHistoryModal(w.id, t.name));
+        actsWrap.appendChild(histBtn);
+        const editBtn = pjMk('button', 'row-btn');
+        editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit session';
+        editBtn.addEventListener('click', () => openSessionModal(w, { onSaved: () => openTaskDetail(t.id) }));
+        actsWrap.appendChild(editBtn);
+        const delBtn = pjMk('button', 'row-btn del');
+        delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete session';
+        const isLast = sorted.length === 1;
+        delBtn.addEventListener('click', () => showDeleteConfirm(actsWrap, () => deleteSessionFromTaskDetail(t, w), restoreActs,
+          isLast ? 'Delete last session? This also deletes the task.' : 'Delete?'));
+        actsWrap.appendChild(delBtn);
+      };
+      restoreActs();
+      tr.appendChild(cellWrap(actsWrap, 'cell'));
       tb.appendChild(tr);
     });
     body.appendChild(table);
   }
+}
+
+// Delete one session from the Task Detail modal. Mirrors the Timesheet
+// reconciler's own rule: if that was the task's last session, the now-empty
+// task is deleted too (a zero-log task created this way has no container to
+// stay reachable from otherwise — see the All Tasks page notes in CLAUDE.md).
+// Undo re-creates the task (if it was deleted) and the session together.
+async function deleteSessionFromTaskDetail(task, workLog) {
+  let res;
+  try { res = await window.api.deleteWorkLog(workLog.id); }
+  catch { toast('Could not delete session'); return; }
+  const taskDeleted = res && res.task && res.task.logCount === 0;
+  if (taskDeleted) {
+    try { await window.api.deleteTask(task.id); }
+    catch { toast('Could not delete task'); return; }
+    closeTaskDetail();
+  } else {
+    await openTaskDetail(task.id);
+  }
+  await reloadTimesheet();
+  showGenericUndo(taskDeleted ? 'Session deleted (task removed)' : 'Session deleted', async () => {
+    try {
+      const newTaskId = taskDeleted
+        ? (await window.api.createTask({
+            name: task.name, status: task.status, company: task.company, system: task.system,
+            source: task.source, projectId: task.projectId, department: task.department,
+          })).id
+        : task.id;
+      await window.api.addWorkLog(newTaskId, {
+        date: workLog.date, description: workLog.description, minutes: workLog.minutes,
+        time: workLog.time, natural: workLog.natural,
+      });
+    } catch { toast('Could not restore session'); return; }
+    await reloadTimesheet();
+    if (taskDeleted) toast('Task and session restored'); else await openTaskDetail(task.id);
+  });
 }
 
 function applyProjectFilter() {

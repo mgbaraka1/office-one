@@ -147,6 +147,19 @@
  */
 
 /**
+ * One edit recorded against a work_logs row (worklogs:history →
+ * db.getWorkLogHistory), newest first. Mirrors ClientFieldHistoryEntry's shape;
+ * see work_log_history in CLAUDE.md — date/description/minutes/time/natural
+ * fields, FK fields (time/natural) diffed by lookup code, not raw id.
+ * @typedef {Object} WorkLogHistoryEntry
+ * @property {number} id
+ * @property {string} fieldName  Human label (e.g. 'Date', 'Minutes', 'Natural').
+ * @property {string} oldValue
+ * @property {string} newValue
+ * @property {string} changedAt
+ */
+
+/**
  * Metadata for a document's uploaded file (the bytes live on disk under userData;
  * only this metadata is in SQLite). null when no file has been uploaded.
  * @typedef {Object} ProjectDocumentFile

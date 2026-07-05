@@ -80,6 +80,8 @@ contextBridge.exposeInMainWorld('api', {
   moveWorkLog:    (id, taskId)    => ipcRenderer.invoke('worklogs:move', id, taskId),
   /** @returns {Promise<import('./ipc-types').WorkLogMutationResult>} */
   deleteWorkLog:  (id)            => ipcRenderer.invoke('worklogs:delete', id),
+  /** Read-only, newest first. @returns {Promise<import('./ipc-types').WorkLogHistoryEntry[]>} */
+  getWorkLogHistory: (id)         => ipcRenderer.invoke('worklogs:history', id),
   /** Per-date employee name (days metadata) — non-destructive; no work sessions touched. */
   setDayName:     (date, name)    => ipcRenderer.invoke('day:setName', date, name),
   /** @returns {Promise<string>} */
