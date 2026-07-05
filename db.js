@@ -25,7 +25,7 @@ const fs   = require('node:fs');
 // table under one of these category discriminators. The renderer fetches options
 // per-category and stores a stable `code` (logic fields) or display `label`
 // (company/system/activity) — never a hardcoded string.
-const LOOKUP_CATEGORIES = ['COMPANY', 'SYSTEM', 'ACTIVITY_TYPE', 'TIME_TYPE', 'ENTRY_STATUS', 'CURRENCY', 'BILLING_CYCLE', 'PROJECT_STATUS', 'PROJECT_DOCUMENT', 'COMPANY_DOCUMENT_CATEGORY'];
+const LOOKUP_CATEGORIES = ['COMPANY', 'SYSTEM', 'ACTIVITY_TYPE', 'TIME_TYPE', 'ENTRY_STATUS', 'CURRENCY', 'BILLING_CYCLE', 'PROJECT_STATUS', 'PROJECT_DOCUMENT', 'COMPANY_DOCUMENT_CATEGORY', 'DEPARTMENT'];
 
 let db;          // DatabaseSync instance
 let userDataDir; // resolved userData folder (backups, db file)
@@ -268,14 +268,15 @@ function createUser(username, passwordHash) {
 // child `work_logs` (one work session each). The `days` table survives only as
 // per-date metadata (employee_name for reports). The renderer still works with the
 // legacy shape { name, rows[] } where each row is one work session flattened with
-// its task: { company, system, natural, time, description, source, status, minutes,
-// tags[] }. These helpers translate between that shape and the two tables and scope
-// every query to the authenticated user (`userId`).
+// its task: { company, system, natural, time, description, source, status, minutes }.
+// These helpers translate between that shape and the two tables and scope every
+// query to the authenticated user (`userId`).
 //
-// Column split: task-level = name/status/company/system/activity/source/tags/
-// project; work-log-level = date/description/minutes/time_type. Display fields
-// (company/system/natural) round-trip as their LABEL; logic fields (time/status)
-// round-trip as their stable CODE, so the renderer compares codes, never strings.
+// Column split: task-level = name/status/company/system/source/project;
+// work-log-level = date/description/minutes/time_type/activity_type. Display
+// fields (company/system/natural) round-trip as their LABEL; logic fields
+// (time/status) round-trip as their stable CODE, so the renderer compares
+// codes, never strings.
 //
 // A joined work_log(wl) + its parent task(t), aliased so one SELECT yields a flat
 // row. Phase A is 1:1 (one work_log per task), so `eid` = the work_log id and a
@@ -283,10 +284,10 @@ function createUser(username, passwordHash) {
 const LOG_JOIN = 'FROM work_logs wl JOIN tasks t ON t.id = wl.task_id';
 const LOG_COLS = `wl.id AS wl_id, wl.task_id AS task_id, wl.date AS date,
   wl.description AS description, wl.minutes AS minutes, wl.time_type_id AS time_type_id,
-  wl.sort_order AS sort_order,
+  wl.activity_type_id AS activity_type_id, wl.sort_order AS sort_order,
   t.name AS task_name,
-  t.company_id AS company_id, t.system_id AS system_id, t.activity_type_id AS activity_type_id,
-  t.status_id AS status_id, t.source AS source, t.tags AS tags, t.project_id AS project_id`;
+  t.company_id AS company_id, t.system_id AS system_id,
+  t.status_id AS status_id, t.source AS source, t.project_id AS project_id`;
 
 // Joined work_log+task row → renderer row shape (minutes null → '' for the UI).
 // Named to match the *ToApi convention used elsewhere (taskToApi, workLogToApi,
@@ -300,7 +301,6 @@ function dayEntryRowToApi(r) {
     description: r.description || '', source: r.source || '',
     status: lkCode(r.status_id) || 'IN_PROGRESS',
     minutes: (r.minutes === null || r.minutes === undefined) ? '' : r.minutes,
-    tags: safeParse(r.tags, []),
     projectId: r.project_id ?? null,   // linked Project (nullable); rendered as a pill
   };
 }
@@ -408,7 +408,7 @@ function getAnalytics(userId, from, to, spanFrom, spanTo) {
   const byCompany = mapOf(`SELECT lc.label AS k, COALESCE(SUM(wl.minutes),0) AS v ${FROM} JOIN lookup_codes lc ON lc.id = t.company_id ${WHERE} GROUP BY lc.label`);
   const bySystem  = mapOf(`SELECT lc.label AS k, COALESCE(SUM(wl.minutes),0) AS v ${FROM} JOIN lookup_codes lc ON lc.id = t.system_id ${WHERE} GROUP BY lc.label`);
   // donuts only count sessions with logged minutes.
-  const byNatural = mapOf(`SELECT lc.label AS k, SUM(wl.minutes) AS v ${FROM} JOIN lookup_codes lc ON lc.id = t.activity_type_id ${WHERE} AND wl.minutes > 0 GROUP BY lc.label`);
+  const byNatural = mapOf(`SELECT lc.label AS k, SUM(wl.minutes) AS v ${FROM} JOIN lookup_codes lc ON lc.id = wl.activity_type_id ${WHERE} AND wl.minutes > 0 GROUP BY lc.label`);
   // time-type keyed by stable CODE; unset time_type buckets under 'OTHER'.
   const byType    = mapOf(`SELECT COALESCE(lc.code, 'OTHER') AS k, SUM(wl.minutes) AS v ${FROM} LEFT JOIN lookup_codes lc ON lc.id = wl.time_type_id ${WHERE} AND wl.minutes > 0 GROUP BY k`);
 
@@ -1148,6 +1148,21 @@ function unlinkTask(userId, taskId) {
   return { ok: true };
 }
 
+// Link / unlink a task to a department, the same shape as linkTask/unlinkTask
+// above but for the DEPARTMENT lookup dimension (Internal Tasks). A task's
+// project link and department link are independent — no exclusivity enforced.
+function linkDepartmentTask(userId, taskId, departmentId) {
+  if (!isLookupId('DEPARTMENT', departmentId)) return { ok: false, error: 'department not found' };
+  db.prepare('UPDATE tasks SET department_id = ? WHERE id = ? AND user_id = ?')
+    .run(Number(departmentId), taskId, userId);
+  return { ok: true };
+}
+function unlinkDepartmentTask(userId, taskId) {
+  db.prepare('UPDATE tasks SET department_id = NULL WHERE id = ? AND user_id = ?')
+    .run(taskId, userId);
+  return { ok: true };
+}
+
 // Tasks not linked to ANY project, for the "link an existing task" picker — every
 // unlinked task (with-sessions and zero-log alike), owner-scoped, newest first,
 // each with its rollups. Read-only; the UI links via linkTask.
@@ -1165,13 +1180,73 @@ function listLinkableTasks(userId) {
   });
 }
 
+// Same as listLinkableTasks but for the "link an existing task to a department"
+// picker (department_id IS NULL instead of project_id IS NULL).
+function listLinkableTasksForDepartment(userId) {
+  return db.prepare(
+    `SELECT * FROM tasks WHERE user_id = ? AND department_id IS NULL ORDER BY created_at DESC, id DESC`
+  ).all(userId).map(t => {
+    const roll = db.prepare(
+      `SELECT COUNT(*) AS logCount, COALESCE(SUM(minutes),0) AS totalMinutes, MIN(date) AS firstDate, MAX(date) AS lastDate
+         FROM work_logs WHERE task_id = ?`
+    ).get(t.id);
+    return taskToApi(t, {
+      logCount: roll.logCount, totalMinutes: roll.totalMinutes, firstDate: roll.firstDate, lastDate: roll.lastDate,
+    });
+  });
+}
+
+// ── Departments (Internal Tasks) ──────────────────────────────────────────────
+// Department is a plain DEPARTMENT lookup category (like Company/System) — no
+// dedicated table, no create/update/delete here (managed via Settings' saveLookups).
+// listDepartments shows every active department regardless of activity (same
+// convention as listClients showing every active COMPANY lookup), each with a
+// linked-task count; getDepartment nests its full tasks (with work sessions),
+// the same shape getProject already returns for a project's tasks.
+
+// All active departments + a linked-task count, for the Internal Tasks left list.
+function listDepartments(userId) {
+  return getLookupsByCategory('DEPARTMENT').map(d => ({
+    id: d.id, code: d.code, label: d.label,
+    taskCount: db.prepare('SELECT COUNT(*) AS n FROM tasks WHERE department_id = ? AND user_id = ?').get(d.id, userId).n,
+  }));
+}
+
+// A department's linked tasks, each as a full Task with its ordered work sessions
+// + rollups. Includes zero-log tasks. Owner-scoped; ordered newest-first.
+function departmentTasks(userId, departmentId) {
+  return db.prepare(
+    `SELECT * FROM tasks WHERE department_id = ? AND user_id = ? ORDER BY created_at DESC, id DESC`
+  ).all(departmentId, userId).map(t => {
+    const workLogs = db.prepare(
+      `SELECT ${WORK_LOG_COLS} FROM work_logs WHERE task_id = ? AND user_id = ? ORDER BY date DESC, sort_order, id`
+    ).all(t.id, userId).map(workLogToApi);
+    const roll = db.prepare(
+      `SELECT COUNT(*) AS logCount, COALESCE(SUM(minutes),0) AS totalMinutes, MIN(date) AS firstDate, MAX(date) AS lastDate
+         FROM work_logs WHERE task_id = ?`
+    ).get(t.id);
+    return taskToApi(t, {
+      logCount: roll.logCount, totalMinutes: roll.totalMinutes, firstDate: roll.firstDate, lastDate: roll.lastDate, workLogs,
+    });
+  });
+}
+
+// One department in full: its lookup identity + its linked tasks. null if `id`
+// isn't a real active DEPARTMENT lookup.
+function getDepartment(userId, id) {
+  const d = getLookupsByCategory('DEPARTMENT').find(x => x.id === Number(id));
+  if (!d) return null;
+  return { id: d.id, code: d.code, label: d.label, tasks: departmentTasks(userId, d.id) };
+}
+
 // ── Tasks + work logs (v2 API for the two-level model) ────────────────────────
 // The forward-looking data layer the renderer moves onto in Phase C. A `tasks` row
 // is a date-INDEPENDENT unit of work; its `work_logs` are the dated sessions.
-// Round-trips mirror the rest of the app: company/system/natural resolve as LABELs,
-// status/time as stable CODEs; tags are JSON; project links are validated against
-// ownership. These are ADDITIVE — the legacy day:*/backlog:* shims above are
-// untouched, so both APIs read/write the same tables side by side.
+// Round-trips mirror the rest of the app: company/system resolve as LABELs,
+// status as a stable CODE; project links are validated against ownership.
+// (Activity type/"Natural" lives on work_logs, not tasks — see workLogToApi.)
+// These are ADDITIVE — the legacy day:*/backlog:* shims above are untouched, so
+// both APIs read/write the same tables side by side.
 
 // One task row → the renderer's Task shape. `extra` carries per-call rollups
 // (log counts / totals) and, from getTask, the ordered workLogs array.
@@ -1181,10 +1256,10 @@ function taskToApi(t, extra = {}) {
     name: t.name || '',
     status: lkCode(t.status_id) || 'IN_PROGRESS',
     company: lkLabel(t.company_id), system: lkLabel(t.system_id),
-    natural: lkLabel(t.activity_type_id),
+    department: lkLabel(t.department_id),
     source: t.source || '',
-    tags: safeParse(t.tags, []),
     projectId: t.project_id ?? null,
+    departmentId: t.department_id ?? null,
     sortOrder: t.sort_order ?? 0,
     createdAt: t.created_at,
     ...extra,
@@ -1200,11 +1275,12 @@ function workLogToApi(w) {
     description: w.description || '',
     minutes: (w.minutes === null || w.minutes === undefined) ? '' : w.minutes,
     time: lkCode(w.time_type_id),
+    natural: lkLabel(w.activity_type_id),
     sortOrder: w.sort_order ?? 0,
   };
 }
 
-const WORK_LOG_COLS = 'id, user_id, task_id, date, description, minutes, time_type_id, sort_order, created_at, updated_at';
+const WORK_LOG_COLS = 'id, user_id, task_id, date, description, minutes, time_type_id, activity_type_id, sort_order, created_at, updated_at';
 
 // API payload → task-level column values. Unknown/empty lookups → NULL (unset);
 // status defaults to IN_PROGRESS; the project link is ownership-validated.
@@ -1214,10 +1290,9 @@ function taskWriteFields(userId, data) {
     status_id: lkId('ENTRY_STATUS', data?.status) ?? lkId('ENTRY_STATUS', 'IN_PROGRESS'),
     company_id: lkId('COMPANY', data?.company),
     system_id: lkId('SYSTEM', data?.system),
-    activity_type_id: lkId('ACTIVITY_TYPE', data?.natural),
     project_id: ownedProjectId(userId, data?.projectId),
+    department_id: lkId('DEPARTMENT', data?.department),
     source: String(data?.source ?? ''),
-    tags: JSON.stringify(Array.isArray(data?.tags) ? data.tags : []),
   };
 }
 
@@ -1238,6 +1313,7 @@ function workLogWriteFields(data) {
     description: String(data?.description ?? ''),
     minutes: (Number.isFinite(mins) && mins >= 0) ? mins : null,
     time_type_id: lkId('TIME_TYPE', data?.time),
+    activity_type_id: lkId('ACTIVITY_TYPE', data?.natural),
   };
 }
 
@@ -1295,9 +1371,9 @@ function createTask(userId, data) {
   let id;
   tx(() => {
     id = Number(db.prepare(
-      `INSERT INTO tasks(user_id, name, status_id, company_id, system_id, activity_type_id, project_id, source, tags, sort_order, created_at, updated_at)
-       VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`
-    ).run(userId, f.name, f.status_id, f.company_id, f.system_id, f.activity_type_id, f.project_id, f.source, f.tags, nextTaskSort(userId), now, now).lastInsertRowid);
+      `INSERT INTO tasks(user_id, name, status_id, company_id, system_id, project_id, department_id, source, sort_order, created_at, updated_at)
+       VALUES(?,?,?,?,?,?,?,?,?,?,?)`
+    ).run(userId, f.name, f.status_id, f.company_id, f.system_id, f.project_id, f.department_id, f.source, nextTaskSort(userId), now, now).lastInsertRowid);
   });
   return getTask(userId, id);
 }
@@ -1310,9 +1386,9 @@ function updateTask(userId, id, data) {
   const f = taskWriteFields(userId, data);
   tx(() => {
     db.prepare(
-      `UPDATE tasks SET name=?, status_id=?, company_id=?, system_id=?, activity_type_id=?, project_id=?, source=?, tags=?, updated_at=?
+      `UPDATE tasks SET name=?, status_id=?, company_id=?, system_id=?, project_id=?, department_id=?, source=?, updated_at=?
         WHERE id=? AND user_id=?`
-    ).run(f.name, f.status_id, f.company_id, f.system_id, f.activity_type_id, f.project_id, f.source, f.tags, now, id, userId);
+    ).run(f.name, f.status_id, f.company_id, f.system_id, f.project_id, f.department_id, f.source, now, id, userId);
   });
   return getTask(userId, id);
 }
@@ -1337,10 +1413,11 @@ function listWorkLogs(userId, taskId) {
 function logsForDate(userId, date) {
   return db.prepare(
     `SELECT wl.id AS id, wl.task_id AS taskId, wl.date AS date, wl.description AS description,
-            wl.minutes AS minutes, wl.time_type_id AS time_type_id, wl.sort_order AS sortOrder,
+            wl.minutes AS minutes, wl.time_type_id AS time_type_id, wl.activity_type_id AS activity_type_id,
+            wl.sort_order AS sortOrder,
             t.name AS taskName, t.status_id AS status_id, t.company_id AS company_id,
-            t.system_id AS system_id, t.activity_type_id AS activity_type_id,
-            t.source AS source, t.tags AS tags, t.project_id AS projectId
+            t.system_id AS system_id,
+            t.source AS source, t.project_id AS projectId
        FROM work_logs wl JOIN tasks t ON t.id = wl.task_id
       WHERE wl.user_id = ? AND wl.date = ?
       ORDER BY wl.sort_order, wl.id`
@@ -1351,7 +1428,7 @@ function logsForDate(userId, date) {
     time: lkCode(r.time_type_id),
     status: lkCode(r.status_id) || 'IN_PROGRESS',
     company: lkLabel(r.company_id), system: lkLabel(r.system_id), natural: lkLabel(r.activity_type_id),
-    source: r.source || '', tags: safeParse(r.tags, []),
+    source: r.source || '',
     projectId: r.projectId ?? null,
     sortOrder: r.sortOrder ?? 0,
   }));
@@ -1387,9 +1464,9 @@ function addWorkLog(userId, taskId, data) {
   let id;
   tx(() => {
     id = Number(db.prepare(
-      `INSERT INTO work_logs(user_id, task_id, date, description, minutes, time_type_id, sort_order, created_at, updated_at)
-       VALUES(?,?,?,?,?,?,?,?,?)`
-    ).run(userId, taskId, f.date, f.description, f.minutes, f.time_type_id, nextWorkLogSort(taskId), now, now).lastInsertRowid);
+      `INSERT INTO work_logs(user_id, task_id, date, description, minutes, time_type_id, activity_type_id, sort_order, created_at, updated_at)
+       VALUES(?,?,?,?,?,?,?,?,?,?)`
+    ).run(userId, taskId, f.date, f.description, f.minutes, f.time_type_id, f.activity_type_id, nextWorkLogSort(taskId), now, now).lastInsertRowid);
   });
   return { ok: true, id, task: getTask(userId, taskId) };
 }
@@ -1398,11 +1475,12 @@ function addWorkLog(userId, taskId, data) {
 // (VPN_HISTORY_FIELDS etc.): which columns participate in the diff, and the
 // human label for each. No field here is sensitive (work_logs carries no
 // credentials), so there's no third "sensitive" element to mask. time_type_id
-// is diffed by its lookup CODE, not the raw FK id, so old/new values stay a
-// human-facing string — the same intent client_field_history's fields have by
-// simply being plain TEXT columns already.
+// and activity_type_id are diffed by their lookup CODE, not the raw FK id, so
+// old/new values stay a human-facing string — the same intent client_field_history's
+// fields have by simply being plain TEXT columns already.
 const WORK_LOG_HISTORY_FIELDS = [
-  ['date', 'Date'], ['description', 'Description'], ['minutes', 'Minutes'], ['time_type_id', 'Time Type'],
+  ['date', 'Date'], ['description', 'Description'], ['minutes', 'Minutes'],
+  ['time_type_id', 'Time Type'], ['activity_type_id', 'Natural'],
 ];
 
 // Diffs `before` against `nextValues` (both keyed by the column names above)
@@ -1439,18 +1517,18 @@ function updateWorkLog(userId, id, data) {
   const f = workLogWriteFields(data);
   const beforeForDiff = {
     date: before.date, description: before.description, minutes: before.minutes,
-    time_type_id: lkCode(before.time_type_id),
+    time_type_id: lkCode(before.time_type_id), activity_type_id: lkCode(before.activity_type_id),
   };
   const next = {
     date: f.date, description: f.description, minutes: f.minutes,
-    time_type_id: lkCode(f.time_type_id),
+    time_type_id: lkCode(f.time_type_id), activity_type_id: lkCode(f.activity_type_id),
   };
   let taskId;
   tx(() => {
     recordWorkLogHistory(userId, id, beforeForDiff, next);
     db.prepare(
-      `UPDATE work_logs SET date=?, description=?, minutes=?, time_type_id=?, updated_at=? WHERE id=? AND user_id=?`
-    ).run(f.date, f.description, f.minutes, f.time_type_id, now, id, userId);
+      `UPDATE work_logs SET date=?, description=?, minutes=?, time_type_id=?, activity_type_id=?, updated_at=? WHERE id=? AND user_id=?`
+    ).run(f.date, f.description, f.minutes, f.time_type_id, f.activity_type_id, now, id, userId);
     taskId = db.prepare('SELECT task_id FROM work_logs WHERE id = ?').get(id)?.task_id;
   });
   return { ok: true, task: (taskId != null) ? getTask(userId, taskId) : null };
@@ -1971,6 +2049,7 @@ module.exports = {
   getAnalytics, getOverviewStats,
   createProject, listProjects, getProject, updateProject, deleteProject,
   linkTask, unlinkTask, listLinkableTasks,
+  listDepartments, getDepartment, linkDepartmentTask, unlinkDepartmentTask, listLinkableTasksForDepartment,
   listTasks, getTask, createTask, updateTask, deleteTask,
   listWorkLogs, logsForDate, addWorkLog, updateWorkLog, deleteWorkLog, getWorkLogHistory,
   setDayName, getDayName,

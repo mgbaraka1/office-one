@@ -143,6 +143,15 @@ ipcMain.handle('projects:link-task',   authed((_e, projectId, taskId) => db.link
 ipcMain.handle('projects:unlink-task', authed((_e, taskId)            => db.unlinkTask(auth.requireUserId(), taskId)));
 ipcMain.handle('projects:linkable-tasks', authed(()                   => db.listLinkableTasks(auth.requireUserId())));
 
+// ── Departments (Internal Tasks) — DEPARTMENT is a plain lookup category, not a
+// table; there is no departments:create/update/delete, only listing + linking
+// tasks to one, mirroring the projects:link-task/unlink-task/linkable-tasks shape.
+ipcMain.handle('departments:list',           authed(()                  => db.listDepartments(auth.requireUserId())));
+ipcMain.handle('departments:get',            authed((_e, id)            => db.getDepartment(auth.requireUserId(), id)));
+ipcMain.handle('departments:link-task',      authed((_e, taskId, deptId) => db.linkDepartmentTask(auth.requireUserId(), taskId, deptId)));
+ipcMain.handle('departments:unlink-task',    authed((_e, taskId)        => db.unlinkDepartmentTask(auth.requireUserId(), taskId)));
+ipcMain.handle('departments:linkable-tasks', authed(()                  => db.listLinkableTasksForDepartment(auth.requireUserId())));
+
 // ── Project document files (Option A: bytes on disk under userData) ──
 // Allowlist mirrors db.PROJECT_DOC_TYPES; the native dialog also filters by it so
 // the user only sees permitted types (the db layer re-validates regardless).
