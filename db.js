@@ -1605,6 +1605,42 @@ function moveWorkLog(userId, workLogId, targetTaskId) {
   return { ok: true, fromTask: getTask(userId, fromTaskId), toTask: getTask(userId, targetTaskId) };
 }
 
+// Merge `sourceTaskId` into `targetTaskId`: moves every one of the source's
+// work_logs onto the target (appended after its existing sessions, relative
+// order among the moved logs preserved) and deletes the now-empty source task.
+// Mirrors moveWorkLog's per-log work_log_history entry (field 'Task', by name)
+// so the audit trail reads the same whether a session moved individually or as
+// part of a merge. The TARGET task's own fields are never touched — this is a
+// one-way absorption, not a field-level merge. Returns the ids that moved (so
+// the caller's undo can move them back onto a recreated source task via
+// moveWorkLog, rather than recreating the work_log rows and losing their
+// history) and the refreshed target task.
+function mergeTasks(userId, sourceTaskId, targetTaskId) {
+  if (!ownsTask(userId, sourceTaskId)) return { ok: false, error: 'source task not found' };
+  if (!ownsTask(userId, targetTaskId)) return { ok: false, error: 'target task not found' };
+  if (Number(sourceTaskId) === Number(targetTaskId)) return { ok: false, error: 'cannot merge a task into itself' };
+  const now = new Date().toISOString();
+  let movedWorkLogIds = [];
+  tx(() => {
+    const sourceName = db.prepare('SELECT name FROM tasks WHERE id = ?').get(sourceTaskId)?.name || '(untitled task)';
+    const targetName = db.prepare('SELECT name FROM tasks WHERE id = ?').get(targetTaskId)?.name || '(untitled task)';
+    const logs = db.prepare('SELECT id FROM work_logs WHERE task_id = ? AND user_id = ? ORDER BY sort_order')
+      .all(sourceTaskId, userId);
+    movedWorkLogIds = logs.map(l => l.id);
+    let sort = nextWorkLogSort(targetTaskId);
+    logs.forEach(({ id }) => {
+      db.prepare(
+        `INSERT INTO work_log_history(user_id, work_log_id, field_name, old_value, new_value, changed_at)
+         VALUES (?, ?, 'Task', ?, ?, ?)`
+      ).run(userId, id, sourceName, targetName, now);
+      db.prepare('UPDATE work_logs SET task_id=?, sort_order=?, updated_at=? WHERE id=? AND user_id=?')
+        .run(targetTaskId, sort++, now, id, userId);
+    });
+    db.prepare('DELETE FROM tasks WHERE id = ? AND user_id = ?').run(sourceTaskId, userId);
+  });
+  return { ok: true, movedWorkLogIds, task: getTask(userId, targetTaskId) };
+}
+
 // Delete a work log. Returns { ok, task } with the (still-standing) parent task so
 // the caller can re-render; the task itself is never removed here.
 function deleteWorkLog(userId, id) {
@@ -2122,7 +2158,7 @@ module.exports = {
   linkTask, unlinkTask, listLinkableTasks,
   listDepartments, getDepartment, linkDepartmentTask, unlinkDepartmentTask, listLinkableTasksForDepartment,
   listTasks, getTask, createTask, updateTask, deleteTask,
-  listWorkLogs, logsForDate, addWorkLog, updateWorkLog, moveWorkLog, deleteWorkLog, getWorkLogHistory,
+  listWorkLogs, logsForDate, addWorkLog, updateWorkLog, moveWorkLog, mergeTasks, deleteWorkLog, getWorkLogHistory,
   setDayName, getDayName,
   saveProjectDocumentFile, resolveProjectDocumentFile, removeProjectDocumentFile,
   purgeProjectFiles, restoreProjectFiles,
