@@ -4279,7 +4279,9 @@ function buildTaskGroupCard(g, origIdxOf) {
   addBtn.className = 'tsg-add';
   addBtn.innerHTML = ic('plus') + 'Session';
   addBtn.title = 'Log another session on this task';
-  if (first.taskId) addBtn.addEventListener('click', () => openModal(null, { existingTaskId: first.taskId, prefill: first }));
+  if (first.taskId) addBtn.addEventListener('click', () => openSessionModal(null, {
+    mode: 'create', task: { id: first.taskId, name: first.taskName, status: first.status }, defaultDate: activeDate,
+  }));
   else { addBtn.disabled = true; addBtn.style.opacity = '.45'; addBtn.title = 'Saving… try again in a moment'; }
   sub.appendChild(addBtn);
   head.appendChild(sub);
@@ -4684,7 +4686,9 @@ function renderTableFlat() {
     const sessionBtn = document.createElement('button');
     sessionBtn.className = 'row-btn'; sessionBtn.innerHTML = ic('timer-reset') || ic('plus');
     sessionBtn.title = 'Add another session to this task';
-    sessionBtn.addEventListener('click', () => openModal(null, { existingTaskId: row.taskId, prefill: row }));
+    sessionBtn.addEventListener('click', () => openSessionModal(null, {
+      mode: 'create', task: { id: row.taskId, name: row.taskName, status: row.status }, defaultDate: activeDate,
+    }));
 
     const dupBtn = document.createElement('button');
     dupBtn.className = 'row-btn'; dupBtn.innerHTML = ic('copy');
@@ -5037,6 +5041,13 @@ function clearStatus() { document.getElementById('save-status').textContent = ''
 // full task-field form so a record's task-level metadata can still be corrected
 // in place.
 // opts.existingTaskId → open directly with that task pre-chosen (Add Session).
+// As of the compact Session edit modal (openSessionModal's create mode), no
+// caller passes this anymore — every "add a session to a known task" entry
+// point (grouped/flat Timesheet rows, Task Detail, the palette) now opens
+// that modal directly instead. Left in place (not removed) since it's inert
+// dead code behind an opt-in flag, not a live path worth the regression risk
+// of surgically stripping out of this shared Add/Edit function; a future
+// cleanup pass could remove isSession/sessionTaskId entirely.
 let fExistingTaskPicker = null;
 let recordMode = 'existing';   // 'existing' (add mode); edit mode uses 'new' internally to show the full task form
 
@@ -10748,7 +10759,7 @@ async function deleteClientInternalSystemEntry(id) {
 // ══ COMMAND PALETTE (Ctrl+K) ════════════════════════════════════════════════
 // One keyboard entry point to everything: navigate to a page, run a quick
 // action, jump to a date (type it), open a project, or log a session on any
-// task (picks it in the Add Record modal's existing path).
+// task (opens the compact Session edit modal in create mode, task fixed).
 let _palItems = [];      // flattened, currently-rendered items
 let _palActive = 0;
 let _palTasks = [];      // Task[] fetched once per open
@@ -10838,7 +10849,7 @@ function renderPalette() {
       icon: 'layers',
       label: (t.name || '(untitled task)') + ([t.company, t.system].filter(Boolean).length ? ' — ' + [t.company, t.system].filter(Boolean).join(' · ') : ''),
       hint: lkLabel('ENTRY_STATUS', t.status) || 'Log session',
-      run: () => { switchModule('timesheet'); openModal(null, { existingTaskId: t.id, prefill: t }); },
+      run: () => openSessionModal(null, { mode: 'create', task: t }),
     })) : [];
   if (tasks.length) groups.push({ label: 'Log a session on…', items: tasks });
 
