@@ -25,7 +25,7 @@ const fs   = require('node:fs');
 // table under one of these category discriminators. The renderer fetches options
 // per-category and stores a stable `code` (logic fields) or display `label`
 // (company/system/activity) — never a hardcoded string.
-const LOOKUP_CATEGORIES = ['COMPANY', 'SYSTEM', 'ACTIVITY_TYPE', 'TIME_TYPE', 'ENTRY_STATUS', 'CURRENCY', 'BILLING_CYCLE', 'PROJECT_STATUS', 'PROJECT_DOCUMENT', 'COMPANY_DOCUMENT_CATEGORY', 'DEPARTMENT'];
+const LOOKUP_CATEGORIES = ['COMPANY', 'SYSTEM', 'ACTIVITY_TYPE', 'TIME_TYPE', 'ENTRY_STATUS', 'CURRENCY', 'BILLING_CYCLE', 'PROJECT_STATUS', 'PROJECT_DOCUMENT', 'COMPANY_DOCUMENT_CATEGORY', 'DEPARTMENT', 'PROJECT_CATEGORY'];
 
 let db;          // DatabaseSync instance
 let userDataDir; // resolved userData folder (backups, db file)
@@ -565,11 +565,16 @@ function saveSubscriptions(userId, data) {
 // backlog tasks — via a nullable project_id FK. A project also references one or
 // more COMPANY lookup codes (its
 // clients, via the project_companies junction), one or more SYSTEM lookups (via
-// the project_systems junction), and a PROJECT_STATUS lookup code (status). Every
-// query is scoped to the authenticated owner (`userId`). The tracked document
-// types are driven by the PROJECT_DOCUMENT lookup category (manageable in
-// Settings); a project_documents row stores availability keyed by the document's
-// stable lookup code, created lazily on first toggle.
+// the project_systems junction), and a PROJECT_STATUS lookup code (status). Since
+// migration 031, a project also carries a required PROJECT_CATEGORY lookup code
+// (category_id — New Project / CR on Existing Project / Project Annual Support,
+// round-tripped as its code like status, since the UI branches on it) and an
+// optional self-referencing related_project_id (only meaningful for the CR/Annual
+// Support categories — the project this one is a change request against or is
+// providing annual support for). Every query is scoped to the authenticated owner
+// (`userId`). The tracked document types are driven by the PROJECT_DOCUMENT lookup
+// category (manageable in Settings); a project_documents row stores availability
+// keyed by the document's stable lookup code, created lazily on first toggle.
 const DEFAULT_PROJECT_STATUS = 'ACTIVE';
 
 // Allowed upload types for project documents → mime, keyed by lowercase extension
@@ -603,6 +608,16 @@ function ownsProject(userId, projectId) {
 function ownedProjectId(userId, projectId) {
   if (projectId == null || !Number.isFinite(Number(projectId))) return null;
   return ownsProject(userId, Number(projectId)) ? Number(projectId) : null;
+}
+
+// Validate a CR/Annual-Support project's optional back-reference to the project
+// it relates to: must belong to the user and cannot point at itself (excludeId is
+// the project being written, or null on create where self-reference is moot).
+function resolveRelatedProjectId(userId, relatedProjectId, excludeId = null) {
+  if (relatedProjectId == null) return null;
+  const rid = Number(relatedProjectId);
+  if (!Number.isInteger(rid) || (excludeId != null && rid === Number(excludeId))) return null;
+  return ownedProjectId(userId, rid);
 }
 
 // Replace a project's company links with the given lookup ids (COMPANY category).
@@ -665,10 +680,13 @@ function createProject(userId, data) {
   let id;
   tx(() => {
     id = Number(db.prepare(
-      `INSERT INTO projects(user_id, name, description, status, created_at, updated_at)
-       VALUES(?, ?, ?, ?, ?, ?)`
+      `INSERT INTO projects(user_id, name, description, status, category_id, related_project_id, created_at, updated_at)
+       VALUES(?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(userId, data?.name ?? '', data?.description ?? '',
-          data?.status || DEFAULT_PROJECT_STATUS, now, now).lastInsertRowid);
+          data?.status || DEFAULT_PROJECT_STATUS,
+          lkId('PROJECT_CATEGORY', data?.category),
+          resolveRelatedProjectId(userId, data?.relatedProjectId),
+          now, now).lastInsertRowid);
     setProjectCompanies(id, data?.companyIds);
     setProjectSystems(id, data?.systemIds);
   });
@@ -681,13 +699,16 @@ function createProject(userId, data) {
 function listProjects(userId) {
   return db.prepare(
     `SELECT p.id, p.name, p.description, p.status,
+            p.category_id AS categoryId, p.related_project_id AS relatedProjectId,
+            (SELECT name FROM projects rp WHERE rp.id = p.related_project_id) AS relatedProjectName,
             p.created_at AS createdAt,
             (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id) AS taskCount
        FROM projects p
       WHERE p.user_id = ?
       ORDER BY p.created_at DESC, p.id DESC`
-  ).all(userId).map(p => ({
+  ).all(userId).map(({ categoryId, ...p }) => ({
     ...p,
+    category: lkCode(categoryId),
     companies: projectCompanies(p.id),
     systems: projectSystems(p.id),
   }));
@@ -697,11 +718,16 @@ function listProjects(userId) {
 // including zero-log "Not Yet" tasks) + document statuses. null if not owned.
 // (ProjectTasksV2 shape — `tasks: Task[]`, replacing the old {entries, backlog}.)
 function getProject(userId, id) {
-  const p = db.prepare(
-    `SELECT id, name, description, status, created_at AS createdAt
-       FROM projects WHERE id = ? AND user_id = ?`
+  const row = db.prepare(
+    `SELECT p.id, p.name, p.description, p.status,
+            p.category_id AS categoryId, p.related_project_id AS relatedProjectId,
+            (SELECT name FROM projects rp WHERE rp.id = p.related_project_id) AS relatedProjectName,
+            p.created_at AS createdAt
+       FROM projects p WHERE p.id = ? AND p.user_id = ?`
   ).get(id, userId);
-  if (!p) return null;
+  if (!row) return null;
+  const { categoryId, ...p } = row;
+  p.category = lkCode(categoryId);
 
   const tasks = projectTasks(userId, id);
 
@@ -759,10 +785,13 @@ function updateProject(userId, id, data) {
   if (!ownsProject(userId, id)) return null;
   tx(() => {
     db.prepare(
-      `UPDATE projects SET name = ?, description = ?, status = ?, updated_at = ?
+      `UPDATE projects SET name = ?, description = ?, status = ?, category_id = ?, related_project_id = ?, updated_at = ?
         WHERE id = ? AND user_id = ?`
     ).run(data?.name ?? '', data?.description ?? '',
-          data?.status || DEFAULT_PROJECT_STATUS, new Date().toISOString(), id, userId);
+          data?.status || DEFAULT_PROJECT_STATUS,
+          lkId('PROJECT_CATEGORY', data?.category),
+          resolveRelatedProjectId(userId, data?.relatedProjectId, id),
+          new Date().toISOString(), id, userId);
     setProjectCompanies(id, data?.companyIds);
     setProjectSystems(id, data?.systemIds);
   });
@@ -1332,9 +1361,12 @@ function nextWorkLogSort(taskId) {
 }
 
 // All of a user's tasks with rollups (log count / total minutes / first+last log
-// date), newest first — the Tasks list-view payload.
+// date) plus each task's own nested work logs, newest-task-first — the All Tasks
+// page's payload (and the Tasks-picker/palette payload elsewhere, which simply
+// ignores the extra field). Two queries total (not N+1): one for the tasks, one
+// for every one of the user's work logs, grouped in JS by task_id.
 function listTasks(userId) {
-  return db.prepare(
+  const tasks = db.prepare(
     `SELECT t.*,
             (SELECT COUNT(*)                 FROM work_logs w WHERE w.task_id = t.id) AS logCount,
             (SELECT COALESCE(SUM(w.minutes),0) FROM work_logs w WHERE w.task_id = t.id) AS totalMinutes,
@@ -1342,8 +1374,17 @@ function listTasks(userId) {
             (SELECT MAX(w.date)              FROM work_logs w WHERE w.task_id = t.id) AS lastDate
        FROM tasks t WHERE t.user_id = ?
       ORDER BY t.created_at DESC, t.id DESC`
-  ).all(userId).map(t => taskToApi(t, {
+  ).all(userId);
+  const logsByTask = new Map();
+  db.prepare(`SELECT ${WORK_LOG_COLS} FROM work_logs WHERE user_id = ? ORDER BY date DESC, sort_order, id`)
+    .all(userId).forEach(w => {
+      const list = logsByTask.get(w.task_id) || [];
+      list.push(workLogToApi(w));
+      logsByTask.set(w.task_id, list);
+    });
+  return tasks.map(t => taskToApi(t, {
     logCount: t.logCount, totalMinutes: t.totalMinutes, firstDate: t.firstDate, lastDate: t.lastDate,
+    workLogs: logsByTask.get(t.id) || [],
   }));
 }
 
@@ -1532,6 +1573,36 @@ function updateWorkLog(userId, id, data) {
     taskId = db.prepare('SELECT task_id FROM work_logs WHERE id = ?').get(id)?.task_id;
   });
   return { ok: true, task: (taskId != null) ? getTask(userId, taskId) : null };
+}
+
+// Reassign a work log to a different task the user owns — e.g. it was logged
+// against the wrong task and needs moving without touching its own session
+// fields. Appends it to the end of the target task's sessions and records a
+// 'Task' work_log_history entry (by task NAME, not id, matching every other
+// history field's human-facing convention). Returns the refreshed source and
+// target tasks so the caller can re-render whichever it's showing; { ok:false }
+// if the work log or the target task isn't owned by this user.
+function moveWorkLog(userId, workLogId, targetTaskId) {
+  if (!ownsWorkLog(userId, workLogId)) return { ok: false, error: 'work log not found' };
+  if (!ownsTask(userId, targetTaskId)) return { ok: false, error: 'task not found' };
+  const wl = db.prepare('SELECT task_id FROM work_logs WHERE id = ?').get(workLogId);
+  const fromTaskId = wl.task_id;
+  if (fromTaskId === Number(targetTaskId)) {
+    return { ok: true, fromTask: getTask(userId, fromTaskId), toTask: getTask(userId, targetTaskId) };
+  }
+  const now = new Date().toISOString();
+  tx(() => {
+    const fromName = db.prepare('SELECT name FROM tasks WHERE id = ?').get(fromTaskId)?.name || '(untitled task)';
+    const toName = db.prepare('SELECT name FROM tasks WHERE id = ?').get(targetTaskId)?.name || '(untitled task)';
+    db.prepare(
+      `INSERT INTO work_log_history(user_id, work_log_id, field_name, old_value, new_value, changed_at)
+       VALUES (?, ?, 'Task', ?, ?, ?)`
+    ).run(userId, workLogId, fromName, toName, now);
+    db.prepare(
+      `UPDATE work_logs SET task_id=?, sort_order=?, updated_at=? WHERE id=? AND user_id=?`
+    ).run(targetTaskId, nextWorkLogSort(targetTaskId), now, workLogId, userId);
+  });
+  return { ok: true, fromTask: getTask(userId, fromTaskId), toTask: getTask(userId, targetTaskId) };
 }
 
 // Delete a work log. Returns { ok, task } with the (still-standing) parent task so
@@ -2051,7 +2122,7 @@ module.exports = {
   linkTask, unlinkTask, listLinkableTasks,
   listDepartments, getDepartment, linkDepartmentTask, unlinkDepartmentTask, listLinkableTasksForDepartment,
   listTasks, getTask, createTask, updateTask, deleteTask,
-  listWorkLogs, logsForDate, addWorkLog, updateWorkLog, deleteWorkLog, getWorkLogHistory,
+  listWorkLogs, logsForDate, addWorkLog, updateWorkLog, moveWorkLog, deleteWorkLog, getWorkLogHistory,
   setDayName, getDayName,
   saveProjectDocumentFile, resolveProjectDocumentFile, removeProjectDocumentFile,
   purgeProjectFiles, restoreProjectFiles,
