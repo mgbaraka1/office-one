@@ -26,7 +26,6 @@
  * @property {string} source
  * @property {'Done'|'In Progress'} status
  * @property {number|''} minutes  Logged minutes, or '' when unset.
- * @property {string[]} tags
  * @property {number|null} [projectId]  Linked Project id, or null when unlinked.
  */
 
@@ -79,18 +78,20 @@
 
 /**
  * A standalone, date-INDEPENDENT unit of work (the `tasks` table). Category fields
- * round-trip like everywhere else: company/system/natural as display LABELs,
- * status as a stable ENTRY_STATUS code. `workLogs` is present only on `tasks:get`.
+ * round-trip like everywhere else: company/system as display LABELs, status as a
+ * stable ENTRY_STATUS code. `workLogs` is present only on `tasks:get`. Activity
+ * type ("Natural") lives on each `WorkLog`, not here — the same task can span a
+ * meeting session, a task session, a ticket session, etc.
  * @typedef {Object} Task
  * @property {number} id
  * @property {string} name
  * @property {'IN_PROGRESS'|'DONE'|string} status  ENTRY_STATUS lookup code.
  * @property {string} company
  * @property {string} system
- * @property {string} natural       Activity type (label).
+ * @property {string} department    DEPARTMENT lookup label, or '' when unset (Internal Tasks).
  * @property {string} source
- * @property {string[]} tags
  * @property {number|null} projectId Linked Project id, or null when unlinked.
+ * @property {number|null} departmentId Linked DEPARTMENT lookup id, or null when unlinked.
  * @property {number} sortOrder
  * @property {string} createdAt
  * @property {number} logCount       Number of work logs on this task.
@@ -102,7 +103,8 @@
 
 /**
  * One dated work session on a task (the `work_logs` table). `time` is a TIME_TYPE
- * lookup code (per-session, e.g. Work Time / Over Time).
+ * lookup code (per-session, e.g. Work Time / Over Time); `natural` is the
+ * ACTIVITY_TYPE lookup label (per-session — the same task's sessions can differ).
  * @typedef {Object} WorkLog
  * @property {number} id
  * @property {number} taskId
@@ -110,6 +112,7 @@
  * @property {string} description    What was done this session.
  * @property {number|''} minutes     Duration, or '' when unset.
  * @property {string} time           TIME_TYPE lookup code ('' when unset).
+ * @property {string} natural        ACTIVITY_TYPE lookup label ('' when unset).
  * @property {number} sortOrder
  */
 
@@ -118,7 +121,7 @@
  * ("day view") row shape.
  * @typedef {WorkLog & {
  *   taskName: string, status: string, company: string, system: string,
- *   natural: string, projectId: number|null
+ *   projectId: number|null
  * }} WorkLogOnDate
  */
 
@@ -215,6 +218,29 @@
  * @property {number[]} companyIds   COMPANY lookup ids to link (replaces existing).
  * @property {number[]} systemIds    SYSTEM lookup ids to link (replaces existing).
  * @property {string} status         A PROJECT_STATUS lookup code.
+ */
+
+/**
+ * A department as listed on the Internal Tasks page (`departments:list`). There is
+ * no departments table — this is a DEPARTMENT lookup row + a linked-task count.
+ * Every active department is listed regardless of activity (same convention as
+ * `clients:list`'s COMPANY rows).
+ * @typedef {Object} DepartmentListItem
+ * @property {number} id     The DEPARTMENT lookup_codes id (what tasks.department_id points at).
+ * @property {string} code   Stable uppercase lookup code (e.g. 'HR').
+ * @property {string} label  Display label (e.g. 'HR').
+ * @property {number} taskCount Number of tasks linked to this department.
+ */
+
+/**
+ * One department in full — its lookup identity + its linked TASKS, each with
+ * nested `workLogs` (`departments:get`). Mirrors `Project`'s tasks shape, minus
+ * the profile/documents fields Projects has and Departments don't.
+ * @typedef {Object} Department
+ * @property {number} id
+ * @property {string} code
+ * @property {string} label
+ * @property {Task[]} tasks Linked tasks, each with nested `workLogs`.
  */
 
 /**

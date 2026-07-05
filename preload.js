@@ -98,6 +98,16 @@ contextBridge.exposeInMainWorld('api', {
   /** @returns {Promise<import('./ipc-types').Task[]>} */
   listLinkableTasks: ()           => ipcRenderer.invoke('projects:linkable-tasks'),
 
+  // ── Departments (Internal Tasks) — DEPARTMENT lookup category, no profile/CRUD ──
+  /** @returns {Promise<import('./ipc-types').DepartmentListItem[]>} */
+  listDepartments:  ()               => ipcRenderer.invoke('departments:list'),
+  /** @returns {Promise<import('./ipc-types').Department|null>} */
+  getDepartment:    (id)             => ipcRenderer.invoke('departments:get', id),
+  linkDepartmentTask:   (taskId, deptId) => ipcRenderer.invoke('departments:link-task', taskId, deptId),
+  unlinkDepartmentTask: (taskId)         => ipcRenderer.invoke('departments:unlink-task', taskId),
+  /** @returns {Promise<import('./ipc-types').Task[]>} */
+  listLinkableTasksForDept: ()       => ipcRenderer.invoke('departments:linkable-tasks'),
+
   // ── Project document files (bytes on disk under userData) ──
   /** @returns {Promise<import('./ipc-types').DocFileResult>} */
   uploadProjectDocument:   (projectId, documentType) => ipcRenderer.invoke('projects:upload-document', projectId, documentType),

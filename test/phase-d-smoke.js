@@ -38,9 +38,10 @@ const results = [];
 function record(flow, pass, details) { results.push({ flow, pass, details }); }
 function eq(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
 // The task-level fields that must survive unchanged when only a session is added.
+// (Natural is per-session — see workLogs[].natural — so it's deliberately not here.)
 function taskMeta(t) {
   return { name: t.name, status: t.status, company: t.company, system: t.system,
-           natural: t.natural, source: t.source, tags: t.tags, projectId: t.projectId };
+           source: t.source, projectId: t.projectId };
 }
 
 // ── Set up an isolated copy of production data ───────────────────────────────
@@ -60,7 +61,7 @@ console.log('Working copy: ' + path.join(workDir, 'cooperation-tools.db'));
 let exitCode = 0;
 try {
   db.openConnection(workDir);
-  db.applyMigrations();               // no-op at head 014; proves the copy is current
+  db.applyMigrations();               // no-op if the copy is already at head; proves it's current
 
   // userId: the only thing we read raw (no session in a headless context).
   const raw = new DatabaseSync(path.join(workDir, 'cooperation-tools.db'));
@@ -79,19 +80,19 @@ try {
 
   const newTaskPayload = (name) => ({
     name, status: 'IN_PROGRESS', company: companyLabel, system: systemLabel,
-    natural: naturalLabel, source: 'phase-d-test', tags: ['pd'], projectId: null,
+    source: 'phase-d-test', projectId: null,
   });
 
   // ── FLOW 1 — Add Record: new task, same day (DAY_A) ────────────────────────
   {
     const t = db.createTask(userId, newTaskPayload('PD flow1 new same-day'));
-    const r = db.addWorkLog(userId, t.id, { date: DAY_A, description: 'flow1 session', minutes: 30, time: 'WORK_TIME' });
+    const r = db.addWorkLog(userId, t.id, { date: DAY_A, description: 'flow1 session', minutes: 30, time: 'WORK_TIME', natural: naturalLabel });
     const got = db.getTask(userId, t.id);
     const wl  = got.workLogs[0] || {};
-    const pass = r.ok && got.logCount === 1 && wl.date === DAY_A && wl.minutes === 30
+    const pass = r.ok && got.logCount === 1 && wl.date === DAY_A && wl.minutes === 30 && wl.natural === naturalLabel
               && got.company === companyLabel && got.name === 'PD flow1 new same-day';
     record('1. Add Record — new task, same day', pass,
-      `taskId=${t.id} logCount=${got.logCount} wl.date=${wl.date} wl.minutes=${wl.minutes} company="${got.company}"`);
+      `taskId=${t.id} logCount=${got.logCount} wl.date=${wl.date} wl.minutes=${wl.minutes} wl.natural="${wl.natural}" company="${got.company}"`);
     flow1TaskId = t.id;                          // reused by flow 5
     flow1Meta   = taskMeta(got);
   }
@@ -157,7 +158,7 @@ try {
       project = db.createProject(userId, { name: 'PD test project', description: '', companyIds: [], systemIds: [], status: 'ACTIVE' });
     }
     const t = db.createTask(userId, { name: 'PD flow6 project task', status: 'IN_PROGRESS',
-      company: '', system: '', natural: '', source: '', tags: [], projectId: project.id });
+      company: '', system: '', source: '', projectId: project.id });
     const got = db.getTask(userId, t.id);
     const proj = db.getProject(userId, project.id);
     const inProject = (proj.tasks || []).find(x => x.id === t.id);
