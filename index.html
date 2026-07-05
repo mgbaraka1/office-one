@@ -695,6 +695,22 @@
     .ss-opt.selected { font-weight: 600; color: var(--primary); }
     /* checkmark on the currently-selected single-select option */
     .ss-opt.selected::after { content: '✓'; flex-shrink: 0; font-size: 13px; font-weight: 700; color: var(--primary); }
+    /* Rich (two-line) options — buildTaskSearchSelect's task picker */
+    .ss-opt-rich { flex-direction: column; align-items: stretch; gap: 2px; }
+    .ss-opt-title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; }
+    .ss-opt-title-row .status-badge { flex-shrink: 0; }
+    .ss-opt-meta { font-size: 11.5px; color: var(--muted); }
+    .ss-opt.active .ss-opt-meta, .ss-opt:hover .ss-opt-meta { color: inherit; opacity: .75; }
+    .ss-group-label {
+      padding: 6px 11px 3px; font-size: 10.5px; font-weight: 700; letter-spacing: .04em;
+      text-transform: uppercase; color: var(--muted);
+    }
+    .ss-toggle-row { padding: 2px 4px 6px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+    .ss-toggle-btn {
+      background: none; border: none; color: var(--primary); font-size: 12px; font-weight: 600;
+      cursor: pointer; padding: 4px 7px; border-radius: var(--radius-sm);
+    }
+    .ss-toggle-btn:hover { background: rgba(20,184,166,.10); }
 
     /* ── Searchable single-select (combobox) ── */
     .search-select { position: relative; }
@@ -3729,11 +3745,25 @@ function buildTagPicker(host, options, initialIds, placeholder) {
 // or Entering an option selects it (showing its label in the field); a built-in
 // "— None —" entry clears it. The handle's getSelectedId() returns the id or null.
 // Used by the timesheet record and project task modals' Project field (single project per task).
-function buildSearchSelect(host, options, initialId, placeholder, onChange) {
+//
+// `rich` (optional 6th param) lets a caller layer richer behavior on top without
+// forking the keyboard/menu mechanics (used by buildTaskSearchSelect below):
+//   - matchFn(o, q)      custom filter predicate (default: label substring match)
+//   - renderOption(o)    returns innerHTML for an option row (default: textContent = o.label)
+//   - labelText(o)       returns the text shown in the closed input (default: o.label)
+//   - getOptions()       returns the *live* option list each render (default: the options param;
+//                        lets a caller swap the set live, e.g. a "show completed" toggle)
+//   - groupFn(o)         returns a group-header string; a run of items sharing the same
+//                        group gets one header inserted before it (only applied while the
+//                        query is empty — a typed search always renders a flat list)
+//   - extraControls()    returns a DOM node prepended to the menu on every render (e.g. a toggle
+//                        button); never affects filtered/keyboard navigation
+function buildSearchSelect(host, options, initialId, placeholder, onChange, rich) {
+  rich = rich || {};
   host.innerHTML = '';
   host.className = 'search-select';
-  const optById = new Map((options || []).map(o => [Number(o.id), o.label]));
-  let selectedId = (initialId != null && optById.has(Number(initialId))) ? Number(initialId) : null;
+  const baseOptions = options || [];
+  let selectedId = (initialId != null) ? Number(initialId) : null;
 
   const input = document.createElement('input');
   input.type = 'text'; input.className = 'ss-input'; input.placeholder = placeholder || 'Search…';
@@ -3743,20 +3773,39 @@ function buildSearchSelect(host, options, initialId, placeholder, onChange) {
 
   let filtered = [], activeIdx = 0, open = false;
 
-  const showLabel = () => { input.value = selectedId == null ? '' : (optById.get(selectedId) ?? ''); };
+  const currentOptions = () => (rich.getOptions ? rich.getOptions() : baseOptions);
+  const findOpt = (id) => currentOptions().find(o => Number(o.id) === Number(id))
+    || baseOptions.find(o => Number(o.id) === Number(id));
+
+  const showLabel = () => {
+    if (selectedId == null) { input.value = ''; return; }
+    const o = findOpt(selectedId);
+    input.value = o ? (rich.labelText ? rich.labelText(o) : (o.label ?? '')) : '';
+  };
 
   const renderMenu = () => {
     const q = input.readOnly ? '' : input.value.toLowerCase().trim();
-    const base = [{ id: null, label: '— None —' }, ...(options || [])];
-    filtered = base.filter(o => !q || o.label.toLowerCase().includes(q));
+    const match = rich.matchFn || ((o, qq) => (o.label || '').toLowerCase().includes(qq));
+    const base = [{ id: null, label: '— None —' }, ...currentOptions()];
+    filtered = base.filter(o => o.id == null || !q || match(o, q));
     menu.innerHTML = '';
-    if (!filtered.length) { menu.style.display = 'none'; return; }
+    if (rich.extraControls) menu.appendChild(rich.extraControls());
+    if (!filtered.length) { if (!menu.children.length) menu.style.display = 'none'; else menu.style.display = ''; return; }
     if (activeIdx < 0 || activeIdx >= filtered.length) activeIdx = 0;
+    let lastGroup;
     filtered.forEach((o, i) => {
+      if (rich.groupFn && !q && o.id != null) {
+        const g = rich.groupFn(o);
+        if (g !== lastGroup) {
+          menu.appendChild(pjMk('div', 'ss-group-label', g));
+          lastGroup = g;
+        }
+      }
       const item = document.createElement('div');
-      item.className = 'ss-opt' + (i === activeIdx ? ' active' : '') +
+      item.className = 'ss-opt' + (rich.renderOption ? ' ss-opt-rich' : '') + (i === activeIdx ? ' active' : '') +
         ((o.id == null && selectedId == null) || Number(o.id) === selectedId ? ' selected' : '');
-      item.textContent = o.label;
+      if (rich.renderOption && o.id != null) item.innerHTML = rich.renderOption(o);
+      else item.textContent = o.label;
       item.addEventListener('mousedown', (e) => { e.preventDefault(); pick(o.id == null ? null : Number(o.id)); });
       menu.appendChild(item);
     });
@@ -3779,7 +3828,61 @@ function buildSearchSelect(host, options, initialId, placeholder, onChange) {
   });
 
   showLabel();
-  return { getSelectedId: () => selectedId };
+  return { getSelectedId: () => selectedId, refresh: renderMenu };
+}
+
+// ── Task-aware search select — a buildSearchSelect wrapper for pickers over the
+// full task list (Add Record's existing-task field, the Session edit modal's task
+// reassignment field, the command palette's task results). Two-line options (name +
+// status badge, then muted "Company · System · Project · last worked · sessions ·
+// total time" meta), most-recently-worked first, a "Recent" group (worked in the
+// last 14 days) shown above the rest while the query is empty, DONE tasks hidden
+// behind a "Show completed" toggle (compares ENTRY_STATUS by code, never label),
+// and search via the shared textMatch() helper over name/company/system/source.
+const TASK_PICKER_RECENT_DAYS = 14;
+function buildTaskSearchSelect(host, tasks, initialId, placeholder, onChange) {
+  const list = Array.isArray(tasks) ? tasks : [];
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - TASK_PICKER_RECENT_DAYS);
+  const cutoffStr = fmt(cutoff);
+  const isRecent = (t) => !!t.lastDate && t.lastDate >= cutoffStr;
+  const sorted = [...list].sort((a, b) => (b.lastDate || '').localeCompare(a.lastDate || ''));
+
+  let showCompleted = false;
+  const visibleOptions = () => sorted
+    .filter(t => showCompleted || t.status !== 'DONE')
+    .map(t => ({ id: t.id, label: t.name || '(untitled task)', task: t }));
+
+  const api = buildSearchSelect(host, visibleOptions(), initialId, placeholder || 'Search tasks…', onChange, {
+    getOptions: visibleOptions,
+    matchFn: (o, q) => textMatch([o.task.name, o.task.company, o.task.system, o.task.source], q),
+    labelText: (o) => o.label,
+    groupFn: (o) => (isRecent(o.task) ? 'Recent' : 'All tasks'),
+    renderOption: (o) => {
+      const t = o.task;
+      const meta = [t.company, t.system, t.projectId != null ? projectNameById(t.projectId) : null,
+        t.lastDate ? ('worked ' + t.lastDate) : null,
+        t.logCount ? (t.logCount + ' session' + (t.logCount === 1 ? '' : 's')) : null,
+        t.totalMinutes ? (Math.round(t.totalMinutes / 60 * 10) / 10 + 'h') : null]
+        .filter(Boolean).join(' · ');
+      return '<div class="ss-opt-title-row"><span>' + esc(t.name || '(untitled task)') + '</span>' +
+        '<span class="status-badge ' + esc(statusClass(t.status)) + '">' + esc(lkLabel('ENTRY_STATUS', t.status) || '—') + '</span></div>' +
+        (meta ? '<div class="ss-opt-meta">' + esc(meta) + '</div>' : '');
+    },
+    extraControls: () => {
+      const wrap = pjMk('div', 'ss-toggle-row');
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'ss-toggle-btn';
+      btn.textContent = showCompleted ? 'Hide completed' : 'Show completed';
+      btn.addEventListener('mousedown', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        showCompleted = !showCompleted;
+        api.refresh();
+      });
+      wrap.appendChild(btn);
+      return wrap;
+    },
+  });
+  return api;
 }
 
 // ── Settings (lookup catalog editor) ──
@@ -4921,9 +5024,8 @@ const MODAL_TASK_FIELDS = ['f-taskname','f-company','f-system','f-status','f-sou
 
 // (Re)build the searchable existing-task picker with `selectedId` preselected.
 function rebuildExistingTaskPicker(selectedId) {
-  const taskOpts = modalTaskList.map(t => ({ id: t.id, label: t.name || '(untitled task)' }));
-  fExistingTaskPicker = buildSearchSelect(document.getElementById('f-existing-task'),
-    taskOpts, selectedId, 'Search your tasks…', applyExistingTaskSelection);
+  fExistingTaskPicker = buildTaskSearchSelect(document.getElementById('f-existing-task'),
+    modalTaskList, selectedId, 'Search your tasks…', applyExistingTaskSelection);
 }
 
 // Add mode's New Task / Existing Task toggle — switches the modal between
@@ -7394,8 +7496,8 @@ async function openSessionModal(workLog, opts = {}) {
   if (workLog.taskId != null && !taskList.some(t => t.id === workLog.taskId)) {
     taskList = taskList.concat([{ id: workLog.taskId, name: workLog.taskName || '(untitled task)' }]);
   }
-  smTaskPicker = buildSearchSelect(document.getElementById('sm-task'),
-    taskList.map(t => ({ id: t.id, label: t.name || '(untitled task)' })), workLog.taskId ?? null, 'Search tasks…');
+  smTaskPicker = buildTaskSearchSelect(document.getElementById('sm-task'),
+    taskList, workLog.taskId ?? null, 'Search tasks…');
 
   clearErrorsIn('#session-modal');
   document.getElementById('session-modal-overlay').classList.add('open');
@@ -10556,12 +10658,15 @@ function renderPalette() {
     .map(p => ({ icon: 'clipboard-list', label: p.name, hint: 'Open project', run: () => openProjectById(p.id) }));
   if (projs.length) groups.push({ label: 'Projects', items: projs });
 
-  // Tasks — selecting one opens Add Record on the existing path with it picked.
-  const tasks = q ? _palTasks.filter(t => textMatch([t.name, t.company, t.system], q)).slice(0, 6)
+  // Tasks — selecting one logs a session against it (same rich picker conventions
+  // as buildTaskSearchSelect: most-recently-worked first, source in the match).
+  const tasks = q ? _palTasks.filter(t => textMatch([t.name, t.company, t.system, t.source], q))
+    .sort((a, b) => (b.lastDate || '').localeCompare(a.lastDate || ''))
+    .slice(0, 6)
     .map(t => ({
       icon: 'layers',
       label: (t.name || '(untitled task)') + ([t.company, t.system].filter(Boolean).length ? ' — ' + [t.company, t.system].filter(Boolean).join(' · ') : ''),
-      hint: 'Log session',
+      hint: lkLabel('ENTRY_STATUS', t.status) || 'Log session',
       run: () => { switchModule('timesheet'); openModal(null, { existingTaskId: t.id, prefill: t }); },
     })) : [];
   if (tasks.length) groups.push({ label: 'Log a session on…', items: tasks });
