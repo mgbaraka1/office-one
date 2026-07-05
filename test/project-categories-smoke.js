@@ -51,6 +51,16 @@ try {
     lookup_codes: countBefore('lookup_codes'),
   };
   const projectRowsBefore = rawBefore.prepare('SELECT id FROM projects').all();
+  // Whether this copy already had migration 031 applied *before* this test run
+  // (true for a copy of a live DB that's already past head 031). The one-time
+  // "backfill every project to NEW_PROJECT" only actually runs the first time
+  // 031 applies — on a copy where it already applied earlier, real usage may
+  // have since re-categorized projects, so asserting a specific code here
+  // would be testing production data, not the migration. Assert the weaker
+  // "every project has *some* category" invariant in that case instead.
+  const alreadyAt031 = !!rawBefore.prepare(
+    "SELECT 1 FROM schema_migrations WHERE version = 31"
+  ).get();
   rawBefore.close();
 
   // ── Gate 1 — migration runs cleanly ──────────────────────────────────────────
@@ -82,9 +92,13 @@ try {
     `codes=${catRows.map(c => c.code).join(',')}`);
 
   const backfillPass = projectRowsBefore.length === 0
-    || projectRowsAfter.every(p => p.category_id === newProjectId);
-  record('Backfill: every pre-existing project got category_id = NEW_PROJECT', backfillPass,
-    `rows=${projectRowsAfter.length}, newProjectId=${newProjectId}`);
+    || (alreadyAt031
+      ? projectRowsAfter.every(p => p.category_id != null)
+      : projectRowsAfter.every(p => p.category_id === newProjectId));
+  record(alreadyAt031
+    ? 'Backfill: every pre-existing project has some category (031 pre-applied; real data may differ from NEW_PROJECT)'
+    : 'Backfill: every pre-existing project got category_id = NEW_PROJECT',
+    backfillPass, `rows=${projectRowsAfter.length}, newProjectId=${newProjectId}, alreadyAt031=${alreadyAt031}`);
 
   const userRow = new DatabaseSync(path.join(workDir, 'cooperation-tools.db'))
     .prepare('SELECT id FROM users WHERE is_active = 1 ORDER BY id LIMIT 1').get();
