@@ -1084,13 +1084,6 @@
     }
     .app-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-    /* ══ TAGS (timesheet rows) ══ */
-    .row-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
-    .row-tag {
-      font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 20px;
-      background: var(--chip-bg); border: 1px solid var(--border); color: var(--primary); white-space: nowrap; line-height: 1.6;
-    }
-
     /* ══ ROW SELECTION (bulk actions) ══ */
     .row-select { display: inline-flex; align-items: center; gap: 6px; }
     .row-select input { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer;
@@ -1864,6 +1857,9 @@
     <button class="nav-item" data-module="projects" onclick="switchModule('projects')">
       <span class="nav-icon" data-ic="clipboard-list"></span>Projects
     </button>
+    <button class="nav-item" data-module="internal-tasks" onclick="switchModule('internal-tasks')">
+      <span class="nav-icon" data-ic="building"></span>Internal Tasks
+    </button>
     <button class="nav-item" data-module="clients" onclick="switchModule('clients')">
       <span class="nav-icon" data-ic="layers"></span>Clients
     </button>
@@ -2192,15 +2188,21 @@
       </div>
       <!-- Compact read-only summary of the chosen task (existing mode only). -->
       <div class="modal-task-summary" id="f-task-summary"></div>
-      <div class="modal-hint" id="f-lock-hint" hidden>Only a session (date, time, description, minutes) is added — the task itself is never changed.</div>
+      <div class="modal-hint" id="f-lock-hint" hidden>Only a session (date, time, natural, description, minutes) is added — the task itself is never changed.</div>
       <div class="form-row">
         <div class="form-group">
           <label>Date <span style="text-transform:none;font-weight:500;color:var(--muted)">— the day this session was worked</span></label>
           <input id="f-date" type="date" />
         </div>
+      </div>
+      <div class="form-row">
         <div class="form-group">
           <label>Time Type</label>
           <select id="f-time"></select>
+        </div>
+        <div class="form-group">
+          <label>Natural</label>
+          <select id="f-natural"></select>
         </div>
       </div>
       <div class="form-row">
@@ -2234,10 +2236,6 @@
       </div>
       <div class="modal-taskfields form-row">
         <div class="form-group">
-          <label>Natural</label>
-          <select id="f-natural"></select>
-        </div>
-        <div class="form-group">
           <label>Status</label>
           <select id="f-status"></select>
         </div>
@@ -2249,19 +2247,13 @@
         </div>
       </div>
       <button type="button" class="modal-more-toggle modal-taskfields" id="f-more-toggle" onclick="toggleModalMore()">
-        More options — source &amp; tags <span data-ic="chevron-down"></span>
+        More options — source <span data-ic="chevron-down"></span>
       </button>
       <div class="modal-more modal-taskfields" id="f-more">
         <div class="form-row">
           <div class="form-group full">
             <label>Source</label>
             <input id="f-source" type="text" placeholder="Email subject, Jira ticket URL…" />
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group full">
-            <label>Tags <span style="text-transform:none;font-weight:500;color:var(--muted)">— comma separated, optional</span></label>
-            <input id="f-tags" type="text" placeholder="e.g. urgent, billable, follow-up" />
           </div>
         </div>
       </div>
@@ -2400,6 +2392,25 @@
 
   <!-- Detail view: profile + documents + linked tasks (built by JS) -->
   <div id="projects-detail-view" class="pj-detail-scroll" style="display:none"></div>
+</div>
+
+<!-- ══ INTERNAL TASKS MODULE (DEPARTMENT lookup dimension — HR/Cybersecurity/etc.) ══ -->
+<!-- Single-page master/detail (Browse's shell, not Projects' list/detail swap) —
+     departments are a small, mostly-static set managed from Settings, so there's
+     no "create department" flow here, only picking one and managing its tasks. -->
+<div id="module-internal-tasks" class="app-module">
+  <div class="page-header">
+    <span class="page-title"><span class="ti-ic" data-ic="building"></span>Internal Tasks</span>
+  </div>
+  <div class="cp-body">
+    <div class="cp-list-panel">
+      <div class="cp-list-search">
+        <input type="text" id="dept-search" class="cp-search" placeholder="Search departments…" oninput="renderDeptList()">
+      </div>
+      <div class="cp-list" id="dept-list"></div>
+    </div>
+    <div class="cp-records-panel" id="dept-tasks-panel"></div>
+  </div>
 </div>
 
 <!-- ══ COMPANY DOCUMENTS MODULE ══ -->
@@ -3023,6 +3034,53 @@
   </div>
 </div>
 
+<!-- ══ EDIT SESSION MODAL — used by the Task Detail modal and Project/Internal
+     Tasks task cards, which otherwise show sessions read-only. Distinct from
+     Timesheet's #modal: this persists immediately via worklogs:update instead
+     of the debounced rows/tasks:* reconciler. ══ -->
+<div id="session-modal-overlay" class="modal-overlay" onclick="sessionOverlayClick(event)">
+  <div id="session-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title">Edit Session</span>
+      <button class="modal-close" onclick="closeSessionModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Date</label>
+          <input id="sm-date" type="date" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Time Type</label>
+          <select id="sm-time"></select>
+        </div>
+        <div class="form-group">
+          <label>Natural</label>
+          <select id="sm-natural"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Description</label>
+          <textarea id="sm-description" placeholder="What did you do?"></textarea>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Minutes</label>
+          <input id="sm-minutes" type="number" min="1" max="1440" placeholder="e.g. 45" />
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeSessionModal()">Cancel</button>
+      <button class="btn primary" onclick="submitSessionModal()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ PROJECT DELETE UNDO TOAST ══ -->
 <div id="project-undo-toast">
   <span>Project deleted</span>
@@ -3050,6 +3108,7 @@
       <button class="stab" data-tab="projectStatus" onclick="switchTab(this)"><span class="stab-icon" data-ic="clipboard-list"></span> Project Status</button>
       <button class="stab" data-tab="projectDocument" onclick="switchTab(this)"><span class="stab-icon" data-ic="file-text"></span> Project Documents</button>
       <button class="stab" data-tab="companyDocCategory" onclick="switchTab(this)"><span class="stab-icon" data-ic="calendar-check"></span> Company Doc Categories</button>
+      <button class="stab" data-tab="department"    onclick="switchTab(this)"><span class="stab-icon" data-ic="building"></span> Department</button>
     </div>
     <!-- Panels -->
     <div class="settings-panels">
@@ -3068,6 +3127,7 @@
       <div class="settings-panel" id="tab-projectStatus"></div>
       <div class="settings-panel" id="tab-projectDocument"></div>
       <div class="settings-panel" id="tab-companyDocCategory"></div>
+      <div class="settings-panel" id="tab-department"></div>
     </div>
   </div>
 </div>
@@ -3092,10 +3152,6 @@
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>Natural</label>
-          <select id="b-natural"></select>
-        </div>
-        <div class="form-group">
           <label>Status</label>
           <select id="b-status"></select>
         </div>
@@ -3108,6 +3164,12 @@
       </div>
       <div class="form-row">
         <div class="form-group full">
+          <label>Department <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional, link this task to a department</span></label>
+          <select id="b-department"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
           <label>Description</label>
           <textarea id="b-description" placeholder="What needs to be done?"></textarea>
         </div>
@@ -3116,12 +3178,6 @@
         <div class="form-group full">
           <label>Source</label>
           <input id="b-source" type="text" placeholder="Email subject, Jira ticket URL…" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Tags <span style="text-transform:none;font-weight:500;color:var(--muted)">— comma separated, optional</span></label>
-          <input id="b-tags" type="text" placeholder="e.g. urgent, billable, follow-up" />
         </div>
       </div>
     </div>
@@ -3237,6 +3293,7 @@ const ICONS = {
   "file-text": "<path d=\"M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z\" /><path d=\"M14 2v5a1 1 0 0 0 1 1h5\" /><path d=\"M10 9H8\" /><path d=\"M16 13H8\" /><path d=\"M16 17H8\" />",
   "credit-card": "<rect width=\"20\" height=\"14\" x=\"2\" y=\"5\" rx=\"2\" /><line x1=\"2\" x2=\"22\" y1=\"10\" y2=\"10\" />",
   "building-2": "<path d=\"M10 12h4\" /><path d=\"M10 8h4\" /><path d=\"M14 21v-3a2 2 0 0 0-4 0v3\" /><path d=\"M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2\" /><path d=\"M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16\" />",
+  "building": "<rect width=\"16\" height=\"20\" x=\"4\" y=\"2\" rx=\"2\" ry=\"2\" /><path d=\"M9 22v-4h6v4\" /><path d=\"M8 6h.01\" /><path d=\"M16 6h.01\" /><path d=\"M12 6h.01\" /><path d=\"M12 10h.01\" /><path d=\"M12 14h.01\" /><path d=\"M16 10h.01\" /><path d=\"M16 14h.01\" /><path d=\"M8 10h.01\" /><path d=\"M8 14h.01\" />",
   "folder": "<path d=\"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z\" />",
   "settings": "<path d=\"M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915\" /><circle cx=\"12\" cy=\"12\" r=\"3\" />",
   "moon": "<path d=\"M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401\" />",
@@ -3354,12 +3411,13 @@ const LK_CAT = {
   timeType: 'TIME_TYPE', status: 'ENTRY_STATUS',
   currency: 'CURRENCY', billingCycle: 'BILLING_CYCLE',
   projectStatus: 'PROJECT_STATUS', projectDocument: 'PROJECT_DOCUMENT',
-  companyDocCategory: 'COMPANY_DOCUMENT_CATEGORY',
+  companyDocCategory: 'COMPANY_DOCUMENT_CATEGORY', department: 'DEPARTMENT',
 };
 const LK_VALUE = {             // 'label' = stored as display label; 'code' = stored as code
   companies: 'label', systems: 'label', natural: 'label',
   timeType: 'code', status: 'code', currency: 'code', billingCycle: 'code',
   projectStatus: 'code', projectDocument: 'code', companyDocCategory: 'code',
+  department: 'label',
 };
 
 // Active options for a category, ordered for dropdowns.
@@ -3667,7 +3725,7 @@ function buildSearchSelect(host, options, initialId, placeholder, onChange) {
 // The tabs edit a working copy of the catalog (lookupsDraft, keyed by category).
 // Existing entries are relabeled / reordered / soft-disabled in place; new entries
 // get a server-generated stable code on save. Codes are never edited or deleted.
-const SETTINGS_TABS = ['companies', 'systems', 'natural', 'timeType', 'status', 'projectStatus', 'projectDocument', 'companyDocCategory'];
+const SETTINGS_TABS = ['companies', 'systems', 'natural', 'timeType', 'status', 'projectStatus', 'projectDocument', 'companyDocCategory', 'department'];
 
 // Settings is a nav page (not a modal): switchModule('settings') calls this to
 // (re)load a working copy of the catalog and render the editors fresh each visit.
@@ -3997,7 +4055,8 @@ function buildTaskGroupCard(g, origIdxOf) {
   else { viewBtn.disabled = true; viewBtn.style.opacity = '.45'; viewBtn.title = 'Saving… try again in a moment'; }
   head.appendChild(viewBtn);
 
-  // Category pills (company / system / natural) — company & system are cross-links.
+  // Category pills (company / system) — both are cross-links. Natural is
+  // per-session now, so it's shown per row in the sessions table, not here.
   const meta = document.createElement('span');
   meta.className = 'tsg-meta';
   const pill = (text, kind) => {
@@ -4016,7 +4075,6 @@ function buildTaskGroupCard(g, origIdxOf) {
   };
   pill(first.company, 'companies');
   pill(first.system, 'systems');
-  pill(first.natural, null);
   const projTag = projectRowTag(first.projectId);
   if (projTag) meta.appendChild(projTag);
   head.appendChild(meta);
@@ -4043,6 +4101,7 @@ function buildTaskGroupCard(g, origIdxOf) {
   const table = document.createElement('table');
   table.innerHTML = '<thead><tr>' +
     '<th style="width:90px">Time</th>' +
+    '<th style="width:100px">Natural</th>' +
     '<th style="min-width:260px">Description</th>' +
     '<th style="min-width:160px">Source</th>' +
     '<th style="width:80px;text-align:right">Minutes</th>' +
@@ -4061,18 +4120,15 @@ function buildTaskGroupCard(g, origIdxOf) {
     if (row.time === 'OVERTIME') timeSpan.style.color = 'var(--bad)';
     tr.appendChild(cellWrap(timeSpan, 'cell'));
 
-    // Description + tag chips
+    // Natural — per-session, so sessions on the same task can genuinely differ.
+    tr.appendChild(textCell(row.natural || '—'));
+
+    // Description
     const descTd = document.createElement('td');
     const descDiv = document.createElement('div'); descDiv.className = 'cell desc-cell';
     const descSpan = document.createElement('span');
     descSpan.className = 'desc-text'; descSpan.textContent = row.description;
     descDiv.appendChild(descSpan);
-    const tags = Array.isArray(row.tags) ? row.tags : [];
-    if (tags.length) {
-      const tw = document.createElement('div'); tw.className = 'row-tags';
-      tags.forEach(t => { const c = document.createElement('span'); c.className = 'row-tag'; c.textContent = t; tw.appendChild(c); });
-      descDiv.appendChild(tw);
-    }
     descTd.appendChild(descDiv);
     tr.appendChild(descTd);
 
@@ -4303,22 +4359,13 @@ function renderTableFlat() {
     timeDiv.appendChild(timeSpan); timeTd.appendChild(timeDiv);
     tr.appendChild(timeTd);
 
-    // Description (+ tag chips)
+    // Description
     const descTd = document.createElement('td');
     const descDiv = document.createElement('div');
     descDiv.className = 'cell desc-cell';
     const descSpan = document.createElement('span');
     descSpan.className = 'desc-text'; descSpan.textContent = row.description;
     descDiv.appendChild(descSpan);
-    const tags = Array.isArray(row.tags) ? row.tags : [];
-    if (tags.length) {
-      const tagWrap = document.createElement('div'); tagWrap.className = 'row-tags';
-      tags.forEach(t => {
-        const chip = document.createElement('span'); chip.className = 'row-tag';
-        chip.textContent = t; tagWrap.appendChild(chip);
-      });
-      descDiv.appendChild(tagWrap);
-    }
     const projTag = projectRowTag(row.projectId);
     if (projTag) descDiv.appendChild(projTag);
     descTd.appendChild(descDiv);
@@ -4682,29 +4729,31 @@ function undoDelete() {
 function tsTaskPayload(row) {
   return {
     name: (row.taskName && row.taskName.trim()) || row.description || '',
-    status: row.status, company: row.company, system: row.system, natural: row.natural,
-    source: row.source || '', tags: Array.isArray(row.tags) ? row.tags : [],
+    status: row.status, company: row.company, system: row.system,
+    source: row.source || '',
     projectId: row.projectId ?? null,
   };
 }
-// Work-log-level fields of a row (this session only).
+// Work-log-level fields of a row (this session only). Natural is per-session,
+// same as time type — it does not propagate to sibling sessions.
 function tsLogPayload(row) {
   return {
     date: row.date || activeDate,
     description: row.description || '',
     minutes: (row.minutes === '' || row.minutes == null) ? '' : row.minutes,
     time: row.time || '',
+    natural: row.natural || '',
   };
 }
 // Propagate task-level fields from `row` onto sibling rows sharing its task, so a
 // task with several sessions on-screen stays consistent before we persist it once.
+// Natural is per-session and deliberately excluded — siblings may legitimately differ.
 function syncSiblingTasks(row) {
   if (!row.taskId) return;
   rows.forEach(r => {
     if (r !== row && r.taskId === row.taskId) {
       r.taskName = row.taskName; r.status = row.status; r.company = row.company;
-      r.system = row.system; r.natural = row.natural; r.source = row.source;
-      r.tags = Array.isArray(row.tags) ? row.tags.slice() : []; r.projectId = row.projectId;
+      r.system = row.system; r.source = row.source; r.projectId = row.projectId;
     }
   });
 }
@@ -4795,17 +4844,19 @@ function clearStatus() { document.getElementById('save-status').textContent = ''
 
 // ── Modal ──
 // Add flow: pick an existing task (searchable picker), then fill in the session
-// fields only (date, time type, description, minutes) — tasks are created only
-// via Projects, never here. Edit mode is unchanged: it opens the full task-field
-// form so a record's task-level metadata can still be corrected in place.
+// fields only (date, time type, natural, description, minutes) — tasks are
+// created only via Projects, never here. Edit mode is unchanged: it opens the
+// full task-field form so a record's task-level metadata can still be corrected
+// in place.
 // opts.existingTaskId → open directly with that task pre-chosen (Add Session).
 let fExistingTaskPicker = null;
 let recordMode = 'existing';   // 'existing' (add mode); edit mode uses 'new' internally to show the full task form
 
 // The task-level fields (prefilled + locked when logging against an existing
 // task; hidden entirely on the existing path). Session-level fields (date,
-// time, description, minutes) stay editable.
-const MODAL_TASK_FIELDS = ['f-taskname','f-company','f-system','f-natural','f-status','f-source','f-tags'];
+// time, natural, description, minutes) stay editable — natural is per-session,
+// same as time type, so it's never in this list.
+const MODAL_TASK_FIELDS = ['f-taskname','f-company','f-system','f-status','f-source'];
 
 // (Re)build the searchable existing-task picker with `selectedId` preselected.
 function rebuildExistingTaskPicker(selectedId) {
@@ -4842,14 +4893,13 @@ function applyExistingTaskSelection(taskId) {
     document.getElementById('f-taskname').value = task.name || '';
     populateSelect('f-company', 'companies', task.company || '');
     populateSelect('f-system',  'systems',   task.system  || '');
-    populateSelect('f-natural', 'natural',   task.natural || '');
     populateSelect('f-status',  'status',    task.status  || 'IN_PROGRESS');
     document.getElementById('f-source').value = task.source || '';
-    document.getElementById('f-tags').value   = Array.isArray(task.tags) ? task.tags.join(', ') : '';
     fProjectPicker = buildSearchSelect(document.getElementById('f-project'),
       projectFieldOptions(task.projectId ?? null), task.projectId ?? null, 'No project');
-    // Read-only summary of what the session will be logged against.
-    const bits = [task.company, task.system, task.natural].filter(Boolean).join(' · ');
+    // Read-only summary of what the session will be logged against. Natural is
+    // not shown here — it's per-session, not part of the task being picked.
+    const bits = [task.company, task.system].filter(Boolean).join(' · ');
     const projName = projectNameById(task.projectId);
     summary.innerHTML = '<b>' + esc(task.name || '(untitled task)') + '</b>'
       + (bits ? ' — ' + esc(bits) : '')
@@ -4859,10 +4909,8 @@ function applyExistingTaskSelection(taskId) {
     document.getElementById('f-taskname').value = '';
     populateSelect('f-company', 'companies', ''); blankSelect('f-company');
     populateSelect('f-system',  'systems',   ''); blankSelect('f-system');
-    populateSelect('f-natural', 'natural',   ''); blankSelect('f-natural');
     populateSelect('f-status',  'status',    ''); blankSelect('f-status');
     document.getElementById('f-source').value = '';
-    document.getElementById('f-tags').value   = '';
     fProjectPicker = buildSearchSelect(document.getElementById('f-project'),
       projectFieldOptions(null), null, 'No project');
     summary.innerHTML = '';
@@ -4887,8 +4935,10 @@ async function openModal(idx = null, opts = {}) {
   document.getElementById('modal-title').textContent = isEdit ? 'Edit Record' : (isSession ? 'Add Session' : 'Add Record');
   document.querySelector('#modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : (isSession ? 'Add Session' : 'Add Record');
 
-  // Session-level fields (always editable).
+  // Session-level fields (always editable) — natural is per-session, same as
+  // time type, so it's populated here regardless of edit/add-session/lock state.
   populateSelect('f-time', 'timeType', row?.time || '');
+  populateSelect('f-natural', 'natural', row?.natural || '');
   document.getElementById('f-date').value        = (isEdit ? (row?.date || activeDate) : activeDate) || fmt(new Date());
   document.getElementById('f-description').value = isSession ? '' : (row?.description || '');
   document.getElementById('f-minutes').value     = isSession ? '' : (row?.minutes || '');
@@ -4903,22 +4953,20 @@ async function openModal(idx = null, opts = {}) {
     document.getElementById('f-task-summary').classList.remove('has-task');
     populateSelect('f-company', 'companies', row?.company || '');
     populateSelect('f-system',  'systems',   row?.system  || '');
-    populateSelect('f-natural', 'natural',   row?.natural || '');
     populateSelect('f-status',  'status',    row?.status  || '');
     document.getElementById('f-taskname').value = row?.taskName || '';
     document.getElementById('f-source').value   = row?.source   || '';
-    document.getElementById('f-tags').value     = Array.isArray(row?.tags) ? row.tags.join(', ') : (row?.tags || '');
     MODAL_TASK_FIELDS.forEach(id => { document.getElementById(id).disabled = false; });
     fProjectPicker = buildSearchSelect(document.getElementById('f-project'),
       projectFieldOptions(row?.projectId ?? null), row?.projectId ?? null, 'No project');
-    toggleModalMore(!!(row?.source || (Array.isArray(row?.tags) && row.tags.length)));
+    toggleModalMore(!!row?.source);
   } else {
     // Add mode — always logs a session against an existing task (tasks are
     // created only via Projects): pick the task, then fill in the session.
     recordMode = 'existing';
     modal.classList.add('mode-existing');
     modal.classList.remove('mode-new');
-    if (sessionTaskId == null) blankSelect('f-time');
+    if (sessionTaskId == null) { blankSelect('f-time'); blankSelect('f-natural'); }
     try { modalTaskList = await window.api.listTasks(); } catch { modalTaskList = []; }
     if (!Array.isArray(modalTaskList)) modalTaskList = [];
     // Safety: if we're logging against a specific task but the fetch missed it
@@ -4926,8 +4974,8 @@ async function openModal(idx = null, opts = {}) {
     if (sessionTaskId != null && !modalTaskList.some(t => t.id === sessionTaskId) && row) {
       modalTaskList = modalTaskList.concat([{
         id: sessionTaskId, name: row.taskName || row.description || '',
-        company: row.company, system: row.system, natural: row.natural,
-        status: row.status, source: row.source, tags: row.tags, projectId: row.projectId ?? null,
+        company: row.company, system: row.system,
+        status: row.status, source: row.source, projectId: row.projectId ?? null,
       }]);
     }
     rebuildExistingTaskPicker(sessionTaskId);
@@ -4973,18 +5021,19 @@ async function submitModal() {
     return;
   }
 
-  // Session-level fields are always required; task-level fields only when creating
-  // a new task (when locked, they are prefilled from the task and can't be edited).
+  // Session-level fields (including Natural, per-session like Time Type) are
+  // always required; task-level fields only when creating a new task (when
+  // locked, they are prefilled from the task and can't be edited).
   const required = [
     { id: 'f-date',        val: document.getElementById('f-date').value },
     { id: 'f-time',        val: document.getElementById('f-time').value },
+    { id: 'f-natural',     val: document.getElementById('f-natural').value },
     { id: 'f-description', val: document.getElementById('f-description').value.trim() },
   ];
   if (!loggingExisting) {
     required.push(
       { id: 'f-company', val: document.getElementById('f-company').value },
       { id: 'f-system',  val: document.getElementById('f-system').value },
-      { id: 'f-natural', val: document.getElementById('f-natural').value },
       { id: 'f-status',  val: document.getElementById('f-status').value },
     );
   }
@@ -5016,7 +5065,6 @@ async function submitModal() {
     source:      document.getElementById('f-source').value.trim(),
     status:      document.getElementById('f-status').value,
     minutes:     minRaw === '' ? '' : parseInt(minRaw, 10),   // Number when set, '' when blank
-    tags:        parseTags(document.getElementById('f-tags').value),
     projectId:   fProjectPicker ? fProjectPicker.getSelectedId() : null,
     date:        dateVal,
   };
@@ -5212,7 +5260,7 @@ function buildDailyReportHTML(srcRows, date, name) {
     let g = byTask.get(key);
     if (!g) {
       g = { taskName: r.taskName || r.description || '(untitled task)',
-            company: r.company, system: r.system, natural: r.natural, sessions: [], subtotal: 0 };
+            company: r.company, system: r.system, sessions: [], subtotal: 0 };
       byTask.set(key, g); groups.push(g);
     }
     g.sessions.push(r);
@@ -5220,7 +5268,7 @@ function buildDailyReportHTML(srcRows, date, name) {
   });
 
   const rowsHTML = groups.length ? groups.map((g, gi) => {
-    const metaBits = [g.company, g.system, g.natural].filter(Boolean).join(' · ');
+    const metaBits = [g.company, g.system].filter(Boolean).join(' · ');
     const sessionsHTML = g.sessions.map(r => {
       const showTime = r.time === 'WORK_TIME' || r.time === 'OVERTIME';
       const timeCell = showTime
@@ -5228,7 +5276,7 @@ function buildDailyReportHTML(srcRows, date, name) {
         : '—';
       return `
         <tr>
-          <td>${timeCell}</td>
+          <td>${timeCell}${r.natural ? `<div style="font-size:9px;color:#888;margin-top:2px">${esc(r.natural)}</div>` : ''}</td>
           <td>${esc(r.description)}${r.source ? `<div style="font-size:10px;color:#777;margin-top:3px">${esc(r.source)}</div>` : ''}</td>
           <td style="text-align:right">${r.minutes || '—'}</td>
           <td style="text-align:right">${r.minutes ? (parseFloat(r.minutes) / 60).toFixed(2) : '—'}</td>
@@ -5636,28 +5684,29 @@ function updateTodayBtn() {
 // task's profile fields. Persists immediately (no debounced whole-list save).
 // ════════════════════════════════════════════════════════════════════════════
 // ── Project task modal (add a zero-log task, or edit any project task's profile) ──
-// Used by Projects detail "New Task" and "Edit". opts:
-//   task      → the task being edited (its own shape, from currentProject.tasks) — omit to create
-//   projectId → preset + lock the Project field to that project
-//   onSaved   → called after a successful save to refresh the caller's view
-let _backlogCtx = { projectId: null, onSaved: null };
+// Used by Projects detail "New Task"/"Edit" and Internal Tasks' equivalents. opts:
+//   task         → the task being edited (its own shape, from currentProject.tasks/currentDept.tasks) — omit to create
+//   projectId    → preset + lock the Project field to that project
+//   departmentId → preset + lock the Department field to that department
+//   onSaved      → called after a successful save to refresh the caller's view
+let _backlogCtx = { projectId: null, departmentId: null, onSaved: null };
 function openBacklogModal(id = null, opts = {}) {
   backlogEditId = id;
-  _backlogCtx = { projectId: opts.projectId ?? null, onSaved: opts.onSaved || null };
+  _backlogCtx = { projectId: opts.projectId ?? null, departmentId: opts.departmentId ?? null, onSaved: opts.onSaved || null };
   const lockedProject = _backlogCtx.projectId != null;
+  const lockedDept = _backlogCtx.departmentId != null;
   const task = opts.task || null;
   const isEdit = !!task;
   document.getElementById('backlog-modal-title').textContent =
-    isEdit ? 'Edit Task' : (lockedProject ? 'New Project Task' : 'Add Task');
+    isEdit ? 'Edit Task' : (lockedProject ? 'New Project Task' : (lockedDept ? 'New Department Task' : 'Add Task'));
   document.querySelector('#backlog-modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : 'Add Task';
 
   populateSelect('b-company', 'companies', task?.company || '');
   populateSelect('b-system',  'systems',   task?.system  || '');
-  populateSelect('b-natural', 'natural',   task?.natural || '');
   populateSelect('b-status',  'status',    task?.status  || 'IN_PROGRESS');
 
   if (!isEdit) {
-    ['b-company','b-system','b-natural'].forEach(selId => {
+    ['b-company','b-system'].forEach(selId => {
       const sel = document.getElementById(selId);
       const blank = document.createElement('option');
       blank.value = ''; blank.textContent = '— select —';
@@ -5673,18 +5722,31 @@ function openBacklogModal(id = null, opts = {}) {
   const bpInput = document.querySelector('#b-project .ss-input');
   if (bpInput) bpInput.disabled = lockedProject;
 
+  // Department is optional, same convention as Project — a plain lookup-driven
+  // select (like Company/System) rather than a search-select, since there are
+  // only a handful of departments.
+  const initialDeptLabel = lockedDept
+    ? (deptList.find(d => d.id === _backlogCtx.departmentId)?.label || currentDept?.label || '')
+    : (task?.department || '');
+  populateSelect('b-department', 'department', initialDeptLabel);
+  const bDeptSel = document.getElementById('b-department');
+  const blankDept = document.createElement('option');
+  blankDept.value = ''; blankDept.textContent = 'No department';
+  if (!initialDeptLabel) blankDept.selected = true;
+  bDeptSel.insertBefore(blankDept, bDeptSel.firstChild);
+  bDeptSel.disabled = lockedDept;
+
   document.getElementById('b-description').value = task?.name   || '';
   document.getElementById('b-source').value      = task?.source || '';
-  document.getElementById('b-tags').value        = Array.isArray(task?.tags) ? task.tags.join(', ') : '';
 
   clearBacklogErrors();
   document.getElementById('backlog-modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById(lockedProject ? 'b-description' : 'b-company').focus(), 80);
+  setTimeout(() => document.getElementById((lockedProject || lockedDept) ? 'b-description' : 'b-company').focus(), 80);
 }
 function closeBacklogModal() {
   document.getElementById('backlog-modal-overlay').classList.remove('open');
   backlogEditId = null;
-  _backlogCtx = { projectId: null, onSaved: null };
+  _backlogCtx = { projectId: null, departmentId: null, onSaved: null };
 }
 
 // Create a new task already linked to the open project (Projects detail → New Task).
@@ -5709,7 +5771,6 @@ async function submitBacklogModal() {
   const fields = [
     { id: 'b-company',     val: document.getElementById('b-company').value },
     { id: 'b-system',      val: document.getElementById('b-system').value },
-    { id: 'b-natural',     val: document.getElementById('b-natural').value },
     { id: 'b-description', val: document.getElementById('b-description').value.trim() },
   ];
   let valid = true;
@@ -5717,16 +5778,15 @@ async function submitBacklogModal() {
   if (!valid) return;
 
   const isEdit = backlogEditId !== null;
-  // A zero-log task's description is the task name; time type is per-session,
-  // chosen when it's assigned to a day.
+  // A zero-log task's description is the task name; time type and natural are
+  // both per-session, chosen when it's assigned to a day.
   const payload = {
     name:        document.getElementById('b-description').value.trim(),
     status:      document.getElementById('b-status').value,
     company:     document.getElementById('b-company').value,
     system:      document.getElementById('b-system').value,
-    natural:     document.getElementById('b-natural').value,
+    department:  document.getElementById('b-department').value,
     source:      document.getElementById('b-source').value.trim(),
-    tags:        parseTags(document.getElementById('b-tags').value),
     projectId:   bProjectPicker ? bProjectPicker.getSelectedId() : null,
   };
 
@@ -5783,9 +5843,8 @@ function renderFilterChips() {
 function rowMatchesFilter(row) {
   if (filterStatuses.size > 0 && !filterStatuses.has(row.status)) return false;
   if (!filterText) return true;
-  const tagStr = Array.isArray(row.tags) ? row.tags.join(' ') : '';
   // Search against the human labels of the code-valued fields (time / status).
-  return [row.company, row.system, row.natural, lkLabel('TIME_TYPE', row.time), row.description, row.source, lkLabel('ENTRY_STATUS', row.status), tagStr]
+  return [row.company, row.system, row.natural, lkLabel('TIME_TYPE', row.time), row.description, row.source, lkLabel('ENTRY_STATUS', row.status)]
     .some(v => (v || '').toLowerCase().includes(filterText));
 }
 
@@ -5794,7 +5853,7 @@ function rowMatchesFilter(row) {
 let _reportFileBase = 'report';
 
 // ════════════════════════════════════════════════════════════════════════════
-// TIMESHEET DEPTH — tags, templates, bulk actions, month overview.
+// TIMESHEET DEPTH — templates, bulk actions, month overview.
 // ════════════════════════════════════════════════════════════════════════════
 
 // ── Dropdown menu (bulk-action "Set Status ▾") ──
@@ -5808,13 +5867,6 @@ function toggleTopMenu(e, id) {
 document.addEventListener('click', () => {
   document.querySelectorAll('.top-menu.open').forEach(m => m.classList.remove('open'));
 });
-
-// ── Tags ──
-function parseTags(str) {
-  if (!str) return [];
-  if (Array.isArray(str)) return str.map(s => String(s).trim()).filter(Boolean).slice(0, 12);
-  return String(str).split(',').map(t => t.trim()).filter(Boolean).slice(0, 12);
-}
 
 // ── Bulk selection ──
 function updateBulkBar() {
@@ -6008,6 +6060,9 @@ function switchModule(name) {
   } else if (name === 'projects') {
     window.api.setTitle('Cooperation Tools — Projects');
     initProjectsModule();
+  } else if (name === 'internal-tasks') {
+    window.api.setTitle('Cooperation Tools — Internal Tasks');
+    initInternalTasksModule();
   } else if (name === 'companydocs') {
     window.api.setTitle('Cooperation Tools — Company Documents');
     initCompanyDocsModule();
@@ -6248,12 +6303,6 @@ function buildReadonlyRow(r, i) {
   const descDiv = document.createElement('div'); descDiv.className = 'cell desc-cell';
   const descSpan = document.createElement('span'); descSpan.className = 'desc-text'; descSpan.textContent = r.description;
   descDiv.appendChild(descSpan);
-  const tags = Array.isArray(r.tags) ? r.tags : [];
-  if (tags.length) {
-    const tw = document.createElement('div'); tw.className = 'row-tags';
-    tags.forEach(t => { const chip = document.createElement('span'); chip.className = 'row-tag'; chip.textContent = t; tw.appendChild(chip); });
-    descDiv.appendChild(tw);
-  }
   descTd.appendChild(descDiv); tr.appendChild(descTd);
 
   const srcTd = document.createElement('td');
@@ -7160,10 +7209,11 @@ function openProjectById(id) {
   openProjectDetail(id);
 }
 
-// ── Task Detail modal — a read-only single-task view: metadata, rollups, and
-// every work_log session, reachable from Timesheet rows and Project task cards.
-// Sourced from tasks:get, which already returns the full task +
-// its ordered workLogs, so no new IPC channel is needed.
+// ── Task Detail modal — metadata + rollups (read-only) plus every work_log
+// session, reachable from Timesheet rows and Project task cards. Each session
+// row has its own edit action (see the Edit Session modal below). Sourced from
+// tasks:get, which already returns the full task + its ordered workLogs, so no
+// new IPC channel is needed.
 async function openTaskDetail(taskId) {
   if (!taskId) return;
   let task;
@@ -7178,6 +7228,71 @@ function closeTaskDetail() {
 }
 function taskDetailOverlayClick(e) {
   if (e.target === document.getElementById('task-detail-overlay')) closeTaskDetail();
+}
+
+// ── Edit Session modal — edits one work_log's session-level fields (date,
+// time, natural, description, minutes) from outside the Timesheet: the Task
+// Detail modal and the Project/Internal Tasks task cards, which otherwise show
+// sessions read-only. Persists immediately via worklogs:update (unlike
+// Timesheet's #modal, which feeds the debounced rows/tasks:* reconciler), then
+// reloads the Timesheet's in-memory day (if one is loaded) so a later debounced
+// Timesheet save can't clobber this edit with stale data, before refreshing the
+// caller's own view via opts.onSaved.
+let _sessionModalCtx = { workLog: null, onSaved: null };
+function openSessionModal(workLog, opts = {}) {
+  _sessionModalCtx = { workLog, onSaved: opts.onSaved || null };
+  document.getElementById('sm-date').value = workLog.date || '';
+  populateSelect('sm-time', 'timeType', workLog.time || '');
+  populateSelect('sm-natural', 'natural', workLog.natural || '');
+  document.getElementById('sm-description').value = workLog.description || '';
+  document.getElementById('sm-minutes').value = (workLog.minutes === '' || workLog.minutes == null) ? '' : workLog.minutes;
+  clearErrorsIn('#session-modal');
+  document.getElementById('session-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('sm-description').focus(), 80);
+}
+function closeSessionModal() {
+  document.getElementById('session-modal-overlay').classList.remove('open');
+  _sessionModalCtx = { workLog: null, onSaved: null };
+}
+function sessionOverlayClick(e) {
+  if (e.target === document.getElementById('session-modal-overlay')) closeSessionModal();
+}
+async function submitSessionModal() {
+  clearErrorsIn('#session-modal');
+  const required = [
+    { id: 'sm-date',        val: document.getElementById('sm-date').value },
+    { id: 'sm-time',        val: document.getElementById('sm-time').value },
+    { id: 'sm-natural',     val: document.getElementById('sm-natural').value },
+    { id: 'sm-description', val: document.getElementById('sm-description').value.trim() },
+  ];
+  let valid = true;
+  required.forEach(f => { if (!f.val) { markError(f.id); valid = false; } });
+
+  const minRaw = document.getElementById('sm-minutes').value.trim();
+  if (minRaw !== '') {
+    const minVal = parseInt(minRaw, 10);
+    if (isNaN(minVal) || minVal < 1 || minVal > 1440 || String(minVal) !== minRaw) {
+      markError('sm-minutes'); valid = false;
+    }
+  }
+  if (!valid) return;
+
+  const payload = {
+    date:        document.getElementById('sm-date').value,
+    time:        document.getElementById('sm-time').value,
+    natural:     document.getElementById('sm-natural').value,
+    description: document.getElementById('sm-description').value.trim(),
+    minutes:     minRaw === '' ? '' : parseInt(minRaw, 10),
+  };
+  const workLog = _sessionModalCtx.workLog;
+  try { await window.api.updateWorkLog(workLog.id, payload); }
+  catch { toast('Could not save session'); return; }
+
+  const onSaved = _sessionModalCtx.onSaved;
+  closeSessionModal();
+  await reloadTimesheet();          // resync any loaded Timesheet day
+  if (onSaved) await onSaved();
+  toast('Session updated');
 }
 
 function renderTaskDetail(t) {
@@ -7206,7 +7321,6 @@ function renderTaskDetail(t) {
   grid.appendChild(field('Source', t.source));
   grid.appendChild(field('Company', t.company));
   grid.appendChild(field('System', t.system));
-  grid.appendChild(field('Natural', t.natural));
   if (t.projectId != null) {
     const tag = projectRowTag(t.projectId);
     grid.appendChild(field('Project', tag || projectNameById(t.projectId)));
@@ -7253,7 +7367,9 @@ function renderTaskDetail(t) {
     const table = document.createElement('table');
     table.innerHTML = '<thead><tr>' +
       '<th style="width:110px">Date</th><th style="width:100px">Time</th>' +
-      '<th style="width:70px;text-align:right">Min</th><th>What was done</th></tr></thead><tbody></tbody>';
+      '<th style="width:100px">Natural</th>' +
+      '<th style="width:70px;text-align:right">Min</th><th>What was done</th>' +
+      '<th style="width:44px"></th></tr></thead><tbody></tbody>';
     const tb = table.querySelector('tbody');
     logs.forEach(w => {
       const tr = document.createElement('tr');
@@ -7261,10 +7377,15 @@ function renderTaskDetail(t) {
       const timeSpan = pjMk('span', null, lkLabel('TIME_TYPE', w.time) || '—');
       if (w.time === 'OVERTIME') timeSpan.style.color = 'var(--bad)';
       tr.appendChild(cellWrap(timeSpan, 'cell'));
+      tr.appendChild(textCell(w.natural || '—'));
       const minTd = document.createElement('td'); minTd.style.textAlign = 'right';
       minTd.appendChild(cellWrap(pjMk('span', null, (w.minutes === '' || w.minutes == null) ? '—' : String(w.minutes)), 'cell cell-right'));
       tr.appendChild(minTd);
       tr.appendChild(textCell(w.description || '—'));
+      const editBtn = pjMk('button', 'row-btn');
+      editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit session';
+      editBtn.addEventListener('click', () => openSessionModal(w, { onSaved: () => openTaskDetail(t.id) }));
+      tr.appendChild(cellWrap(editBtn, 'cell'));
       tb.appendChild(tr);
     });
     body.appendChild(table);
@@ -7534,15 +7655,29 @@ function renderProjectDetail(p) {
   if (list.length === 0) {
     tasksSec.appendChild(pjMk('div', 'cp-records-empty', 'No tasks linked yet — use “Link Task” to attach existing work.'));
   } else {
-    list.forEach(t => tasksSec.appendChild(buildProjectTaskCard(t)));
+    list.forEach(t => tasksSec.appendChild(buildLinkedTaskCard(t, {
+      onEdit: () => openProjectEditTask(t.id),
+      onUnlink: () => doUnlinkTask(t.id),
+      onDelete: () => doDeleteProjectTask(t),
+      onSessionSaved: reloadCurrentProject,
+      unlinkTitle: 'Unlink from this project',
+    })));
   }
   host.appendChild(tasksSec);
 }
 
-// One linked task in the project detail: its profile + the list of its work
-// sessions (or a "No sessions yet" note). Zero-log tasks appear here too.
-function buildProjectTaskCard(t) {
+// One task linked to a container (a Project or a Department): its profile + the
+// list of its work sessions (or a "No sessions yet" note). Zero-log tasks appear
+// here too. `handlers` is `{ onEdit, onUnlink, onDelete, unlinkTitle }` — the only
+// bits that differ between the Project and Department contexts; shared by both
+// renderProjectDetail's Tasks section and Internal Tasks' department panel.
+// Task ids whose sessions table is collapsed — ephemeral UI state (not
+// persisted), shared across Projects and Internal Tasks since both rebuild
+// their card list from scratch on every reload and would otherwise forget it.
+const collapsedTaskCards = new Set();
+function buildLinkedTaskCard(t, handlers) {
   const card = pjMk('div', 'pj-task-card');
+  const logs = Array.isArray(t.workLogs) ? t.workLogs : [];
 
   const head = pjMk('div', 'pj-task-head');
   const title = pjMk('div', 'pj-task-title', t.name || '(untitled task)');
@@ -7551,32 +7686,55 @@ function buildProjectTaskCard(t) {
     lkLabel('ENTRY_STATUS', t.status) || '—');
   head.appendChild(statusPill);
   const spacer = pjMk('div'); spacer.style.flex = '1'; head.appendChild(spacer);
+
+  // Collapse/expand the sessions table below — only offered when there's
+  // something to collapse. `sessionsTable` is assigned once it's built further
+  // down; the click handler closes over it (it always runs after the table exists).
+  let sessionsTable = null;
+  if (logs.length > 0) {
+    const collapseBtn = pjMk('button', 'row-btn');
+    const setChevron = (expanded) => {
+      collapseBtn.innerHTML = ic('chevron-down');
+      collapseBtn.querySelector('svg').style.transform = expanded ? 'rotate(180deg)' : '';
+      collapseBtn.title = expanded ? 'Collapse sessions' : 'Expand sessions';
+    };
+    setChevron(!collapsedTaskCards.has(t.id));
+    collapseBtn.addEventListener('click', () => {
+      const collapsed = collapsedTaskCards.has(t.id);
+      if (collapsed) collapsedTaskCards.delete(t.id); else collapsedTaskCards.add(t.id);
+      if (sessionsTable) sessionsTable.style.display = collapsed ? '' : 'none';
+      setChevron(collapsed);
+    });
+    head.appendChild(collapseBtn);
+  }
+
   const viewBtn = pjMk('button', 'row-btn');
   viewBtn.innerHTML = ic('eye'); viewBtn.title = 'View task details';
   viewBtn.addEventListener('click', () => openTaskDetail(t.id));
   head.appendChild(viewBtn);
   const editBtn = pjMk('button', 'row-btn');
   editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit task';
-  editBtn.addEventListener('click', () => openProjectEditTask(t.id));
+  editBtn.addEventListener('click', handlers.onEdit);
   head.appendChild(editBtn);
 
-  // A zero-log task has no other identity once it loses this project link (there's
-  // no day-agnostic pool to find it in anymore) — delete it outright instead of
-  // offering an unlink that would silently orphan it. A task with sessions stays
-  // reachable via Timesheet/Browse either way, so unlink remains safe there.
+  // A zero-log task has no other identity once it loses this container's link
+  // (there's no day-agnostic pool to find it in anymore) — delete it outright
+  // instead of offering an unlink that would silently orphan it. A task with
+  // sessions stays reachable via Timesheet/Browse either way, so unlink remains
+  // safe there.
   const hasLogs = (t.logCount || 0) > 0;
   const actsWrap = pjMk('div', 'row-actions');
   const restoreActs = () => {
     actsWrap.innerHTML = '';
     if (hasLogs) {
       const unlinkBtn = pjMk('button', 'row-btn del');
-      unlinkBtn.innerHTML = ic('x'); unlinkBtn.title = 'Unlink from this project';
-      unlinkBtn.addEventListener('click', () => doUnlinkTask(t.id));
+      unlinkBtn.innerHTML = ic('x'); unlinkBtn.title = handlers.unlinkTitle || 'Unlink';
+      unlinkBtn.addEventListener('click', handlers.onUnlink);
       actsWrap.appendChild(unlinkBtn);
     } else {
       const delBtn = pjMk('button', 'row-btn del');
       delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete task';
-      delBtn.addEventListener('click', () => showDeleteConfirm(actsWrap, () => doDeleteProjectTask(t), restoreActs));
+      delBtn.addEventListener('click', () => showDeleteConfirm(actsWrap, handlers.onDelete, restoreActs));
       actsWrap.appendChild(delBtn);
     }
   };
@@ -7584,7 +7742,7 @@ function buildProjectTaskCard(t) {
   head.appendChild(actsWrap);
   card.appendChild(head);
 
-  const metaBits = [t.company, t.system, t.natural].filter(Boolean).join(' · ');
+  const metaBits = [t.company, t.system].filter(Boolean).join(' · ');
   const mins = t.totalMinutes || 0;
   const logCount = t.logCount || 0;
   const summary = pjMk('div', 'pj-task-meta',
@@ -7592,16 +7750,18 @@ function buildProjectTaskCard(t) {
     (mins ? '  ·  ' + mins + ' min (' + (mins / 60).toFixed(2) + ' h)' : ''));
   card.appendChild(summary);
 
-  const logs = Array.isArray(t.workLogs) ? t.workLogs : [];
   if (logs.length === 0) {
     const empty = pjMk('div', 'pj-task-empty', 'No sessions yet');
     card.appendChild(empty);
   } else {
     const table = document.createElement('table');
-    table.style.cssText = 'width:100%;margin-top:8px';
+    sessionsTable = table;
+    table.style.cssText = 'width:100%;margin-top:8px' + (collapsedTaskCards.has(t.id) ? ';display:none' : '');
     table.innerHTML = '<thead><tr>' +
       '<th style="width:110px">Date</th><th style="width:100px">Time</th>' +
-      '<th style="width:70px;text-align:right">Min</th><th>What was done</th></tr></thead><tbody></tbody>';
+      '<th style="width:100px">Natural</th>' +
+      '<th style="width:70px;text-align:right">Min</th><th>What was done</th>' +
+      '<th style="width:44px"></th></tr></thead><tbody></tbody>';
     const tb = table.querySelector('tbody');
     logs.forEach(w => {
       const tr = document.createElement('tr');
@@ -7609,11 +7769,16 @@ function buildProjectTaskCard(t) {
       const timeSpan = pjMk('span', null, lkLabel('TIME_TYPE', w.time) || '—');
       if (w.time === 'OVERTIME') timeSpan.style.color = 'var(--bad)';
       tr.appendChild(cellWrap(timeSpan, 'cell'));
+      tr.appendChild(textCell(w.natural || '—'));
       const minTd = document.createElement('td'); minTd.style.textAlign = 'right';
       const minDiv = pjMk('div', 'cell cell-right');
       minDiv.appendChild(document.createTextNode((w.minutes === '' || w.minutes == null) ? '—' : String(w.minutes)));
       minTd.appendChild(minDiv); tr.appendChild(minTd);
       tr.appendChild(textCell(w.description || '—'));
+      const editBtn = pjMk('button', 'row-btn');
+      editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit session';
+      editBtn.addEventListener('click', () => openSessionModal(w, { onSaved: handlers.onSessionSaved }));
+      tr.appendChild(cellWrap(editBtn, 'cell'));
       tb.appendChild(tr);
     });
     card.appendChild(table);
@@ -7849,8 +8014,18 @@ async function undoDeleteProject() {
 }
 
 // ── Link an existing task ──
-async function openLinkModal() {
-  try { linkableTasks = await window.api.listLinkableTasks(); }
+// Which container the Link Task modal is currently linking into — 'project'
+// (default, backward-compatible with the zero-arg Projects call site) or
+// 'department' (Internal Tasks). Shared by renderLinkList/doLinkTask below.
+let _linkCtx = { kind: 'project', containerId: null };
+
+async function openLinkModal(kind = 'project', containerId = null) {
+  _linkCtx = { kind, containerId: containerId ?? (kind === 'department' ? currentDept?.id : currentProject?.id) };
+  try {
+    linkableTasks = kind === 'department'
+      ? await window.api.listLinkableTasksForDept()
+      : await window.api.listLinkableTasks();
+  }
   catch { toast('Could not load tasks'); return; }
   if (!Array.isArray(linkableTasks)) linkableTasks = [];
   document.getElementById('link-task-filter').value = '';
@@ -7869,7 +8044,7 @@ function renderLinkList() {
   host.innerHTML = '';
 
   const all = (linkableTasks || []).filter(t => textMatch(
-    [t.name, t.company, t.system, t.natural, t.source], q));
+    [t.name, t.company, t.system, t.source], q));
 
   if (all.length === 0) {
     host.appendChild(pjMk('div', 'cp-records-empty', 'No unlinked tasks available.'));
@@ -7881,7 +8056,7 @@ function renderLinkList() {
     const info = pjMk('div', 'pj-link-info');
     const main = pjMk('div', 'pj-link-main', t.name || '(untitled task)');
     info.appendChild(main);
-    const metaBits = [t.company, t.system, t.natural].filter(Boolean).join(' · ');
+    const metaBits = [t.company, t.system].filter(Boolean).join(' · ');
     const logCount = t.logCount || 0;
     const sess = logCount + ' session' + (logCount === 1 ? '' : 's');
     const meta = pjMk('div', 'pj-link-meta', sess + (metaBits ? ' · ' + metaBits : ''));
@@ -7897,12 +8072,16 @@ function renderLinkList() {
   });
 }
 async function doLinkTask(taskId) {
-  try { await window.api.linkProjectTask(currentProject.id, taskId); }
+  try {
+    if (_linkCtx.kind === 'department') await window.api.linkDepartmentTask(taskId, _linkCtx.containerId);
+    else await window.api.linkProjectTask(_linkCtx.containerId, taskId);
+  }
   catch { toast('Could not link task'); return; }
   // Drop the just-linked task from the picker source, refresh both views.
   linkableTasks = (linkableTasks || []).filter(t => t.id !== taskId);
   renderLinkList();
-  await reloadCurrentProject();
+  if (_linkCtx.kind === 'department') await reloadCurrentDept();
+  else await reloadCurrentProject();
   toast('Task linked');
 }
 async function doUnlinkTask(taskId) {
@@ -7921,10 +8100,154 @@ async function doDeleteProjectTask(task) {
     try {
       await window.api.createTask({
         name: task.name, status: task.status, company: task.company, system: task.system,
-        natural: task.natural, source: task.source, tags: task.tags, projectId: task.projectId,
+        source: task.source, projectId: task.projectId,
       });
     } catch { toast('Could not restore task'); return; }
     await reloadCurrentProject();
+  });
+}
+
+// ══ INTERNAL TASKS — DEPARTMENT lookup dimension ════════════════════════════
+// Department is a plain lookup category (like Company/System), not a table — no
+// profile/edit modal here. This page lists every active department on the left
+// and, per department, manages its linked tasks on the right, reusing the exact
+// same Tasks-section markup/card (buildLinkedTaskCard) and task modal
+// (openBacklogModal) Projects already uses.
+let deptList = [];
+let currentDept = null;   // full department ({id, code, label, tasks}) loaded in the right panel
+
+async function initInternalTasksModule() {
+  try { deptList = await window.api.listDepartments(); }
+  catch { toast('Could not load departments'); return; }
+  if (!Array.isArray(deptList)) deptList = [];
+  renderDeptList();
+  if (currentDept) await selectDept(currentDept.id);
+  else renderDeptTasksPanel(null);
+}
+
+function renderDeptList() {
+  const q = (document.getElementById('dept-search').value || '').trim().toLowerCase();
+  const wrap = document.getElementById('dept-list');
+  wrap.innerHTML = '';
+  const items = q ? deptList.filter(d => d.label.toLowerCase().includes(q)) : deptList;
+  if (!items.length) {
+    const empty = document.createElement('div'); empty.className = 'cp-list-empty';
+    empty.textContent = deptList.length ? 'No matches' : 'No departments yet — add one from Settings';
+    wrap.appendChild(empty);
+    return;
+  }
+  items.forEach(d => {
+    const btn = document.createElement('button');
+    btn.className = 'cp-list-item' + (currentDept && currentDept.id === d.id ? ' active' : '');
+    const nm = document.createElement('span'); nm.className = 'cp-list-name';
+    nm.textContent = d.label; nm.title = d.label;
+    const ct = document.createElement('span'); ct.className = 'cp-list-count';
+    ct.textContent = d.taskCount;
+    btn.appendChild(nm); btn.appendChild(ct);
+    btn.addEventListener('click', () => selectDept(d.id));
+    wrap.appendChild(btn);
+  });
+}
+
+async function selectDept(id) {
+  let dept;
+  try { dept = await window.api.getDepartment(id); }
+  catch { toast('Could not load department'); return; }
+  currentDept = dept;
+  renderDeptList();
+  renderDeptTasksPanel(dept);
+}
+
+async function reloadCurrentDept() {
+  if (!currentDept) return;
+  await selectDept(currentDept.id);
+  // Task counts on the left list may have changed (new/deleted task).
+  try { deptList = await window.api.listDepartments(); renderDeptList(); } catch {}
+}
+
+// (Re)build the right panel: a department placeholder, or its Tasks section —
+// same header/New Task/Link Task/card layout as renderProjectDetail's Tasks
+// section, just scoped to `dept` instead of `currentProject`.
+function renderDeptTasksPanel(dept) {
+  const host = document.getElementById('dept-tasks-panel');
+  host.innerHTML = '';
+  if (!dept) {
+    const ph = document.createElement('div'); ph.className = 'cp-placeholder';
+    ph.innerHTML = '<div class="icon">' + ic('building') + '</div><p>Select a department to view its tasks</p>';
+    host.appendChild(ph);
+    return;
+  }
+
+  const head = document.createElement('div'); head.className = 'cp-records-head';
+  const title = document.createElement('h2'); title.className = 'cp-records-title';
+  title.textContent = dept.label;
+  head.appendChild(title);
+  host.appendChild(head);
+
+  const tasksSec = pjMk('div', 'pj-section');
+  const tHead = pjMk('div', 'pj-section-head');
+  const tTitle = pjMk('div', 'pj-section-title');
+  tTitle.innerHTML = ic('list');
+  const list = Array.isArray(dept.tasks) ? dept.tasks : [];
+  tTitle.appendChild(document.createTextNode('Tasks (' + list.length + ')'));
+  tHead.appendChild(tTitle);
+  const tActions = pjMk('div', 'pj-section-actions');
+  const newBtn = pjMk('button', 'btn primary');
+  newBtn.innerHTML = ic('plus') + ' New Task';
+  newBtn.title = 'Create a new task already linked to this department';
+  newBtn.addEventListener('click', openDeptNewTask);
+  const linkBtn = pjMk('button', 'btn');
+  linkBtn.innerHTML = ic('calendar-plus') + ' Link Task';
+  linkBtn.addEventListener('click', () => openLinkModal('department', dept.id));
+  tActions.appendChild(newBtn);
+  tActions.appendChild(linkBtn);
+  tHead.appendChild(tActions);
+  tasksSec.appendChild(tHead);
+
+  if (list.length === 0) {
+    tasksSec.appendChild(pjMk('div', 'cp-records-empty', 'No tasks linked yet — use “Link Task” to attach existing work.'));
+  } else {
+    list.forEach(t => tasksSec.appendChild(buildLinkedTaskCard(t, {
+      onEdit: () => openDeptEditTask(t.id),
+      onUnlink: () => doUnlinkDeptTask(t.id),
+      onDelete: () => doDeleteDeptTask(t),
+      onSessionSaved: reloadCurrentDept,
+      unlinkTitle: 'Unlink from this department',
+    })));
+  }
+  host.appendChild(tasksSec);
+}
+
+function openDeptNewTask() {
+  if (!currentDept) return;
+  openBacklogModal(null, { departmentId: currentDept.id, onSaved: reloadCurrentDept });
+}
+function openDeptEditTask(taskId) {
+  if (!currentDept) return;
+  const task = (currentDept.tasks || []).find(t => t.id === taskId);
+  if (!task) return;
+  openBacklogModal(taskId, { task, departmentId: task.departmentId ?? currentDept.id, onSaved: reloadCurrentDept });
+}
+async function doUnlinkDeptTask(taskId) {
+  try { await window.api.unlinkDepartmentTask(taskId); }
+  catch { toast('Could not unlink task'); return; }
+  await reloadCurrentDept();
+  toast('Task unlinked');
+}
+// Delete a zero-log department task outright (see buildLinkedTaskCard for why: it
+// has no other identity once unlinked). Undo re-creates an equivalent task.
+async function doDeleteDeptTask(task) {
+  try { await window.api.deleteTask(task.id); }
+  catch { toast('Could not delete task'); return; }
+  await reloadCurrentDept();
+  showGenericUndo('Task deleted', async () => {
+    try {
+      await window.api.createTask({
+        name: task.name, status: task.status, company: task.company, system: task.system,
+        source: task.source, department: task.department,
+      });
+    } catch { toast('Could not restore task'); return; }
+    await reloadCurrentDept();
   });
 }
 
