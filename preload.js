@@ -76,6 +76,8 @@ contextBridge.exposeInMainWorld('api', {
   addWorkLog:     (taskId, data)  => ipcRenderer.invoke('worklogs:add', taskId, data),
   /** @returns {Promise<import('./ipc-types').WorkLogMutationResult>} */
   updateWorkLog:  (id, data)      => ipcRenderer.invoke('worklogs:update', id, data),
+  /** Reassign a work log to a different task. @returns {Promise<import('./ipc-types').WorkLogMoveResult>} */
+  moveWorkLog:    (id, taskId)    => ipcRenderer.invoke('worklogs:move', id, taskId),
   /** @returns {Promise<import('./ipc-types').WorkLogMutationResult>} */
   deleteWorkLog:  (id)            => ipcRenderer.invoke('worklogs:delete', id),
   /** Per-date employee name (days metadata) — non-destructive; no work sessions touched. */
