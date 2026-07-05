@@ -587,6 +587,16 @@
     .pj-status-on-hold   { background: rgba(245,181,68,.18);  color: var(--warn); }
     .pj-status-completed { background: rgba(100,108,132,.16); color: var(--muted); }
 
+    /* badge cluster (status + category) — kept as one flex child so pj-card-head's
+       space-between still just has two items: name, and this cluster */
+    .pj-card-badges { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
+    /* category badge — shared by cards and the detail header */
+    .pj-cat { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+    .pj-cat-new    { background: rgba(20,184,166,.16);  color: var(--primary); }
+    .pj-cat-cr     { background: rgba(245,181,68,.18);  color: var(--warn); }
+    .pj-cat-annual { background: rgba(52,211,153,.16);  color: var(--good); }
+
     /* detail view */
     .pj-detail-scroll { flex: 1; overflow-y: auto; padding: var(--space-5) var(--space-6) var(--space-7); }
     .pj-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 6px; flex-wrap: wrap; }
@@ -1854,6 +1864,9 @@
       <span class="nav-icon" data-ic="compass"></span>Browse
     </button>
     <div class="nav-section">Manage</div>
+    <button class="nav-item" data-module="all-tasks" onclick="switchModule('all-tasks')">
+      <span class="nav-icon" data-ic="list"></span>All Tasks
+    </button>
     <button class="nav-item" data-module="projects" onclick="switchModule('projects')">
       <span class="nav-icon" data-ic="clipboard-list"></span>Projects
     </button>
@@ -2180,6 +2193,15 @@
       <button class="modal-close" onclick="closeModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
+      <!-- Add mode only (hidden for Edit and for "Add Session", where the task is
+           already fixed) — lets a fresh Add Record either log against an existing
+           task or create a brand new one right here. -->
+      <div class="form-row" id="f-mode-toggle-row" style="display:none">
+        <div class="seg-ctl" id="f-mode-toggle">
+          <button type="button" class="seg-btn active" data-mode="existing" onclick="setRecordMode('existing')">Existing Task</button>
+          <button type="button" class="seg-btn" data-mode="new" onclick="setRecordMode('new')">New Task</button>
+        </div>
+      </div>
       <div class="form-row" id="f-existing-task-row">
         <div class="form-group full">
           <label>Task</label>
@@ -2383,6 +2405,12 @@
 
   <!-- List view: all projects as cards -->
   <div id="projects-list-view" class="pj-scroll">
+    <div class="seg-ctl" id="project-category-ctl" style="margin-bottom:var(--space-4)">
+      <button class="seg-btn active" data-cat="" onclick="setProjectCategoryFilter('')">All</button>
+      <button class="seg-btn" data-cat="NEW_PROJECT" onclick="setProjectCategoryFilter('NEW_PROJECT')">New Project</button>
+      <button class="seg-btn" data-cat="CR_EXISTING" onclick="setProjectCategoryFilter('CR_EXISTING')">CR on Existing Project</button>
+      <button class="seg-btn" data-cat="ANNUAL_SUPPORT" onclick="setProjectCategoryFilter('ANNUAL_SUPPORT')">Project Annual Support</button>
+    </div>
     <div class="pj-grid" id="projects-grid"></div>
     <div id="projects-empty-state" style="display:none">
       <div class="icon" data-ic="clipboard-list"></div>
@@ -2392,6 +2420,18 @@
 
   <!-- Detail view: profile + documents + linked tasks (built by JS) -->
   <div id="projects-detail-view" class="pj-detail-scroll" style="display:none"></div>
+</div>
+
+<!-- ══ ALL TASKS MODULE — a cross-cutting, filterable view of every task the user
+     owns (linked to a Project, a Department, both, or neither), each showing its
+     full session history. Reuses buildLinkedTaskCard (Projects/Internal Tasks'
+     task card) and the shared Edit Session modal (openSessionModal) so a session
+     can be edited — and reassigned to a different task — from here too. ══ -->
+<div id="module-all-tasks" class="app-module">
+  <div class="page-header">
+    <span class="page-title"><span class="ti-ic" data-ic="list"></span>All Tasks</span>
+  </div>
+  <div class="cp-records-panel" id="at-panel" style="width:100%"></div>
 </div>
 
 <!-- ══ INTERNAL TASKS MODULE (DEPARTMENT lookup dimension — HR/Cybersecurity/etc.) ══ -->
@@ -2987,9 +3027,19 @@
         </div>
       </div>
       <div class="form-row">
-        <div class="form-group full">
+        <div class="form-group">
           <label>Status</label>
           <select id="p-status"></select>
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <select id="p-category" onchange="onProjectCategoryChange()"></select>
+        </div>
+      </div>
+      <div class="form-row" id="p-related-project-row" style="display:none">
+        <div class="form-group full">
+          <label>Related Project <span style="text-transform:none;font-weight:500;color:var(--muted)">— the project this one relates to</span></label>
+          <div id="p-related-project"></div>
         </div>
       </div>
       <div class="form-row">
@@ -3045,6 +3095,12 @@
       <button class="modal-close" onclick="closeSessionModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Task</label>
+          <div id="sm-task"></div>
+        </div>
+      </div>
       <div class="form-row">
         <div class="form-group">
           <label>Date</label>
@@ -3106,6 +3162,7 @@
       <button class="stab" data-tab="timeType"      onclick="switchTab(this)"><span class="stab-icon" data-ic="alarm-clock"></span> Time Type</button>
       <button class="stab" data-tab="status"        onclick="switchTab(this)"><span class="stab-icon" data-ic="flag"></span> Status</button>
       <button class="stab" data-tab="projectStatus" onclick="switchTab(this)"><span class="stab-icon" data-ic="clipboard-list"></span> Project Status</button>
+      <button class="stab" data-tab="projectCategory" onclick="switchTab(this)"><span class="stab-icon" data-ic="tag"></span> Project Category</button>
       <button class="stab" data-tab="projectDocument" onclick="switchTab(this)"><span class="stab-icon" data-ic="file-text"></span> Project Documents</button>
       <button class="stab" data-tab="companyDocCategory" onclick="switchTab(this)"><span class="stab-icon" data-ic="calendar-check"></span> Company Doc Categories</button>
       <button class="stab" data-tab="department"    onclick="switchTab(this)"><span class="stab-icon" data-ic="building"></span> Department</button>
@@ -3125,6 +3182,7 @@
       <div class="settings-panel" id="tab-timeType"></div>
       <div class="settings-panel" id="tab-status"></div>
       <div class="settings-panel" id="tab-projectStatus"></div>
+      <div class="settings-panel" id="tab-projectCategory"></div>
       <div class="settings-panel" id="tab-projectDocument"></div>
       <div class="settings-panel" id="tab-companyDocCategory"></div>
       <div class="settings-panel" id="tab-department"></div>
@@ -3412,12 +3470,13 @@ const LK_CAT = {
   currency: 'CURRENCY', billingCycle: 'BILLING_CYCLE',
   projectStatus: 'PROJECT_STATUS', projectDocument: 'PROJECT_DOCUMENT',
   companyDocCategory: 'COMPANY_DOCUMENT_CATEGORY', department: 'DEPARTMENT',
+  projectCategory: 'PROJECT_CATEGORY',
 };
 const LK_VALUE = {             // 'label' = stored as display label; 'code' = stored as code
   companies: 'label', systems: 'label', natural: 'label',
   timeType: 'code', status: 'code', currency: 'code', billingCycle: 'code',
   projectStatus: 'code', projectDocument: 'code', companyDocCategory: 'code',
-  department: 'label',
+  department: 'label', projectCategory: 'code',
 };
 
 // Active options for a category, ordered for dropdowns.
@@ -3467,6 +3526,7 @@ let backlogEditId    = null;
 let projectsList     = [];       // [{id, name, companies[], systems[], status, taskCount, …}]
 let projectsLoaded   = false;
 let projectFilter    = '';
+let projectCategoryFilter = '';  // '' = All, else a PROJECT_CATEGORY code
 let currentProject   = null;     // full project loaded in the detail view
 let projectEditId    = null;     // modal mode: null = create, else project id
 let undoProject      = null;     // snapshot of a just-deleted project (for undo)
@@ -3474,6 +3534,7 @@ let _undoProjectTimer = null;
 let linkableTasks    = [];   // picker source: unlinked Task[]
 let pCompaniesPicker = null;     // tag-picker handles for the project modal
 let pSystemsPicker   = null;
+let pRelatedProjectPicker = null; // search-select handle for the related-project field (CR/Annual Support only)
 let projectIndex     = [];       // lightweight [{id,name,status}] for the Timesheet/Project task Project field
 let fProjectPicker   = null;     // search-select handle in the timesheet record modal
 let bProjectPicker   = null;     // search-select handle in the project task modal
@@ -3725,7 +3786,7 @@ function buildSearchSelect(host, options, initialId, placeholder, onChange) {
 // The tabs edit a working copy of the catalog (lookupsDraft, keyed by category).
 // Existing entries are relabeled / reordered / soft-disabled in place; new entries
 // get a server-generated stable code on save. Codes are never edited or deleted.
-const SETTINGS_TABS = ['companies', 'systems', 'natural', 'timeType', 'status', 'projectStatus', 'projectDocument', 'companyDocCategory', 'department'];
+const SETTINGS_TABS = ['companies', 'systems', 'natural', 'timeType', 'status', 'projectStatus', 'projectCategory', 'projectDocument', 'companyDocCategory', 'department'];
 
 // Settings is a nav page (not a modal): switchModule('settings') calls this to
 // (re)load a working copy of the catalog and render the editors fresh each visit.
@@ -4865,6 +4926,29 @@ function rebuildExistingTaskPicker(selectedId) {
     taskOpts, selectedId, 'Search your tasks…', applyExistingTaskSelection);
 }
 
+// Add mode's New Task / Existing Task toggle — switches the modal between
+// logging against a picked task (task fields hidden, per .mode-existing) and
+// the full task-creation form (.mode-new, existing-task picker hidden). Only
+// shown for a genuine fresh Add Record (see openModal); Edit and Add Session
+// never call this. Reuses applyExistingTaskSelection's lock/unlock logic so
+// switching back to "Existing" re-locks onto whatever the picker still holds.
+function setRecordMode(mode) {
+  if (recordMode === mode) return;
+  recordMode = mode;
+  const modal = document.getElementById('modal');
+  modal.classList.toggle('mode-existing', mode === 'existing');
+  modal.classList.toggle('mode-new', mode === 'new');
+  document.querySelectorAll('#f-mode-toggle .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  clearErrorsIn('#modal');
+  if (mode === 'new') {
+    applyExistingTaskSelection(null);
+    setTimeout(() => document.getElementById('f-taskname').focus(), 60);
+  } else {
+    applyExistingTaskSelection(fExistingTaskPicker ? fExistingTaskPicker.getSelectedId() : null);
+    setTimeout(() => document.querySelector('#f-existing-task .ss-input')?.focus(), 60);
+  }
+}
+
 // Collapsible Source & Tags block (rarely used — keep the form short).
 function toggleModalMore(open) {
   const more = document.getElementById('f-more');
@@ -4948,6 +5032,7 @@ async function openModal(idx = null, opts = {}) {
     recordMode = 'new';
     modal.classList.remove('mode-existing');
     modal.classList.add('mode-new');
+    document.getElementById('f-mode-toggle-row').style.display = 'none';
     fExistingTaskPicker = null;
     document.getElementById('f-lock-hint').hidden = true;
     document.getElementById('f-task-summary').classList.remove('has-task');
@@ -4961,11 +5046,14 @@ async function openModal(idx = null, opts = {}) {
       projectFieldOptions(row?.projectId ?? null), row?.projectId ?? null, 'No project');
     toggleModalMore(!!row?.source);
   } else {
-    // Add mode — always logs a session against an existing task (tasks are
-    // created only via Projects): pick the task, then fill in the session.
+    // Add mode — defaults to logging a session against an existing task; the
+    // New Task toggle (hidden for "Add Session", where the task is already
+    // fixed) switches to the full task-creation form instead.
     recordMode = 'existing';
     modal.classList.add('mode-existing');
     modal.classList.remove('mode-new');
+    document.getElementById('f-mode-toggle-row').style.display = isSession ? 'none' : '';
+    document.querySelectorAll('#f-mode-toggle .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === 'existing'));
     if (sessionTaskId == null) { blankSelect('f-time'); blankSelect('f-natural'); }
     try { modalTaskList = await window.api.listTasks(); } catch { modalTaskList = []; }
     if (!Array.isArray(modalTaskList)) modalTaskList = [];
@@ -5005,8 +5093,9 @@ function overlayClick(e) {
 async function submitModal() {
   clearErrorsIn('#modal');
   const isEdit = editIdx !== null;
-  // Add mode always logs a session against the picked task (its metadata is never
-  // modified here); edit mode uses the full task-field form instead.
+  // Add mode's Existing Task path logs a session against the picked task (its
+  // metadata is never modified here); its New Task path — and edit mode, which
+  // always uses this same full task-field form — create/update the task itself.
   const onExistingPath = !isEdit && recordMode === 'existing';
   const existingTaskId = (onExistingPath && fExistingTaskPicker) ? fExistingTaskPicker.getSelectedId() : null;
   const loggingExisting = existingTaskId != null;
@@ -5094,7 +5183,9 @@ async function submitModal() {
     return;
   }
 
-  // Add mode always logs against the picked existing task — no new task is created here.
+  // Existing-task path logs against the picked task; New Task path (existingTaskId
+  // null here) creates one below — same-day via the debounced reconciler (which
+  // already creates a task for any row with no taskId), other-day inline.
   record.taskId = existingTaskId;
 
   if (targetDate === activeDate) {
@@ -5107,7 +5198,8 @@ async function submitModal() {
     // the new session is visible (the current day's view is unaffected).
     closeModal();
     try {
-      await window.api.addWorkLog(existingTaskId, tsLogPayload(record));
+      const taskId = existingTaskId ?? (await window.api.createTask(tsTaskPayload(record))).id;
+      await window.api.addWorkLog(taskId, tsLogPayload(record));
       await refreshSavedDays();
       await switchDay(targetDate);
       toast('Session logged to ' + targetDate);
@@ -6057,6 +6149,9 @@ function switchModule(name) {
     initSettingsModule();
   } else if (name === 'browse') {
     setBrowseKind(browseKind);
+  } else if (name === 'all-tasks') {
+    window.api.setTitle('Cooperation Tools — All Tasks');
+    initAllTasksModule();
   } else if (name === 'projects') {
     window.api.setTitle('Cooperation Tools — Projects');
     initProjectsModule();
@@ -7134,6 +7229,13 @@ function clearSubErrors()  { clearErrorsIn('#sub-modal'); }
 const PJ_STATUS_CLASS = { 'ACTIVE': 'active', 'ON_HOLD': 'on-hold', 'COMPLETED': 'completed' };
 function pjStatusLabel(s) { return lkLabel('PROJECT_STATUS', s) || (s || 'Active'); }
 function pjStatusClass(s) { return 'pj-status pj-status-' + (PJ_STATUS_CLASS[s] || 'active'); }
+// Category is a PROJECT_CATEGORY lookup code — required on every project since
+// migration 031. A category that requires a related-project reference (CR/Annual
+// Support) is distinguished from New Project, which never carries one.
+const PJ_CATEGORY_CLASS = { 'NEW_PROJECT': 'new', 'CR_EXISTING': 'cr', 'ANNUAL_SUPPORT': 'annual' };
+const PJ_CATEGORY_NEEDS_RELATED = new Set(['CR_EXISTING', 'ANNUAL_SUPPORT']);
+function pjCategoryLabel(c) { return lkLabel('PROJECT_CATEGORY', c) || ''; }
+function pjCategoryClass(c) { return 'pj-cat pj-cat-' + (PJ_CATEGORY_CLASS[c] || 'new'); }
 // Small DOM helper local to the Projects module (uniquely named to avoid clashes).
 function pjMk(tag, cls, text) {
   const e = document.createElement(tag);
@@ -7190,6 +7292,42 @@ function projectFieldOptions(currentId) {
   }
   return opts;
 }
+// Options for the Related Project field (CR/Annual-Support categories only):
+// active projects, excluding the project currently being edited (no self-link),
+// plus the currently-linked one if it is no longer active (mirrors projectFieldOptions).
+function relatedProjectFieldOptions(currentId, excludeProjectId) {
+  const opts = projectIndex
+    .filter(p => p.status === 'ACTIVE' && (excludeProjectId == null || p.id !== Number(excludeProjectId)))
+    .map(p => ({ id: p.id, label: p.name }));
+  if (currentId != null && currentId !== '' && !opts.some(o => o.id === Number(currentId))) {
+    const p = projectIndex.find(x => x.id === Number(currentId));
+    if (p) opts.push({ id: p.id, label: p.name + ' (' + pjStatusLabel(p.status).toLowerCase() + ')' });
+  }
+  return opts;
+}
+
+// Category select needs an unselected placeholder — category is required with no
+// implicit default, unlike Status which defaults to 'ACTIVE'.
+function populateProjectCategorySelect(currentVal) {
+  const el = document.getElementById('p-category');
+  el.innerHTML = '';
+  const placeholder = document.createElement('option');
+  placeholder.value = ''; placeholder.textContent = 'Select category…'; placeholder.disabled = true;
+  if (!currentVal) placeholder.selected = true;
+  el.appendChild(placeholder);
+  lkOptions('PROJECT_CATEGORY').forEach(opt => {
+    const o = document.createElement('option');
+    o.value = opt.code; o.textContent = opt.label;
+    if (opt.code === currentVal) o.selected = true;
+    el.appendChild(o);
+  });
+}
+// Toggles the Related Project field — only CR_EXISTING/ANNUAL_SUPPORT carry one.
+function onProjectCategoryChange() {
+  const needsRelated = PJ_CATEGORY_NEEDS_RELATED.has(document.getElementById('p-category').value);
+  document.getElementById('p-related-project-row').style.display = needsRelated ? '' : 'none';
+}
+
 // Build a compact pill naming the linked project (for a table row), or null.
 // The pill cross-links into the project's detail view.
 function projectRowTag(projectId) {
@@ -7239,13 +7377,26 @@ function taskDetailOverlayClick(e) {
 // Timesheet save can't clobber this edit with stale data, before refreshing the
 // caller's own view via opts.onSaved.
 let _sessionModalCtx = { workLog: null, onSaved: null };
-function openSessionModal(workLog, opts = {}) {
+let smTaskPicker = null;
+async function openSessionModal(workLog, opts = {}) {
   _sessionModalCtx = { workLog, onSaved: opts.onSaved || null };
   document.getElementById('sm-date').value = workLog.date || '';
   populateSelect('sm-time', 'timeType', workLog.time || '');
   populateSelect('sm-natural', 'natural', workLog.natural || '');
   document.getElementById('sm-description').value = workLog.description || '';
   document.getElementById('sm-minutes').value = (workLog.minutes === '' || workLog.minutes == null) ? '' : workLog.minutes;
+
+  // Task reassignment picker — searchable, preselected to this session's current
+  // task; picking a different one moves the session there on save (worklogs:move).
+  let taskList = [];
+  try { taskList = await window.api.listTasks(); } catch { taskList = []; }
+  if (!Array.isArray(taskList)) taskList = [];
+  if (workLog.taskId != null && !taskList.some(t => t.id === workLog.taskId)) {
+    taskList = taskList.concat([{ id: workLog.taskId, name: workLog.taskName || '(untitled task)' }]);
+  }
+  smTaskPicker = buildSearchSelect(document.getElementById('sm-task'),
+    taskList.map(t => ({ id: t.id, label: t.name || '(untitled task)' })), workLog.taskId ?? null, 'Search tasks…');
+
   clearErrorsIn('#session-modal');
   document.getElementById('session-modal-overlay').classList.add('open');
   setTimeout(() => document.getElementById('sm-description').focus(), 80);
@@ -7253,6 +7404,7 @@ function openSessionModal(workLog, opts = {}) {
 function closeSessionModal() {
   document.getElementById('session-modal-overlay').classList.remove('open');
   _sessionModalCtx = { workLog: null, onSaved: null };
+  smTaskPicker = null;
 }
 function sessionOverlayClick(e) {
   if (e.target === document.getElementById('session-modal-overlay')) closeSessionModal();
@@ -7285,14 +7437,22 @@ async function submitSessionModal() {
     minutes:     minRaw === '' ? '' : parseInt(minRaw, 10),
   };
   const workLog = _sessionModalCtx.workLog;
-  try { await window.api.updateWorkLog(workLog.id, payload); }
+  // A session always belongs to some task — silently keep the current one if the
+  // picker was cleared to "— None —" rather than surfacing a required-field error
+  // for what's normally a one-click reassignment, not a create form.
+  const pickedTaskId = smTaskPicker ? smTaskPicker.getSelectedId() : null;
+  const targetTaskId = pickedTaskId != null ? pickedTaskId : workLog.taskId;
+  try {
+    await window.api.updateWorkLog(workLog.id, payload);
+    if (targetTaskId !== workLog.taskId) await window.api.moveWorkLog(workLog.id, targetTaskId);
+  }
   catch { toast('Could not save session'); return; }
 
   const onSaved = _sessionModalCtx.onSaved;
   closeSessionModal();
   await reloadTimesheet();          // resync any loaded Timesheet day
   if (onSaved) await onSaved();
-  toast('Session updated');
+  toast(targetTaskId !== workLog.taskId ? 'Session moved to a different task' : 'Session updated');
 }
 
 function renderTaskDetail(t) {
@@ -7397,6 +7557,13 @@ function applyProjectFilter() {
   renderProjectsList();
 }
 
+function setProjectCategoryFilter(cat) {
+  projectCategoryFilter = cat;
+  document.querySelectorAll('#project-category-ctl .seg-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.cat === cat));
+  renderProjectsList();
+}
+
 function showProjectsListView() {
   document.getElementById('projects-detail-view').style.display = 'none';
   document.getElementById('projects-list-view').style.display = '';
@@ -7418,9 +7585,11 @@ function renderProjectsList() {
     return;
   }
 
-  const shown = projectsList.filter(p => textMatch(
-    [p.name, ...(p.companies || []).map(c => c.label), ...(p.systems || []).map(s => s.label),
-     pjStatusLabel(p.status), p.description], projectFilter));
+  const shown = projectsList.filter(p =>
+    (!projectCategoryFilter || p.category === projectCategoryFilter) &&
+    textMatch(
+      [p.name, ...(p.companies || []).map(c => c.label), ...(p.systems || []).map(s => s.label),
+       pjStatusLabel(p.status), pjCategoryLabel(p.category), p.relatedProjectName, p.description], projectFilter));
 
   if (shown.length === 0) {
     grid.style.display = 'none';
@@ -7435,10 +7604,14 @@ function renderProjectsList() {
     const card = pjMk('div', 'pj-card pj-accent-' + (PJ_STATUS_CLASS[p.status] || 'active'));
     card.addEventListener('click', () => openProjectDetail(p.id));
 
-    // Head — name + status pill
+    // Head — name + status pill + category badge (badges grouped so the flex
+    // space-between still only has two items: name, and the badge cluster)
     const head = pjMk('div', 'pj-card-head');
     head.appendChild(pjMk('div', 'pj-card-name', p.name || 'Untitled project'));
-    head.appendChild(pjMk('span', pjStatusClass(p.status), pjStatusLabel(p.status)));
+    const badges = pjMk('div', 'pj-card-badges');
+    badges.appendChild(pjMk('span', pjStatusClass(p.status), pjStatusLabel(p.status)));
+    if (p.category) badges.appendChild(pjMk('span', pjCategoryClass(p.category), pjCategoryLabel(p.category)));
+    head.appendChild(badges);
     card.appendChild(head);
 
     // Meta — companies and systems as pill rows (capped, with a +N overflow)
@@ -7446,6 +7619,7 @@ function renderProjectsList() {
     const systemNames  = (p.systems || []).map(s => s.label).filter(Boolean);
     if (companyNames.length) card.appendChild(pjCardMetaRow('building-2', companyNames));
     if (systemNames.length)  card.appendChild(pjCardMetaRow('folder', systemNames));
+    if (p.relatedProjectId && p.relatedProjectName) card.appendChild(pjCardMetaRow('external-link', [p.relatedProjectName]));
 
     if (p.description) card.appendChild(pjMk('div', 'pj-card-desc', p.description));
 
@@ -7525,6 +7699,7 @@ function renderProjectDetail(p) {
   const title = pjMk('div', 'pj-detail-title');
   title.appendChild(document.createTextNode(p.name || 'Untitled project'));
   title.appendChild(pjMk('span', pjStatusClass(p.status), pjStatusLabel(p.status)));
+  if (p.category) title.appendChild(pjMk('span', pjCategoryClass(p.category), pjCategoryLabel(p.category)));
   titleWrap.appendChild(title);
   head.appendChild(titleWrap);
 
@@ -7570,6 +7745,14 @@ function renderProjectDetail(p) {
   grid.appendChild(pillField('Companies', p.companies, 'companies'));
   grid.appendChild(pillField('Systems', p.systems, 'systems'));
   grid.appendChild(field('Status', pjStatusLabel(p.status)));
+  grid.appendChild(field('Category', pjCategoryLabel(p.category)));
+  if (p.relatedProjectId && p.relatedProjectName) {
+    const relField = pjMk('div');
+    relField.appendChild(pjMk('div', 'pj-field-label', 'Related Project'));
+    const tag = projectRowTag(p.relatedProjectId);
+    relField.appendChild(tag || pjMk('div', 'pj-field-val', p.relatedProjectName));
+    grid.appendChild(relField);
+  }
   const descField = pjMk('div'); descField.style.gridColumn = '1 / -1';
   descField.appendChild(pjMk('div', 'pj-field-label', 'Description'));
   descField.appendChild(pjMk('div', 'pj-field-val', p.description || '—'));
@@ -7727,10 +7910,15 @@ function buildLinkedTaskCard(t, handlers) {
   const restoreActs = () => {
     actsWrap.innerHTML = '';
     if (hasLogs) {
-      const unlinkBtn = pjMk('button', 'row-btn del');
-      unlinkBtn.innerHTML = ic('x'); unlinkBtn.title = handlers.unlinkTitle || 'Unlink';
-      unlinkBtn.addEventListener('click', handlers.onUnlink);
-      actsWrap.appendChild(unlinkBtn);
+      // Unlink only makes sense when this card is shown inside a container (a
+      // Project or Department) — omit handlers.onUnlink (e.g. the All Tasks
+      // page, which isn't a container) to show no action here at all.
+      if (handlers.onUnlink) {
+        const unlinkBtn = pjMk('button', 'row-btn del');
+        unlinkBtn.innerHTML = ic('x'); unlinkBtn.title = handlers.unlinkTitle || 'Unlink';
+        unlinkBtn.addEventListener('click', handlers.onUnlink);
+        actsWrap.appendChild(unlinkBtn);
+      }
     } else {
       const delBtn = pjMk('button', 'row-btn del');
       delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete task';
@@ -7915,6 +8103,11 @@ function openProjectModal(id = null) {
     lkOptions('SYSTEM').map(o => ({ id: o.id, label: o.label })),
     (src?.systems || []).map(s => s.id), 'Search systems…');
   populateSelect('p-status', 'projectStatus', src?.status || 'ACTIVE');
+  populateProjectCategorySelect(src?.category || '');
+  pRelatedProjectPicker = buildSearchSelect(document.getElementById('p-related-project'),
+    relatedProjectFieldOptions(src?.relatedProjectId ?? null, src?.id ?? null),
+    src?.relatedProjectId ?? null, 'Search projects…');
+  onProjectCategoryChange();
   document.getElementById('p-description').value  = src?.description || '';
 
   clearErrorsIn('#project-modal');
@@ -7933,11 +8126,16 @@ async function submitProjectModal() {
   clearErrorsIn('#project-modal');
   const name = document.getElementById('p-name').value.trim();
   if (!name) { markError('p-name'); return; }
+  const category = document.getElementById('p-category').value;
+  if (!category) { markError('p-category'); return; }
+  const needsRelated = PJ_CATEGORY_NEEDS_RELATED.has(category);
   const data = {
     name,
     companyIds:  pCompaniesPicker ? pCompaniesPicker.getSelectedIds() : [],
     systemIds:   pSystemsPicker ? pSystemsPicker.getSelectedIds() : [],
     status:      document.getElementById('p-status').value || 'ACTIVE',
+    category,
+    relatedProjectId: needsRelated && pRelatedProjectPicker ? pRelatedProjectPicker.getSelectedId() : null,
     description: document.getElementById('p-description').value.trim(),
   };
 
@@ -7999,6 +8197,7 @@ async function undoDeleteProject() {
   try {
     const created = await window.api.createProject({
       name: snap.name, description: snap.description, status: snap.status,
+      category: snap.category, relatedProjectId: snap.relatedProjectId,
       systemIds: (snap.systems || []).map(s => s.id), companyIds: (snap.companies || []).map(c => c.id),
     });
     // Move the still-on-disk files onto the re-created project and re-record their
@@ -8105,6 +8304,187 @@ async function doDeleteProjectTask(task) {
     } catch { toast('Could not restore task'); return; }
     await reloadCurrentProject();
   });
+}
+
+// ══ ALL TASKS — cross-cutting filterable view of every task ════════════════
+// Unlike Projects/Internal Tasks (one container's tasks at a time), this page
+// lists every task the user owns regardless of its Project/Department links,
+// each with its full session history — the one place "which task is this
+// session actually on?" can be answered without knowing where to look first.
+let allTasksList = [];        // Task[] (with nested workLogs) from tasks:list
+let atProjectsIdx = [];       // for the Project filter dropdown (all statuses, not just ACTIVE)
+let atDepartmentsIdx = [];    // for the Department filter dropdown
+let atStatuses = new Set();   // active ENTRY_STATUS filter chips
+
+async function initAllTasksModule() {
+  try {
+    [allTasksList, atProjectsIdx, atDepartmentsIdx] = await Promise.all([
+      window.api.listTasks(), window.api.listProjects(), window.api.listDepartments(),
+    ]);
+  } catch { toast('Could not load tasks'); return; }
+  if (!Array.isArray(allTasksList))     allTasksList = [];
+  if (!Array.isArray(atProjectsIdx))    atProjectsIdx = [];
+  if (!Array.isArray(atDepartmentsIdx)) atDepartmentsIdx = [];
+  renderAllTasksPanel();
+}
+
+// Build the whole panel (filter bar + cards) once per load/reload; filter
+// changes only re-render the cards container so the search input never loses
+// focus mid-keystroke (same shell-vs-body split renderCatRecords uses).
+function renderAllTasksPanel() {
+  const host = document.getElementById('at-panel');
+  host.innerHTML = '';
+
+  const bar = document.createElement('div'); bar.className = 'cp-filter-bar';
+  const mkField = (labelText, el) => {
+    const f = document.createElement('div'); f.className = 'cp-filter-field';
+    const l = document.createElement('label'); l.textContent = labelText;
+    f.appendChild(l); f.appendChild(el); return f;
+  };
+
+  const searchInp = document.createElement('input');
+  searchInp.type = 'text'; searchInp.id = 'at-search'; searchInp.placeholder = 'Search tasks…';
+  searchInp.addEventListener('input', renderAllTasksCards);
+  bar.appendChild(mkField('Search', searchInp));
+
+  const mkSelect = (id, allLabel, extraOpts, onChange) => {
+    const sel = document.createElement('select'); sel.id = id;
+    const allOpt = document.createElement('option'); allOpt.value = ''; allOpt.textContent = allLabel;
+    sel.appendChild(allOpt);
+    extraOpts.forEach(o => {
+      const opt = document.createElement('option'); opt.value = o.value; opt.textContent = o.label;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener('change', onChange || renderAllTasksCards);
+    return sel;
+  };
+
+  bar.appendChild(mkField('Company', mkSelect('at-company', 'All companies',
+    lkOptions('COMPANY').map(o => ({ value: o.label, label: o.label })))));
+  bar.appendChild(mkField('System', mkSelect('at-system', 'All systems',
+    lkOptions('SYSTEM').map(o => ({ value: o.label, label: o.label })))));
+  bar.appendChild(mkField('Project', mkSelect('at-project', 'All projects',
+    [{ value: 'none', label: 'Unlinked' }, ...atProjectsIdx.map(p => ({ value: String(p.id), label: p.name }))])));
+  bar.appendChild(mkField('Department', mkSelect('at-department', 'All departments',
+    [{ value: 'none', label: 'No department' }, ...atDepartmentsIdx.map(d => ({ value: String(d.id), label: d.label }))])));
+
+  const clearBtn = document.createElement('button'); clearBtn.className = 'cp-filter-clear';
+  clearBtn.innerHTML = ic('x') + ' Clear filters';
+  clearBtn.addEventListener('click', () => {
+    atStatuses.clear();
+    searchInp.value = '';
+    ['at-company', 'at-system', 'at-project', 'at-department'].forEach(id => { document.getElementById(id).value = ''; });
+    renderAllTasksStatusChips();
+    renderAllTasksCards();
+  });
+  bar.appendChild(clearBtn);
+  host.appendChild(bar);
+
+  const chipsField = document.createElement('div'); chipsField.className = 'cp-filter-field';
+  const chipsLabel = document.createElement('label'); chipsLabel.textContent = 'Status';
+  const chipsWrap = document.createElement('div'); chipsWrap.className = 'filter-chips'; chipsWrap.id = 'at-status-chips';
+  chipsField.appendChild(chipsLabel); chipsField.appendChild(chipsWrap);
+  host.appendChild(chipsField);
+  renderAllTasksStatusChips();
+
+  const cardsHost = document.createElement('div'); cardsHost.id = 'at-cards';
+  cardsHost.style.marginTop = 'var(--space-5)';
+  host.appendChild(cardsHost);
+  renderAllTasksCards();
+}
+
+function renderAllTasksStatusChips() {
+  const wrap = document.getElementById('at-status-chips');
+  wrap.innerHTML = '';
+  lkOptions('ENTRY_STATUS').forEach(o => {
+    const btn = document.createElement('button');
+    btn.className = 'filter-chip' + (atStatuses.has(o.code) ? ' active' : '');
+    btn.textContent = o.label;
+    btn.addEventListener('click', () => {
+      if (atStatuses.has(o.code)) atStatuses.delete(o.code); else atStatuses.add(o.code);
+      btn.classList.toggle('active');
+      renderAllTasksCards();
+    });
+    wrap.appendChild(btn);
+  });
+}
+
+function atTaskMatchesFilters(t, q, company, system, projectSel, deptSel) {
+  if (atStatuses.size && !atStatuses.has(t.status)) return false;
+  if (company && t.company !== company) return false;
+  if (system && t.system !== system) return false;
+  if (projectSel === 'none') { if (t.projectId != null) return false; }
+  else if (projectSel && String(t.projectId) !== projectSel) return false;
+  if (deptSel === 'none') { if (t.departmentId != null) return false; }
+  else if (deptSel && String(t.departmentId) !== deptSel) return false;
+  if (q) {
+    const hay = [t.name, t.company, t.system, t.department, t.source].filter(Boolean).join(' ').toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+  return true;
+}
+
+// Re-render just the card list against the current filter control values.
+function renderAllTasksCards() {
+  const host = document.getElementById('at-cards');
+  if (!host) return;
+  host.innerHTML = '';
+
+  const q = (document.getElementById('at-search').value || '').trim().toLowerCase();
+  const company = document.getElementById('at-company').value;
+  const system = document.getElementById('at-system').value;
+  const projectSel = document.getElementById('at-project').value;
+  const deptSel = document.getElementById('at-department').value;
+  const filtered = allTasksList.filter(t => atTaskMatchesFilters(t, q, company, system, projectSel, deptSel));
+
+  const head = document.createElement('div'); head.className = 'cp-records-head';
+  const title = document.createElement('h2'); title.className = 'cp-records-title';
+  title.textContent = 'Tasks (' + filtered.length +
+    (filtered.length !== allTasksList.length ? ' of ' + allTasksList.length : '') + ')';
+  head.appendChild(title);
+  host.appendChild(head);
+
+  if (!filtered.length) {
+    host.appendChild(pjMk('div', 'cp-records-empty',
+      allTasksList.length ? 'No tasks match these filters.' : 'No tasks yet.'));
+    return;
+  }
+
+  filtered.forEach(t => host.appendChild(buildLinkedTaskCard(t, {
+    onEdit: () => openAllTasksEditTask(t.id),
+    onDelete: () => doDeleteAllTasksTask(t),
+    onSessionSaved: reloadAllTasksModule,
+  })));
+}
+
+function openAllTasksEditTask(taskId) {
+  const task = allTasksList.find(t => t.id === taskId);
+  if (!task) return;
+  openBacklogModal(taskId, { task, onSaved: reloadAllTasksModule });
+}
+
+// Delete a zero-log task outright (see buildLinkedTaskCard for why: unlinking
+// isn't offered here since this page isn't a container). Undo re-creates an
+// equivalent task, restoring both its Project and Department links if it had them.
+async function doDeleteAllTasksTask(task) {
+  try { await window.api.deleteTask(task.id); }
+  catch { toast('Could not delete task'); return; }
+  await reloadAllTasksModule();
+  showGenericUndo('Task deleted', async () => {
+    try {
+      await window.api.createTask({
+        name: task.name, status: task.status, company: task.company, system: task.system,
+        source: task.source, projectId: task.projectId, department: task.department,
+      });
+    } catch { toast('Could not restore task'); return; }
+    await reloadAllTasksModule();
+  });
+}
+
+async function reloadAllTasksModule() {
+  try { allTasksList = await window.api.listTasks(); } catch { return; }
+  if (!Array.isArray(allTasksList)) allTasksList = [];
+  renderAllTasksCards();
 }
 
 // ══ INTERNAL TASKS — DEPARTMENT lookup dimension ════════════════════════════
@@ -10106,6 +10486,7 @@ const PAL_PAGES = [
   { icon: 'file-text',        label: 'Reports',       go: 'reports' },
   { icon: 'building-2',       label: 'Browse — Companies', go: 'companies' },
   { icon: 'folder',           label: 'Browse — Systems',   go: 'systems' },
+  { icon: 'list',             label: 'All Tasks',     go: 'all-tasks' },
   { icon: 'clipboard-list',   label: 'Projects',      go: 'projects' },
   { icon: 'layers',           label: 'Clients',       go: 'clients' },
   { icon: 'credit-card',      label: 'Subscriptions', go: 'subscriptions' },

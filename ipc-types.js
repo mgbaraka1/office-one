@@ -98,7 +98,7 @@
  * @property {number} totalMinutes   Sum of the task's logged minutes.
  * @property {string|null} firstDate Earliest work-log date (null if none).
  * @property {string|null} lastDate  Latest work-log date (null if none).
- * @property {WorkLog[]} [workLogs]  The task's ordered work logs (tasks:get only).
+ * @property {WorkLog[]} [workLogs]  The task's ordered work logs (tasks:get and tasks:list).
  */
 
 /**
@@ -133,6 +133,17 @@
  * @property {number} [id]        The new work-log id (add only).
  * @property {Task|null} [task]   The refreshed parent task on success.
  * @property {string} [error]     Failure reason (e.g. task not found).
+ */
+
+/**
+ * Result of `worklogs:move` (reassigning a work log to a different task).
+ * Carries both ends of the move so the caller can refresh whichever it's
+ * showing (the task the session left, and the one it landed on).
+ * @typedef {Object} WorkLogMoveResult
+ * @property {boolean} ok
+ * @property {Task|null} [fromTask]  The refreshed source task (may now have one fewer session).
+ * @property {Task|null} [toTask]    The refreshed target task (may now have one more session).
+ * @property {string} [error]        Failure reason (e.g. task not found).
  */
 
 /**
@@ -189,6 +200,9 @@
  * @property {ProjectCompany[]} companies  Linked client companies (COMPANY lookups).
  * @property {ProjectSystem[]} systems     Linked systems (SYSTEM lookups, many-to-many).
  * @property {string} status               A PROJECT_STATUS lookup code (e.g. 'ACTIVE').
+ * @property {string} category             A PROJECT_CATEGORY lookup code ('NEW_PROJECT'|'CR_EXISTING'|'ANNUAL_SUPPORT').
+ * @property {number|null} relatedProjectId    Set only for CR_EXISTING/ANNUAL_SUPPORT — the project this one relates to.
+ * @property {string|null} relatedProjectName  Display name of relatedProjectId, resolved server-side.
  * @property {string} createdAt
  * @property {number} taskCount            Number of tasks linked to the project.
  */
@@ -205,6 +219,9 @@
  * @property {ProjectCompany[]} companies  Linked client companies (COMPANY lookups).
  * @property {ProjectSystem[]} systems     Linked systems (SYSTEM lookups, many-to-many).
  * @property {string} status               A PROJECT_STATUS lookup code (e.g. 'ACTIVE').
+ * @property {string} category             A PROJECT_CATEGORY lookup code ('NEW_PROJECT'|'CR_EXISTING'|'ANNUAL_SUPPORT').
+ * @property {number|null} relatedProjectId    Set only for CR_EXISTING/ANNUAL_SUPPORT — the project this one relates to.
+ * @property {string|null} relatedProjectName  Display name of relatedProjectId, resolved server-side.
  * @property {string} createdAt
  * @property {Task[]} tasks                Linked tasks, each with nested `workLogs`.
  * @property {ProjectDocument[]} documents
@@ -218,6 +235,8 @@
  * @property {number[]} companyIds   COMPANY lookup ids to link (replaces existing).
  * @property {number[]} systemIds    SYSTEM lookup ids to link (replaces existing).
  * @property {string} status         A PROJECT_STATUS lookup code.
+ * @property {string} category         A PROJECT_CATEGORY lookup code — required.
+ * @property {number|null} relatedProjectId  Optional; only meaningful for CR_EXISTING/ANNUAL_SUPPORT.
  */
 
 /**

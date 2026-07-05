@@ -125,6 +125,7 @@ ipcMain.handle('worklogs:byTask', authed((_e, taskId)      => db.listWorkLogs(au
 ipcMain.handle('worklogs:byDate', authed((_e, date)        => db.logsForDate(auth.requireUserId(), date)));
 ipcMain.handle('worklogs:add',    authed((_e, taskId, data) => db.addWorkLog(auth.requireUserId(), taskId, data)));
 ipcMain.handle('worklogs:update', authed((_e, id, data)    => db.updateWorkLog(auth.requireUserId(), id, data)));
+ipcMain.handle('worklogs:move',   authed((_e, id, taskId)  => db.moveWorkLog(auth.requireUserId(), id, taskId)));
 ipcMain.handle('worklogs:delete', authed((_e, id)          => db.deleteWorkLog(auth.requireUserId(), id)));
 
 // Per-date employee name (metadata on the `days` row), for the reworked Timesheet
