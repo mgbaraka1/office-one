@@ -717,6 +717,19 @@
       padding: 9px 11px; font-size: 14px; color: var(--text); background: var(--surface2);
     }
     .sm-task-summary .status-badge { margin-left: 8px; }
+    /* Task Detail's "Merge into another task…" link */
+    .td-merge-link {
+      background: none; border: none; color: var(--muted); font-size: 12px; font-weight: 600;
+      cursor: pointer; padding: 4px 7px; border-radius: var(--radius-sm); white-space: nowrap;
+    }
+    .td-merge-link:hover { background: rgba(20,184,166,.10); color: var(--primary); }
+    /* Merge Task modal */
+    .merge-intro { font-size: 13px; color: var(--muted); margin: 0 0 var(--space-4); line-height: 1.5; }
+    .merge-preview {
+      margin-top: var(--space-3); padding: 10px 12px; border-radius: var(--radius-sm);
+      background: var(--surface2); border: 1px solid var(--border); font-size: 13px;
+    }
+    .merge-preview .merge-warn { margin-top: 6px; color: var(--bad); font-size: 12px; }
 
     /* ── Searchable single-select (combobox) ── */
     .search-select { position: relative; }
@@ -3173,6 +3186,34 @@
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeWlHistoryModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MERGE TASK MODAL — Task Detail's "Merge into another task…" (tasks:merge).
+     Moves every session off the current (source) task onto a picked target,
+     then deletes the emptied source; the target's own fields are untouched. ══ -->
+<div id="merge-modal-overlay" class="modal-overlay" onclick="mergeOverlayClick(event)">
+  <div id="merge-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title">Merge Task</span>
+      <button class="modal-close" onclick="closeMergeModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <p class="merge-intro">Move every session from <b id="merge-source-name"></b> onto another task, then
+        delete this one. Only sessions move — the target task's own Company/System/Status/Project fields are
+        never changed.</p>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Merge into</label>
+          <div id="merge-target-picker"></div>
+        </div>
+      </div>
+      <div id="merge-preview" class="merge-preview" style="display:none"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeMergeModal()">Cancel</button>
+      <button class="btn primary" id="merge-modal-submit" onclick="submitMergeModal()" disabled>Merge</button>
     </div>
   </div>
 </div>
@@ -7670,11 +7711,16 @@ function renderTaskDetail(t) {
   const body = document.getElementById('td-body');
   body.innerHTML = '';
 
-  // Status badge under the title.
+  // Status badge under the title, plus a "Merge into another task…" link —
+  // cleans up the duplicate single-session tasks migration 012 seeded (see
+  // CLAUDE.md's task-merge-UI follow-up note) without needing a separate page.
   const statusWrap = pjMk('div', statusClass(t.status));
-  statusWrap.style.marginBottom = '4px';
+  statusWrap.style.cssText = 'margin-bottom:4px;display:flex;align-items:center;justify-content:space-between;gap:10px';
   const badge = pjMk('span', 'status-badge', lkLabel('ENTRY_STATUS', t.status));
   statusWrap.appendChild(badge);
+  const mergeLink = pjMk('button', 'td-merge-link', 'Merge into another task…');
+  mergeLink.addEventListener('click', () => openMergeModal(t));
+  statusWrap.appendChild(mergeLink);
   body.appendChild(statusWrap);
 
   // ── Metadata grid ──
@@ -7834,6 +7880,82 @@ async function deleteSessionFromTaskDetail(task, workLog) {
     await reloadTimesheet();
     if (taskDeleted) toast('Task and session restored'); else await openTaskDetail(task.id);
   });
+}
+
+// ── Merge Task modal — Task Detail's "Merge into another task…" ─────────────
+// Cleans up the duplicate single-session tasks migration 012 seeded (see
+// CLAUDE.md's task-merge-UI follow-up note): pick a target with the same rich
+// task picker used everywhere else, preview both tasks' names + session
+// counts, then tasks:merge moves every session and deletes the source. Undo
+// recreates an equivalent source task and moves the exact same work_logs back
+// onto it (via worklogs:move), rather than recreating the rows — so their
+// edit history survives the round trip.
+let _mergeCtx = { sourceTask: null, target: null };
+let mergeTargetPicker = null;
+async function openMergeModal(sourceTask) {
+  _mergeCtx = { sourceTask, target: null };
+  document.getElementById('merge-source-name').textContent = sourceTask.name || '(untitled task)';
+  const preview = document.getElementById('merge-preview');
+  preview.style.display = 'none'; preview.innerHTML = '';
+  document.getElementById('merge-modal-submit').disabled = true;
+
+  let taskList = [];
+  try { taskList = await window.api.listTasks(); } catch { taskList = []; }
+  taskList = (Array.isArray(taskList) ? taskList : []).filter(t => t.id !== sourceTask.id);
+
+  mergeTargetPicker = buildTaskSearchSelect(document.getElementById('merge-target-picker'),
+    taskList, null, 'Search tasks…', (targetId) => {
+      const target = targetId != null ? taskList.find(t => t.id === targetId) : null;
+      _mergeCtx.target = target || null;
+      if (target) {
+        const srcCount = sourceTask.logCount || 0;
+        const tgtCount = target.logCount || 0;
+        preview.innerHTML =
+          '<div>' + esc(sourceTask.name || '(untitled task)') + ' (' + srcCount + ' session' + (srcCount === 1 ? '' : 's') + ')'
+          + ' ' + ic('arrow-right') + ' ' + esc(target.name || '(untitled task)') + ' (' + tgtCount + ' session' + (tgtCount === 1 ? '' : 's') + ')</div>'
+          + '<div class="merge-warn">' + esc(sourceTask.name || 'This task') + ' will be deleted once its sessions move.</div>';
+        preview.style.display = '';
+        document.getElementById('merge-modal-submit').disabled = false;
+      } else {
+        preview.style.display = 'none'; preview.innerHTML = '';
+        document.getElementById('merge-modal-submit').disabled = true;
+      }
+    });
+
+  document.getElementById('merge-modal-overlay').classList.add('open');
+}
+function closeMergeModal() {
+  document.getElementById('merge-modal-overlay').classList.remove('open');
+  _mergeCtx = { sourceTask: null, target: null };
+  mergeTargetPicker = null;
+}
+function mergeOverlayClick(e) {
+  if (e.target === document.getElementById('merge-modal-overlay')) closeMergeModal();
+}
+async function submitMergeModal() {
+  const { sourceTask, target } = _mergeCtx;
+  if (!sourceTask || !target) return;
+  let res;
+  try { res = await window.api.mergeTasks(sourceTask.id, target.id); }
+  catch { toast('Could not merge task'); return; }
+  if (!res || !res.ok) { toast((res && res.error) || 'Could not merge task'); return; }
+
+  closeMergeModal();
+  closeTaskDetail();
+  await reloadTimesheet();
+  const movedIds = res.movedWorkLogIds || [];
+  showGenericUndo('Merged into ' + (target.name || '(untitled task)'), async () => {
+    try {
+      const restored = await window.api.createTask({
+        name: sourceTask.name, status: sourceTask.status, company: sourceTask.company, system: sourceTask.system,
+        source: sourceTask.source, projectId: sourceTask.projectId, department: sourceTask.department,
+      });
+      for (const logId of movedIds) await window.api.moveWorkLog(logId, restored.id);
+    } catch { toast('Could not undo merge'); return; }
+    await reloadTimesheet();
+    toast('Merge undone');
+  });
+  toast('Task merged');
 }
 
 function applyProjectFilter() {

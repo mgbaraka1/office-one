@@ -66,6 +66,8 @@ contextBridge.exposeInMainWorld('api', {
   /** @returns {Promise<import('./ipc-types').Task|null>} */
   updateTask:     (id, data)      => ipcRenderer.invoke('tasks:update', id, data),
   deleteTask:     (id)            => ipcRenderer.invoke('tasks:delete', id),
+  /** Move every session from sourceId onto targetId, then delete sourceId. @returns {Promise<import('./ipc-types').TaskMergeResult>} */
+  mergeTasks:     (sourceId, targetId) => ipcRenderer.invoke('tasks:merge', sourceId, targetId),
 
   // ── Work logs (v2 — dated work sessions belonging to a task) ──
   /** @returns {Promise<import('./ipc-types').WorkLog[]>} */

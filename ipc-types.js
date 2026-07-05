@@ -147,6 +147,19 @@
  */
 
 /**
+ * Result of `tasks:merge` (absorbing one task's sessions into another, then
+ * deleting the now-empty source). The target task's own fields are never
+ * touched. `movedWorkLogIds` lets the caller's undo move those exact work_logs
+ * back onto a recreated source task (via worklogs:move) instead of recreating
+ * the rows and losing their edit history.
+ * @typedef {Object} TaskMergeResult
+ * @property {boolean} ok
+ * @property {number[]} [movedWorkLogIds]  Ids of the work_logs moved onto the target.
+ * @property {Task|null} [task]            The refreshed target task.
+ * @property {string} [error]               Failure reason (e.g. task not found, self-merge).
+ */
+
+/**
  * One edit recorded against a work_logs row (worklogs:history →
  * db.getWorkLogHistory), newest first. Mirrors ClientFieldHistoryEntry's shape;
  * see work_log_history in CLAUDE.md — date/description/minutes/time/natural
