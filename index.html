@@ -1853,7 +1853,7 @@
     }
     #palette-foot kbd { font-size: 10px; padding: 1px 6px; margin: 0 4px 0 0; }
 
-    /* ══ RECORD MODAL — two-path mode + collapsed extras ══ */
+    /* ══ RECORD MODAL — two-path mode + grouped New Task section ══ */
     #modal .seg-ctl { margin-bottom: 2px; }
     #modal .seg-btn { flex: 1; justify-content: center; padding: 7px 11px; }
     #modal.mode-existing .modal-taskfields { display: none; }
@@ -1865,16 +1865,23 @@
     }
     .modal-task-summary b { color: var(--text); }
     #modal.mode-existing .modal-task-summary.has-task { display: block; }
-    .modal-more-toggle {
-      display: inline-flex; align-items: center; gap: 6px; align-self: flex-start;
-      background: none; border: none; padding: 0; cursor: pointer; font-family: inherit;
-      font-size: var(--fs-sm); font-weight: 600; color: var(--muted); transition: color var(--speed);
+    /* Task-only fields (name/company/system/status/project/sources) grouped into
+       one visually-distinct panel, so New Task mode reads as "session details"
+       above + "the task you're creating" below, instead of one long flat form. */
+    .modal-tasksection {
+      display: flex; flex-direction: column; gap: 15px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 16px;
     }
-    .modal-more-toggle:hover { color: var(--primary); }
-    .modal-more-toggle .lic { width: 13px; height: 13px; transition: transform var(--speed); }
-    .modal-more-toggle.open .lic { transform: rotate(180deg); }
-    .modal-more { display: none; flex-direction: column; gap: 15px; }
-    .modal-more.open { display: flex; }
+    .modal-tasksection-head {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .9px;
+      color: var(--muted);
+    }
+    .modal-tasksection-head .lic { width: 14px; height: 14px; color: var(--primary); }
+    .modal-tasksection-divider {
+      border: none; border-top: 1px solid var(--border); margin: 2px 0 -6px;
+    }
 
     /* ── Auth gate (setup / login) ── */
     #auth-overlay {
@@ -2344,8 +2351,7 @@
           <th>Natural</th>
           <th>Time</th>
           <th style="min-width:220px">Description</th>
-          <th style="min-width:180px">Source</th>
-          <th>Status</th>
+          <th style="min-width:140px">Project</th>
           <th style="width:80px;text-align:right">Minutes</th>
           <th style="width:70px;text-align:right">Hours</th>
           <th style="width:110px"></th>
@@ -2397,72 +2403,73 @@
       <!-- Compact read-only summary of the chosen task (existing mode only). -->
       <div class="modal-task-summary" id="f-task-summary"></div>
       <div class="modal-hint" id="f-lock-hint" hidden>Only a session (date, time, natural, description, minutes) is added — the task itself is never changed.</div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Date <span style="text-transform:none;font-weight:500;color:var(--muted)">— the day this session was worked</span></label>
-          <input id="f-date" type="date" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Time Type</label>
-          <select id="f-time"></select>
-        </div>
-        <div class="form-group">
-          <label>Natural</label>
-          <select id="f-natural"></select>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Description</label>
-          <textarea id="f-description" placeholder="What did you do?"></textarea>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Minutes</label>
-          <input id="f-minutes" type="number" min="1" max="1440" placeholder="e.g. 45" />
-        </div>
-      </div>
       <!-- Task-level fields — hidden entirely when logging on an existing task. -->
-      <div class="modal-taskfields form-row">
-        <div class="form-group full">
-          <label>Task Name <span style="text-transform:none;font-weight:500;color:var(--muted)">— defaults to the description</span></label>
-          <input id="f-taskname" type="text" placeholder="e.g. Q3 billing integration" />
-        </div>
-      </div>
-      <div class="modal-taskfields form-row">
-        <div class="form-group">
-          <label>Company</label>
-          <select id="f-company"></select>
-        </div>
-        <div class="form-group">
-          <label>System</label>
-          <select id="f-system"></select>
-        </div>
-      </div>
-      <div class="modal-taskfields form-row">
-        <div class="form-group">
-          <label>Status</label>
-          <select id="f-status"></select>
-        </div>
-      </div>
-      <div class="modal-taskfields form-row">
-        <div class="form-group full">
-          <label>Project <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional, link this task to a project</span></label>
-          <div id="f-project"></div>
-        </div>
-      </div>
-      <button type="button" class="modal-more-toggle modal-taskfields" id="f-more-toggle" onclick="toggleModalMore()">
-        More options — sources <span data-ic="chevron-down"></span>
-      </button>
-      <div class="modal-more modal-taskfields" id="f-more">
+      <div class="modal-taskfields modal-tasksection">
+        <div class="modal-tasksection-head"><span data-ic="clipboard-list"></span>New Task Details</div>
         <div class="form-row">
           <div class="form-group full">
-            <label>Sources <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional, e.g. Jira tickets, email threads</span></label>
+            <label>Task Name <span style="text-transform:none;font-weight:500;color:var(--muted)">— defaults to the description</span></label>
+            <input id="f-taskname" type="text" placeholder="e.g. Q3 billing integration" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Company</label>
+            <select id="f-company"></select>
+          </div>
+          <div class="form-group">
+            <label>System</label>
+            <select id="f-system"></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Status</label>
+            <select id="f-status"></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group full">
+            <label>Project <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional, link this task to a project</span></label>
+            <div id="f-project"></div>
+          </div>
+        </div>
+        <hr class="modal-tasksection-divider" />
+        <div class="modal-tasksection-head"><span data-ic="tag"></span>Sources <span style="text-transform:none;font-weight:500;letter-spacing:normal">— optional, e.g. Jira tickets, email threads</span></div>
+        <div class="form-row">
+          <div class="form-group full">
             <div id="f-sources-list"></div>
             <button type="button" class="btn" onclick="addTaskSourceRow('f-sources-list')">+ Add Source</button>
+          </div>
+        </div>
+      </div>
+      <!-- Session-level fields — always editable, in both Existing Task and New Task modes. -->
+      <div class="modal-tasksection">
+        <div class="modal-tasksection-head"><span data-ic="clock"></span>New Session Details</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Date <span style="text-transform:none;font-weight:500;color:var(--muted)">— the day this session was worked</span></label>
+            <input id="f-date" type="date" />
+          </div>
+          <div class="form-group">
+            <label>Minutes</label>
+            <input id="f-minutes" type="number" min="1" max="1440" placeholder="e.g. 45" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Time Type</label>
+            <select id="f-time"></select>
+          </div>
+          <div class="form-group">
+            <label>Natural</label>
+            <select id="f-natural"></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group full">
+            <label>Description</label>
+            <textarea id="f-description" placeholder="What did you do?"></textarea>
           </div>
         </div>
       </div>
@@ -3289,32 +3296,33 @@
           <div id="sm-task-summary" class="sm-task-summary" style="display:none"></div>
         </div>
       </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Date</label>
-          <input id="sm-date" type="date" />
+      <div class="modal-tasksection">
+        <div class="modal-tasksection-head"><span data-ic="clock"></span>Session Details</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Date</label>
+            <input id="sm-date" type="date" />
+          </div>
+          <div class="form-group">
+            <label>Minutes</label>
+            <input id="sm-minutes" type="number" min="1" max="1440" placeholder="e.g. 45" />
+          </div>
         </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Time Type</label>
-          <select id="sm-time"></select>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Time Type</label>
+            <select id="sm-time"></select>
+          </div>
+          <div class="form-group">
+            <label>Natural</label>
+            <select id="sm-natural"></select>
+          </div>
         </div>
-        <div class="form-group">
-          <label>Natural</label>
-          <select id="sm-natural"></select>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Description</label>
-          <textarea id="sm-description" placeholder="What did you do?"></textarea>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Minutes</label>
-          <input id="sm-minutes" type="number" min="1" max="1440" placeholder="e.g. 45" />
+        <div class="form-row">
+          <div class="form-group full">
+            <label>Description</label>
+            <textarea id="sm-description" placeholder="What did you do?"></textarea>
+          </div>
         </div>
       </div>
     </div>
@@ -3480,45 +3488,47 @@
       <button class="modal-close" onclick="closeBacklogModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
-      <div class="form-row">
-        <div class="form-group">
-          <label>Company</label>
-          <select id="b-company"></select>
+      <div class="modal-tasksection">
+        <div class="modal-tasksection-head"><span data-ic="clipboard-list"></span>Task Details</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Company</label>
+            <select id="b-company"></select>
+          </div>
+          <div class="form-group">
+            <label>System</label>
+            <select id="b-system"></select>
+          </div>
         </div>
-        <div class="form-group">
-          <label>System</label>
-          <select id="b-system"></select>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Status</label>
+            <select id="b-status"></select>
+          </div>
+          <div class="form-group">
+            <label>Department <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional</span></label>
+            <select id="b-department"></select>
+          </div>
         </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Status</label>
-          <select id="b-status"></select>
+        <div class="form-row">
+          <div class="form-group full">
+            <label>Project <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional, link this task to a project</span></label>
+            <div id="b-project"></div>
+          </div>
         </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Project <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional, link this task to a project</span></label>
-          <div id="b-project"></div>
+        <div class="form-row">
+          <div class="form-group full">
+            <label>Description</label>
+            <textarea id="b-description" placeholder="What needs to be done?"></textarea>
+          </div>
         </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Department <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional, link this task to a department</span></label>
-          <select id="b-department"></select>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Description</label>
-          <textarea id="b-description" placeholder="What needs to be done?"></textarea>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Sources <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional, e.g. Jira tickets, email threads</span></label>
-          <div id="b-sources-list"></div>
-          <button type="button" class="btn" onclick="addTaskSourceRow('b-sources-list')">+ Add Source</button>
+        <hr class="modal-tasksection-divider" />
+        <div class="modal-tasksection-head"><span data-ic="tag"></span>Sources <span style="text-transform:none;font-weight:500;letter-spacing:normal">— optional, e.g. Jira tickets, email threads</span></div>
+        <div class="form-row">
+          <div class="form-group full">
+            <div id="b-sources-list"></div>
+            <button type="button" class="btn" onclick="addTaskSourceRow('b-sources-list')">+ Add Source</button>
+          </div>
         </div>
       </div>
     </div>
@@ -3953,23 +3963,20 @@ function isURL(s) {
 
 // ── Task Sources (structured, repeatable source list — shared by the Add
 // Record modal and the New/Edit Task modal) ──────────────────────────────────
-// Data-driven: adding a 7th type later means adding one entry here, not
-// touching either modal's markup/JS. `ref` is always shown; `url` only when
-// hasUrl; `meta` are optional per-type extras stored as JSON.
+// Data-driven: adding a 5th type later means adding one entry here, not
+// touching either modal's markup/JS. `ref` is shown unless hasRef is false
+// (Jira is URL-only — the URL is a link's actual identifying value, no
+// separate ticket-key field); `url` only when hasUrl; `meta` are optional
+// per-type extras stored as JSON.
 const TASK_SOURCE_FIELD_DEFS = {
-  JIRA:       { refLabel: 'Ticket Key',            refPlaceholder: 'e.g. ABC-123',              hasUrl: true,  urlLabel: 'URL', meta: [] },
-  EMAIL:      { refLabel: 'Email Title / Subject', refPlaceholder: 'e.g. Renewal quote issue',   hasUrl: false, meta: [
-                 { key: 'sender', label: 'Sender (optional)', type: 'text' },
-                 { key: 'date',   label: 'Date (optional)',   type: 'date' },
-               ] },
-  TEAMS_CHAT: { refLabel: 'Channel or Person',     refPlaceholder: 'e.g. #support or Jane Doe',  hasUrl: true,  urlLabel: 'Message Link (optional)', meta: [] },
-  MEETING:    { refLabel: 'Meeting Title',         refPlaceholder: 'e.g. Sprint planning',       hasUrl: false, meta: [
+  JIRA:       { hasRef: false, hasUrl: true, urlLabel: 'URL', meta: [] },
+  EMAIL:      { refLabel: 'Email Title / Subject', refPlaceholder: 'e.g. Renewal quote issue', hasUrl: false, meta: [] },
+  MEETING:    { refLabel: 'Meeting Title',         refPlaceholder: 'e.g. Sprint planning',     hasUrl: false, meta: [
                  { key: 'date', label: 'Date', type: 'date' },
                ] },
-  PHONE_CALL: { refLabel: 'Caller Name',           refPlaceholder: 'e.g. John Smith',            hasUrl: false, meta: [
+  PHONE_CALL: { refLabel: 'Caller Name',           refPlaceholder: 'e.g. John Smith',          hasUrl: false, meta: [
                  { key: 'date', label: 'Date', type: 'date' },
                ] },
-  OTHER:      { refLabel: 'Description',           refPlaceholder: 'Free text',                  hasUrl: false, meta: [] },
 };
 
 // Renders one source-entry's dynamic fields (ref/url/meta) into `fieldsEl`
@@ -3980,14 +3987,16 @@ function renderTaskSourceFields(fieldsEl, type, values = {}) {
   fieldsEl.innerHTML = '';
   if (!def) return;
 
-  const refWrap = document.createElement('div');
-  refWrap.innerHTML = `<label>${esc(def.refLabel)}</label>`;
-  const refInput = document.createElement('input');
-  refInput.type = 'text'; refInput.className = 'ts-ref-input';
-  refInput.placeholder = def.refPlaceholder || '';
-  refInput.value = values.ref || '';
-  refWrap.appendChild(refInput);
-  fieldsEl.appendChild(refWrap);
+  if (def.hasRef !== false) {
+    const refWrap = document.createElement('div');
+    refWrap.innerHTML = `<label>${esc(def.refLabel)}</label>`;
+    const refInput = document.createElement('input');
+    refInput.type = 'text'; refInput.className = 'ts-ref-input';
+    refInput.placeholder = def.refPlaceholder || '';
+    refInput.value = values.ref || '';
+    refWrap.appendChild(refInput);
+    fieldsEl.appendChild(refWrap);
+  }
 
   if (def.hasUrl) {
     const urlWrap = document.createElement('div');
@@ -5140,7 +5149,7 @@ function renderTableFlat() {
       const divTr = document.createElement('tr');
       divTr.className = 'inprogress-divider';
       const divTd = document.createElement('td');
-      divTd.colSpan = 12;
+      divTd.colSpan = 11;
       divTd.innerHTML = '<div class="inprogress-divider-inner"><span class="inprogress-divider-label">' +
         ic(STATUS_DIVIDER_ICON[startingBucket.code] || 'circle') + ' ' + esc(startingBucket.label) + '</span></div>';
       divTr.appendChild(divTd);
@@ -5216,48 +5225,11 @@ function renderTableFlat() {
     const descSpan = document.createElement('span');
     descSpan.className = 'desc-text'; descSpan.textContent = row.description;
     descDiv.appendChild(descSpan);
-    const projTag = projectRowTag(row.projectId);
-    if (projTag) descDiv.appendChild(projTag);
     descTd.appendChild(descDiv);
     tr.appendChild(descTd);
 
-    // Source — clickable link if URL
-    tr.appendChild(buildSourceCell(row));
-
-    // Status badge — click shows dropdown
-    const stTd = document.createElement('td');
-    stTd.className = statusClass(row.status);
-    const stDiv = document.createElement('div'); stDiv.className = 'cell';
-    const badge = document.createElement('span');
-    badge.className = 'status-badge'; badge.textContent = lkLabel('ENTRY_STATUS', row.status);
-    badge.title = 'Click to change status';
-    badge.addEventListener('click', (e) => {
-      e.stopPropagation();
-      document.querySelector('.status-dropdown')?.remove();
-      const dropdown = document.createElement('div');
-      dropdown.className = 'status-dropdown';
-      lkOptions('ENTRY_STATUS').forEach(o => {
-        const opt = document.createElement('div');
-        opt.className = 'sd-opt ' + statusSuffix(o.code);
-        opt.textContent = o.label;
-        opt.addEventListener('click', (ev) => {
-          ev.stopPropagation();
-          rows[origIdx].status = o.code;
-          syncSiblingTasks(rows[origIdx]);   // status is task-level
-          dropdown.remove();
-          renderTable(); setUnsaved();
-        });
-        dropdown.appendChild(opt);
-      });
-      const rect = badge.getBoundingClientRect();
-      dropdown.style.top  = (rect.bottom + 4) + 'px';
-      dropdown.style.left = rect.left + 'px';
-      document.body.appendChild(dropdown);
-      const close = () => { dropdown.remove(); document.removeEventListener('click', close); };
-      setTimeout(() => document.addEventListener('click', close), 0);
-    });
-    stDiv.appendChild(badge); stTd.appendChild(stDiv);
-    tr.appendChild(stTd);
+    // Project — cross-links into the project's detail view
+    tr.appendChild(projectCell(row.projectId));
 
     // Minutes — click to edit inline
     const minTd = document.createElement('td');
@@ -5410,6 +5382,12 @@ function linkCell(val, kind) {
   btn.title = 'Browse all work for ' + val;
   btn.addEventListener('click', () => openBrowseSlice(kind, val));
   return cellWrap(btn, 'cell');
+}
+// A task's linked-project cell — the same cross-linking pill used elsewhere
+// (Description used to carry this inline; it now gets its own column).
+function projectCell(projectId) {
+  const tag = projectRowTag(projectId);
+  return tag ? cellWrap(tag, 'cell') : textCell('—');
 }
 
 // Shared inline "Delete?" confirm used by every module's row delete button.
@@ -5735,15 +5713,6 @@ function setRecordMode(mode) {
   }
 }
 
-// Collapsible Source & Tags block (rarely used — keep the form short).
-function toggleModalMore(open) {
-  const more = document.getElementById('f-more');
-  const btn = document.getElementById('f-more-toggle');
-  const willOpen = typeof open === 'boolean' ? open : !more.classList.contains('open');
-  more.classList.toggle('open', willOpen);
-  btn.classList.toggle('open', willOpen);
-}
-
 // Blank a select and prepend a "— select —" placeholder (the empty-new-task state).
 function blankSelect(id) {
   const sel = document.getElementById(id);
@@ -5836,7 +5805,6 @@ async function openModal(idx = null, opts = {}) {
     MODAL_TASK_FIELDS.forEach(id => { document.getElementById(id).disabled = false; });
     fProjectPicker = buildSearchSelect(document.getElementById('f-project'),
       projectFieldOptions(row?.projectId ?? null), row?.projectId ?? null, 'No project');
-    toggleModalMore(fetchedSources.length > 0 || !!row?.source);
   } else {
     // Add mode — defaults to logging a session against an existing task; the
     // New Task toggle (hidden for "Add Session", where the task is already
@@ -5862,7 +5830,6 @@ async function openModal(idx = null, opts = {}) {
     }
     rebuildExistingTaskPicker(sessionTaskId);
     applyExistingTaskSelection(sessionTaskId);   // prefill from the chosen task, if any
-    toggleModalMore(false);
     if (isSession) {
       setTimeout(() => document.getElementById('f-description').focus(), 80);
     } else {
