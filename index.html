@@ -921,6 +921,19 @@
     .cint-subsvc-row input { flex: 1; min-width: 0; }
     .cint-subsvc-row input:first-child { flex: 0 0 30%; }
 
+    /* ── Task Sources (structured, repeatable source list) ── */
+    .ts-row { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--space-3); margin-bottom: var(--space-2); background: var(--elevate); }
+    .ts-row-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .ts-row-head select { flex: 1; }
+    .ts-row-fields { display: flex; flex-wrap: wrap; gap: 8px; }
+    .ts-row-fields > div { flex: 1; min-width: 160px; }
+    .ts-row-fields label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+    .ts-row-fields input { width: 100%; }
+    .ts-empty-hint { font-size: 12.5px; color: var(--muted); margin-bottom: 8px; }
+    .ts-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary-strong); font-weight: 600; }
+    .ts-badge-more { color: var(--muted); font-weight: 500; }
+    .ts-list-compact { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+
     /* ══ HOME OVERVIEW (merged into the Analytics view) ══ */
     .dash-greeting { margin-bottom: 22px; }
     .dash-greeting h1 { font-size: var(--fs-display); font-weight: 700; color: var(--text); letter-spacing: var(--ls-display); }
@@ -2268,7 +2281,6 @@
     <div class="topbar-right">
       <span id="save-status"></span>
       <button class="btn today-btn" id="btn-today" onclick="goToday()"><span data-ic="calendar-check"></span>Today</button>
-      <button class="btn" onclick="switchModule('settings')" title="Settings"><span data-ic="settings"></span>Settings</button>
       <button class="btn" onclick="openMonthView()" title="Month overview"><span data-ic="calendar-days"></span>Month</button>
       <button class="btn primary" onclick="openModal()"><span data-ic="plus"></span>Add Record <kbd>⌃N</kbd></button>
     </div>
@@ -2443,13 +2455,14 @@
         </div>
       </div>
       <button type="button" class="modal-more-toggle modal-taskfields" id="f-more-toggle" onclick="toggleModalMore()">
-        More options — source <span data-ic="chevron-down"></span>
+        More options — sources <span data-ic="chevron-down"></span>
       </button>
       <div class="modal-more modal-taskfields" id="f-more">
         <div class="form-row">
           <div class="form-group full">
-            <label>Source</label>
-            <input id="f-source" type="text" placeholder="Email subject, Jira ticket URL…" />
+            <label>Sources <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional, e.g. Jira tickets, email threads</span></label>
+            <div id="f-sources-list"></div>
+            <button type="button" class="btn" onclick="addTaskSourceRow('f-sources-list')">+ Add Source</button>
           </div>
         </div>
       </div>
@@ -3386,6 +3399,7 @@
       <button class="stab" data-tab="projectDocument" onclick="switchTab(this)"><span class="stab-icon" data-ic="file-text"></span> Project Documents</button>
       <button class="stab" data-tab="companyDocCategory" onclick="switchTab(this)"><span class="stab-icon" data-ic="calendar-check"></span> Company Doc Categories</button>
       <button class="stab" data-tab="department"    onclick="switchTab(this)"><span class="stab-icon" data-ic="building"></span> Department</button>
+      <button class="stab" data-tab="taskSourceType" onclick="switchTab(this)"><span class="stab-icon" data-ic="external-link"></span> Task Source Types</button>
       <div class="settings-group-label">Maintenance</div>
       <button class="stab" data-tab="maintenance" onclick="switchTab(this)"><span class="stab-icon" data-ic="wrench"></span> Maintenance</button>
     </div>
@@ -3414,6 +3428,7 @@
       <div class="settings-panel" id="tab-projectDocument"></div>
       <div class="settings-panel" id="tab-companyDocCategory"></div>
       <div class="settings-panel" id="tab-department"></div>
+      <div class="settings-panel" id="tab-taskSourceType"></div>
       <div class="settings-panel" id="tab-maintenance">
         <div class="maint-section">
           <div class="maint-section-head">
@@ -3501,8 +3516,9 @@
       </div>
       <div class="form-row">
         <div class="form-group full">
-          <label>Source</label>
-          <input id="b-source" type="text" placeholder="Email subject, Jira ticket URL…" />
+          <label>Sources <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional, e.g. Jira tickets, email threads</span></label>
+          <div id="b-sources-list"></div>
+          <button type="button" class="btn" onclick="addTaskSourceRow('b-sources-list')">+ Add Source</button>
         </div>
       </div>
     </div>
@@ -3815,13 +3831,13 @@ const LK_CAT = {
   currency: 'CURRENCY', billingCycle: 'BILLING_CYCLE',
   projectStatus: 'PROJECT_STATUS', projectDocument: 'PROJECT_DOCUMENT',
   companyDocCategory: 'COMPANY_DOCUMENT_CATEGORY', department: 'DEPARTMENT',
-  projectCategory: 'PROJECT_CATEGORY',
+  projectCategory: 'PROJECT_CATEGORY', taskSourceType: 'TASK_SOURCE_TYPE',
 };
 const LK_VALUE = {             // 'label' = stored as display label; 'code' = stored as code
   companies: 'label', systems: 'label', natural: 'label',
   timeType: 'code', status: 'code', currency: 'code', billingCycle: 'code',
   projectStatus: 'code', projectDocument: 'code', companyDocCategory: 'code',
-  department: 'label', projectCategory: 'code',
+  department: 'label', projectCategory: 'code', taskSourceType: 'code',
 };
 
 // Active options for a category, ordered for dropdowns.
@@ -3934,6 +3950,200 @@ function esc(s) {
 function isURL(s) {
   return /^https?:\/\//i.test(s || '');
 }
+
+// ── Task Sources (structured, repeatable source list — shared by the Add
+// Record modal and the New/Edit Task modal) ──────────────────────────────────
+// Data-driven: adding a 7th type later means adding one entry here, not
+// touching either modal's markup/JS. `ref` is always shown; `url` only when
+// hasUrl; `meta` are optional per-type extras stored as JSON.
+const TASK_SOURCE_FIELD_DEFS = {
+  JIRA:       { refLabel: 'Ticket Key',            refPlaceholder: 'e.g. ABC-123',              hasUrl: true,  urlLabel: 'URL', meta: [] },
+  EMAIL:      { refLabel: 'Email Title / Subject', refPlaceholder: 'e.g. Renewal quote issue',   hasUrl: false, meta: [
+                 { key: 'sender', label: 'Sender (optional)', type: 'text' },
+                 { key: 'date',   label: 'Date (optional)',   type: 'date' },
+               ] },
+  TEAMS_CHAT: { refLabel: 'Channel or Person',     refPlaceholder: 'e.g. #support or Jane Doe',  hasUrl: true,  urlLabel: 'Message Link (optional)', meta: [] },
+  MEETING:    { refLabel: 'Meeting Title',         refPlaceholder: 'e.g. Sprint planning',       hasUrl: false, meta: [
+                 { key: 'date', label: 'Date', type: 'date' },
+               ] },
+  PHONE_CALL: { refLabel: 'Caller Name',           refPlaceholder: 'e.g. John Smith',            hasUrl: false, meta: [
+                 { key: 'date', label: 'Date', type: 'date' },
+               ] },
+  OTHER:      { refLabel: 'Description',           refPlaceholder: 'Free text',                  hasUrl: false, meta: [] },
+};
+
+// Renders one source-entry's dynamic fields (ref/url/meta) into `fieldsEl`
+// based on the selected type code. `values` prefills from an existing entry,
+// or (on a type switch) carries over whatever the ref field already held.
+function renderTaskSourceFields(fieldsEl, type, values = {}) {
+  const def = TASK_SOURCE_FIELD_DEFS[type];
+  fieldsEl.innerHTML = '';
+  if (!def) return;
+
+  const refWrap = document.createElement('div');
+  refWrap.innerHTML = `<label>${esc(def.refLabel)}</label>`;
+  const refInput = document.createElement('input');
+  refInput.type = 'text'; refInput.className = 'ts-ref-input';
+  refInput.placeholder = def.refPlaceholder || '';
+  refInput.value = values.ref || '';
+  refWrap.appendChild(refInput);
+  fieldsEl.appendChild(refWrap);
+
+  if (def.hasUrl) {
+    const urlWrap = document.createElement('div');
+    urlWrap.innerHTML = `<label>${esc(def.urlLabel || 'URL')}</label>`;
+    const urlInput = document.createElement('input');
+    urlInput.type = 'text'; urlInput.className = 'ts-url-input';
+    urlInput.placeholder = 'https://...';
+    urlInput.value = values.url || '';
+    urlWrap.appendChild(urlInput);
+    fieldsEl.appendChild(urlWrap);
+  }
+
+  (def.meta || []).forEach(m => {
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `<label>${esc(m.label)}</label>`;
+    const inp = document.createElement('input');
+    inp.type = m.type || 'text';
+    inp.className = 'ts-meta-input';
+    inp.dataset.metaKey = m.key;
+    inp.value = (values.meta && values.meta[m.key]) || '';
+    wrap.appendChild(inp);
+    fieldsEl.appendChild(wrap);
+  });
+}
+
+// Appends one source-entry row to the list container `listId` (in either
+// modal), optionally prefilled from an existing TaskSource (edit mode) —
+// `data-existing-id` carries the row's real id so readTaskSourceRows()/
+// saveTaskSources() can tell an edit from a brand-new entry apart.
+function addTaskSourceRow(listId, source) {
+  const list = document.getElementById(listId);
+  const row = pjMk('div', 'ts-row');
+  if (source && source.id != null) row.dataset.existingId = source.id;
+
+  const head = pjMk('div', 'ts-row-head');
+  const typeSelect = document.createElement('select');
+  typeSelect.className = 'ts-type-select';
+  const blankOpt = document.createElement('option');
+  blankOpt.value = ''; blankOpt.textContent = 'Select type…';
+  typeSelect.appendChild(blankOpt);
+  lkOptions('TASK_SOURCE_TYPE').forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o.code; opt.textContent = o.label;
+    if (o.code === (source && source.type)) opt.selected = true;
+    typeSelect.appendChild(opt);
+  });
+  head.appendChild(typeSelect);
+
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button'; removeBtn.className = 'row-btn';
+  removeBtn.innerHTML = ic('trash-2'); removeBtn.title = 'Remove source';
+  removeBtn.addEventListener('click', () => row.remove());
+  head.appendChild(removeBtn);
+  row.appendChild(head);
+
+  const fieldsEl = pjMk('div', 'ts-row-fields');
+  row.appendChild(fieldsEl);
+  renderTaskSourceFields(fieldsEl, (source && source.type) || '', source ? { ref: source.ref, url: source.url, meta: source.meta } : {});
+
+  typeSelect.addEventListener('change', () => {
+    const carry = { ref: fieldsEl.querySelector('.ts-ref-input')?.value || '' };
+    renderTaskSourceFields(fieldsEl, typeSelect.value, carry);
+  });
+
+  list.appendChild(row);
+  return row;
+}
+
+// Reads every row currently in `listId` into a plain array of
+// {id, type, ref, url, meta} (id null for a brand-new row). Rows with no type
+// and no ref/url text are skipped (an untouched blank row isn't saved).
+function readTaskSourceRows(listId) {
+  return [...document.querySelectorAll('#' + listId + ' .ts-row')].map(row => {
+    const type = row.querySelector('.ts-type-select')?.value || '';
+    const ref = row.querySelector('.ts-ref-input')?.value.trim() || '';
+    const url = row.querySelector('.ts-url-input')?.value.trim() || '';
+    const meta = {};
+    row.querySelectorAll('.ts-meta-input').forEach(inp => {
+      const v = inp.value.trim();
+      if (v) meta[inp.dataset.metaKey] = v;
+    });
+    const existingId = row.dataset.existingId ? Number(row.dataset.existingId) : null;
+    return { id: existingId, type, ref, url, meta };
+  }).filter(s => s.type || s.ref || s.url);
+}
+
+// Persists `rows` (from readTaskSourceRows) against `taskId`: creates rows with
+// no id, updates rows with an id, deletes any id in `originalIds` no longer
+// present in `rows`. Shared by the Add Record and New/Edit Task modals so a
+// task's source list reconciles the same way in either place.
+async function saveTaskSources(taskId, rows, originalIds = []) {
+  const keptIds = new Set(rows.filter(r => r.id != null).map(r => r.id));
+  const toDelete = originalIds.filter(id => !keptIds.has(id));
+  await Promise.all([
+    ...rows.map(r => r.id != null
+      ? window.api.updateTaskSource(r.id, { type: r.type, ref: r.ref, url: r.url, meta: r.meta })
+      : window.api.createTaskSource(taskId, { type: r.type, ref: r.ref, url: r.url, meta: r.meta })),
+    ...toDelete.map(id => window.api.deleteTaskSource(id)),
+  ]);
+}
+
+// A compact read-only summary badge for a source entry — "JIRA · ABC-123",
+// clickable via openExternal when a url is present. Used by Task Detail (one
+// per entry) and, in single-badge form, by dense list views.
+function taskSourceBadge(s) {
+  const typeLabel = lkLabel('TASK_SOURCE_TYPE', s.type) || s.type || 'Source';
+  const text = s.ref ? (typeLabel + ' · ' + s.ref) : typeLabel;
+  if (s.url && isURL(s.url)) {
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'ts-badge source-link';
+    btn.textContent = text; btn.title = 'Open ' + s.url;
+    btn.addEventListener('click', () => window.api.openExternal(s.url));
+    return btn;
+  }
+  const span = document.createElement('span');
+  span.className = 'ts-badge'; span.textContent = text;
+  return span;
+}
+
+// Builds the "Source" table cell shared by Timesheet's flat/grouped views and
+// Browse's row renderer: a compact summary from the row's structured-source
+// fields (type · ref, "+N more" when there's more than one), clickable via
+// openExternal when the first entry has a url — falling back to the legacy
+// plain-text `source` for a row whose task hasn't been touched since before
+// migration 033 (sourceCount 0, non-empty legacy text).
+function buildSourceCell(row) {
+  const srcTd = document.createElement('td');
+  const srcDiv = document.createElement('div'); srcDiv.className = 'cell';
+  const count = row.sourceCount || 0;
+  if (count > 0) {
+    const typeLabel = lkLabel('TASK_SOURCE_TYPE', row.firstSourceType) || row.firstSourceType || 'Source';
+    const text = (row.firstSourceRef ? (typeLabel + ' · ' + row.firstSourceRef) : typeLabel)
+      + (count > 1 ? ' +' + (count - 1) + ' more' : '');
+    let node;
+    if (row.firstSourceUrl && isURL(row.firstSourceUrl)) {
+      node = document.createElement('button');
+      node.className = 'source-link'; node.title = 'Open ' + row.firstSourceUrl;
+      node.addEventListener('click', () => window.api.openExternal(row.firstSourceUrl));
+    } else {
+      node = document.createElement('span'); node.className = 'source-text';
+    }
+    node.textContent = text;
+    srcDiv.appendChild(node);
+  } else if (isURL(row.source)) {
+    const link = document.createElement('button');
+    link.className = 'source-link'; link.textContent = row.source; link.title = 'Open ' + row.source;
+    link.addEventListener('click', () => window.api.openExternal(row.source));
+    srcDiv.appendChild(link);
+  } else {
+    const s = document.createElement('span'); s.className = 'source-text'; s.textContent = row.source || '';
+    srcDiv.appendChild(s);
+  }
+  srcTd.appendChild(srcDiv);
+  return srcTd;
+}
+
 // True if `values` together satisfy the (already-lowercased) query `q`. Empty q matches all.
 // `q` is split on whitespace into words; every word must appear as a substring somewhere
 // across `values` (words can match different fields — e.g. "amana visa" matches a company
@@ -4183,7 +4393,7 @@ function buildTaskSearchSelect(host, tasks, initialId, placeholder, onChange) {
 
   const api = buildSearchSelect(host, visibleOptions(), initialId, placeholder || 'Search tasks…', onChange, {
     getOptions: visibleOptions,
-    matchFn: (o, q) => textMatch([o.task.name, o.task.company, o.task.system, o.task.source], q),
+    matchFn: (o, q) => textMatch([o.task.name, o.task.company, o.task.system, o.task.source, o.task.firstSourceRef], q),
     labelText: (o) => o.label,
     groupFn: (o) => (isRecent(o.task) ? 'Recent' : 'All tasks'),
     renderOption: (o) => {
@@ -4218,7 +4428,7 @@ function buildTaskSearchSelect(host, tasks, initialId, placeholder, onChange) {
 // The tabs edit a working copy of the catalog (lookupsDraft, keyed by category).
 // Existing entries are relabeled / reordered / soft-disabled in place; new entries
 // get a server-generated stable code on save. Codes are never edited or deleted.
-const SETTINGS_TABS = ['companies', 'systems', 'natural', 'timeType', 'status', 'projectStatus', 'projectCategory', 'projectDocument', 'companyDocCategory', 'department'];
+const SETTINGS_TABS = ['companies', 'systems', 'natural', 'timeType', 'status', 'projectStatus', 'projectCategory', 'projectDocument', 'companyDocCategory', 'department', 'taskSourceType'];
 
 // Settings is a nav page (not a modal): switchModule('settings') calls this to
 // (re)load a working copy of the catalog and render the editors fresh each visit.
@@ -4784,18 +4994,7 @@ function buildTaskGroupCard(g, origIdxOf) {
     tr.appendChild(descTd);
 
     // Source
-    const srcDiv = document.createElement('div'); srcDiv.className = 'cell';
-    if (isURL(row.source)) {
-      const link = document.createElement('button');
-      link.className = 'source-link'; link.textContent = row.source; link.title = 'Open ' + row.source;
-      link.addEventListener('click', () => window.api.openExternal(row.source));
-      srcDiv.appendChild(link);
-    } else {
-      const s = document.createElement('span'); s.className = 'source-text'; s.textContent = row.source || '';
-      srcDiv.appendChild(s);
-    }
-    const srcTd = document.createElement('td'); srcTd.appendChild(srcDiv);
-    tr.appendChild(srcTd);
+    tr.appendChild(buildSourceCell(row));
 
     // Minutes — click to edit inline (same behavior as the flat view)
     const minTd = document.createElement('td'); minTd.style.textAlign = 'right';
@@ -5023,22 +5222,7 @@ function renderTableFlat() {
     tr.appendChild(descTd);
 
     // Source — clickable link if URL
-    const srcTd = document.createElement('td');
-    const srcDiv = document.createElement('div'); srcDiv.className = 'cell';
-    if (isURL(row.source)) {
-      const link = document.createElement('button');
-      link.className = 'source-link';
-      link.textContent = row.source;
-      link.title = 'Open ' + row.source;
-      link.addEventListener('click', () => window.api.openExternal(row.source));
-      srcDiv.appendChild(link);
-    } else {
-      const srcSpan = document.createElement('span');
-      srcSpan.className = 'source-text'; srcSpan.textContent = row.source;
-      srcDiv.appendChild(srcSpan);
-    }
-    srcTd.appendChild(srcDiv);
-    tr.appendChild(srcTd);
+    tr.appendChild(buildSourceCell(row));
 
     // Status badge — click shows dropdown
     const stTd = document.createElement('td');
@@ -5516,7 +5700,11 @@ let recordMode = 'existing';   // 'existing' (add mode); edit mode uses 'new' in
 // task; hidden entirely on the existing path). Session-level fields (date,
 // time, natural, description, minutes) stay editable — natural is per-session,
 // same as time type, so it's never in this list.
-const MODAL_TASK_FIELDS = ['f-taskname','f-company','f-system','f-status','f-source'];
+const MODAL_TASK_FIELDS = ['f-taskname','f-company','f-system','f-status'];
+// Ids of the currently-open Add/Edit modal's task's existing task_sources rows
+// (fetched via getTask when opening Edit on a task with any), so submitModal()
+// can tell which rows to update vs. delete when reconciling the sources list.
+let _fSourceOriginalIds = [];
 
 // (Re)build the searchable existing-task picker with `selectedId` preselected.
 function rebuildExistingTaskPicker(selectedId) {
@@ -5576,7 +5764,6 @@ function applyExistingTaskSelection(taskId) {
     populateSelect('f-company', 'companies', task.company || '');
     populateSelect('f-system',  'systems',   task.system  || '');
     populateSelect('f-status',  'status',    task.status  || 'IN_PROGRESS');
-    document.getElementById('f-source').value = task.source || '';
     fProjectPicker = buildSearchSelect(document.getElementById('f-project'),
       projectFieldOptions(task.projectId ?? null), task.projectId ?? null, 'No project');
     // Read-only summary of what the session will be logged against. Natural is
@@ -5592,7 +5779,7 @@ function applyExistingTaskSelection(taskId) {
     populateSelect('f-company', 'companies', ''); blankSelect('f-company');
     populateSelect('f-system',  'systems',   ''); blankSelect('f-system');
     populateSelect('f-status',  'status',    ''); blankSelect('f-status');
-    document.getElementById('f-source').value = '';
+    document.getElementById('f-sources-list').innerHTML = ''; _fSourceOriginalIds = [];
     fProjectPicker = buildSearchSelect(document.getElementById('f-project'),
       projectFieldOptions(null), null, 'No project');
     summary.innerHTML = '';
@@ -5638,11 +5825,18 @@ async function openModal(idx = null, opts = {}) {
     populateSelect('f-system',  'systems',   row?.system  || '');
     populateSelect('f-status',  'status',    row?.status  || '');
     document.getElementById('f-taskname').value = row?.taskName || '';
-    document.getElementById('f-source').value   = row?.source   || '';
+    document.getElementById('f-sources-list').innerHTML = '';
+    let fetchedSources = [];
+    if (row?.taskId) {
+      try { fetchedSources = (await window.api.getTask(row.taskId))?.sources || []; }
+      catch { fetchedSources = []; }
+    }
+    _fSourceOriginalIds = fetchedSources.map(s => s.id);
+    fetchedSources.forEach(s => addTaskSourceRow('f-sources-list', s));
     MODAL_TASK_FIELDS.forEach(id => { document.getElementById(id).disabled = false; });
     fProjectPicker = buildSearchSelect(document.getElementById('f-project'),
       projectFieldOptions(row?.projectId ?? null), row?.projectId ?? null, 'No project');
-    toggleModalMore(!!row?.source);
+    toggleModalMore(fetchedSources.length > 0 || !!row?.source);
   } else {
     // Add mode — defaults to logging a session against an existing task; the
     // New Task toggle (hidden for "Add Session", where the task is already
@@ -5751,12 +5945,12 @@ async function submitModal() {
     natural:     document.getElementById('f-natural').value,
     time:        document.getElementById('f-time').value,
     description: descVal,
-    source:      document.getElementById('f-source').value.trim(),
     status:      document.getElementById('f-status').value,
     minutes:     minRaw === '' ? '' : parseInt(minRaw, 10),   // Number when set, '' when blank
     projectId:   fProjectPicker ? fProjectPicker.getSelectedId() : null,
     date:        dateVal,
   };
+  const sourceRows = readTaskSourceRows('f-sources-list');
   const targetDate = dateVal || activeDate;
 
   if (isEdit) {
@@ -5771,6 +5965,10 @@ async function submitModal() {
     syncSiblingTasks(record);          // task-level fields propagate to sessions
     closeModal();
     renderTable();
+    if (record.taskId) {
+      try { await saveTaskSources(record.taskId, sourceRows, _fSourceOriginalIds); }
+      catch { toast('Could not save sources'); }
+    }
     // Date changed to another day → persist, then follow the session to that day.
     if (targetDate !== activeDate) {
       await persistTimesheet();
@@ -5788,6 +5986,18 @@ async function submitModal() {
   // already creates a task for any row with no taskId), other-day inline.
   record.taskId = existingTaskId;
 
+  // Sources live in their own table and need a real task id right away (unlike
+  // the row's own simple fields, which the debounced reconciler below can
+  // create a task for later) — eagerly create the task now, only when there's
+  // actually a source to attach, so the common no-sources path is unaffected.
+  if (!loggingExisting && sourceRows.length > 0) {
+    try {
+      const created = await window.api.createTask(tsTaskPayload(record));
+      record.taskId = created.id;
+      await saveTaskSources(record.taskId, sourceRows, []);
+    } catch { toast('Could not save the task'); return; }
+  }
+
   if (targetDate === activeDate) {
     rows.push(record);
     closeModal();
@@ -5798,7 +6008,7 @@ async function submitModal() {
     // the new session is visible (the current day's view is unaffected).
     closeModal();
     try {
-      const taskId = existingTaskId ?? (await window.api.createTask(tsTaskPayload(record))).id;
+      const taskId = record.taskId ?? (await window.api.createTask(tsTaskPayload(record))).id;
       await window.api.addWorkLog(taskId, tsLogPayload(record));
       await refreshSavedDays();
       await switchDay(targetDate);
@@ -5977,7 +6187,7 @@ function buildDailyReportHTML(srcRows, date, name) {
       return `
         <tr>
           <td>${timeCell}${r.natural ? `<div style="font-size:9px;color:#888;margin-top:2px">${esc(r.natural)}</div>` : ''}</td>
-          <td>${esc(r.description)}${r.source ? `<div style="font-size:10px;color:#777;margin-top:3px">${esc(r.source)}</div>` : ''}</td>
+          <td>${esc(r.description)}${sourceSummaryText(r) ? `<div style="font-size:10px;color:#777;margin-top:3px">${esc(sourceSummaryText(r))}</div>` : ''}</td>
           <td style="text-align:right">${r.minutes || '—'}</td>
           <td style="text-align:right">${r.minutes ? (parseFloat(r.minutes) / 60).toFixed(2) : '—'}</td>
         </tr>`;
@@ -6338,7 +6548,7 @@ function buildGroupedSessionsReportHTML(opts) {
         <tr>
           <td>${esc(r.date || '—')}</td>
           <td>${timeCell}${r.natural ? `<div style="font-size:9px;color:#888;margin-top:2px">${esc(r.natural)}</div>` : ''}</td>
-          <td>${esc(r.description)}${r.source ? `<div style="font-size:10px;color:#777;margin-top:3px">${esc(r.source)}</div>` : ''}</td>
+          <td>${esc(r.description)}${sourceSummaryText(r) ? `<div style="font-size:10px;color:#777;margin-top:3px">${esc(sourceSummaryText(r))}</div>` : ''}</td>
           <td style="text-align:right">${r.minutes || '—'}</td>
           <td style="text-align:right">${r.minutes ? (parseFloat(r.minutes) / 60).toFixed(2) : '—'}</td>
         </tr>`;
@@ -6414,10 +6624,25 @@ function flattenTasksToSessions(tasks) {
         date: w.date, time: w.time, natural: w.natural, description: w.description,
         minutes: w.minutes, source: t.source, taskId: t.id, taskName: t.name,
         company: t.company, system: t.system,
+        sourceCount: t.sourceCount, firstSourceRef: t.firstSourceRef,
+        firstSourceUrl: t.firstSourceUrl, firstSourceType: t.firstSourceType,
       });
     });
   });
   return sessions;
+}
+
+// Plain-text "Source" summary for the print/PDF report builders (no DOM, no
+// click handlers — those documents run zero JavaScript by design). Same
+// type·ref/+N-more/legacy-fallback logic as buildSourceCell, textual only.
+function sourceSummaryText(r) {
+  const count = r.sourceCount || 0;
+  if (count > 0) {
+    const typeLabel = lkLabel('TASK_SOURCE_TYPE', r.firstSourceType) || r.firstSourceType || 'Source';
+    return (r.firstSourceRef ? (typeLabel + ' · ' + r.firstSourceRef) : typeLabel)
+      + (count > 1 ? ' +' + (count - 1) + ' more' : '');
+  }
+  return r.source || '';
 }
 
 // Project Time Report PDF.
@@ -6662,7 +6887,11 @@ function updateTodayBtn() {
 //   departmentId → preset + lock the Department field to that department
 //   onSaved      → called after a successful save to refresh the caller's view
 let _backlogCtx = { projectId: null, departmentId: null, onSaved: null };
-function openBacklogModal(id = null, opts = {}) {
+// Ids of the currently-open New/Edit Task modal's task's existing task_sources
+// rows (fetched via getTask when editing a task with any), for reconciliation.
+let _bSourceOriginalIds = [];
+
+async function openBacklogModal(id = null, opts = {}) {
   backlogEditId = id;
   _backlogCtx = { projectId: opts.projectId ?? null, departmentId: opts.departmentId ?? null, onSaved: opts.onSaved || null };
   const lockedProject = _backlogCtx.projectId != null;
@@ -6709,7 +6938,14 @@ function openBacklogModal(id = null, opts = {}) {
   bDeptSel.disabled = lockedDept;
 
   document.getElementById('b-description').value = task?.name   || '';
-  document.getElementById('b-source').value      = task?.source || '';
+  document.getElementById('b-sources-list').innerHTML = '';
+  let fetchedSources = [];
+  if (isEdit && task?.id) {
+    try { fetchedSources = (await window.api.getTask(task.id))?.sources || []; }
+    catch { fetchedSources = []; }
+  }
+  _bSourceOriginalIds = fetchedSources.map(s => s.id);
+  fetchedSources.forEach(s => addTaskSourceRow('b-sources-list', s));
 
   clearBacklogErrors();
   document.getElementById('backlog-modal-overlay').classList.add('open');
@@ -6758,13 +6994,15 @@ async function submitBacklogModal() {
     company:     document.getElementById('b-company').value,
     system:      document.getElementById('b-system').value,
     department:  document.getElementById('b-department').value,
-    source:      document.getElementById('b-source').value.trim(),
     projectId:   bProjectPicker ? bProjectPicker.getSelectedId() : null,
   };
+  const sourceRows = readTaskSourceRows('b-sources-list');
 
   try {
+    let taskId = backlogEditId;
     if (isEdit) await window.api.updateTask(backlogEditId, payload);
-    else        await window.api.createTask(payload);
+    else        taskId = (await window.api.createTask(payload)).id;
+    await saveTaskSources(taskId, sourceRows, _bSourceOriginalIds);
   } catch { toast('Could not save the task'); return; }
 
   const onSaved = _backlogCtx.onSaved;
@@ -7280,18 +7518,7 @@ function buildReadonlyRow(r, i) {
   descDiv.appendChild(descSpan);
   descTd.appendChild(descDiv); tr.appendChild(descTd);
 
-  const srcTd = document.createElement('td');
-  const srcDiv = document.createElement('div'); srcDiv.className = 'cell';
-  if (isURL(r.source)) {
-    const link = document.createElement('button'); link.className = 'source-link';
-    link.textContent = r.source; link.title = 'Open ' + r.source;
-    link.addEventListener('click', () => window.api.openExternal(r.source));
-    srcDiv.appendChild(link);
-  } else {
-    const srcSpan = document.createElement('span'); srcSpan.className = 'source-text'; srcSpan.textContent = r.source;
-    srcDiv.appendChild(srcSpan);
-  }
-  srcTd.appendChild(srcDiv); tr.appendChild(srcTd);
+  tr.appendChild(buildSourceCell(r));
 
   const stTd = document.createElement('td'); stTd.className = statusClass(r.status);
   const stDiv = document.createElement('div'); stDiv.className = 'cell';
@@ -8490,7 +8717,21 @@ function renderTaskDetail(t) {
     f.appendChild(val);
     return f;
   };
-  grid.appendChild(field('Source', t.source));
+  // Structured sources (migration 033) — one badge per entry, clickable when a
+  // url is present. Falls back to the legacy free-text source for a task never
+  // re-saved since before this feature (empty `sources`, non-empty `t.source`).
+  const taskSources = Array.isArray(t.sources) ? t.sources : [];
+  let sourcesNode = null;
+  if (taskSources.length > 0) {
+    sourcesNode = document.createElement('div');
+    sourcesNode.className = 'ts-list-compact';
+    taskSources.forEach(s => sourcesNode.appendChild(taskSourceBadge(s)));
+  } else if (t.source) {
+    sourcesNode = document.createElement('span');
+    sourcesNode.className = 'ts-badge';
+    sourcesNode.textContent = t.source;
+  }
+  grid.appendChild(field('Sources', sourcesNode));
   grid.appendChild(field('Company', t.company));
   grid.appendChild(field('System', t.system));
   if (t.projectId != null) {
@@ -8706,9 +8947,15 @@ async function submitMergeModal() {
     try {
       const restored = await window.api.createTask({
         name: sourceTask.name, status: sourceTask.status, company: sourceTask.company, system: sourceTask.system,
-        source: sourceTask.source, projectId: sourceTask.projectId, department: sourceTask.department,
+        projectId: sourceTask.projectId, department: sourceTask.department,
       });
       for (const logId of movedIds) await window.api.moveWorkLog(logId, restored.id);
+      // The merged-away task's task_sources rows cascaded with it — recreate
+      // them on the restored task (sourceTask.sources came from Task Detail's
+      // own getTask() call, so the full list is already in memory here).
+      for (const s of (sourceTask.sources || [])) {
+        await window.api.createTaskSource(restored.id, { type: s.type, ref: s.ref, url: s.url, meta: s.meta });
+      }
     } catch { toast('Could not undo merge'); return; }
     await reloadTimesheet();
     toast('Merge undone');
@@ -9407,7 +9654,7 @@ function renderLinkList() {
   host.innerHTML = '';
 
   const all = (linkableTasks || []).filter(t => textMatch(
-    [t.name, t.company, t.system, t.source], q));
+    [t.name, t.company, t.system, t.source, t.firstSourceRef], q));
 
   if (all.length === 0) {
     host.appendChild(pjMk('div', 'cp-records-empty', 'No unlinked tasks available.'));
@@ -9604,7 +9851,7 @@ function atTaskMatchesFilters(t, q, company, system, projectSel, deptSel) {
   if (deptSel === 'none') { if (t.departmentId != null) return false; }
   else if (deptSel && String(t.departmentId) !== deptSel) return false;
   if (q) {
-    const hay = [t.name, t.company, t.system, t.department, t.source].filter(Boolean).join(' ').toLowerCase();
+    const hay = [t.name, t.company, t.system, t.department, t.source, t.firstSourceRef].filter(Boolean).join(' ').toLowerCase();
     if (!hay.includes(q)) return false;
   }
   return true;
@@ -11692,7 +11939,7 @@ const PAL_SETTINGS_TABS = [
   { key: 'timeType', label: 'Time Type' }, { key: 'status', label: 'Status' },
   { key: 'projectStatus', label: 'Project Status' }, { key: 'projectCategory', label: 'Project Category' },
   { key: 'projectDocument', label: 'Project Documents' }, { key: 'companyDocCategory', label: 'Company Doc Categories' },
-  { key: 'department', label: 'Department' },
+  { key: 'department', label: 'Department' }, { key: 'taskSourceType', label: 'Task Source Types' },
 ];
 
 async function openPalette() {
@@ -11805,7 +12052,7 @@ function renderPalette() {
   // pages/actions the moment it opens.
   let tasks, taskGroupLabel;
   if (q) {
-    tasks = _palTasks.filter(t => textMatch([t.name, t.company, t.system, t.source], q))
+    tasks = _palTasks.filter(t => textMatch([t.name, t.company, t.system, t.source, t.firstSourceRef], q))
       .sort((a, b) => (b.lastDate || '').localeCompare(a.lastDate || ''))
       .slice(0, 6);
     taskGroupLabel = 'Log a session on…';
