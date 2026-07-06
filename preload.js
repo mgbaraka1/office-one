@@ -189,4 +189,6 @@ contextBridge.exposeInMainWorld('api', {
   onBeforeClose:  (cb)            => ipcRenderer.on('app:beforeClose', () => cb()),
   setTitle:       (title)         => ipcRenderer.invoke('window:setTitle', title),
   openExternal:   (url)           => ipcRenderer.invoke('shell:openExternal', url),
+  /** @returns {Promise<{available: boolean}>} */
+  getCredentialEncryptionStatus: () => ipcRenderer.invoke('security:credentialEncryptionStatus'),
 });

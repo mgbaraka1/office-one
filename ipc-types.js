@@ -589,4 +589,15 @@
  * @property {string} [error]       Failure reason (cancel returns { ok:false } with no error).
  */
 
+/**
+ * Result of `security:credentialEncryptionStatus` — whether the five client_*
+ * tables' password/secret_key columns are actually being encrypted at rest
+ * this run (Milestone 2, migration 032). `false` means safeStorage is
+ * unavailable (e.g. a locked-down environment with no OS keychain) and
+ * credentials are being stored in plain text, same as before Milestone 2 —
+ * surfaced as a Settings banner rather than a silent regression.
+ * @typedef {Object} CredentialEncryptionStatus
+ * @property {boolean} available
+ */
+
 module.exports = {};   // documentation-only module
