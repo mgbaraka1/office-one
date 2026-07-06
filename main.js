@@ -100,6 +100,7 @@ ipcMain.handle('systems:entries',   authed((_e, name) => db.systemEntries(auth.r
 // ── Analytics (aggregation done in SQL, not in the renderer) ──
 ipcMain.handle('analytics:summary',  authed((_e, from, to, spanFrom, spanTo) => db.getAnalytics(auth.requireUserId(), from, to, spanFrom, spanTo)));
 ipcMain.handle('analytics:overview', authed((_e, today, monthStart)          => db.getOverviewStats(auth.requireUserId(), today, monthStart)));
+ipcMain.handle('attention:list', authed(() => db.getAttentionItems(auth.requireUserId())));
 
 // ── Lookups (normalized catalog — shared app config) ──
 ipcMain.handle('lookups:get',         authed(()                              => db.loadLookups()));

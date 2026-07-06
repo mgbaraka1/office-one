@@ -1918,13 +1918,13 @@
       <span class="nav-icon" data-ic="building"></span>Internal Tasks
     </button>
     <button class="nav-item" data-module="clients" onclick="switchModule('clients')">
-      <span class="nav-icon" data-ic="layers"></span>Clients
+      <span class="nav-icon" data-ic="layers"></span>Clients<span class="nav-badge" id="nav-badge-clients"></span>
     </button>
     <button class="nav-item" data-module="subscriptions" onclick="switchModule('subscriptions')">
       <span class="nav-icon" data-ic="credit-card"></span>Subscriptions<span class="nav-badge" id="nav-badge-subscriptions"></span>
     </button>
     <button class="nav-item" data-module="companydocs" onclick="switchModule('companydocs')">
-      <span class="nav-icon" data-ic="calendar-check"></span>Company Docs
+      <span class="nav-icon" data-ic="calendar-check"></span>Company Docs<span class="nav-badge" id="nav-badge-companydocs"></span>
     </button>
     <button class="nav-item" data-module="settings" onclick="switchModule('settings')">
       <span class="nav-icon" data-ic="settings"></span>Settings
@@ -6701,14 +6701,27 @@ async function renderOverview() {
   const todayMin = ov.todayMin, todayRecs = ov.todayRecs, monthMin = ov.monthMin;
   const daysLogged = ov.daysLogged;
 
-  // Cross-module attention data
-  const subData = await window.api.loadSubscriptions();
-  const subs = (subData && subData.subscriptions) || [];
+  // Cross-module attention data — one aggregated read (attention:list) across
+  // subscription renewals, Company Document renewals, and the three client_*
+  // tables with an expiry_date (Auth/VPN, External Services, Internal
+  // Systems), instead of each source re-deriving its own urgency separately.
+  const ATTENTION_META = {
+    subscription:     { icon: ic('credit-card'),    kind: 'Renews' },
+    companyDocument:  { icon: ic('calendar-check'), kind: 'Renews' },
+    clientVpn:        { icon: ic('layers'),          kind: 'Auth expires' },
+    clientExternal:   { icon: ic('layers'),          kind: 'External Service expires' },
+    clientInternal:   { icon: ic('layers'),          kind: 'Internal System expires' },
+  };
+  let rawAttention = [];
+  try { rawAttention = await window.api.getAttentionItems(); } catch { rawAttention = []; }
+  if (!Array.isArray(rawAttention)) rawAttention = [];
 
   const attention = [];
-  subs.forEach(s => {
-    const d = daysUntil(s.renewalDate);
-    if (d !== null && d <= 30) attention.push({ icon: ic('credit-card'), title: s.name || 'Subscription', days: d, module: 'subscriptions', kind: 'Renews' });
+  rawAttention.forEach(a => {
+    const d = daysUntil(a.date);
+    if (d === null || d > 30) return;
+    const meta = ATTENTION_META[a.type] || { icon: ic('bell'), kind: 'Due' };
+    attention.push({ icon: meta.icon, title: a.title, days: d, module: a.module, kind: meta.kind, companyId: a.companyId ?? null });
   });
   attention.sort((a, b) => a.days - b.days);
 
@@ -6730,10 +6743,10 @@ async function renderOverview() {
   if (!attention.length) {
     attEl.innerHTML = `<div class="dash-empty"><span class="de-icon">${ic('circle-check')}</span>All clear — nothing due in the next 30 days.</div>`;
   } else {
-    attEl.innerHTML = attention.slice(0, 8).map(a => {
+    attEl.innerHTML = attention.slice(0, 8).map((a, i) => {
       const cls = renewClass(a.days);
       return `
-        <div class="dash-att-item" onclick="switchModule('${a.module}')">
+        <div class="dash-att-item" data-att-idx="${i}">
           <span class="dash-att-icon">${a.icon}</span>
           <div class="dash-att-body">
             <div class="dash-att-title">${esc(a.title)}</div>
@@ -6742,11 +6755,23 @@ async function renderOverview() {
           <span class="renew-badge ${cls}">${renewLabel(a.days)}</span>
         </div>`;
     }).join('');
+    // Deep-link via addEventListener (not inline onclick) so a title containing
+    // a quote character can never break out of an attribute string.
+    attEl.querySelectorAll('.dash-att-item').forEach(el => {
+      const a = attention[Number(el.dataset.attIdx)];
+      el.addEventListener('click', () => {
+        switchModule(a.module);
+        if (a.companyId != null) openClientDetail(a.companyId, a.title);
+      });
+    });
   }
 
-  // Sidebar attention badge (urgent count, ≤7 days or overdue)
+  // Sidebar attention badge (urgent count, ≤7 days or overdue) — one per
+  // source module, all fed by the same aggregated attention list.
   const urgent = m => attention.filter(a => a.module === m && a.days <= 7).length;
   setNavBadge('subscriptions', urgent('subscriptions'));
+  setNavBadge('companydocs', urgent('companydocs'));
+  setNavBadge('clients', urgent('clients'));
 }
 
 function setNavBadge(module, count) {

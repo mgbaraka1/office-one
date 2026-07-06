@@ -590,6 +590,23 @@
  */
 
 /**
+ * One date-urgent item from `attention:list` (db.getAttentionItems) — the
+ * Milestone 3 aggregation across subscription renewals, Company Document
+ * renewals, and the three client_* tables with an expiry_date (Auth/VPN,
+ * External Services, Internal Systems). Carries the raw date, not a computed
+ * urgency tier — the renderer already has daysUntil()/renewClass()/
+ * renewLabel() and reuses them here instead of duplicating day-math
+ * server-side.
+ * @typedef {Object} AttentionItem
+ * @property {'subscription'|'companyDocument'|'clientVpn'|'clientExternal'|'clientInternal'} type
+ * @property {number} id           The source row's own id (subscription id, company_documents id, or the client_* record id).
+ * @property {string} title        Human-facing name (subscription/document name, VPN connection name, etc.).
+ * @property {string} date         YYYY-MM-DD renewal_date or expiry_date.
+ * @property {'subscriptions'|'companydocs'|'clients'} module  Which nav module to deep-link into.
+ * @property {number} [companyId]  Set only for the three 'client*' types — the COMPANY lookup id, for openClientDetail(companyId, title).
+ */
+
+/**
  * Result of `security:credentialEncryptionStatus` — whether the five client_*
  * tables' password/secret_key columns are actually being encrypted at rest
  * this run (Milestone 2, migration 032). `false` means safeStorage is

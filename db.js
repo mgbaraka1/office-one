@@ -445,6 +445,38 @@ function getOverviewStats(userId, today, monthStart) {
   return { todayMin: t.mins, todayRecs: t.recs, monthMin: m.mins, daysLogged: m.days };
 }
 
+// ── Attention center (Milestone 3) ──────────────────────────────────────────
+// One aggregated read across every date-urgent source in the app: subscription
+// renewals, Company Document renewals, and the three client_* tables that
+// carry an expiry_date (Auth/VPN, External Services, Internal Systems —
+// client_servers/client_databases have no expiry_date column). Deliberately
+// returns raw dates + a deep-link target, not a computed urgency tier — the
+// renderer already has daysUntil()/renewClass()/renewLabel() (Subscriptions'
+// own helpers, already generic) and reuses them here instead of duplicating
+// the same day-math server-side. `companyId` is set only for the three
+// Clients-sourced types, letting the renderer deep-link into that specific
+// client's detail view (openClientDetail(companyId, title)) instead of just
+// the Clients list.
+function getAttentionItems(userId) {
+  const items = [];
+  db.prepare('SELECT id, name, renewal_date FROM subscriptions WHERE user_id = ?').all(userId).forEach(s => {
+    if (s.renewal_date) items.push({ type: 'subscription', id: s.id, title: s.name || 'Subscription', date: s.renewal_date, module: 'subscriptions' });
+  });
+  db.prepare('SELECT id, name, renewal_date FROM company_documents WHERE user_id = ?').all(userId).forEach(d => {
+    if (d.renewal_date) items.push({ type: 'companyDocument', id: d.id, title: d.name || 'Document', date: d.renewal_date, module: 'companydocs' });
+  });
+  db.prepare('SELECT id, connection_name, expiry_date, company_id FROM client_vpn_connections WHERE user_id = ?').all(userId).forEach(v => {
+    if (v.expiry_date) items.push({ type: 'clientVpn', id: v.id, title: v.connection_name || 'Auth', date: v.expiry_date, module: 'clients', companyId: v.company_id });
+  });
+  db.prepare('SELECT id, name, expiry_date, company_id FROM client_external_services WHERE user_id = ?').all(userId).forEach(e => {
+    if (e.expiry_date) items.push({ type: 'clientExternal', id: e.id, title: e.name || 'External Service', date: e.expiry_date, module: 'clients', companyId: e.company_id });
+  });
+  db.prepare('SELECT id, name, expiry_date, company_id FROM client_internal_systems WHERE user_id = ?').all(userId).forEach(i => {
+    if (i.expiry_date) items.push({ type: 'clientInternal', id: i.id, title: i.name || 'Internal System', date: i.expiry_date, module: 'clients', companyId: i.company_id });
+  });
+  return items;
+}
+
 // ── Lookups (normalized catalog — shared app config, not per-user) ────────────
 // Options for one category, ordered for dropdowns. Active-only by default; the
 // Settings editor passes includeInactive to manage soft-disabled entries.
@@ -2236,7 +2268,7 @@ module.exports = {
   countUsers, getUserByUsername, createUser, getUnclaimedUser, claimUser,
   listDays, loadDaysRange,
   listCompanies, listSystems, companyEntries, systemEntries,
-  getAnalytics, getOverviewStats,
+  getAnalytics, getOverviewStats, getAttentionItems,
   createProject, listProjects, getProject, updateProject, deleteProject,
   linkTask, unlinkTask, listLinkableTasks,
   listDepartments, getDepartment, linkDepartmentTask, unlinkDepartmentTask, listLinkableTasksForDepartment,
