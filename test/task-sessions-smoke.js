@@ -25,6 +25,9 @@
 //      sessions again.
 //   4. worklogs:history (db.getWorkLogHistory) returns rows, newest first,
 //      after a genuine field edit via updateWorkLog.
+//   5. Milestone 10's auto-status transition — addWorkLog() advances an OPEN
+//      task to IN_PROGRESS, never touches BLOCKED/DONE, and is a no-op on an
+//      already-IN_PROGRESS task.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const fs   = require('node:fs');
@@ -155,6 +158,35 @@ try {
               && !!descRow && descRow.oldValue === 'before edit' && descRow.newValue === 'after edit';
     record('4. worklogs:history returns rows after a genuine edit', pass,
       `beforeCount=${beforeHistory.length} afterCount=${afterHistory.length} minutes=${minutesRow ? minutesRow.oldValue + '->' + minutesRow.newValue : 'MISSING'}`);
+  }
+
+  // ── FLOW 5 — auto-status transition (Milestone 10) ───────────────────────────
+  // Logging a session against an OPEN task advances it to IN_PROGRESS
+  // automatically; BLOCKED/DONE tasks are never touched by the same call.
+  {
+    const openTask = db.createTask(userId, newTaskPayload('TS auto-status OPEN task', 'OPEN'));
+    db.addWorkLog(userId, openTask.id, { date: DAY_A, description: 'first session ever', minutes: 20, time: 'WORK_TIME', natural: naturalLabel });
+    const openAfter = db.getTask(userId, openTask.id);
+    record('5a. Logging a session against an OPEN task auto-advances it to IN_PROGRESS',
+      openAfter.status === 'IN_PROGRESS', `status=${openAfter.status}`);
+
+    const blockedTask = db.createTask(userId, newTaskPayload('TS auto-status BLOCKED task', 'BLOCKED'));
+    db.addWorkLog(userId, blockedTask.id, { date: DAY_A, description: 'session on a blocked task', minutes: 15, time: 'WORK_TIME', natural: naturalLabel });
+    const blockedAfter = db.getTask(userId, blockedTask.id);
+    record('5b. Logging a session against a BLOCKED task leaves its status untouched',
+      blockedAfter.status === 'BLOCKED', `status=${blockedAfter.status}`);
+
+    const doneTask = db.createTask(userId, newTaskPayload('TS auto-status DONE task', 'DONE'));
+    db.addWorkLog(userId, doneTask.id, { date: DAY_A, description: 'session on a done task', minutes: 10, time: 'WORK_TIME', natural: naturalLabel });
+    const doneAfter = db.getTask(userId, doneTask.id);
+    record('5c. Logging a session against a DONE task leaves its status untouched',
+      doneAfter.status === 'DONE', `status=${doneAfter.status}`);
+
+    const inProgressTask = db.createTask(userId, newTaskPayload('TS auto-status IN_PROGRESS task', 'IN_PROGRESS'));
+    db.addWorkLog(userId, inProgressTask.id, { date: DAY_A, description: 'another session', minutes: 12, time: 'WORK_TIME', natural: naturalLabel });
+    const inProgressAfter = db.getTask(userId, inProgressTask.id);
+    record('5d. Logging a session against an already-IN_PROGRESS task is a no-op status-wise',
+      inProgressAfter.status === 'IN_PROGRESS', `status=${inProgressAfter.status}`);
   }
 
 } catch (err) {
