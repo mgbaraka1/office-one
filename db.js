@@ -1958,6 +1958,91 @@ function checkIntegrity() {
   };
 }
 
+// ── Full Backup (Milestone 8) ───────────────────────────────────────────────
+// One action that captures everything the app owns — not just the DB. Copies
+// the checkpointed DB, the projects/ and company_documents/ file trees, and
+// the rotating backups/ snapshots into a single new timestamped folder, plus
+// a manifest.json summary. `desktopDir` is passed in by the caller (main.js
+// resolves app.getPath('desktop')) — db.js never imports electron, the same
+// separation configureCredentialEncryption() already established. Read-only
+// with respect to <userData>: nothing here is written back into it.
+
+// Recursively copies `src` into `dest`. A missing `src` is not an error (a
+// fresh-ish install may have no projects/ or company_documents/ yet) — it's
+// reported via `existed: false` so the manifest can note it was skipped.
+function copyDirRecursive(src, dest) {
+  let count = 0, bytes = 0;
+  if (!fs.existsSync(src)) return { count, bytes, existed: false };
+  fs.mkdirSync(dest, { recursive: true });
+  for (const ent of fs.readdirSync(src, { withFileTypes: true })) {
+    const s = path.join(src, ent.name);
+    const d = path.join(dest, ent.name);
+    if (ent.isDirectory()) {
+      const sub = copyDirRecursive(s, d);
+      count += sub.count; bytes += sub.bytes;
+    } else if (ent.isFile()) {
+      fs.copyFileSync(s, d);
+      count++;
+      bytes += fs.statSync(s).size;
+    }
+    // symlinks/sockets etc. skipped — these trees only ever hold plain files
+  }
+  return { count, bytes, existed: true };
+}
+
+function getAppVersion() {
+  try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version; }
+  catch { return null; }
+}
+
+function fullBackup(desktopDir) {
+  if (!db) throw new Error('database not open');
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').slice(0, 19);
+  const destRoot = path.join(desktopDir, `CooperationTools-Backup-${stamp}`);
+  fs.mkdirSync(destRoot, { recursive: true });
+
+  // Checkpointed DB copy — self-contained, no -wal/-shm needed (mirrors db:backup).
+  backup(path.join(destRoot, 'cooperation-tools.db'));
+
+  const folders = {};
+  for (const [key, srcDir] of [
+    ['projects', projectsRootDir()],
+    ['company_documents', companyDocumentsRootDir()],
+    ['backups', path.join(userDataDir, 'backups')],
+  ]) {
+    const destDir = path.join(destRoot, key);
+    const res = copyDirRecursive(srcDir, destDir);
+    fs.mkdirSync(destDir, { recursive: true }); // always present, even empty, for a consistent folder shape
+    folders[key] = res.existed
+      ? { fileCount: res.count, byteCount: res.bytes }
+      : { fileCount: 0, byteCount: 0, skipped: true };
+  }
+
+  const headRow = db.prepare('SELECT MAX(version) AS v FROM schema_migrations').get();
+  const tableNames = db.prepare(
+    `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`
+  ).all().map(r => r.name);
+  const tableRowCounts = {};
+  for (const t of tableNames) tableRowCounts[t] = db.prepare(`SELECT COUNT(*) AS c FROM "${t}"`).get().c;
+
+  const dbBytes = fs.statSync(path.join(destRoot, 'cooperation-tools.db')).size;
+  const totalFileCount = 1 + Object.values(folders).reduce((n, f) => n + f.fileCount, 0);
+  const totalByteCount = dbBytes + Object.values(folders).reduce((n, f) => n + f.byteCount, 0);
+
+  const manifest = {
+    appVersion: getAppVersion(),
+    createdAt: new Date().toISOString(),
+    schemaHead: headRow ? headRow.v : null,
+    tableRowCounts,
+    folders,
+    totalFileCount,
+    totalByteCount,
+  };
+  fs.writeFileSync(path.join(destRoot, 'manifest.json'), JSON.stringify(manifest, null, 2));
+
+  return { ok: true, path: destRoot, manifest };
+}
+
 // Case-insensitive label collisions per lookup_codes category — the exact class
 // of bug migration 004_merge_lookups fixed once already, and that saveLookups
 // now prevents going forward (see Conventions). Read-only; surfaces any that
@@ -2617,4 +2702,5 @@ module.exports = {
   loadSubscriptions, saveSubscriptions,
   loadPrefs, savePrefs,
   listBackups, restoreBackup, checkIntegrity, findLookupDuplicates, mergeLookupDuplicate, getOrphanSweepReport,
+  fullBackup,
 };

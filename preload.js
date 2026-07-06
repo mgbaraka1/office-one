@@ -209,6 +209,10 @@ contextBridge.exposeInMainWorld('api', {
   mergeLookups:      (category, targetId, sourceId) => ipcRenderer.invoke('maintenance:mergeLookups', category, targetId, sourceId),
   /** @returns {Promise<import('./ipc-types').OrphanSweepReport>} */
   getOrphanSweepReport: ()        => ipcRenderer.invoke('maintenance:orphanSweepReport'),
+  /** @returns {Promise<import('./ipc-types').FullBackupResult>} */
+  fullBackup:        ()           => ipcRenderer.invoke('maintenance:fullBackup'),
+  /** @returns {Promise<{ok: boolean, error?: string}>} */
+  openBackupFolder:  (folderPath) => ipcRenderer.invoke('maintenance:openBackupFolder', folderPath),
   /** @returns {Promise<import('./ipc-types').FileResult>} */
   exportPDF:         (html, name) => ipcRenderer.invoke('report:exportPDF', html, name),
   flushComplete:     ()           => ipcRenderer.invoke('app:flushComplete'),
