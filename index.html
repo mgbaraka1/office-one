@@ -1141,6 +1141,11 @@
       z-index: 9999; max-width: 80vw; display: flex; align-items: center; gap: 9px;
     }
     .app-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast-action-btn {
+      background: none; border: none; color: var(--accent); font-family: inherit;
+      font-size: 13px; font-weight: 700; cursor: pointer; padding: 0; flex-shrink: 0;
+    }
+    .toast-action-btn:hover { text-decoration: underline; }
 
     /* ══ ROW SELECTION (bulk actions) ══ */
     .row-select { display: inline-flex; align-items: center; gap: 6px; }
@@ -1168,6 +1173,11 @@
     .bulk-btn.ghost { background: transparent; color: var(--muted); border-color: transparent; }
     .bulk-btn.ghost:hover { background: var(--elevate); color: var(--text); }
     #bulk-bar .top-menu { bottom: calc(100% + 6px); top: auto; }
+
+    /* Sidebar Backup Data button's "Full backup / Database only" choice menu — opens
+       upward since the button sits at the bottom of the sidebar. */
+    .backup-btn-wrap { position: relative; }
+    #backup-choice-menu { left: 0; right: auto; top: auto; bottom: calc(100% + 6px); width: 100%; min-width: 0; }
 
     /* Timer pause button */
     #timer-pause-btn {
@@ -1993,9 +2003,12 @@
     <button id="theme-toggle" class="nav-item" onclick="toggleTheme()" title="Switch between light and dark mode">
       <span class="nav-icon" id="theme-icon" data-ic="moon"></span><span id="theme-label">Dark Mode</span>
     </button>
-    <button id="backup-btn" class="nav-item" onclick="backupDatabase()" title="Save a copy of your database to a file">
-      <span class="nav-icon" data-ic="save"></span>Backup Data
-    </button>
+    <div class="backup-btn-wrap">
+      <button id="backup-btn" class="nav-item" onclick="toggleTopMenu(event,'backup-choice-menu')" title="Back up your data — a full backup or just the database">
+        <span class="nav-icon" data-ic="save"></span>Backup Data
+      </button>
+      <div class="top-menu" id="backup-choice-menu"></div>
+    </div>
     <div class="sidebar-user" id="sidebar-user"></div>
     <button id="logout-btn" class="nav-item" onclick="doLogout()" title="Log out of this session">
       <span class="nav-icon" data-ic="log-out"></span>Log Out
@@ -3440,6 +3453,16 @@
       <div class="settings-panel" id="tab-maintenance">
         <div class="maint-section">
           <div class="maint-section-head">
+            <span data-ic="database"></span><span>Full Backup</span>
+            <button class="btn" id="maint-fullbackup-btn" style="margin-left:auto" onclick="runFullBackup('maint-fullbackup-btn')">Back Up Everything to Desktop</button>
+          </div>
+          <p class="general-hint">Captures the database, uploaded project files, company document files, and the
+            rotating backup snapshots into one new timestamped folder on your Desktop — the most complete
+            recovery point the app can produce. Nothing is written back into the live data folder.</p>
+        </div>
+
+        <div class="maint-section">
+          <div class="maint-section-head">
             <span data-ic="save"></span><span>Backups</span>
             <button class="btn" style="margin-left:auto" onclick="refreshMaintenanceBackups()">Refresh</button>
           </div>
@@ -3928,13 +3951,25 @@ function totalMins(rowArr) {
   return rowArr.reduce((s, r) => s + (parseFloat(r.minutes) || 0), 0);
 }
 let _toastTimer = null;
-function toast(msg) {
+// `opts.actionLabel`/`opts.onAction` add a click action button (e.g. "Open
+// folder") alongside the message; `opts.duration` overrides the auto-dismiss.
+function toast(msg, opts) {
   const el = document.getElementById('app-toast');
   if (!el) return;
-  el.textContent = msg;
+  el.innerHTML = '';
+  const span = document.createElement('span');
+  span.textContent = msg;
+  el.appendChild(span);
+  if (opts && opts.actionLabel && opts.onAction) {
+    const btn = document.createElement('button');
+    btn.className = 'toast-action-btn';
+    btn.textContent = opts.actionLabel;
+    btn.addEventListener('click', opts.onAction);
+    el.appendChild(btn);
+  }
   el.classList.add('show');
   clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), (opts && opts.duration) || 2600);
 }
 
 // ── Loading skeletons ──
@@ -8074,6 +8109,48 @@ async function exportAnalyticsPDF() {
   else if (res && res.error) toast('PDF failed: ' + res.error);
 }
 
+// ── Backup Data choice menu (sidebar 💾) ──
+// The sidebar button now opens a small choice — a full backup (Milestone 8,
+// everything the app owns) or the original database-only save-dialog flow —
+// instead of jumping straight to one of them. Rendered once at boot.
+function renderBackupChoiceMenu() {
+  const menu = document.getElementById('backup-choice-menu');
+  if (!menu) return;
+  menu.innerHTML = '';
+  const full = document.createElement('button');
+  full.innerHTML = '<span>Full backup to Desktop</span>';
+  full.addEventListener('click', () => { menu.classList.remove('open'); runFullBackup(); });
+  const dbOnly = document.createElement('button');
+  dbOnly.innerHTML = '<span>Database only…</span>';
+  dbOnly.addEventListener('click', () => { menu.classList.remove('open'); backupDatabase(); });
+  menu.appendChild(full);
+  menu.appendChild(dbOnly);
+}
+
+// ── Full Backup (Milestone 8) ──
+// Captures the DB + projects/ + company_documents/ + backups/ into one new
+// timestamped Desktop folder. Shared by the sidebar menu and the Settings ->
+// Maintenance card; `btnId` lets each caller show its own loading state.
+async function runFullBackup(btnId) {
+  const btn = btnId ? document.getElementById(btnId) : null;
+  const orig = btn ? btn.textContent : null;
+  if (btn) { btn.disabled = true; btn.textContent = 'Backing up…'; }
+  let res;
+  try { res = await window.api.fullBackup(); }
+  catch { res = { ok: false, error: 'failed' }; }
+  if (btn) { btn.disabled = false; btn.textContent = orig; }
+  if (res && res.ok) {
+    toast(`Full backup saved to ${res.path}`, {
+      actionLabel: 'Open folder',
+      onAction: () => window.api.openBackupFolder(res.path),
+      duration: 6000,
+    });
+  } else if (res && res.error) {
+    toast('Full backup failed: ' + res.error);
+  }
+  return res;
+}
+
 // ── Database backup ──
 async function backupDatabase() {
   const btn = document.getElementById('backup-btn');
@@ -11975,6 +12052,7 @@ function renderPalette() {
     { icon: 'calendar-check',label: 'Go to today',                match: 'today now current day',           run: () => { switchModule('timesheet'); goToday(); } },
     { icon: 'moon',          label: 'Toggle dark / light theme',  match: 'theme dark light mode toggle',    run: toggleTheme },
     { icon: 'save',          label: 'Back up the database',       match: 'backup database save export',     run: backupDatabase },
+    { icon: 'database',      label: 'Full backup to Desktop',     match: 'backup full desktop everything',  run: () => runFullBackup() },
   ].filter(a => !q || a.match.includes(q) || a.label.toLowerCase().includes(q))
    .map(a => ({ icon: a.icon, label: a.label, hint: 'Action', run: a.run }));
   if (acts.length) groups.push({ label: 'Actions', items: acts });
@@ -12108,6 +12186,8 @@ async function init() {
   const t = new Date();
   calYear  = t.getFullYear();
   calMonth = t.getMonth();
+
+  renderBackupChoiceMenu();
 
   try {
     LK = await window.api.loadLookups();
