@@ -1650,6 +1650,16 @@
     }
     .btn.primary kbd { background: rgba(255,255,255,.15); border-color: rgba(255,255,255,.2); color: #fff; }
 
+    /* ══ KEYBOARD SHORTCUTS OVERLAY ══ */
+    .shortcuts-list { display: flex; flex-direction: column; gap: 4px; }
+    .shortcuts-row {
+      display: flex; align-items: center; gap: 10px; padding: 9px 4px;
+      border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text);
+    }
+    .shortcuts-row:last-child { border-bottom: none; }
+    .shortcuts-row kbd { margin-left: 0; }
+    .shortcuts-row span { margin-left: auto; text-align: right; color: var(--muted); max-width: 60%; }
+
     /* ══ DELETE CONFIRM ══ */
     .del-confirm {
       display: flex; align-items: center; gap: 4px;
@@ -3527,6 +3537,30 @@
   </div>
 </div>
 
+<!-- ══ KEYBOARD SHORTCUTS OVERLAY ("?") — read-only, Milestone 5 ══ -->
+<div id="shortcuts-overlay" class="modal-overlay" onclick="shortcutsOverlayClick(event)">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title">Keyboard Shortcuts</span>
+      <button class="modal-close" onclick="closeShortcutsOverlay()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="shortcuts-list">
+        <div class="shortcuts-row"><kbd>Ctrl</kbd> + <kbd>K</kbd><span>Open the command palette</span></div>
+        <div class="shortcuts-row"><kbd>?</kbd><span>Show this shortcuts list</span></div>
+        <div class="shortcuts-row"><kbd>Esc</kbd><span>Close the open modal / palette / menu</span></div>
+        <div class="shortcuts-row"><kbd>Ctrl</kbd> + <kbd>Enter</kbd><span>Save the open Add/Edit modal</span></div>
+        <div class="shortcuts-row"><kbd>Ctrl</kbd> + <kbd>N</kbd><span>Add new (Timesheet record, Subscription, Project, Company Document — context-dependent)</span></div>
+        <div class="shortcuts-row"><kbd>Ctrl</kbd> + <kbd>←</kbd> / <kbd>→</kbd><span>Previous / next saved day (Timesheet)</span></div>
+        <div class="shortcuts-row"><kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd><span>Cycle focus within the open modal</span></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeShortcutsOverlay()">Close</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── Icon system (Lucide, inlined offline SVG — no CDN, strict-CSP safe) ──
 // Each entry is the inner markup of a 24×24 Lucide icon; strokes use currentColor
@@ -3632,6 +3666,57 @@ function watchAriaLabels() {
       });
     }
   }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['title'] });
+}
+
+// ── Modal focus-trap + initial focus (Milestone 5) ──────────────────────────
+// Escape-to-close and click-outside-to-close were already consistent across
+// every `.modal-overlay` before this milestone (the global Escape handler
+// below, and each modal's own `xOverlayClick(e)`); focus-trapping (Tab
+// cycling within the modal) and initial focus were the real gaps, so this is
+// applied generically via a per-element class-attribute observer rather than
+// touching every individual open*/close* function.
+function trapFocusIn(overlayEl) {
+  const box = overlayEl.querySelector('.modal-box');
+  if (!box) return;
+  const focusable = () => [...box.querySelectorAll(
+    'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  )].filter(el => el.offsetParent !== null);
+  const keydown = (e) => {
+    if (e.key !== 'Tab') return;
+    const items = focusable();
+    if (!items.length) return;
+    const first = items[0], last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  };
+  overlayEl.addEventListener('keydown', keydown);
+  overlayEl._focusTrapKeydown = keydown;
+  // Initial focus lands on the first focusable element, unless a modal's own
+  // open*() already scheduled a more specific target (many do, via their own
+  // shorter setTimeout(...).focus() calls) — this runs a little later so
+  // those still win; if one already landed, this is a no-op.
+  setTimeout(() => {
+    if (!overlayEl.classList.contains('open')) return;
+    if (overlayEl.contains(document.activeElement) && document.activeElement !== document.body) return;
+    const items = focusable();
+    if (items.length) items[0].focus();
+  }, 90);
+}
+function releaseFocusTrap(overlayEl) {
+  if (overlayEl._focusTrapKeydown) {
+    overlayEl.removeEventListener('keydown', overlayEl._focusTrapKeydown);
+    overlayEl._focusTrapKeydown = null;
+  }
+}
+function watchModalFocusTraps() {
+  const obs = new MutationObserver(mutations => {
+    mutations.forEach(m => {
+      const el = m.target;
+      if (!(el instanceof Element) || !el.classList.contains('modal-overlay')) return;
+      if (el.classList.contains('open')) trapFocusIn(el); else releaseFocusTrap(el);
+    });
+  });
+  document.querySelectorAll('.modal-overlay').forEach(el => obs.observe(el, { attributes: true, attributeFilter: ['class'] }));
 }
 
 // ── State ──
@@ -5527,8 +5612,16 @@ document.addEventListener('keydown', e => {
     closeProjectModal(); closeLinkModal(); closePalette(); closeTaskDetail(); closeCompanyDocModal();
     closeClientVpnModal(); closeClientServerModal(); closeClientDatabaseModal(); closeClientExternalModal(); closeClientInternalModal(); closeClientGroupRenameModal(); closeClientNewGroupModal();
     closeClientRecordInfoModal(); cancelClientEditConfirm(); closeClientHistoryModal();
+    closeSessionModal(); closeWlHistoryModal(); closeMergeModal(); closeShortcutsOverlay();
     document.querySelectorAll('.top-menu.open').forEach(m => m.classList.remove('open'));
     if (selectedRows.size) clearSelection();
+  }
+  // "?" opens the keyboard-shortcuts overlay — only when not typing in a field
+  // (so a literal "?" can still be typed into a search box or textarea).
+  if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
+    const tag = (e.target && e.target.tagName || '').toLowerCase();
+    const typing = tag === 'input' || tag === 'textarea' || tag === 'select' || e.target?.isContentEditable;
+    if (!typing) { e.preventDefault(); openShortcutsOverlay(); }
   }
   if (e.ctrlKey && e.key === 'Enter') {
     e.preventDefault();
@@ -11350,22 +11443,50 @@ const PAL_PAGES = [
   { icon: 'settings',         label: 'Settings',      go: 'settings' },
 ];
 
+let _palCompanyDocs = [];  // lazy-loaded, same pattern as _palTasks (Milestone 5)
+let _palSubscriptions = [];
+
+// Settings tabs (Milestone 5 palette expansion) — mirrors SETTINGS_TABS' keys
+// with the human label each tab button already shows; jumping calls the
+// existing switchTab(btn) with that tab's real button element (not a fake one).
+const PAL_SETTINGS_TABS = [
+  { key: 'general', label: 'General' }, { key: 'companies', label: 'Companies' },
+  { key: 'systems', label: 'Systems' }, { key: 'natural', label: 'Natural' },
+  { key: 'timeType', label: 'Time Type' }, { key: 'status', label: 'Status' },
+  { key: 'projectStatus', label: 'Project Status' }, { key: 'projectCategory', label: 'Project Category' },
+  { key: 'projectDocument', label: 'Project Documents' }, { key: 'companyDocCategory', label: 'Company Doc Categories' },
+  { key: 'department', label: 'Department' },
+];
+
 async function openPalette() {
   document.getElementById('palette-overlay').classList.add('open');
   const inp = document.getElementById('palette-input');
   inp.value = '';
-  _palTasks = [];
+  _palTasks = []; _palCompanyDocs = []; _palSubscriptions = [];
   renderPalette();
   setTimeout(() => inp.focus(), 40);
-  // Tasks load in the background; re-render once they arrive (if still open).
+  // Results load in the background; re-render once each arrives (if still open).
   try {
     const list = await window.api.listTasks();
     if (Array.isArray(list)) { _palTasks = list; if (paletteIsOpen()) renderPalette(); }
   } catch { /* tasks just won't appear in results */ }
+  try {
+    const docs = await window.api.listCompanyDocuments();
+    if (Array.isArray(docs)) { _palCompanyDocs = docs; if (paletteIsOpen()) renderPalette(); }
+  } catch { /* company docs just won't appear in results */ }
+  try {
+    const subData = await window.api.loadSubscriptions();
+    if (subData && Array.isArray(subData.subscriptions)) { _palSubscriptions = subData.subscriptions; if (paletteIsOpen()) renderPalette(); }
+  } catch { /* subscriptions just won't appear in results */ }
 }
 function closePalette() { document.getElementById('palette-overlay').classList.remove('open'); }
 function paletteIsOpen() { return document.getElementById('palette-overlay').classList.contains('open'); }
 function paletteOverlayClick(e) { if (e.target === document.getElementById('palette-overlay')) closePalette(); }
+
+// ── Keyboard shortcuts overlay ("?", Milestone 5) — static, read-only ──
+function openShortcutsOverlay() { document.getElementById('shortcuts-overlay').classList.add('open'); }
+function closeShortcutsOverlay() { document.getElementById('shortcuts-overlay').classList.remove('open'); }
+function shortcutsOverlayClick(e) { if (e.target === document.getElementById('shortcuts-overlay')) closeShortcutsOverlay(); }
 
 // Parse a "jump to date" query: full YYYY-MM-DD, or the words today / yesterday.
 function palParseDate(q) {
@@ -11406,24 +11527,64 @@ function renderPalette() {
    .map(a => ({ icon: a.icon, label: a.label, hint: 'Action', run: a.run }));
   if (acts.length) groups.push({ label: 'Actions', items: acts });
 
+  // Settings tabs (jump straight to a lookup category editor)
+  const settingsTabs = q ? PAL_SETTINGS_TABS.filter(t => t.label.toLowerCase().includes(q) || ('settings ' + t.label.toLowerCase()).includes(q))
+    .map(t => ({
+      icon: 'settings', label: 'Settings — ' + t.label, hint: 'Go to',
+      run: () => { switchModule('settings'); const btn = document.querySelector('.stab[data-tab="' + t.key + '"]'); if (btn) switchTab(btn); },
+    })) : [];
+  if (settingsTabs.length) groups.push({ label: 'Settings', items: settingsTabs });
+
   // Projects (from the always-loaded lightweight index)
   const projs = projectIndex.filter(p => q && p.name.toLowerCase().includes(q))
     .slice(0, 5)
     .map(p => ({ icon: 'clipboard-list', label: p.name, hint: 'Open project', run: () => openProjectById(p.id) }));
   if (projs.length) groups.push({ label: 'Projects', items: projs });
 
+  // Clients (COMPANY lookup roster — same "the roster IS the lookup catalog"
+  // convention the Clients page itself uses, not a separate clients table).
+  const clientHits = q ? lkOptions('COMPANY').filter(c => c.label.toLowerCase().includes(q))
+    .slice(0, 5)
+    .map(c => ({ icon: 'layers', label: c.label, hint: 'Open client', run: () => { switchModule('clients'); openClientDetail(c.id); } })) : [];
+  if (clientHits.length) groups.push({ label: 'Clients', items: clientHits });
+
+  // Company Documents (lazy-loaded, same pattern as tasks)
+  const docHits = q ? _palCompanyDocs.filter(d => (d.name || '').toLowerCase().includes(q))
+    .slice(0, 5)
+    .map(d => ({ icon: 'calendar-check', label: d.name || '(unnamed document)', hint: 'Open Company Docs', run: () => switchModule('companydocs') })) : [];
+  if (docHits.length) groups.push({ label: 'Company Documents', items: docHits });
+
+  // Subscriptions (lazy-loaded, same pattern as tasks)
+  const subHits = q ? _palSubscriptions.filter(s => (s.name || '').toLowerCase().includes(q))
+    .slice(0, 5)
+    .map(s => ({ icon: 'credit-card', label: s.name || '(unnamed subscription)', hint: 'Open Subscriptions', run: () => switchModule('subscriptions') })) : [];
+  if (subHits.length) groups.push({ label: 'Subscriptions', items: subHits });
+
   // Tasks — selecting one logs a session against it (same rich picker conventions
   // as buildTaskSearchSelect: most-recently-worked first, source in the match).
-  const tasks = q ? _palTasks.filter(t => textMatch([t.name, t.company, t.system, t.source], q))
-    .sort((a, b) => (b.lastDate || '').localeCompare(a.lastDate || ''))
-    .slice(0, 6)
-    .map(t => ({
-      icon: 'layers',
-      label: (t.name || '(untitled task)') + ([t.company, t.system].filter(Boolean).length ? ' — ' + [t.company, t.system].filter(Boolean).join(' · ') : ''),
-      hint: lkLabel('ENTRY_STATUS', t.status) || 'Log session',
-      run: () => openSessionModal(null, { mode: 'create', task: t }),
-    })) : [];
-  if (tasks.length) groups.push({ label: 'Log a session on…', items: tasks });
+  // With an empty query, show a "Recent" group instead (worked in the last 14
+  // days, same window buildTaskSearchSelect uses) so the palette isn't just
+  // pages/actions the moment it opens.
+  let tasks, taskGroupLabel;
+  if (q) {
+    tasks = _palTasks.filter(t => textMatch([t.name, t.company, t.system, t.source], q))
+      .sort((a, b) => (b.lastDate || '').localeCompare(a.lastDate || ''))
+      .slice(0, 6);
+    taskGroupLabel = 'Log a session on…';
+  } else {
+    const cutoff = fmt(new Date(Date.now() - TASK_PICKER_RECENT_DAYS * 86400000));
+    tasks = _palTasks.filter(t => t.lastDate && t.lastDate >= cutoff)
+      .sort((a, b) => (b.lastDate || '').localeCompare(a.lastDate || ''))
+      .slice(0, 5);
+    taskGroupLabel = 'Recent tasks';
+  }
+  const taskItems = tasks.map(t => ({
+    icon: 'layers',
+    label: (t.name || '(untitled task)') + ([t.company, t.system].filter(Boolean).length ? ' — ' + [t.company, t.system].filter(Boolean).join(' · ') : ''),
+    hint: lkLabel('ENTRY_STATUS', t.status) || 'Log session',
+    run: () => openSessionModal(null, { mode: 'create', task: t }),
+  }));
+  if (taskItems.length) groups.push({ label: taskGroupLabel, items: taskItems });
 
   _palItems = groups.flatMap(g => g.items);
   _palActive = 0;
@@ -11602,6 +11763,7 @@ async function doLogout() {
 
 hydrateIcons();   // swap all static [data-ic] placeholders for inline Lucide SVG
 watchAriaLabels(); // mirror every button's title onto aria-label, now and going forward
+watchModalFocusTraps(); // Tab-cycle + initial focus inside every .modal-overlay (Milestone 5)
 bootAuth();
 </script>
 <div id="app-toast" class="app-toast"></div>
