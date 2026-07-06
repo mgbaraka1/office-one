@@ -752,6 +752,20 @@
     }
     .row-project-tag .lic { width: 11px; height: 11px; flex-shrink: 0; }
 
+    /* Milestone 9 — Internal (department) task pill, styled distinctly from the
+       neutral/muted .row-project-tag so the two container species read apart
+       at a glance, not just by text. */
+    .row-department-tag {
+      display: inline-flex; align-items: center; gap: 4px; margin-top: 4px;
+      font-size: 11px; font-weight: 600; color: var(--accent);
+      background: var(--accent-bg); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+      padding: 1px 8px; border-radius: 999px; white-space: nowrap; max-width: 100%;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .row-department-tag .lic { width: 11px; height: 11px; flex-shrink: 0; }
+    .row-department-tag.clickable { cursor: pointer; transition: opacity var(--speed); }
+    .row-department-tag.clickable:hover { opacity: .8; }
+
     /* document cards */
     .pj-docs { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
     .pj-doc-card {
@@ -2364,7 +2378,7 @@
           <th>Natural</th>
           <th>Time</th>
           <th style="min-width:220px">Description</th>
-          <th style="min-width:140px">Project</th>
+          <th style="min-width:140px">Project / Dept</th>
           <th style="width:80px;text-align:right">Minutes</th>
           <th style="width:70px;text-align:right">Hours</th>
           <th style="width:110px"></th>
@@ -3528,12 +3542,26 @@
             <label>Status</label>
             <select id="b-status"></select>
           </div>
-          <div class="form-group">
+        </div>
+        <!-- Milestone 9: a task is Project work, Internal (department) work, or
+             neither, never both — shown only when the modal wasn't opened from
+             inside a Project or a Department (both already fix the type). -->
+        <div class="form-row" id="b-tasktype-row" style="display:none">
+          <div class="form-group full">
+            <label>Task Type</label>
+            <div class="seg-ctl" id="b-tasktype-ctl">
+              <button type="button" class="seg-btn" data-type="project" onclick="setBacklogTaskType('project')">Client / Project work</button>
+              <button type="button" class="seg-btn" data-type="department" onclick="setBacklogTaskType('department')">Internal</button>
+            </div>
+          </div>
+        </div>
+        <div class="form-row" id="b-department-row">
+          <div class="form-group full">
             <label>Department <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional</span></label>
             <select id="b-department"></select>
           </div>
         </div>
-        <div class="form-row">
+        <div class="form-row" id="b-project-row">
           <div class="form-group full">
             <label>Project <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional, link this task to a project</span></label>
             <div id="b-project"></div>
@@ -3886,6 +3914,14 @@ function lkFind(category, value) {
 function lkLabel(category, value) {
   const o = lkFind(category, value);
   return o ? o.label : (value || '');
+}
+// Stored FK id (e.g. a task's departmentId) → human label, matched by the
+// catalog's own numeric id — unlike lkFind/lkLabel above, which match a
+// code or label, never a raw id.
+function lkLabelById(category, id) {
+  if (id == null) return '';
+  const o = (LK.categories[category] || []).find(x => Number(x.id) === Number(id));
+  return o ? o.label : '';
 }
 
 // ── Timer state ──
@@ -4442,7 +4478,8 @@ function buildTaskSearchSelect(host, tasks, initialId, placeholder, onChange) {
     groupFn: (o) => (isRecent(o.task) ? 'Recent' : 'All tasks'),
     renderOption: (o) => {
       const t = o.task;
-      const meta = [t.company, t.system, t.projectId != null ? projectNameById(t.projectId) : null,
+      const meta = [t.company, t.system,
+        t.projectId != null ? projectNameById(t.projectId) : (t.departmentId != null ? t.department : null),
         t.lastDate ? ('worked ' + t.lastDate) : null,
         t.logCount ? (t.logCount + ' session' + (t.logCount === 1 ? '' : 's')) : null,
         t.totalMinutes ? (Math.round(t.totalMinutes / 60 * 10) / 10 + 'h') : null]
@@ -4980,6 +5017,8 @@ function buildTaskGroupCard(g, origIdxOf) {
   pill(first.system, 'systems');
   const projTag = projectRowTag(first.projectId);
   if (projTag) meta.appendChild(projTag);
+  const deptTag = departmentRowTag(first.departmentId);
+  if (deptTag) meta.appendChild(deptTag);
   head.appendChild(meta);
 
   // Right side: per-task subtotal + add-session.
@@ -5263,8 +5302,8 @@ function renderTableFlat() {
     descTd.appendChild(descDiv);
     tr.appendChild(descTd);
 
-    // Project — cross-links into the project's detail view
-    tr.appendChild(projectCell(row.projectId));
+    // Project / Department — cross-links into whichever container is linked
+    tr.appendChild(projectCell(row.projectId, row.departmentId));
 
     // Minutes — click to edit inline
     const minTd = document.createElement('td');
@@ -5418,10 +5457,12 @@ function linkCell(val, kind) {
   btn.addEventListener('click', () => openBrowseSlice(kind, val));
   return cellWrap(btn, 'cell');
 }
-// A task's linked-project cell — the same cross-linking pill used elsewhere
-// (Description used to carry this inline; it now gets its own column).
-function projectCell(projectId) {
-  const tag = projectRowTag(projectId);
+// A task's linked-container cell — the same cross-linking pill used elsewhere
+// (Description used to carry this inline; it now gets its own column). Shows
+// whichever of Project/Department is set (Milestone 9: never both) or a dash
+// for a task linked to neither.
+function projectCell(projectId, departmentId) {
+  const tag = projectRowTag(projectId) || departmentRowTag(departmentId);
   return tag ? cellWrap(tag, 'cell') : textCell('—');
 }
 
@@ -6893,6 +6934,33 @@ let _backlogCtx = { projectId: null, departmentId: null, onSaved: null };
 // rows (fetched via getTask when editing a task with any), for reconciliation.
 let _bSourceOriginalIds = [];
 
+// Milestone 9 — which container field is currently shown when neither is
+// locked by context ('project' | 'department'). Only meaningful in that case;
+// ignored (rows driven directly by lockedProject/lockedDept) otherwise.
+let _backlogTaskType = 'project';
+// Visual-only: shows the matching row + toggle state. Never touches field
+// values — used both for the initial render (reflecting the task's existing
+// link, so nothing is lost) and as the shared base for the click handler below.
+function applyBacklogTaskTypeUI(type) {
+  _backlogTaskType = type;
+  document.querySelectorAll('#b-tasktype-ctl .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.type === type));
+  document.getElementById('b-project-row').style.display = type === 'project' ? '' : 'none';
+  document.getElementById('b-department-row').style.display = type === 'department' ? '' : 'none';
+}
+// Click handler for the Task Type toggle — also clears whichever field just
+// got hidden, so a stale selection can never ride along in the save payload
+// alongside the newly-shown field (Project/Department are mutually exclusive;
+// see db.js's assertTaskLinkExclusive).
+function setBacklogTaskType(type) {
+  if (type === _backlogTaskType) return;
+  applyBacklogTaskTypeUI(type);
+  if (type === 'project') {
+    document.getElementById('b-department').value = '';
+  } else {
+    bProjectPicker = buildSearchSelect(document.getElementById('b-project'), projectFieldOptions(null), null, 'No project');
+  }
+}
+
 async function openBacklogModal(id = null, opts = {}) {
   backlogEditId = id;
   _backlogCtx = { projectId: opts.projectId ?? null, departmentId: opts.departmentId ?? null, onSaved: opts.onSaved || null };
@@ -6938,6 +7006,26 @@ async function openBacklogModal(id = null, opts = {}) {
   if (!initialDeptLabel) blankDept.selected = true;
   bDeptSel.insertBefore(blankDept, bDeptSel.firstChild);
   bDeptSel.disabled = lockedDept;
+
+  // Milestone 9 — Project/Department are mutually exclusive. Opened from inside
+  // a Project or a Department, the type is already fixed by that context: hide
+  // the Task Type toggle and the other container's field entirely (not just
+  // disabled). Opened with neither preset (only All Tasks' Edit today), show
+  // the toggle and reveal whichever field matches the task's current link
+  // (defaulting to Project work for a task with neither link yet).
+  const tasktypeRow = document.getElementById('b-tasktype-row');
+  if (lockedProject) {
+    tasktypeRow.style.display = 'none';
+    document.getElementById('b-department-row').style.display = 'none';
+    document.getElementById('b-project-row').style.display = '';
+  } else if (lockedDept) {
+    tasktypeRow.style.display = 'none';
+    document.getElementById('b-project-row').style.display = 'none';
+    document.getElementById('b-department-row').style.display = '';
+  } else {
+    tasktypeRow.style.display = '';
+    applyBacklogTaskTypeUI(task?.departmentId ? 'department' : 'project');
+  }
 
   document.getElementById('b-description').value = task?.name   || '';
   document.getElementById('b-sources-list').innerHTML = '';
@@ -8552,6 +8640,28 @@ function openProjectById(id) {
   openProjectDetail(id);
 }
 
+// Milestone 9 — the Internal-task counterpart to projectRowTag: a task is
+// Project work, Internal (department) work, or neither, never both, so this
+// and projectRowTag are never both non-null for the same task. Uses its own
+// accent (teal, via the .row-department-tag class) so the two pills read as
+// distinct species at a glance, not just different text.
+function departmentRowTag(departmentId) {
+  const name = lkLabelById('DEPARTMENT', departmentId);
+  if (!name) return null;
+  const tag = document.createElement('span');
+  tag.className = 'row-department-tag clickable';
+  tag.innerHTML = ic('building');
+  tag.appendChild(document.createTextNode(name));
+  tag.title = 'Open department: ' + name;
+  tag.addEventListener('click', (e) => { e.stopPropagation(); openDepartmentById(Number(departmentId)); });
+  return tag;
+}
+// Jump straight to a department's task panel from anywhere in the app.
+function openDepartmentById(id) {
+  switchModule('internal-tasks');
+  selectDept(id);
+}
+
 // ── Task Detail modal — the task's session hub: metadata + rollups (read-only)
 // plus every work_log session, newest first, reachable from Timesheet rows and
 // every buildLinkedTaskCard (Projects/Internal Tasks/All Tasks). Each session
@@ -8781,6 +8891,9 @@ function renderTaskDetail(t) {
   if (t.projectId != null) {
     const tag = projectRowTag(t.projectId);
     grid.appendChild(field('Project', tag || projectNameById(t.projectId)));
+  } else if (t.departmentId != null) {
+    const tag = departmentRowTag(t.departmentId);
+    grid.appendChild(field('Department', tag || t.department));
   } else {
     grid.appendChild(field('Project', null));
   }
@@ -9392,6 +9505,12 @@ function buildLinkedTaskCard(t, handlers) {
     (metaBits ? metaBits + '  ·  ' : '') + logCount + ' session' + (logCount === 1 ? '' : 's') +
     (mins ? '  ·  ' + mins + ' min (' + (mins / 60).toFixed(2) + ' h)' : ''));
   card.appendChild(summary);
+  // Milestone 9 — only shown where the card doesn't already imply its own
+  // container (see the All Tasks call site's showContainerTag flag).
+  if (handlers.showContainerTag) {
+    const containerTag = projectRowTag(t.projectId) || departmentRowTag(t.departmentId);
+    if (containerTag) card.appendChild(containerTag);
+  }
 
   if (logs.length === 0) {
     const empty = pjMk('div', 'pj-task-empty', 'No sessions yet');
@@ -9726,11 +9845,16 @@ function renderLinkList() {
   });
 }
 async function doLinkTask(taskId) {
+  let res;
   try {
-    if (_linkCtx.kind === 'department') await window.api.linkDepartmentTask(taskId, _linkCtx.containerId);
-    else await window.api.linkProjectTask(_linkCtx.containerId, taskId);
+    res = _linkCtx.kind === 'department'
+      ? await window.api.linkDepartmentTask(taskId, _linkCtx.containerId)
+      : await window.api.linkProjectTask(_linkCtx.containerId, taskId);
   }
   catch { toast('Could not link task'); return; }
+  // Project/Department are mutually exclusive (Milestone 9) — the picker already
+  // excludes the other kind, but check ok anyway rather than assuming success.
+  if (res && res.ok === false) { toast(res.error || 'Could not link task'); return; }
   // Drop the just-linked task from the picker source, refresh both views.
   linkableTasks = (linkableTasks || []).filter(t => t.id !== taskId);
   renderLinkList();
@@ -9779,6 +9903,9 @@ let allTasksList = [];        // Task[] (with nested workLogs) from tasks:list �
 let atProjectsIdx = [];       // for the Project filter dropdown (all statuses, not just ACTIVE)
 let atDepartmentsIdx = [];    // for the Department filter dropdown
 let atStatuses = new Set();   // active ENTRY_STATUS filter chips
+// Milestone 9 — top-level population split, now that Project/Department are
+// mutually exclusive: '' (All) | 'project' | 'internal' | 'unassigned'.
+let atTypeFilter = '';
 let atPresetFilter = null;    // one-shot filter applied on next render (e.g. {departmentId} from Analytics' chart click-through), then cleared
 
 async function initAllTasksModule() {
@@ -9799,6 +9926,24 @@ async function initAllTasksModule() {
 function renderAllTasksPanel() {
   const host = document.getElementById('at-panel');
   host.innerHTML = '';
+
+  // Milestone 9 — a top-level type split (All / Project tasks / Internal /
+  // Unassigned), separate from the Project/Department dropdowns below (which
+  // narrow to one specific container; this narrows to a whole population).
+  const typeCtl = document.createElement('div'); typeCtl.className = 'seg-ctl'; typeCtl.id = 'at-type-ctl';
+  typeCtl.style.marginBottom = 'var(--space-4)';
+  [['', 'All'], ['project', 'Project tasks'], ['internal', 'Internal'], ['unassigned', 'Unassigned']].forEach(([val, label]) => {
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'seg-btn' + (atTypeFilter === val ? ' active' : ''); btn.dataset.type = val;
+    btn.textContent = label;
+    btn.addEventListener('click', () => {
+      atTypeFilter = val;
+      typeCtl.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b.dataset.type === val));
+      renderAllTasksCards();
+    });
+    typeCtl.appendChild(btn);
+  });
+  host.appendChild(typeCtl);
 
   const bar = document.createElement('div'); bar.className = 'cp-filter-bar';
   const mkField = (labelText, el) => {
@@ -9837,6 +9982,8 @@ function renderAllTasksPanel() {
   clearBtn.innerHTML = ic('x') + ' Clear filters';
   clearBtn.addEventListener('click', () => {
     atStatuses.clear();
+    atTypeFilter = '';
+    typeCtl.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b.dataset.type === ''));
     searchInp.value = '';
     ['at-company', 'at-system', 'at-project', 'at-department'].forEach(id => { document.getElementById(id).value = ''; });
     renderAllTasksStatusChips();
@@ -9887,6 +10034,9 @@ function renderAllTasksStatusChips() {
 }
 
 function atTaskMatchesFilters(t, q, company, system, projectSel, deptSel) {
+  if (atTypeFilter === 'project' && t.projectId == null) return false;
+  if (atTypeFilter === 'internal' && t.departmentId == null) return false;
+  if (atTypeFilter === 'unassigned' && (t.projectId != null || t.departmentId != null)) return false;
   if (atStatuses.size && !atStatuses.has(t.status)) return false;
   if (company && t.company !== company) return false;
   if (system && t.system !== system) return false;
@@ -9931,6 +10081,10 @@ function renderAllTasksCards() {
     onEdit: () => openAllTasksEditTask(t.id),
     onDelete: () => doDeleteAllTasksTask(t),
     onSessionSaved: reloadAllTasksModule,
+    // All Tasks mixes both populations on one page (unlike Projects/Internal
+    // Tasks' own detail views, where the container is already implied) — show
+    // which one each card belongs to.
+    showContainerTag: true,
   })));
 }
 
