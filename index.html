@@ -458,6 +458,7 @@
     .row-btn.timer-start:hover { background: color-mix(in srgb, var(--good) 12%, transparent); border-color: color-mix(in srgb, var(--good) 28%, transparent); color: var(--good); }
     .row-btn.timer-stop { background: color-mix(in srgb, var(--good) 12%, transparent); border-color: color-mix(in srgb, var(--good) 28%, transparent); color: var(--good); }
     .row-btn.timer-stop:hover { background: var(--good); color: #fff; border-color: var(--good); }
+    .row-btn.done-btn:hover { background: color-mix(in srgb, var(--good) 12%, transparent); border-color: color-mix(in srgb, var(--good) 28%, transparent); color: var(--good); }
     .row-btn:disabled { opacity: .3; cursor: default; pointer-events: none; }
 
     tbody tr td .row-actions { opacity: 0; transform: translateX(6px); transition: opacity var(--speed), transform var(--speed); }
@@ -1707,6 +1708,32 @@
     .filter-chip.active { background: var(--primary); color: #fff; box-shadow: 0 2px 8px -2px var(--primary-glow); }
     #filter-count { font-size: 12px; color: var(--muted); margin-left: auto; }
 
+    /* Continue-yesterday strip (Milestone 10) */
+    #continue-strip {
+      display: flex; align-items: center; gap: 12px;
+      padding: 9px 18px; background: var(--surface); border-bottom: 1px solid var(--border);
+      flex-shrink: 0; overflow: hidden;
+    }
+    .continue-strip-label {
+      display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700;
+      color: var(--muted); text-transform: uppercase; letter-spacing: .4px; flex-shrink: 0;
+    }
+    .continue-strip-label .lic { width: 13px; height: 13px; }
+    #continue-strip-chips { display: flex; gap: 8px; overflow-x: auto; flex: 1; }
+    .continue-chip {
+      display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+      padding: 6px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 600;
+      border: 1px solid var(--border); background: var(--surface2); color: var(--text);
+      cursor: pointer; white-space: nowrap; transition: all var(--speed);
+    }
+    .continue-chip:hover { border-color: var(--accent); background: var(--accent-bg); color: var(--accent); }
+    .continue-chip .cc-meta { color: var(--muted); font-weight: 500; }
+    #continue-strip-dismiss {
+      background: none; border: none; cursor: pointer; color: var(--muted);
+      font-size: 14px; padding: 4px; flex-shrink: 0;
+    }
+    #continue-strip-dismiss:hover { color: var(--text); }
+
     /* ══ KBD HINTS ══ */
     kbd {
       display: inline-block; padding: 3px 9px; border-radius: 7px;
@@ -1725,6 +1752,24 @@
     .shortcuts-row:last-child { border-bottom: none; }
     .shortcuts-row kbd { margin-left: 0; }
     .shortcuts-row span { margin-left: auto; text-align: right; color: var(--muted); max-width: 60%; }
+
+    /* "How This App Thinks" cheat-sheet (Milestone 10) */
+    .howthinks-rules {
+      display: flex; flex-direction: column; gap: 8px; margin: 16px 0;
+      font-size: 13px; color: var(--text); line-height: 1.5;
+    }
+    .howthinks-journeys { display: flex; flex-direction: column; gap: 12px; margin-top: 18px; }
+    .howthinks-journey {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 12px 14px;
+    }
+    .howthinks-journey-title {
+      display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700;
+      color: var(--accent); margin-bottom: 5px;
+    }
+    .howthinks-journey-title .lic { width: 15px; height: 15px; }
+    .howthinks-journey-path { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+    .howthinks-journey-path b { color: var(--text); }
 
     /* ══ DELETE CONFIRM ══ */
     .del-confirm {
@@ -1906,6 +1951,22 @@
     .modal-tasksection-divider {
       border: none; border-top: 1px solid var(--border); margin: 2px 0 -6px;
     }
+    /* "More options" collapse (Milestone 10) — Project link + Sources on the
+       Add Record modal's New Task branch, closed by default so the common
+       case (Company/System/Status/Description) reads as a short form. */
+    .modal-more {
+      display: flex; flex-direction: column; gap: 15px;
+      border-top: 1px dashed var(--border); padding-top: 14px; margin-top: -2px;
+    }
+    .modal-more summary {
+      cursor: pointer; list-style: none; font-size: 12.5px; font-weight: 600;
+      color: var(--muted); display: flex; align-items: center; gap: 5px;
+    }
+    .modal-more summary::-webkit-details-marker { display: none; }
+    .modal-more summary::before { content: '▸'; font-size: 10px; transition: transform var(--speed); }
+    .modal-more[open] summary::before { transform: rotate(90deg); }
+    .modal-more summary:hover { color: var(--text); }
+    .modal-more-hint { font-weight: 500; color: var(--muted); text-transform: none; letter-spacing: normal; }
 
     /* ── Auth gate (setup / login) ── */
     #auth-overlay {
@@ -2351,6 +2412,14 @@
     </div>
   </div>
 
+  <!-- Continue-yesterday strip (Milestone 10) — recently-worked, not-DONE tasks;
+       one click opens the Session edit modal's create mode with today preset. -->
+  <div id="continue-strip" style="display:none">
+    <span class="continue-strip-label"><span data-ic="rotate-ccw"></span>Continue</span>
+    <div id="continue-strip-chips"></div>
+    <button id="continue-strip-dismiss" title="Hide for today" data-ic="x"></button>
+  </div>
+
   <!-- Filter bar -->
   <div id="filter-bar">
     <div class="filter-wrap">
@@ -2455,20 +2524,27 @@
             <select id="f-status"></select>
           </div>
         </div>
-        <div class="form-row">
-          <div class="form-group full">
-            <label>Project <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional, link this task to a project</span></label>
-            <div id="f-project"></div>
+        <!-- Milestone 10 — Project link and Sources are the two least-used fields on
+             the brand-new-task path; collapsed by default so the common case (Company/
+             System/Status/Description) reads as a short form, not a long one. Native
+             <details> — no JS needed to open/close, and it degrades gracefully. -->
+        <details class="modal-more">
+          <summary>More options <span class="modal-more-hint">— Project link, Sources</span></summary>
+          <div class="form-row">
+            <div class="form-group full">
+              <label>Project <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional, link this task to a project</span></label>
+              <div id="f-project"></div>
+            </div>
           </div>
-        </div>
-        <hr class="modal-tasksection-divider" />
-        <div class="modal-tasksection-head"><span data-ic="tag"></span>Sources <span style="text-transform:none;font-weight:500;letter-spacing:normal">— optional, e.g. Jira tickets, email threads</span></div>
-        <div class="form-row">
-          <div class="form-group full">
-            <div id="f-sources-list"></div>
-            <button type="button" class="btn" onclick="addTaskSourceRow('f-sources-list')">+ Add Source</button>
+          <hr class="modal-tasksection-divider" />
+          <div class="modal-tasksection-head"><span data-ic="tag"></span>Sources <span style="text-transform:none;font-weight:500;letter-spacing:normal">— optional, e.g. Jira tickets, email threads</span></div>
+          <div class="form-row">
+            <div class="form-group full">
+              <div id="f-sources-list"></div>
+              <button type="button" class="btn" onclick="addTaskSourceRow('f-sources-list')">+ Add Source</button>
+            </div>
           </div>
-        </div>
+        </details>
       </div>
       <!-- Session-level fields — always editable, in both Existing Task and New Task modes. -->
       <div class="modal-tasksection">
@@ -3452,6 +3528,10 @@
           <input id="setting-default-name" type="text" placeholder="e.g. Moustafa Baraka" />
         </div>
         <p class="general-hint">Pre-fills the Name field when opening a new day with no existing data.</p>
+        <hr class="modal-tasksection-divider" style="margin:20px 0" />
+        <button class="btn" onclick="openHowThinksOverlay()"><span data-ic="compass"></span>How This App Thinks</button>
+        <p class="general-hint">A one-page explainer of the Task → Sessions → optional Project/Department model,
+          plus the quickest path for each everyday journey.</p>
       </div>
       <div class="settings-panel" id="tab-companies"></div>
       <div class="settings-panel" id="tab-systems"></div>
@@ -3703,7 +3783,73 @@
       </div>
     </div>
     <div class="modal-footer">
+      <button class="btn" onclick="closeShortcutsOverlay(); openHowThinksOverlay()" style="margin-right:auto">How This App Thinks</button>
       <button class="btn" onclick="closeShortcutsOverlay()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ "HOW THIS APP THINKS" CHEAT-SHEET (Milestone 10) ══
+     Renderer-only, no IPC — a static explainer of the Task -> Sessions ->
+     optional Container model, plus the golden path for each core journey.
+     Reachable from the "?" shortcuts overlay and Settings -> General. -->
+<div id="howthinks-overlay" class="modal-overlay" onclick="howThinksOverlayClick(event)">
+  <div class="modal-box" style="width:640px;max-width:94vw">
+    <div class="modal-header">
+      <span class="modal-title">How This App Thinks</span>
+      <button class="modal-close" onclick="closeHowThinksOverlay()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <p class="general-hint" style="margin-top:0">Three ideas explain almost everything else in this app.</p>
+      <svg viewBox="0 0 560 190" style="width:100%;height:auto;font-family:inherit">
+        <defs>
+          <marker id="ht-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="var(--muted)" />
+          </marker>
+        </defs>
+        <!-- Task -->
+        <rect x="16" y="70" width="140" height="50" rx="10" fill="var(--accent-bg)" stroke="var(--accent)" stroke-width="1.5" />
+        <text x="86" y="90" text-anchor="middle" font-size="12" font-weight="700" fill="var(--text)">Task</text>
+        <text x="86" y="106" text-anchor="middle" font-size="10" fill="var(--muted)">the job to be done</text>
+        <!-- Sessions -->
+        <rect x="220" y="70" width="150" height="50" rx="10" fill="var(--surface2)" stroke="var(--border)" stroke-width="1.5" />
+        <text x="295" y="90" text-anchor="middle" font-size="12" font-weight="700" fill="var(--text)">Sessions</text>
+        <text x="295" y="106" text-anchor="middle" font-size="10" fill="var(--muted)">time logged on dates</text>
+        <line x1="156" y1="95" x2="216" y2="95" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ht-arrow)" />
+        <!-- Optional container -->
+        <rect x="428" y="18" width="120" height="46" rx="10" fill="var(--surface2)" stroke="var(--border)" stroke-dasharray="4 3" stroke-width="1.5" />
+        <text x="488" y="38" text-anchor="middle" font-size="11" font-weight="700" fill="var(--text)">Project</text>
+        <text x="488" y="52" text-anchor="middle" font-size="9" fill="var(--muted)">client/system work</text>
+        <rect x="428" y="126" width="120" height="46" rx="10" fill="var(--surface2)" stroke="var(--border)" stroke-dasharray="4 3" stroke-width="1.5" />
+        <text x="488" y="146" text-anchor="middle" font-size="11" font-weight="700" fill="var(--text)">Department</text>
+        <text x="488" y="160" text-anchor="middle" font-size="9" fill="var(--muted)">internal work</text>
+        <line x1="370" y1="80" x2="424" y2="42" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#ht-arrow)" />
+        <line x1="370" y1="110" x2="424" y2="148" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#ht-arrow)" />
+        <text x="399" y="55" text-anchor="middle" font-size="9" fill="var(--muted)" transform="rotate(-25 399 55)">optional,</text>
+        <text x="399" y="140" text-anchor="middle" font-size="9" fill="var(--muted)" transform="rotate(25 399 140)">never both</text>
+      </svg>
+      <div class="howthinks-rules">
+        <div><b>A Task</b> is the durable thing — its name, company/system, and status.</div>
+        <div><b>A Session</b> is one stretch of time on one date, logged against a task — a task can have many, across many days.</div>
+        <div><b>A Task's container is optional and exclusive</b> — a Project (client/system work), a Department (internal work), or neither. Never both.</div>
+      </div>
+      <div class="howthinks-journeys">
+        <div class="howthinks-journey">
+          <div class="howthinks-journey-title"><span data-ic="rotate-ccw"></span>Continue something you worked on recently</div>
+          <div class="howthinks-journey-path">Click its chip in the <b>Continue</b> strip at the top of Timesheet → fill in Time Type, Natural, Minutes → Save.</div>
+        </div>
+        <div class="howthinks-journey">
+          <div class="howthinks-journey-title"><span data-ic="plus"></span>Start brand-new client/system work</div>
+          <div class="howthinks-journey-path"><b>+ Add Record</b> → <b>New Task</b> → Company, System, Status, Description → Save. Project link and Sources are optional — tucked under <b>More options</b>.</div>
+        </div>
+        <div class="howthinks-journey">
+          <div class="howthinks-journey-title"><span data-ic="check"></span>Wrap up something you finished</div>
+          <div class="howthinks-journey-path">Click the <b>✓</b> button on its row or card — no dropdown, no modal. Sets it Done immediately (undoable).</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeHowThinksOverlay()">Close</button>
     </div>
   </div>
 </div>
@@ -4987,6 +5133,28 @@ function buildTaskGroupCard(g, origIdxOf) {
   stBadgeWrap.appendChild(badge);
   head.appendChild(stBadgeWrap);
 
+  // One-click Done (Milestone 10) — sets DONE without opening the status
+  // dropdown, with the same undo-toast every other non-destructive-but-easy-
+  // to-regret action in the app already uses. Hidden once already DONE.
+  if (first.status !== 'DONE') {
+    const doneBtn = document.createElement('button');
+    doneBtn.className = 'row-btn done-btn'; doneBtn.innerHTML = ic('check');
+    doneBtn.title = 'Mark done';
+    doneBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const prevStatus = first.status;
+      first.status = 'DONE';
+      syncSiblingTasks(first);
+      renderTable(); setUnsaved();
+      showGenericUndo('Marked done', () => {
+        first.status = prevStatus;
+        syncSiblingTasks(first);
+        renderTable(); setUnsaved();
+      });
+    });
+    head.appendChild(doneBtn);
+  }
+
   // View task detail (metadata + rollups + full session history).
   const viewBtn = document.createElement('button');
   viewBtn.className = 'row-btn'; viewBtn.innerHTML = ic('eye');
@@ -5372,6 +5540,25 @@ function renderTableFlat() {
     if (row.taskId) viewBtn.addEventListener('click', () => openTaskDetail(row.taskId));
     else { viewBtn.disabled = true; viewBtn.style.opacity = '.45'; viewBtn.title = 'Saving… try again in a moment'; }
 
+    // One-click Done (Milestone 10) — same behavior/undo as the grouped view's
+    // status-badge counterpart; hidden once already DONE.
+    const doneBtn = document.createElement('button');
+    if (row.status !== 'DONE') {
+      doneBtn.className = 'row-btn done-btn'; doneBtn.innerHTML = ic('check');
+      doneBtn.title = 'Mark done';
+      doneBtn.addEventListener('click', () => {
+        const prevStatus = row.status;
+        row.status = 'DONE';
+        syncSiblingTasks(row);
+        renderTable(); setUnsaved();
+        showGenericUndo('Marked done', () => {
+          row.status = prevStatus;
+          syncSiblingTasks(row);
+          renderTable(); setUnsaved();
+        });
+      });
+    }
+
     // Add session — log another work session against THIS row's task (same or a
     // different day). The core two-level capability: one task, many work logs.
     const sessionBtn = document.createElement('button');
@@ -5395,7 +5582,9 @@ function renderTableFlat() {
     moveBtn.title = 'Move to another day';
     const restoreActs = () => {
       acts.innerHTML = '';
-      acts.appendChild(timerBtn); acts.appendChild(editBtn); acts.appendChild(viewBtn); acts.appendChild(sessionBtn);
+      acts.appendChild(timerBtn); acts.appendChild(editBtn); acts.appendChild(viewBtn);
+      if (row.status !== 'DONE') acts.appendChild(doneBtn);
+      acts.appendChild(sessionBtn);
       acts.appendChild(dupBtn); acts.appendChild(moveBtn); acts.appendChild(delBtn);
     };
     moveBtn.addEventListener('click', () => {
@@ -5427,7 +5616,7 @@ function renderTableFlat() {
       renderTable(); setUnsaved();
     }, restoreActs));
 
-    acts.appendChild(timerBtn); acts.appendChild(editBtn); acts.appendChild(sessionBtn); acts.appendChild(dupBtn); acts.appendChild(moveBtn); acts.appendChild(delBtn);
+    restoreActs();
     actDiv.appendChild(acts); actTd.appendChild(actDiv);
     tr.appendChild(actTd);
 
@@ -5667,7 +5856,50 @@ async function reloadTimesheet() {
   renderTable();
   await refreshSavedDays();
   renderCalendar();
+  renderContinueStrip();
 }
+
+// ── Continue-yesterday strip (Milestone 10) ──
+// Recently-worked (last TASK_PICKER_RECENT_DAYS days), not-DONE tasks — one
+// click opens the Session edit modal's create mode with today's date preset,
+// turning "log time on something I worked on recently" into chip -> fill ->
+// save, without ever opening the Add Record modal or searching a picker.
+// Day-independent (always targets today, regardless of which Timesheet day
+// is currently being viewed) and dismissible per calendar day (localStorage,
+// keyed by today's date — a fresh list tomorrow deserves a fresh chance to
+// be seen, not a permanently-dismissed banner).
+function continueStripDismissKey() { return 'ct-continue-dismissed-' + fmt(new Date()); }
+async function renderContinueStrip() {
+  const strip = document.getElementById('continue-strip');
+  if (!strip) return;
+  if (localStorage.getItem(continueStripDismissKey())) { strip.style.display = 'none'; return; }
+  let tasks = [];
+  try { tasks = await window.api.getTasksIndex(); } catch { tasks = []; }
+  if (!Array.isArray(tasks)) tasks = [];
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - TASK_PICKER_RECENT_DAYS);
+  const cutoffStr = fmt(cutoff);
+  const recent = tasks
+    .filter(t => t.status !== 'DONE' && t.lastDate && t.lastDate >= cutoffStr)
+    .sort((a, b) => (b.lastDate || '').localeCompare(a.lastDate || ''))
+    .slice(0, 8);
+  const host = document.getElementById('continue-strip-chips');
+  host.innerHTML = '';
+  if (!recent.length) { strip.style.display = 'none'; return; }
+  recent.forEach(t => {
+    const chip = document.createElement('button');
+    chip.type = 'button'; chip.className = 'continue-chip';
+    const meta = [t.company, t.system].filter(Boolean).join(' · ');
+    chip.innerHTML = esc(t.name || '(untitled task)') +
+      (meta ? ' <span class="cc-meta">' + esc(meta) + '</span>' : '');
+    chip.addEventListener('click', () => openSessionModal(null, { mode: 'create', task: t, onSaved: renderContinueStrip }));
+    host.appendChild(chip);
+  });
+  strip.style.display = '';
+}
+document.getElementById('continue-strip-dismiss').addEventListener('click', () => {
+  localStorage.setItem(continueStripDismissKey(), '1');
+  document.getElementById('continue-strip').style.display = 'none';
+});
 
 // Debounced granular save of the current in-memory rows.
 let _saveTimer = null;
@@ -5881,6 +6113,10 @@ async function openModal(idx = null, opts = {}) {
     MODAL_TASK_FIELDS.forEach(id => { document.getElementById(id).disabled = false; });
     fProjectPicker = buildSearchSelect(document.getElementById('f-project'),
       projectFieldOptions(row?.projectId ?? null), row?.projectId ?? null, 'No project');
+    // Milestone 10's "More options" collapse defaults closed for a brand-new
+    // task, but an edit whose record already has a project link or sources
+    // opens it automatically so existing data is never hidden by default.
+    document.querySelector('#modal .modal-more').open = (row?.projectId != null) || fetchedSources.length > 0;
   } else {
     // Add mode — defaults to logging a session against an existing task; the
     // New Task toggle (hidden for "Add Session", where the task is already
@@ -5889,6 +6125,7 @@ async function openModal(idx = null, opts = {}) {
     modal.classList.add('mode-existing');
     modal.classList.remove('mode-new');
     document.getElementById('f-mode-toggle-row').style.display = isSession ? 'none' : '';
+    document.querySelector('#modal .modal-more').open = false;   // reset closed for a fresh Add
     document.querySelectorAll('#f-mode-toggle .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === 'existing'));
     if (sessionTaskId == null) { blankSelect('f-time'); blankSelect('f-natural'); }
     // Lightweight (Milestone 7) — this picker never renders sessions, just the
@@ -6091,7 +6328,7 @@ document.addEventListener('keydown', e => {
     closeProjectModal(); closeLinkModal(); closePalette(); closeTaskDetail(); closeCompanyDocModal();
     closeClientVpnModal(); closeClientServerModal(); closeClientDatabaseModal(); closeClientExternalModal(); closeClientInternalModal(); closeClientGroupRenameModal(); closeClientNewGroupModal();
     closeClientRecordInfoModal(); cancelClientEditConfirm(); closeClientHistoryModal();
-    closeSessionModal(); closeWlHistoryModal(); closeMergeModal(); closeShortcutsOverlay();
+    closeSessionModal(); closeWlHistoryModal(); closeMergeModal(); closeShortcutsOverlay(); closeHowThinksOverlay();
     document.querySelectorAll('.top-menu.open').forEach(m => m.classList.remove('open'));
     if (selectedRows.size) clearSelection();
   }
@@ -9468,6 +9705,24 @@ function buildLinkedTaskCard(t, handlers) {
   editBtn.addEventListener('click', handlers.onEdit);
   head.appendChild(editBtn);
 
+  // One-click Done (Milestone 10) — persists immediately (like every other
+  // edit on this card), unlike Timesheet's debounced in-memory rows.
+  if (t.status !== 'DONE') {
+    const doneBtn = pjMk('button', 'row-btn done-btn');
+    doneBtn.innerHTML = ic('check'); doneBtn.title = 'Mark done';
+    doneBtn.addEventListener('click', async () => {
+      try {
+        await window.api.updateTask(t.id, {
+          name: t.name, status: 'DONE', company: t.company, system: t.system,
+          source: t.source, projectId: t.projectId, department: t.department,
+        });
+      } catch { toast('Could not mark task done'); return; }
+      if (handlers.onSessionSaved) await handlers.onSessionSaved();
+      toast('Task marked done');
+    });
+    head.appendChild(doneBtn);
+  }
+
   // A zero-log task has no other identity once it loses this container's link
   // (there's no day-agnostic pool to find it in anymore) — delete it outright
   // instead of offering an unlink that would silently orphan it. A task with
@@ -12171,6 +12426,12 @@ function openShortcutsOverlay() { document.getElementById('shortcuts-overlay').c
 function closeShortcutsOverlay() { document.getElementById('shortcuts-overlay').classList.remove('open'); }
 function shortcutsOverlayClick(e) { if (e.target === document.getElementById('shortcuts-overlay')) closeShortcutsOverlay(); }
 
+// "How This App Thinks" cheat-sheet (Milestone 10) — reachable from the "?"
+// shortcuts overlay and Settings -> General.
+function openHowThinksOverlay() { document.getElementById('howthinks-overlay').classList.add('open'); }
+function closeHowThinksOverlay() { document.getElementById('howthinks-overlay').classList.remove('open'); }
+function howThinksOverlayClick(e) { if (e.target === document.getElementById('howthinks-overlay')) closeHowThinksOverlay(); }
+
 // Parse a "jump to date" query: full YYYY-MM-DD, or the words today / yesterday.
 function palParseDate(q) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(q)) return q;
@@ -12205,6 +12466,7 @@ function renderPalette() {
     { icon: 'clipboard-list',label: 'New project',                match: 'new project create',              run: () => { switchModule('projects'); openProjectModal(); } },
     { icon: 'calendar-check',label: 'Go to today',                match: 'today now current day',           run: () => { switchModule('timesheet'); goToday(); } },
     { icon: 'moon',          label: 'Toggle dark / light theme',  match: 'theme dark light mode toggle',    run: toggleTheme },
+    { icon: 'compass',       label: 'How This App Thinks',        match: 'how this app thinks help model cheat sheet', run: openHowThinksOverlay },
     { icon: 'save',          label: 'Back up the database',       match: 'backup database save export',     run: backupDatabase },
     { icon: 'database',      label: 'Full backup to Desktop',     match: 'backup full desktop everything',  run: () => runFullBackup() },
   ].filter(a => !q || a.match.includes(q) || a.label.toLowerCase().includes(q))
@@ -12351,6 +12613,7 @@ async function init() {
     await refreshDayList();
     const today = fmt(t);
     await switchDay(today);
+    renderContinueStrip();
   } catch (err) {
     // Data layer unreachable at startup — keep the shell usable rather than
     // leaving a blank window, and tell the user.
