@@ -40,6 +40,8 @@ contextBridge.exposeInMainWorld('api', {
   loadAnalytics:  (from, to, spanFrom, spanTo) => ipcRenderer.invoke('analytics:summary', from, to, spanFrom, spanTo),
   /** @returns {Promise<import('./ipc-types').OverviewStats>} */
   loadOverviewStats: (today, monthStart)       => ipcRenderer.invoke('analytics:overview', today, monthStart),
+  /** @returns {Promise<import('./ipc-types').AttentionItem[]>} */
+  getAttentionItems: ()                        => ipcRenderer.invoke('attention:list'),
 
   // ── Lookups (normalized catalog — shared app config) ──
   /** @returns {Promise<import('./ipc-types').Lookups>} */
