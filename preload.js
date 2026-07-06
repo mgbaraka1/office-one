@@ -63,6 +63,8 @@ contextBridge.exposeInMainWorld('api', {
   // page for it anymore.
   /** @returns {Promise<import('./ipc-types').Task[]>} */
   listTasks:      ()              => ipcRenderer.invoke('tasks:list'),
+  /** Lightweight — no nested workLogs (Milestone 7). @returns {Promise<import('./ipc-types').Task[]>} */
+  getTasksIndex:  ()              => ipcRenderer.invoke('tasks:index'),
   /** @returns {Promise<import('./ipc-types').Task|null>} */
   getTask:        (id)            => ipcRenderer.invoke('tasks:get', id),
   /** @returns {Promise<import('./ipc-types').Task>} */

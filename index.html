@@ -5653,7 +5653,9 @@ async function openModal(idx = null, opts = {}) {
     document.getElementById('f-mode-toggle-row').style.display = isSession ? 'none' : '';
     document.querySelectorAll('#f-mode-toggle .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === 'existing'));
     if (sessionTaskId == null) { blankSelect('f-time'); blankSelect('f-natural'); }
-    try { modalTaskList = await window.api.listTasks(); } catch { modalTaskList = []; }
+    // Lightweight (Milestone 7) — this picker never renders sessions, just the
+    // two-line rich option (name/company/system/status/last-worked/hours).
+    try { modalTaskList = await window.api.getTasksIndex(); } catch { modalTaskList = []; }
     if (!Array.isArray(modalTaskList)) modalTaskList = [];
     // Safety: if we're logging against a specific task but the fetch missed it
     // (offline/error), synthesize it from the source row so the prefill still works.
@@ -8349,8 +8351,9 @@ async function openSessionModal(workLog, opts = {}) {
     summaryHost.style.display = 'none';
     // Task reassignment picker — searchable, preselected to this session's current
     // task; picking a different one moves the session there on save (worklogs:move).
+    // Lightweight (Milestone 7) — no sessions rendered in this picker.
     let taskList = [];
-    try { taskList = await window.api.listTasks(); } catch { taskList = []; }
+    try { taskList = await window.api.getTasksIndex(); } catch { taskList = []; }
     if (!Array.isArray(taskList)) taskList = [];
     if (workLog.taskId != null && !taskList.some(t => t.id === workLog.taskId)) {
       taskList = taskList.concat([{ id: workLog.taskId, name: workLog.taskName || '(untitled task)' }]);
@@ -8653,8 +8656,9 @@ async function openMergeModal(sourceTask) {
   preview.style.display = 'none'; preview.innerHTML = '';
   document.getElementById('merge-modal-submit').disabled = true;
 
+  // Lightweight (Milestone 7) — the merge target picker never renders sessions.
   let taskList = [];
-  try { taskList = await window.api.listTasks(); } catch { taskList = []; }
+  try { taskList = await window.api.getTasksIndex(); } catch { taskList = []; }
   taskList = (Array.isArray(taskList) ? taskList : []).filter(t => t.id !== sourceTask.id);
 
   mergeTargetPicker = buildTaskSearchSelect(document.getElementById('merge-target-picker'),
@@ -9471,7 +9475,16 @@ async function doDeleteProjectTask(task) {
 // lists every task the user owns regardless of its Project/Department links,
 // each with its full session history — the one place "which task is this
 // session actually on?" can be answered without knowing where to look first.
-let allTasksList = [];        // Task[] (with nested workLogs) from tasks:list
+// Milestone 7 note: All Tasks deliberately STAYS on tasks:list (full payload,
+// nested workLogs), not the lightweight tasks:index — despite the original
+// ROADMAP spec assuming its filter logic (atTaskMatchesFilters) was the only
+// consumer. Its cards are built by buildLinkedTaskCard(t, handlers), the same
+// renderer Projects/Internal Tasks use, which nests each task's sessions in a
+// collapsible table — switching this list to tasks:index would silently make
+// every card's sessions disappear. Only the picker call sites (Add Record,
+// Session edit modal, Merge modal) and the palette actually never render
+// sessions, so only those were switched.
+let allTasksList = [];        // Task[] (with nested workLogs) from tasks:list — see note above
 let atProjectsIdx = [];       // for the Project filter dropdown (all statuses, not just ACTIVE)
 let atDepartmentsIdx = [];    // for the Department filter dropdown
 let atStatuses = new Set();   // active ENTRY_STATUS filter chips
@@ -11690,8 +11703,9 @@ async function openPalette() {
   renderPalette();
   setTimeout(() => inp.focus(), 40);
   // Results load in the background; re-render once each arrives (if still open).
+  // Lightweight (Milestone 7) — the palette never renders a task's sessions.
   try {
-    const list = await window.api.listTasks();
+    const list = await window.api.getTasksIndex();
     if (Array.isArray(list)) { _palTasks = list; if (paletteIsOpen()) renderPalette(); }
   } catch { /* tasks just won't appear in results */ }
   try {

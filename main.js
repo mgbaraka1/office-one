@@ -117,6 +117,7 @@ ipcMain.handle('subscriptions:save', authed((_e, data) => db.saveSubscriptions(a
 // Projects (which requires a project link) since there's no day-agnostic browse
 // page for it anymore.
 ipcMain.handle('tasks:list',   authed(()             => db.listTasks(auth.requireUserId())));
+ipcMain.handle('tasks:index',  authed(()             => db.getTasksIndex(auth.requireUserId())));
 ipcMain.handle('tasks:get',    authed((_e, id)       => db.getTask(auth.requireUserId(), id)));
 ipcMain.handle('tasks:create', authed((_e, data)     => db.createTask(auth.requireUserId(), data)));
 ipcMain.handle('tasks:update', authed((_e, id, data) => db.updateTask(auth.requireUserId(), id, data)));
