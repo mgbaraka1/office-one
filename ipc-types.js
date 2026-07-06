@@ -145,10 +145,11 @@
 
 /**
  * A work log flattened with its parent task's context — the `worklogs:byDate`
- * ("day view") row shape.
+ * ("day view") row shape. `projectId`/`departmentId` are mutually exclusive
+ * since Milestone 9 (a task is Project work, Internal work, or neither).
  * @typedef {WorkLog & {
  *   taskName: string, status: string, company: string, system: string,
- *   projectId: number|null
+ *   projectId: number|null, departmentId: number|null
  * }} WorkLogOnDate
  */
 

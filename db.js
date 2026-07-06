@@ -1275,9 +1275,15 @@ function restoreCompanyDocumentFile(userId, oldId, newId, fileMeta) {
 
 // Link / unlink a task to a project, addressed directly by its task id (the
 // two-level model — everything is a task now). Linking verifies project ownership;
-// each UPDATE is owner-scoped so a user can only touch their own rows.
+// each UPDATE is owner-scoped so a user can only touch their own rows. Milestone 9:
+// a task already linked to a Department is rejected (Project/Department are
+// mutually exclusive) — belt-and-braces alongside listLinkableTasks() no longer
+// offering department-linked tasks to this picker in the first place.
 function linkTask(userId, projectId, taskId) {
   if (!ownsProject(userId, projectId)) return { ok: false, error: 'project not found' };
+  const row = db.prepare('SELECT department_id FROM tasks WHERE id = ? AND user_id = ?').get(taskId, userId);
+  if (!row) return { ok: false, error: 'task not found' };
+  if (row.department_id != null) return { ok: false, error: 'task is already linked to a Department' };
   db.prepare('UPDATE tasks SET project_id = ? WHERE id = ? AND user_id = ?')
     .run(projectId, taskId, userId);
   return { ok: true };
@@ -1289,10 +1295,14 @@ function unlinkTask(userId, taskId) {
 }
 
 // Link / unlink a task to a department, the same shape as linkTask/unlinkTask
-// above but for the DEPARTMENT lookup dimension (Internal Tasks). A task's
-// project link and department link are independent — no exclusivity enforced.
+// above but for the DEPARTMENT lookup dimension (Internal Tasks). Milestone 9:
+// Project/Department are mutually exclusive — a task already linked to a
+// Project is rejected here for the same reason linkTask rejects the reverse.
 function linkDepartmentTask(userId, taskId, departmentId) {
   if (!isLookupId('DEPARTMENT', departmentId)) return { ok: false, error: 'department not found' };
+  const row = db.prepare('SELECT project_id FROM tasks WHERE id = ? AND user_id = ?').get(taskId, userId);
+  if (!row) return { ok: false, error: 'task not found' };
+  if (row.project_id != null) return { ok: false, error: 'task is already linked to a Project' };
   db.prepare('UPDATE tasks SET department_id = ? WHERE id = ? AND user_id = ?')
     .run(Number(departmentId), taskId, userId);
   return { ok: true };
@@ -1305,10 +1315,12 @@ function unlinkDepartmentTask(userId, taskId) {
 
 // Tasks not linked to ANY project, for the "link an existing task" picker — every
 // unlinked task (with-sessions and zero-log alike), owner-scoped, newest first,
-// each with its rollups. Read-only; the UI links via linkTask.
+// each with its rollups. Read-only; the UI links via linkTask. Milestone 9: also
+// excludes department-linked tasks (Project/Department are mutually exclusive),
+// so this picker never offers an Internal task as something to fold into a Project.
 function listLinkableTasks(userId) {
   return db.prepare(
-    `SELECT * FROM tasks WHERE user_id = ? AND project_id IS NULL ORDER BY created_at DESC, id DESC`
+    `SELECT * FROM tasks WHERE user_id = ? AND project_id IS NULL AND department_id IS NULL ORDER BY created_at DESC, id DESC`
   ).all(userId).map(t => {
     const roll = db.prepare(
       `SELECT COUNT(*) AS logCount, COALESCE(SUM(minutes),0) AS totalMinutes, MIN(date) AS firstDate, MAX(date) AS lastDate
@@ -1321,10 +1333,11 @@ function listLinkableTasks(userId) {
 }
 
 // Same as listLinkableTasks but for the "link an existing task to a department"
-// picker (department_id IS NULL instead of project_id IS NULL).
+// picker (department_id IS NULL instead of project_id IS NULL). Milestone 9: also
+// excludes project-linked tasks, for the same mutual-exclusivity reason.
 function listLinkableTasksForDepartment(userId) {
   return db.prepare(
-    `SELECT * FROM tasks WHERE user_id = ? AND department_id IS NULL ORDER BY created_at DESC, id DESC`
+    `SELECT * FROM tasks WHERE user_id = ? AND department_id IS NULL AND project_id IS NULL ORDER BY created_at DESC, id DESC`
   ).all(userId).map(t => {
     const roll = db.prepare(
       `SELECT COUNT(*) AS logCount, COALESCE(SUM(minutes),0) AS totalMinutes, MIN(date) AS firstDate, MAX(date) AS lastDate
@@ -1615,11 +1628,24 @@ function getTask(userId, id) {
   });
 }
 
+// Milestone 9 — a task is either Project work, Internal (department) work, or
+// neither, but never both: enforced here so every write path (create/update/
+// link) shares one check rather than duplicating the condition. Thrown (not
+// returned as {ok:false}) so it propagates through ipcMain.handle's built-in
+// throw-to-rejected-promise behavior and every existing renderer call site's
+// try/catch around createTask/updateTask keeps working unchanged.
+function assertTaskLinkExclusive(projectId, departmentId) {
+  if (projectId != null && departmentId != null) {
+    throw new Error('A task cannot be linked to both a Project and a Department');
+  }
+}
+
 // Insert a standalone task (no work logs yet — the two-level analogue of a
 // "Not Yet" item). Returns the full task.
 function createTask(userId, data) {
   const now = new Date().toISOString();
   const f = taskWriteFields(userId, data);
+  assertTaskLinkExclusive(f.project_id, f.department_id);
   let id;
   tx(() => {
     id = Number(db.prepare(
@@ -1636,6 +1662,7 @@ function updateTask(userId, id, data) {
   if (!ownsTask(userId, id)) return null;
   const now = new Date().toISOString();
   const f = taskWriteFields(userId, data);
+  assertTaskLinkExclusive(f.project_id, f.department_id);
   tx(() => {
     db.prepare(
       `UPDATE tasks SET name=?, status_id=?, company_id=?, system_id=?, project_id=?, department_id=?, source=?, updated_at=?
@@ -1669,7 +1696,7 @@ function logsForDate(userId, date) {
             wl.sort_order AS sortOrder,
             t.name AS taskName, t.status_id AS status_id, t.company_id AS company_id,
             t.system_id AS system_id,
-            t.source AS source, t.project_id AS projectId
+            t.source AS source, t.project_id AS projectId, t.department_id AS departmentId
             ${TASK_SOURCE_SUMMARY_COLS}
        FROM work_logs wl JOIN tasks t ON t.id = wl.task_id
       WHERE wl.user_id = ? AND wl.date = ?
@@ -1683,6 +1710,7 @@ function logsForDate(userId, date) {
     company: lkLabel(r.company_id), system: lkLabel(r.system_id), natural: lkLabel(r.activity_type_id),
     source: r.source || '',
     projectId: r.projectId ?? null,
+    departmentId: r.departmentId ?? null,
     sortOrder: r.sortOrder ?? 0,
     ...taskSourceSummaryFields(r),
   }));
