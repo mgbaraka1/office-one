@@ -4,8 +4,12 @@
 // one-to-many child table: a task can now carry any number of source entries
 // (e.g. 3 Jira tickets + 4 email threads), each typed via a new
 // TASK_SOURCE_TYPE lookup category (Jira / Email / Teams-Chat / Meeting /
-// Phone Call / Other-Manual). A child table was chosen over adding more
-// columns to `tasks` (as 029/031 did for department_id/category_id) because
+// Phone Call / Other-Manual — Teams-Chat and Other were soft-disabled by
+// migration 034 shortly after this one shipped; see that migration's own
+// note for why the codes themselves are kept here rather than edited out of
+// this already-applied migration's seed list). A child table was chosen over
+// adding more columns to `tasks` (as 029/031 did for department_id/category_id)
+// because
 // this is genuinely multi-valued, not 1:1 — mirrors work_logs/project_documents'
 // shape (id, user_id, task_id FK CASCADE, ...), which scales correctly with
 // many tasks × many sources × many users, unlike a JSON blob column.
