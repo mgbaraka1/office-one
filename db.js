@@ -1749,8 +1749,23 @@ function addWorkLog(userId, taskId, data) {
       `INSERT INTO work_logs(user_id, task_id, date, description, minutes, time_type_id, activity_type_id, sort_order, created_at, updated_at)
        VALUES(?,?,?,?,?,?,?,?,?,?)`
     ).run(userId, taskId, f.date, f.description, f.minutes, f.time_type_id, f.activity_type_id, nextWorkLogSort(taskId), now, now).lastInsertRowid);
+    autoAdvanceTaskStatus(userId, taskId);
   });
   return { ok: true, id, task: getTask(userId, taskId) };
+}
+
+// Milestone 10 — logging a session against an OPEN task moves it to
+// IN_PROGRESS automatically, one less manual status click on the common
+// "just started working on it" path. Never touches BLOCKED/DONE (the WHERE
+// clause only matches a task currently at OPEN) and is a completely ordinary
+// UPDATE — the same shape any manual status edit already writes, no special
+// audit trail needed beyond that.
+function autoAdvanceTaskStatus(userId, taskId) {
+  const openId = lkId('ENTRY_STATUS', 'OPEN');
+  const inProgressId = lkId('ENTRY_STATUS', 'IN_PROGRESS');
+  if (openId == null || inProgressId == null) return;
+  db.prepare('UPDATE tasks SET status_id = ?, updated_at = ? WHERE id = ? AND user_id = ? AND status_id = ?')
+    .run(inProgressId, new Date().toISOString(), taskId, userId, openId);
 }
 
 // Field-def list — same shape/role as the Clients-page history fields above
