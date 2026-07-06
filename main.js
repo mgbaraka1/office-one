@@ -334,6 +334,29 @@ ipcMain.handle('maintenance:lookupDuplicates', authed(() => db.findLookupDuplica
 ipcMain.handle('maintenance:mergeLookups', authed((_e, category, targetId, sourceId) => db.mergeLookupDuplicate(category, targetId, sourceId)));
 ipcMain.handle('maintenance:orphanSweepReport', authed(() => db.getOrphanSweepReport()));
 
+// One-click Full Backup (Milestone 8) — captures the DB, projects/ and
+// company_documents/ file trees, and the rotating backups/ snapshots into a
+// single new timestamped folder on the Desktop. db.fullBackup() never imports
+// electron, so it's handed the resolved Desktop path here (same separation
+// configureCredentialEncryption() already established).
+ipcMain.handle('maintenance:fullBackup', authed(() => {
+  try { return db.fullBackup(app.getPath('desktop')); }
+  catch (err) { return { ok: false, error: String(err?.message || err) }; }
+}));
+// Opens the folder a just-completed full backup was written to. Never trusts
+// an arbitrary path from the renderer: only a direct child of the Desktop
+// whose name matches the fixed prefix db.fullBackup() itself generates is
+// allowed through to shell.openPath.
+ipcMain.handle('maintenance:openBackupFolder', authed((_e, folderPath) => {
+  const desktop = app.getPath('desktop');
+  const resolved = path.resolve(String(folderPath || ''));
+  if (path.dirname(resolved) !== desktop || !path.basename(resolved).startsWith('CooperationTools-Backup-')) {
+    return { ok: false, error: 'invalid path' };
+  }
+  shell.openPath(resolved);
+  return { ok: true };
+}));
+
 // ── Export a report HTML document to a PDF file (native "Save as" dialog) ──
 // Renders the supplied self-contained HTML in an offscreen window, prints it to
 // PDF via Chromium, and writes the chosen file. Read-only; touches no app data.

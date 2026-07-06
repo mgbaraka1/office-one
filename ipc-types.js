@@ -670,6 +670,20 @@
  */
 
 /**
+ * Result of `maintenance:fullBackup` (Milestone 8) — a single new timestamped
+ * folder on the Desktop containing the checkpointed DB, full copies of
+ * projects/ and company_documents/, and the rotating backups/ snapshots, plus
+ * a manifest.json summary. Read-only with respect to <userData> — nothing
+ * this writes lives under the live data folder.
+ * @typedef {Object} FullBackupResult
+ * @property {boolean} ok
+ * @property {string} [path]      The new backup folder's absolute path.
+ * @property {string} [error]
+ * @property {Object} [manifest]  Same content written to manifest.json (appVersion, createdAt,
+ *                                schemaHead, tableRowCounts, folders, totalFileCount, totalByteCount).
+ */
+
+/**
  * Result of `security:credentialEncryptionStatus` — whether the five client_*
  * tables' password/secret_key columns are actually being encrypted at rest
  * this run (Milestone 2, migration 032). `false` means safeStorage is
