@@ -124,6 +124,11 @@ ipcMain.handle('tasks:update', authed((_e, id, data) => db.updateTask(auth.requi
 ipcMain.handle('tasks:delete', authed((_e, id)       => db.deleteTask(auth.requireUserId(), id)));
 ipcMain.handle('tasks:merge',  authed((_e, sourceId, targetId) => db.mergeTasks(auth.requireUserId(), sourceId, targetId)));
 
+// ── Task Sources (structured source list — migration 033) ──
+ipcMain.handle('tasks:source-create', authed((_e, taskId, data) => db.createTaskSource(auth.requireUserId(), taskId, data)));
+ipcMain.handle('tasks:source-update', authed((_e, id, data)     => db.updateTaskSource(auth.requireUserId(), id, data)));
+ipcMain.handle('tasks:source-delete', authed((_e, id)           => db.deleteTaskSource(auth.requireUserId(), id)));
+
 // ── Work logs (v2 — dated work sessions belonging to a task) ──
 ipcMain.handle('worklogs:byTask', authed((_e, taskId)      => db.listWorkLogs(auth.requireUserId(), taskId)));
 ipcMain.handle('worklogs:byDate', authed((_e, date)        => db.logsForDate(auth.requireUserId(), date)));

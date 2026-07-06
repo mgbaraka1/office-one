@@ -23,10 +23,14 @@
  * @property {string} natural    Activity type (stored as `activity_type`).
  * @property {string} time       Time type, e.g. "Work Time" (stored as `time_type`).
  * @property {string} description
- * @property {string} source
+ * @property {string} source        Legacy free-text source (kept for backward compat; superseded by the structured Task Sources fields below for any task edited since migration 033).
  * @property {'Done'|'In Progress'} status
  * @property {number|''} minutes  Logged minutes, or '' when unset.
  * @property {number|null} [projectId]  Linked Project id, or null when unlinked.
+ * @property {number} sourceCount      Number of structured task_sources entries on this row's task (migration 033).
+ * @property {string} firstSourceRef   The first (by sort_order) entry's ref, or '' if sourceCount is 0.
+ * @property {string} firstSourceUrl   The first entry's url, or ''.
+ * @property {string} firstSourceType  The first entry's TASK_SOURCE_TYPE code, or ''.
  */
 
 /**
@@ -89,7 +93,7 @@
  * @property {string} company
  * @property {string} system
  * @property {string} department    DEPARTMENT lookup label, or '' when unset (Internal Tasks).
- * @property {string} source
+ * @property {string} source        Legacy free-text source column — kept for backward compat, no longer written to by the UI (superseded by the structured `sources` list below, migration 033). A task edited before migration 033 that was never re-saved may still have a non-empty value here with an empty `sources` list.
  * @property {number|null} projectId Linked Project id, or null when unlinked.
  * @property {number|null} departmentId Linked DEPARTMENT lookup id, or null when unlinked.
  * @property {number} sortOrder
@@ -99,6 +103,29 @@
  * @property {string|null} firstDate Earliest work-log date (null if none).
  * @property {string|null} lastDate  Latest work-log date (null if none).
  * @property {WorkLog[]} [workLogs]  The task's ordered work logs (tasks:get and tasks:list only — absent from tasks:index, Milestone 7's lightweight payload for the palette/pickers/All Tasks, none of which read sessions).
+ * @property {number} sourceCount       Number of structured task_sources entries (migration 033) — present on every Task shape (tasks:get/list/index all compute it cheaply via a correlated subquery).
+ * @property {string} [firstSourceRef]  The first entry's ref — present on tasks:list/tasks:index rows only (tasks:get instead carries the full `sources` array below).
+ * @property {string} [firstSourceUrl]  The first entry's url — same availability as firstSourceRef.
+ * @property {string} [firstSourceType] The first entry's TASK_SOURCE_TYPE code — same availability as firstSourceRef.
+ * @property {TaskSource[]} [sources]   The task's full ordered list of source entries — tasks:get only.
+ */
+
+/**
+ * One structured source entry on a task (the `task_sources` table, migration
+ * 033) — a task can carry any number, e.g. several Jira tickets and several
+ * email threads. `type` round-trips as its TASK_SOURCE_TYPE lookup CODE (the
+ * renderer branches on it to pick which fields to show/edit — the same
+ * "logic field" convention `time`/`status` already follow), not its label.
+ * @typedef {Object} TaskSource
+ * @property {number} id
+ * @property {number} taskId
+ * @property {string} type   TASK_SOURCE_TYPE lookup code (JIRA/EMAIL/TEAMS_CHAT/MEETING/PHONE_CALL/OTHER), or '' when unset.
+ * @property {string} ref    The type's primary identifying value (ticket key / email subject / channel-or-person / meeting title / caller name / free text for Other).
+ * @property {string} url    Optional link (Jira URL, Teams message link). '' when unset.
+ * @property {Object} meta   Optional per-type extras (e.g. {sender, date} for Email), parsed from JSON. {} when unset.
+ * @property {number} sortOrder
+ * @property {string} createdAt
+ * @property {string} updatedAt
  */
 
 /**
