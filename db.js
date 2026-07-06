@@ -374,6 +374,33 @@ function listSystems(userId)          { return distinctCategory(userId, 'system_
 function companyEntries(userId, name) { return categoryEntries(userId, 'company_id', name); }
 function systemEntries(userId, name)  { return categoryEntries(userId, 'system_id', name); }
 
+// Custom date-range report (Milestone 4): work sessions in [from,to], optionally
+// further narrowed by company/system label or a specific project id. A separate
+// function rather than overloading loadDaysRange/days:range (Monthly Over-Time's
+// own backing query), which has no filter params and is already relied on as-is.
+// Filters are ANDed; any omitted filter is simply not applied. Company/System
+// match by label (same convention categoryEntries already uses), Project by id.
+function getFilteredWorkLogs(userId, filters) {
+  const f = filters || {};
+  const clauses = ['wl.user_id = ?'];
+  const params = [userId];
+  if (f.from) { clauses.push('wl.date >= ?'); params.push(f.from); }
+  if (f.to)   { clauses.push('wl.date <= ?'); params.push(f.to); }
+  if (f.company) {
+    clauses.push("t.company_id = (SELECT id FROM lookup_codes WHERE category = 'COMPANY' AND label = ?)");
+    params.push(f.company);
+  }
+  if (f.system) {
+    clauses.push("t.system_id = (SELECT id FROM lookup_codes WHERE category = 'SYSTEM' AND label = ?)");
+    params.push(f.system);
+  }
+  if (f.projectId != null) { clauses.push('t.project_id = ?'); params.push(Number(f.projectId)); }
+  const rows = db.prepare(
+    `SELECT ${LOG_COLS} ${LOG_JOIN} WHERE ${clauses.join(' AND ')} ORDER BY wl.date, wl.sort_order, wl.id`
+  ).all(...params);
+  return rows.map(r => ({ date: r.date, ...dayEntryRowToApi(r) }));
+}
+
 // ── Analytics aggregation (computed in SQL, not by shipping rows to the UI) ────
 // All rollups the Analytics view needs, scoped to the user:
 //   • period [from, to]  → totals + group-by-{company, system, time_type,
@@ -412,6 +439,12 @@ function getAnalytics(userId, from, to, spanFrom, spanTo) {
   const byNatural = mapOf(`SELECT lc.label AS k, SUM(wl.minutes) AS v ${FROM} JOIN lookup_codes lc ON lc.id = wl.activity_type_id ${WHERE} AND wl.minutes > 0 GROUP BY lc.label`);
   // time-type keyed by stable CODE; unset time_type buckets under 'OTHER'.
   const byType    = mapOf(`SELECT COALESCE(lc.code, 'OTHER') AS k, SUM(wl.minutes) AS v ${FROM} LEFT JOIN lookup_codes lc ON lc.id = wl.time_type_id ${WHERE} AND wl.minutes > 0 GROUP BY k`);
+  // Milestone 4 — department (tasks.department_id, keyed by label) and project
+  // category (projects.category_id via tasks.project_id, keyed by label) dimensions.
+  const byDepartment = mapOf(`SELECT lc.label AS k, COALESCE(SUM(wl.minutes),0) AS v ${FROM} JOIN lookup_codes lc ON lc.id = t.department_id ${WHERE} GROUP BY lc.label`);
+  const byProjectCategory = mapOf(
+    `SELECT lc.label AS k, COALESCE(SUM(wl.minutes),0) AS v ${FROM} JOIN projects p ON p.id = t.project_id JOIN lookup_codes lc ON lc.id = p.category_id ${WHERE} GROUP BY lc.label`
+  );
 
   const perDay = (otOnly) => {
     const m = {};
@@ -425,7 +458,7 @@ function getAnalytics(userId, from, to, spanFrom, spanTo) {
 
   return {
     totalMin: totals.totalMin, recordCount: totals.recordCount, doneCount: totals.doneCount || 0,
-    activeDays, byCompany, bySystem, byNatural, byType,
+    activeDays, byCompany, bySystem, byNatural, byType, byDepartment, byProjectCategory,
     dayMin: perDay(false), dayOtMin: perDay(true),
   };
 }
@@ -2267,7 +2300,7 @@ module.exports = {
   projectsRootDir, projectDir,
   countUsers, getUserByUsername, createUser, getUnclaimedUser, claimUser,
   listDays, loadDaysRange,
-  listCompanies, listSystems, companyEntries, systemEntries,
+  listCompanies, listSystems, companyEntries, systemEntries, getFilteredWorkLogs,
   getAnalytics, getOverviewStats, getAttentionItems,
   createProject, listProjects, getProject, updateProject, deleteProject,
   linkTask, unlinkTask, listLinkableTasks,

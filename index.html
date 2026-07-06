@@ -2004,6 +2004,17 @@
 
     <div class="an-grid">
       <div class="an-card">
+        <div class="an-card-head"><span class="an-card-title">Hours by Department</span><span class="an-card-sub" id="an-department-sub"></span></div>
+        <div id="an-department"></div>
+      </div>
+      <div class="an-card">
+        <div class="an-card-head"><span class="an-card-title">Hours by Project Category</span><span class="an-card-sub" id="an-project-category-sub"></span></div>
+        <div id="an-project-category"></div>
+      </div>
+    </div>
+
+    <div class="an-grid">
+      <div class="an-card">
         <div class="an-card-head"><span class="an-card-title">Time Breakdown</span><span class="an-card-sub" id="an-type-sub"></span></div>
         <div id="an-type"></div>
       </div>
@@ -2100,6 +2111,86 @@
         <div class="rmod-card-desc">The full list of recurring subscriptions — cost, billing cycle, end &amp; renewal dates and how soon each renews, with monthly / yearly spend totals per currency.</div>
         <div class="rmod-card-controls">
           <button class="btn primary" onclick="genSubscriptionsReport()">Generate →</button>
+        </div>
+      </div>
+
+      <div class="rmod-card">
+        <div class="rmod-card-head">
+          <div class="rmod-card-icon" data-ic="clipboard-list"></div>
+          <div class="rmod-card-title">Project Time Report PDF</div>
+        </div>
+        <div class="rmod-card-desc">One project's full session history, grouped by task with per-task subtotals — Total Hours, session count, and a Time-Type breakdown up top.</div>
+        <div class="rmod-card-controls">
+          <div class="rmod-field">
+            <label for="rmod-project-select">Project</label>
+            <select id="rmod-project-select"></select>
+          </div>
+          <button class="btn primary" onclick="genProjectReport()">Generate →</button>
+        </div>
+      </div>
+
+      <div class="rmod-card">
+        <div class="rmod-card-head">
+          <div class="rmod-card-icon" data-ic="building-2"></div>
+          <div class="rmod-card-title">Client Monthly Report PDF</div>
+        </div>
+        <div class="rmod-card-desc">Every session logged against one client company in a chosen month, grouped by task with per-task subtotals.</div>
+        <div class="rmod-card-controls">
+          <div class="rmod-field">
+            <label for="rmod-client-select">Company</label>
+            <select id="rmod-client-select"></select>
+          </div>
+          <div class="rmod-field">
+            <label for="rmod-client-month">Month</label>
+            <input type="month" id="rmod-client-month" />
+          </div>
+          <button class="btn primary" onclick="genClientReport()">Generate →</button>
+        </div>
+      </div>
+
+      <div class="rmod-card">
+        <div class="rmod-card-head">
+          <div class="rmod-card-icon" data-ic="building"></div>
+          <div class="rmod-card-title">Department Report PDF</div>
+        </div>
+        <div class="rmod-card-desc">One internal department's full session history (Internal Tasks), grouped by task with per-task subtotals.</div>
+        <div class="rmod-card-controls">
+          <div class="rmod-field">
+            <label for="rmod-dept-select">Department</label>
+            <select id="rmod-dept-select"></select>
+          </div>
+          <button class="btn primary" onclick="genDepartmentReport()">Generate →</button>
+        </div>
+      </div>
+
+      <div class="rmod-card">
+        <div class="rmod-card-head">
+          <div class="rmod-card-icon" data-ic="calendar-clock"></div>
+          <div class="rmod-card-title">Custom Date-Range Report PDF</div>
+        </div>
+        <div class="rmod-card-desc">Every session in a chosen date range, optionally narrowed to one Company, System, and/or Project — grouped by task with per-task subtotals.</div>
+        <div class="rmod-card-controls">
+          <div class="rmod-field">
+            <label for="rmod-range-from">From</label>
+            <input type="date" id="rmod-range-from" />
+          </div>
+          <div class="rmod-field">
+            <label for="rmod-range-to">To</label>
+            <input type="date" id="rmod-range-to" />
+          </div>
+          <div class="rmod-field">
+            <label for="rmod-range-company">Company <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional</span></label>
+            <select id="rmod-range-company"></select>
+          </div>
+          <div class="rmod-field">
+            <label for="rmod-range-system">System <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional</span></label>
+            <select id="rmod-range-system"></select>
+          </div>
+          <div class="rmod-field">
+            <label for="rmod-range-project">Project <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional</span></label>
+            <select id="rmod-range-project"></select>
+          </div>
+          <button class="btn primary" onclick="genCustomRangeReport()">Generate →</button>
         </div>
       </div>
     </div>
@@ -5687,12 +5778,49 @@ async function exportReportPDF() {
 // REPORTS MODULE — landing page of one-click report actions.
 // ════════════════════════════════════════════════════════════════════════════
 
-function initReportsModule() {
+// Fills a plain <select> with a leading blank/"All" option (value="") followed
+// by `options` ([{value,label}]) — used by the Reports module's Project/
+// Department selects (required) and the Custom Range report's optional
+// Company/System/Project filters.
+function fillPlainSelect(id, options, blankLabel) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = '';
+  const blank = document.createElement('option');
+  blank.value = ''; blank.textContent = blankLabel;
+  el.appendChild(blank);
+  options.forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o.value; opt.textContent = o.label;
+    el.appendChild(opt);
+  });
+}
+
+async function initReportsModule() {
   const t = fmt(new Date());
   const dEl = document.getElementById('rmod-daily-date');
   const mEl = document.getElementById('rmod-ot-month');
   if (dEl && !dEl.value) dEl.value = activeDate || t;
   if (mEl && !mEl.value) mEl.value = t.slice(0, 7);
+  const cmEl = document.getElementById('rmod-client-month');
+  if (cmEl && !cmEl.value) cmEl.value = t.slice(0, 7);
+
+  const companyOpts = lkOptions('COMPANY').map(o => ({ value: o.label, label: o.label }));
+  const systemOpts = lkOptions('SYSTEM').map(o => ({ value: o.label, label: o.label }));
+  let projects = [], depts = [];
+  try { projects = await window.api.listProjects(); } catch { projects = []; }
+  try { depts = await window.api.listDepartments(); } catch { depts = []; }
+  if (!Array.isArray(projects)) projects = [];
+  if (!Array.isArray(depts)) depts = [];
+  const projectOpts = projects.map(p => ({ value: String(p.id), label: p.name || '(untitled project)' }));
+  const deptOpts = depts.map(d => ({ value: String(d.id), label: d.label }));
+
+  fillPlainSelect('rmod-project-select', projectOpts, '— select a project —');
+  fillPlainSelect('rmod-client-select', companyOpts, '— select a company —');
+  fillPlainSelect('rmod-dept-select', deptOpts, '— select a department —');
+  fillPlainSelect('rmod-range-company', companyOpts, 'All companies');
+  fillPlainSelect('rmod-range-system', systemOpts, 'All systems');
+  fillPlainSelect('rmod-range-project', projectOpts, 'All projects');
 }
 
 function flashFieldError(el) {
@@ -5843,6 +5971,241 @@ function buildOvertimeReportHTML(days, monthLabel, name) {
       <span>MOS TA FA COOPERATION TOOLS</span>
       <span>Printed ${printedOn}</span>
     </div>`;
+}
+
+// ── Shared multi-date, grouped-by-task report builder (Milestone 4) ─────────
+// Used by the Project / Client / Department / Custom-range reports — each
+// just fetches its own sessions (flattened to the same DayEntryRow-ish shape
+// buildDailyReportHTML groups: taskId/taskName/company/system/date/time/
+// description/minutes) and hands them here. Same task-grouping + summary-card
+// + print-safe inline-style conventions as buildDailyReportHTML, generalized
+// to span multiple dates (adds a Date column, since these reports aren't
+// scoped to a single day).
+function buildGroupedSessionsReportHTML(opts) {
+  const { title, subtitle, sessions, name, emptyLabel } = opts;
+  const totalMin = totalMins(sessions);
+  const totalHrs = (totalMin / 60).toFixed(2);
+
+  const byType = {};
+  sessions.forEach(r => {
+    if (!r.minutes) return;
+    const k = r.time || 'OTHER';
+    byType[k] = (byType[k] || 0) + (parseFloat(r.minutes) || 0);
+  });
+
+  const groups = [];
+  const byTask = new Map();
+  sessions.forEach(r => {
+    const key = (r.taskId != null) ? ('id:' + r.taskId) : ('nm:' + (r.taskName || r.description || ''));
+    let g = byTask.get(key);
+    if (!g) {
+      g = { taskName: r.taskName || r.description || '(untitled task)',
+            company: r.company, system: r.system, sessions: [], subtotal: 0 };
+      byTask.set(key, g); groups.push(g);
+    }
+    g.sessions.push(r);
+    g.subtotal += (parseFloat(r.minutes) || 0);
+  });
+  groups.forEach(g => g.sessions.sort((a, b) => (a.date || '').localeCompare(b.date || '')));
+
+  const rowsHTML = groups.length ? groups.map((g, gi) => {
+    const metaBits = [g.company, g.system].filter(Boolean).join(' · ');
+    const sessionsHTML = g.sessions.map(r => {
+      const showTime = r.time === 'WORK_TIME' || r.time === 'OVERTIME';
+      const timeCell = showTime
+        ? `<span${r.time === 'OVERTIME' ? ' style="color:#b91c1c;font-weight:700"' : ''}>${esc(lkLabel('TIME_TYPE', r.time))}</span>`
+        : '—';
+      return `
+        <tr>
+          <td>${esc(r.date || '—')}</td>
+          <td>${timeCell}${r.natural ? `<div style="font-size:9px;color:#888;margin-top:2px">${esc(r.natural)}</div>` : ''}</td>
+          <td>${esc(r.description)}${r.source ? `<div style="font-size:10px;color:#777;margin-top:3px">${esc(r.source)}</div>` : ''}</td>
+          <td style="text-align:right">${r.minutes || '—'}</td>
+          <td style="text-align:right">${r.minutes ? (parseFloat(r.minutes) / 60).toFixed(2) : '—'}</td>
+        </tr>`;
+    }).join('');
+    return `
+      <tr>
+        <td colspan="5" style="background:#f0f0f0 !important;font-weight:700;color:#111;padding:8px 8px">
+          ${gi + 1}. ${esc(g.taskName)}${metaBits ? `<span style="font-weight:500;color:#666;font-size:10px"> — ${esc(metaBits)}</span>` : ''}
+          <span style="float:right;font-weight:800">${g.subtotal} min · ${(g.subtotal / 60).toFixed(2)} h</span>
+        </td>
+      </tr>
+      ${sessionsHTML}`;
+  }).join('') : `<tr><td colspan="5" style="text-align:center;color:#999;padding:18px">${esc(emptyLabel || 'No sessions recorded.')}</td></tr>`;
+
+  const printedOn = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const cards = [
+    { label: 'Total Hours',   value: `${totalHrs}h` },
+    { label: 'Total Minutes', value: totalMin },
+    { label: 'Sessions',      value: sessions.length },
+  ];
+  Object.keys(byType).forEach(code => {
+    cards.push({ label: lkLabel('TIME_TYPE', code) || code, value: `${byType[code]} min`, color: code === 'OVERTIME' && byType[code] > 0 ? '#b91c1c' : '#111' });
+  });
+
+  return `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px">
+      <div>
+        <div style="font-size:10px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#111;line-height:1.6">MOS TA FA</div>
+        <div style="font-size:10px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#111">COOPERATION TOOLS</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:14px;font-weight:700;color:#111">${esc(name)}</div>
+        <div style="font-size:11px;color:#555;margin-top:2px">${esc(subtitle || '')}</div>
+      </div>
+    </div>
+    <div style="font-size:14px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:.5px;padding-bottom:8px;border-bottom:2px solid #111;margin-bottom:16px">${esc(title)}</div>
+    ${rptSummaryCards(cards)}
+
+    <table class="rpt-table">
+      <thead>
+        <tr>
+          <th style="width:85px">Date</th>
+          <th style="width:90px">Time</th>
+          <th>Description / Source <span style="font-weight:500;text-transform:none;letter-spacing:0;color:#888">(sessions grouped by task)</span></th>
+          <th style="width:45px;text-align:right">Min</th>
+          <th style="width:45px;text-align:right">Hrs</th>
+        </tr>
+      </thead>
+      <tbody>
+      ${rowsHTML}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="3" style="text-align:right;font-size:10px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:.5px;padding:8px;border:1px solid #bbb;border-top:2px solid #111;background:#f0f0f0 !important">Total</td>
+          <td style="text-align:right;font-size:13px;font-weight:800;color:#111;padding:8px;border:1px solid #bbb;border-top:2px solid #111;background:#f0f0f0 !important">${totalMin}</td>
+          <td style="text-align:right;font-size:13px;font-weight:800;color:#111;padding:8px;border:1px solid #bbb;border-top:2px solid #111;background:#f0f0f0 !important">${totalHrs}</td>
+        </tr>
+      </tfoot>
+    </table>
+    <div style="display:flex;justify-content:space-between;margin-top:14px;font-size:9px;color:#999;padding-top:8px;border-top:1px solid #ddd">
+      <span>MOS TA FA COOPERATION TOOLS</span>
+      <span>Printed ${printedOn}</span>
+    </div>`;
+}
+
+// Flattens a Task[] (each with nested workLogs, e.g. from getProject/getDepartment)
+// into the flat DayEntryRow-ish shape buildGroupedSessionsReportHTML groups.
+function flattenTasksToSessions(tasks) {
+  const sessions = [];
+  (tasks || []).forEach(t => {
+    (t.workLogs || []).forEach(w => {
+      sessions.push({
+        date: w.date, time: w.time, natural: w.natural, description: w.description,
+        minutes: w.minutes, source: t.source, taskId: t.id, taskName: t.name,
+        company: t.company, system: t.system,
+      });
+    });
+  });
+  return sessions;
+}
+
+// Project Time Report PDF.
+async function genProjectReport() {
+  const sel = document.getElementById('rmod-project-select');
+  const projectId = sel.value ? Number(sel.value) : null;
+  if (!projectId) { flashFieldError(sel); return; }
+
+  let project;
+  try { project = await window.api.getProject(projectId); }
+  catch { toast('Could not load project'); return; }
+  if (!project) { toast('Project not found'); return; }
+
+  const name = document.getElementById('hName').value || LK.defaultName || 'N/A';
+  const companies = (project.companies || []).map(c => c.label).join(', ');
+  _reportFileBase = `project-${project.name || projectId}`;
+  document.getElementById('print-frame').innerHTML = buildGroupedSessionsReportHTML({
+    title: 'Project Time Report',
+    subtitle: [project.name, companies].filter(Boolean).join(' — '),
+    sessions: flattenTasksToSessions(project.tasks),
+    name,
+    emptyLabel: 'No sessions recorded on this project yet.',
+  });
+  document.getElementById('print-overlay').classList.add('open');
+}
+
+// Client Monthly Report PDF — every session logged against one company in a month.
+async function genClientReport() {
+  const companySel = document.getElementById('rmod-client-select');
+  const monthInput = document.getElementById('rmod-client-month');
+  const company = companySel.value;
+  const mv = monthInput.value;
+  if (!company) { flashFieldError(companySel); return; }
+  if (!mv) { flashFieldError(monthInput); return; }
+
+  const [y, m] = mv.split('-').map(Number);
+  const from = `${mv}-01`;
+  const to   = `${mv}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
+  const monthLabel = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  let sessions;
+  try { sessions = await window.api.getFilteredWorkLogs({ from, to, company }); }
+  catch { toast('Could not load sessions'); return; }
+
+  const name = document.getElementById('hName').value || LK.defaultName || 'N/A';
+  _reportFileBase = `client-${company}-${mv}`;
+  document.getElementById('print-frame').innerHTML = buildGroupedSessionsReportHTML({
+    title: 'Client Monthly Report',
+    subtitle: `${company} — ${monthLabel}`,
+    sessions,
+    name,
+    emptyLabel: `No sessions logged for ${esc(company)} in ${esc(monthLabel)}.`,
+  });
+  document.getElementById('print-overlay').classList.add('open');
+}
+
+// Department Report PDF (Internal Tasks).
+async function genDepartmentReport() {
+  const sel = document.getElementById('rmod-dept-select');
+  const deptId = sel.value ? Number(sel.value) : null;
+  if (!deptId) { flashFieldError(sel); return; }
+
+  let dept;
+  try { dept = await window.api.getDepartment(deptId); }
+  catch { toast('Could not load department'); return; }
+  if (!dept) { toast('Department not found'); return; }
+
+  const name = document.getElementById('hName').value || LK.defaultName || 'N/A';
+  _reportFileBase = `department-${dept.label || deptId}`;
+  document.getElementById('print-frame').innerHTML = buildGroupedSessionsReportHTML({
+    title: 'Department Report',
+    subtitle: dept.label,
+    sessions: flattenTasksToSessions(dept.tasks),
+    name,
+    emptyLabel: 'No sessions recorded in this department yet.',
+  });
+  document.getElementById('print-overlay').classList.add('open');
+}
+
+// Custom Date-Range Report PDF — optional Company/System/Project filters.
+async function genCustomRangeReport() {
+  const fromInput = document.getElementById('rmod-range-from');
+  const toInput = document.getElementById('rmod-range-to');
+  const from = fromInput.value, to = toInput.value;
+  if (!from) { flashFieldError(fromInput); return; }
+  if (!to) { flashFieldError(toInput); return; }
+
+  const company = document.getElementById('rmod-range-company').value || undefined;
+  const system = document.getElementById('rmod-range-system').value || undefined;
+  const projectSel = document.getElementById('rmod-range-project').value;
+  const projectId = projectSel ? Number(projectSel) : undefined;
+
+  let sessions;
+  try { sessions = await window.api.getFilteredWorkLogs({ from, to, company, system, projectId }); }
+  catch { toast('Could not load sessions'); return; }
+
+  const name = document.getElementById('hName').value || LK.defaultName || 'N/A';
+  const filterBits = [company, system, projectSel ? document.getElementById('rmod-range-project').selectedOptions[0]?.textContent : null].filter(Boolean);
+  _reportFileBase = `range-${from}-to-${to}`;
+  document.getElementById('print-frame').innerHTML = buildGroupedSessionsReportHTML({
+    title: 'Custom Date-Range Report',
+    subtitle: `${from} → ${to}` + (filterBits.length ? ` (${filterBits.join(', ')})` : ''),
+    sessions,
+    name,
+    emptyLabel: 'No sessions match this range/filter.',
+  });
+  document.getElementById('print-overlay').classList.add('open');
 }
 
 // Subscriptions PDF — the full list of recurring subscriptions, mirroring the
@@ -6884,6 +7247,7 @@ async function renderAnalytics() {
 
   const dayMin = an.dayMin, dayOtMin = an.dayOtMin;
   const byCompany = an.byCompany, bySystem = an.bySystem, byType = an.byType, byNatural = an.byNatural;
+  const byDepartment = an.byDepartment || {}, byProjectCategory = an.byProjectCategory || {};
   const totalMin = an.totalMin, recordCount = an.recordCount, activeDays = an.activeDays, doneCount = an.doneCount;
 
   const workMin = byType['WORK_TIME'] || 0;
@@ -6909,6 +7273,11 @@ async function renderAnalytics() {
   // ── Bar charts: company + system (each bar cross-links into Browse) ──
   renderAnBars('an-company', byCompany, 'an-company-sub', 'companies');
   renderAnBars('an-system', bySystem, 'an-system-sub', 'systems');
+
+  // ── Bar charts: department + project category (Milestone 4) — cross-link
+  // into All Tasks / Projects, since Browse has no equivalent slice for either ──
+  renderAnBars('an-department', byDepartment, 'an-department-sub', 'department');
+  renderAnBars('an-project-category', byProjectCategory, 'an-project-category-sub', 'projectCategory');
 
   // ── Daily hours + companion Over-Time trend ──
   // These follow the selected period so the charts reflect the searched range.
@@ -6947,7 +7316,9 @@ async function renderAnalytics() {
 }
 
 // Render a top-N horizontal bar chart of {key: minutes} into `elId`. With a
-// `linkKind` ('companies' | 'systems'), each row cross-links into that Browse slice.
+// `linkKind` ('companies' | 'systems' → cross-links into that Browse slice;
+// 'department' | 'projectCategory' → Milestone 4 click-through into the All
+// Tasks page / Projects page, respectively — see anBarRow's onclick mapping).
 function renderAnBars(elId, map, subId, linkKind) {
   const items = Object.entries(map).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
   const el = document.getElementById(elId);
@@ -6958,19 +7329,40 @@ function renderAnBars(elId, map, subId, linkKind) {
   el.innerHTML = `<div class="an-bars">${top.map(([k, v]) => anBarRow(k, v, max, anFmtHrs(v), null, linkKind)).join('')}</div>`;
 }
 
+const AN_BAR_LINK_ATTRS = {
+  companies:      (label) => ` data-kind="companies" data-name="${esc(label)}" title="Browse all work for ${esc(label)}" onclick="openBrowseSlice(this.dataset.kind, this.dataset.name)"`,
+  systems:        (label) => ` data-kind="systems" data-name="${esc(label)}" title="Browse all work for ${esc(label)}" onclick="openBrowseSlice(this.dataset.kind, this.dataset.name)"`,
+  department:     (label) => ` data-name="${esc(label)}" title="Open All Tasks filtered to ${esc(label)}" onclick="openAllTasksForDepartment(this.dataset.name)"`,
+  projectCategory: (label) => ` data-name="${esc(label)}" title="Open Projects filtered to ${esc(label)}" onclick="openProjectsForCategory(this.dataset.name)"`,
+};
 function anBarRow(label, value, max, display, color, linkKind) {
   const w = Math.max(2, Math.round((value / max) * 100));
   const style = `width:${w}%${color ? `;background:${color}` : ''}`;
-  const linkAttrs = linkKind
-    ? ` data-kind="${linkKind}" data-name="${esc(label)}" title="Browse all work for ${esc(label)}"` +
-      ` onclick="openBrowseSlice(this.dataset.kind, this.dataset.name)"`
-    : '';
+  const linkFn = linkKind && AN_BAR_LINK_ATTRS[linkKind];
+  const linkAttrs = linkFn ? linkFn(label) : '';
   return `
-    <div class="an-bar-row${linkKind ? ' clickable' : ''}"${linkAttrs}>
+    <div class="an-bar-row${linkFn ? ' clickable' : ''}"${linkAttrs}>
       <span class="an-bar-label" title="${esc(label)}">${esc(label)}</span>
       <span class="an-bar-track"><span class="an-bar-fill" style="${style}"></span></span>
       <span class="an-bar-val">${esc(display)}</span>
     </div>`;
+}
+
+// Milestone 4 chart click-through — Analytics' new "Hours by Department"/
+// "Hours by Project Category" bars, which have no Browse-slice equivalent
+// (Browse only slices by company/system). Department resolves to All Tasks'
+// department filter (by lookup id, not label); Project Category resolves to
+// Projects' own category segmented-control filter (by code, not label) —
+// each dimension's own existing filter UI, not a new one.
+function openAllTasksForDepartment(label) {
+  const dept = lkFind('DEPARTMENT', label);
+  atPresetFilter = { departmentId: dept ? dept.id : null };
+  switchModule('all-tasks');
+}
+function openProjectsForCategory(label) {
+  const cat = lkFind('PROJECT_CATEGORY', label);
+  switchModule('projects');
+  if (cat) setProjectCategoryFilter(cat.code);
 }
 
 // SVG donut from [{label, value, color}] segments.
@@ -8766,6 +9158,7 @@ let allTasksList = [];        // Task[] (with nested workLogs) from tasks:list
 let atProjectsIdx = [];       // for the Project filter dropdown (all statuses, not just ACTIVE)
 let atDepartmentsIdx = [];    // for the Department filter dropdown
 let atStatuses = new Set();   // active ENTRY_STATUS filter chips
+let atPresetFilter = null;    // one-shot filter applied on next render (e.g. {departmentId} from Analytics' chart click-through), then cleared
 
 async function initAllTasksModule() {
   try {
@@ -8830,6 +9223,18 @@ function renderAllTasksPanel() {
   });
   bar.appendChild(clearBtn);
   host.appendChild(bar);
+
+  // Apply a one-shot preset filter (Analytics' "Hours by Department" bar
+  // click-through, see openAllTasksForDepartment) — must run AFTER `bar` is
+  // attached to the live document (host.appendChild above), since
+  // getElementById can't find an element that only exists in a detached node.
+  if (atPresetFilter) {
+    const preset = atPresetFilter; atPresetFilter = null;
+    if (preset.company) document.getElementById('at-company').value = preset.company;
+    if (preset.system) document.getElementById('at-system').value = preset.system;
+    if (preset.projectId != null) document.getElementById('at-project').value = String(preset.projectId);
+    if (preset.departmentId != null) document.getElementById('at-department').value = String(preset.departmentId);
+  }
 
   const chipsField = document.createElement('div'); chipsField.className = 'cp-filter-field';
   const chipsLabel = document.createElement('label'); chipsLabel.textContent = 'Status';

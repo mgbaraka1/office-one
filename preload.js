@@ -34,6 +34,8 @@ contextBridge.exposeInMainWorld('api', {
   listSystems:    ()        => ipcRenderer.invoke('systems:list'),
   /** @returns {Promise<import('./ipc-types').CategoryEntry[]>} */
   systemEntries:  (name)    => ipcRenderer.invoke('systems:entries', name),
+  /** Custom date-range report filters: {from,to,company,system,projectId}. @returns {Promise<import('./ipc-types').CategoryEntry[]>} */
+  getFilteredWorkLogs: (filters) => ipcRenderer.invoke('reports:customRange', filters),
 
   // ── Analytics (aggregated in SQL) ──
   /** @returns {Promise<import('./ipc-types').AnalyticsSummary>} */

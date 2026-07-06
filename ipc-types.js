@@ -539,6 +539,8 @@
  * @property {Object<string,number>} bySystem
  * @property {Object<string,number>} byNatural
  * @property {Object<string,number>} byType
+ * @property {Object<string,number>} byDepartment       DEPARTMENT lookup label → minutes (Milestone 4)
+ * @property {Object<string,number>} byProjectCategory  PROJECT_CATEGORY lookup label → minutes (Milestone 4)
  * @property {Object<string,number>} dayMin     date → total minutes
  * @property {Object<string,number>} dayOtMin   date → over-time minutes
  */
