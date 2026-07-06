@@ -25,7 +25,7 @@ const fs   = require('node:fs');
 // table under one of these category discriminators. The renderer fetches options
 // per-category and stores a stable `code` (logic fields) or display `label`
 // (company/system/activity) — never a hardcoded string.
-const LOOKUP_CATEGORIES = ['COMPANY', 'SYSTEM', 'ACTIVITY_TYPE', 'TIME_TYPE', 'ENTRY_STATUS', 'CURRENCY', 'BILLING_CYCLE', 'PROJECT_STATUS', 'PROJECT_DOCUMENT', 'COMPANY_DOCUMENT_CATEGORY', 'DEPARTMENT', 'PROJECT_CATEGORY'];
+const LOOKUP_CATEGORIES = ['COMPANY', 'SYSTEM', 'ACTIVITY_TYPE', 'TIME_TYPE', 'ENTRY_STATUS', 'CURRENCY', 'BILLING_CYCLE', 'PROJECT_STATUS', 'PROJECT_DOCUMENT', 'COMPANY_DOCUMENT_CATEGORY', 'DEPARTMENT', 'PROJECT_CATEGORY', 'TASK_SOURCE_TYPE'];
 
 let db;          // DatabaseSync instance
 let userDataDir; // resolved userData folder (backups, db file)
@@ -297,6 +297,30 @@ function createUser(username, passwordHash) {
 // (time/status) round-trip as their stable CODE, so the renderer compares
 // codes, never strings.
 //
+// A per-task summary (count + first entry) cheap enough to inline as correlated
+// subqueries into any existing task-joined query (aliased `t`) that today shows
+// the legacy `t.source` text — Timesheet rows, Browse/Reports' day-entry rows,
+// and the All Tasks/picker/palette task lists. Full per-entry detail is only
+// ever fetched via getTaskSources()/getTask() (Task Detail). Declared before
+// LOG_COLS below since it's inlined into that template literal.
+const TASK_SOURCE_SUMMARY_COLS = `,
+  (SELECT COUNT(*) FROM task_sources ts WHERE ts.task_id = t.id) AS source_count,
+  (SELECT ts.source_ref FROM task_sources ts WHERE ts.task_id = t.id ORDER BY ts.sort_order, ts.id LIMIT 1) AS source_ref_first,
+  (SELECT ts.source_url FROM task_sources ts WHERE ts.task_id = t.id ORDER BY ts.sort_order, ts.id LIMIT 1) AS source_url_first,
+  (SELECT lc.code FROM task_sources ts JOIN lookup_codes lc ON lc.id = ts.source_type_id
+     WHERE ts.task_id = t.id ORDER BY ts.sort_order, ts.id LIMIT 1) AS source_type_first`;
+
+// Reads TASK_SOURCE_SUMMARY_COLS's four aliases back into the flat fields every
+// summary-level API shape (Task, DayEntryRow) exposes alongside its rollups.
+function taskSourceSummaryFields(r) {
+  return {
+    sourceCount: r.source_count || 0,
+    firstSourceRef: r.source_ref_first || '',
+    firstSourceUrl: r.source_url_first || '',
+    firstSourceType: r.source_type_first || '',
+  };
+}
+
 // A joined work_log(wl) + its parent task(t), aliased so one SELECT yields a flat
 // row. Phase A is 1:1 (one work_log per task), so `eid` = the work_log id and a
 // renderer row maps to exactly one (task, work_log) pair.
@@ -306,7 +330,8 @@ const LOG_COLS = `wl.id AS wl_id, wl.task_id AS task_id, wl.date AS date,
   wl.activity_type_id AS activity_type_id, wl.sort_order AS sort_order,
   t.name AS task_name,
   t.company_id AS company_id, t.system_id AS system_id,
-  t.status_id AS status_id, t.source AS source, t.project_id AS project_id`;
+  t.status_id AS status_id, t.source AS source, t.project_id AS project_id
+  ${TASK_SOURCE_SUMMARY_COLS}`;
 
 // Joined work_log+task row → renderer row shape (minutes null → '' for the UI).
 // Named to match the *ToApi convention used elsewhere (taskToApi, workLogToApi,
@@ -321,6 +346,7 @@ function dayEntryRowToApi(r) {
     status: lkCode(r.status_id) || 'IN_PROGRESS',
     minutes: (r.minutes === null || r.minutes === undefined) ? '' : r.minutes,
     projectId: r.project_id ?? null,   // linked Project (nullable); rendered as a pill
+    ...taskSourceSummaryFields(r),
   };
 }
 
@@ -848,7 +874,7 @@ function getProject(userId, id) {
 // project). Owner-scoped; ordered newest-first.
 function projectTasks(userId, projectId) {
   return db.prepare(
-    `SELECT * FROM tasks WHERE project_id = ? AND user_id = ? ORDER BY created_at DESC, id DESC`
+    `SELECT t.* ${TASK_SOURCE_SUMMARY_COLS} FROM tasks t WHERE t.project_id = ? AND t.user_id = ? ORDER BY t.created_at DESC, t.id DESC`
   ).all(projectId, userId).map(t => {
     const workLogs = db.prepare(
       `SELECT ${WORK_LOG_COLS} FROM work_logs WHERE task_id = ? AND user_id = ? ORDER BY date DESC, sort_order, id`
@@ -859,6 +885,7 @@ function projectTasks(userId, projectId) {
     ).get(t.id);
     return taskToApi(t, {
       logCount: roll.logCount, totalMinutes: roll.totalMinutes, firstDate: roll.firstDate, lastDate: roll.lastDate, workLogs,
+      ...taskSourceSummaryFields(t),
     });
   });
 }
@@ -1329,7 +1356,7 @@ function listDepartments(userId) {
 // + rollups. Includes zero-log tasks. Owner-scoped; ordered newest-first.
 function departmentTasks(userId, departmentId) {
   return db.prepare(
-    `SELECT * FROM tasks WHERE department_id = ? AND user_id = ? ORDER BY created_at DESC, id DESC`
+    `SELECT t.* ${TASK_SOURCE_SUMMARY_COLS} FROM tasks t WHERE t.department_id = ? AND t.user_id = ? ORDER BY t.created_at DESC, t.id DESC`
   ).all(departmentId, userId).map(t => {
     const workLogs = db.prepare(
       `SELECT ${WORK_LOG_COLS} FROM work_logs WHERE task_id = ? AND user_id = ? ORDER BY date DESC, sort_order, id`
@@ -1340,6 +1367,7 @@ function departmentTasks(userId, departmentId) {
     ).get(t.id);
     return taskToApi(t, {
       logCount: roll.logCount, totalMinutes: roll.totalMinutes, firstDate: roll.firstDate, lastDate: roll.lastDate, workLogs,
+      ...taskSourceSummaryFields(t),
     });
   });
 }
@@ -1430,6 +1458,90 @@ function workLogWriteFields(data) {
   };
 }
 
+// ── Task Sources (structured source list — migration 033) ────────────────────
+// A task's source is no longer a single free-text string (legacy `tasks.source`,
+// kept untouched for backward compat) — it's a list of typed entries (Jira /
+// Email / Teams-Chat / Meeting / Phone Call / Other), each with a primary ref,
+// an optional url, and optional per-type extras (source_meta JSON). `type`
+// round-trips as its TASK_SOURCE_TYPE lookup CODE — the renderer branches on it
+// to pick which fields to show/edit, the same "logic field" convention
+// time/status already follow — not its display label.
+function taskSourceToApi(s) {
+  return {
+    id: s.id,
+    taskId: s.task_id,
+    type: lkCode(s.source_type_id) || '',
+    ref: s.source_ref || '',
+    url: s.source_url || '',
+    meta: s.source_meta ? safeParse(s.source_meta, {}) : {},
+    sortOrder: s.sort_order ?? 0,
+    createdAt: s.created_at,
+    updatedAt: s.updated_at,
+  };
+}
+
+function ownsTaskSource(userId, id) {
+  return !!db.prepare('SELECT 1 FROM task_sources WHERE id = ? AND user_id = ?').get(id, userId);
+}
+
+function taskSourceWriteFields(data) {
+  const meta = (data?.meta && typeof data.meta === 'object' && Object.keys(data.meta).length) ? JSON.stringify(data.meta) : null;
+  return {
+    source_type_id: lkId('TASK_SOURCE_TYPE', data?.type),
+    source_ref: String(data?.ref ?? ''),
+    source_url: String(data?.url ?? ''),
+    source_meta: meta,
+  };
+}
+
+// All of a task's source entries, ordered. Empty if the task isn't owned.
+function getTaskSources(userId, taskId) {
+  if (!ownsTask(userId, taskId)) return [];
+  return db.prepare(
+    'SELECT * FROM task_sources WHERE task_id = ? AND user_id = ? ORDER BY sort_order, id'
+  ).all(taskId, userId).map(taskSourceToApi);
+}
+
+function nextTaskSourceSort(taskId) {
+  return db.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM task_sources WHERE task_id = ?').get(taskId).n;
+}
+
+// Append one source entry to a task. null if the task isn't owned.
+function createTaskSource(userId, taskId, data) {
+  if (!ownsTask(userId, taskId)) return null;
+  const now = new Date().toISOString();
+  const f = taskSourceWriteFields(data);
+  let id;
+  tx(() => {
+    id = Number(db.prepare(
+      `INSERT INTO task_sources(user_id, task_id, source_type_id, source_ref, source_url, source_meta, sort_order, created_at, updated_at)
+       VALUES(?,?,?,?,?,?,?,?,?)`
+    ).run(userId, taskId, f.source_type_id, f.source_ref, f.source_url, f.source_meta, nextTaskSourceSort(taskId), now, now).lastInsertRowid);
+  });
+  return taskSourceToApi(db.prepare('SELECT * FROM task_sources WHERE id = ?').get(id));
+}
+
+// Update one source entry's fields in place. null if the caller doesn't own it.
+function updateTaskSource(userId, id, data) {
+  if (!ownsTaskSource(userId, id)) return null;
+  const now = new Date().toISOString();
+  const f = taskSourceWriteFields(data);
+  tx(() => {
+    db.prepare(
+      `UPDATE task_sources SET source_type_id=?, source_ref=?, source_url=?, source_meta=?, updated_at=?
+        WHERE id=? AND user_id=?`
+    ).run(f.source_type_id, f.source_ref, f.source_url, f.source_meta, now, id, userId);
+  });
+  return taskSourceToApi(db.prepare('SELECT * FROM task_sources WHERE id = ?').get(id));
+}
+
+// Delete one source entry. {ok:false} if the caller doesn't own it.
+function deleteTaskSource(userId, id) {
+  if (!ownsTaskSource(userId, id)) return { ok: false };
+  tx(() => { db.prepare('DELETE FROM task_sources WHERE id = ? AND user_id = ?').run(id, userId); });
+  return { ok: true };
+}
+
 // Ownership gates + append-order helpers (all owner-scoped).
 function ownsTask(userId, taskId) {
   return !!db.prepare('SELECT 1 FROM tasks WHERE id = ? AND user_id = ?').get(taskId, userId);
@@ -1462,11 +1574,13 @@ function getTasksIndex(userId) {
             (SELECT COALESCE(SUM(w.minutes),0) FROM work_logs w WHERE w.task_id = t.id) AS totalMinutes,
             (SELECT MIN(w.date)              FROM work_logs w WHERE w.task_id = t.id) AS firstDate,
             (SELECT MAX(w.date)              FROM work_logs w WHERE w.task_id = t.id) AS lastDate
+            ${TASK_SOURCE_SUMMARY_COLS}
        FROM tasks t WHERE t.user_id = ?
       ORDER BY t.created_at DESC, t.id DESC`
   ).all(userId);
   return tasks.map(t => taskToApi(t, {
     logCount: t.logCount, totalMinutes: t.totalMinutes, firstDate: t.firstDate, lastDate: t.lastDate,
+    ...taskSourceSummaryFields(t),
   }));
 }
 
@@ -1482,7 +1596,8 @@ function listTasks(userId) {
   return index.map(t => ({ ...t, workLogs: logsByTask.get(t.id) || [] }));
 }
 
-// One task in full: profile + rollups + its ordered work logs. null if not owned.
+// One task in full: profile + rollups + its ordered work logs + its full
+// ordered list of source entries. null if not owned.
 function getTask(userId, id) {
   const t = db.prepare('SELECT * FROM tasks WHERE id = ? AND user_id = ?').get(id, userId);
   if (!t) return null;
@@ -1493,8 +1608,10 @@ function getTask(userId, id) {
     `SELECT COUNT(*) AS logCount, COALESCE(SUM(minutes),0) AS totalMinutes, MIN(date) AS firstDate, MAX(date) AS lastDate
        FROM work_logs WHERE task_id = ?`
   ).get(id);
+  const sources = getTaskSources(userId, id);
   return taskToApi(t, {
     logCount: roll.logCount, totalMinutes: roll.totalMinutes, firstDate: roll.firstDate, lastDate: roll.lastDate, workLogs,
+    sources, sourceCount: sources.length,
   });
 }
 
@@ -1553,6 +1670,7 @@ function logsForDate(userId, date) {
             t.name AS taskName, t.status_id AS status_id, t.company_id AS company_id,
             t.system_id AS system_id,
             t.source AS source, t.project_id AS projectId
+            ${TASK_SOURCE_SUMMARY_COLS}
        FROM work_logs wl JOIN tasks t ON t.id = wl.task_id
       WHERE wl.user_id = ? AND wl.date = ?
       ORDER BY wl.sort_order, wl.id`
@@ -1566,6 +1684,7 @@ function logsForDate(userId, date) {
     source: r.source || '',
     projectId: r.projectId ?? null,
     sortOrder: r.sortOrder ?? 0,
+    ...taskSourceSummaryFields(r),
   }));
 }
 
@@ -2478,6 +2597,7 @@ module.exports = {
   linkTask, unlinkTask, listLinkableTasks,
   listDepartments, getDepartment, linkDepartmentTask, unlinkDepartmentTask, listLinkableTasksForDepartment,
   listTasks, getTasksIndex, getTask, createTask, updateTask, deleteTask,
+  getTaskSources, createTaskSource, updateTaskSource, deleteTaskSource,
   listWorkLogs, logsForDate, addWorkLog, updateWorkLog, moveWorkLog, mergeTasks, deleteWorkLog, getWorkLogHistory,
   setDayName, getDayName,
   saveProjectDocumentFile, resolveProjectDocumentFile, removeProjectDocumentFile,
