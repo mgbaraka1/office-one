@@ -173,6 +173,7 @@ function runMaintenance() {
   if (!dbWasNew) rotateBackups();   // snapshot an existing DB before the user touches it
   sweepOrphanProjectFiles();        // drop file folders for projects that no longer exist
   sweepOrphanCompanyDocumentFiles(); // same, for company_documents/{id}/ folders
+  try { encryptAllPendingCredentials(); } catch { /* best-effort — never blocks boot */ }
 }
 
 // Safety net for the deferred file purge: remove any projects/{id}/ folder whose
@@ -1715,10 +1716,87 @@ function companyDocumentDir(id) {
 // hold small, per-user reference records keyed to a COMPANY lookup id, the
 // same shape `project_companies` uses to link a project to its clients.
 
+// ── Credential encryption (Milestone 2) ─────────────────────────────────────
+// `password`/`secret_key` columns across the five client_* tables are
+// encrypted at rest via Electron's `safeStorage` (Windows DPAPI), applied
+// transparently here so every other create*/update*/getClient caller — and
+// the renderer, which never sees ciphertext — is unaffected. db.js itself
+// never touches the `electron` module directly (it must stay requireable
+// under plain Node for the test/*.js smoke tests) — main.js calls
+// `configureCredentialEncryption(electron.safeStorage)` once at boot, after
+// `app.whenReady()`. With no cipher configured (the default — true for every
+// test run that doesn't call this), encrypt/decrypt are a no-op passthrough,
+// identical to pre-Milestone-2 behavior.
+//
+// A stored value's `enc:v1:` prefix marks it as ciphertext (base64 of
+// `safeStorage.encryptString()`'s output); anything else is treated as
+// legacy/plain. This makes both directions idempotent: encrypting an
+// already-prefixed value is a no-op, and decrypting an unprefixed one just
+// returns it as-is — so a DB with some rows encrypted and some not (e.g. an
+// interrupted migration 032, or safeStorage genuinely unavailable) is always
+// readable, never throws.
+const CREDENTIAL_MARKER = 'enc:v1:';
+let _credentialCipher = null; // electron.safeStorage-shaped: {isEncryptionAvailable, encryptString, decryptString}
+function configureCredentialEncryption(safeStorageLike) {
+  _credentialCipher = safeStorageLike || null;
+}
+function isCredentialEncryptionAvailable() {
+  try { return !!(_credentialCipher && _credentialCipher.isEncryptionAvailable()); }
+  catch { return false; }
+}
+function encryptCredentialValue(plain) {
+  if (plain == null || plain === '') return plain ?? '';
+  if (typeof plain === 'string' && plain.startsWith(CREDENTIAL_MARKER)) return plain; // already encrypted
+  if (!isCredentialEncryptionAvailable()) return plain; // fallback: unencrypted (flagged via isCredentialEncryptionAvailable())
+  try { return CREDENTIAL_MARKER + _credentialCipher.encryptString(String(plain)).toString('base64'); }
+  catch { return plain; } // never let a crypto hiccup block a save
+}
+function decryptCredentialValue(stored) {
+  if (stored == null || stored === '') return stored ?? '';
+  if (typeof stored !== 'string' || !stored.startsWith(CREDENTIAL_MARKER)) return stored; // legacy/plain passthrough
+  if (!isCredentialEncryptionAvailable()) return stored; // can't decrypt without the cipher — return ciphertext, don't throw
+  try { return _credentialCipher.decryptString(Buffer.from(stored.slice(CREDENTIAL_MARKER.length), 'base64')); }
+  catch { return stored; }
+}
+
+const CREDENTIAL_COLUMNS = [
+  ['client_vpn_connections', ['password']],
+  ['client_servers', ['password']],
+  ['client_databases', ['password']],
+  ['client_external_services', ['secret_key']],
+  ['client_internal_systems', ['password', 'secret_key']],
+];
+// Encrypts every still-plaintext password/secret_key across the five client_*
+// tables, in place. A no-op when no cipher is configured (returns early —
+// nothing to do). Called from migration 032 (the first pass, right after its
+// pre-migration backup) AND from every boot's runMaintenance() — deliberately
+// NOT a one-shot: migrations only ever run once, so if 032 happened to apply
+// on a boot where safeStorage wasn't available yet (or a row was created
+// in that window), a one-shot migration alone would never retroactively
+// encrypt it. Cheap and fully idempotent (encryptCredentialValue skips
+// already-`enc:v1:`-prefixed values), so running it on every boot is safe.
+function encryptAllPendingCredentials() {
+  if (!isCredentialEncryptionAvailable()) return { encrypted: 0 };
+  let encrypted = 0;
+  CREDENTIAL_COLUMNS.forEach(([table, columns]) => {
+    columns.forEach(column => {
+      const rows = db.prepare(`SELECT id, ${column} AS v FROM ${table} WHERE ${column} IS NOT NULL AND ${column} != ''`).all();
+      rows.forEach(row => {
+        const enc = encryptCredentialValue(row.v);
+        if (enc !== row.v) {
+          db.prepare(`UPDATE ${table} SET ${column} = ? WHERE id = ?`).run(enc, row.id);
+          encrypted++;
+        }
+      });
+    });
+  });
+  return { encrypted };
+}
+
 function clientVpnToApi(r) {
   return {
     id: r.id, companyId: r.company_id, connectionName: r.connection_name, vpnType: r.vpn_type,
-    endpoint: r.endpoint, port: r.port, username: r.username, password: r.password,
+    endpoint: r.endpoint, port: r.port, username: r.username, password: decryptCredentialValue(r.password),
     expiryDate: r.expiry_date || '', credentialLocation: r.credential_location || '',
     notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
   };
@@ -1726,7 +1804,7 @@ function clientVpnToApi(r) {
 function clientServerToApi(r) {
   return {
     id: r.id, companyId: r.company_id, serverName: r.server_name, host: r.host, environment: r.environment,
-    os: r.os, hostname: r.hostname, username: r.username, password: r.password, systemName: r.system_name,
+    os: r.os, hostname: r.hostname, username: r.username, password: decryptCredentialValue(r.password), systemName: r.system_name,
     role: r.role || '', port: r.port || '', credentialLocation: r.credential_location || '',
     notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
   };
@@ -1734,21 +1812,21 @@ function clientServerToApi(r) {
 function clientDatabaseToApi(r) {
   return {
     id: r.id, companyId: r.company_id, name: r.name, engine: r.engine, host: r.host, port: r.port,
-    username: r.username, password: r.password, version: r.version || '', credentialLocation: r.credential_location || '',
+    username: r.username, password: decryptCredentialValue(r.password), version: r.version || '', credentialLocation: r.credential_location || '',
     notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
   };
 }
 function clientExternalServiceToApi(r) {
   return {
     id: r.id, companyId: r.company_id, name: r.name, url: r.url, companyCode: r.company_code,
-    secretKey: r.secret_key, expiryDate: r.expiry_date || '', contact: r.contact || '',
+    secretKey: decryptCredentialValue(r.secret_key), expiryDate: r.expiry_date || '', contact: r.contact || '',
     notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
   };
 }
 function clientInternalSystemToApi(r) {
   return {
-    id: r.id, companyId: r.company_id, name: r.name, url: r.url, username: r.username, password: r.password,
-    systemName: r.system_name, environment: r.environment, companyCode: r.company_code, secretKey: r.secret_key,
+    id: r.id, companyId: r.company_id, name: r.name, url: r.url, username: r.username, password: decryptCredentialValue(r.password),
+    systemName: r.system_name, environment: r.environment, companyCode: r.company_code, secretKey: decryptCredentialValue(r.secret_key),
     expiryDate: r.expiry_date || '', role: r.role || '',
     subServices: safeParse(r.sub_services, []),
     notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
@@ -1923,13 +2001,14 @@ function createClientVpn(userId, companyId, data) {
     `INSERT INTO client_vpn_connections(user_id, company_id, connection_name, vpn_type, endpoint, port, username, password, expiry_date, credential_location, notes, sort_order, created_at, updated_at)
      VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
   ).run(userId, companyId, data?.connectionName ?? '', data?.vpnType ?? '', data?.endpoint ?? '',
-        data?.port ?? '', data?.username ?? '', data?.password ?? '', data?.expiryDate ?? null,
+        data?.port ?? '', data?.username ?? '', encryptCredentialValue(data?.password ?? ''), data?.expiryDate ?? null,
         data?.credentialLocation ?? '', data?.notes ?? '', now, now).lastInsertRowid);
   return clientVpnToApi(db.prepare('SELECT * FROM client_vpn_connections WHERE id = ?').get(id));
 }
 function updateClientVpn(userId, id, data) {
-  const before = db.prepare('SELECT * FROM client_vpn_connections WHERE id = ? AND user_id = ?').get(id, userId);
-  if (!before) return null;
+  const beforeRaw = db.prepare('SELECT * FROM client_vpn_connections WHERE id = ? AND user_id = ?').get(id, userId);
+  if (!beforeRaw) return null;
+  const before = { ...beforeRaw, password: decryptCredentialValue(beforeRaw.password) }; // plaintext for the diff below
   const next = {
     connection_name: data?.connectionName ?? '', vpn_type: data?.vpnType ?? '', endpoint: data?.endpoint ?? '',
     port: data?.port ?? '', username: data?.username ?? '', password: data?.password ?? '',
@@ -1941,7 +2020,7 @@ function updateClientVpn(userId, id, data) {
       `UPDATE client_vpn_connections SET connection_name = ?, vpn_type = ?, endpoint = ?, port = ?, username = ?, password = ?,
          expiry_date = ?, credential_location = ?, notes = ?, updated_at = ?
         WHERE id = ? AND user_id = ?`
-    ).run(next.connection_name, next.vpn_type, next.endpoint, next.port, next.username, next.password,
+    ).run(next.connection_name, next.vpn_type, next.endpoint, next.port, next.username, encryptCredentialValue(next.password),
           next.expiry_date, next.credential_location, next.notes, new Date().toISOString(), id, userId);
   });
   return clientVpnToApi(db.prepare('SELECT * FROM client_vpn_connections WHERE id = ?').get(id));
@@ -1958,13 +2037,14 @@ function createClientServer(userId, companyId, data) {
     `INSERT INTO client_servers(user_id, company_id, server_name, host, environment, os, hostname, username, password, system_name, role, port, credential_location, notes, sort_order, created_at, updated_at)
      VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
   ).run(userId, companyId, data?.serverName ?? '', data?.host ?? '', data?.environment ?? '', data?.os ?? '',
-        data?.hostname ?? '', data?.username ?? '', data?.password ?? '', data?.systemName ?? '',
+        data?.hostname ?? '', data?.username ?? '', encryptCredentialValue(data?.password ?? ''), data?.systemName ?? '',
         data?.role ?? '', data?.port ?? '', data?.credentialLocation ?? '', data?.notes ?? '', now, now).lastInsertRowid);
   return clientServerToApi(db.prepare('SELECT * FROM client_servers WHERE id = ?').get(id));
 }
 function updateClientServer(userId, id, data) {
-  const before = db.prepare('SELECT * FROM client_servers WHERE id = ? AND user_id = ?').get(id, userId);
-  if (!before) return null;
+  const beforeRaw = db.prepare('SELECT * FROM client_servers WHERE id = ? AND user_id = ?').get(id, userId);
+  if (!beforeRaw) return null;
+  const before = { ...beforeRaw, password: decryptCredentialValue(beforeRaw.password) };
   const next = {
     server_name: data?.serverName ?? '', host: data?.host ?? '', environment: data?.environment ?? '', os: data?.os ?? '',
     hostname: data?.hostname ?? '', username: data?.username ?? '', password: data?.password ?? '', system_name: data?.systemName ?? '',
@@ -1976,7 +2056,7 @@ function updateClientServer(userId, id, data) {
       `UPDATE client_servers SET server_name = ?, host = ?, environment = ?, os = ?, hostname = ?, username = ?, password = ?,
          system_name = ?, role = ?, port = ?, credential_location = ?, notes = ?, updated_at = ?
         WHERE id = ? AND user_id = ?`
-    ).run(next.server_name, next.host, next.environment, next.os, next.hostname, next.username, next.password,
+    ).run(next.server_name, next.host, next.environment, next.os, next.hostname, next.username, encryptCredentialValue(next.password),
           next.system_name, next.role, next.port, next.credential_location, next.notes, new Date().toISOString(), id, userId);
   });
   return clientServerToApi(db.prepare('SELECT * FROM client_servers WHERE id = ?').get(id));
@@ -2017,13 +2097,14 @@ function createClientDatabase(userId, companyId, data) {
     `INSERT INTO client_databases(user_id, company_id, name, engine, host, port, username, password, version, credential_location, notes, sort_order, created_at, updated_at)
      VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
   ).run(userId, companyId, data?.name ?? '', data?.engine ?? '', data?.host ?? '',
-        data?.port ?? '', data?.username ?? '', data?.password ?? '', data?.version ?? '',
+        data?.port ?? '', data?.username ?? '', encryptCredentialValue(data?.password ?? ''), data?.version ?? '',
         data?.credentialLocation ?? '', data?.notes ?? '', now, now).lastInsertRowid);
   return clientDatabaseToApi(db.prepare('SELECT * FROM client_databases WHERE id = ?').get(id));
 }
 function updateClientDatabase(userId, id, data) {
-  const before = db.prepare('SELECT * FROM client_databases WHERE id = ? AND user_id = ?').get(id, userId);
-  if (!before) return null;
+  const beforeRaw = db.prepare('SELECT * FROM client_databases WHERE id = ? AND user_id = ?').get(id, userId);
+  if (!beforeRaw) return null;
+  const before = { ...beforeRaw, password: decryptCredentialValue(beforeRaw.password) };
   const next = {
     name: data?.name ?? '', engine: data?.engine ?? '', host: data?.host ?? '', port: data?.port ?? '',
     username: data?.username ?? '', password: data?.password ?? '',
@@ -2035,7 +2116,7 @@ function updateClientDatabase(userId, id, data) {
       `UPDATE client_databases SET name = ?, engine = ?, host = ?, port = ?, username = ?, password = ?,
          version = ?, credential_location = ?, notes = ?, updated_at = ?
         WHERE id = ? AND user_id = ?`
-    ).run(next.name, next.engine, next.host, next.port, next.username, next.password,
+    ).run(next.name, next.engine, next.host, next.port, next.username, encryptCredentialValue(next.password),
           next.version, next.credential_location, next.notes, new Date().toISOString(), id, userId);
   });
   return clientDatabaseToApi(db.prepare('SELECT * FROM client_databases WHERE id = ?').get(id));
@@ -2051,13 +2132,14 @@ function createClientExternalService(userId, companyId, data) {
   const id = Number(db.prepare(
     `INSERT INTO client_external_services(user_id, company_id, name, url, company_code, secret_key, expiry_date, contact, notes, sort_order, created_at, updated_at)
      VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
-  ).run(userId, companyId, data?.name ?? '', data?.url ?? '', data?.companyCode ?? '', data?.secretKey ?? '',
+  ).run(userId, companyId, data?.name ?? '', data?.url ?? '', data?.companyCode ?? '', encryptCredentialValue(data?.secretKey ?? ''),
         data?.expiryDate ?? null, data?.contact ?? '', data?.notes ?? '', now, now).lastInsertRowid);
   return clientExternalServiceToApi(db.prepare('SELECT * FROM client_external_services WHERE id = ?').get(id));
 }
 function updateClientExternalService(userId, id, data) {
-  const before = db.prepare('SELECT * FROM client_external_services WHERE id = ? AND user_id = ?').get(id, userId);
-  if (!before) return null;
+  const beforeRaw = db.prepare('SELECT * FROM client_external_services WHERE id = ? AND user_id = ?').get(id, userId);
+  if (!beforeRaw) return null;
+  const before = { ...beforeRaw, secret_key: decryptCredentialValue(beforeRaw.secret_key) };
   const next = {
     name: data?.name ?? '', url: data?.url ?? '', company_code: data?.companyCode ?? '', secret_key: data?.secretKey ?? '',
     expiry_date: data?.expiryDate ?? null, contact: data?.contact ?? '', notes: data?.notes ?? '',
@@ -2067,7 +2149,7 @@ function updateClientExternalService(userId, id, data) {
     db.prepare(
       `UPDATE client_external_services SET name = ?, url = ?, company_code = ?, secret_key = ?, expiry_date = ?, contact = ?, notes = ?, updated_at = ?
         WHERE id = ? AND user_id = ?`
-    ).run(next.name, next.url, next.company_code, next.secret_key, next.expiry_date, next.contact, next.notes,
+    ).run(next.name, next.url, next.company_code, encryptCredentialValue(next.secret_key), next.expiry_date, next.contact, next.notes,
           new Date().toISOString(), id, userId);
   });
   return clientExternalServiceToApi(db.prepare('SELECT * FROM client_external_services WHERE id = ?').get(id));
@@ -2090,15 +2172,16 @@ function createClientInternalSystem(userId, companyId, data) {
   const id = Number(db.prepare(
     `INSERT INTO client_internal_systems(user_id, company_id, name, url, username, password, system_name, environment, company_code, secret_key, expiry_date, role, sub_services, notes, sort_order, created_at, updated_at)
      VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
-  ).run(userId, companyId, data?.name ?? '', data?.url ?? '', data?.username ?? '', data?.password ?? '',
-        data?.systemName ?? '', data?.environment ?? '', data?.companyCode ?? '', data?.secretKey ?? '',
+  ).run(userId, companyId, data?.name ?? '', data?.url ?? '', data?.username ?? '', encryptCredentialValue(data?.password ?? ''),
+        data?.systemName ?? '', data?.environment ?? '', data?.companyCode ?? '', encryptCredentialValue(data?.secretKey ?? ''),
         data?.expiryDate ?? null, data?.role ?? '',
         JSON.stringify(normalizeSubServices(data?.subServices)), data?.notes ?? '', now, now).lastInsertRowid);
   return clientInternalSystemToApi(db.prepare('SELECT * FROM client_internal_systems WHERE id = ?').get(id));
 }
 function updateClientInternalSystem(userId, id, data) {
-  const before = db.prepare('SELECT * FROM client_internal_systems WHERE id = ? AND user_id = ?').get(id, userId);
-  if (!before) return null;
+  const beforeRaw = db.prepare('SELECT * FROM client_internal_systems WHERE id = ? AND user_id = ?').get(id, userId);
+  if (!beforeRaw) return null;
+  const before = { ...beforeRaw, password: decryptCredentialValue(beforeRaw.password), secret_key: decryptCredentialValue(beforeRaw.secret_key) };
   const next = {
     name: data?.name ?? '', url: data?.url ?? '', username: data?.username ?? '', password: data?.password ?? '',
     system_name: data?.systemName ?? '', environment: data?.environment ?? '', company_code: data?.companyCode ?? '',
@@ -2111,8 +2194,8 @@ function updateClientInternalSystem(userId, id, data) {
       `UPDATE client_internal_systems SET name = ?, url = ?, username = ?, password = ?, system_name = ?, environment = ?,
          company_code = ?, secret_key = ?, expiry_date = ?, role = ?, sub_services = ?, notes = ?, updated_at = ?
         WHERE id = ? AND user_id = ?`
-    ).run(next.name, next.url, next.username, next.password, next.system_name, next.environment,
-          next.company_code, next.secret_key, next.expiry_date, next.role, next.sub_services, next.notes,
+    ).run(next.name, next.url, next.username, encryptCredentialValue(next.password), next.system_name, next.environment,
+          next.company_code, encryptCredentialValue(next.secret_key), next.expiry_date, next.role, next.sub_services, next.notes,
           new Date().toISOString(), id, userId);
   });
   return clientInternalSystemToApi(db.prepare('SELECT * FROM client_internal_systems WHERE id = ?').get(id));
@@ -2166,6 +2249,8 @@ module.exports = {
   saveCompanyDocumentFile, resolveCompanyDocumentFile, removeCompanyDocumentFile,
   purgeCompanyDocumentFiles, restoreCompanyDocumentFile, companyDocumentsRootDir,
   listClients, getClient, getClientFieldHistory,
+  configureCredentialEncryption, isCredentialEncryptionAvailable, encryptCredentialValue, decryptCredentialValue,
+  encryptAllPendingCredentials,
   createClientVpn, updateClientVpn, deleteClientVpn,
   createClientServer, updateClientServer, deleteClientServer, renameClientServerSystemGroup, assignClientServerGroup,
   createClientDatabase, updateClientDatabase, deleteClientDatabase,
