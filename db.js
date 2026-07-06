@@ -1449,7 +1449,13 @@ function nextWorkLogSort(taskId) {
 // page's payload (and the Tasks-picker/palette payload elsewhere, which simply
 // ignores the extra field). Two queries total (not N+1): one for the tasks, one
 // for every one of the user's work logs, grouped in JS by task_id.
-function listTasks(userId) {
+// Milestone 7 — the lightweight base query every task list needs (id, profile
+// fields, and rollups), with NO nested work_logs. Used directly by tasks:index
+// (the palette/pickers/All Tasks, none of which read sessions) and as the base
+// listTasks() builds on by adding workLogs — so the two channels are always
+// guaranteed to agree on the same set/order/rollup numbers for every task,
+// rather than risking two SQL queries drifting out of sync over time.
+function getTasksIndex(userId) {
   const tasks = db.prepare(
     `SELECT t.*,
             (SELECT COUNT(*)                 FROM work_logs w WHERE w.task_id = t.id) AS logCount,
@@ -1459,6 +1465,13 @@ function listTasks(userId) {
        FROM tasks t WHERE t.user_id = ?
       ORDER BY t.created_at DESC, t.id DESC`
   ).all(userId);
+  return tasks.map(t => taskToApi(t, {
+    logCount: t.logCount, totalMinutes: t.totalMinutes, firstDate: t.firstDate, lastDate: t.lastDate,
+  }));
+}
+
+function listTasks(userId) {
+  const index = getTasksIndex(userId);
   const logsByTask = new Map();
   db.prepare(`SELECT ${WORK_LOG_COLS} FROM work_logs WHERE user_id = ? ORDER BY date DESC, sort_order, id`)
     .all(userId).forEach(w => {
@@ -1466,10 +1479,7 @@ function listTasks(userId) {
       list.push(workLogToApi(w));
       logsByTask.set(w.task_id, list);
     });
-  return tasks.map(t => taskToApi(t, {
-    logCount: t.logCount, totalMinutes: t.totalMinutes, firstDate: t.firstDate, lastDate: t.lastDate,
-    workLogs: logsByTask.get(t.id) || [],
-  }));
+  return index.map(t => ({ ...t, workLogs: logsByTask.get(t.id) || [] }));
 }
 
 // One task in full: profile + rollups + its ordered work logs. null if not owned.
@@ -2467,7 +2477,7 @@ module.exports = {
   createProject, listProjects, getProject, updateProject, deleteProject,
   linkTask, unlinkTask, listLinkableTasks,
   listDepartments, getDepartment, linkDepartmentTask, unlinkDepartmentTask, listLinkableTasksForDepartment,
-  listTasks, getTask, createTask, updateTask, deleteTask,
+  listTasks, getTasksIndex, getTask, createTask, updateTask, deleteTask,
   listWorkLogs, logsForDate, addWorkLog, updateWorkLog, moveWorkLog, mergeTasks, deleteWorkLog, getWorkLogHistory,
   setDayName, getDayName,
   saveProjectDocumentFile, resolveProjectDocumentFile, removeProjectDocumentFile,
