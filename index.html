@@ -1394,6 +1394,35 @@
     }
     .security-banner svg { flex-shrink: 0; color: var(--warn); margin-top: 1px; }
 
+    /* ══ MAINTENANCE TAB (Milestone 6) ══ */
+    .maint-section { margin-bottom: var(--space-6); }
+    .maint-section-head {
+      display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .4px; color: var(--text); margin-bottom: 6px;
+    }
+    .maint-section-head svg { color: var(--primary); }
+    .maint-row {
+      display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+      border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 6px;
+      background: var(--surface2); font-size: 13px;
+    }
+    .maint-row-main { flex: 1; min-width: 0; }
+    .maint-row-title { font-weight: 600; color: var(--text); }
+    .maint-row-meta { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+    .maint-empty { font-size: 13px; color: var(--muted); padding: 10px 2px; }
+    .maint-confirm {
+      display: flex; align-items: center; gap: 8px; padding: 10px 12px; margin-top: 6px;
+      border: 1px solid color-mix(in srgb, var(--bad) 40%, var(--border)); border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--bad) 8%, var(--surface2));
+    }
+    .maint-confirm input {
+      flex: 1; border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 7px 10px; font-size: 13px; background: var(--surface); color: var(--text);
+    }
+    .maint-result-ok { color: var(--good); font-weight: 600; }
+    .maint-result-bad { color: var(--bad); font-weight: 600; }
+    .maint-violation-list { margin-top: 6px; font-size: 12px; color: var(--bad); }
+
     /* ══ SETTINGS MODULE (page) ══ */
     #module-settings .settings-body { background: var(--bg); }
 
@@ -3357,6 +3386,8 @@
       <button class="stab" data-tab="projectDocument" onclick="switchTab(this)"><span class="stab-icon" data-ic="file-text"></span> Project Documents</button>
       <button class="stab" data-tab="companyDocCategory" onclick="switchTab(this)"><span class="stab-icon" data-ic="calendar-check"></span> Company Doc Categories</button>
       <button class="stab" data-tab="department"    onclick="switchTab(this)"><span class="stab-icon" data-ic="building"></span> Department</button>
+      <div class="settings-group-label">Maintenance</div>
+      <button class="stab" data-tab="maintenance" onclick="switchTab(this)"><span class="stab-icon" data-ic="wrench"></span> Maintenance</button>
     </div>
     <!-- Panels -->
     <div class="settings-panels">
@@ -3383,6 +3414,45 @@
       <div class="settings-panel" id="tab-projectDocument"></div>
       <div class="settings-panel" id="tab-companyDocCategory"></div>
       <div class="settings-panel" id="tab-department"></div>
+      <div class="settings-panel" id="tab-maintenance">
+        <div class="maint-section">
+          <div class="maint-section-head">
+            <span data-ic="save"></span><span>Backups</span>
+            <button class="btn" style="margin-left:auto" onclick="refreshMaintenanceBackups()">Refresh</button>
+          </div>
+          <p class="general-hint">Auto-rotated snapshots taken on launch (newest 5 kept). Restoring replaces the
+            live database and restarts the app — a safety copy of the current data is always taken first.</p>
+          <div id="maint-backups-list"></div>
+        </div>
+
+        <div class="maint-section">
+          <div class="maint-section-head">
+            <span data-ic="shield-alert"></span><span>Integrity Check</span>
+            <button class="btn" style="margin-left:auto" onclick="runMaintenanceIntegrityCheck()">Run Check</button>
+          </div>
+          <p class="general-hint">Read-only — checks the database file for structural corruption and dangling
+            foreign keys. Safe to run any time.</p>
+          <div id="maint-integrity-result"></div>
+        </div>
+
+        <div class="maint-section">
+          <div class="maint-section-head">
+            <span data-ic="tag"></span><span>Lookup Duplicates</span>
+            <button class="btn" style="margin-left:auto" onclick="runMaintenanceLookupScan()">Scan</button>
+          </div>
+          <p class="general-hint">Case-insensitive label collisions (e.g. "Acme" / "ACME") within Companies,
+            Systems, or Natural — the same class of duplicate a past migration cleaned up once already. Merging
+            moves every reference onto the kept code and removes the duplicate.</p>
+          <div id="maint-duplicates-list"></div>
+        </div>
+
+        <div class="maint-section">
+          <div class="maint-section-head"><span data-ic="folder"></span><span>Orphan File Sweep</span></div>
+          <p class="general-hint">Runs automatically on every launch — removes leftover file folders for
+            projects/documents that no longer exist. Shown below is what the most recent launch found.</p>
+          <div id="maint-orphan-report"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -3606,6 +3676,8 @@ const ICONS = {
   "alarm-clock": "<circle cx=\"12\" cy=\"13\" r=\"8\" /><path d=\"M12 9v4l2 2\" /><path d=\"M5 3 2 6\" /><path d=\"m22 6-3-3\" /><path d=\"M6.38 18.7 4 21\" /><path d=\"M17.64 18.67 20 21\" />",
   "flag": "<path d=\"M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528\" />",
   "shield-alert": "<path d=\"M20 13c0 5-3.5 7.5-7.35 8.95a1 1 0 0 1-1.3 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\" /><path d=\"M12 8v4\" /><path d=\"M12 16h.01\" />",
+  "wrench": "<path d=\"M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z\" />",
+  "database": "<ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\" /><path d=\"M3 5V19A9 3 0 0 0 21 19V5\" /><path d=\"M3 12A9 3 0 0 0 21 12\" />",
   "rotate-ccw": "<path d=\"M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8\" /><path d=\"M3 3v5h5\" />",
   "zap": "<path d=\"M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z\" />",
   "triangle-alert": "<path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\" /><path d=\"M12 9v4\" /><path d=\"M12 17h.01\" />",
@@ -4181,12 +4253,164 @@ async function saveSettings() {
   toast('Settings saved');
 }
 
+// ══ MAINTENANCE TAB (Milestone 6) ═════════════════════════════════════════════
+// Backup list + restore, integrity check, lookup-duplicate audit + merge, and
+// the most recent boot's orphan-file sweep report — all previously invisible.
+// Rendered fresh each time the tab is switched to (not cached), since backups/
+// duplicates can change between visits.
+function renderMaintenanceTab() {
+  refreshMaintenanceBackups();
+  document.getElementById('maint-integrity-result').innerHTML = '';
+  document.getElementById('maint-duplicates-list').innerHTML = '';
+  renderMaintenanceOrphanReport();
+}
+
+async function refreshMaintenanceBackups() {
+  const host = document.getElementById('maint-backups-list');
+  host.innerHTML = '<div class="maint-empty">Loading…</div>';
+  let backups;
+  try { backups = await window.api.listBackups(); } catch { host.innerHTML = '<div class="maint-empty">Could not load backups.</div>'; return; }
+  if (!Array.isArray(backups) || !backups.length) { host.innerHTML = '<div class="maint-empty">No backups yet — one is taken automatically on the next launch of an existing database.</div>'; return; }
+  host.innerHTML = '';
+  backups.forEach(b => {
+    const row = pjMk('div', 'maint-row');
+    const main = pjMk('div', 'maint-row-main');
+    main.appendChild(pjMk('div', 'maint-row-title', b.name));
+    main.appendChild(pjMk('div', 'maint-row-meta', new Date(b.mtime).toLocaleString() + ' · ' + fmtFileSize(b.size)));
+    row.appendChild(main);
+    const btn = pjMk('button', 'btn', 'Restore…');
+    btn.addEventListener('click', () => openMaintenanceRestoreConfirm(row, b.name));
+    row.appendChild(btn);
+    host.appendChild(row);
+  });
+}
+
+// Typed-confirmation restore flow — the single riskiest action in the app
+// (replaces the live DB and restarts). Requires typing the EXACT backup
+// filename shown (not just clicking, and not a generic "RESTORE" — forcing
+// the user to actually read which file they're restoring) before the real
+// restore button enables.
+function openMaintenanceRestoreConfirm(row, filename) {
+  if (row.querySelector('.maint-confirm')) return; // already open
+  const confirmBox = pjMk('div', 'maint-confirm');
+  const input = document.createElement('input');
+  input.type = 'text'; input.placeholder = 'Type "' + filename + '" to confirm';
+  const restoreBtn = pjMk('button', 'btn', 'Restore Now');
+  restoreBtn.disabled = true;
+  restoreBtn.style.cssText = 'background:var(--bad);color:#fff;border-color:var(--bad)';
+  const cancelBtn = pjMk('button', 'btn', 'Cancel');
+  input.addEventListener('input', () => { restoreBtn.disabled = input.value !== filename; });
+  cancelBtn.addEventListener('click', () => confirmBox.remove());
+  restoreBtn.addEventListener('click', async () => {
+    restoreBtn.disabled = true; restoreBtn.textContent = 'Restoring…';
+    let res;
+    try { res = await window.api.restoreBackup(filename); }
+    catch { toast('Restore failed'); restoreBtn.disabled = false; restoreBtn.textContent = 'Restore Now'; return; }
+    if (res && res.ok === false) {
+      toast(res.error || 'Restore failed'); restoreBtn.disabled = false; restoreBtn.textContent = 'Restore Now'; return;
+    }
+    // On success the app relaunches itself (main.js) — nothing more to do here.
+    toast('Restoring and restarting…');
+  });
+  confirmBox.appendChild(input); confirmBox.appendChild(restoreBtn); confirmBox.appendChild(cancelBtn);
+  row.appendChild(confirmBox);
+  input.focus();
+}
+
+async function runMaintenanceIntegrityCheck() {
+  const host = document.getElementById('maint-integrity-result');
+  host.innerHTML = '<div class="maint-empty">Checking…</div>';
+  let res;
+  try { res = await window.api.checkIntegrity(); } catch { host.innerHTML = '<div class="maint-empty">Could not run the check.</div>'; return; }
+  if (res.ok) { host.innerHTML = '<div class="maint-result-ok">' + ic('check') + ' OK — no corruption or dangling references found.</div>'; return; }
+  const lines = [...(res.integrityMessages || []), ...(res.foreignKeyViolations || []).map(v => JSON.stringify(v))];
+  host.innerHTML = '<div class="maint-result-bad">' + ic('x') + ' Problems found:</div>' +
+    '<div class="maint-violation-list">' + lines.map(l => esc(l)).join('<br>') + '</div>';
+}
+
+async function runMaintenanceLookupScan() {
+  const host = document.getElementById('maint-duplicates-list');
+  host.innerHTML = '<div class="maint-empty">Scanning…</div>';
+  let dupes;
+  try { dupes = await window.api.getLookupDuplicates(); } catch { host.innerHTML = '<div class="maint-empty">Could not scan.</div>'; return; }
+  if (!Array.isArray(dupes) || !dupes.length) { host.innerHTML = '<div class="maint-empty">No duplicates found.</div>'; return; }
+  host.innerHTML = '';
+  dupes.forEach(d => {
+    const row = pjMk('div', 'maint-row');
+    const main = pjMk('div', 'maint-row-main');
+    main.appendChild(pjMk('div', 'maint-row-title', d.category + ': ' + d.codes.map(c => c.label).join(' / ')));
+    main.appendChild(pjMk('div', 'maint-row-meta', d.codes.length + ' colliding codes'));
+    row.appendChild(main);
+    const mergeable = !!LOOKUP_MERGE_CATEGORIES[d.category];
+    if (mergeable) {
+      const btn = pjMk('button', 'btn', 'Merge…');
+      btn.addEventListener('click', () => openMaintenanceMergeConfirm(row, d));
+      row.appendChild(btn);
+    } else {
+      row.appendChild(pjMk('span', 'maint-row-meta', 'Merge not supported for this category'));
+    }
+    host.appendChild(row);
+  });
+}
+// Categories mergeLookupDuplicate() actually supports — mirrors db.js's own
+// LOOKUP_MERGE_TARGETS scoping (kept in sync manually; small, stable list).
+const LOOKUP_MERGE_CATEGORIES = { COMPANY: true, SYSTEM: true, ACTIVITY_TYPE: true };
+
+function openMaintenanceMergeConfirm(row, dupeGroup) {
+  if (row.querySelector('.maint-confirm')) return;
+  const confirmBox = pjMk('div', 'maint-confirm');
+  confirmBox.style.flexWrap = 'wrap';
+  const label = pjMk('span', null, 'Keep:');
+  const select = document.createElement('select');
+  dupeGroup.codes.forEach(c => {
+    const opt = document.createElement('option'); opt.value = c.id; opt.textContent = c.label + ' (' + c.code + ')';
+    select.appendChild(opt);
+  });
+  const mergeBtn = pjMk('button', 'btn primary', 'Merge Now');
+  const cancelBtn = pjMk('button', 'btn', 'Cancel');
+  cancelBtn.addEventListener('click', () => confirmBox.remove());
+  mergeBtn.addEventListener('click', async () => {
+    const targetId = Number(select.value);
+    const sources = dupeGroup.codes.filter(c => c.id !== targetId);
+    mergeBtn.disabled = true; mergeBtn.textContent = 'Merging…';
+    try {
+      for (const s of sources) {
+        const res = await window.api.mergeLookups(dupeGroup.category, targetId, s.id);
+        if (!res.ok) { toast(res.error || 'Merge failed'); mergeBtn.disabled = false; mergeBtn.textContent = 'Merge Now'; return; }
+      }
+    } catch { toast('Merge failed'); mergeBtn.disabled = false; mergeBtn.textContent = 'Merge Now'; return; }
+    LK = await window.api.loadLookups(); // refresh the lookup cache client-side too
+    toast('Merged');
+    runMaintenanceLookupScan();
+  });
+  confirmBox.appendChild(label); confirmBox.appendChild(select); confirmBox.appendChild(mergeBtn); confirmBox.appendChild(cancelBtn);
+  row.appendChild(confirmBox);
+}
+
+async function renderMaintenanceOrphanReport() {
+  const host = document.getElementById('maint-orphan-report');
+  host.innerHTML = '<div class="maint-empty">Loading…</div>';
+  let report;
+  try { report = await window.api.getOrphanSweepReport(); } catch { host.innerHTML = '<div class="maint-empty">Could not load the sweep report.</div>'; return; }
+  const total = (report.projectIds || []).length + (report.companyDocumentIds || []).length;
+  if (!report.ranAt) { host.innerHTML = '<div class="maint-empty">No sweep has run yet this session.</div>'; return; }
+  if (!total) {
+    host.innerHTML = '<div class="maint-empty">Nothing to clean up as of the last launch (' + new Date(report.ranAt).toLocaleString() + ').</div>';
+    return;
+  }
+  const parts = [];
+  if (report.projectIds.length) parts.push(report.projectIds.length + ' orphaned project folder' + (report.projectIds.length === 1 ? '' : 's'));
+  if (report.companyDocumentIds.length) parts.push(report.companyDocumentIds.length + ' orphaned company document folder' + (report.companyDocumentIds.length === 1 ? '' : 's'));
+  host.innerHTML = '<div class="maint-row-meta">Last launch (' + new Date(report.ranAt).toLocaleString() + ') removed ' + esc(parts.join(' and ')) + '.</div>';
+}
+
 // Settings list items (General + each lookup category) — one flat left-hand list.
 function switchTab(btn) {
   document.querySelectorAll('#module-settings .stab').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('#module-settings .settings-panel').forEach(p => p.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  if (btn.dataset.tab === 'maintenance') renderMaintenanceTab();
 }
 
 function renderLookupPanel(uiKey) {

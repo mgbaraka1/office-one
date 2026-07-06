@@ -187,6 +187,18 @@ contextBridge.exposeInMainWorld('api', {
   backupDatabase:    ()           => ipcRenderer.invoke('db:backup'),
   /** @returns {Promise<import('./ipc-types').ProjectsBackupResult>} */
   backupProjects:    ()           => ipcRenderer.invoke('projects:backup'),
+  /** @returns {Promise<import('./ipc-types').BackupFileInfo[]>} */
+  listBackups:       ()           => ipcRenderer.invoke('maintenance:listBackups'),
+  /** Restores the live DB from a backups/ file, then relaunches the app. @returns {Promise<{ok: boolean, error?: string}>} */
+  restoreBackup:     (filename)   => ipcRenderer.invoke('maintenance:restoreBackup', filename),
+  /** @returns {Promise<import('./ipc-types').IntegrityCheckResult>} */
+  checkIntegrity:    ()           => ipcRenderer.invoke('maintenance:integrityCheck'),
+  /** @returns {Promise<import('./ipc-types').LookupDuplicateGroup[]>} */
+  getLookupDuplicates: ()         => ipcRenderer.invoke('maintenance:lookupDuplicates'),
+  /** @returns {Promise<{ok: boolean, error?: string}>} */
+  mergeLookups:      (category, targetId, sourceId) => ipcRenderer.invoke('maintenance:mergeLookups', category, targetId, sourceId),
+  /** @returns {Promise<import('./ipc-types').OrphanSweepReport>} */
+  getOrphanSweepReport: ()        => ipcRenderer.invoke('maintenance:orphanSweepReport'),
   /** @returns {Promise<import('./ipc-types').FileResult>} */
   exportPDF:         (html, name) => ipcRenderer.invoke('report:exportPDF', html, name),
   flushComplete:     ()           => ipcRenderer.invoke('app:flushComplete'),

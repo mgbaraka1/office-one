@@ -609,6 +609,40 @@
  */
 
 /**
+ * One file in <userData>/backups/ (Milestone 6, maintenance:listBackups).
+ * @typedef {Object} BackupFileInfo
+ * @property {string} name   Filename, e.g. cooperation-tools-2026-07-06-10-00-00.db
+ * @property {string} mtime  ISO timestamp
+ * @property {number} size   Bytes
+ */
+
+/**
+ * Result of `maintenance:integrityCheck` — PRAGMA integrity_check +
+ * foreign_key_check against the live DB, read-only.
+ * @typedef {Object} IntegrityCheckResult
+ * @property {boolean} ok
+ * @property {string[]} integrityMessages       Empty when ok; otherwise each integrity_check violation line.
+ * @property {Object[]} foreignKeyViolations    Raw PRAGMA foreign_key_check rows (table/rowid/parent/fkid).
+ */
+
+/**
+ * One case-insensitive label collision within a lookup_codes category
+ * (Milestone 6, maintenance:lookupDuplicates).
+ * @typedef {Object} LookupDuplicateGroup
+ * @property {string} category
+ * @property {Array<{id: number, code: string, label: string, isActive: boolean}>} codes  The colliding rows (>= 2).
+ */
+
+/**
+ * Milestone 6's most recent boot-time orphan-file sweep result
+ * (maintenance:orphanSweepReport) — in-memory only, resets each app launch.
+ * @typedef {Object} OrphanSweepReport
+ * @property {string[]} projectIds          project ids whose projects/{id}/ folder was removed this boot.
+ * @property {string[]} companyDocumentIds   company_documents ids whose folder was removed this boot.
+ * @property {string|null} ranAt            ISO timestamp of the boot that produced this report, or null before first boot.
+ */
+
+/**
  * Result of `security:credentialEncryptionStatus` — whether the five client_*
  * tables' password/secret_key columns are actually being encrypted at rest
  * this run (Milestone 2, migration 032). `false` means safeStorage is

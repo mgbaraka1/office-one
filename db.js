@@ -171,39 +171,57 @@ function applyMigrations() {
 // Step 3 — best-effort housekeeping. Never throws; never blocks boot.
 function runMaintenance() {
   if (!dbWasNew) rotateBackups();   // snapshot an existing DB before the user touches it
-  sweepOrphanProjectFiles();        // drop file folders for projects that no longer exist
-  sweepOrphanCompanyDocumentFiles(); // same, for company_documents/{id}/ folders
+  const projectIds = sweepOrphanProjectFiles();        // drop file folders for projects that no longer exist
+  const companyDocumentIds = sweepOrphanCompanyDocumentFiles(); // same, for company_documents/{id}/ folders
+  _lastOrphanSweepReport = { projectIds, companyDocumentIds, ranAt: new Date().toISOString() };
   try { encryptAllPendingCredentials(); } catch { /* best-effort — never blocks boot */ }
 }
 
 // Safety net for the deferred file purge: remove any projects/{id}/ folder whose
 // project row no longer exists (e.g. a delete whose undo window lapsed while the
 // app was closed). Runs once at boot, after backups. Best-effort; never throws.
+// Milestone 6 — the sweeps below used to run silently (no return value, no
+// record of what they found). Each now returns the list of removed folder
+// names, and runMaintenance() stashes both lists here so the Settings ->
+// Maintenance tab can show what the most recent boot's sweep actually did,
+// instead of it only ever happening invisibly. In-memory only (resets each
+// process launch) — a sweep's result is only meaningful for "what happened
+// this boot", and by the time it's viewed the orphans are already gone, so
+// there's nothing left to persist or re-scan.
+let _lastOrphanSweepReport = { projectIds: [], companyDocumentIds: [], ranAt: null };
+function getOrphanSweepReport() { return _lastOrphanSweepReport; }
+
 function sweepOrphanProjectFiles() {
+  const removed = [];
   try {
     const root = projectsRootDir();
-    if (!fs.existsSync(root)) return;
+    if (!fs.existsSync(root)) return removed;
     const live = new Set(db.prepare('SELECT id FROM projects').all().map(r => String(r.id)));
     for (const name of fs.readdirSync(root)) {
       if (/^\d+$/.test(name) && !live.has(name)) {
         fs.rmSync(path.join(root, name), { recursive: true, force: true });
+        removed.push(name);
       }
     }
   } catch { /* non-critical */ }
+  return removed;
 }
 
 // Same safety net as sweepOrphanProjectFiles, for company_documents/{id}/ folders.
 function sweepOrphanCompanyDocumentFiles() {
+  const removed = [];
   try {
     const root = companyDocumentsRootDir();
-    if (!fs.existsSync(root)) return;
+    if (!fs.existsSync(root)) return removed;
     const live = new Set(db.prepare('SELECT id FROM company_documents').all().map(r => String(r.id)));
     for (const name of fs.readdirSync(root)) {
       if (/^\d+$/.test(name) && !live.has(name)) {
         fs.rmSync(path.join(root, name), { recursive: true, force: true });
+        removed.push(name);
       }
     }
   } catch { /* non-critical */ }
+  return removed;
 }
 
 // Snapshot the current DB into <userData>/backups/, keeping the newest `keep`.
@@ -1749,6 +1767,150 @@ function dbPath() {
   return path.join(userDataDir, 'cooperation-tools.db');
 }
 
+// ── Maintenance panel (Milestone 6) ─────────────────────────────────────────
+// Lists the auto-rotated snapshots in <userData>/backups/ (name/mtime/size),
+// newest first. Read-only.
+function listBackups() {
+  const dir = path.join(userDataDir, 'backups');
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir)
+    .filter(f => /^cooperation-tools-.*\.db$/.test(f))
+    .map(f => {
+      const stat = fs.statSync(path.join(dir, f));
+      return { name: f, mtime: stat.mtime.toISOString(), size: stat.size };
+    })
+    .sort((a, b) => b.mtime.localeCompare(a.mtime));
+}
+
+// Restore the live DB from one of the files listBackups() returns — the single
+// riskiest operation in the app, since it replaces the live data file wholesale.
+// Never accepts an arbitrary path from the renderer: `backupFilename` is
+// resolved to a basename and checked against the real backups/ directory
+// listing before anything is touched. Takes a forced pre-restore backup
+// (outside backups/, mirroring migration 032's pre-encryption-backup pattern)
+// BEFORE closing the connection, so a mistaken restore is itself always
+// recoverable. Does not touch Electron (app.relaunch/exit) — main.js's IPC
+// handler does that immediately after this returns ok, since the app must
+// restart for a fresh db.openConnection() to pick up the restored file.
+function restoreBackup(backupFilename) {
+  const safeName = path.basename(String(backupFilename || ''));
+  const match = listBackups().find(b => b.name === safeName);
+  if (!match) return { ok: false, error: 'backup not found' };
+
+  const srcFile = path.join(userDataDir, 'backups', safeName);
+  const liveFile = dbPath();
+
+  const preRestoreDir = path.join(userDataDir, 'pre-restore-backup');
+  fs.mkdirSync(preRestoreDir, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  backup(path.join(preRestoreDir, `cooperation-tools-PRE-RESTORE-${stamp}.db`));
+
+  close(); // checkpoints + closes — must happen before the live file is replaced
+
+  for (const suffix of ['-wal', '-shm']) {
+    const stale = liveFile + suffix;
+    if (fs.existsSync(stale)) fs.rmSync(stale, { force: true });
+  }
+  fs.copyFileSync(srcFile, liveFile);
+
+  return { ok: true };
+}
+
+// PRAGMA integrity_check + foreign_key_check against the live DB — entirely
+// read-only, safe to run any time.
+function checkIntegrity() {
+  const integrityRows = db.prepare('PRAGMA integrity_check').all();
+  const ok = integrityRows.length === 1 && integrityRows[0].integrity_check === 'ok';
+  const fkViolations = db.prepare('PRAGMA foreign_key_check').all();
+  return {
+    ok: ok && fkViolations.length === 0,
+    integrityMessages: ok ? [] : integrityRows.map(r => r.integrity_check),
+    foreignKeyViolations: fkViolations,
+  };
+}
+
+// Case-insensitive label collisions per lookup_codes category — the exact class
+// of bug migration 004_merge_lookups fixed once already, and that saveLookups
+// now prevents going forward (see Conventions). Read-only; surfaces any that
+// still exist from before that guard was added.
+function findLookupDuplicates() {
+  const rows = db.prepare('SELECT id, category, code, label, is_active FROM lookup_codes ORDER BY category, id').all();
+  const byCategory = new Map();
+  rows.forEach(r => {
+    if (!byCategory.has(r.category)) byCategory.set(r.category, new Map());
+    const byLabel = byCategory.get(r.category);
+    const key = r.label.trim().toLowerCase();
+    if (!byLabel.has(key)) byLabel.set(key, []);
+    byLabel.get(key).push({ id: r.id, code: r.code, label: r.label, isActive: !!r.is_active });
+  });
+  const dupes = [];
+  byCategory.forEach((byLabel, category) => {
+    byLabel.forEach(group => { if (group.length > 1) dupes.push({ category, codes: group }); });
+  });
+  return dupes;
+}
+
+// Which columns actually reference each lookup category's FK id (`simple`), plus
+// junction tables needing conflict-safe repointing (`junctions`, since a project
+// already linked to BOTH the source and target code would violate the junction's
+// composite primary key — see mergeLookupDuplicate). Scoped to the categories most
+// likely to carry genuine historical duplicates: COMPANY/SYSTEM/ACTIVITY_TYPE were
+// all seeded from free-text historical data by migration 003 (companies/systems/
+// naturals users actually typed), unlike the small hand-curated enum categories
+// (TIME_TYPE, ENTRY_STATUS, CURRENCY, etc.) that were never subject to that.
+const LOOKUP_MERGE_TARGETS = {
+  COMPANY: {
+    simple: [
+      ['tasks', 'company_id'], ['client_vpn_connections', 'company_id'], ['client_servers', 'company_id'],
+      ['client_databases', 'company_id'], ['client_external_services', 'company_id'], ['client_internal_systems', 'company_id'],
+    ],
+    junctions: [['project_companies', 'company_id', 'project_id']],
+  },
+  SYSTEM: {
+    simple: [['tasks', 'system_id']],
+    junctions: [['project_systems', 'system_id', 'project_id']],
+  },
+  ACTIVITY_TYPE: {
+    simple: [['work_logs', 'activity_type_id']],
+    junctions: [],
+  },
+};
+
+// Merges `sourceId` into `targetId` within one lookup category: repoints every
+// referencing row, then deletes the now-unreferenced source code. Mirrors
+// migration 004_merge_lookups' repoint-then-delete pattern, generalized to the
+// CURRENT schema (004 itself is frozen — it repoints day_entries/backlog, both
+// long dropped — and is never re-run). Scoped to LOOKUP_MERGE_TARGETS' three
+// categories; any other category is rejected rather than guessed at.
+function mergeLookupDuplicate(category, targetId, sourceId) {
+  const cfg = LOOKUP_MERGE_TARGETS[category];
+  if (!cfg) return { ok: false, error: 'Merging is only supported for Companies, Systems, and Natural' };
+  targetId = Number(targetId); sourceId = Number(sourceId);
+  if (targetId === sourceId) return { ok: false, error: 'cannot merge a code into itself' };
+  const target = db.prepare('SELECT id FROM lookup_codes WHERE id = ? AND category = ?').get(targetId, category);
+  const source = db.prepare('SELECT id FROM lookup_codes WHERE id = ? AND category = ?').get(sourceId, category);
+  if (!target || !source) return { ok: false, error: 'code not found in this category' };
+
+  tx(() => {
+    cfg.simple.forEach(([table, column]) => {
+      db.prepare(`UPDATE ${table} SET ${column} = ? WHERE ${column} = ?`).run(targetId, sourceId);
+    });
+    cfg.junctions.forEach(([table, column, otherColumn]) => {
+      const rows = db.prepare(`SELECT ${otherColumn} AS other FROM ${table} WHERE ${column} = ?`).all(sourceId);
+      rows.forEach(({ other }) => {
+        const exists = db.prepare(`SELECT 1 FROM ${table} WHERE ${column} = ? AND ${otherColumn} = ?`).get(targetId, other);
+        if (exists) db.prepare(`DELETE FROM ${table} WHERE ${column} = ? AND ${otherColumn} = ?`).run(sourceId, other);
+        else db.prepare(`UPDATE ${table} SET ${column} = ? WHERE ${column} = ? AND ${otherColumn} = ?`).run(targetId, sourceId, other);
+      });
+    });
+    db.prepare('DELETE FROM lookup_codes WHERE id = ?').run(sourceId);
+    const violations = db.prepare('PRAGMA foreign_key_check').all();
+    if (violations.length) throw new Error('foreign_key_check failed: ' + JSON.stringify(violations));
+  });
+  lkInvalidate();
+  return { ok: true };
+}
+
 // ── Project file storage (Option A: files on disk, metadata in SQLite) ────────
 // Uploaded project documents live under the SAME userData root as the DB, nested
 // per project so future project-scoped file types (attachments, exports) can sit
@@ -2324,4 +2486,5 @@ module.exports = {
   loadLookups, saveLookups, getLookupsByCategory,
   loadSubscriptions, saveSubscriptions,
   loadPrefs, savePrefs,
+  listBackups, restoreBackup, checkIntegrity, findLookupDuplicates, mergeLookupDuplicate, getOrphanSweepReport,
 };
