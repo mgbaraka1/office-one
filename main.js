@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog, safeStorage } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const db     = require('./db');
@@ -342,6 +342,12 @@ ipcMain.handle('app:flushComplete', () => {
   if (win && !win.isDestroyed()) win.close();
 });
 
+// ── Security status (read-only, not user-scoped — no authed() needed) ──
+// Whether client credentials (Clients page) are actually being encrypted at
+// rest this run — surfaced as a Settings banner when false (safeStorage
+// unavailable, e.g. a locked-down environment with no OS keychain).
+ipcMain.handle('security:credentialEncryptionStatus', () => ({ available: db.isCredentialEncryptionAvailable() }));
+
 // ── Window controls ──
 ipcMain.handle('window:setTitle',   (_e, title) => { if (win) win.setTitle(title); });
 ipcMain.handle('shell:openExternal', (_e, url)  => {
@@ -381,6 +387,16 @@ app.whenReady().then(() => {
   // SQLite connection, bring the schema to the latest version via the versioned
   // migration runner, then run best-effort maintenance (backup rotation).
   try {
+    // Wire up client-credential encryption (Milestone 2) BEFORE the DB opens/
+    // migrates: migration 032's one-time encrypt pass needs the cipher already
+    // configured. db.js never touches `electron` itself (it must stay
+    // requireable under plain Node for the test/*.js smoke tests), so this is
+    // the one and only place `safeStorage` is used — never exposed to the
+    // renderer via preload.
+    db.configureCredentialEncryption(safeStorage);
+    if (!db.isCredentialEncryptionAvailable()) {
+      console.warn('[security] safeStorage unavailable — client credentials will be stored in plain text this run.');
+    }
     db.openConnection(app.getPath('userData'));
     // Path verification (Phase 1): confirm the project-files root shares the same
     // userData root as the live DB BEFORE any file is ever written. Logged once at
