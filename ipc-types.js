@@ -98,7 +98,7 @@
  * @property {number} totalMinutes   Sum of the task's logged minutes.
  * @property {string|null} firstDate Earliest work-log date (null if none).
  * @property {string|null} lastDate  Latest work-log date (null if none).
- * @property {WorkLog[]} [workLogs]  The task's ordered work logs (tasks:get and tasks:list).
+ * @property {WorkLog[]} [workLogs]  The task's ordered work logs (tasks:get and tasks:list only — absent from tasks:index, Milestone 7's lightweight payload for the palette/pickers/All Tasks, none of which read sessions).
  */
 
 /**
