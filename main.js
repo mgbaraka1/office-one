@@ -310,6 +310,24 @@ ipcMain.handle('projects:backup', authed(async () => {
   }
 }));
 
+// ── Maintenance panel (Milestone 6) ──
+ipcMain.handle('maintenance:listBackups', authed(() => db.listBackups()));
+// The single riskiest handler in the app: replaces the live DB file, then
+// relaunches. db.restoreBackup() already validates the filename against the
+// real backups/ listing and takes a forced pre-restore backup before touching
+// anything; if it reports ok, the app MUST restart for a fresh
+// db.openConnection() to pick up the restored file — there is no safe way to
+// keep running against the connection that was just closed out from under it.
+ipcMain.handle('maintenance:restoreBackup', authed((_e, filename) => {
+  const res = db.restoreBackup(filename);
+  if (res.ok) { app.relaunch(); app.exit(0); }
+  return res;
+}));
+ipcMain.handle('maintenance:integrityCheck', authed(() => db.checkIntegrity()));
+ipcMain.handle('maintenance:lookupDuplicates', authed(() => db.findLookupDuplicates()));
+ipcMain.handle('maintenance:mergeLookups', authed((_e, category, targetId, sourceId) => db.mergeLookupDuplicate(category, targetId, sourceId)));
+ipcMain.handle('maintenance:orphanSweepReport', authed(() => db.getOrphanSweepReport()));
+
 // ── Export a report HTML document to a PDF file (native "Save as" dialog) ──
 // Renders the supplied self-contained HTML in an offscreen window, prints it to
 // PDF via Chromium, and writes the chosen file. Read-only; touches no app data.
