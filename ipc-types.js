@@ -685,6 +685,17 @@
  */
 
 /**
+ * Milestone 11 — this-machine-only UI state (`ui:getState`/`ui:setState`,
+ * `machine_prefs` key `ui_state`), so the renderer can land back where the
+ * user left off instead of always Analytics. db.js stores/returns this as an
+ * opaque JSON blob — it never interprets the shape, only the renderer does.
+ * @typedef {Object} UiState
+ * @property {boolean} [startOnLastPage]  Settings -> General toggle; true (default) lands on lastModule, false always lands on Analytics.
+ * @property {string} [lastModule]        The nav module name last active (switchModule's own `name` argument).
+ * @property {Object} [filters]           Per-module filter snapshots, keyed by module: allTasks, browse, projects, clients, internalTasks.
+ */
+
+/**
  * Result of `security:credentialEncryptionStatus` — whether the five client_*
  * tables' password/secret_key columns are actually being encrypted at rest
  * this run (Milestone 2, migration 032). `false` means safeStorage is
