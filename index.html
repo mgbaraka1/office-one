@@ -553,8 +553,8 @@
       content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
       background: var(--muted); opacity: .55; transition: opacity .28s;
     }
-    .pj-card.pj-accent-active::before    { background: #34d399; }
-    .pj-card.pj-accent-on-hold::before   { background: #f5b544; }
+    .pj-card.pj-accent-active::before    { background: var(--good); }
+    .pj-card.pj-accent-on-hold::before   { background: var(--warn); }
     .pj-card.pj-accent-completed::before { background: var(--muted); }
     .pj-card:hover { transform: translateY(-3px); border-color: var(--primary); box-shadow: var(--shadow); }
     .pj-card:hover::before { opacity: 1; }
@@ -4120,7 +4120,12 @@ let undoRecord   = null;  // { row, idx }
 let _undoTimer   = null;
 
 // ── Module state ──
-let activeModule = 'timesheet';
+// Starts null (not e.g. 'timesheet') so the very first switchModule() call
+// during boot never hits its own "already on this module" early-return guard
+// — otherwise landing on Timesheet by default (Milestone 11's "Start on:
+// Last page") would silently skip syncing the sidebar highlight/window title,
+// since the guard would see activeModule already (coincidentally) matching.
+let activeModule = null;
 
 // ── UI state (Milestone 11) — this-machine-only "where was I" state, loaded
 // once at boot (loadUiStateFromMain) and debounce-saved (saveUiStateDebounced)
@@ -5999,7 +6004,15 @@ async function persistTimesheet() {
         let taskId = row.taskId;
         if (!taskId) { const c = await window.api.createTask(tsTaskPayload(row)); taskId = c.id; }
         const r = await window.api.addWorkLog(taskId, tsLogPayload(row));
-        if (r && r.id) { row.eid = r.id; row.taskId = taskId; seen.add(r.id); }
+        if (r && r.id) {
+          row.eid = r.id; row.taskId = taskId; seen.add(r.id);
+          // Milestone 10's autoAdvanceTaskStatus can change the task's status
+          // as a side effect of this very call (OPEN -> IN_PROGRESS on its
+          // first session) — sync the row's cached status from the response
+          // so the next debounced persistTimesheet() save doesn't stomp the
+          // DB back to the pre-advance value via its own updateTask() call.
+          if (r.task) { row.status = r.task.status; syncSiblingTasks(row); }
+        }
       }
     }
     for (const eid of _tsBaseline) {
@@ -7253,18 +7266,19 @@ function applyBacklogTaskTypeUI(type) {
   document.getElementById('b-project-row').style.display = type === 'project' ? '' : 'none';
   document.getElementById('b-department-row').style.display = type === 'department' ? '' : 'none';
 }
-// Click handler for the Task Type toggle — also clears whichever field just
-// got hidden, so a stale selection can never ride along in the save payload
-// alongside the newly-shown field (Project/Department are mutually exclusive;
-// see db.js's assertTaskLinkExclusive).
+// Click handler for the Task Type toggle. Purely visual (just calls
+// applyBacklogTaskTypeUI) — deliberately does NOT clear the now-hidden
+// field's value. An earlier version cleared it here, which meant toggling
+// project -> department -> project back again left the project picker
+// silently emptied (the first toggle cleared it; the second toggle had
+// nothing to restore), so saving without re-picking the project would
+// silently unlink it. Project/Department exclusivity is instead enforced
+// once, at submit time, in submitBacklogModal() — it reads only whichever
+// field _backlogTaskType currently says is active and ignores the other
+// entirely, so toggling back and forth is always non-destructive.
 function setBacklogTaskType(type) {
   if (type === _backlogTaskType) return;
   applyBacklogTaskTypeUI(type);
-  if (type === 'project') {
-    document.getElementById('b-department').value = '';
-  } else {
-    bProjectPicker = buildSearchSelect(document.getElementById('b-project'), projectFieldOptions(null), null, 'No project');
-  }
 }
 
 async function openBacklogModal(id = null, opts = {}) {
@@ -7382,6 +7396,17 @@ async function submitBacklogModal() {
   if (!valid) return;
 
   const isEdit = backlogEditId !== null;
+  // Project/Department are mutually exclusive (Milestone 9) — only the field
+  // matching the active type is ever sent, regardless of what the other
+  // field's underlying picker/select still holds (setBacklogTaskType() no
+  // longer clears it on toggle, so a round-trip toggle can't lose data, but
+  // that means BOTH fields can carry a stale value at once; gating here,
+  // once, at the single point the payload is built, is what actually
+  // enforces the invariant). Locked-by-context (opened from a Project or a
+  // Department) always wins over the toggle, which isn't even shown then.
+  const activeLinkType = (_backlogCtx.projectId != null) ? 'project'
+    : (_backlogCtx.departmentId != null) ? 'department'
+    : _backlogTaskType;
   // A zero-log task's description is the task name; time type and natural are
   // both per-session, chosen when it's assigned to a day.
   const payload = {
@@ -7389,8 +7414,8 @@ async function submitBacklogModal() {
     status:      document.getElementById('b-status').value,
     company:     document.getElementById('b-company').value,
     system:      document.getElementById('b-system').value,
-    department:  document.getElementById('b-department').value,
-    projectId:   bProjectPicker ? bProjectPicker.getSelectedId() : null,
+    department:  activeLinkType === 'department' ? document.getElementById('b-department').value : '',
+    projectId:   activeLinkType === 'project' ? (bProjectPicker ? bProjectPicker.getSelectedId() : null) : null,
   };
   const sourceRows = readTaskSourceRows('b-sources-list');
 
@@ -8138,7 +8163,7 @@ function setNavBadge(module, count) {
 // ════════════════════════════════════════════════════════════════════════════
 // Keyed by TIME_TYPE lookup code (+ 'OTHER' for unset).
 const AN_TYPE_COLORS = {
-  'WORK_TIME': '#14b8a6', 'OVERTIME': '#f25e6b', 'TRAINING': '#22d3ee',
+  'WORK_TIME': 'var(--primary)', 'OVERTIME': 'var(--bad)', 'TRAINING': '#22d3ee',
   'LEAVE': '#f59e0b', 'HOLIDAY': '#22c55e', 'OTHER': '#94a3b8',
 };
 const AN_FALLBACK = ['#a855f7', '#84cc16', '#14b8a6', '#f97316', '#0ea5e9', '#d946ef'];
@@ -9846,19 +9871,28 @@ function buildLinkedTaskCard(t, handlers) {
   head.appendChild(editBtn);
 
   // One-click Done (Milestone 10) — persists immediately (like every other
-  // edit on this card), unlike Timesheet's debounced in-memory rows.
+  // edit on this card), unlike Timesheet's debounced in-memory rows. Carries
+  // the same undo affordance as the Timesheet versions of this button (the
+  // milestone's own spec: "sets status DONE ... with the existing undo
+  // toast") — this card's copy originally shipped without it.
   if (t.status !== 'DONE') {
     const doneBtn = pjMk('button', 'row-btn done-btn');
     doneBtn.innerHTML = ic('check'); doneBtn.title = 'Mark done';
-    doneBtn.addEventListener('click', async () => {
-      try {
-        await window.api.updateTask(t.id, {
-          name: t.name, status: 'DONE', company: t.company, system: t.system,
-          source: t.source, projectId: t.projectId, department: t.department,
-        });
-      } catch { toast('Could not mark task done'); return; }
+    const setStatus = async (status) => {
+      await window.api.updateTask(t.id, {
+        name: t.name, status, company: t.company, system: t.system,
+        source: t.source, projectId: t.projectId, department: t.department,
+      });
       if (handlers.onSessionSaved) await handlers.onSessionSaved();
-      toast('Task marked done');
+    };
+    doneBtn.addEventListener('click', async () => {
+      const prevStatus = t.status;
+      try { await setStatus('DONE'); }
+      catch { toast('Could not mark task done'); return; }
+      showGenericUndo('Marked done', async () => {
+        try { await setStatus(prevStatus); }
+        catch { toast('Could not undo'); }
+      });
     });
     head.appendChild(doneBtn);
   }
@@ -10175,8 +10209,19 @@ async function undoDeleteProject() {
       .filter(d => d.file)
       .map(d => ({ documentType: d.documentType, file: d.file }));
     if (fileDocs.length) await window.api.restoreProjectFiles(snap.id, created.id, fileDocs);
-    for (const t of (snap.tasks || [])) await window.api.linkProjectTask(created.id, t.id);
-    toast('Project restored');
+    // Milestone 9: a task can no longer be linked to a Project it's already
+    // linked to a Department for (mutual exclusivity) — linkProjectTask
+    // returns {ok:false} instead of throwing in that case, so a task
+    // re-linked to a Department during the 5s undo window doesn't silently
+    // report success here.
+    const relinkFailures = [];
+    for (const t of (snap.tasks || [])) {
+      const res = await window.api.linkProjectTask(created.id, t.id);
+      if (res && res.ok === false) relinkFailures.push(t.name || ('#' + t.id));
+    }
+    toast(relinkFailures.length
+      ? `Project restored, but couldn't relink: ${relinkFailures.join(', ')}`
+      : 'Project restored');
   } catch { toast('Could not restore project'); }
   await loadProjectsList();
 }
@@ -10301,6 +10346,12 @@ let atStatuses = new Set();   // active ENTRY_STATUS filter chips
 // Milestone 9 — top-level population split, now that Project/Department are
 // mutually exclusive: '' (All) | 'project' | 'internal' | 'unassigned'.
 let atTypeFilter = '';
+// Milestone 11 — the IntersectionObserver an in-progress incremental render
+// created, if any. Every call to renderAllTasksCards() disconnects this
+// before building a new one, so a superseded render's observer (e.g. from
+// fast typing in the search box, each keystroke re-rendering) is never left
+// orphaned, still watching a sentinel that's no longer in the live DOM.
+let atCardsObserver = null;
 let atPresetFilter = null;    // one-shot filter applied on next render (e.g. {departmentId} from Analytics' chart click-through), then cleared
 // Milestone 11 — a second one-shot, same apply-after-DOM-attachment mechanism
 // as atPresetFilter above, but sourced from persisted uiState instead of an
@@ -10491,6 +10542,12 @@ function atTaskMatchesFilters(t, q, company, system, projectSel, deptSel) {
 function renderAllTasksCards() {
   const host = document.getElementById('at-cards');
   if (!host) return;
+  // Disconnect any observer from a superseded render before replacing the
+  // DOM it was watching — otherwise a render still mid-chunk-loading (e.g.
+  // one keystroke ago) leaks: its sentinel is detached but the observer
+  // keeps a live reference to it, and its closure keeps that whole stale
+  // render's cards/filtered list/host alive.
+  if (atCardsObserver) { atCardsObserver.disconnect(); atCardsObserver = null; }
   host.innerHTML = '';
 
   const q = (document.getElementById('at-search').value || '').trim().toLowerCase();
@@ -10534,22 +10591,21 @@ function renderAllTasksCards() {
   const sentinel = document.createElement('div'); sentinel.className = 'at-load-sentinel';
   host.appendChild(sentinel);
   let renderedCount = 0;
-  let observer = null;
   const renderChunk = () => {
     filtered.slice(renderedCount, renderedCount + AT_CHUNK_SIZE)
       .forEach(t => host.insertBefore(buildLinkedTaskCard(t, cardOpts(t)), sentinel));
     renderedCount = Math.min(renderedCount + AT_CHUNK_SIZE, filtered.length);
     if (renderedCount >= filtered.length) {
-      if (observer) observer.disconnect();
+      if (atCardsObserver) { atCardsObserver.disconnect(); atCardsObserver = null; }
       sentinel.remove();
     }
   };
   renderChunk();
   if (renderedCount < filtered.length) {
-    observer = new IntersectionObserver((entries) => {
+    atCardsObserver = new IntersectionObserver((entries) => {
       if (entries[0].isIntersecting) renderChunk();
     }, { root: host.closest('.cp-records-panel'), rootMargin: '400px' });
-    observer.observe(sentinel);
+    atCardsObserver.observe(sentinel);
   }
 }
 
