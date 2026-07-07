@@ -192,6 +192,12 @@ contextBridge.exposeInMainWorld('api', {
   /** @returns {Promise<import('./ipc-types').ClientFieldHistoryEntry[]>} */
   getClientFieldHistory: (recordType, recordId) => ipcRenderer.invoke('clients:field-history', recordType, recordId),
 
+  // ── UI state (Milestone 11) ──
+  /** @returns {Promise<import('./ipc-types').UiState>} */
+  getUiState:        ()           => ipcRenderer.invoke('ui:getState'),
+  /** @returns {Promise<{ok: boolean}>} */
+  saveUiState:       (state)      => ipcRenderer.invoke('ui:setState', state),
+
   // ── Backup / reports / window / shell ──
   /** @returns {Promise<import('./ipc-types').FileResult>} */
   backupDatabase:    ()           => ipcRenderer.invoke('db:backup'),

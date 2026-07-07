@@ -282,6 +282,12 @@ ipcMain.handle('clients:internal-rename-group', authed((_e, companyId, oldName, 
 ipcMain.handle('clients:internal-assign-group', authed((_e, companyId, recordIds, groupName) => db.assignClientInternalGroup(auth.requireUserId(), companyId, recordIds, groupName)));
 ipcMain.handle('clients:field-history', authed((_e, recordType, recordId) => db.getClientFieldHistory(auth.requireUserId(), recordType, recordId)));
 
+// ── UI state (Milestone 11 — this-machine-only, like window prefs, but the
+// renderer needs read/write access since only it knows which module/filter
+// UI is active) ──
+ipcMain.handle('ui:getState', authed(() => db.loadUiState()));
+ipcMain.handle('ui:setState', authed((_e, state) => { db.saveUiState(state); return { ok: true }; }));
+
 // ── Backup ──
 ipcMain.handle('db:backup', authed(async () => {
   const stamp = new Date().toISOString().slice(0, 10);

@@ -1917,6 +1917,21 @@ function savePrefs(prefs) {
   try { machineSet('window_prefs', JSON.stringify(prefs)); } catch { /* non-critical */ }
 }
 
+// ── UI state (Milestone 11 — this machine only, same convention as window
+// prefs above): last active module + per-module filter state, so the renderer
+// can land back where the user left off instead of always Analytics. Exposed
+// to the renderer (unlike window_prefs, which main.js reads/writes for itself
+// before any window exists) since only the renderer knows which module/filter
+// UI is active. One JSON blob, same shape as the renderer's own in-memory
+// `uiState` object — db.js never interprets its contents.
+function loadUiState() {
+  const v = machineGet('ui_state');
+  return v ? safeParse(v, {}) : {};
+}
+function saveUiState(state) {
+  try { machineSet('ui_state', JSON.stringify(state || {})); } catch { /* non-critical */ }
+}
+
 // ── Lifecycle / backup ──────────────────────────────────────────────────────
 // Checkpoint the WAL into the main DB file and close the handle cleanly. Called
 // on app quit so we don't leave a large -wal file behind.
@@ -2744,6 +2759,7 @@ module.exports = {
   loadLookups, saveLookups, getLookupsByCategory,
   loadSubscriptions, saveSubscriptions,
   loadPrefs, savePrefs,
+  loadUiState, saveUiState,
   listBackups, restoreBackup, checkIntegrity, findLookupDuplicates, mergeLookupDuplicate, getOrphanSweepReport,
   fullBackup,
 };
