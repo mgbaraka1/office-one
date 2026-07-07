@@ -767,6 +767,21 @@
     .row-department-tag.clickable { cursor: pointer; transition: opacity var(--speed); }
     .row-department-tag.clickable:hover { opacity: .8; }
 
+    /* All Tasks incremental-rendering sentinel (Milestone 11) — invisible,
+       just an IntersectionObserver trigger for the next chunk of cards. */
+    .at-load-sentinel { height: 1px; }
+
+    /* Deep-link scroll+highlight (Milestone 11) — palette hits and Attention-
+       panel items briefly ring the specific card/row they jumped to. */
+    .deep-link-highlight {
+      animation: deepLinkPulse 1.8s var(--ease);
+    }
+    @keyframes deepLinkPulse {
+      0%   { box-shadow: 0 0 0 3px var(--accent); }
+      70%  { box-shadow: 0 0 0 3px var(--accent); }
+      100% { box-shadow: 0 0 0 0 transparent; }
+    }
+
     /* document cards */
     .pj-docs { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
     .pj-doc-card {
@@ -953,6 +968,17 @@
     .dash-greeting { margin-bottom: 22px; }
     .dash-greeting h1 { font-size: var(--fs-display); font-weight: 700; color: var(--text); letter-spacing: var(--ls-display); }
     .dash-greeting p { font-size: 14px; color: var(--muted); margin-top: 4px; }
+    /* Quick actions (Milestone 11) */
+    .dash-quick-actions { display: flex; gap: 10px; margin-bottom: 22px; flex-wrap: wrap; }
+    .dash-quick-actions:empty { display: none; }
+    .dash-quick-btn {
+      display: flex; align-items: center; gap: 7px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 9px 16px; font-size: 13px; font-weight: 600; color: var(--text);
+      cursor: pointer; font-family: inherit; transition: all var(--speed);
+    }
+    .dash-quick-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+    .dash-quick-btn .lic { width: 15px; height: 15px; }
     .dash-stats {
       display: grid; grid-template-columns: repeat(2, 1fr);
       gap: 16px; margin-bottom: 4px;
@@ -2117,6 +2143,9 @@
       <h1 id="dash-hello">Welcome back</h1>
       <p id="dash-date"></p>
     </div>
+    <!-- Quick actions (Milestone 11) — the most common actions one click from
+         launch, regardless of which page the "Start on" setting lands on. -->
+    <div class="dash-quick-actions" id="dash-quick-actions"></div>
     <div class="dash-stats" id="dash-stats"></div>
 
     <!-- ── Time Tracking: everything driven by the selected period ── -->
@@ -3529,6 +3558,16 @@
         </div>
         <p class="general-hint">Pre-fills the Name field when opening a new day with no existing data.</p>
         <hr class="modal-tasksection-divider" style="margin:20px 0" />
+        <div class="general-field">
+          <label>Start on</label>
+          <div class="seg-ctl" id="setting-startonlastpage-ctl">
+            <button type="button" class="seg-btn" data-val="last" onclick="setStartOnLastPage(true)">Last page</button>
+            <button type="button" class="seg-btn" data-val="analytics" onclick="setStartOnLastPage(false)">Analytics</button>
+          </div>
+        </div>
+        <p class="general-hint">Which page the app opens on next launch. "Last page" also restores that
+          page's filters and — for Clients/Internal Tasks — the last-open record.</p>
+        <hr class="modal-tasksection-divider" style="margin:20px 0" />
         <button class="btn" onclick="openHowThinksOverlay()"><span data-ic="compass"></span>How This App Thinks</button>
         <p class="general-hint">A one-page explainer of the Task → Sessions → optional Project/Department model,
           plus the quickest path for each everyday journey.</p>
@@ -4082,6 +4121,25 @@ let _undoTimer   = null;
 
 // ── Module state ──
 let activeModule = 'timesheet';
+
+// ── UI state (Milestone 11) — this-machine-only "where was I" state, loaded
+// once at boot (loadUiStateFromMain) and debounce-saved (saveUiStateDebounced)
+// whenever the active module or a tracked module's filters change. db.js
+// stores this as an opaque JSON blob (machine_prefs key ui_state) — only the
+// renderer interprets `filters`' per-module shape.
+let uiState = { startOnLastPage: true, lastModule: 'analytics', filters: {} };
+async function loadUiStateFromMain() {
+  try {
+    const loaded = await window.api.getUiState();
+    uiState = Object.assign({ startOnLastPage: true, lastModule: 'analytics', filters: {} }, loaded || {});
+  } catch { /* keep defaults */ }
+  if (!uiState.filters || typeof uiState.filters !== 'object') uiState.filters = {};
+}
+let _uiStateSaveTimer = null;
+function saveUiStateDebounced() {
+  clearTimeout(_uiStateSaveTimer);
+  _uiStateSaveTimer = setTimeout(() => { window.api.saveUiState(uiState).catch(() => {}); }, 300);
+}
 
 // ── Module search filters ──
 let subFilter = '';
@@ -4663,10 +4721,21 @@ async function initSettingsModule() {
   lookupsDraft = JSON.parse(JSON.stringify(LK.categories || {}));
   SETTINGS_TABS.forEach(renderLookupPanel);
   document.getElementById('setting-default-name').value = LK.defaultName || '';
+  document.querySelectorAll('#setting-startonlastpage-ctl .seg-btn').forEach(b =>
+    b.classList.toggle('active', (b.dataset.val === 'last') === !!uiState.startOnLastPage));
   try {
     const status = await window.api.getCredentialEncryptionStatus();
     document.getElementById('credential-encryption-banner').style.display = status.available ? 'none' : '';
   } catch { /* non-critical — banner just stays hidden */ }
+}
+
+// Milestone 11 — persists immediately (like Maintenance's own actions), no
+// relation to the Lookups tabs' "Save Changes" button.
+function setStartOnLastPage(startOnLast) {
+  uiState.startOnLastPage = startOnLast;
+  document.querySelectorAll('#setting-startonlastpage-ctl .seg-btn').forEach(b =>
+    b.classList.toggle('active', (b.dataset.val === 'last') === startOnLast));
+  saveUiStateDebounced();
 }
 
 async function saveSettings() {
@@ -7568,6 +7637,8 @@ function switchModule(name) {
   }
   if (name !== 'timesheet' && selectedRows.size) clearSelection();
   activeModule = name;
+  uiState.lastModule = name;
+  saveUiStateDebounced();
 
   document.querySelectorAll('.app-module').forEach(el => {
     el.classList.toggle('active', el.id === 'module-' + name);
@@ -7622,6 +7693,8 @@ function setBrowseKind(kind) {
   document.getElementById('browse-body-systems').style.display  = kind === 'systems'  ? '' : 'none';
   window.api.setTitle('Cooperation Tools — Browse — ' + (kind === 'companies' ? 'Companies' : 'Systems'));
   openCatPage(kind);
+  uiState.filters.browse = { kind, selected: cpState[kind].selected };
+  saveUiStateDebounced();
 }
 // Cross-link entry point: open Browse pre-selected on one company / system value.
 function openBrowseSlice(kind, name) {
@@ -7689,6 +7762,8 @@ function selectCat(kind, name) {
   st.selected = name; st.from = ''; st.to = ''; st.type = '';
   renderCatList(kind);
   loadCatEntries(kind, name);
+  uiState.filters.browse = { kind, selected: name };
+  saveUiStateDebounced();
 }
 
 async function loadCatEntries(kind, name) {
@@ -7922,11 +7997,50 @@ function greetWord() {
   return 'Good evening';
 }
 
+// Milestone 11 — the most common actions one click from launch, regardless
+// of which page "Start on" actually lands the user on: Log work (Add Record),
+// Continue the single most-recently-worked non-DONE task (same source/window
+// as the Continue-yesterday strip), and Full Backup.
+async function renderDashQuickActions() {
+  const host = document.getElementById('dash-quick-actions');
+  if (!host) return;
+  host.innerHTML = '';
+
+  const logBtn = document.createElement('button');
+  logBtn.type = 'button'; logBtn.className = 'dash-quick-btn';
+  logBtn.innerHTML = ic('plus') + 'Log work';
+  logBtn.addEventListener('click', () => openModal());
+  host.appendChild(logBtn);
+
+  let tasks = [];
+  try { tasks = await window.api.getTasksIndex(); } catch { tasks = []; }
+  if (!Array.isArray(tasks)) tasks = [];
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - TASK_PICKER_RECENT_DAYS);
+  const cutoffStr = fmt(cutoff);
+  const mostRecent = tasks
+    .filter(t => t.status !== 'DONE' && t.lastDate && t.lastDate >= cutoffStr)
+    .sort((a, b) => (b.lastDate || '').localeCompare(a.lastDate || ''))[0];
+  if (mostRecent) {
+    const contBtn = document.createElement('button');
+    contBtn.type = 'button'; contBtn.className = 'dash-quick-btn';
+    contBtn.innerHTML = ic('rotate-ccw') + 'Continue ' + esc(mostRecent.name || '(untitled task)');
+    contBtn.addEventListener('click', () => openSessionModal(null, { mode: 'create', task: mostRecent }));
+    host.appendChild(contBtn);
+  }
+
+  const backupBtn = document.createElement('button');
+  backupBtn.type = 'button'; backupBtn.className = 'dash-quick-btn';
+  backupBtn.innerHTML = ic('database') + 'Full Backup';
+  backupBtn.addEventListener('click', () => runFullBackup());
+  host.appendChild(backupBtn);
+}
+
 async function renderOverview() {
   const name = LK.defaultName ? LK.defaultName.split(' ')[0] : 'Moustafa';
   document.getElementById('dash-hello').textContent = `${greetWord()}, ${name}`;
   document.getElementById('dash-date').textContent =
     new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  renderDashQuickActions();
 
   // Today + month-to-date hours — aggregated in SQL (no day blobs shipped).
   if (!document.getElementById('dash-stats').childElementCount) showSkeleton('dash-stats', 'cards', 2);
@@ -7998,6 +8112,8 @@ async function renderOverview() {
       el.addEventListener('click', () => {
         switchModule(a.module);
         if (a.companyId != null) openClientDetail(a.companyId, a.title);
+        else if (a.type === 'subscription') scrollToAndHighlight('[data-sub-id="' + a.id + '"]');
+        else if (a.type === 'companyDocument') scrollToAndHighlight('[data-doc-id="' + a.id + '"]');
       });
     });
   }
@@ -8571,6 +8687,7 @@ function renderSubscriptions() {
 
   sorted.forEach(sub => {
     const tr = document.createElement('tr');
+    tr.dataset.subId = sub.id;   // Milestone 11 — palette deep-link scroll+highlight target
 
     tr.appendChild(textCell(sub.name));
 
@@ -8776,6 +8893,11 @@ function pjMk(tag, cls, text) {
 
 function initProjectsModule() {
   showProjectsListView();
+  // Milestone 11 — reflect a restored projectCategoryFilter (set in init(),
+  // before this module ever loaded) on the segmented control, which the
+  // static markup always renders with "All" active regardless.
+  document.querySelectorAll('#project-category-ctl .seg-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.cat === projectCategoryFilter));
   if (!projectsLoaded) loadProjectsList();
   else renderProjectsList();
 }
@@ -8897,6 +9019,22 @@ function departmentRowTag(departmentId) {
 function openDepartmentById(id) {
   switchModule('internal-tasks');
   selectDept(id);
+}
+
+// Milestone 11 — scroll to and briefly highlight a specific card/row after a
+// deep link (palette hits and Attention-panel items alike) switches modules.
+// Polls briefly rather than requiring every module's init function to expose
+// a promise — switchModule() itself doesn't await its target module's own
+// data load, so the element may not exist in the DOM yet on the first check.
+function scrollToAndHighlight(selector, attemptsLeft = 20) {
+  const el = document.querySelector(selector);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('deep-link-highlight');
+    setTimeout(() => el.classList.remove('deep-link-highlight'), 1800);
+    return;
+  }
+  if (attemptsLeft > 0) setTimeout(() => scrollToAndHighlight(selector, attemptsLeft - 1), 100);
 }
 
 // ── Task Detail modal — the task's session hub: metadata + rollups (read-only)
@@ -9367,6 +9505,8 @@ function setProjectCategoryFilter(cat) {
   document.querySelectorAll('#project-category-ctl .seg-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.cat === cat));
   renderProjectsList();
+  uiState.filters.projects = { category: cat };
+  saveUiStateDebounced();
 }
 
 function showProjectsListView() {
@@ -10162,6 +10302,27 @@ let atStatuses = new Set();   // active ENTRY_STATUS filter chips
 // mutually exclusive: '' (All) | 'project' | 'internal' | 'unassigned'.
 let atTypeFilter = '';
 let atPresetFilter = null;    // one-shot filter applied on next render (e.g. {departmentId} from Analytics' chart click-through), then cleared
+// Milestone 11 — a second one-shot, same apply-after-DOM-attachment mechanism
+// as atPresetFilter above, but sourced from persisted uiState instead of an
+// explicit click-through; uses the selects' own raw string values (not
+// atPresetFilter's numeric-id convention), applied first so a genuine
+// atPresetFilter (a just-taken, more specific action) can still override it.
+let atRestoreFilter = null;
+
+// Snapshot the filter bar's current values into uiState.filters.allTasks —
+// called after every change so relaunching the app lands back on the same slice.
+function persistAllTasksFilters() {
+  uiState.filters.allTasks = {
+    search: document.getElementById('at-search')?.value || '',
+    company: document.getElementById('at-company')?.value || '',
+    system: document.getElementById('at-system')?.value || '',
+    project: document.getElementById('at-project')?.value || '',
+    department: document.getElementById('at-department')?.value || '',
+    statuses: Array.from(atStatuses),
+    type: atTypeFilter,
+  };
+  saveUiStateDebounced();
+}
 
 async function initAllTasksModule() {
   try {
@@ -10172,6 +10333,12 @@ async function initAllTasksModule() {
   if (!Array.isArray(allTasksList))     allTasksList = [];
   if (!Array.isArray(atProjectsIdx))    atProjectsIdx = [];
   if (!Array.isArray(atDepartmentsIdx)) atDepartmentsIdx = [];
+  const savedFilters = uiState.filters.allTasks;
+  if (savedFilters) {
+    atStatuses = new Set(savedFilters.statuses || []);
+    atTypeFilter = savedFilters.type || '';
+    atRestoreFilter = savedFilters;
+  }
   renderAllTasksPanel();
 }
 
@@ -10195,6 +10362,7 @@ function renderAllTasksPanel() {
       atTypeFilter = val;
       typeCtl.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b.dataset.type === val));
       renderAllTasksCards();
+      persistAllTasksFilters();
     });
     typeCtl.appendChild(btn);
   });
@@ -10209,7 +10377,7 @@ function renderAllTasksPanel() {
 
   const searchInp = document.createElement('input');
   searchInp.type = 'text'; searchInp.id = 'at-search'; searchInp.placeholder = 'Search tasks…';
-  searchInp.addEventListener('input', renderAllTasksCards);
+  searchInp.addEventListener('input', () => { renderAllTasksCards(); persistAllTasksFilters(); });
   bar.appendChild(mkField('Search', searchInp));
 
   const mkSelect = (id, allLabel, extraOpts, onChange) => {
@@ -10220,7 +10388,7 @@ function renderAllTasksPanel() {
       const opt = document.createElement('option'); opt.value = o.value; opt.textContent = o.label;
       sel.appendChild(opt);
     });
-    sel.addEventListener('change', onChange || renderAllTasksCards);
+    sel.addEventListener('change', () => { (onChange || renderAllTasksCards)(); persistAllTasksFilters(); });
     return sel;
   };
 
@@ -10243,14 +10411,26 @@ function renderAllTasksPanel() {
     ['at-company', 'at-system', 'at-project', 'at-department'].forEach(id => { document.getElementById(id).value = ''; });
     renderAllTasksStatusChips();
     renderAllTasksCards();
+    persistAllTasksFilters();
   });
   bar.appendChild(clearBtn);
   host.appendChild(bar);
 
-  // Apply a one-shot preset filter (Analytics' "Hours by Department" bar
-  // click-through, see openAllTasksForDepartment) — must run AFTER `bar` is
-  // attached to the live document (host.appendChild above), since
-  // getElementById can't find an element that only exists in a detached node.
+  // Milestone 11 — apply persisted filters first (so relaunching lands on the
+  // same slice), then a genuine one-shot atPresetFilter (Analytics' "Hours by
+  // Department" bar click-through, see openAllTasksForDepartment) on top,
+  // since that's a just-taken, more specific action that should win. Both
+  // must run AFTER `bar` is attached to the live document (host.appendChild
+  // above), since getElementById can't find an element that only exists in a
+  // detached node.
+  if (atRestoreFilter) {
+    const r = atRestoreFilter; atRestoreFilter = null;
+    if (r.search) searchInp.value = r.search;
+    if (r.company) document.getElementById('at-company').value = r.company;
+    if (r.system) document.getElementById('at-system').value = r.system;
+    if (r.project) document.getElementById('at-project').value = r.project;
+    if (r.department) document.getElementById('at-department').value = r.department;
+  }
   if (atPresetFilter) {
     const preset = atPresetFilter; atPresetFilter = null;
     if (preset.company) document.getElementById('at-company').value = preset.company;
@@ -10283,6 +10463,7 @@ function renderAllTasksStatusChips() {
       if (atStatuses.has(o.code)) atStatuses.delete(o.code); else atStatuses.add(o.code);
       btn.classList.toggle('active');
       renderAllTasksCards();
+      persistAllTasksFilters();
     });
     wrap.appendChild(btn);
   });
@@ -10332,7 +10513,15 @@ function renderAllTasksCards() {
     return;
   }
 
-  filtered.forEach(t => host.appendChild(buildLinkedTaskCard(t, {
+  // Milestone 11 — incremental rendering: measured ~177ms to build all 322
+  // cards against the real production dataset (well above the ~100ms
+  // interaction-latency budget from this milestone's own micro-jank pass),
+  // so render the first AT_CHUNK_SIZE cards immediately and load the rest in
+  // chunks as an IntersectionObserver sentinel scrolls into view. Browse and
+  // Task Detail were measured too (63ms/26ms) and left as plain full renders —
+  // no premature optimization beyond what the measurement actually showed.
+  const AT_CHUNK_SIZE = 40;
+  const cardOpts = (t) => ({
     onEdit: () => openAllTasksEditTask(t.id),
     onDelete: () => doDeleteAllTasksTask(t),
     onSessionSaved: reloadAllTasksModule,
@@ -10340,7 +10529,28 @@ function renderAllTasksCards() {
     // Tasks' own detail views, where the container is already implied) — show
     // which one each card belongs to.
     showContainerTag: true,
-  })));
+  });
+
+  const sentinel = document.createElement('div'); sentinel.className = 'at-load-sentinel';
+  host.appendChild(sentinel);
+  let renderedCount = 0;
+  let observer = null;
+  const renderChunk = () => {
+    filtered.slice(renderedCount, renderedCount + AT_CHUNK_SIZE)
+      .forEach(t => host.insertBefore(buildLinkedTaskCard(t, cardOpts(t)), sentinel));
+    renderedCount = Math.min(renderedCount + AT_CHUNK_SIZE, filtered.length);
+    if (renderedCount >= filtered.length) {
+      if (observer) observer.disconnect();
+      sentinel.remove();
+    }
+  };
+  renderChunk();
+  if (renderedCount < filtered.length) {
+    observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) renderChunk();
+    }, { root: host.closest('.cp-records-panel'), rootMargin: '400px' });
+    observer.observe(sentinel);
+  }
 }
 
 function openAllTasksEditTask(taskId) {
@@ -10422,6 +10632,8 @@ async function selectDept(id) {
   currentDept = dept;
   renderDeptList();
   renderDeptTasksPanel(dept);
+  uiState.filters.internalTasks = { deptId: dept.id };
+  saveUiStateDebounced();
 }
 
 async function reloadCurrentDept() {
@@ -10597,6 +10809,7 @@ function buildCompanyDocCard(doc) {
   const present = !!(f && f.exists);
   const missing = !!(f && !f.exists);
   const card = pjMk('div', 'cd-card' + (present ? ' available' : '') + (missing ? ' missing' : ''));
+  card.dataset.docId = doc.id;   // Milestone 11 — palette deep-link scroll+highlight target
 
   const head = pjMk('div', 'cd-card-head');
   const icon = pjMk('div', 'cd-card-icon');
@@ -10997,6 +11210,8 @@ async function openClientDetail(companyId, presetSearch) {
   clientDetailSearch = presetSearch || ''; // fresh search context per client; type filter persists
   showClientDetailView();
   renderClientDetail(client);
+  uiState.filters.clients = { companyId };
+  saveUiStateDebounced();
 }
 async function reloadCurrentClient() {
   if (!currentClient) return;
@@ -11130,6 +11345,8 @@ function backToClientsList() {
   currentClient = null;
   showClientsListView();
   loadClientsList();
+  uiState.filters.clients = {};
+  saveUiStateDebounced();
 }
 
 function renderClientDetail(c) {
@@ -12494,16 +12711,21 @@ function renderPalette() {
     .map(c => ({ icon: 'layers', label: c.label, hint: 'Open client', run: () => { switchModule('clients'); openClientDetail(c.id); } })) : [];
   if (clientHits.length) groups.push({ label: 'Clients', items: clientHits });
 
-  // Company Documents (lazy-loaded, same pattern as tasks)
+  // Company Documents (lazy-loaded, same pattern as tasks). Milestone 11:
+  // scrolls to and briefly highlights the specific card instead of just
+  // jumping to the module.
   const docHits = q ? _palCompanyDocs.filter(d => (d.name || '').toLowerCase().includes(q))
     .slice(0, 5)
-    .map(d => ({ icon: 'calendar-check', label: d.name || '(unnamed document)', hint: 'Open Company Docs', run: () => switchModule('companydocs') })) : [];
+    .map(d => ({ icon: 'calendar-check', label: d.name || '(unnamed document)', hint: 'Open Company Docs',
+      run: () => { switchModule('companydocs'); scrollToAndHighlight('[data-doc-id="' + d.id + '"]'); } })) : [];
   if (docHits.length) groups.push({ label: 'Company Documents', items: docHits });
 
-  // Subscriptions (lazy-loaded, same pattern as tasks)
+  // Subscriptions (lazy-loaded, same pattern as tasks). Milestone 11: same
+  // scroll+highlight treatment as Company Documents above.
   const subHits = q ? _palSubscriptions.filter(s => (s.name || '').toLowerCase().includes(q))
     .slice(0, 5)
-    .map(s => ({ icon: 'credit-card', label: s.name || '(unnamed subscription)', hint: 'Open Subscriptions', run: () => switchModule('subscriptions') })) : [];
+    .map(s => ({ icon: 'credit-card', label: s.name || '(unnamed subscription)', hint: 'Open Subscriptions',
+      run: () => { switchModule('subscriptions'); scrollToAndHighlight('[data-sub-id="' + s.id + '"]'); } })) : [];
   if (subHits.length) groups.push({ label: 'Subscriptions', items: subHits });
 
   // Tasks — selecting one logs a session against it (same rich picker conventions
@@ -12604,6 +12826,18 @@ async function init() {
   calMonth = t.getMonth();
 
   renderBackupChoiceMenu();
+  await loadUiStateFromMain();
+  // Restore per-module filter state that's read directly off module-scoped
+  // variables (Browse kind/slice, Projects category) BEFORE anything renders
+  // them; All Tasks/Clients/Internal Tasks restore inside their own init
+  // functions instead, since those rebuild their filter UI from scratch.
+  if (uiState.filters.browse && uiState.filters.browse.kind) {
+    browseKind = uiState.filters.browse.kind;
+    if (uiState.filters.browse.selected) cpState[browseKind].selected = uiState.filters.browse.selected;
+  }
+  if (uiState.filters.projects && uiState.filters.projects.category != null) {
+    projectCategoryFilter = uiState.filters.projects.category;
+  }
 
   try {
     LK = await window.api.loadLookups();
@@ -12629,7 +12863,21 @@ async function init() {
   const _pov = document.getElementById('print-overlay');
   if (_pov && _pov.parentElement !== document.body) document.body.appendChild(_pov);
 
-  switchModule('analytics');   // boot into the Analytics home / overview
+  // Milestone 11 — land back where the user left off (Settings -> General's
+  // "Start on" toggle), falling back to Analytics if there's no valid saved
+  // module (first run, or a module that no longer exists).
+  const landingModule = (uiState.startOnLastPage && uiState.lastModule
+    && document.getElementById('module-' + uiState.lastModule)) ? uiState.lastModule : 'analytics';
+  switchModule(landingModule);
+  // Clients/Internal Tasks show a list view by default (switching to them via
+  // the sidebar always does, even mid-session — see switchModule's own
+  // activeModule===name branch) — only the boot-time landing itself restores
+  // a previously-open detail, so ordinary navigation isn't affected.
+  if (landingModule === 'clients' && uiState.filters.clients && uiState.filters.clients.companyId != null) {
+    openClientDetail(uiState.filters.clients.companyId);
+  } else if (landingModule === 'internal-tasks' && uiState.filters.internalTasks && uiState.filters.internalTasks.deptId != null) {
+    selectDept(uiState.filters.internalTasks.deptId);
+  }
 }
 
 // ── Auth gate ──
