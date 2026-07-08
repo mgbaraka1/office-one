@@ -730,6 +730,31 @@ function resolveRelatedProjectId(userId, relatedProjectId, excludeId = null) {
   return ownedProjectId(userId, rid);
 }
 
+// Validate a Sub-Project's parent link (migration 035): must belong to the user,
+// cannot point at itself, and — nesting is capped at one level deep — the parent
+// itself must be a top-level project (its own parent_project_id must be NULL), so
+// a sub-project can never itself gain sub-projects. App-layer only, mirroring
+// resolveRelatedProjectId (no DB-level check beyond the plain FK).
+function resolveParentProjectId(userId, parentProjectId, excludeId = null) {
+  if (parentProjectId == null) return null;
+  const pid = Number(parentProjectId);
+  if (!Number.isInteger(pid) || (excludeId != null && pid === Number(excludeId))) return null;
+  const parent = db.prepare('SELECT parent_project_id FROM projects WHERE id = ? AND user_id = ?').get(pid, userId);
+  if (!parent || parent.parent_project_id != null) return null;
+  return pid;
+}
+
+// Resolve a support-year record the caller owns (via its parent project), or
+// null. Used when a task carries an inline supportYearId.
+function ownedSupportYearId(userId, supportYearId) {
+  if (supportYearId == null || !Number.isFinite(Number(supportYearId))) return null;
+  const row = db.prepare(
+    `SELECT sy.id FROM project_support_years sy JOIN projects p ON p.id = sy.project_id
+      WHERE sy.id = ? AND p.user_id = ?`
+  ).get(Number(supportYearId), userId);
+  return row ? Number(row.id) : null;
+}
+
 // Replace a project's company links with the given lookup ids (COMPANY category).
 // Invalid / non-COMPANY / duplicate ids are skipped. Caller wraps this in a tx.
 function setProjectCompanies(projectId, companyIds) {
@@ -790,12 +815,13 @@ function createProject(userId, data) {
   let id;
   tx(() => {
     id = Number(db.prepare(
-      `INSERT INTO projects(user_id, name, description, status, category_id, related_project_id, created_at, updated_at)
-       VALUES(?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO projects(user_id, name, description, status, category_id, related_project_id, parent_project_id, created_at, updated_at)
+       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(userId, data?.name ?? '', data?.description ?? '',
           data?.status || DEFAULT_PROJECT_STATUS,
           lkId('PROJECT_CATEGORY', data?.category),
           resolveRelatedProjectId(userId, data?.relatedProjectId),
+          resolveParentProjectId(userId, data?.parentProjectId),
           now, now).lastInsertRowid);
     setProjectCompanies(id, data?.companyIds);
     setProjectSystems(id, data?.systemIds);
@@ -803,18 +829,23 @@ function createProject(userId, data) {
   return getProject(userId, id);
 }
 
-// All of the user's projects with a linked-task count, newest first — the list
-// view's payload. taskCount is the number of TASKS linked to the project (each may
-// have zero or many work sessions).
+// All of the user's TOP-LEVEL projects with a linked-task count, newest first —
+// the list view's payload (migration 035: Sub-Projects no longer appear in this
+// flat grid — they only ever show nested inside their parent's detail view via
+// getProject's own subProjects array). taskCount is the number of TASKS linked
+// directly to the project (each may have zero or many work sessions) — it does
+// NOT include a sub-project's or a support-year's own tasks.
 function listProjects(userId) {
   return db.prepare(
     `SELECT p.id, p.name, p.description, p.status,
             p.category_id AS categoryId, p.related_project_id AS relatedProjectId,
             (SELECT name FROM projects rp WHERE rp.id = p.related_project_id) AS relatedProjectName,
             p.created_at AS createdAt,
-            (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id) AS taskCount
+            (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id) AS taskCount,
+            (SELECT COUNT(*) FROM projects sp WHERE sp.parent_project_id = p.id) AS subProjectCount,
+            (SELECT COUNT(*) FROM project_support_years sy WHERE sy.project_id = p.id) AS supportYearCount
        FROM projects p
-      WHERE p.user_id = ?
+      WHERE p.user_id = ? AND p.parent_project_id IS NULL
       ORDER BY p.created_at DESC, p.id DESC`
   ).all(userId).map(({ categoryId, ...p }) => ({
     ...p,
@@ -827,11 +858,20 @@ function listProjects(userId) {
 // One project in full: profile + its linked TASKS (each with nested work sessions,
 // including zero-log "Not Yet" tasks) + document statuses. null if not owned.
 // (ProjectTasksV2 shape — `tasks: Task[]`, replacing the old {entries, backlog}.)
+// Since migration 035 also carries `subProjects` (this project's own child
+// projects, minimal profile + taskCount — drill into one via a plain getProject
+// call on its own id) and `supportYears` (this project's Annual Support records,
+// each with its own scoped tasks nested, newest-year-first). Works unchanged when
+// `id` is itself a sub-project — its own parentProjectId/parentProjectName are
+// populated, and it carries no subProjects/supportYears of its own (nesting is
+// capped at one level, see resolveParentProjectId).
 function getProject(userId, id) {
   const row = db.prepare(
     `SELECT p.id, p.name, p.description, p.status,
             p.category_id AS categoryId, p.related_project_id AS relatedProjectId,
             (SELECT name FROM projects rp WHERE rp.id = p.related_project_id) AS relatedProjectName,
+            p.parent_project_id AS parentProjectId,
+            (SELECT name FROM projects pp WHERE pp.id = p.parent_project_id) AS parentProjectName,
             p.created_at AS createdAt
        FROM projects p WHERE p.id = ? AND p.user_id = ?`
   ).get(id, userId);
@@ -840,6 +880,13 @@ function getProject(userId, id) {
   p.category = lkCode(categoryId);
 
   const tasks = projectTasks(userId, id);
+  const subProjects = p.parentProjectId == null ? listSubProjects(userId, id) : [];
+  // Nested with each year's full tasks (unlike listSupportYears' own lightweight
+  // summary rows) — renderProjectDetail's Annual Support section renders a
+  // year's tasks inline, with no separate drill-in step the way Sub-Projects has.
+  const supportYears = p.parentProjectId == null
+    ? listSupportYears(userId, id).map(sy => ({ ...sy, tasks: supportYearTasks(userId, sy.id) }))
+    : [];
 
   // Tracked documents = the active PROJECT_DOCUMENT lookups (ordered), each merged
   // with this project's stored row. `documentType` is the stable lookup code;
@@ -866,7 +913,19 @@ function getProject(userId, id) {
     return { documentType: o.code, label: o.label, isAvailable: hasFile, file };
   });
 
-  return { ...p, companies: projectCompanies(id), systems: projectSystems(id), tasks, documents };
+  return { ...p, companies: projectCompanies(id), systems: projectSystems(id), tasks, documents, subProjects, supportYears };
+}
+
+// A project's own child projects (Sub-Projects, migration 035) — minimal profile
+// + taskCount, newest first. A sub-project's own tasks/documents are only ever
+// fetched by drilling in via a plain getProject(userId, subProjectId) call.
+function listSubProjects(userId, parentId) {
+  return db.prepare(
+    `SELECT p.id, p.name, p.status, p.created_at AS createdAt,
+            (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id) AS taskCount
+       FROM projects p WHERE p.parent_project_id = ? AND p.user_id = ?
+      ORDER BY p.created_at DESC, p.id DESC`
+  ).all(parentId, userId);
 }
 
 // A project's linked tasks (ProjectTasksV2), each as a full Task with its ordered
@@ -896,12 +955,13 @@ function updateProject(userId, id, data) {
   if (!ownsProject(userId, id)) return null;
   tx(() => {
     db.prepare(
-      `UPDATE projects SET name = ?, description = ?, status = ?, category_id = ?, related_project_id = ?, updated_at = ?
+      `UPDATE projects SET name = ?, description = ?, status = ?, category_id = ?, related_project_id = ?, parent_project_id = ?, updated_at = ?
         WHERE id = ? AND user_id = ?`
     ).run(data?.name ?? '', data?.description ?? '',
           data?.status || DEFAULT_PROJECT_STATUS,
           lkId('PROJECT_CATEGORY', data?.category),
           resolveRelatedProjectId(userId, data?.relatedProjectId, id),
+          resolveParentProjectId(userId, data?.parentProjectId, id),
           new Date().toISOString(), id, userId);
     setProjectCompanies(id, data?.companyIds);
     setProjectSystems(id, data?.systemIds);
@@ -1281,9 +1341,10 @@ function restoreCompanyDocumentFile(userId, oldId, newId, fileMeta) {
 // offering department-linked tasks to this picker in the first place.
 function linkTask(userId, projectId, taskId) {
   if (!ownsProject(userId, projectId)) return { ok: false, error: 'project not found' };
-  const row = db.prepare('SELECT department_id FROM tasks WHERE id = ? AND user_id = ?').get(taskId, userId);
+  const row = db.prepare('SELECT department_id, support_year_id FROM tasks WHERE id = ? AND user_id = ?').get(taskId, userId);
   if (!row) return { ok: false, error: 'task not found' };
   if (row.department_id != null) return { ok: false, error: 'task is already linked to a Department' };
+  if (row.support_year_id != null) return { ok: false, error: 'task is already linked to a Support Year' };
   db.prepare('UPDATE tasks SET project_id = ? WHERE id = ? AND user_id = ?')
     .run(projectId, taskId, userId);
   return { ok: true };
@@ -1300,9 +1361,10 @@ function unlinkTask(userId, taskId) {
 // Project is rejected here for the same reason linkTask rejects the reverse.
 function linkDepartmentTask(userId, taskId, departmentId) {
   if (!isLookupId('DEPARTMENT', departmentId)) return { ok: false, error: 'department not found' };
-  const row = db.prepare('SELECT project_id FROM tasks WHERE id = ? AND user_id = ?').get(taskId, userId);
+  const row = db.prepare('SELECT project_id, support_year_id FROM tasks WHERE id = ? AND user_id = ?').get(taskId, userId);
   if (!row) return { ok: false, error: 'task not found' };
   if (row.project_id != null) return { ok: false, error: 'task is already linked to a Project' };
+  if (row.support_year_id != null) return { ok: false, error: 'task is already linked to a Support Year' };
   db.prepare('UPDATE tasks SET department_id = ? WHERE id = ? AND user_id = ?')
     .run(Number(departmentId), taskId, userId);
   return { ok: true };
@@ -1318,9 +1380,10 @@ function unlinkDepartmentTask(userId, taskId) {
 // each with its rollups. Read-only; the UI links via linkTask. Milestone 9: also
 // excludes department-linked tasks (Project/Department are mutually exclusive),
 // so this picker never offers an Internal task as something to fold into a Project.
+// Migration 035: also excludes Support-Year-linked tasks, for the same reason.
 function listLinkableTasks(userId) {
   return db.prepare(
-    `SELECT * FROM tasks WHERE user_id = ? AND project_id IS NULL AND department_id IS NULL ORDER BY created_at DESC, id DESC`
+    `SELECT * FROM tasks WHERE user_id = ? AND project_id IS NULL AND department_id IS NULL AND support_year_id IS NULL ORDER BY created_at DESC, id DESC`
   ).all(userId).map(t => {
     const roll = db.prepare(
       `SELECT COUNT(*) AS logCount, COALESCE(SUM(minutes),0) AS totalMinutes, MIN(date) AS firstDate, MAX(date) AS lastDate
@@ -1334,10 +1397,11 @@ function listLinkableTasks(userId) {
 
 // Same as listLinkableTasks but for the "link an existing task to a department"
 // picker (department_id IS NULL instead of project_id IS NULL). Milestone 9: also
-// excludes project-linked tasks, for the same mutual-exclusivity reason.
+// excludes project-linked tasks, for the same mutual-exclusivity reason. Migration
+// 035: also excludes Support-Year-linked tasks.
 function listLinkableTasksForDepartment(userId) {
   return db.prepare(
-    `SELECT * FROM tasks WHERE user_id = ? AND department_id IS NULL AND project_id IS NULL ORDER BY created_at DESC, id DESC`
+    `SELECT * FROM tasks WHERE user_id = ? AND department_id IS NULL AND project_id IS NULL AND support_year_id IS NULL ORDER BY created_at DESC, id DESC`
   ).all(userId).map(t => {
     const roll = db.prepare(
       `SELECT COUNT(*) AS logCount, COALESCE(SUM(minutes),0) AS totalMinutes, MIN(date) AS firstDate, MAX(date) AS lastDate
@@ -1347,6 +1411,43 @@ function listLinkableTasksForDepartment(userId) {
       logCount: roll.logCount, totalMinutes: roll.totalMinutes, firstDate: roll.firstDate, lastDate: roll.lastDate,
     });
   });
+}
+
+// Same as listLinkableTasks but for the "link an existing task to a support year"
+// picker (support_year_id IS NULL instead of project_id IS NULL). Excludes both
+// project- and department-linked tasks, for the same mutual-exclusivity reason.
+function listLinkableTasksForSupportYear(userId) {
+  return db.prepare(
+    `SELECT * FROM tasks WHERE user_id = ? AND support_year_id IS NULL AND project_id IS NULL AND department_id IS NULL ORDER BY created_at DESC, id DESC`
+  ).all(userId).map(t => {
+    const roll = db.prepare(
+      `SELECT COUNT(*) AS logCount, COALESCE(SUM(minutes),0) AS totalMinutes, MIN(date) AS firstDate, MAX(date) AS lastDate
+         FROM work_logs WHERE task_id = ?`
+    ).get(t.id);
+    return taskToApi(t, {
+      logCount: roll.logCount, totalMinutes: roll.totalMinutes, firstDate: roll.firstDate, lastDate: roll.lastDate,
+    });
+  });
+}
+
+// Link / unlink a task to a support year, the same shape as linkTask/
+// linkDepartmentTask above but for the project_support_years dimension (Annual
+// Support). Mutually exclusive with Project/Department, same reasoning.
+function linkSupportYearTask(userId, taskId, supportYearId) {
+  const syId = ownedSupportYearId(userId, supportYearId);
+  if (syId == null) return { ok: false, error: 'support year not found' };
+  const row = db.prepare('SELECT project_id, department_id FROM tasks WHERE id = ? AND user_id = ?').get(taskId, userId);
+  if (!row) return { ok: false, error: 'task not found' };
+  if (row.project_id != null) return { ok: false, error: 'task is already linked to a Project' };
+  if (row.department_id != null) return { ok: false, error: 'task is already linked to a Department' };
+  db.prepare('UPDATE tasks SET support_year_id = ? WHERE id = ? AND user_id = ?')
+    .run(syId, taskId, userId);
+  return { ok: true };
+}
+function unlinkSupportYearTask(userId, taskId) {
+  db.prepare('UPDATE tasks SET support_year_id = NULL WHERE id = ? AND user_id = ?')
+    .run(taskId, userId);
+  return { ok: true };
 }
 
 // ── Departments (Internal Tasks) ──────────────────────────────────────────────
@@ -1393,6 +1494,90 @@ function getDepartment(userId, id) {
   return { id: d.id, code: d.code, label: d.label, tasks: departmentTasks(userId, d.id) };
 }
 
+// ── Annual Support (migration 035) ────────────────────────────────────────────
+// A project's Support section, organized per calendar year. Not a `projects` row —
+// a support-year record has no company/system/status/documents of its own, only
+// tasks scoped to that specific year (see getSupportYear/supportYearTasks). One
+// row per project+year (UNIQUE constraint); create/delete only — there's nothing
+// on a support-year worth editing beyond its (optional) notes.
+
+// A project's Annual Support records, newest year first, each with a linked-task
+// count. Used both standalone (Settings-style list) and nested inside getProject.
+function listSupportYears(userId, projectId) {
+  if (!ownsProject(userId, projectId)) return [];
+  return db.prepare(
+    `SELECT sy.id, sy.project_id AS projectId, sy.year, sy.notes, sy.created_at AS createdAt,
+            (SELECT COUNT(*) FROM tasks t WHERE t.support_year_id = sy.id) AS taskCount
+       FROM project_support_years sy WHERE sy.project_id = ?
+      ORDER BY sy.year DESC, sy.id DESC`
+  ).all(projectId);
+}
+
+// Insert a new Annual Support year under a project. Rejects (returns null) if the
+// caller doesn't own the project, the year isn't a plausible 4-digit calendar
+// year, or that project+year combination already exists (UNIQUE(project_id,year)).
+function createSupportYear(userId, projectId, year, notes = '') {
+  if (!ownsProject(userId, projectId)) return null;
+  const y = Number(year);
+  if (!Number.isInteger(y) || y < 2000 || y > 2100) return null;
+  const now = new Date().toISOString();
+  let id;
+  try {
+    id = Number(db.prepare(
+      `INSERT INTO project_support_years(project_id, year, notes, created_at, updated_at) VALUES(?, ?, ?, ?, ?)`
+    ).run(projectId, y, String(notes || ''), now, now).lastInsertRowid);
+  } catch {
+    return null; // UNIQUE(project_id, year) violation — that year already exists
+  }
+  return getSupportYear(userId, id);
+}
+
+// One support-year in full: its identity (incl. parent project name) + its
+// linked tasks (with sessions). null if not owned (via its parent project).
+function getSupportYear(userId, id) {
+  const row = db.prepare(
+    `SELECT sy.id, sy.project_id AS projectId, sy.year, sy.notes, sy.created_at AS createdAt, p.name AS projectName
+       FROM project_support_years sy JOIN projects p ON p.id = sy.project_id
+      WHERE sy.id = ? AND p.user_id = ?`
+  ).get(id, userId);
+  if (!row) return null;
+  return { ...row, tasks: supportYearTasks(userId, id) };
+}
+
+// Delete a support-year record. Its linked tasks are only ever unlinked (SET NULL
+// on support_year_id via the FK), never deleted — same convention as deleting a
+// Project/Department leaves their tasks intact.
+function deleteSupportYear(userId, id) {
+  const owned = db.prepare(
+    `SELECT sy.id FROM project_support_years sy JOIN projects p ON p.id = sy.project_id
+      WHERE sy.id = ? AND p.user_id = ?`
+  ).get(id, userId);
+  if (!owned) return { ok: false, error: 'support year not found' };
+  db.prepare('DELETE FROM project_support_years WHERE id = ?').run(id);
+  return { ok: true };
+}
+
+// A support-year's linked tasks, each as a full Task with its ordered work
+// sessions + rollups. Includes zero-log tasks. Ordered newest-first — mirrors
+// projectTasks/departmentTasks exactly.
+function supportYearTasks(userId, supportYearId) {
+  return db.prepare(
+    `SELECT t.* ${TASK_SOURCE_SUMMARY_COLS} FROM tasks t WHERE t.support_year_id = ? AND t.user_id = ? ORDER BY t.created_at DESC, t.id DESC`
+  ).all(supportYearId, userId).map(t => {
+    const workLogs = db.prepare(
+      `SELECT ${WORK_LOG_COLS} FROM work_logs WHERE task_id = ? AND user_id = ? ORDER BY date DESC, sort_order, id`
+    ).all(t.id, userId).map(workLogToApi);
+    const roll = db.prepare(
+      `SELECT COUNT(*) AS logCount, COALESCE(SUM(minutes),0) AS totalMinutes, MIN(date) AS firstDate, MAX(date) AS lastDate
+         FROM work_logs WHERE task_id = ?`
+    ).get(t.id);
+    return taskToApi(t, {
+      logCount: roll.logCount, totalMinutes: roll.totalMinutes, firstDate: roll.firstDate, lastDate: roll.lastDate, workLogs,
+      ...taskSourceSummaryFields(t),
+    });
+  });
+}
+
 // ── Tasks + work logs (v2 API for the two-level model) ────────────────────────
 // The forward-looking data layer the renderer moves onto in Phase C. A `tasks` row
 // is a date-INDEPENDENT unit of work; its `work_logs` are the dated sessions.
@@ -1414,6 +1599,7 @@ function taskToApi(t, extra = {}) {
     source: t.source || '',
     projectId: t.project_id ?? null,
     departmentId: t.department_id ?? null,
+    supportYearId: t.support_year_id ?? null,
     sortOrder: t.sort_order ?? 0,
     createdAt: t.created_at,
     ...extra,
@@ -1446,6 +1632,7 @@ function taskWriteFields(userId, data) {
     system_id: lkId('SYSTEM', data?.system),
     project_id: ownedProjectId(userId, data?.projectId),
     department_id: lkId('DEPARTMENT', data?.department),
+    support_year_id: ownedSupportYearId(userId, data?.supportYearId),
     source: String(data?.source ?? ''),
   };
 }
@@ -1628,15 +1815,17 @@ function getTask(userId, id) {
   });
 }
 
-// Milestone 9 — a task is either Project work, Internal (department) work, or
-// neither, but never both: enforced here so every write path (create/update/
+// Milestone 9 (extended by migration 035) — a task is Project work, Internal
+// (department) work, work on one specific Support Year, or neither, but never
+// more than one of the three: enforced here so every write path (create/update/
 // link) shares one check rather than duplicating the condition. Thrown (not
 // returned as {ok:false}) so it propagates through ipcMain.handle's built-in
 // throw-to-rejected-promise behavior and every existing renderer call site's
 // try/catch around createTask/updateTask keeps working unchanged.
-function assertTaskLinkExclusive(projectId, departmentId) {
-  if (projectId != null && departmentId != null) {
-    throw new Error('A task cannot be linked to both a Project and a Department');
+function assertTaskLinkExclusive(projectId, departmentId, supportYearId) {
+  const set = [projectId, departmentId, supportYearId].filter(v => v != null).length;
+  if (set > 1) {
+    throw new Error('A task cannot be linked to more than one of Project, Department, or Support Year');
   }
 }
 
@@ -1645,13 +1834,13 @@ function assertTaskLinkExclusive(projectId, departmentId) {
 function createTask(userId, data) {
   const now = new Date().toISOString();
   const f = taskWriteFields(userId, data);
-  assertTaskLinkExclusive(f.project_id, f.department_id);
+  assertTaskLinkExclusive(f.project_id, f.department_id, f.support_year_id);
   let id;
   tx(() => {
     id = Number(db.prepare(
-      `INSERT INTO tasks(user_id, name, status_id, company_id, system_id, project_id, department_id, source, sort_order, created_at, updated_at)
-       VALUES(?,?,?,?,?,?,?,?,?,?,?)`
-    ).run(userId, f.name, f.status_id, f.company_id, f.system_id, f.project_id, f.department_id, f.source, nextTaskSort(userId), now, now).lastInsertRowid);
+      `INSERT INTO tasks(user_id, name, status_id, company_id, system_id, project_id, department_id, support_year_id, source, sort_order, created_at, updated_at)
+       VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`
+    ).run(userId, f.name, f.status_id, f.company_id, f.system_id, f.project_id, f.department_id, f.support_year_id, f.source, nextTaskSort(userId), now, now).lastInsertRowid);
   });
   return getTask(userId, id);
 }
@@ -1662,12 +1851,12 @@ function updateTask(userId, id, data) {
   if (!ownsTask(userId, id)) return null;
   const now = new Date().toISOString();
   const f = taskWriteFields(userId, data);
-  assertTaskLinkExclusive(f.project_id, f.department_id);
+  assertTaskLinkExclusive(f.project_id, f.department_id, f.support_year_id);
   tx(() => {
     db.prepare(
-      `UPDATE tasks SET name=?, status_id=?, company_id=?, system_id=?, project_id=?, department_id=?, source=?, updated_at=?
+      `UPDATE tasks SET name=?, status_id=?, company_id=?, system_id=?, project_id=?, department_id=?, support_year_id=?, source=?, updated_at=?
         WHERE id=? AND user_id=?`
-    ).run(f.name, f.status_id, f.company_id, f.system_id, f.project_id, f.department_id, f.source, now, id, userId);
+    ).run(f.name, f.status_id, f.company_id, f.system_id, f.project_id, f.department_id, f.support_year_id, f.source, now, id, userId);
   });
   return getTask(userId, id);
 }
@@ -2739,6 +2928,8 @@ module.exports = {
   createProject, listProjects, getProject, updateProject, deleteProject,
   linkTask, unlinkTask, listLinkableTasks,
   listDepartments, getDepartment, linkDepartmentTask, unlinkDepartmentTask, listLinkableTasksForDepartment,
+  listSupportYears, createSupportYear, getSupportYear, deleteSupportYear,
+  linkSupportYearTask, unlinkSupportYearTask, listLinkableTasksForSupportYear,
   listTasks, getTasksIndex, getTask, createTask, updateTask, deleteTask,
   getTaskSources, createTaskSource, updateTaskSource, deleteTaskSource,
   listWorkLogs, logsForDate, addWorkLog, updateWorkLog, moveWorkLog, mergeTasks, deleteWorkLog, getWorkLogHistory,
