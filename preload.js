@@ -118,6 +118,15 @@ contextBridge.exposeInMainWorld('api', {
   /** @returns {Promise<import('./ipc-types').Task[]>} */
   listLinkableTasks: ()           => ipcRenderer.invoke('projects:linkable-tasks'),
 
+  // ── Annual Support (migration 035) — per-year support records under a project ──
+  listSupportYears:        (projectId)      => ipcRenderer.invoke('projects:support-years', projectId),
+  createSupportYear:       (projectId, year) => ipcRenderer.invoke('projects:support-year-create', projectId, year),
+  getSupportYear:          (id)              => ipcRenderer.invoke('support-years:get', id),
+  deleteSupportYear:       (id)              => ipcRenderer.invoke('support-years:delete', id),
+  linkSupportYearTask:     (taskId, syId)    => ipcRenderer.invoke('support-years:link-task', taskId, syId),
+  unlinkSupportYearTask:   (taskId)          => ipcRenderer.invoke('support-years:unlink-task', taskId),
+  listLinkableTasksForSupportYear: ()        => ipcRenderer.invoke('support-years:linkable-tasks'),
+
   // ── Departments (Internal Tasks) — DEPARTMENT lookup category, no profile/CRUD ──
   /** @returns {Promise<import('./ipc-types').DepartmentListItem[]>} */
   listDepartments:  ()               => ipcRenderer.invoke('departments:list'),

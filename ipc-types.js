@@ -96,6 +96,7 @@
  * @property {string} source        Legacy free-text source column — kept for backward compat, no longer written to by the UI (superseded by the structured `sources` list below, migration 033). A task edited before migration 033 that was never re-saved may still have a non-empty value here with an empty `sources` list.
  * @property {number|null} projectId Linked Project id, or null when unlinked.
  * @property {number|null} departmentId Linked DEPARTMENT lookup id, or null when unlinked.
+ * @property {number|null} supportYearId Linked project_support_years id (migration 035), or null when unlinked. Mutually exclusive with projectId/departmentId — a task carries at most one of the three.
  * @property {number} sortOrder
  * @property {string} createdAt
  * @property {number} logCount       Number of work logs on this task.
@@ -259,13 +260,23 @@
  * @property {string|null} relatedProjectName  Display name of relatedProjectId, resolved server-side.
  * @property {string} createdAt
  * @property {number} taskCount            Number of tasks linked to the project.
+ * @property {number} subProjectCount      Number of Sub-Projects nested under this project (migration 035).
+ * @property {number} supportYearCount     Number of Annual Support year records under this project (migration 035).
+ */
+
+/**
+ * `projects:list` only ever returns TOP-LEVEL projects since migration 035 (a
+ * project with a non-null parentProjectId — a Sub-Project — is deliberately
+ * excluded; it only ever shows nested inside its parent's `Project.subProjects`).
  */
 
 /**
  * A project in full — profile + its linked TASKS + document statuses (`projects:get`).
  * As of Phase C4 `tasks` is a flat `Task[]`, each Task carrying its nested
  * `workLogs`; zero-log tasks (Not-Yet items linked to the project) are included.
- * The old {entries, backlog} tasks shape was retired.
+ * The old {entries, backlog} tasks shape was retired. Since migration 035, a
+ * top-level project also carries `subProjects` and `supportYears` (both empty on
+ * a Sub-Project itself — nesting is capped at one level).
  * @typedef {Object} Project
  * @property {number} id
  * @property {string} name
@@ -273,12 +284,16 @@
  * @property {ProjectCompany[]} companies  Linked client companies (COMPANY lookups).
  * @property {ProjectSystem[]} systems     Linked systems (SYSTEM lookups, many-to-many).
  * @property {string} status               A PROJECT_STATUS lookup code (e.g. 'ACTIVE').
- * @property {string} category             A PROJECT_CATEGORY lookup code ('NEW_PROJECT'|'CR_EXISTING'|'ANNUAL_SUPPORT').
- * @property {number|null} relatedProjectId    Set only for CR_EXISTING/ANNUAL_SUPPORT — the project this one relates to.
+ * @property {string} category             A PROJECT_CATEGORY lookup code ('NEW_PROJECT'|'CR_EXISTING'|'ANNUAL_SUPPORT'). Unrelated to the migration-035 hierarchy below — left as-is on every existing project.
+ * @property {number|null} relatedProjectId    Set only for CR_EXISTING/ANNUAL_SUPPORT — the project this one relates to (migration 031's flat back-reference; independent of parentProjectId).
  * @property {string|null} relatedProjectName  Display name of relatedProjectId, resolved server-side.
+ * @property {number|null} parentProjectId     Set when this project IS a Sub-Project (migration 035) — the top-level project it's nested under.
+ * @property {string|null} parentProjectName   Display name of parentProjectId, resolved server-side.
  * @property {string} createdAt
  * @property {Task[]} tasks                Linked tasks, each with nested `workLogs`.
  * @property {ProjectDocument[]} documents
+ * @property {ProjectListItem[]} subProjects   This project's own child projects (Sub-Projects / CRs), minimal profile + taskCount. Always `[]` on a Sub-Project itself.
+ * @property {SupportYear[]} supportYears      This project's Annual Support records, newest year first, each with its own nested tasks. Always `[]` on a Sub-Project itself.
  */
 
 /**
@@ -291,6 +306,22 @@
  * @property {string} status         A PROJECT_STATUS lookup code.
  * @property {string} category         A PROJECT_CATEGORY lookup code — required.
  * @property {number|null} relatedProjectId  Optional; only meaningful for CR_EXISTING/ANNUAL_SUPPORT.
+ * @property {number|null} parentProjectId   Optional (migration 035) — set to create/keep this project as a Sub-Project of another top-level project. Must itself be a top-level project (nesting capped at one level).
+ */
+
+/**
+ * One Annual Support record under a project (migration 035) — organizes a
+ * project's Support work per calendar year. Not a `Project` — no company/system/
+ * status/documents of its own, only tasks scoped to that year.
+ * @typedef {Object} SupportYear
+ * @property {number} id
+ * @property {number} projectId
+ * @property {string} [projectName]  Parent project's name — present on `support-years:get` only.
+ * @property {number} year
+ * @property {string} notes
+ * @property {string} createdAt
+ * @property {number} [taskCount]    Present on `projects:support-years` (list) rows.
+ * @property {Task[]} [tasks]        This year's linked tasks, each with nested `workLogs` — present on `support-years:get` and on `Project.supportYears` (nested inside `projects:get`), absent from the standalone `projects:support-years` list.
  */
 
 /**
