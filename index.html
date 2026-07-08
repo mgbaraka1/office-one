@@ -617,6 +617,11 @@
     .pj-section-actions { display: flex; align-items: center; gap: 8px; }
     .pj-section-title { font-size: 15px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
     .pj-section-title .lic { width: 18px; height: 18px; color: var(--primary); }
+    /* A single Annual Support year, nested inside the Annual Support pj-section —
+       a lighter tinted panel (mirrors .cl-system-group's nested-card convention)
+       so it doesn't read as a full second bordered+shadowed card-in-a-card. */
+    .pj-support-year-card { margin-top: 14px; box-shadow: none; background: color-mix(in srgb, var(--accent) 4%, transparent); }
+    .pj-support-year-card:first-child { margin-top: 0; }
     .pj-profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px 24px; }
     .pj-field-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: 4px; }
     .pj-field-val { font-size: 14px; color: var(--text); line-height: 1.5; word-break: break-word; }
@@ -3382,6 +3387,34 @@
   </div>
 </div>
 
+<!-- ══ ADD SUPPORT YEAR MODAL (migration 035 — Annual Support) ══ -->
+<div id="support-year-modal-overlay" class="modal-overlay" onclick="supportYearOverlayClick(event)">
+  <div id="support-year-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title">Add Support Year</span>
+      <button class="modal-close" onclick="closeSupportYearModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Year</label>
+          <input id="sy-year" type="number" min="2000" max="2100" step="1" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Notes <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional</span></label>
+          <textarea id="sy-notes" placeholder="Anything worth noting about this support year"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeSupportYearModal()">Cancel</button>
+      <button class="btn primary" onclick="submitSupportYearModal()">Add Year</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ LINK EXISTING TASK MODAL ══ -->
 <div id="link-task-overlay" class="modal-overlay" onclick="linkTaskOverlayClick(event)">
   <div id="link-task-modal" class="modal-box">
@@ -3684,6 +3717,16 @@
           <div class="form-group full">
             <label>Project <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional, link this task to a project</span></label>
             <div id="b-project"></div>
+          </div>
+        </div>
+        <!-- Migration 035: only ever shown locked (opened from a Support Year's own
+             "New Task" button) — there is no manual Task Type option for it, mirroring
+             how this modal has no such affordance for Project/Department either when
+             opened from inside their own container. -->
+        <div class="form-row" id="b-supportyear-row" style="display:none">
+          <div class="form-group full">
+            <label>Support Year</label>
+            <div class="pj-field-val" id="b-supportyear-label">—</div>
           </div>
         </div>
         <div class="form-row">
@@ -4174,6 +4217,7 @@ let linkableTasks    = [];   // picker source: unlinked Task[]
 let pCompaniesPicker = null;     // tag-picker handles for the project modal
 let pSystemsPicker   = null;
 let pRelatedProjectPicker = null; // search-select handle for the related-project field (CR/Annual Support only)
+let pParentProjectId = null;      // migration 035: Sub-Project parent link, preset+locked from "New Sub-Project" or preserved from the record being edited — no direct UI field
 let projectIndex     = [];       // lightweight [{id,name,status}] for the Timesheet/Project task Project field
 let fProjectPicker   = null;     // search-select handle in the timesheet record modal
 let bProjectPicker   = null;     // search-select handle in the project task modal
@@ -7283,13 +7327,14 @@ function setBacklogTaskType(type) {
 
 async function openBacklogModal(id = null, opts = {}) {
   backlogEditId = id;
-  _backlogCtx = { projectId: opts.projectId ?? null, departmentId: opts.departmentId ?? null, onSaved: opts.onSaved || null };
+  _backlogCtx = { projectId: opts.projectId ?? null, departmentId: opts.departmentId ?? null, supportYearId: opts.supportYearId ?? null, onSaved: opts.onSaved || null };
   const lockedProject = _backlogCtx.projectId != null;
   const lockedDept = _backlogCtx.departmentId != null;
+  const lockedSupportYear = _backlogCtx.supportYearId != null;
   const task = opts.task || null;
   const isEdit = !!task;
   document.getElementById('backlog-modal-title').textContent =
-    isEdit ? 'Edit Task' : (lockedProject ? 'New Project Task' : (lockedDept ? 'New Department Task' : 'Add Task'));
+    isEdit ? 'Edit Task' : (lockedProject ? 'New Project Task' : (lockedDept ? 'New Department Task' : (lockedSupportYear ? 'New Support Task' : 'Add Task')));
   document.querySelector('#backlog-modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : 'Add Task';
 
   populateSelect('b-company', 'companies', task?.company || '');
@@ -7334,6 +7379,8 @@ async function openBacklogModal(id = null, opts = {}) {
   // the toggle and reveal whichever field matches the task's current link
   // (defaulting to Project work for a task with neither link yet).
   const tasktypeRow = document.getElementById('b-tasktype-row');
+  const supportYearRow = document.getElementById('b-supportyear-row');
+  supportYearRow.style.display = 'none';
   if (lockedProject) {
     tasktypeRow.style.display = 'none';
     document.getElementById('b-department-row').style.display = 'none';
@@ -7342,6 +7389,12 @@ async function openBacklogModal(id = null, opts = {}) {
     tasktypeRow.style.display = 'none';
     document.getElementById('b-project-row').style.display = 'none';
     document.getElementById('b-department-row').style.display = '';
+  } else if (lockedSupportYear) {
+    tasktypeRow.style.display = 'none';
+    document.getElementById('b-project-row').style.display = 'none';
+    document.getElementById('b-department-row').style.display = 'none';
+    supportYearRow.style.display = '';
+    document.getElementById('b-supportyear-label').textContent = opts.supportYearLabel || '—';
   } else {
     tasktypeRow.style.display = '';
     applyBacklogTaskTypeUI(task?.departmentId ? 'department' : 'project');
@@ -7359,12 +7412,12 @@ async function openBacklogModal(id = null, opts = {}) {
 
   clearBacklogErrors();
   document.getElementById('backlog-modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById((lockedProject || lockedDept) ? 'b-description' : 'b-company').focus(), 80);
+  setTimeout(() => document.getElementById((lockedProject || lockedDept || lockedSupportYear) ? 'b-description' : 'b-company').focus(), 80);
 }
 function closeBacklogModal() {
   document.getElementById('backlog-modal-overlay').classList.remove('open');
   backlogEditId = null;
-  _backlogCtx = { projectId: null, departmentId: null, onSaved: null };
+  _backlogCtx = { projectId: null, departmentId: null, supportYearId: null, onSaved: null };
 }
 
 // Create a new task already linked to the open project (Projects detail → New Task).
@@ -7406,6 +7459,7 @@ async function submitBacklogModal() {
   // Department) always wins over the toggle, which isn't even shown then.
   const activeLinkType = (_backlogCtx.projectId != null) ? 'project'
     : (_backlogCtx.departmentId != null) ? 'department'
+    : (_backlogCtx.supportYearId != null) ? 'supportYear'
     : _backlogTaskType;
   // A zero-log task's description is the task name; time type and natural are
   // both per-session, chosen when it's assigned to a day.
@@ -7416,6 +7470,7 @@ async function submitBacklogModal() {
     system:      document.getElementById('b-system').value,
     department:  activeLinkType === 'department' ? document.getElementById('b-department').value : '',
     projectId:   activeLinkType === 'project' ? (bProjectPicker ? bProjectPicker.getSelectedId() : null) : null,
+    supportYearId: activeLinkType === 'supportYear' ? _backlogCtx.supportYearId : null,
   };
   const sourceRows = readTaskSourceRows('b-sources-list');
 
@@ -9652,11 +9707,19 @@ function renderProjectDetail(p) {
   const host = document.getElementById('projects-detail-view');
   host.innerHTML = '';
 
-  // Breadcrumb trail: Projects / <name>
+  // Breadcrumb trail: Projects / <parent, if this is a Sub-Project> / <name>
   const crumbs = pjMk('div', 'pj-crumbs');
   const crumbRoot = pjMk('button', 'pj-crumb-link', 'Projects');
   crumbRoot.addEventListener('click', backToProjectsList);
   crumbs.appendChild(crumbRoot);
+  if (p.parentProjectId && p.parentProjectName) {
+    const parentSep = pjMk('span', 'pj-crumb-sep');
+    parentSep.innerHTML = ic('chevron-right');
+    crumbs.appendChild(parentSep);
+    const crumbParent = pjMk('button', 'pj-crumb-link', p.parentProjectName);
+    crumbParent.addEventListener('click', () => openProjectDetail(p.parentProjectId));
+    crumbs.appendChild(crumbParent);
+  }
   const sep = pjMk('span', 'pj-crumb-sep');
   sep.innerHTML = ic('chevron-right');
   crumbs.appendChild(sep);
@@ -9670,6 +9733,7 @@ function renderProjectDetail(p) {
   title.appendChild(document.createTextNode(p.name || 'Untitled project'));
   title.appendChild(pjMk('span', pjStatusClass(p.status), pjStatusLabel(p.status)));
   if (p.category) title.appendChild(pjMk('span', pjCategoryClass(p.category), pjCategoryLabel(p.category)));
+  if (p.parentProjectId) title.appendChild(pjMk('span', 'pj-tag', 'Sub-Project'));
   titleWrap.appendChild(title);
   head.appendChild(titleWrap);
 
@@ -9767,6 +9831,58 @@ function renderProjectDetail(p) {
   if (!allLogs.length) timeSec.appendChild(pjMk('div', 'cp-records-empty', 'No sessions logged on this project yet.'));
   host.appendChild(timeSec);
 
+  // ── Sub-Projects (CRs) + Annual Support (migration 035) — capped at one level
+  // deep, so neither section shows on a Sub-Project's own detail view. ──
+  if (p.parentProjectId == null) {
+    const subSec = pjMk('div', 'pj-section');
+    const subHead = pjMk('div', 'pj-section-head');
+    const subTitle = pjMk('div', 'pj-section-title');
+    subTitle.innerHTML = ic('layers');
+    const subList = Array.isArray(p.subProjects) ? p.subProjects : [];
+    subTitle.appendChild(document.createTextNode('Sub-Projects (' + subList.length + ')'));
+    subHead.appendChild(subTitle);
+    const subActions = pjMk('div', 'pj-section-actions');
+    const newSubBtn = pjMk('button', 'btn primary');
+    newSubBtn.innerHTML = ic('plus') + ' New Sub-Project';
+    newSubBtn.title = 'Create a Change Request project nested under this project';
+    newSubBtn.addEventListener('click', () => openProjectModal(null, { parentProjectId: p.id }));
+    subActions.appendChild(newSubBtn);
+    subHead.appendChild(subActions);
+    subSec.appendChild(subHead);
+
+    if (subList.length === 0) {
+      subSec.appendChild(pjMk('div', 'cp-records-empty', 'No sub-projects yet — use “New Sub-Project” for a Change Request under this project.'));
+    } else {
+      const subGrid = pjMk('div', 'pj-grid');
+      subList.forEach(sp => subGrid.appendChild(buildSubProjectCard(sp)));
+      subSec.appendChild(subGrid);
+    }
+    host.appendChild(subSec);
+
+    const supSec = pjMk('div', 'pj-section');
+    const supHead = pjMk('div', 'pj-section-head');
+    const supTitle = pjMk('div', 'pj-section-title');
+    supTitle.innerHTML = ic('calendar-days');
+    const supYears = Array.isArray(p.supportYears) ? p.supportYears : [];
+    supTitle.appendChild(document.createTextNode('Annual Support (' + supYears.length + ')'));
+    supHead.appendChild(supTitle);
+    const supActions = pjMk('div', 'pj-section-actions');
+    const addYearBtn = pjMk('button', 'btn primary');
+    addYearBtn.innerHTML = ic('plus') + ' Add Year';
+    addYearBtn.title = 'Start tracking Annual Support for a calendar year';
+    addYearBtn.addEventListener('click', () => openSupportYearModal(p.id));
+    supActions.appendChild(addYearBtn);
+    supHead.appendChild(supActions);
+    supSec.appendChild(supHead);
+
+    if (supYears.length === 0) {
+      supSec.appendChild(pjMk('div', 'cp-records-empty', 'No support years yet — use “Add Year” to start tracking Annual Support.'));
+    } else {
+      supYears.forEach(sy => supSec.appendChild(buildSupportYearCard(sy)));
+    }
+    host.appendChild(supSec);
+  }
+
   // ── Documents section ──
   const docs = pjMk('div', 'pj-section');
   const dHead = pjMk('div', 'pj-section-head');
@@ -9817,6 +9933,128 @@ function renderProjectDetail(p) {
     })));
   }
   host.appendChild(tasksSec);
+}
+
+// A Sub-Project's card in its parent's Sub-Projects grid — deliberately mirrors
+// the top-level Projects list card (same pj-card/-head/-name/-badges/-foot
+// classes) minus the companies/systems/description meta rows, since those are
+// already visible once you drill in. Clicking opens its own full detail view
+// (openProjectDetail works unchanged on a Sub-Project id).
+function buildSubProjectCard(sp) {
+  const card = pjMk('div', 'pj-card pj-accent-' + (PJ_STATUS_CLASS[sp.status] || 'active'));
+  card.addEventListener('click', () => openProjectDetail(sp.id));
+  const head = pjMk('div', 'pj-card-head');
+  head.appendChild(pjMk('div', 'pj-card-name', sp.name || 'Untitled sub-project'));
+  const badges = pjMk('div', 'pj-card-badges');
+  badges.appendChild(pjMk('span', pjStatusClass(sp.status), pjStatusLabel(sp.status)));
+  head.appendChild(badges);
+  card.appendChild(head);
+  const foot = pjMk('div', 'pj-card-foot');
+  const count = pjMk('span', 'pj-card-count');
+  count.innerHTML = ic('clipboard-list');
+  count.appendChild(document.createTextNode((sp.taskCount || 0) + ' task' + (sp.taskCount === 1 ? '' : 's')));
+  foot.appendChild(count);
+  const open = pjMk('span', 'pj-card-open', 'Open');
+  open.insertAdjacentHTML('beforeend', ic('chevron-right'));
+  foot.appendChild(open);
+  card.appendChild(foot);
+  return card;
+}
+
+// One Annual Support year under a project — its own mini Tasks section (New
+// Task/Link Task/task cards), the same shape as the project's own Tasks section
+// but scoped to this one year's tasks. Delete uses the same inline-confirm +
+// undo convention as everything else (undo re-creates the year record and
+// re-links the exact same task ids onto it).
+function buildSupportYearCard(sy) {
+  const box = pjMk('div', 'pj-section pj-support-year-card');
+  const head = pjMk('div', 'pj-section-head');
+  const title = pjMk('div', 'pj-section-title');
+  title.innerHTML = ic('calendar-days');
+  const tasks = Array.isArray(sy.tasks) ? sy.tasks : [];
+  title.appendChild(document.createTextNode('Support ' + sy.year + ' (' + tasks.length + ')'));
+  head.appendChild(title);
+
+  const actions = pjMk('div', 'pj-section-actions');
+  const newBtn = pjMk('button', 'btn primary');
+  newBtn.innerHTML = ic('plus') + ' New Task';
+  newBtn.title = 'Create a new task already linked to Support ' + sy.year;
+  newBtn.addEventListener('click', () => openSupportYearNewTask(sy.id));
+  const linkBtn = pjMk('button', 'btn');
+  linkBtn.innerHTML = ic('calendar-plus') + ' Link Task';
+  linkBtn.addEventListener('click', () => openLinkModal('supportYear', sy.id));
+  const delBtn = pjMk('button', 'row-btn del');
+  delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete this support year';
+  delBtn.addEventListener('click', () => showDeleteConfirm(actions,
+    () => doDeleteSupportYear(sy), () => renderProjectDetail(currentProject), 'Delete year?'));
+  actions.appendChild(newBtn);
+  actions.appendChild(linkBtn);
+  actions.appendChild(delBtn);
+  head.appendChild(actions);
+  box.appendChild(head);
+
+  if (tasks.length === 0) {
+    box.appendChild(pjMk('div', 'cp-records-empty', 'No tasks linked yet for ' + sy.year + '.'));
+  } else {
+    tasks.forEach(t => box.appendChild(buildLinkedTaskCard(t, {
+      onEdit: () => openSupportYearEditTask(sy.id, t.id),
+      onUnlink: () => doUnlinkSupportYearTask(t.id),
+      onDelete: () => doDeleteSupportYearTask(t, sy.id),
+      onSessionSaved: reloadCurrentProject,
+      unlinkTitle: 'Unlink from this support year',
+    })));
+  }
+  return box;
+}
+
+// Delete a support-year record (its tasks are only ever unlinked, never
+// deleted — see project_support_years' ON DELETE... note in db.js). Undo
+// re-creates the year and re-links the exact same task ids back onto it.
+async function doDeleteSupportYear(sy) {
+  const taskIds = (sy.tasks || []).map(t => t.id);
+  try { await window.api.deleteSupportYear(sy.id); }
+  catch { toast('Could not delete support year'); return; }
+  await reloadCurrentProject();
+  showGenericUndo('Support year deleted', async () => {
+    try {
+      const created = await window.api.createSupportYear(sy.projectId, sy.year, sy.notes);
+      if (created) {
+        for (const tid of taskIds) { try { await window.api.linkSupportYearTask(tid, created.id); } catch {} }
+      }
+    } catch { toast('Could not restore support year'); return; }
+    await reloadCurrentProject();
+  });
+}
+
+// ── Add Support Year modal ──
+let _supportYearProjectId = null;
+function openSupportYearModal(projectId) {
+  _supportYearProjectId = projectId;
+  document.getElementById('sy-year').value = new Date().getFullYear();
+  document.getElementById('sy-notes').value = '';
+  clearErrorsIn('#support-year-modal');
+  document.getElementById('support-year-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('sy-year').focus(), 80);
+}
+function closeSupportYearModal() {
+  document.getElementById('support-year-modal-overlay').classList.remove('open');
+  _supportYearProjectId = null;
+}
+function supportYearOverlayClick(e) {
+  if (e.target === document.getElementById('support-year-modal-overlay')) closeSupportYearModal();
+}
+async function submitSupportYearModal() {
+  clearErrorsIn('#support-year-modal');
+  const year = Number(document.getElementById('sy-year').value);
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) { markError('sy-year'); return; }
+  const notes = document.getElementById('sy-notes').value.trim();
+  let created;
+  try { created = await window.api.createSupportYear(_supportYearProjectId, year, notes); }
+  catch { toast('Could not add support year'); return; }
+  if (!created) { toast('That year may already exist for this project'); return; }
+  closeSupportYearModal();
+  await reloadCurrentProject();
+  toast('Support year added');
 }
 
 // One task linked to a container (a Project or a Department): its profile + the
@@ -10090,12 +10328,18 @@ async function openDoc(documentType) {
 }
 
 // ── Project add/edit modal ──
-function openProjectModal(id = null) {
+// `opts.parentProjectId` (migration 035) presets+locks this as a new Sub-Project
+// of that top-level project — only meaningful when id is null (create). Editing
+// an existing project (Sub- or top-level) always preserves its own current
+// parentProjectId unchanged (there's no UI field to reassign it).
+function openProjectModal(id = null, opts = {}) {
   projectEditId = id;
   const src = id != null ? (currentProject && currentProject.id === id ? currentProject
                             : projectsList.find(p => p.id === id)) : null;
   const isEdit = !!src;
-  document.getElementById('project-modal-title').textContent = isEdit ? 'Edit Project' : 'New Project';
+  pParentProjectId = isEdit ? (src?.parentProjectId ?? null) : (opts.parentProjectId ?? null);
+  document.getElementById('project-modal-title').textContent =
+    isEdit ? 'Edit Project' : (pParentProjectId != null ? 'New Sub-Project' : 'New Project');
   document.querySelector('#project-modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : 'Create Project';
 
   document.getElementById('p-name').value        = src?.name || '';
@@ -10120,6 +10364,7 @@ function openProjectModal(id = null) {
 function closeProjectModal() {
   document.getElementById('project-modal-overlay').classList.remove('open');
   projectEditId = null;
+  pParentProjectId = null;
 }
 function projectOverlayClick(e) {
   if (e.target === document.getElementById('project-modal-overlay')) closeProjectModal();
@@ -10139,6 +10384,7 @@ async function submitProjectModal() {
     status:      document.getElementById('p-status').value || 'ACTIVE',
     category,
     relatedProjectId: needsRelated && pRelatedProjectPicker ? pRelatedProjectPicker.getSelectedId() : null,
+    parentProjectId: pParentProjectId,
     description: document.getElementById('p-description').value.trim(),
   };
 
@@ -10235,8 +10481,8 @@ let _linkCtx = { kind: 'project', containerId: null };
 async function openLinkModal(kind = 'project', containerId = null) {
   _linkCtx = { kind, containerId: containerId ?? (kind === 'department' ? currentDept?.id : currentProject?.id) };
   try {
-    linkableTasks = kind === 'department'
-      ? await window.api.listLinkableTasksForDept()
+    linkableTasks = kind === 'department' ? await window.api.listLinkableTasksForDept()
+      : kind === 'supportYear' ? await window.api.listLinkableTasksForSupportYear()
       : await window.api.listLinkableTasks();
   }
   catch { toast('Could not load tasks'); return; }
@@ -10287,13 +10533,13 @@ function renderLinkList() {
 async function doLinkTask(taskId) {
   let res;
   try {
-    res = _linkCtx.kind === 'department'
-      ? await window.api.linkDepartmentTask(taskId, _linkCtx.containerId)
+    res = _linkCtx.kind === 'department' ? await window.api.linkDepartmentTask(taskId, _linkCtx.containerId)
+      : _linkCtx.kind === 'supportYear' ? await window.api.linkSupportYearTask(taskId, _linkCtx.containerId)
       : await window.api.linkProjectTask(_linkCtx.containerId, taskId);
   }
   catch { toast('Could not link task'); return; }
-  // Project/Department are mutually exclusive (Milestone 9) — the picker already
-  // excludes the other kind, but check ok anyway rather than assuming success.
+  // Project/Department/Support-Year are mutually exclusive — the picker already
+  // excludes the other kinds, but check ok anyway rather than assuming success.
   if (res && res.ok === false) { toast(res.error || 'Could not link task'); return; }
   // Drop the just-linked task from the picker source, refresh both views.
   linkableTasks = (linkableTasks || []).filter(t => t.id !== taskId);
@@ -10319,6 +10565,48 @@ async function doDeleteProjectTask(task) {
       await window.api.createTask({
         name: task.name, status: task.status, company: task.company, system: task.system,
         source: task.source, projectId: task.projectId,
+      });
+    } catch { toast('Could not restore task'); return; }
+    await reloadCurrentProject();
+  });
+}
+
+// ── Annual Support tasks (migration 035) — same New/Edit/Unlink/Delete shape as
+// a Project's own Tasks section, scoped to one support-year record instead of
+// the whole project. reloadCurrentProject() already re-fetches supportYears
+// nested in the project, so it's the one reload function every one of these needs.
+function supportYearLabelText(sy) {
+  return sy ? ('Support ' + sy.year + ' — ' + (currentProject?.name || '')) : '—';
+}
+function openSupportYearNewTask(supportYearId) {
+  if (!currentProject) return;
+  const sy = (currentProject.supportYears || []).find(s => s.id === supportYearId);
+  openBacklogModal(null, { supportYearId, supportYearLabel: supportYearLabelText(sy), onSaved: reloadCurrentProject });
+}
+function openSupportYearEditTask(supportYearId, taskId) {
+  if (!currentProject) return;
+  const sy = (currentProject.supportYears || []).find(s => s.id === supportYearId);
+  const task = sy && (sy.tasks || []).find(t => t.id === taskId);
+  if (!task) return;
+  openBacklogModal(taskId, { task, supportYearId, supportYearLabel: supportYearLabelText(sy), onSaved: reloadCurrentProject });
+}
+async function doUnlinkSupportYearTask(taskId) {
+  try { await window.api.unlinkSupportYearTask(taskId); }
+  catch { toast('Could not unlink task'); return; }
+  await reloadCurrentProject();
+  toast('Task unlinked');
+}
+// Delete a zero-log support-year task outright — same reasoning as
+// doDeleteProjectTask/doDeleteDeptTask (no other identity once unlinked).
+async function doDeleteSupportYearTask(task, supportYearId) {
+  try { await window.api.deleteTask(task.id); }
+  catch { toast('Could not delete task'); return; }
+  await reloadCurrentProject();
+  showGenericUndo('Task deleted', async () => {
+    try {
+      await window.api.createTask({
+        name: task.name, status: task.status, company: task.company, system: task.system,
+        source: task.source, supportYearId,
       });
     } catch { toast('Could not restore task'); return; }
     await reloadCurrentProject();

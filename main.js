@@ -154,6 +154,17 @@ ipcMain.handle('projects:link-task',   authed((_e, projectId, taskId) => db.link
 ipcMain.handle('projects:unlink-task', authed((_e, taskId)            => db.unlinkTask(auth.requireUserId(), taskId)));
 ipcMain.handle('projects:linkable-tasks', authed(()                   => db.listLinkableTasks(auth.requireUserId())));
 
+// ── Annual Support (migration 035) — project_support_years is a real table (a
+// support-year has no company/system/status/documents of its own), so unlike
+// Departments this DOES get its own create/delete, scoped to a parent project.
+ipcMain.handle('projects:support-years',        authed((_e, projectId)          => db.listSupportYears(auth.requireUserId(), projectId)));
+ipcMain.handle('projects:support-year-create',  authed((_e, projectId, year)    => db.createSupportYear(auth.requireUserId(), projectId, year)));
+ipcMain.handle('support-years:get',              authed((_e, id)                 => db.getSupportYear(auth.requireUserId(), id)));
+ipcMain.handle('support-years:delete',           authed((_e, id)                 => db.deleteSupportYear(auth.requireUserId(), id)));
+ipcMain.handle('support-years:link-task',        authed((_e, taskId, syId)       => db.linkSupportYearTask(auth.requireUserId(), taskId, syId)));
+ipcMain.handle('support-years:unlink-task',      authed((_e, taskId)             => db.unlinkSupportYearTask(auth.requireUserId(), taskId)));
+ipcMain.handle('support-years:linkable-tasks',   authed(()                       => db.listLinkableTasksForSupportYear(auth.requireUserId())));
+
 // ── Departments (Internal Tasks) — DEPARTMENT is a plain lookup category, not a
 // table; there is no departments:create/update/delete, only listing + linking
 // tasks to one, mirroring the projects:link-task/unlink-task/linkable-tasks shape.
