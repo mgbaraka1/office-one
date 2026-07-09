@@ -34,8 +34,6 @@ contextBridge.exposeInMainWorld('api', {
   listSystems:    ()        => ipcRenderer.invoke('systems:list'),
   /** @returns {Promise<import('./ipc-types').CategoryEntry[]>} */
   systemEntries:  (name)    => ipcRenderer.invoke('systems:entries', name),
-  /** Custom date-range report filters: {from,to,company,system,projectId}. @returns {Promise<import('./ipc-types').CategoryEntry[]>} */
-  getFilteredWorkLogs: (filters) => ipcRenderer.invoke('reports:customRange', filters),
 
   // ── Analytics (aggregated in SQL) ──
   /** @returns {Promise<import('./ipc-types').AnalyticsSummary>} */
@@ -117,15 +115,6 @@ contextBridge.exposeInMainWorld('api', {
   unlinkProjectTask: (taskId)            => ipcRenderer.invoke('projects:unlink-task', taskId),
   /** @returns {Promise<import('./ipc-types').Task[]>} */
   listLinkableTasks: ()           => ipcRenderer.invoke('projects:linkable-tasks'),
-
-  // ── Annual Support (migration 035) — per-year support records under a project ──
-  listSupportYears:        (projectId)      => ipcRenderer.invoke('projects:support-years', projectId),
-  createSupportYear:       (projectId, year) => ipcRenderer.invoke('projects:support-year-create', projectId, year),
-  getSupportYear:          (id)              => ipcRenderer.invoke('support-years:get', id),
-  deleteSupportYear:       (id)              => ipcRenderer.invoke('support-years:delete', id),
-  linkSupportYearTask:     (taskId, syId)    => ipcRenderer.invoke('support-years:link-task', taskId, syId),
-  unlinkSupportYearTask:   (taskId)          => ipcRenderer.invoke('support-years:unlink-task', taskId),
-  listLinkableTasksForSupportYear: ()        => ipcRenderer.invoke('support-years:linkable-tasks'),
 
   // ── Departments (Internal Tasks) — DEPARTMENT lookup category, no profile/CRUD ──
   /** @returns {Promise<import('./ipc-types').DepartmentListItem[]>} */
@@ -210,8 +199,6 @@ contextBridge.exposeInMainWorld('api', {
   // ── Backup / reports / window / shell ──
   /** @returns {Promise<import('./ipc-types').FileResult>} */
   backupDatabase:    ()           => ipcRenderer.invoke('db:backup'),
-  /** @returns {Promise<import('./ipc-types').ProjectsBackupResult>} */
-  backupProjects:    ()           => ipcRenderer.invoke('projects:backup'),
   /** @returns {Promise<import('./ipc-types').BackupFileInfo[]>} */
   listBackups:       ()           => ipcRenderer.invoke('maintenance:listBackups'),
   /** Restores the live DB from a backups/ file, then relaunches the app. @returns {Promise<{ok: boolean, error?: string}>} */

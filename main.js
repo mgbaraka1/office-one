@@ -3,7 +3,6 @@ const fs = require('node:fs');
 const path = require('node:path');
 const db     = require('./db');
 const auth   = require('./auth');
-const backup = require('./backup');
 
 // Wrap a data IPC handler so it fails closed when no one is logged in. Every
 // handler that reads or writes user data goes through this — the renderer can
@@ -96,7 +95,6 @@ ipcMain.handle('companies:list',    authed(()         => db.listCompanies(auth.r
 ipcMain.handle('companies:entries', authed((_e, name) => db.companyEntries(auth.requireUserId(), name)));
 ipcMain.handle('systems:list',      authed(()         => db.listSystems(auth.requireUserId())));
 ipcMain.handle('systems:entries',   authed((_e, name) => db.systemEntries(auth.requireUserId(), name)));
-ipcMain.handle('reports:customRange', authed((_e, filters) => db.getFilteredWorkLogs(auth.requireUserId(), filters)));
 
 // ── Analytics (aggregation done in SQL, not in the renderer) ──
 ipcMain.handle('analytics:summary',  authed((_e, from, to, spanFrom, spanTo) => db.getAnalytics(auth.requireUserId(), from, to, spanFrom, spanTo)));
@@ -153,17 +151,6 @@ ipcMain.handle('projects:delete', authed((_e, id)       => db.deleteProject(auth
 ipcMain.handle('projects:link-task',   authed((_e, projectId, taskId) => db.linkTask(auth.requireUserId(), projectId, taskId)));
 ipcMain.handle('projects:unlink-task', authed((_e, taskId)            => db.unlinkTask(auth.requireUserId(), taskId)));
 ipcMain.handle('projects:linkable-tasks', authed(()                   => db.listLinkableTasks(auth.requireUserId())));
-
-// ── Annual Support (migration 035) — project_support_years is a real table (a
-// support-year has no company/system/status/documents of its own), so unlike
-// Departments this DOES get its own create/delete, scoped to a parent project.
-ipcMain.handle('projects:support-years',        authed((_e, projectId)          => db.listSupportYears(auth.requireUserId(), projectId)));
-ipcMain.handle('projects:support-year-create',  authed((_e, projectId, year)    => db.createSupportYear(auth.requireUserId(), projectId, year)));
-ipcMain.handle('support-years:get',              authed((_e, id)                 => db.getSupportYear(auth.requireUserId(), id)));
-ipcMain.handle('support-years:delete',           authed((_e, id)                 => db.deleteSupportYear(auth.requireUserId(), id)));
-ipcMain.handle('support-years:link-task',        authed((_e, taskId, syId)       => db.linkSupportYearTask(auth.requireUserId(), taskId, syId)));
-ipcMain.handle('support-years:unlink-task',      authed((_e, taskId)             => db.unlinkSupportYearTask(auth.requireUserId(), taskId)));
-ipcMain.handle('support-years:linkable-tasks',   authed(()                       => db.listLinkableTasksForSupportYear(auth.requireUserId())));
 
 // ── Departments (Internal Tasks) — DEPARTMENT is a plain lookup category, not a
 // table; there is no departments:create/update/delete, only listing + linking
@@ -310,27 +297,6 @@ ipcMain.handle('db:backup', authed(async () => {
   if (canceled || !filePath) return { ok: false };
   try { db.backup(filePath); return { ok: true, path: filePath }; }
   catch (err) { return { ok: false, error: String(err?.message || err) }; }
-}));
-
-// On-demand backup of the entire project files tree (<userData>/projects/) into
-// a single .zip the user chooses. Independent of the launch DB-backup rotation —
-// this is a user-triggered export of uploaded project documents only. An empty
-// or missing projects/ folder still yields a valid (empty) zip; fileCount lets
-// the renderer message that case. Pure-JS zip, no native dependency (backup.js).
-ipcMain.handle('projects:backup', authed(async () => {
-  const stamp = new Date().toISOString().slice(0, 10);
-  const { canceled, filePath } = await dialog.showSaveDialog(win, {
-    title: 'Back up project files',
-    defaultPath: path.join(app.getPath('documents'), `timesheet-projects-backup-${stamp}.zip`),
-    filters: [{ name: 'Zip archive', extensions: ['zip'] }],
-  });
-  if (canceled || !filePath) return { ok: false };
-  try {
-    const { fileCount, byteCount } = backup.zipDirectory(db.projectsRootDir(), filePath);
-    return { ok: true, path: filePath, fileCount, byteCount };
-  } catch (err) {
-    return { ok: false, error: String(err?.message || err) };
-  }
 }));
 
 // ── Maintenance panel (Milestone 6) ──
