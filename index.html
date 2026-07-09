@@ -222,7 +222,7 @@
     .nav-icon .lic { width: 18px; height: 18px; vertical-align: middle; }
     /* Buttons & inline controls */
     .btn .lic, .auth-btn .lic { width: 15px; height: 15px; vertical-align: -0.18em; }
-    .bulk-btn .lic, .row-btn .lic { width: 14px; height: 14px; vertical-align: -0.22em; }
+    .row-btn .lic { width: 14px; height: 14px; vertical-align: -0.22em; }
     .modal-close .lic { width: 16px; height: 16px; vertical-align: middle; }
     .cal-icon .lic, .filter-icon .lic { width: 15px; height: 15px; vertical-align: middle; }
     .stab-icon { display: inline-flex; align-items: center; }
@@ -233,8 +233,7 @@
     .inprogress-divider-label .lic { width: 13px; height: 13px; vertical-align: -0.12em; }
     /* Decorative empty-state icons — larger, lighter stroke */
     #empty-state .icon .lic, #sub-empty-state .icon .lic,
-    .cp-placeholder .icon .lic,
-    #projects-empty-state .icon .lic { width: 46px; height: 46px; stroke-width: 1.5; }
+    .cp-placeholder .icon .lic { width: 46px; height: 46px; stroke-width: 1.5; }
     .dash-empty .de-icon .lic { width: 30px; height: 30px; stroke-width: 1.75; }
     /* Filter clear, timer chip, calendar caret, lookup toggle, cp filter clear */
     #filter-clear .lic { width: 14px; height: 14px; vertical-align: middle; }
@@ -447,11 +446,16 @@
     .cell-right, td.num, td.hrs { font-variant-numeric: tabular-nums; }
 
     /* Row actions (on hover) */
-    .row-actions { display: flex; gap: 4px; }
+    .row-actions { display: flex; gap: 2px; }
+    /* Flat Timesheet view: the actions cell can carry up to 8 buttons — a
+       2-column box keeps the column narrow instead of one long horizontal strip. */
+    #ts-table .row-actions { display: grid; grid-template-columns: repeat(2, auto); gap: 2px; }
     .row-btn {
-      background: none; border: 1px solid var(--border); border-radius: 8px;
-      padding: 3px 8px; font-size: 11px; cursor: pointer; color: var(--muted);
+      background: none; border: 1px solid transparent; border-radius: 6px;
+      padding: 4px; font-size: 11px; cursor: pointer; color: var(--muted);
       font-family: inherit; transition: all var(--speed);
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 22px; min-height: 22px;
     }
     .row-btn:hover { background: var(--elevate); color: var(--text); }
     .row-btn.del:hover { background: color-mix(in srgb, var(--bad) 12%, transparent); border-color: color-mix(in srgb, var(--bad) 28%, transparent); color: var(--bad); }
@@ -469,12 +473,12 @@
     tbody tr.timer-running:hover td { background: color-mix(in srgb, var(--good) 14%, var(--surface)) !important; }
 
     /* ══ EMPTY STATES (one shared family) ══ */
-    #empty-state, #sub-empty-state, .cp-placeholder, #projects-empty-state {
+    #empty-state, #sub-empty-state, .cp-placeholder {
       display: flex; flex-direction: column; align-items: center; text-align: center;
       justify-content: center; gap: var(--space-3); padding: var(--space-8) var(--space-5); color: var(--muted);
     }
-    #empty-state .icon, #sub-empty-state .icon, .cp-placeholder .icon, #projects-empty-state .icon { font-size: 44px; opacity: .4; margin: 0; }
-    #empty-state p, #sub-empty-state p, #projects-empty-state p { font-size: 15px; }
+    #empty-state .icon, #sub-empty-state .icon, .cp-placeholder .icon { font-size: 44px; opacity: .4; margin: 0; }
+    #empty-state p, #sub-empty-state p { font-size: 15px; }
     /* In-card empties (analytics cards, read-only lists/records) */
     .an-empty, .dash-empty, .cp-records-empty, .cp-list-empty {
       text-align: center; color: var(--muted); font-size: 13px; padding: var(--space-7) var(--space-3);
@@ -617,11 +621,6 @@
     .pj-section-actions { display: flex; align-items: center; gap: 8px; }
     .pj-section-title { font-size: 15px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
     .pj-section-title .lic { width: 18px; height: 18px; color: var(--primary); }
-    /* A single Annual Support year, nested inside the Annual Support pj-section —
-       a lighter tinted panel (mirrors .cl-system-group's nested-card convention)
-       so it doesn't read as a full second bordered+shadowed card-in-a-card. */
-    .pj-support-year-card { margin-top: 14px; box-shadow: none; background: color-mix(in srgb, var(--accent) 4%, transparent); }
-    .pj-support-year-card:first-child { margin-top: 0; }
     .pj-profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px 24px; }
     .pj-field-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: 4px; }
     .pj-field-val { font-size: 14px; color: var(--text); line-height: 1.5; word-break: break-word; }
@@ -748,27 +747,36 @@
     }
     .ss-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); background: var(--input-focus-bg); }
 
-    /* Compact "linked project" pill shown on timesheet / project task rows */
+    /* Compact "linked project" pill shown on timesheet / project task rows.
+       Text wraps onto up to 2 lines (row-tag-text below) instead of a single
+       nowrap/ellipsis line, so a long project name never forces horizontal
+       scroll on a narrow container/table. */
     .row-project-tag {
-      display: inline-flex; align-items: center; gap: 4px; margin-top: 4px;
+      display: inline-flex; align-items: flex-start; gap: 4px; margin-top: 4px;
       font-size: 11px; font-weight: 600; color: var(--muted);
       background: var(--surface2); border: 1px solid var(--border);
-      padding: 1px 8px; border-radius: 999px; white-space: nowrap; max-width: 100%;
-      overflow: hidden; text-overflow: ellipsis;
+      padding: 3px 8px; border-radius: var(--radius-sm); max-width: 100%;
+      box-sizing: border-box;
     }
-    .row-project-tag .lic { width: 11px; height: 11px; flex-shrink: 0; }
+    .row-project-tag .lic { width: 11px; height: 11px; flex-shrink: 0; margin-top: 2px; }
 
     /* Milestone 9 — Internal (department) task pill, styled distinctly from the
        neutral/muted .row-project-tag so the two container species read apart
        at a glance, not just by text. */
     .row-department-tag {
-      display: inline-flex; align-items: center; gap: 4px; margin-top: 4px;
+      display: inline-flex; align-items: flex-start; gap: 4px; margin-top: 4px;
       font-size: 11px; font-weight: 600; color: var(--accent);
       background: var(--accent-bg); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
-      padding: 1px 8px; border-radius: 999px; white-space: nowrap; max-width: 100%;
-      overflow: hidden; text-overflow: ellipsis;
+      padding: 3px 8px; border-radius: var(--radius-sm); max-width: 100%;
+      box-sizing: border-box;
     }
-    .row-department-tag .lic { width: 11px; height: 11px; flex-shrink: 0; }
+    .row-department-tag .lic { width: 11px; height: 11px; flex-shrink: 0; margin-top: 2px; }
+    .row-tag-text {
+      display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+      overflow: hidden; text-overflow: ellipsis;
+      white-space: normal; word-break: break-word; line-height: 1.3;
+      min-width: 0;
+    }
     .row-department-tag.clickable { cursor: pointer; transition: opacity var(--speed); }
     .row-department-tag.clickable:hover { opacity: .8; }
 
@@ -1192,33 +1200,6 @@
       font-size: 13px; font-weight: 700; cursor: pointer; padding: 0; flex-shrink: 0;
     }
     .toast-action-btn:hover { text-decoration: underline; }
-
-    /* ══ ROW SELECTION (bulk actions) ══ */
-    .row-select { display: inline-flex; align-items: center; gap: 6px; }
-    .row-select input { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer;
-      opacity: 0; transition: opacity .12s; flex-shrink: 0; }
-    tr:hover .row-select input, .row-select input:checked { opacity: 1; }
-    tr.row-selected { background: var(--accent-bg) !important; }
-
-    #bulk-bar {
-      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(20px);
-      display: none; align-items: center; gap: 8px; z-index: 400;
-      background: var(--surface); border: 1px solid var(--border); color: var(--text);
-      padding: 9px 12px 9px 18px; border-radius: var(--radius);
-      box-shadow: var(--shadow);
-    }
-    #bulk-bar.show { display: flex; animation: modalIn .16s var(--ease); }
-    #bulk-count { font-size: 13px; font-weight: 700; margin-right: 6px; }
-    .bulk-btn {
-      background: var(--elevate); color: var(--text); border: 1px solid var(--border); cursor: pointer; font-family: inherit;
-      font-size: 12.5px; font-weight: 600; padding: 7px 12px; border-radius: 8px; transition: background var(--speed);
-    }
-    .bulk-btn:hover { background: var(--surface2); }
-    .bulk-btn.danger { background: color-mix(in srgb, var(--bad) 12%, transparent); color: var(--bad); border-color: color-mix(in srgb, var(--bad) 28%, transparent); }
-    .bulk-btn.danger:hover { background: var(--bad); color: #fff; }
-    .bulk-btn.ghost { background: transparent; color: var(--muted); border-color: transparent; }
-    .bulk-btn.ghost:hover { background: var(--elevate); color: var(--text); }
-    #bulk-bar .top-menu { bottom: calc(100% + 6px); top: auto; }
 
     /* Sidebar Backup Data button's "Full backup / Database only" choice menu — opens
        upward since the button sits at the bottom of the sidebar. */
@@ -2086,8 +2067,8 @@
     <button class="nav-item" data-module="all-tasks" onclick="switchModule('all-tasks')">
       <span class="nav-icon" data-ic="list"></span>All Tasks
     </button>
-    <button class="nav-item" data-module="projects" onclick="switchModule('projects')">
-      <span class="nav-icon" data-ic="clipboard-list"></span>Projects
+    <button class="nav-item" data-module="clients-projects" onclick="switchModule('clients-projects')">
+      <span class="nav-icon" data-ic="briefcase"></span>Clients Projects
     </button>
     <button class="nav-item" data-module="internal-tasks" onclick="switchModule('internal-tasks')">
       <span class="nav-icon" data-ic="building"></span>Internal Tasks
@@ -2295,85 +2276,6 @@
         </div>
       </div>
 
-      <div class="rmod-card">
-        <div class="rmod-card-head">
-          <div class="rmod-card-icon" data-ic="clipboard-list"></div>
-          <div class="rmod-card-title">Project Time Report PDF</div>
-        </div>
-        <div class="rmod-card-desc">One project's full session history, grouped by task with per-task subtotals — Total Hours, session count, and a Time-Type breakdown up top.</div>
-        <div class="rmod-card-controls">
-          <div class="rmod-field">
-            <label for="rmod-project-select">Project</label>
-            <select id="rmod-project-select"></select>
-          </div>
-          <button class="btn primary" onclick="genProjectReport()">Generate →</button>
-        </div>
-      </div>
-
-      <div class="rmod-card">
-        <div class="rmod-card-head">
-          <div class="rmod-card-icon" data-ic="building-2"></div>
-          <div class="rmod-card-title">Client Monthly Report PDF</div>
-        </div>
-        <div class="rmod-card-desc">Every session logged against one client company in a chosen month, grouped by task with per-task subtotals.</div>
-        <div class="rmod-card-controls">
-          <div class="rmod-field">
-            <label for="rmod-client-select">Company</label>
-            <select id="rmod-client-select"></select>
-          </div>
-          <div class="rmod-field">
-            <label for="rmod-client-month">Month</label>
-            <input type="month" id="rmod-client-month" />
-          </div>
-          <button class="btn primary" onclick="genClientReport()">Generate →</button>
-        </div>
-      </div>
-
-      <div class="rmod-card">
-        <div class="rmod-card-head">
-          <div class="rmod-card-icon" data-ic="building"></div>
-          <div class="rmod-card-title">Department Report PDF</div>
-        </div>
-        <div class="rmod-card-desc">One internal department's full session history (Internal Tasks), grouped by task with per-task subtotals.</div>
-        <div class="rmod-card-controls">
-          <div class="rmod-field">
-            <label for="rmod-dept-select">Department</label>
-            <select id="rmod-dept-select"></select>
-          </div>
-          <button class="btn primary" onclick="genDepartmentReport()">Generate →</button>
-        </div>
-      </div>
-
-      <div class="rmod-card">
-        <div class="rmod-card-head">
-          <div class="rmod-card-icon" data-ic="calendar-clock"></div>
-          <div class="rmod-card-title">Custom Date-Range Report PDF</div>
-        </div>
-        <div class="rmod-card-desc">Every session in a chosen date range, optionally narrowed to one Company, System, and/or Project — grouped by task with per-task subtotals.</div>
-        <div class="rmod-card-controls">
-          <div class="rmod-field">
-            <label for="rmod-range-from">From</label>
-            <input type="date" id="rmod-range-from" />
-          </div>
-          <div class="rmod-field">
-            <label for="rmod-range-to">To</label>
-            <input type="date" id="rmod-range-to" />
-          </div>
-          <div class="rmod-field">
-            <label for="rmod-range-company">Company <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional</span></label>
-            <select id="rmod-range-company"></select>
-          </div>
-          <div class="rmod-field">
-            <label for="rmod-range-system">System <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional</span></label>
-            <select id="rmod-range-system"></select>
-          </div>
-          <div class="rmod-field">
-            <label for="rmod-range-project">Project <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional</span></label>
-            <select id="rmod-range-project"></select>
-          </div>
-          <button class="btn primary" onclick="genCustomRangeReport()">Generate →</button>
-        </div>
-      </div>
     </div>
   </div>
 </div>
@@ -2484,7 +2386,7 @@
           <th style="min-width:140px">Project / Dept</th>
           <th style="width:80px;text-align:right">Minutes</th>
           <th style="width:70px;text-align:right">Hours</th>
-          <th style="width:110px"></th>
+          <th style="width:56px"></th>
         </tr>
       </thead>
       <tbody id="tbody"></tbody>
@@ -2639,18 +2541,6 @@
   </div>
 </div>
 
-<!-- ══ BULK ACTION BAR ══ -->
-<div id="bulk-bar">
-  <span id="bulk-count">0 selected</span>
-  <div class="menu-wrap">
-    <button class="bulk-btn" onclick="toggleTopMenu(event,'bulk-status-menu')">Set Status <span data-ic="chevron-down"></span></button>
-    <div class="top-menu" id="bulk-status-menu"></div>
-  </div>
-  <button class="bulk-btn" onclick="bulkMovePrompt()"><span data-ic="calendar-clock"></span>Move…</button>
-  <button class="bulk-btn danger" onclick="bulkDelete()"><span data-ic="trash-2"></span>Delete</button>
-  <button class="bulk-btn ghost" onclick="clearSelection()"><span data-ic="x"></span>Clear</button>
-</div>
-
 <!-- ══ UNDO TOAST ══ -->
 <div id="undo-toast">
   <span id="undo-toast-label">Row deleted</span>
@@ -2723,34 +2613,46 @@
   </div>
 </div>
 
-<!-- ══ PROJECTS MODULE (container: tasks + tracked documents) ══ -->
+<!-- ══ PROJECT DETAIL — a single project's full page (profile, documents, linked
+     tasks). Reached only via Clients Projects (openProjectById); there is no
+     standalone Projects list anymore, so this module has no sidebar entry of
+     its own. Kept as its own #module-projects host purely so
+     switchModule('projects') can toggle it exactly like every other module.
+     (Sub-Projects and Annual Support — migration 035's nested-project
+     hierarchy — were retired since nothing used them; see the retirement note
+     in CLAUDE.md.) ══ -->
 <div id="module-projects" class="app-module">
-  <div id="projects-topbar" class="page-header">
-    <span class="page-title"><span class="ti-ic" data-ic="clipboard-list"></span>Projects</span>
+  <div id="projects-detail-view" class="pj-detail-scroll"></div>
+</div>
+
+<!-- ══ CLIENTS PROJECTS MODULE — a client-first view of Projects: cards for
+     every client (COMPANY lookup) that has at least one linked project; opening
+     one shows that client's own projects as cards. A project linked to several
+     companies is grouped under its FIRST linked company only (the same order
+     shown by its own company pills), so it never appears twice on this page.
+     Purely a filtered/grouped view over the same projectsList this module
+     loads — clicking a project card reuses openProjectById, same as every
+     other cross-link in the app, to open the PROJECT DETAIL module above. ══ -->
+<div id="module-clients-projects" class="app-module">
+  <div id="clients-projects-topbar" class="page-header">
+    <span class="page-title"><span class="ti-ic" data-ic="briefcase"></span>Clients Projects</span>
     <div class="topbar-right">
-      <input type="text" id="projects-filter" class="mod-search" placeholder="Search projects…" oninput="applyProjectFilter()">
-      <button id="projects-backup-btn" class="btn" onclick="backupProjects()" title="Save a .zip of all uploaded project files">Backup Projects</button>
+      <input type="text" id="clients-projects-filter" class="mod-search" placeholder="Search clients…" oninput="applyClientsProjectsListFilter()">
       <button class="btn primary" onclick="openProjectModal()"><span data-ic="plus"></span>New Project</button>
     </div>
   </div>
 
-  <!-- List view: all projects as cards -->
-  <div id="projects-list-view" class="pj-scroll">
-    <div class="seg-ctl" id="project-category-ctl" style="margin-bottom:var(--space-4)">
-      <button class="seg-btn active" data-cat="" onclick="setProjectCategoryFilter('')">All</button>
-      <button class="seg-btn" data-cat="NEW_PROJECT" onclick="setProjectCategoryFilter('NEW_PROJECT')">New Project</button>
-      <button class="seg-btn" data-cat="CR_EXISTING" onclick="setProjectCategoryFilter('CR_EXISTING')">CR on Existing Project</button>
-      <button class="seg-btn" data-cat="ANNUAL_SUPPORT" onclick="setProjectCategoryFilter('ANNUAL_SUPPORT')">Project Annual Support</button>
-    </div>
-    <div class="pj-grid" id="projects-grid"></div>
-    <div id="projects-empty-state" style="display:none">
-      <div class="icon" data-ic="clipboard-list"></div>
-      <p>No projects yet — click <strong>+ New Project</strong> to create one</p>
+  <!-- List view: one card per client with ≥1 linked project -->
+  <div id="clients-projects-list-view" class="pj-scroll">
+    <div class="pj-grid" id="clients-projects-grid"></div>
+    <div id="clients-projects-empty-state" class="cp-placeholder" style="display:none">
+      <div class="icon" data-ic="briefcase"></div>
+      <p>No client-linked projects yet — link a company to a project from <strong>Projects</strong></p>
     </div>
   </div>
 
-  <!-- Detail view: profile + documents + linked tasks (built by JS) -->
-  <div id="projects-detail-view" class="pj-detail-scroll" style="display:none"></div>
+  <!-- Detail view: the selected client's own projects, as cards (built by JS) -->
+  <div id="clients-projects-detail-view" class="pj-detail-scroll" style="display:none"></div>
 </div>
 
 <!-- ══ ALL TASKS MODULE — a cross-cutting, filterable view of every task the user
@@ -3387,34 +3289,6 @@
   </div>
 </div>
 
-<!-- ══ ADD SUPPORT YEAR MODAL (migration 035 — Annual Support) ══ -->
-<div id="support-year-modal-overlay" class="modal-overlay" onclick="supportYearOverlayClick(event)">
-  <div id="support-year-modal" class="modal-box">
-    <div class="modal-header">
-      <span class="modal-title">Add Support Year</span>
-      <button class="modal-close" onclick="closeSupportYearModal()" data-ic="x"></button>
-    </div>
-    <div class="modal-body">
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Year</label>
-          <input id="sy-year" type="number" min="2000" max="2100" step="1" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Notes <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional</span></label>
-          <textarea id="sy-notes" placeholder="Anything worth noting about this support year"></textarea>
-        </div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn" onclick="closeSupportYearModal()">Cancel</button>
-      <button class="btn primary" onclick="submitSupportYearModal()">Add Year</button>
-    </div>
-  </div>
-</div>
-
 <!-- ══ LINK EXISTING TASK MODAL ══ -->
 <div id="link-task-overlay" class="modal-overlay" onclick="linkTaskOverlayClick(event)">
   <div id="link-task-modal" class="modal-box">
@@ -3719,16 +3593,6 @@
             <div id="b-project"></div>
           </div>
         </div>
-        <!-- Migration 035: only ever shown locked (opened from a Support Year's own
-             "New Task" button) — there is no manual Task Type option for it, mirroring
-             how this modal has no such affordance for Project/Department either when
-             opened from inside their own container. -->
-        <div class="form-row" id="b-supportyear-row" style="display:none">
-          <div class="form-group full">
-            <label>Support Year</label>
-            <div class="pj-field-val" id="b-supportyear-label">—</div>
-          </div>
-        </div>
         <div class="form-row">
           <div class="form-group full">
             <label>Description</label>
@@ -4000,7 +3864,8 @@ const ICONS = {
   "arrow-right": "<path d=\"M5 12h14\" /><path d=\"m12 5 7 7-7 7\" />",
   "eye": "<path d=\"M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0\" /><circle cx=\"12\" cy=\"12\" r=\"3\" />",
   "circle": "<circle cx=\"12\" cy=\"12\" r=\"10\" />",
-  "ban": "<circle cx=\"12\" cy=\"12\" r=\"10\" /><path d=\"m4.9 4.9 14.2 14.2\" />"
+  "ban": "<circle cx=\"12\" cy=\"12\" r=\"10\" /><path d=\"m4.9 4.9 14.2 14.2\" />",
+  "briefcase": "<path d=\"M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16\" /><rect width=\"20\" height=\"14\" x=\"2\" y=\"6\" rx=\"2\" />"
 };
 // Build an inline SVG string for icon `name`. Optional extra class via `cls`.
 function ic(name, cls) {
@@ -4156,7 +4021,6 @@ function lkLabelById(category, id) {
 // Track the timed row by object reference (rowRef), not by array index — the
 // index drifts if a row above it is deleted/duplicated/moved while running.
 let activeTimer = { rowRef: null, startMs: null, intervalId: null, accumMs: 0, paused: false };
-let selectedRows = new Set();   // bulk-selection by row object reference
 
 // ── Undo state ──
 let undoRecord   = null;  // { row, idx }
@@ -4207,8 +4071,6 @@ let backlogEditId    = null;
 // ── Projects state ──
 let projectsList     = [];       // [{id, name, companies[], systems[], status, taskCount, …}]
 let projectsLoaded   = false;
-let projectFilter    = '';
-let projectCategoryFilter = '';  // '' = All, else a PROJECT_CATEGORY code
 let currentProject   = null;     // full project loaded in the detail view
 let projectEditId    = null;     // modal mode: null = create, else project id
 let undoProject      = null;     // snapshot of a just-deleted project (for undo)
@@ -4217,7 +4079,6 @@ let linkableTasks    = [];   // picker source: unlinked Task[]
 let pCompaniesPicker = null;     // tag-picker handles for the project modal
 let pSystemsPicker   = null;
 let pRelatedProjectPicker = null; // search-select handle for the related-project field (CR/Annual Support only)
-let pParentProjectId = null;      // migration 035: Sub-Project parent link, preset+locked from "New Sub-Project" or preserved from the record being edited — no direct UI field
 let projectIndex     = [];       // lightweight [{id,name,status}] for the Timesheet/Project task Project field
 let fProjectPicker   = null;     // search-select handle in the timesheet record modal
 let bProjectPicker   = null;     // search-select handle in the project task modal
@@ -4803,7 +4664,6 @@ async function saveSettings() {
   } catch { toast('Could not save settings'); return; }
   initSettingsModule();                     // re-sync the draft with server-assigned codes
   renderTable();                            // reflect any relabeled values immediately
-  renderBulkStatusMenu();                   // reflect any relabeled/added statuses
   renderFilterChips();
   toast('Settings saved');
 }
@@ -5104,7 +4964,6 @@ document.getElementById('cal-next').addEventListener('click', (e) => {
 async function switchDay(dateStr) {
   // Stop any running timer before leaving the day
   if (activeTimer.rowRef !== null) stopTimer();
-  clearSelection();
 
   activeDate = dateStr;
 
@@ -5140,7 +4999,6 @@ let tsView = (localStorage.getItem('ct-ts-view') === 'flat') ? 'flat' : 'grouped
 function setTsView(v) {
   tsView = v === 'flat' ? 'flat' : 'grouped';
   try { localStorage.setItem('ct-ts-view', tsView); } catch (e) { /* private mode */ }
-  if (tsView === 'grouped' && selectedRows.size) clearSelection();   // bulk select is flat-only
   renderTable();
 }
 function syncTsViewCtl() {
@@ -5518,24 +5376,13 @@ function renderTableFlat() {
 
     const tr = document.createElement('tr');
     if (activeTimer.rowRef === row) tr.classList.add('timer-running');
-    if (selectedRows.has(row)) tr.classList.add('row-selected');
 
-    // # + bulk-select checkbox
+    // #
     const numTd = document.createElement('td');
     const numCellDiv = document.createElement('div'); numCellDiv.className = 'cell cell-center';
-    const selWrap = document.createElement('label'); selWrap.className = 'row-select';
-    const chk = document.createElement('input');
-    chk.type = 'checkbox'; chk.checked = selectedRows.has(row); chk.title = 'Select for bulk action';
-    chk.addEventListener('click', e => e.stopPropagation());
-    chk.addEventListener('change', () => {
-      if (chk.checked) selectedRows.add(row); else selectedRows.delete(row);
-      tr.classList.toggle('row-selected', chk.checked);
-      updateBulkBar();
-    });
     const numSpan = document.createElement('span');
     numSpan.className = 'cell-num'; numSpan.textContent = i + 1;
-    selWrap.appendChild(chk); selWrap.appendChild(numSpan);
-    numCellDiv.appendChild(selWrap); numTd.appendChild(numCellDiv);
+    numCellDiv.appendChild(numSpan); numTd.appendChild(numCellDiv);
     tr.appendChild(numTd);
 
     // Task name — the two-level entity this work session belongs to. Click to
@@ -5970,7 +5817,6 @@ async function reloadTimesheet() {
   const list = await window.api.workLogsByDate(activeDate);
   rows = list.map(l => Object.assign({}, l, { eid: l.id }));
   _tsBaseline = new Set(rows.map(r => r.eid));
-  clearSelection();
   renderTable();
   await refreshSavedDays();
   renderCalendar();
@@ -6456,7 +6302,6 @@ document.addEventListener('keydown', e => {
     closeClientRecordInfoModal(); cancelClientEditConfirm(); closeClientHistoryModal();
     closeSessionModal(); closeWlHistoryModal(); closeMergeModal(); closeShortcutsOverlay(); closeHowThinksOverlay();
     document.querySelectorAll('.top-menu.open').forEach(m => m.classList.remove('open'));
-    if (selectedRows.size) clearSelection();
   }
   // "?" opens the keyboard-shortcuts overlay — only when not typing in a field
   // (so a literal "?" can still be typed into a search box or textarea).
@@ -6485,7 +6330,7 @@ document.addEventListener('keydown', e => {
       e.preventDefault();
       if      (activeModule === 'subscriptions') openSubModal();
       else if (activeModule === 'timesheet')     openModal();
-      else if (activeModule === 'projects')      openProjectModal();
+      else if (activeModule === 'clients-projects' || activeModule === 'projects') openProjectModal();
       else if (activeModule === 'companydocs')   openCompanyDocModal();
       // analytics / reports have no Add action — Ctrl+N is a no-op there
     }
@@ -6714,48 +6559,12 @@ async function exportReportPDF() {
 // ════════════════════════════════════════════════════════════════════════════
 
 // Fills a plain <select> with a leading blank/"All" option (value="") followed
-// by `options` ([{value,label}]) — used by the Reports module's Project/
-// Department selects (required) and the Custom Range report's optional
-// Company/System/Project filters.
-function fillPlainSelect(id, options, blankLabel) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.innerHTML = '';
-  const blank = document.createElement('option');
-  blank.value = ''; blank.textContent = blankLabel;
-  el.appendChild(blank);
-  options.forEach(o => {
-    const opt = document.createElement('option');
-    opt.value = o.value; opt.textContent = o.label;
-    el.appendChild(opt);
-  });
-}
-
 async function initReportsModule() {
   const t = fmt(new Date());
   const dEl = document.getElementById('rmod-daily-date');
   const mEl = document.getElementById('rmod-ot-month');
   if (dEl && !dEl.value) dEl.value = activeDate || t;
   if (mEl && !mEl.value) mEl.value = t.slice(0, 7);
-  const cmEl = document.getElementById('rmod-client-month');
-  if (cmEl && !cmEl.value) cmEl.value = t.slice(0, 7);
-
-  const companyOpts = lkOptions('COMPANY').map(o => ({ value: o.label, label: o.label }));
-  const systemOpts = lkOptions('SYSTEM').map(o => ({ value: o.label, label: o.label }));
-  let projects = [], depts = [];
-  try { projects = await window.api.listProjects(); } catch { projects = []; }
-  try { depts = await window.api.listDepartments(); } catch { depts = []; }
-  if (!Array.isArray(projects)) projects = [];
-  if (!Array.isArray(depts)) depts = [];
-  const projectOpts = projects.map(p => ({ value: String(p.id), label: p.name || '(untitled project)' }));
-  const deptOpts = depts.map(d => ({ value: String(d.id), label: d.label }));
-
-  fillPlainSelect('rmod-project-select', projectOpts, '— select a project —');
-  fillPlainSelect('rmod-client-select', companyOpts, '— select a company —');
-  fillPlainSelect('rmod-dept-select', deptOpts, '— select a department —');
-  fillPlainSelect('rmod-range-company', companyOpts, 'All companies');
-  fillPlainSelect('rmod-range-system', systemOpts, 'All systems');
-  fillPlainSelect('rmod-range-project', projectOpts, 'All projects');
 }
 
 function flashFieldError(el) {
@@ -6908,136 +6717,6 @@ function buildOvertimeReportHTML(days, monthLabel, name) {
     </div>`;
 }
 
-// ── Shared multi-date, grouped-by-task report builder (Milestone 4) ─────────
-// Used by the Project / Client / Department / Custom-range reports — each
-// just fetches its own sessions (flattened to the same DayEntryRow-ish shape
-// buildDailyReportHTML groups: taskId/taskName/company/system/date/time/
-// description/minutes) and hands them here. Same task-grouping + summary-card
-// + print-safe inline-style conventions as buildDailyReportHTML, generalized
-// to span multiple dates (adds a Date column, since these reports aren't
-// scoped to a single day).
-function buildGroupedSessionsReportHTML(opts) {
-  const { title, subtitle, sessions, name, emptyLabel } = opts;
-  const totalMin = totalMins(sessions);
-  const totalHrs = (totalMin / 60).toFixed(2);
-
-  const byType = {};
-  sessions.forEach(r => {
-    if (!r.minutes) return;
-    const k = r.time || 'OTHER';
-    byType[k] = (byType[k] || 0) + (parseFloat(r.minutes) || 0);
-  });
-
-  const groups = [];
-  const byTask = new Map();
-  sessions.forEach(r => {
-    const key = (r.taskId != null) ? ('id:' + r.taskId) : ('nm:' + (r.taskName || r.description || ''));
-    let g = byTask.get(key);
-    if (!g) {
-      g = { taskName: r.taskName || r.description || '(untitled task)',
-            company: r.company, system: r.system, sessions: [], subtotal: 0 };
-      byTask.set(key, g); groups.push(g);
-    }
-    g.sessions.push(r);
-    g.subtotal += (parseFloat(r.minutes) || 0);
-  });
-  groups.forEach(g => g.sessions.sort((a, b) => (a.date || '').localeCompare(b.date || '')));
-
-  const rowsHTML = groups.length ? groups.map((g, gi) => {
-    const metaBits = [g.company, g.system].filter(Boolean).join(' · ');
-    const sessionsHTML = g.sessions.map(r => {
-      const showTime = r.time === 'WORK_TIME' || r.time === 'OVERTIME';
-      const timeCell = showTime
-        ? `<span${r.time === 'OVERTIME' ? ' style="color:#b91c1c;font-weight:700"' : ''}>${esc(lkLabel('TIME_TYPE', r.time))}</span>`
-        : '—';
-      return `
-        <tr>
-          <td>${esc(r.date || '—')}</td>
-          <td>${timeCell}${r.natural ? `<div style="font-size:9px;color:#888;margin-top:2px">${esc(r.natural)}</div>` : ''}</td>
-          <td>${esc(r.description)}${sourceSummaryText(r) ? `<div style="font-size:10px;color:#777;margin-top:3px">${esc(sourceSummaryText(r))}</div>` : ''}</td>
-          <td style="text-align:right">${r.minutes || '—'}</td>
-          <td style="text-align:right">${r.minutes ? (parseFloat(r.minutes) / 60).toFixed(2) : '—'}</td>
-        </tr>`;
-    }).join('');
-    return `
-      <tr>
-        <td colspan="5" style="background:#f0f0f0 !important;font-weight:700;color:#111;padding:8px 8px">
-          ${gi + 1}. ${esc(g.taskName)}${metaBits ? `<span style="font-weight:500;color:#666;font-size:10px"> — ${esc(metaBits)}</span>` : ''}
-          <span style="float:right;font-weight:800">${g.subtotal} min · ${(g.subtotal / 60).toFixed(2)} h</span>
-        </td>
-      </tr>
-      ${sessionsHTML}`;
-  }).join('') : `<tr><td colspan="5" style="text-align:center;color:#999;padding:18px">${esc(emptyLabel || 'No sessions recorded.')}</td></tr>`;
-
-  const printedOn = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-  const cards = [
-    { label: 'Total Hours',   value: `${totalHrs}h` },
-    { label: 'Total Minutes', value: totalMin },
-    { label: 'Sessions',      value: sessions.length },
-  ];
-  Object.keys(byType).forEach(code => {
-    cards.push({ label: lkLabel('TIME_TYPE', code) || code, value: `${byType[code]} min`, color: code === 'OVERTIME' && byType[code] > 0 ? '#b91c1c' : '#111' });
-  });
-
-  return `
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px">
-      <div>
-        <div style="font-size:10px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#111;line-height:1.6">MOS TA FA</div>
-        <div style="font-size:10px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#111">COOPERATION TOOLS</div>
-      </div>
-      <div style="text-align:right">
-        <div style="font-size:14px;font-weight:700;color:#111">${esc(name)}</div>
-        <div style="font-size:11px;color:#555;margin-top:2px">${esc(subtitle || '')}</div>
-      </div>
-    </div>
-    <div style="font-size:14px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:.5px;padding-bottom:8px;border-bottom:2px solid #111;margin-bottom:16px">${esc(title)}</div>
-    ${rptSummaryCards(cards)}
-
-    <table class="rpt-table">
-      <thead>
-        <tr>
-          <th style="width:85px">Date</th>
-          <th style="width:90px">Time</th>
-          <th>Description / Source <span style="font-weight:500;text-transform:none;letter-spacing:0;color:#888">(sessions grouped by task)</span></th>
-          <th style="width:45px;text-align:right">Min</th>
-          <th style="width:45px;text-align:right">Hrs</th>
-        </tr>
-      </thead>
-      <tbody>
-      ${rowsHTML}
-      </tbody>
-      <tfoot>
-        <tr>
-          <td colspan="3" style="text-align:right;font-size:10px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:.5px;padding:8px;border:1px solid #bbb;border-top:2px solid #111;background:#f0f0f0 !important">Total</td>
-          <td style="text-align:right;font-size:13px;font-weight:800;color:#111;padding:8px;border:1px solid #bbb;border-top:2px solid #111;background:#f0f0f0 !important">${totalMin}</td>
-          <td style="text-align:right;font-size:13px;font-weight:800;color:#111;padding:8px;border:1px solid #bbb;border-top:2px solid #111;background:#f0f0f0 !important">${totalHrs}</td>
-        </tr>
-      </tfoot>
-    </table>
-    <div style="display:flex;justify-content:space-between;margin-top:14px;font-size:9px;color:#999;padding-top:8px;border-top:1px solid #ddd">
-      <span>MOS TA FA COOPERATION TOOLS</span>
-      <span>Printed ${printedOn}</span>
-    </div>`;
-}
-
-// Flattens a Task[] (each with nested workLogs, e.g. from getProject/getDepartment)
-// into the flat DayEntryRow-ish shape buildGroupedSessionsReportHTML groups.
-function flattenTasksToSessions(tasks) {
-  const sessions = [];
-  (tasks || []).forEach(t => {
-    (t.workLogs || []).forEach(w => {
-      sessions.push({
-        date: w.date, time: w.time, natural: w.natural, description: w.description,
-        minutes: w.minutes, source: t.source, taskId: t.id, taskName: t.name,
-        company: t.company, system: t.system,
-        sourceCount: t.sourceCount, firstSourceRef: t.firstSourceRef,
-        firstSourceUrl: t.firstSourceUrl, firstSourceType: t.firstSourceType,
-      });
-    });
-  });
-  return sessions;
-}
-
 // Plain-text "Source" summary for the print/PDF report builders (no DOM, no
 // click handlers — those documents run zero JavaScript by design). Same
 // type·ref/+N-more/legacy-fallback logic as buildSourceCell, textual only.
@@ -7049,113 +6728,6 @@ function sourceSummaryText(r) {
       + (count > 1 ? ' +' + (count - 1) + ' more' : '');
   }
   return r.source || '';
-}
-
-// Project Time Report PDF.
-async function genProjectReport() {
-  const sel = document.getElementById('rmod-project-select');
-  const projectId = sel.value ? Number(sel.value) : null;
-  if (!projectId) { flashFieldError(sel); return; }
-
-  let project;
-  try { project = await window.api.getProject(projectId); }
-  catch { toast('Could not load project'); return; }
-  if (!project) { toast('Project not found'); return; }
-
-  const name = document.getElementById('hName').value || LK.defaultName || 'N/A';
-  const companies = (project.companies || []).map(c => c.label).join(', ');
-  _reportFileBase = `project-${project.name || projectId}`;
-  document.getElementById('print-frame').innerHTML = buildGroupedSessionsReportHTML({
-    title: 'Project Time Report',
-    subtitle: [project.name, companies].filter(Boolean).join(' — '),
-    sessions: flattenTasksToSessions(project.tasks),
-    name,
-    emptyLabel: 'No sessions recorded on this project yet.',
-  });
-  document.getElementById('print-overlay').classList.add('open');
-}
-
-// Client Monthly Report PDF — every session logged against one company in a month.
-async function genClientReport() {
-  const companySel = document.getElementById('rmod-client-select');
-  const monthInput = document.getElementById('rmod-client-month');
-  const company = companySel.value;
-  const mv = monthInput.value;
-  if (!company) { flashFieldError(companySel); return; }
-  if (!mv) { flashFieldError(monthInput); return; }
-
-  const [y, m] = mv.split('-').map(Number);
-  const from = `${mv}-01`;
-  const to   = `${mv}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
-  const monthLabel = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-
-  let sessions;
-  try { sessions = await window.api.getFilteredWorkLogs({ from, to, company }); }
-  catch { toast('Could not load sessions'); return; }
-
-  const name = document.getElementById('hName').value || LK.defaultName || 'N/A';
-  _reportFileBase = `client-${company}-${mv}`;
-  document.getElementById('print-frame').innerHTML = buildGroupedSessionsReportHTML({
-    title: 'Client Monthly Report',
-    subtitle: `${company} — ${monthLabel}`,
-    sessions,
-    name,
-    emptyLabel: `No sessions logged for ${esc(company)} in ${esc(monthLabel)}.`,
-  });
-  document.getElementById('print-overlay').classList.add('open');
-}
-
-// Department Report PDF (Internal Tasks).
-async function genDepartmentReport() {
-  const sel = document.getElementById('rmod-dept-select');
-  const deptId = sel.value ? Number(sel.value) : null;
-  if (!deptId) { flashFieldError(sel); return; }
-
-  let dept;
-  try { dept = await window.api.getDepartment(deptId); }
-  catch { toast('Could not load department'); return; }
-  if (!dept) { toast('Department not found'); return; }
-
-  const name = document.getElementById('hName').value || LK.defaultName || 'N/A';
-  _reportFileBase = `department-${dept.label || deptId}`;
-  document.getElementById('print-frame').innerHTML = buildGroupedSessionsReportHTML({
-    title: 'Department Report',
-    subtitle: dept.label,
-    sessions: flattenTasksToSessions(dept.tasks),
-    name,
-    emptyLabel: 'No sessions recorded in this department yet.',
-  });
-  document.getElementById('print-overlay').classList.add('open');
-}
-
-// Custom Date-Range Report PDF — optional Company/System/Project filters.
-async function genCustomRangeReport() {
-  const fromInput = document.getElementById('rmod-range-from');
-  const toInput = document.getElementById('rmod-range-to');
-  const from = fromInput.value, to = toInput.value;
-  if (!from) { flashFieldError(fromInput); return; }
-  if (!to) { flashFieldError(toInput); return; }
-
-  const company = document.getElementById('rmod-range-company').value || undefined;
-  const system = document.getElementById('rmod-range-system').value || undefined;
-  const projectSel = document.getElementById('rmod-range-project').value;
-  const projectId = projectSel ? Number(projectSel) : undefined;
-
-  let sessions;
-  try { sessions = await window.api.getFilteredWorkLogs({ from, to, company, system, projectId }); }
-  catch { toast('Could not load sessions'); return; }
-
-  const name = document.getElementById('hName').value || LK.defaultName || 'N/A';
-  const filterBits = [company, system, projectSel ? document.getElementById('rmod-range-project').selectedOptions[0]?.textContent : null].filter(Boolean);
-  _reportFileBase = `range-${from}-to-${to}`;
-  document.getElementById('print-frame').innerHTML = buildGroupedSessionsReportHTML({
-    title: 'Custom Date-Range Report',
-    subtitle: `${from} → ${to}` + (filterBits.length ? ` (${filterBits.join(', ')})` : ''),
-    sessions,
-    name,
-    emptyLabel: 'No sessions match this range/filter.',
-  });
-  document.getElementById('print-overlay').classList.add('open');
 }
 
 // Subscriptions PDF — the full list of recurring subscriptions, mirroring the
@@ -7327,14 +6899,13 @@ function setBacklogTaskType(type) {
 
 async function openBacklogModal(id = null, opts = {}) {
   backlogEditId = id;
-  _backlogCtx = { projectId: opts.projectId ?? null, departmentId: opts.departmentId ?? null, supportYearId: opts.supportYearId ?? null, onSaved: opts.onSaved || null };
+  _backlogCtx = { projectId: opts.projectId ?? null, departmentId: opts.departmentId ?? null, onSaved: opts.onSaved || null };
   const lockedProject = _backlogCtx.projectId != null;
   const lockedDept = _backlogCtx.departmentId != null;
-  const lockedSupportYear = _backlogCtx.supportYearId != null;
   const task = opts.task || null;
   const isEdit = !!task;
   document.getElementById('backlog-modal-title').textContent =
-    isEdit ? 'Edit Task' : (lockedProject ? 'New Project Task' : (lockedDept ? 'New Department Task' : (lockedSupportYear ? 'New Support Task' : 'Add Task')));
+    isEdit ? 'Edit Task' : (lockedProject ? 'New Project Task' : (lockedDept ? 'New Department Task' : 'Add Task'));
   document.querySelector('#backlog-modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : 'Add Task';
 
   populateSelect('b-company', 'companies', task?.company || '');
@@ -7379,8 +6950,6 @@ async function openBacklogModal(id = null, opts = {}) {
   // the toggle and reveal whichever field matches the task's current link
   // (defaulting to Project work for a task with neither link yet).
   const tasktypeRow = document.getElementById('b-tasktype-row');
-  const supportYearRow = document.getElementById('b-supportyear-row');
-  supportYearRow.style.display = 'none';
   if (lockedProject) {
     tasktypeRow.style.display = 'none';
     document.getElementById('b-department-row').style.display = 'none';
@@ -7389,12 +6958,6 @@ async function openBacklogModal(id = null, opts = {}) {
     tasktypeRow.style.display = 'none';
     document.getElementById('b-project-row').style.display = 'none';
     document.getElementById('b-department-row').style.display = '';
-  } else if (lockedSupportYear) {
-    tasktypeRow.style.display = 'none';
-    document.getElementById('b-project-row').style.display = 'none';
-    document.getElementById('b-department-row').style.display = 'none';
-    supportYearRow.style.display = '';
-    document.getElementById('b-supportyear-label').textContent = opts.supportYearLabel || '—';
   } else {
     tasktypeRow.style.display = '';
     applyBacklogTaskTypeUI(task?.departmentId ? 'department' : 'project');
@@ -7412,12 +6975,12 @@ async function openBacklogModal(id = null, opts = {}) {
 
   clearBacklogErrors();
   document.getElementById('backlog-modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById((lockedProject || lockedDept || lockedSupportYear) ? 'b-description' : 'b-company').focus(), 80);
+  setTimeout(() => document.getElementById((lockedProject || lockedDept) ? 'b-description' : 'b-company').focus(), 80);
 }
 function closeBacklogModal() {
   document.getElementById('backlog-modal-overlay').classList.remove('open');
   backlogEditId = null;
-  _backlogCtx = { projectId: null, departmentId: null, supportYearId: null, onSaved: null };
+  _backlogCtx = { projectId: null, departmentId: null, onSaved: null };
 }
 
 // Create a new task already linked to the open project (Projects detail → New Task).
@@ -7459,7 +7022,6 @@ async function submitBacklogModal() {
   // Department) always wins over the toggle, which isn't even shown then.
   const activeLinkType = (_backlogCtx.projectId != null) ? 'project'
     : (_backlogCtx.departmentId != null) ? 'department'
-    : (_backlogCtx.supportYearId != null) ? 'supportYear'
     : _backlogTaskType;
   // A zero-log task's description is the task name; time type and natural are
   // both per-session, chosen when it's assigned to a day.
@@ -7470,7 +7032,6 @@ async function submitBacklogModal() {
     system:      document.getElementById('b-system').value,
     department:  activeLinkType === 'department' ? document.getElementById('b-department').value : '',
     projectId:   activeLinkType === 'project' ? (bProjectPicker ? bProjectPicker.getSelectedId() : null) : null,
-    supportYearId: activeLinkType === 'supportYear' ? _backlogCtx.supportYearId : null,
   };
   const sourceRows = readTaskSourceRows('b-sources-list');
 
@@ -7539,10 +7100,10 @@ function rowMatchesFilter(row) {
 let _reportFileBase = 'report';
 
 // ════════════════════════════════════════════════════════════════════════════
-// TIMESHEET DEPTH — templates, bulk actions, month overview.
+// TIMESHEET DEPTH — templates, month overview.
 // ════════════════════════════════════════════════════════════════════════════
 
-// ── Dropdown menu (bulk-action "Set Status ▾") ──
+// ── Dropdown menu (e.g. the sidebar's Backup Data choice menu) ──
 function toggleTopMenu(e, id) {
   e.stopPropagation();
   const menu = document.getElementById(id);
@@ -7553,93 +7114,6 @@ function toggleTopMenu(e, id) {
 document.addEventListener('click', () => {
   document.querySelectorAll('.top-menu.open').forEach(m => m.classList.remove('open'));
 });
-
-// ── Bulk selection ──
-function updateBulkBar() {
-  const bar = document.getElementById('bulk-bar');
-  const n = selectedRows.size;
-  if (n > 0) {
-    bar.classList.add('show');
-    const c = document.getElementById('bulk-count');
-    if (c) c.textContent = `${n} selected`;
-  } else {
-    bar.classList.remove('show');
-  }
-}
-function clearSelection() {
-  selectedRows.clear();
-  updateBulkBar();
-  document.querySelectorAll('tr.row-selected').forEach(tr => tr.classList.remove('row-selected'));
-  document.querySelectorAll('.row-select input:checked').forEach(c => { c.checked = false; });
-}
-function bulkSetStatus(s) {
-  if (!selectedRows.size) return;
-  const targets = [...selectedRows];
-  targets.forEach(r => { const i = rows.indexOf(r); if (i !== -1) { rows[i].status = s; syncSiblingTasks(rows[i]); } });
-  clearSelection();
-  renderTable();
-  setUnsaved();
-}
-// Populate the bulk "Set Status" menu from the ENTRY_STATUS lookup category
-// (never hardcode the status set) — called once at boot after LK loads.
-function renderBulkStatusMenu() {
-  const menu = document.getElementById('bulk-status-menu');
-  menu.innerHTML = '';
-  lkOptions('ENTRY_STATUS').forEach(o => {
-    const btn = document.createElement('button');
-    btn.textContent = o.label;
-    btn.addEventListener('click', () => bulkSetStatus(o.code));
-    menu.appendChild(btn);
-  });
-}
-function bulkDelete() {
-  if (!selectedRows.size) return;
-  const removed = [...selectedRows]
-    .map(r => ({ row: r, idx: rows.indexOf(r) }))
-    .filter(x => x.idx !== -1)
-    .sort((a, b) => b.idx - a.idx);           // descending so splices stay valid
-  removed.forEach(x => rows.splice(x.idx, 1));
-
-  // If the running timer's row was deleted, tear the timer down cleanly.
-  if (activeTimer.rowRef && !rows.includes(activeTimer.rowRef)) {
-    clearInterval(activeTimer.intervalId);
-    activeTimer = { rowRef: null, startMs: null, intervalId: null, accumMs: 0, paused: false };
-    document.getElementById('timer-chip').classList.remove('running', 'paused');
-  }
-
-  const ascending = removed.slice().sort((a, b) => a.idx - b.idx);
-  const count = removed.length;
-  clearSelection();
-  renderTable();
-  setUnsaved();
-  showGenericUndo(`${count} record${count === 1 ? '' : 's'} deleted`, () => {
-    // The deleted work_logs are gone; strip ids so the save recreates them.
-    ascending.forEach(x => rows.splice(Math.min(x.idx, rows.length), 0, Object.assign({}, x.row, { eid: undefined, taskId: undefined })));
-  });
-}
-function bulkMovePrompt() {
-  if (!selectedRows.size) return;
-  const bar = document.getElementById('bulk-bar');
-  const prev = bar.innerHTML;
-  bar.innerHTML = '';
-  const lbl = document.createElement('span'); lbl.id = 'bulk-count'; lbl.textContent = 'Move to:';
-  const inp = document.createElement('input'); inp.type = 'date'; inp.value = activeDate; inp.className = 'move-date-input';
-  const ok = document.createElement('button'); ok.className = 'bulk-btn'; ok.innerHTML = ic('check') + ' Move';
-  const cancel = document.createElement('button'); cancel.className = 'bulk-btn ghost'; cancel.innerHTML = ic('x');
-  ok.onclick = async () => { const t = inp.value; bar.innerHTML = prev; await moveRowsToDate([...selectedRows], t); };
-  cancel.onclick = () => { bar.innerHTML = prev; updateBulkBar(); };
-  inp.addEventListener('keydown', e => { if (e.key === 'Enter') ok.onclick(); if (e.key === 'Escape') cancel.onclick(); });
-  bar.appendChild(lbl); bar.appendChild(inp); bar.appendChild(ok); bar.appendChild(cancel);
-  inp.focus();
-}
-async function moveRowsToDate(rowRefs, targetDate) {
-  if (!targetDate || targetDate === activeDate) { clearSelection(); renderTable(); updateBulkBar(); return; }
-  const targets = rowRefs.map(r => ({ eid: r.eid, log: tsLogPayload(r) })).filter(x => x.eid);
-  clearSelection();
-  for (const t of targets) await window.api.updateWorkLog(t.eid, Object.assign({}, t.log, { date: targetDate }));
-  await reloadTimesheet();
-  toast(`Moved ${targets.length} record${targets.length === 1 ? '' : 's'} to ${targetDate}`);
-}
 
 // ── Month overview ──
 let monthViewY = null, monthViewM = null;
@@ -7711,20 +7185,27 @@ function switchModule(name) {
   }
   if (activeModule === name) {
     if (name === 'browse') setBrowseKind(browseKind);
-    else if (name === 'projects') backToProjectsList();
     else if (name === 'clients') backToClientsList();
+    else if (name === 'clients-projects') backToClientsProjectsList();
     return;
   }
-  if (name !== 'timesheet' && selectedRows.size) clearSelection();
   activeModule = name;
-  uiState.lastModule = name;
-  saveUiStateDebounced();
+  // 'projects' is an internal-only pseudo-module (a single project's detail
+  // page, reached only via Clients Projects / openProjectById) — it has no
+  // sidebar entry and is never a valid "Start on last page" landing target.
+  if (name !== 'projects') {
+    uiState.lastModule = name;
+    saveUiStateDebounced();
+  }
 
   document.querySelectorAll('.app-module').forEach(el => {
     el.classList.toggle('active', el.id === 'module-' + name);
   });
   document.querySelectorAll('.nav-item').forEach(el => {
-    el.classList.toggle('active', el.dataset.module === name);
+    // Viewing a project's detail page keeps the Clients Projects nav item
+    // highlighted, since that's still the section the user is "inside".
+    el.classList.toggle('active', el.dataset.module === name
+      || (name === 'projects' && el.dataset.module === 'clients-projects'));
   });
 
   if (name === 'timesheet') {
@@ -7748,9 +7229,9 @@ function switchModule(name) {
   } else if (name === 'all-tasks') {
     window.api.setTitle('Cooperation Tools — All Tasks');
     initAllTasksModule();
-  } else if (name === 'projects') {
-    window.api.setTitle('Cooperation Tools — Projects');
-    initProjectsModule();
+  } else if (name === 'clients-projects') {
+    window.api.setTitle('Cooperation Tools — Clients Projects');
+    initClientsProjectsModule();
   } else if (name === 'internal-tasks') {
     window.api.setTitle('Cooperation Tools — Internal Tasks');
     initInternalTasksModule();
@@ -8343,10 +7824,11 @@ async function renderAnalytics() {
   renderAnBars('an-company', byCompany, 'an-company-sub', 'companies');
   renderAnBars('an-system', bySystem, 'an-system-sub', 'systems');
 
-  // ── Bar charts: department + project category (Milestone 4) — cross-link
-  // into All Tasks / Projects, since Browse has no equivalent slice for either ──
+  // ── Bar charts: department (Milestone 4, cross-links into All Tasks, since
+  // Browse has no equivalent slice) + project category (plain, non-clickable —
+  // the Projects list it used to click into no longer exists as its own page) ──
   renderAnBars('an-department', byDepartment, 'an-department-sub', 'department');
-  renderAnBars('an-project-category', byProjectCategory, 'an-project-category-sub', 'projectCategory');
+  renderAnBars('an-project-category', byProjectCategory, 'an-project-category-sub', null);
 
   // ── Daily hours + companion Over-Time trend ──
   // These follow the selected period so the charts reflect the searched range.
@@ -8386,8 +7868,9 @@ async function renderAnalytics() {
 
 // Render a top-N horizontal bar chart of {key: minutes} into `elId`. With a
 // `linkKind` ('companies' | 'systems' → cross-links into that Browse slice;
-// 'department' | 'projectCategory' → Milestone 4 click-through into the All
-// Tasks page / Projects page, respectively — see anBarRow's onclick mapping).
+// 'department' → Milestone 4 click-through into the All Tasks page — see
+// anBarRow's onclick mapping). A falsy linkKind (e.g. project category,
+// which has no page to click into anymore) renders plain, non-clickable bars.
 function renderAnBars(elId, map, subId, linkKind) {
   const items = Object.entries(map).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
   const el = document.getElementById(elId);
@@ -8402,7 +7885,6 @@ const AN_BAR_LINK_ATTRS = {
   companies:      (label) => ` data-kind="companies" data-name="${esc(label)}" title="Browse all work for ${esc(label)}" onclick="openBrowseSlice(this.dataset.kind, this.dataset.name)"`,
   systems:        (label) => ` data-kind="systems" data-name="${esc(label)}" title="Browse all work for ${esc(label)}" onclick="openBrowseSlice(this.dataset.kind, this.dataset.name)"`,
   department:     (label) => ` data-name="${esc(label)}" title="Open All Tasks filtered to ${esc(label)}" onclick="openAllTasksForDepartment(this.dataset.name)"`,
-  projectCategory: (label) => ` data-name="${esc(label)}" title="Open Projects filtered to ${esc(label)}" onclick="openProjectsForCategory(this.dataset.name)"`,
 };
 function anBarRow(label, value, max, display, color, linkKind) {
   const w = Math.max(2, Math.round((value / max) * 100));
@@ -8417,21 +7899,17 @@ function anBarRow(label, value, max, display, color, linkKind) {
     </div>`;
 }
 
-// Milestone 4 chart click-through — Analytics' new "Hours by Department"/
-// "Hours by Project Category" bars, which have no Browse-slice equivalent
-// (Browse only slices by company/system). Department resolves to All Tasks'
-// department filter (by lookup id, not label); Project Category resolves to
-// Projects' own category segmented-control filter (by code, not label) —
-// each dimension's own existing filter UI, not a new one.
+// Milestone 4 chart click-through — Analytics' "Hours by Department" bar,
+// which has no Browse-slice equivalent (Browse only slices by company/
+// system). Resolves to All Tasks' department filter (by lookup id, not
+// label), that dimension's own existing filter UI, not a new one.
+// ("Hours by Project Category" used to click through to the standalone
+// Projects list's category filter; that page no longer exists as its own
+// entry point, so those bars are plain/non-clickable now — see renderAnBars.)
 function openAllTasksForDepartment(label) {
   const dept = lkFind('DEPARTMENT', label);
   atPresetFilter = { departmentId: dept ? dept.id : null };
   switchModule('all-tasks');
-}
-function openProjectsForCategory(label) {
-  const cat = lkFind('PROJECT_CATEGORY', label);
-  switchModule('projects');
-  if (cat) setProjectCategoryFilter(cat.code);
 }
 
 // SVG donut from [{label, value, color}] segments.
@@ -8682,30 +8160,6 @@ async function backupDatabase() {
   else if (res?.error) btn.innerHTML = '<span class="nav-icon">' + ic('triangle-alert') + '</span>Failed';
   else return;   // user canceled the save dialog
   setTimeout(() => { btn.innerHTML = orig; }, 2200);
-}
-
-// ── Project files backup ──
-// Zips the whole projects/ file tree to a user-chosen .zip. The zip runs in the
-// main process; show a loading state on the button so a large tree doesn't look
-// frozen, and toast the outcome (including the "nothing uploaded yet" case).
-async function backupProjects() {
-  const btn = document.getElementById('projects-backup-btn');
-  if (btn.disabled) return;
-  const orig = btn.innerHTML;
-  btn.disabled = true;
-  btn.textContent = 'Backing up…';
-  let res;
-  try { res = await window.api.backupProjects(); }
-  catch { res = { ok: false, error: 'failed' }; }
-  finally { btn.disabled = false; btn.innerHTML = orig; }
-  if (!res) return;                                   // shouldn't happen
-  if (res.ok) {
-    if (res.fileCount === 0) toast('No project files to back up yet — saved an empty archive');
-    else toast(`Backed up ${res.fileCount} project file${res.fileCount === 1 ? '' : 's'} → ${res.path}`);
-  } else if (res.error) {
-    toast('Backup failed: ' + res.error);
-  }
-  // res.ok === false with no error = user canceled the dialog → stay silent
 }
 
 // ── Subscriptions: helpers ──
@@ -8971,19 +8425,8 @@ function pjMk(tag, cls, text) {
   return e;
 }
 
-function initProjectsModule() {
-  showProjectsListView();
-  // Milestone 11 — reflect a restored projectCategoryFilter (set in init(),
-  // before this module ever loaded) on the segmented control, which the
-  // static markup always renders with "All" active regardless.
-  document.querySelectorAll('#project-category-ctl .seg-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.cat === projectCategoryFilter));
-  if (!projectsLoaded) loadProjectsList();
-  else renderProjectsList();
-}
-
 async function loadProjectsList() {
-  const grid = document.getElementById('projects-grid');
+  const grid = document.getElementById('clients-projects-grid');
   if (!grid.childElementCount) { grid.style.display = ''; showSkeleton(grid, 'cards', 3); }
   let list;
   try { list = await window.api.listProjects(); }
@@ -8991,7 +8434,7 @@ async function loadProjectsList() {
   projectsList = Array.isArray(list) ? list : [];
   projectsLoaded = true;
   syncProjectIndex();
-  renderProjectsList();
+  renderClientsProjectsList();
 }
 
 // ── Project index (lightweight {id,name,status} cache for the Project field) ──
@@ -9068,7 +8511,10 @@ function projectRowTag(projectId) {
   const tag = document.createElement('span');
   tag.className = 'row-project-tag clickable';
   tag.innerHTML = ic('clipboard-list');
-  tag.appendChild(document.createTextNode(name));
+  const textEl = document.createElement('span');
+  textEl.className = 'row-tag-text';
+  textEl.textContent = name;
+  tag.appendChild(textEl);
   tag.title = 'Open project: ' + name;
   tag.addEventListener('click', (e) => { e.stopPropagation(); openProjectById(Number(projectId)); });
   return tag;
@@ -9090,7 +8536,10 @@ function departmentRowTag(departmentId) {
   const tag = document.createElement('span');
   tag.className = 'row-department-tag clickable';
   tag.innerHTML = ic('building');
-  tag.appendChild(document.createTextNode(name));
+  const textEl = document.createElement('span');
+  textEl.className = 'row-tag-text';
+  textEl.textContent = name;
+  tag.appendChild(textEl);
   tag.title = 'Open department: ' + name;
   tag.addEventListener('click', (e) => { e.stopPropagation(); openDepartmentById(Number(departmentId)); });
   return tag;
@@ -9575,92 +9024,47 @@ async function submitMergeModal() {
   toast('Task merged');
 }
 
-function applyProjectFilter() {
-  projectFilter = document.getElementById('projects-filter').value.toLowerCase().trim();
-  renderProjectsList();
-}
-
-function setProjectCategoryFilter(cat) {
-  projectCategoryFilter = cat;
-  document.querySelectorAll('#project-category-ctl .seg-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.cat === cat));
-  renderProjectsList();
-  uiState.filters.projects = { category: cat };
-  saveUiStateDebounced();
-}
-
-function showProjectsListView() {
-  document.getElementById('projects-detail-view').style.display = 'none';
-  document.getElementById('projects-list-view').style.display = '';
-}
 function showProjectDetailView() {
-  document.getElementById('projects-list-view').style.display = 'none';
   document.getElementById('projects-detail-view').style.display = '';
 }
 
-function renderProjectsList() {
-  const grid  = document.getElementById('projects-grid');
-  const empty = document.getElementById('projects-empty-state');
-  grid.innerHTML = '';
+// Builds one project card, used by the Clients Projects grid. `onOpen(projectId)`
+// is called on click — see openClientsProjectsDetail/openProjectById below.
+function buildProjectCard(p, onOpen) {
+  const card = pjMk('div', 'pj-card pj-accent-' + (PJ_STATUS_CLASS[p.status] || 'active'));
+  card.addEventListener('click', () => onOpen(p.id));
 
-  if (projectsList.length === 0) {
-    grid.style.display = 'none';
-    empty.style.display = 'flex';
-    empty.querySelector('p').innerHTML = 'No projects yet — click <strong>+ New Project</strong> to create one';
-    return;
-  }
+  // Head — name + status pill + category badge (badges grouped so the flex
+  // space-between still only has two items: name, and the badge cluster)
+  const head = pjMk('div', 'pj-card-head');
+  head.appendChild(pjMk('div', 'pj-card-name', p.name || 'Untitled project'));
+  const badges = pjMk('div', 'pj-card-badges');
+  badges.appendChild(pjMk('span', pjStatusClass(p.status), pjStatusLabel(p.status)));
+  if (p.category) badges.appendChild(pjMk('span', pjCategoryClass(p.category), pjCategoryLabel(p.category)));
+  head.appendChild(badges);
+  card.appendChild(head);
 
-  const shown = projectsList.filter(p =>
-    (!projectCategoryFilter || p.category === projectCategoryFilter) &&
-    textMatch(
-      [p.name, ...(p.companies || []).map(c => c.label), ...(p.systems || []).map(s => s.label),
-       pjStatusLabel(p.status), pjCategoryLabel(p.category), p.relatedProjectName, p.description], projectFilter));
+  // Meta — companies and systems as pill rows (capped, with a +N overflow)
+  const companyNames = (p.companies || []).map(c => c.label).filter(Boolean);
+  const systemNames  = (p.systems || []).map(s => s.label).filter(Boolean);
+  if (companyNames.length) card.appendChild(pjCardMetaRow('building-2', companyNames));
+  if (systemNames.length)  card.appendChild(pjCardMetaRow('folder', systemNames));
+  if (p.relatedProjectId && p.relatedProjectName) card.appendChild(pjCardMetaRow('external-link', [p.relatedProjectName]));
 
-  if (shown.length === 0) {
-    grid.style.display = 'none';
-    empty.style.display = 'flex';
-    empty.querySelector('p').textContent = 'No projects match your search';
-    return;
-  }
-  grid.style.display = '';
-  empty.style.display = 'none';
+  if (p.description) card.appendChild(pjMk('div', 'pj-card-desc', p.description));
 
-  shown.forEach(p => {
-    const card = pjMk('div', 'pj-card pj-accent-' + (PJ_STATUS_CLASS[p.status] || 'active'));
-    card.addEventListener('click', () => openProjectDetail(p.id));
+  // Footer — task-count chip + hover "Open" affordance
+  const foot = pjMk('div', 'pj-card-foot');
+  const count = pjMk('span', 'pj-card-count');
+  count.innerHTML = ic('clipboard-list');
+  count.appendChild(document.createTextNode((p.taskCount || 0) + ' task' + (p.taskCount === 1 ? '' : 's')));
+  foot.appendChild(count);
+  const open = pjMk('span', 'pj-card-open', 'Open');
+  open.insertAdjacentHTML('beforeend', ic('chevron-right'));
+  foot.appendChild(open);
+  card.appendChild(foot);
 
-    // Head — name + status pill + category badge (badges grouped so the flex
-    // space-between still only has two items: name, and the badge cluster)
-    const head = pjMk('div', 'pj-card-head');
-    head.appendChild(pjMk('div', 'pj-card-name', p.name || 'Untitled project'));
-    const badges = pjMk('div', 'pj-card-badges');
-    badges.appendChild(pjMk('span', pjStatusClass(p.status), pjStatusLabel(p.status)));
-    if (p.category) badges.appendChild(pjMk('span', pjCategoryClass(p.category), pjCategoryLabel(p.category)));
-    head.appendChild(badges);
-    card.appendChild(head);
-
-    // Meta — companies and systems as pill rows (capped, with a +N overflow)
-    const companyNames = (p.companies || []).map(c => c.label).filter(Boolean);
-    const systemNames  = (p.systems || []).map(s => s.label).filter(Boolean);
-    if (companyNames.length) card.appendChild(pjCardMetaRow('building-2', companyNames));
-    if (systemNames.length)  card.appendChild(pjCardMetaRow('folder', systemNames));
-    if (p.relatedProjectId && p.relatedProjectName) card.appendChild(pjCardMetaRow('external-link', [p.relatedProjectName]));
-
-    if (p.description) card.appendChild(pjMk('div', 'pj-card-desc', p.description));
-
-    // Footer — task-count chip + hover "Open" affordance
-    const foot = pjMk('div', 'pj-card-foot');
-    const count = pjMk('span', 'pj-card-count');
-    count.innerHTML = ic('clipboard-list');
-    count.appendChild(document.createTextNode((p.taskCount || 0) + ' task' + (p.taskCount === 1 ? '' : 's')));
-    foot.appendChild(count);
-    const open = pjMk('span', 'pj-card-open', 'Open');
-    open.insertAdjacentHTML('beforeend', ic('chevron-right'));
-    foot.appendChild(open);
-    card.appendChild(foot);
-
-    grid.appendChild(card);
-  });
+  return card;
 }
 
 // One labeled meta row on a project card: an icon followed by up to `max` value
@@ -9677,11 +9081,195 @@ function pjCardMetaRow(icon, names, max = 4) {
   return row;
 }
 
+// ══ CLIENTS PROJECTS MODULE — a client-first view over the same projectsList
+// the Projects module already loads (no separate cache, no new IPC). A
+// project linked to ≥1 company is grouped under its FIRST linked company
+// (companies[0] — already ordered by lookup sort_order/label, the same order
+// its own pill row shows), so a multi-client project appears exactly once
+// here, never duplicated across clients. Opening a project card reuses
+// openProjectById (switches to the Projects module + opens its detail view) —
+// there is no separate detail view to keep in sync. ══
+let cpjSelectedCompanyId = null; // null = list view; else showing that client's projects
+let cpjListFilter = '';
+let cpjDetailFilter = '';
+
+function initClientsProjectsModule() {
+  cpjSelectedCompanyId = null;
+  showClientsProjectsListView();
+  if (!projectsLoaded) loadProjectsList();
+  else renderClientsProjectsList();
+}
+
+function backToClientsProjectsList() {
+  cpjSelectedCompanyId = null;
+  showClientsProjectsListView();
+  renderClientsProjectsList(); // counts may have changed
+}
+
+function showClientsProjectsListView() {
+  document.getElementById('clients-projects-detail-view').style.display = 'none';
+  document.getElementById('clients-projects-list-view').style.display = '';
+}
+function showClientsProjectsDetailView() {
+  document.getElementById('clients-projects-list-view').style.display = 'none';
+  document.getElementById('clients-projects-detail-view').style.display = '';
+}
+
+// A project's grouping client — its first linked company (see the module
+// note above for why "first" is the chosen rule for a multi-client project).
+function cpjPrimaryCompany(p) {
+  return (p.companies && p.companies.length) ? p.companies[0] : null;
+}
+
+function applyClientsProjectsListFilter() {
+  cpjListFilter = document.getElementById('clients-projects-filter').value.toLowerCase().trim();
+  renderClientsProjectsList();
+}
+
+function renderClientsProjectsList() {
+  const grid  = document.getElementById('clients-projects-grid');
+  const empty = document.getElementById('clients-projects-empty-state');
+  grid.innerHTML = '';
+
+  const byCompany = new Map(); // companyId -> { id, label, projects: [] }
+  projectsList.forEach(p => {
+    const co = cpjPrimaryCompany(p);
+    if (!co) return;
+    if (!byCompany.has(co.id)) byCompany.set(co.id, { id: co.id, label: co.label, projects: [] });
+    byCompany.get(co.id).projects.push(p);
+  });
+
+  if (byCompany.size === 0) {
+    grid.style.display = 'none';
+    empty.style.display = 'flex';
+    empty.querySelector('p').innerHTML = 'No client-linked projects yet — link a company to a project from <strong>Projects</strong>';
+    return;
+  }
+
+  // Order like every other Company list in the app (lookup sort_order) —
+  // includeInactive so a project's client is never silently dropped just
+  // because that company code was later soft-disabled.
+  const orderIndex = new Map(lkOptions('COMPANY', true).map((o, i) => [o.id, i]));
+  const clients = Array.from(byCompany.values())
+    .filter(c => textMatch([c.label], cpjListFilter))
+    .sort((a, b) => (orderIndex.get(a.id) ?? 999999) - (orderIndex.get(b.id) ?? 999999));
+
+  if (clients.length === 0) {
+    grid.style.display = 'none';
+    empty.style.display = 'flex';
+    empty.querySelector('p').textContent = 'No clients match your search';
+    return;
+  }
+  grid.style.display = '';
+  empty.style.display = 'none';
+
+  clients.forEach(c => {
+    const card = pjMk('div', 'pj-card');
+    card.addEventListener('click', () => openClientsProjectsDetail(c.id));
+
+    const head = pjMk('div', 'pj-card-head');
+    head.appendChild(pjMk('div', 'pj-card-name', c.label || 'Untitled'));
+    card.appendChild(head);
+
+    const foot = pjMk('div', 'pj-card-foot');
+    const count = pjMk('span', 'pj-card-count');
+    count.innerHTML = ic('clipboard-list');
+    count.appendChild(document.createTextNode(c.projects.length + ' project' + (c.projects.length === 1 ? '' : 's')));
+    foot.appendChild(count);
+    const open = pjMk('span', 'pj-card-open', 'Open');
+    open.insertAdjacentHTML('beforeend', ic('chevron-right'));
+    foot.appendChild(open);
+    card.appendChild(foot);
+
+    grid.appendChild(card);
+  });
+}
+
+function openClientsProjectsDetail(companyId) {
+  cpjSelectedCompanyId = companyId;
+  cpjDetailFilter = '';
+  showClientsProjectsDetailView();
+  renderClientsProjectsDetail();
+}
+
+function applyClientsProjectsDetailFilter() {
+  const el = document.getElementById('cpj-detail-filter');
+  cpjDetailFilter = (el ? el.value : '').toLowerCase().trim();
+  renderClientsProjectsDetailGrid();
+}
+
+function renderClientsProjectsDetail() {
+  const host = document.getElementById('clients-projects-detail-view');
+  host.innerHTML = '';
+  if (cpjSelectedCompanyId == null) { backToClientsProjectsList(); return; }
+
+  const co = lkOptions('COMPANY', true).find(o => o.id === cpjSelectedCompanyId);
+  const label = co ? co.label : 'Client';
+
+  const crumbs = pjMk('div', 'pj-crumbs');
+  const crumbRoot = pjMk('button', 'pj-crumb-link', 'Clients Projects');
+  crumbRoot.addEventListener('click', backToClientsProjectsList);
+  crumbs.appendChild(crumbRoot);
+  const sep = pjMk('span', 'pj-crumb-sep');
+  sep.innerHTML = ic('chevron-right');
+  crumbs.appendChild(sep);
+  crumbs.appendChild(pjMk('span', 'pj-crumb-here', label));
+  host.appendChild(crumbs);
+
+  const head = pjMk('div', 'pj-detail-head');
+  head.appendChild(pjMk('div', 'pj-detail-title', label));
+  host.appendChild(head);
+
+  const toolbar = pjMk('div');
+  toolbar.style.marginBottom = 'var(--space-4)';
+  const searchInput = document.createElement('input');
+  searchInput.type = 'text';
+  searchInput.id = 'cpj-detail-filter';
+  searchInput.className = 'mod-search';
+  searchInput.placeholder = 'Search this client’s projects…';
+  searchInput.value = cpjDetailFilter;
+  searchInput.addEventListener('input', applyClientsProjectsDetailFilter);
+  toolbar.appendChild(searchInput);
+  host.appendChild(toolbar);
+
+  const gridHost = pjMk('div');
+  gridHost.id = 'cpj-detail-grid-host';
+  host.appendChild(gridHost);
+
+  renderClientsProjectsDetailGrid();
+}
+
+function renderClientsProjectsDetailGrid() {
+  const gridHost = document.getElementById('cpj-detail-grid-host');
+  if (!gridHost) return;
+  gridHost.innerHTML = '';
+
+  const projects = projectsList.filter(p => {
+    const co = cpjPrimaryCompany(p);
+    return co && co.id === cpjSelectedCompanyId;
+  });
+  const shown = projects.filter(p => textMatch(
+    [p.name, ...(p.systems || []).map(s => s.label), pjStatusLabel(p.status), pjCategoryLabel(p.category), p.description],
+    cpjDetailFilter));
+
+  if (shown.length === 0) {
+    const ph = pjMk('div', 'cp-placeholder');
+    ph.innerHTML = '<div class="icon">' + ic('clipboard-list') + '</div><p>'
+      + (projects.length ? 'No projects match your search' : 'No projects for this client yet') + '</p>';
+    gridHost.appendChild(ph);
+    return;
+  }
+
+  const grid = pjMk('div', 'pj-grid');
+  shown.forEach(p => grid.appendChild(buildProjectCard(p, openProjectById)));
+  gridHost.appendChild(grid);
+}
+
 async function openProjectDetail(id) {
   let project;
   try { project = await window.api.getProject(id); }
   catch { toast('Could not open project'); return; }
-  if (!project) { toast('Project not found'); await loadProjectsList(); return; }
+  if (!project) { toast('Project not found'); await loadProjectsList(); backToClientsProjectsList(); return; }
   currentProject = project;
   showProjectDetailView();
   renderProjectDetail(project);
@@ -9692,33 +9280,32 @@ async function reloadCurrentProject() {
   let project;
   try { project = await window.api.getProject(currentProject.id); }
   catch { return; }
-  if (!project) { backToProjectsList(); return; }
+  if (!project) { backToClientsProjectsList(); return; }
   currentProject = project;
   renderProjectDetail(project);
-}
-
-function backToProjectsList() {
-  currentProject = null;
-  showProjectsListView();
-  loadProjectsList();   // counts may have changed via linking
 }
 
 function renderProjectDetail(p) {
   const host = document.getElementById('projects-detail-view');
   host.innerHTML = '';
+  window.api.setTitle('Cooperation Tools — ' + (p.name || 'Project'));
 
-  // Breadcrumb trail: Projects / <parent, if this is a Sub-Project> / <name>
+  // Breadcrumb trail: Clients Projects / <client, if any> / <name>
   const crumbs = pjMk('div', 'pj-crumbs');
-  const crumbRoot = pjMk('button', 'pj-crumb-link', 'Projects');
-  crumbRoot.addEventListener('click', backToProjectsList);
+  const crumbRoot = pjMk('button', 'pj-crumb-link', 'Clients Projects');
+  crumbRoot.addEventListener('click', backToClientsProjectsList);
   crumbs.appendChild(crumbRoot);
-  if (p.parentProjectId && p.parentProjectName) {
-    const parentSep = pjMk('span', 'pj-crumb-sep');
-    parentSep.innerHTML = ic('chevron-right');
-    crumbs.appendChild(parentSep);
-    const crumbParent = pjMk('button', 'pj-crumb-link', p.parentProjectName);
-    crumbParent.addEventListener('click', () => openProjectDetail(p.parentProjectId));
-    crumbs.appendChild(crumbParent);
+  const primaryCompany = cpjPrimaryCompany(p);
+  if (primaryCompany) {
+    const clientSep = pjMk('span', 'pj-crumb-sep');
+    clientSep.innerHTML = ic('chevron-right');
+    crumbs.appendChild(clientSep);
+    const crumbClient = pjMk('button', 'pj-crumb-link', primaryCompany.label);
+    crumbClient.addEventListener('click', () => {
+      switchModule('clients-projects');
+      openClientsProjectsDetail(primaryCompany.id);
+    });
+    crumbs.appendChild(crumbClient);
   }
   const sep = pjMk('span', 'pj-crumb-sep');
   sep.innerHTML = ic('chevron-right');
@@ -9733,7 +9320,6 @@ function renderProjectDetail(p) {
   title.appendChild(document.createTextNode(p.name || 'Untitled project'));
   title.appendChild(pjMk('span', pjStatusClass(p.status), pjStatusLabel(p.status)));
   if (p.category) title.appendChild(pjMk('span', pjCategoryClass(p.category), pjCategoryLabel(p.category)));
-  if (p.parentProjectId) title.appendChild(pjMk('span', 'pj-tag', 'Sub-Project'));
   titleWrap.appendChild(title);
   head.appendChild(titleWrap);
 
@@ -9831,58 +9417,6 @@ function renderProjectDetail(p) {
   if (!allLogs.length) timeSec.appendChild(pjMk('div', 'cp-records-empty', 'No sessions logged on this project yet.'));
   host.appendChild(timeSec);
 
-  // ── Sub-Projects (CRs) + Annual Support (migration 035) — capped at one level
-  // deep, so neither section shows on a Sub-Project's own detail view. ──
-  if (p.parentProjectId == null) {
-    const subSec = pjMk('div', 'pj-section');
-    const subHead = pjMk('div', 'pj-section-head');
-    const subTitle = pjMk('div', 'pj-section-title');
-    subTitle.innerHTML = ic('layers');
-    const subList = Array.isArray(p.subProjects) ? p.subProjects : [];
-    subTitle.appendChild(document.createTextNode('Sub-Projects (' + subList.length + ')'));
-    subHead.appendChild(subTitle);
-    const subActions = pjMk('div', 'pj-section-actions');
-    const newSubBtn = pjMk('button', 'btn primary');
-    newSubBtn.innerHTML = ic('plus') + ' New Sub-Project';
-    newSubBtn.title = 'Create a Change Request project nested under this project';
-    newSubBtn.addEventListener('click', () => openProjectModal(null, { parentProjectId: p.id }));
-    subActions.appendChild(newSubBtn);
-    subHead.appendChild(subActions);
-    subSec.appendChild(subHead);
-
-    if (subList.length === 0) {
-      subSec.appendChild(pjMk('div', 'cp-records-empty', 'No sub-projects yet — use “New Sub-Project” for a Change Request under this project.'));
-    } else {
-      const subGrid = pjMk('div', 'pj-grid');
-      subList.forEach(sp => subGrid.appendChild(buildSubProjectCard(sp)));
-      subSec.appendChild(subGrid);
-    }
-    host.appendChild(subSec);
-
-    const supSec = pjMk('div', 'pj-section');
-    const supHead = pjMk('div', 'pj-section-head');
-    const supTitle = pjMk('div', 'pj-section-title');
-    supTitle.innerHTML = ic('calendar-days');
-    const supYears = Array.isArray(p.supportYears) ? p.supportYears : [];
-    supTitle.appendChild(document.createTextNode('Annual Support (' + supYears.length + ')'));
-    supHead.appendChild(supTitle);
-    const supActions = pjMk('div', 'pj-section-actions');
-    const addYearBtn = pjMk('button', 'btn primary');
-    addYearBtn.innerHTML = ic('plus') + ' Add Year';
-    addYearBtn.title = 'Start tracking Annual Support for a calendar year';
-    addYearBtn.addEventListener('click', () => openSupportYearModal(p.id));
-    supActions.appendChild(addYearBtn);
-    supHead.appendChild(supActions);
-    supSec.appendChild(supHead);
-
-    if (supYears.length === 0) {
-      supSec.appendChild(pjMk('div', 'cp-records-empty', 'No support years yet — use “Add Year” to start tracking Annual Support.'));
-    } else {
-      supYears.forEach(sy => supSec.appendChild(buildSupportYearCard(sy)));
-    }
-    host.appendChild(supSec);
-  }
-
   // ── Documents section ──
   const docs = pjMk('div', 'pj-section');
   const dHead = pjMk('div', 'pj-section-head');
@@ -9933,128 +9467,6 @@ function renderProjectDetail(p) {
     })));
   }
   host.appendChild(tasksSec);
-}
-
-// A Sub-Project's card in its parent's Sub-Projects grid — deliberately mirrors
-// the top-level Projects list card (same pj-card/-head/-name/-badges/-foot
-// classes) minus the companies/systems/description meta rows, since those are
-// already visible once you drill in. Clicking opens its own full detail view
-// (openProjectDetail works unchanged on a Sub-Project id).
-function buildSubProjectCard(sp) {
-  const card = pjMk('div', 'pj-card pj-accent-' + (PJ_STATUS_CLASS[sp.status] || 'active'));
-  card.addEventListener('click', () => openProjectDetail(sp.id));
-  const head = pjMk('div', 'pj-card-head');
-  head.appendChild(pjMk('div', 'pj-card-name', sp.name || 'Untitled sub-project'));
-  const badges = pjMk('div', 'pj-card-badges');
-  badges.appendChild(pjMk('span', pjStatusClass(sp.status), pjStatusLabel(sp.status)));
-  head.appendChild(badges);
-  card.appendChild(head);
-  const foot = pjMk('div', 'pj-card-foot');
-  const count = pjMk('span', 'pj-card-count');
-  count.innerHTML = ic('clipboard-list');
-  count.appendChild(document.createTextNode((sp.taskCount || 0) + ' task' + (sp.taskCount === 1 ? '' : 's')));
-  foot.appendChild(count);
-  const open = pjMk('span', 'pj-card-open', 'Open');
-  open.insertAdjacentHTML('beforeend', ic('chevron-right'));
-  foot.appendChild(open);
-  card.appendChild(foot);
-  return card;
-}
-
-// One Annual Support year under a project — its own mini Tasks section (New
-// Task/Link Task/task cards), the same shape as the project's own Tasks section
-// but scoped to this one year's tasks. Delete uses the same inline-confirm +
-// undo convention as everything else (undo re-creates the year record and
-// re-links the exact same task ids onto it).
-function buildSupportYearCard(sy) {
-  const box = pjMk('div', 'pj-section pj-support-year-card');
-  const head = pjMk('div', 'pj-section-head');
-  const title = pjMk('div', 'pj-section-title');
-  title.innerHTML = ic('calendar-days');
-  const tasks = Array.isArray(sy.tasks) ? sy.tasks : [];
-  title.appendChild(document.createTextNode('Support ' + sy.year + ' (' + tasks.length + ')'));
-  head.appendChild(title);
-
-  const actions = pjMk('div', 'pj-section-actions');
-  const newBtn = pjMk('button', 'btn primary');
-  newBtn.innerHTML = ic('plus') + ' New Task';
-  newBtn.title = 'Create a new task already linked to Support ' + sy.year;
-  newBtn.addEventListener('click', () => openSupportYearNewTask(sy.id));
-  const linkBtn = pjMk('button', 'btn');
-  linkBtn.innerHTML = ic('calendar-plus') + ' Link Task';
-  linkBtn.addEventListener('click', () => openLinkModal('supportYear', sy.id));
-  const delBtn = pjMk('button', 'row-btn del');
-  delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete this support year';
-  delBtn.addEventListener('click', () => showDeleteConfirm(actions,
-    () => doDeleteSupportYear(sy), () => renderProjectDetail(currentProject), 'Delete year?'));
-  actions.appendChild(newBtn);
-  actions.appendChild(linkBtn);
-  actions.appendChild(delBtn);
-  head.appendChild(actions);
-  box.appendChild(head);
-
-  if (tasks.length === 0) {
-    box.appendChild(pjMk('div', 'cp-records-empty', 'No tasks linked yet for ' + sy.year + '.'));
-  } else {
-    tasks.forEach(t => box.appendChild(buildLinkedTaskCard(t, {
-      onEdit: () => openSupportYearEditTask(sy.id, t.id),
-      onUnlink: () => doUnlinkSupportYearTask(t.id),
-      onDelete: () => doDeleteSupportYearTask(t, sy.id),
-      onSessionSaved: reloadCurrentProject,
-      unlinkTitle: 'Unlink from this support year',
-    })));
-  }
-  return box;
-}
-
-// Delete a support-year record (its tasks are only ever unlinked, never
-// deleted — see project_support_years' ON DELETE... note in db.js). Undo
-// re-creates the year and re-links the exact same task ids back onto it.
-async function doDeleteSupportYear(sy) {
-  const taskIds = (sy.tasks || []).map(t => t.id);
-  try { await window.api.deleteSupportYear(sy.id); }
-  catch { toast('Could not delete support year'); return; }
-  await reloadCurrentProject();
-  showGenericUndo('Support year deleted', async () => {
-    try {
-      const created = await window.api.createSupportYear(sy.projectId, sy.year, sy.notes);
-      if (created) {
-        for (const tid of taskIds) { try { await window.api.linkSupportYearTask(tid, created.id); } catch {} }
-      }
-    } catch { toast('Could not restore support year'); return; }
-    await reloadCurrentProject();
-  });
-}
-
-// ── Add Support Year modal ──
-let _supportYearProjectId = null;
-function openSupportYearModal(projectId) {
-  _supportYearProjectId = projectId;
-  document.getElementById('sy-year').value = new Date().getFullYear();
-  document.getElementById('sy-notes').value = '';
-  clearErrorsIn('#support-year-modal');
-  document.getElementById('support-year-modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById('sy-year').focus(), 80);
-}
-function closeSupportYearModal() {
-  document.getElementById('support-year-modal-overlay').classList.remove('open');
-  _supportYearProjectId = null;
-}
-function supportYearOverlayClick(e) {
-  if (e.target === document.getElementById('support-year-modal-overlay')) closeSupportYearModal();
-}
-async function submitSupportYearModal() {
-  clearErrorsIn('#support-year-modal');
-  const year = Number(document.getElementById('sy-year').value);
-  if (!Number.isInteger(year) || year < 2000 || year > 2100) { markError('sy-year'); return; }
-  const notes = document.getElementById('sy-notes').value.trim();
-  let created;
-  try { created = await window.api.createSupportYear(_supportYearProjectId, year, notes); }
-  catch { toast('Could not add support year'); return; }
-  if (!created) { toast('That year may already exist for this project'); return; }
-  closeSupportYearModal();
-  await reloadCurrentProject();
-  toast('Support year added');
 }
 
 // One task linked to a container (a Project or a Department): its profile + the
@@ -10328,18 +9740,12 @@ async function openDoc(documentType) {
 }
 
 // ── Project add/edit modal ──
-// `opts.parentProjectId` (migration 035) presets+locks this as a new Sub-Project
-// of that top-level project — only meaningful when id is null (create). Editing
-// an existing project (Sub- or top-level) always preserves its own current
-// parentProjectId unchanged (there's no UI field to reassign it).
-function openProjectModal(id = null, opts = {}) {
+function openProjectModal(id = null) {
   projectEditId = id;
   const src = id != null ? (currentProject && currentProject.id === id ? currentProject
                             : projectsList.find(p => p.id === id)) : null;
   const isEdit = !!src;
-  pParentProjectId = isEdit ? (src?.parentProjectId ?? null) : (opts.parentProjectId ?? null);
-  document.getElementById('project-modal-title').textContent =
-    isEdit ? 'Edit Project' : (pParentProjectId != null ? 'New Sub-Project' : 'New Project');
+  document.getElementById('project-modal-title').textContent = isEdit ? 'Edit Project' : 'New Project';
   document.querySelector('#project-modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : 'Create Project';
 
   document.getElementById('p-name').value        = src?.name || '';
@@ -10364,7 +9770,6 @@ function openProjectModal(id = null, opts = {}) {
 function closeProjectModal() {
   document.getElementById('project-modal-overlay').classList.remove('open');
   projectEditId = null;
-  pParentProjectId = null;
 }
 function projectOverlayClick(e) {
   if (e.target === document.getElementById('project-modal-overlay')) closeProjectModal();
@@ -10384,7 +9789,6 @@ async function submitProjectModal() {
     status:      document.getElementById('p-status').value || 'ACTIVE',
     category,
     relatedProjectId: needsRelated && pRelatedProjectPicker ? pRelatedProjectPicker.getSelectedId() : null,
-    parentProjectId: pParentProjectId,
     description: document.getElementById('p-description').value.trim(),
   };
 
@@ -10415,7 +9819,7 @@ async function deleteCurrentProject() {
   try { await window.api.deleteProject(snapshot.id); }
   catch { toast('Could not delete project'); buildDetailActions(document.querySelector('.pj-detail-actions')); return; }
   showProjectUndoToast(snapshot);
-  backToProjectsList();
+  backToClientsProjectsList();
 }
 function showProjectUndoToast(snapshot) {
   undoProject = snapshot;
@@ -10482,7 +9886,6 @@ async function openLinkModal(kind = 'project', containerId = null) {
   _linkCtx = { kind, containerId: containerId ?? (kind === 'department' ? currentDept?.id : currentProject?.id) };
   try {
     linkableTasks = kind === 'department' ? await window.api.listLinkableTasksForDept()
-      : kind === 'supportYear' ? await window.api.listLinkableTasksForSupportYear()
       : await window.api.listLinkableTasks();
   }
   catch { toast('Could not load tasks'); return; }
@@ -10534,12 +9937,11 @@ async function doLinkTask(taskId) {
   let res;
   try {
     res = _linkCtx.kind === 'department' ? await window.api.linkDepartmentTask(taskId, _linkCtx.containerId)
-      : _linkCtx.kind === 'supportYear' ? await window.api.linkSupportYearTask(taskId, _linkCtx.containerId)
       : await window.api.linkProjectTask(_linkCtx.containerId, taskId);
   }
   catch { toast('Could not link task'); return; }
-  // Project/Department/Support-Year are mutually exclusive — the picker already
-  // excludes the other kinds, but check ok anyway rather than assuming success.
+  // Project/Department are mutually exclusive — the picker already excludes
+  // the other kind, but check ok anyway rather than assuming success.
   if (res && res.ok === false) { toast(res.error || 'Could not link task'); return; }
   // Drop the just-linked task from the picker source, refresh both views.
   linkableTasks = (linkableTasks || []).filter(t => t.id !== taskId);
@@ -10565,48 +9967,6 @@ async function doDeleteProjectTask(task) {
       await window.api.createTask({
         name: task.name, status: task.status, company: task.company, system: task.system,
         source: task.source, projectId: task.projectId,
-      });
-    } catch { toast('Could not restore task'); return; }
-    await reloadCurrentProject();
-  });
-}
-
-// ── Annual Support tasks (migration 035) — same New/Edit/Unlink/Delete shape as
-// a Project's own Tasks section, scoped to one support-year record instead of
-// the whole project. reloadCurrentProject() already re-fetches supportYears
-// nested in the project, so it's the one reload function every one of these needs.
-function supportYearLabelText(sy) {
-  return sy ? ('Support ' + sy.year + ' — ' + (currentProject?.name || '')) : '—';
-}
-function openSupportYearNewTask(supportYearId) {
-  if (!currentProject) return;
-  const sy = (currentProject.supportYears || []).find(s => s.id === supportYearId);
-  openBacklogModal(null, { supportYearId, supportYearLabel: supportYearLabelText(sy), onSaved: reloadCurrentProject });
-}
-function openSupportYearEditTask(supportYearId, taskId) {
-  if (!currentProject) return;
-  const sy = (currentProject.supportYears || []).find(s => s.id === supportYearId);
-  const task = sy && (sy.tasks || []).find(t => t.id === taskId);
-  if (!task) return;
-  openBacklogModal(taskId, { task, supportYearId, supportYearLabel: supportYearLabelText(sy), onSaved: reloadCurrentProject });
-}
-async function doUnlinkSupportYearTask(taskId) {
-  try { await window.api.unlinkSupportYearTask(taskId); }
-  catch { toast('Could not unlink task'); return; }
-  await reloadCurrentProject();
-  toast('Task unlinked');
-}
-// Delete a zero-log support-year task outright — same reasoning as
-// doDeleteProjectTask/doDeleteDeptTask (no other identity once unlinked).
-async function doDeleteSupportYearTask(task, supportYearId) {
-  try { await window.api.deleteTask(task.id); }
-  catch { toast('Could not delete task'); return; }
-  await reloadCurrentProject();
-  showGenericUndo('Task deleted', async () => {
-    try {
-      await window.api.createTask({
-        name: task.name, status: task.status, company: task.company, system: task.system,
-        source: task.source, supportYearId,
       });
     } catch { toast('Could not restore task'); return; }
     await reloadCurrentProject();
@@ -12934,7 +12294,7 @@ const PAL_PAGES = [
   { icon: 'building-2',       label: 'Browse — Companies', go: 'companies' },
   { icon: 'folder',           label: 'Browse — Systems',   go: 'systems' },
   { icon: 'list',             label: 'All Tasks',     go: 'all-tasks' },
-  { icon: 'clipboard-list',   label: 'Projects',      go: 'projects' },
+  { icon: 'briefcase',        label: 'Clients Projects', go: 'clients-projects' },
   { icon: 'layers',           label: 'Clients',       go: 'clients' },
   { icon: 'credit-card',      label: 'Subscriptions', go: 'subscriptions' },
   { icon: 'calendar-check',   label: 'Company Documents', go: 'companydocs' },
@@ -13024,7 +12384,7 @@ function renderPalette() {
   // Quick actions
   const acts = [
     { icon: 'plus',          label: 'Add record — log work',      match: 'add record log work session new', run: () => { switchModule('timesheet'); openModal(); } },
-    { icon: 'clipboard-list',label: 'New project',                match: 'new project create',              run: () => { switchModule('projects'); openProjectModal(); } },
+    { icon: 'clipboard-list',label: 'New project',                match: 'new project create',              run: () => { switchModule('clients-projects'); openProjectModal(); } },
     { icon: 'calendar-check',label: 'Go to today',                match: 'today now current day',           run: () => { switchModule('timesheet'); goToday(); } },
     { icon: 'moon',          label: 'Toggle dark / light theme',  match: 'theme dark light mode toggle',    run: toggleTheme },
     { icon: 'compass',       label: 'How This App Thinks',        match: 'how this app thinks help model cheat sheet', run: openHowThinksOverlay },
@@ -13172,20 +12532,16 @@ async function init() {
   renderBackupChoiceMenu();
   await loadUiStateFromMain();
   // Restore per-module filter state that's read directly off module-scoped
-  // variables (Browse kind/slice, Projects category) BEFORE anything renders
-  // them; All Tasks/Clients/Internal Tasks restore inside their own init
-  // functions instead, since those rebuild their filter UI from scratch.
+  // variables (Browse kind/slice) BEFORE anything renders them; All Tasks/
+  // Clients/Internal Tasks restore inside their own init functions instead,
+  // since those rebuild their filter UI from scratch.
   if (uiState.filters.browse && uiState.filters.browse.kind) {
     browseKind = uiState.filters.browse.kind;
     if (uiState.filters.browse.selected) cpState[browseKind].selected = uiState.filters.browse.selected;
   }
-  if (uiState.filters.projects && uiState.filters.projects.category != null) {
-    projectCategoryFilter = uiState.filters.projects.category;
-  }
 
   try {
     LK = await window.api.loadLookups();
-    renderBulkStatusMenu();
     renderFilterChips();
     await refreshProjectIndex();   // names for the Timesheet/Project-task Project field + row pills
     await refreshDayList();
@@ -13210,7 +12566,10 @@ async function init() {
   // Milestone 11 — land back where the user left off (Settings -> General's
   // "Start on" toggle), falling back to Analytics if there's no valid saved
   // module (first run, or a module that no longer exists).
-  const landingModule = (uiState.startOnLastPage && uiState.lastModule
+  // 'projects' is excluded even though `#module-projects` exists — it's the
+  // internal-only single-project detail host (no sidebar entry, see
+  // switchModule), never a valid landing page on its own.
+  const landingModule = (uiState.startOnLastPage && uiState.lastModule && uiState.lastModule !== 'projects'
     && document.getElementById('module-' + uiState.lastModule)) ? uiState.lastModule : 'analytics';
   switchModule(landingModule);
   // Clients/Internal Tasks show a list view by default (switching to them via
