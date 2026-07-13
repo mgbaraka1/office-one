@@ -202,6 +202,21 @@
  */
 
 /**
+ * One edit recorded against a tasks row (tasks:field-history →
+ * db.getTaskFieldHistory), newest first. Mirrors WorkLogHistoryEntry's shape;
+ * see task_field_history in CLAUDE.md — name/status/company/system/project/
+ * department/source fields, each diffed by its human-facing value (lookup
+ * code for status, lookup label for company/system/department, linked
+ * project's name for project), not the raw FK id.
+ * @typedef {Object} TaskFieldHistoryEntry
+ * @property {number} id
+ * @property {string} fieldName  Human label (e.g. 'Status', 'Project', 'Department').
+ * @property {string} oldValue
+ * @property {string} newValue
+ * @property {string} changedAt
+ */
+
+/**
  * Metadata for a document's uploaded file (the bytes live on disk under userData;
  * only this metadata is in SQLite). null when no file has been uploaded.
  * @typedef {Object} ProjectDocumentFile

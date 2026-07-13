@@ -119,8 +119,14 @@ ipcMain.handle('tasks:index',  authed(()             => db.getTasksIndex(auth.re
 ipcMain.handle('tasks:get',    authed((_e, id)       => db.getTask(auth.requireUserId(), id)));
 ipcMain.handle('tasks:create', authed((_e, data)     => db.createTask(auth.requireUserId(), data)));
 ipcMain.handle('tasks:update', authed((_e, id, data) => db.updateTask(auth.requireUserId(), id, data)));
+// Metadata-only update (name/status/company/system/source) — never touches
+// project_id/department_id/support_year_id. The Timesheet reconciler/Edit
+// Record modal use this instead of tasks:update, which is reserved for the
+// actual link editors (openBacklogModal, Projects/Internal Tasks/All Tasks).
+ipcMain.handle('tasks:update-meta', authed((_e, id, data) => db.updateTaskMeta(auth.requireUserId(), id, data)));
 ipcMain.handle('tasks:delete', authed((_e, id)       => db.deleteTask(auth.requireUserId(), id)));
 ipcMain.handle('tasks:merge',  authed((_e, sourceId, targetId) => db.mergeTasks(auth.requireUserId(), sourceId, targetId)));
+ipcMain.handle('tasks:field-history', authed((_e, id) => db.getTaskFieldHistory(auth.requireUserId(), id)));
 
 // ── Task Sources (structured source list — migration 033) ──
 ipcMain.handle('tasks:source-create', authed((_e, taskId, data) => db.createTaskSource(auth.requireUserId(), taskId, data)));

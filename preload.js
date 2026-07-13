@@ -69,9 +69,13 @@ contextBridge.exposeInMainWorld('api', {
   createTask:     (data)          => ipcRenderer.invoke('tasks:create', data),
   /** @returns {Promise<import('./ipc-types').Task|null>} */
   updateTask:     (id, data)      => ipcRenderer.invoke('tasks:update', id, data),
+  /** Metadata-only (name/status/company/system/source) — never touches project/department links. Use from the Timesheet instead of updateTask. @returns {Promise<import('./ipc-types').Task|null>} */
+  updateTaskMeta: (id, data)      => ipcRenderer.invoke('tasks:update-meta', id, data),
   deleteTask:     (id)            => ipcRenderer.invoke('tasks:delete', id),
   /** Move every session from sourceId onto targetId, then delete sourceId. @returns {Promise<import('./ipc-types').TaskMergeResult>} */
   mergeTasks:     (sourceId, targetId) => ipcRenderer.invoke('tasks:merge', sourceId, targetId),
+  /** Read-only, newest first. @returns {Promise<import('./ipc-types').TaskFieldHistoryEntry[]>} */
+  getTaskFieldHistory: (id)       => ipcRenderer.invoke('tasks:field-history', id),
 
   // ── Task Sources (structured source list — a task can carry any number) ──
   /** @returns {Promise<import('./ipc-types').TaskSource|null>} */
