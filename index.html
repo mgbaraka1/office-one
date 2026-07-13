@@ -1720,32 +1720,6 @@
     .filter-chip.active { background: var(--primary); color: #fff; box-shadow: 0 2px 8px -2px var(--primary-glow); }
     #filter-count { font-size: 12px; color: var(--muted); margin-left: auto; }
 
-    /* Continue-yesterday strip (Milestone 10) */
-    #continue-strip {
-      display: flex; align-items: center; gap: 12px;
-      padding: 9px 18px; background: var(--surface); border-bottom: 1px solid var(--border);
-      flex-shrink: 0; overflow: hidden;
-    }
-    .continue-strip-label {
-      display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700;
-      color: var(--muted); text-transform: uppercase; letter-spacing: .4px; flex-shrink: 0;
-    }
-    .continue-strip-label .lic { width: 13px; height: 13px; }
-    #continue-strip-chips { display: flex; gap: 8px; overflow-x: auto; flex: 1; }
-    .continue-chip {
-      display: flex; align-items: center; gap: 6px; flex-shrink: 0;
-      padding: 6px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 600;
-      border: 1px solid var(--border); background: var(--surface2); color: var(--text);
-      cursor: pointer; white-space: nowrap; transition: all var(--speed);
-    }
-    .continue-chip:hover { border-color: var(--accent); background: var(--accent-bg); color: var(--accent); }
-    .continue-chip .cc-meta { color: var(--muted); font-weight: 500; }
-    #continue-strip-dismiss {
-      background: none; border: none; cursor: pointer; color: var(--muted);
-      font-size: 14px; padding: 4px; flex-shrink: 0;
-    }
-    #continue-strip-dismiss:hover { color: var(--text); }
-
     /* ══ KBD HINTS ══ */
     kbd {
       display: inline-block; padding: 3px 9px; border-radius: 7px;
@@ -2346,14 +2320,6 @@
       <span class="lbl">Over Time Total Hours</span>
       <span class="stat-value" id="total-ot-hrs">0.00</span>
     </div>
-  </div>
-
-  <!-- Continue-yesterday strip (Milestone 10) — recently-worked, not-DONE tasks;
-       one click opens the Session edit modal's create mode with today preset. -->
-  <div id="continue-strip" style="display:none">
-    <span class="continue-strip-label"><span data-ic="rotate-ccw"></span>Continue</span>
-    <div id="continue-strip-chips"></div>
-    <button id="continue-strip-dismiss" title="Hide for today" data-ic="x"></button>
   </div>
 
   <!-- Filter bar -->
@@ -5770,13 +5736,19 @@ function undoDelete() {
 // add/delete through a debounced reconciler; structural ops (e.g. move-to-date)
 // call the API directly and reload. `eid` = the work_log id; `taskId` = its task.
 
-// Task-level fields of a row (shared across all of a task's sessions).
+// Task-level fields of a row (shared across all of a task's sessions). Used
+// both to update an existing task's metadata (via updateTaskMeta, which
+// ignores projectId/department entirely) and to create a brand-new task (via
+// createTask, e.g. from Duplicate/Undo-delete on a Department-linked row) —
+// forwarding department here is the same "initial link on a genuinely new
+// task is legitimate" reasoning projectId already followed, not a clobber.
 function tsTaskPayload(row) {
   return {
     name: (row.taskName && row.taskName.trim()) || row.description || '',
     status: row.status, company: row.company, system: row.system,
     source: row.source || '',
     projectId: row.projectId ?? null,
+    department: row.departmentId != null ? lkLabelById('DEPARTMENT', row.departmentId) : '',
   };
 }
 // Work-log-level fields of a row (this session only). Natural is per-session,
@@ -5820,50 +5792,7 @@ async function reloadTimesheet() {
   renderTable();
   await refreshSavedDays();
   renderCalendar();
-  renderContinueStrip();
 }
-
-// ── Continue-yesterday strip (Milestone 10) ──
-// Recently-worked (last TASK_PICKER_RECENT_DAYS days), not-DONE tasks — one
-// click opens the Session edit modal's create mode with today's date preset,
-// turning "log time on something I worked on recently" into chip -> fill ->
-// save, without ever opening the Add Record modal or searching a picker.
-// Day-independent (always targets today, regardless of which Timesheet day
-// is currently being viewed) and dismissible per calendar day (localStorage,
-// keyed by today's date — a fresh list tomorrow deserves a fresh chance to
-// be seen, not a permanently-dismissed banner).
-function continueStripDismissKey() { return 'ct-continue-dismissed-' + fmt(new Date()); }
-async function renderContinueStrip() {
-  const strip = document.getElementById('continue-strip');
-  if (!strip) return;
-  if (localStorage.getItem(continueStripDismissKey())) { strip.style.display = 'none'; return; }
-  let tasks = [];
-  try { tasks = await window.api.getTasksIndex(); } catch { tasks = []; }
-  if (!Array.isArray(tasks)) tasks = [];
-  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - TASK_PICKER_RECENT_DAYS);
-  const cutoffStr = fmt(cutoff);
-  const recent = tasks
-    .filter(t => t.status !== 'DONE' && t.lastDate && t.lastDate >= cutoffStr)
-    .sort((a, b) => (b.lastDate || '').localeCompare(a.lastDate || ''))
-    .slice(0, 8);
-  const host = document.getElementById('continue-strip-chips');
-  host.innerHTML = '';
-  if (!recent.length) { strip.style.display = 'none'; return; }
-  recent.forEach(t => {
-    const chip = document.createElement('button');
-    chip.type = 'button'; chip.className = 'continue-chip';
-    const meta = [t.company, t.system].filter(Boolean).join(' · ');
-    chip.innerHTML = esc(t.name || '(untitled task)') +
-      (meta ? ' <span class="cc-meta">' + esc(meta) + '</span>' : '');
-    chip.addEventListener('click', () => openSessionModal(null, { mode: 'create', task: t, onSaved: renderContinueStrip }));
-    host.appendChild(chip);
-  });
-  strip.style.display = '';
-}
-document.getElementById('continue-strip-dismiss').addEventListener('click', () => {
-  localStorage.setItem(continueStripDismissKey(), '1');
-  document.getElementById('continue-strip').style.display = 'none';
-});
 
 // Debounced granular save of the current in-memory rows.
 let _saveTimer = null;
@@ -5887,7 +5816,13 @@ async function persistTimesheet() {
         seen.add(row.eid);
         if (row.taskId && !taskDone.has(row.taskId)) {
           taskDone.add(row.taskId);
-          await window.api.updateTask(row.taskId, tsTaskPayload(row));
+          // Metadata-only — the Timesheet is a session surface and must never
+          // write project_id/department_id/support_year_id (tsTaskPayload's
+          // own projectId field is simply ignored by this call; see the Edit
+          // Record modal's own explicit linkProjectTask/unlinkProjectTask
+          // handling above for the one place this view legitimately changes
+          // a project link).
+          await window.api.updateTaskMeta(row.taskId, tsTaskPayload(row));
         }
         await window.api.updateWorkLog(row.eid, tsLogPayload(row));
       } else {
@@ -6208,18 +6143,45 @@ async function submitModal() {
   if (isEdit) {
     // Preserve the identity fields of the row being edited (task/work-log ids)
     // so the save reconciles it in place instead of inserting a duplicate.
-    record.eid    = rows[editIdx]?.eid;
-    record.taskId = rows[editIdx]?.taskId;
+    const origRow = rows[editIdx];
+    const origProjectId = origRow?.projectId ?? null;
+    record.eid    = origRow?.eid;
+    record.taskId = origRow?.taskId;
+    // Merge onto a copy of the original row instead of replacing it wholesale.
+    // This form has no field for the legacy `source` text or a task's
+    // Department link — a wholesale replace used to silently turn those into
+    // `undefined` on the in-memory row, which the next autosave then wrote
+    // back as a blanked `source` (real data loss) and which made the row's
+    // Department pill vanish until the next reload (cosmetic, but confusing).
+    const merged = Object.assign({}, origRow, record);
     // If a timer is running on the row being edited, keep it attached to the
-    // new record object (we replace the object, not mutate it).
-    if (activeTimer.rowRef === rows[editIdx]) activeTimer.rowRef = record;
-    rows[editIdx] = record;
-    syncSiblingTasks(record);          // task-level fields propagate to sessions
+    // new row object (we replace the object, not mutate it).
+    if (activeTimer.rowRef === origRow) activeTimer.rowRef = merged;
+    rows[editIdx] = merged;
+    syncSiblingTasks(merged);          // task-level fields propagate to sessions
     closeModal();
     renderTable();
-    if (record.taskId) {
-      try { await saveTaskSources(record.taskId, sourceRows, _fSourceOriginalIds); }
+    if (merged.taskId) {
+      try { await saveTaskSources(merged.taskId, sourceRows, _fSourceOriginalIds); }
       catch { toast('Could not save sources'); }
+      // The project link is managed separately from the metadata-only save below
+      // (the Timesheet reconciler never writes task link columns — see
+      // persistTimesheet/updateTaskMeta) — only touch it when the picker's value
+      // actually changed, and only through the real link/unlink API so
+      // Project<->Department mutual exclusivity stays enforced server-side.
+      if (merged.projectId !== origProjectId) {
+        try {
+          const r = (merged.projectId != null)
+            ? await window.api.linkProjectTask(merged.projectId, merged.taskId)
+            : await window.api.unlinkProjectTask(merged.taskId);
+          if (r && r.ok === false) throw new Error(r.error || 'link failed');
+        } catch (err) {
+          toast(err?.message || 'Could not change the project link');
+          merged.projectId = origProjectId;   // reflect the DB's actual, unchanged state
+          syncSiblingTasks(merged);
+          renderTable();
+        }
+      }
     }
     // Date changed to another day → persist, then follow the session to that day.
     if (targetDate !== activeDate) {
@@ -7632,7 +7594,7 @@ async function renderOverview() {
     const d = daysUntil(a.date);
     if (d === null || d > 30) return;
     const meta = ATTENTION_META[a.type] || { icon: ic('bell'), kind: 'Due' };
-    attention.push({ icon: meta.icon, title: a.title, days: d, module: a.module, kind: meta.kind, companyId: a.companyId ?? null });
+    attention.push({ icon: meta.icon, title: a.title, days: d, module: a.module, kind: meta.kind, companyId: a.companyId ?? null, id: a.id, type: a.type });
   });
   attention.sort((a, b) => a.days - b.days);
 
@@ -9008,7 +8970,7 @@ async function submitMergeModal() {
     try {
       const restored = await window.api.createTask({
         name: sourceTask.name, status: sourceTask.status, company: sourceTask.company, system: sourceTask.system,
-        projectId: sourceTask.projectId, department: sourceTask.department,
+        projectId: sourceTask.projectId, department: sourceTask.department, source: sourceTask.source,
       });
       for (const logId of movedIds) await window.api.moveWorkLog(logId, restored.id);
       // The merged-away task's task_sources rows cascaded with it — recreate
@@ -12547,7 +12509,6 @@ async function init() {
     await refreshDayList();
     const today = fmt(t);
     await switchDay(today);
-    renderContinueStrip();
   } catch (err) {
     // Data layer unreachable at startup — keep the shell usable rather than
     // leaving a blank window, and tell the user.
