@@ -1686,6 +1686,68 @@ function assertTaskLinkExclusive(projectId, departmentId, supportYearId) {
   }
 }
 
+// task_field_history (migration 037) — same "diff already-resolved human
+// values" pattern updateWorkLog uses for recordWorkLogHistory, scoped to a
+// task's own profile fields. project_id/department_id are diffed by the
+// linked project's NAME / the DEPARTMENT lookup's LABEL (not the raw id) so
+// old/new values stay human-facing, matching every other history field here.
+const TASK_HISTORY_FIELDS = [
+  ['name', 'Name'], ['status', 'Status'], ['company', 'Company'], ['system', 'System'],
+  ['project', 'Project'], ['department', 'Department'], ['source', 'Source'],
+];
+
+function projectNameById(id) {
+  if (id == null) return '';
+  const row = db.prepare('SELECT name FROM projects WHERE id = ?').get(id);
+  return row ? (row.name || '') : '';
+}
+
+// Raw task column values (status_id/company_id/... as ids) -> the human-facing
+// snapshot recordTaskHistory diffs against. Takes a plain object shaped like a
+// `tasks` row (or a subset built from write-field values) so both updateTask
+// (full row) and updateTaskMeta (metadata-only) can share it.
+function taskHistorySnapshot(row) {
+  return {
+    name: row.name || '',
+    status: lkCode(row.status_id) || '',
+    company: lkLabel(row.company_id) || '',
+    system: lkLabel(row.system_id) || '',
+    project: projectNameById(row.project_id),
+    department: lkLabel(row.department_id) || '',
+    source: row.source || '',
+  };
+}
+
+// Diffs `before` against `nextValues` (both already-resolved human snapshots
+// from taskHistorySnapshot) and inserts one task_field_history row per field
+// that actually changed. Must be called inside the same tx() as the UPDATE —
+// mirrors recordWorkLogHistory/recordClientFieldHistory: only on genuine
+// edits to an existing row, never on create or delete.
+function recordTaskHistory(userId, taskId, before, nextValues) {
+  const now = new Date().toISOString();
+  TASK_HISTORY_FIELDS.forEach(([field, label]) => {
+    const oldVal = before[field] ?? '';
+    const newVal = nextValues[field] ?? '';
+    if (String(oldVal) === String(newVal)) return;
+    db.prepare(
+      `INSERT INTO task_field_history(user_id, task_id, field_name, old_value, new_value, changed_at)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(userId, taskId, label, String(oldVal), String(newVal), now);
+  });
+}
+
+// Read-only: a task's history, newest first — mirrors getWorkLogHistory /
+// getClientFieldHistory. Exported for parity; not yet wired to any UI beyond
+// the tasks:field-history channel itself (same "recorded and readable, not
+// yet surfaced" convention getWorkLogHistory started with).
+function getTaskFieldHistory(userId, taskId) {
+  return db.prepare(
+    `SELECT id, field_name AS fieldName, old_value AS oldValue, new_value AS newValue, changed_at AS changedAt
+       FROM task_field_history WHERE user_id = ? AND task_id = ?
+       ORDER BY changed_at DESC, id DESC`
+  ).all(userId, Number(taskId));
+}
+
 // Insert a standalone task (no work logs yet — the two-level analogue of a
 // "Not Yet" item). Returns the full task.
 function createTask(userId, data) {
@@ -1702,18 +1764,73 @@ function createTask(userId, data) {
   return getTask(userId, id);
 }
 
-// Update a task's profile fields in place (its work logs are untouched). Returns
-// the refreshed task, or null if the caller doesn't own it.
+// Update a task's profile fields in place (its work logs are untouched). This
+// is the full-row editor — it CAN change project_id/department_id — used by
+// the actual link editors (openBacklogModal, Projects/Internal Tasks/All
+// Tasks). The Timesheet must never call this; see updateTaskMeta below.
+// Returns the refreshed task, or null if the caller doesn't own it.
 function updateTask(userId, id, data) {
   if (!ownsTask(userId, id)) return null;
+  const before = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
   const now = new Date().toISOString();
   const f = taskWriteFields(userId, data);
+  // The legacy `source` column is a fallback-only field no current UI writes
+  // new data into — task origin is now tracked via the task_sources table
+  // (see CLAUDE.md: "kept exactly as-is ... new/edited tasks no longer write
+  // to it at all"). A caller whose payload omits `source` entirely (e.g. the
+  // New/Edit Task modal, which manages sources through task_sources and never
+  // includes a `source` key) must not blank it — only a caller that
+  // explicitly sends a `source` key (even '') actually intends to change it.
+  if (data?.source === undefined) f.source = before.source || '';
   assertTaskLinkExclusive(f.project_id, f.department_id, f.support_year_id);
+  const beforeForDiff = taskHistorySnapshot(before);
+  const next = taskHistorySnapshot({
+    name: f.name, status_id: f.status_id, company_id: f.company_id, system_id: f.system_id,
+    project_id: f.project_id, department_id: f.department_id, source: f.source,
+  });
   tx(() => {
+    recordTaskHistory(userId, id, beforeForDiff, next);
     db.prepare(
       `UPDATE tasks SET name=?, status_id=?, company_id=?, system_id=?, project_id=?, department_id=?, support_year_id=?, source=?, updated_at=?
         WHERE id=? AND user_id=?`
     ).run(f.name, f.status_id, f.company_id, f.system_id, f.project_id, f.department_id, f.support_year_id, f.source, now, id, userId);
+  });
+  return getTask(userId, id);
+}
+
+// Metadata-only task update: name / status / company / system / source ONLY —
+// never references project_id / department_id / support_year_id, in the SET
+// clause or anywhere else. This is the update path the Timesheet reconciler
+// (persistTimesheet) and its Edit Record modal must use: the Timesheet is a
+// *session* surface and has no business writing task link columns, but its
+// save flow used to call the full updateTask with a link-less payload on
+// every task with a session on the viewed day — silently NULLing out any
+// existing project/department link on autosave. See migration 037's own note.
+// Returns the refreshed task, or null if the caller doesn't own it.
+function updateTaskMeta(userId, id, data) {
+  if (!ownsTask(userId, id)) return null;
+  const before = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+  const now = new Date().toISOString();
+  const name = String(data?.name ?? '').trim();
+  const status_id = lkId('ENTRY_STATUS', data?.status) ?? lkId('ENTRY_STATUS', 'IN_PROGRESS');
+  const company_id = lkId('COMPANY', data?.company);
+  const system_id = lkId('SYSTEM', data?.system);
+  // Same "don't blank a legacy fallback field the caller didn't actually send"
+  // guard as updateTask() — belt-and-braces here too, since the Timesheet's
+  // own payload (tsTaskPayload) always sends *some* source string, so this
+  // only ever matters if a future caller's payload omits the key entirely.
+  const source = (data?.source === undefined) ? (before.source || '') : String(data.source ?? '');
+  const beforeForDiff = taskHistorySnapshot(before);
+  const next = taskHistorySnapshot({
+    name, status_id, company_id, system_id,
+    project_id: before.project_id, department_id: before.department_id, source,
+  });
+  tx(() => {
+    recordTaskHistory(userId, id, beforeForDiff, next);
+    db.prepare(
+      `UPDATE tasks SET name=?, status_id=?, company_id=?, system_id=?, source=?, updated_at=?
+        WHERE id=? AND user_id=?`
+    ).run(name, status_id, company_id, system_id, source, now, id, userId);
   });
   return getTask(userId, id);
 }
@@ -2785,8 +2902,8 @@ module.exports = {
   createProject, listProjects, getProject, updateProject, deleteProject,
   linkTask, unlinkTask, listLinkableTasks,
   listDepartments, getDepartment, linkDepartmentTask, unlinkDepartmentTask, listLinkableTasksForDepartment,
-  listTasks, getTasksIndex, getTask, createTask, updateTask, deleteTask,
-  getTaskSources, createTaskSource, updateTaskSource, deleteTaskSource,
+  listTasks, getTasksIndex, getTask, createTask, updateTask, updateTaskMeta, deleteTask,
+  getTaskSources, createTaskSource, updateTaskSource, deleteTaskSource, getTaskFieldHistory,
   listWorkLogs, logsForDate, addWorkLog, updateWorkLog, moveWorkLog, mergeTasks, deleteWorkLog, getWorkLogHistory,
   setDayName, getDayName,
   saveProjectDocumentFile, resolveProjectDocumentFile, removeProjectDocumentFile,
