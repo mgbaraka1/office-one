@@ -6349,7 +6349,7 @@ function rptSummaryCards(cards) {
   return `<table style="width:100%;margin-bottom:18px;font-size:11.5px;border-collapse:collapse;border:1.5px solid #111"><tr>${cells}</tr></table>`;
 }
 
-function buildDailyReportHTML(srcRows, date, name) {
+function buildDailyReportHTML(srcRows, date, name, sourcesByTaskId) {
   const [y,m,d] = date.split('-');
   const dt = new Date(+y, +m-1, +d);
   const dayName   = dt.toLocaleDateString('en-US', { weekday:'long' });
@@ -6383,7 +6383,8 @@ function buildDailyReportHTML(srcRows, date, name) {
     let g = byTask.get(key);
     if (!g) {
       g = { taskName: r.taskName || r.description || '(untitled task)',
-            company: r.company, system: r.system, sessions: [], subtotal: 0 };
+            company: r.company, system: r.system, sessions: [], subtotal: 0,
+            sources: (sourcesByTaskId && r.taskId != null && sourcesByTaskId.get(r.taskId)) || [] };
       byTask.set(key, g); groups.push(g);
     }
     g.sessions.push(r);
@@ -6392,15 +6393,31 @@ function buildDailyReportHTML(srcRows, date, name) {
 
   const rowsHTML = groups.length ? groups.map((g, gi) => {
     const metaBits = [g.company, g.system].filter(Boolean).join(' · ');
+    // Sources are task-level, so they're listed once per task group (below the
+    // header) rather than repeated on every session row. A task not yet
+    // re-saved since before migration 033 has no structured entries here —
+    // its legacy plain-text `source` still renders per-session, below.
+    const sourcesHTML = g.sources.length ? `
+      <tr>
+        <td colspan="4" style="padding:2px 8px 8px 8px;border-top:none">
+          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#999;margin-bottom:2px">Sources</div>
+          ${g.sources.map(s => {
+            const typeLabel = lkLabel('TASK_SOURCE_TYPE', s.type) || s.type || 'Source';
+            const text = s.ref ? (typeLabel + ' · ' + s.ref) : typeLabel;
+            return `<div style="font-size:10px;color:#666;line-height:1.5">&bull; ${esc(text)}${s.url ? ` — ${esc(s.url)}` : ''}</div>`;
+          }).join('')}
+        </td>
+      </tr>` : '';
     const sessionsHTML = g.sessions.map(r => {
       const showTime = r.time === 'WORK_TIME' || r.time === 'OVERTIME';
       const timeCell = showTime
         ? `<span${r.time === 'OVERTIME' ? ' style="color:#b91c1c;font-weight:700"' : ''}>${esc(lkLabel('TIME_TYPE', r.time))}</span>`
         : '—';
+      const legacySource = (!(r.sourceCount > 0) && r.source) ? r.source : '';
       return `
         <tr>
           <td>${timeCell}${r.natural ? `<div style="font-size:9px;color:#888;margin-top:2px">${esc(r.natural)}</div>` : ''}</td>
-          <td>${esc(r.description)}${sourceSummaryText(r) ? `<div style="font-size:10px;color:#777;margin-top:3px">${esc(sourceSummaryText(r))}</div>` : ''}</td>
+          <td>${esc(r.description)}${legacySource ? `<div style="font-size:10px;color:#777;margin-top:3px">${esc(legacySource)}</div>` : ''}</td>
           <td style="text-align:right">${r.minutes || '—'}</td>
           <td style="text-align:right">${r.minutes ? (parseFloat(r.minutes) / 60).toFixed(2) : '—'}</td>
         </tr>`;
@@ -6412,6 +6429,7 @@ function buildDailyReportHTML(srcRows, date, name) {
           <span style="float:right;font-weight:800">${g.subtotal} min · ${(g.subtotal / 60).toFixed(2)} h</span>
         </td>
       </tr>
+      ${sourcesHTML}
       ${sessionsHTML}`;
   }).join('') : '<tr><td colspan="4" style="text-align:center;color:#999;padding:18px">No work recorded on this day.</td></tr>';
 
@@ -6535,6 +6553,22 @@ function flashFieldError(el) {
   setTimeout(() => el.classList.remove('field-error'), 1200);
 }
 
+// Fetches each task's full structured Source list (tasks:get returns the
+// ordered `sources` array — the day-view/report queries only carry the
+// lightweight sourceCount/firstSource* summary), keyed by task id, for the
+// Daily Timesheet report's per-task "Sources" list.
+async function fetchTaskSourcesMap(taskIds) {
+  const uniqueIds = [...new Set(taskIds.filter(id => id != null))];
+  const map = new Map();
+  await Promise.all(uniqueIds.map(async id => {
+    try {
+      const t = await window.api.getTask(id);
+      if (t) map.set(id, t.sources || []);
+    } catch {}
+  }));
+  return map;
+}
+
 // Daily Timesheet PDF — same daily report, for any chosen day.
 async function genDailyReport() {
   const input = document.getElementById('rmod-daily-date');
@@ -6550,9 +6584,10 @@ async function genDailyReport() {
   }
   if (!dayRows.length) toast('No records on that day — showing an empty report');
 
+  const sourcesByTaskId = await fetchTaskSourcesMap(dayRows.map(r => r.taskId));
   const name = document.getElementById('hName').value || LK.defaultName || 'N/A';
   _reportFileBase = `timesheet-${date}`;
-  document.getElementById('print-frame').innerHTML = buildDailyReportHTML(dayRows, date, name);
+  document.getElementById('print-frame').innerHTML = buildDailyReportHTML(dayRows, date, name, sourcesByTaskId);
   document.getElementById('print-overlay').classList.add('open');
 }
 
@@ -6677,19 +6712,6 @@ function buildOvertimeReportHTML(days, monthLabel, name) {
       <span>MOS TA FA COOPERATION TOOLS</span>
       <span>Printed ${printedOn}</span>
     </div>`;
-}
-
-// Plain-text "Source" summary for the print/PDF report builders (no DOM, no
-// click handlers — those documents run zero JavaScript by design). Same
-// type·ref/+N-more/legacy-fallback logic as buildSourceCell, textual only.
-function sourceSummaryText(r) {
-  const count = r.sourceCount || 0;
-  if (count > 0) {
-    const typeLabel = lkLabel('TASK_SOURCE_TYPE', r.firstSourceType) || r.firstSourceType || 'Source';
-    return (r.firstSourceRef ? (typeLabel + ' · ' + r.firstSourceRef) : typeLabel)
-      + (count > 1 ? ' +' + (count - 1) + ' more' : '');
-  }
-  return r.source || '';
 }
 
 // Subscriptions PDF — the full list of recurring subscriptions, mirroring the
