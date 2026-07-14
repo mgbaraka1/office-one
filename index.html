@@ -431,6 +431,7 @@
     }
 
     .desc-cell { max-width: 240px; }
+    .tsg-card .desc-cell { max-width: none; }
     .desc-text { font-size: 13px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
     .source-text { font-size: 12.5px; color: var(--muted); white-space: pre-wrap; word-break: break-word; }
     .source-link {
@@ -1860,7 +1861,7 @@
     }
     .tsg-add:hover { border-color: var(--primary); color: var(--primary); }
     .tsg-add .lic { width: 13px; height: 13px; }
-    .tsg-card table { width: 100%; }
+    .tsg-card table { width: 100%; table-layout: fixed; }
     .tsg-card tbody { box-shadow: none; }
     .tsg-card thead th { position: static; background: var(--surface); font-size: 10.5px; padding: 9px 16px; }
     .tsg-card td .cell { padding: 10px 16px; }
@@ -5156,8 +5157,7 @@ function buildTaskGroupCard(g, origIdxOf) {
   table.innerHTML = '<thead><tr>' +
     '<th style="width:90px">Time</th>' +
     '<th style="width:100px">Natural</th>' +
-    '<th style="min-width:260px">Description</th>' +
-    '<th style="min-width:160px">Source</th>' +
+    '<th>Description</th>' +
     '<th style="width:80px;text-align:right">Minutes</th>' +
     '<th style="width:70px;text-align:right">Hours</th>' +
     '<th style="width:100px"></th></tr></thead>';
@@ -5185,9 +5185,6 @@ function buildTaskGroupCard(g, origIdxOf) {
     descDiv.appendChild(descSpan);
     descTd.appendChild(descDiv);
     tr.appendChild(descTd);
-
-    // Source
-    tr.appendChild(buildSourceCell(row));
 
     // Minutes — click to edit inline (same behavior as the flat view)
     const minTd = document.createElement('td'); minTd.style.textAlign = 'right';
