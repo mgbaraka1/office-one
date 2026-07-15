@@ -105,13 +105,28 @@ try {
   // Seed one plaintext credential per table via a normal create call (still no
   // cipher) — these simulate pre-existing rows written before encryption was
   // ever wired up, which is exactly the population migration 032 must catch.
+  // client_databases/client_external_services are seeded by RAW SQL: their
+  // sections are retired and the CRUD is gone, but both tables stay in db.js's
+  // CREDENTIAL_COLUMNS so the pass still catches a legacy plaintext credential
+  // that outlived its section — which is exactly what these two rows stand in for.
+  const rawSeed = new DatabaseSync(dbFilePath);
+  const nowIso = new Date().toISOString();
+  const seedDbId = Number(rawSeed.prepare(
+    `INSERT INTO client_databases(user_id, company_id, name, engine, host, port, username, password, version, credential_location, notes, sort_order, created_at, updated_at)
+     VALUES(?, ?, 'CE seed db', '', '', '', '', 'seed-db-pw', '', '', '', 0, ?, ?)`
+  ).run(userId, companyId, nowIso, nowIso).lastInsertRowid);
+  const seedExtId = Number(rawSeed.prepare(
+    `INSERT INTO client_external_services(user_id, company_id, name, url, company_code, secret_key, expiry_date, contact, notes, sort_order, created_at, updated_at)
+     VALUES(?, ?, 'CE seed ext', '', '', 'seed-ext-secret', NULL, '', '', 0, ?, ?)`
+  ).run(userId, companyId, nowIso, nowIso).lastInsertRowid);
+  rawSeed.close();
   const seeded = {
     vpn: db.createClientVpn(userId, companyId, { connectionName: 'CE seed vpn', password: 'seed-vpn-pw' }),
     server: db.createClientServer(userId, companyId, {
       systemName: freeSystem.label, role: 'APPLICATIONS', environment: 'PRODUCTION', password: 'seed-server-pw',
     }),
-    database: db.createClientDatabase(userId, companyId, { name: 'CE seed db', password: 'seed-db-pw' }),
-    external: db.createClientExternalService(userId, companyId, { name: 'CE seed ext', secretKey: 'seed-ext-secret' }),
+    database: { id: seedDbId },
+    external: { id: seedExtId },
     internal: db.createClientInternalSystem(userId, companyId, { name: 'CE seed int', password: 'seed-int-pw', secretKey: 'seed-int-secret' }),
   };
   // A refused create returns {ok:false}, not a record — without this the later

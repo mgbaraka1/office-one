@@ -1,7 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Clients (Auth + Server Information + Databases + External Services +
-// Internal Systems) — headless data-layer smoke test (Phase 6, verification
-// gates 1-3; gate 4 is the CDP walkthrough).
+// Clients (Auth + Server Information + Internal Systems) — headless data-layer
+// smoke test (Phase 6, verification gates 1-3; gate 4 is the CDP walkthrough).
+// The Databases and External Services sections were retired (UI + IPC + CRUD
+// removed, rows deleted); their tables survive in the schema, unread.
 //
 // Boots the app's data layer (db.js) DIRECTLY — no Electron/IPC/renderer.
 // SAFETY: never touches production. Copies the live DB into a throwaway temp
@@ -14,9 +15,9 @@
 //   2. Re-running applyMigrations() is a no-op (idempotent).
 //   3. Existing screens unaffected — pre/post row counts on unrelated tables.
 //   plus full CRUD for client_vpn_connections / client_servers /
-//   client_databases / client_external_services / client_internal_systems,
-//   ownership gating, and the "clients ARE the COMPANY roster" behavior (no
-//   standalone clients table — getClient rejects a non-COMPANY id).
+//   client_internal_systems, ownership gating, and the "clients ARE the COMPANY
+//   roster" behavior (no standalone clients table — getClient rejects a
+//   non-COMPANY id).
 // ─────────────────────────────────────────────────────────────────────────────
 
 const fs   = require('node:fs');
@@ -103,19 +104,12 @@ try {
   const srvTally = new Map(rawCounts.prepare(
     'SELECT company_id, COUNT(*) AS c FROM client_servers WHERE user_id = ? GROUP BY company_id'
   ).all(userId).map(r => [r.company_id, r.c]));
-  const dbTally = new Map(rawCounts.prepare(
-    'SELECT company_id, COUNT(*) AS c FROM client_databases WHERE user_id = ? GROUP BY company_id'
-  ).all(userId).map(r => [r.company_id, r.c]));
-  const extTally = new Map(rawCounts.prepare(
-    'SELECT company_id, COUNT(*) AS c FROM client_external_services WHERE user_id = ? GROUP BY company_id'
-  ).all(userId).map(r => [r.company_id, r.c]));
   const intTally = new Map(rawCounts.prepare(
     'SELECT company_id, COUNT(*) AS c FROM client_internal_systems WHERE user_id = ? GROUP BY company_id'
   ).all(userId).map(r => [r.company_id, r.c]));
   rawCounts.close();
   record('listClients: counts match raw per-company tallies (zero-activity companies still included)',
     clientList.every(c => c.vpnCount === (vpnTally.get(c.id) || 0) && c.serverCount === (srvTally.get(c.id) || 0)
-      && c.databaseCount === (dbTally.get(c.id) || 0) && c.externalServiceCount === (extTally.get(c.id) || 0)
       && c.internalSystemCount === (intTally.get(c.id) || 0)),
     JSON.stringify(clientList));
 
@@ -186,54 +180,6 @@ try {
     JSON.stringify(updatedSrv));
   record('updateClientServer: systemName changed in place', updatedSrv.systemName === sysTwo, JSON.stringify(updatedSrv));
 
-  // ── Database CRUD ────────────────────────────────────────────────────────────
-  const database = db.createClientDatabase(userId, companyA, {
-    name: 'Middleware Database', engine: 'PostgreSQL', host: 'db.acme.com',
-    port: '5432', username: 'middleware', password: 'db-secret', notes: 'main app DB',
-  });
-  record('createClientDatabase: persisted with fields', database && database.companyId === companyA
-    && database.name === 'Middleware Database' && database.engine === 'PostgreSQL'
-    && database.port === '5432' && database.username === 'middleware' && database.password === 'db-secret',
-    JSON.stringify(database));
-
-  const badDb = db.createClientDatabase(userId, 999999999, { name: 'nope' });
-  record('createClientDatabase: rejects a non-COMPANY companyId', badDb === null, String(badDb));
-
-  const clientADb = db.getClient(userId, companyA);
-  record('getClient: includes the created database', clientADb.databases.some(d => d.id === database.id),
-    'count=' + clientADb.databases.length);
-
-  const updatedDb = db.updateClientDatabase(userId, database.id, {
-    name: 'Middleware Database v2', engine: 'MySQL', host: 'db2.acme.com',
-    port: '3306', username: 'middleware2', password: 'new-db-secret', notes: 'migrated',
-  });
-  record('updateClientDatabase: fields changed in place, id stable', updatedDb.id === database.id
-    && updatedDb.engine === 'MySQL' && updatedDb.port === '3306'
-    && updatedDb.username === 'middleware2' && updatedDb.password === 'new-db-secret', JSON.stringify(updatedDb));
-
-  // ── External Service CRUD ────────────────────────────────────────────────────
-  const ext = db.createClientExternalService(userId, companyA, {
-    name: 'Uploader Service - Production', url: 'https://apis.example.gov.sa/svc/v1?API_KEY=abc123',
-    companyCode: '131', secretKey: 'ext-secret', notes: 'gov integration',
-  });
-  record('createClientExternalService: persisted with fields', ext && ext.companyId === companyA
-    && ext.name === 'Uploader Service - Production' && ext.companyCode === '131' && ext.secretKey === 'ext-secret',
-    JSON.stringify(ext));
-
-  const badExt = db.createClientExternalService(userId, 999999999, { name: 'nope' });
-  record('createClientExternalService: rejects a non-COMPANY companyId', badExt === null, String(badExt));
-
-  const clientAExt = db.getClient(userId, companyA);
-  record('getClient: includes the created external service', clientAExt.externalServices.some(x => x.id === ext.id),
-    'count=' + clientAExt.externalServices.length);
-
-  const updatedExt = db.updateClientExternalService(userId, ext.id, {
-    name: 'Uploader Service - Production v2', url: 'https://apis.example.gov.sa/svc/v2?API_KEY=xyz789',
-    companyCode: '132', secretKey: 'new-ext-secret', notes: 'rotated key',
-  });
-  record('updateClientExternalService: fields changed in place, id stable', updatedExt.id === ext.id
-    && updatedExt.companyCode === '132' && updatedExt.secretKey === 'new-ext-secret', JSON.stringify(updatedExt));
-
   // ── Internal System CRUD ─────────────────────────────────────────────────────
   const int = db.createClientInternalSystem(userId, companyA, {
     name: 'RabbitMQ Portal - Production', url: 'http://10.0.0.20:15672/',
@@ -284,8 +230,6 @@ try {
 
   // ── Per-company isolation ────────────────────────────────────────────────────
   db.createClientServer(userId, companyB, { host: '10.1.1.1', environment: 'PRODUCTION', os: 'Windows Server 2022', systemName: sysOne, role: 'SERVICES', notes: '' });
-  db.createClientDatabase(userId, companyB, { name: 'Other Client DB', engine: 'MongoDB', host: '10.1.1.2', port: '27017', username: 'x', password: 'y', notes: '' });
-  db.createClientExternalService(userId, companyB, { name: 'Other Client Service', url: 'https://other.example.com', companyCode: '999', secretKey: 'z', notes: '' });
   db.createClientInternalSystem(userId, companyB, { name: 'Other Client Portal', url: 'http://10.2.2.2/', username: 'x', password: 'y', notes: '' });
   const clientAAfter = db.getClient(userId, companyA);
   const clientBAfter = db.getClient(userId, companyB);
@@ -294,14 +238,6 @@ try {
       !clientAAfter.servers.some(s => s.host === '10.1.1.1'), '');
     record('Per-company isolation: company B sees its own server',
       clientBAfter.servers.some(s => s.host === '10.1.1.1'), '');
-    record('Per-company isolation: company A does not see company B\'s database',
-      !clientAAfter.databases.some(d => d.name === 'Other Client DB'), '');
-    record('Per-company isolation: company B sees its own database',
-      clientBAfter.databases.some(d => d.name === 'Other Client DB'), '');
-    record('Per-company isolation: company A does not see company B\'s external service',
-      !clientAAfter.externalServices.some(x => x.name === 'Other Client Service'), '');
-    record('Per-company isolation: company B sees its own external service',
-      clientBAfter.externalServices.some(x => x.name === 'Other Client Service'), '');
     record('Per-company isolation: company A does not see company B\'s internal system',
       !clientAAfter.internalSystems.some(s => s.name === 'Other Client Portal'), '');
     record('Per-company isolation: company B sees its own internal system',
@@ -318,10 +254,6 @@ try {
     record('Ownership: another user cannot update this VPN connection', stolenVpn === null, JSON.stringify(stolenVpn));
     const stolenSrv = db.updateClientServer(otherUserRow.id, srv.id, { host: 'stolen' });
     record('Ownership: another user cannot update this server', stolenSrv === null, JSON.stringify(stolenSrv));
-    const stolenDb = db.updateClientDatabase(otherUserRow.id, database.id, { name: 'stolen' });
-    record('Ownership: another user cannot update this database', stolenDb === null, JSON.stringify(stolenDb));
-    const stolenExt = db.updateClientExternalService(otherUserRow.id, ext.id, { name: 'stolen' });
-    record('Ownership: another user cannot update this external service', stolenExt === null, JSON.stringify(stolenExt));
     const stolenInt = db.updateClientInternalSystem(otherUserRow.id, int.id, { name: 'stolen' });
     record('Ownership: another user cannot update this internal system', stolenInt === null, JSON.stringify(stolenInt));
   }
@@ -329,16 +261,27 @@ try {
   // ── Delete ───────────────────────────────────────────────────────────────────
   const delVpnRes = db.deleteClientVpn(userId, vpn.id);
   const delSrvRes = db.deleteClientServer(userId, srv.id);
-  const delDbRes = db.deleteClientDatabase(userId, database.id);
-  const delExtRes = db.deleteClientExternalService(userId, ext.id);
   const delIntRes = db.deleteClientInternalSystem(userId, int.id);
   const clientAFinal = db.getClient(userId, companyA);
-  record('deleteClientVpn/deleteClientServer/deleteClientDatabase/deleteClientExternalService/deleteClientInternalSystem: rows removed',
-    delVpnRes.ok && delSrvRes.ok && delDbRes.ok && delExtRes.ok && delIntRes.ok
+  record('deleteClientVpn/deleteClientServer/deleteClientInternalSystem: rows removed',
+    delVpnRes.ok && delSrvRes.ok && delIntRes.ok
     && !clientAFinal.vpnConnections.some(v => v.id === vpn.id) && !clientAFinal.servers.some(s => s.id === srv.id)
-    && !clientAFinal.databases.some(d => d.id === database.id) && !clientAFinal.externalServices.some(x => x.id === ext.id)
     && !clientAFinal.internalSystems.some(s => s.id === int.id),
-    `vpnCount=${clientAFinal.vpnConnections.length} serverCount=${clientAFinal.servers.length} dbCount=${clientAFinal.databases.length} extCount=${clientAFinal.externalServices.length} intCount=${clientAFinal.internalSystems.length}`);
+    `vpnCount=${clientAFinal.vpnConnections.length} serverCount=${clientAFinal.servers.length} intCount=${clientAFinal.internalSystems.length}`);
+
+  // ── Retired sections: the two removed CRUD surfaces are gone, and getClient
+  //    no longer returns their arrays at all (not just an empty one).
+  const retiredFns = [
+    'createClientDatabase', 'updateClientDatabase', 'deleteClientDatabase',
+    'createClientExternalService', 'updateClientExternalService', 'deleteClientExternalService',
+  ];
+  record('Retired: db.js exposes no Database/External Service CRUD',
+    retiredFns.every(fn => db[fn] === undefined),
+    'still exported: ' + (retiredFns.filter(fn => db[fn] !== undefined).join(', ') || '(none)'));
+  record('Retired: getClient returns no databases/externalServices keys, and no count fields on listClients',
+    !('databases' in clientAFinal) && !('externalServices' in clientAFinal)
+      && db.listClients(userId).every(c => !('databaseCount' in c) && !('externalServiceCount' in c)),
+    'clientKeys=' + Object.keys(clientAFinal).join(','));
 
 } catch (err) {
   exitCode = 1;
