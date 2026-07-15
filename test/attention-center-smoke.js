@@ -15,17 +15,18 @@
 // Run:  node test/attention-center-smoke.js
 //
 // Gates exercised:
-//   1. A seeded subscription/company document/VPN/external-service/internal-
-//      system, each with a distinct renewal/expiry date, all appear in
-//      getAttentionItems() with the right type/title/date/module.
+//   1. A seeded subscription/company document/VPN/internal-system, each with a
+//      distinct renewal/expiry date, all appear in getAttentionItems() with the
+//      right type/title/date/module.
 //   2. Client-sourced items carry companyId (for the deep-link into that
 //      specific client's detail view); subscription/companyDocument items
 //      do not.
 //   3. A record with no renewal/expiry date set at all is correctly excluded
 //      (not mis-tiered as some default date).
-//   4. client_servers/client_databases (no expiry_date column) never
-//      contribute items — only the three client_* tables that actually have
-//      the column do.
+//   4. client_servers (no expiry_date column) never contributes items — only
+//      the two client_* tables that have the column AND still have a UI do.
+//      (client_external_services has the column but its section was retired,
+//      so it's no longer read as a source at all.)
 //   5. Per-user isolation: a second user's records never leak into the
 //      first user's attention list.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -81,10 +82,9 @@ try {
   const noDateDoc = db.createCompanyDocument(userId, { name: 'ATTN doc with no renewal date', category: '', renewalDate: '', notes: '' });
 
   const vpn = db.createClientVpn(userId, companyId, { connectionName: 'ATTN test vpn', password: '', expiryDate: '2099-03-03' });
-  const ext = db.createClientExternalService(userId, companyId, { name: 'ATTN test external', secretKey: '', expiryDate: '2099-04-04' });
   const int_ = db.createClientInternalSystem(userId, companyId, { name: 'ATTN test internal', password: '', secretKey: '', expiryDate: '2099-05-05' });
-  // No-expiry-date controls on the two tables that DO have the column, plus
-  // the two tables that have NO expiry_date column at all.
+  // No-expiry-date controls on the two tables that DO have the column and a UI,
+  // plus client_servers, which has no expiry_date column at all.
   const vpnNoDate = db.createClientVpn(userId, companyId, { connectionName: 'ATTN vpn no expiry', password: '' });
   // A server IS its (System, Role, Environment) triple since migrations 038/039 —
   // all three required — so seeding one needs a real SYSTEM this client has no
@@ -96,8 +96,7 @@ try {
   const server = db.createClientServer(userId, companyId, {
     systemName: freeSystem.label, role: 'APPLICATIONS', environment: 'PRODUCTION', password: '',
   });
-  const database = db.createClientDatabase(userId, companyId, { name: 'ATTN test database', password: '' });
-  if (!server?.id || !database?.id) throw new Error('could not seed the server/database controls');
+  if (!server?.id) throw new Error('could not seed the server control');
 
   const items = db.getAttentionItems(userId);
 
@@ -118,18 +117,13 @@ try {
     !!vpnItem && vpnItem.type === 'clientVpn' && vpnItem.date === '2099-03-03' && vpnItem.module === 'clients',
     JSON.stringify(vpnItem));
 
-  const extItem = findByTitle('ATTN test external');
-  record('Gate 1d: seeded External Service appears with type=clientExternal, correct date/module',
-    !!extItem && extItem.type === 'clientExternal' && extItem.date === '2099-04-04' && extItem.module === 'clients',
-    JSON.stringify(extItem));
-
   const intItem = findByTitle('ATTN test internal');
-  record('Gate 1e: seeded Internal System appears with type=clientInternal, correct date/module',
+  record('Gate 1d: seeded Internal System appears with type=clientInternal, correct date/module',
     !!intItem && intItem.type === 'clientInternal' && intItem.date === '2099-05-05' && intItem.module === 'clients',
     JSON.stringify(intItem));
 
   record('Gate 2: client-sourced items carry companyId; subscription/companyDocument items do not',
-    vpnItem.companyId === companyId && extItem.companyId === companyId && intItem.companyId === companyId
+    vpnItem.companyId === companyId && intItem.companyId === companyId
       && subItem.companyId == null && docItem.companyId == null,
     `vpn.companyId=${vpnItem.companyId} sub.companyId=${subItem.companyId} doc.companyId=${docItem.companyId}`);
 
@@ -138,15 +132,28 @@ try {
     `noDateDocFound=${!!findByTitle('ATTN doc with no renewal date')} noDateVpnFound=${!!findByTitle('ATTN vpn no expiry')}`);
 
   // A server has no name to look up by, so this checks the item TYPES instead —
-  // which is the real claim anyway: neither table is a source at all.
+  // which is the real claim anyway: the table is not a source at all.
   const serverItems = items.filter(i => i.type === 'server' || i.type === 'database');
-  record('Gate 4: client_servers/client_databases (no expiry_date column) never contribute items',
-    serverItems.length === 0 && !findByTitle('ATTN test database'),
-    `server/database-typed items=${serverItems.length} databaseFoundByTitle=${!!findByTitle('ATTN test database')} ` +
-    `(seeded server #${server.id}, database #${database.id})`);
+  record('Gate 4a: client_servers (no expiry_date column) never contributes items',
+    serverItems.length === 0,
+    `server/database-typed items=${serverItems.length} (seeded server #${server.id})`);
 
-  record('Gate (sanity): exactly 5 new attention items were added by this seed (5 dated records)',
-    items.length === before + 5, `before=${before} after=${items.length}`);
+  // The retired External Services section: client_external_services still HAS an
+  // expiry_date column and could still hold a legacy row, so this seeds one by raw
+  // SQL (the CRUD is gone) and asserts getAttentionItems() no longer reads it.
+  const raw2 = new DatabaseSync(path.join(workDir, 'cooperation-tools.db'));
+  raw2.prepare(
+    `INSERT INTO client_external_services(user_id, company_id, name, url, company_code, secret_key, expiry_date, contact, notes, sort_order, created_at, updated_at)
+     VALUES(?, ?, 'ATTN retired external', '', '', '', '2099-04-04', '', '', 0, ?, ?)`
+  ).run(userId, companyId, new Date().toISOString(), new Date().toISOString());
+  raw2.close();
+  const afterExt = db.getAttentionItems(userId);
+  record('Gate 4b: a legacy client_external_services row (retired section) contributes no item',
+    !afterExt.some(i => i.title === 'ATTN retired external') && !afterExt.some(i => i.type === 'clientExternal'),
+    `foundByTitle=${afterExt.some(i => i.title === 'ATTN retired external')} clientExternalTyped=${afterExt.filter(i => i.type === 'clientExternal').length}`);
+
+  record('Gate (sanity): exactly 4 new attention items were added by this seed (4 dated records)',
+    items.length === before + 4, `before=${before} after=${items.length}`);
 
   // ── Gate 5 — per-user isolation ──────────────────────────────────────────────
   const otherUsername = 'attn-smoke-other-' + Date.now();

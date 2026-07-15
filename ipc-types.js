@@ -456,49 +456,11 @@
  */
 
 /**
- * One database recorded against a client (`clients:database-*`, migration 019).
- * @typedef {Object} ClientDatabase
- * @property {number} id
- * @property {number} companyId  The COMPANY lookup_codes id this belongs to.
- * @property {string} name
- * @property {string} engine     Free text (e.g. 'PostgreSQL', 'SQL Server') — not lookup-driven.
- * @property {string} host       Free text host/IP.
- * @property {string} port       Free text port number.
- * @property {string} username   Stored in plain text (no encryption layer in this app).
- * @property {string} password   Stored in plain text (no encryption layer in this app).
- * @property {string} version             Since migration 026 — free text engine version (e.g. 'PostgreSQL 15').
- * @property {string} credentialLocation  Since migration 026 — free text reference to where the real login is managed, for records where this table's own password field isn't the source of truth.
- * @property {string} notes
- * @property {number} sortOrder
- * @property {string} createdAt
- * @property {string} updatedAt
- */
-
-/**
- * One third-party API integration recorded against a client
- * (`clients:external-*`, migration 020) — e.g. a government/partner API.
- * @typedef {Object} ClientExternalService
- * @property {number} id
- * @property {number} companyId   The COMPANY lookup_codes id this belongs to.
- * @property {string} name
- * @property {string} url         Free text, often includes a query-string API key.
- * @property {string} companyCode Free text — the integration's own company/client code (not our COMPANY lookup id).
- * @property {string} secretKey   Stored in plain text (no encryption layer in this app).
- * @property {string} expiryDate Since migration 026 — YYYY-MM-DD or '' (unset), e.g. an API key/contract renewal date. Display only, no reminders.
- * @property {string} contact     Since migration 026 — free text support contact for this integration.
- * @property {string} notes
- * @property {number} sortOrder
- * @property {string} createdAt
- * @property {string} updatedAt
- */
-
-/**
  * One internal web tool/portal recorded against a client
  * (`clients:internal-*`, migration 021) — e.g. an internal RabbitMQ console.
  * A plain name/url/username/password login, plus (since migration 024) an
  * optional companyCode/secretKey pair for records that are really a
- * third-party API integration (the ClientExternalService shape) grouped
- * alongside servers/portals instead.
+ * third-party API integration grouped alongside servers/portals instead.
  * @typedef {Object} ClientInternalSystem
  * @property {number} id
  * @property {number} companyId  The COMPANY lookup_codes id this belongs to.
@@ -543,13 +505,11 @@
  * @property {string} label
  * @property {number} vpnCount
  * @property {number} serverCount
- * @property {number} databaseCount
- * @property {number} externalServiceCount
  * @property {number} internalSystemCount
- * @property {ClientSearchRecord[]} records  One entry per auth/server/database/external/
- *   internal record this client owns — human-identifying fields only, never password/
- *   secretKey. Powers the list view's records search (flattened into a results table
- *   across all clients) — see `groupClientRows()` in db.js.
+ * @property {ClientSearchRecord[]} records  One entry per auth/server/internal record
+ *   this client owns — human-identifying fields only, never password/secretKey. Powers
+ *   the list view's records search (flattened into a results table across all clients)
+ *   — see `groupClientRows()` in db.js.
  */
 
 /**
@@ -558,8 +518,8 @@
  * @typedef {Object} ClientSearchRecord
  * @property {number} id         The underlying row's id in its own client_* table (scoped by `type`)
  *   — looked back up via `clients:get` to show the record-info popup with every field.
- * @property {'auth'|'servers'|'databases'|'external'|'internal'} type
- * @property {string} typeLabel  Human label for `type` ('Auth'/'Server'/'Database'/'External'/'Internal').
+ * @property {'auth'|'servers'|'internal'} type
+ * @property {string} typeLabel  Human label for `type` ('Auth'/'Server'/'Internal').
  * @property {string} name       The record's primary display name.
  * @property {string} detail     Secondary display text (e.g. host/url), joined with ' · '.
  * @property {string[]} fields   Every human-identifying field value on this record, for matching.
@@ -573,8 +533,6 @@
  * @property {string} label
  * @property {ClientVpnConnection[]} vpnConnections
  * @property {ClientServer[]} servers
- * @property {ClientDatabase[]} databases
- * @property {ClientExternalService[]} externalServices
  * @property {ClientInternalSystem[]} internalSystems
  */
 
@@ -660,7 +618,7 @@
  * renewLabel() and reuses them here instead of duplicating day-math
  * server-side.
  * @typedef {Object} AttentionItem
- * @property {'subscription'|'companyDocument'|'clientVpn'|'clientExternal'|'clientInternal'} type
+ * @property {'subscription'|'companyDocument'|'clientVpn'|'clientInternal'} type
  * @property {number} id           The source row's own id (subscription id, company_documents id, or the client_* record id).
  * @property {string} title        Human-facing name (subscription/document name, VPN connection name, etc.).
  * @property {string} date         YYYY-MM-DD renewal_date or expiry_date.

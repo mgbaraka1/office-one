@@ -1300,7 +1300,7 @@
     #project-modal { width: 520px; }
     #link-task-modal { width: 540px; }
     #modal, #backlog-modal, #sub-modal,
-    #client-vpn-modal, #client-database-modal, #client-external-modal,
+    #client-vpn-modal,
     #client-server-modal, #client-internal-modal { width: 640px; max-width: 94vw; }
     #task-detail-modal { width: 720px; max-width: 94vw; max-height: 90vh; }
     #task-detail-overlay { z-index: 150; }
@@ -2720,7 +2720,7 @@
 
   <!-- List view: every active COMPANY lookup, as cards. The large search bar
        above the grid searches every client's own records (auth/servers/
-       databases/external/internal) — while it holds text the card grid is
+       internal) — while it holds text the card grid is
        swapped for a flat table of the matching records (see
        renderClientsList/renderClientSearchResults). -->
   <div id="clients-list-view" class="pj-scroll">
@@ -2872,124 +2872,6 @@
     <div class="modal-footer">
       <button class="btn" onclick="closeClientServerModal()">Cancel</button>
       <button class="btn primary" id="client-server-modal-submit" onclick="submitClientServerModal()">Add Server</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══ CLIENT DATABASE ADD/EDIT MODAL ══ -->
-<div id="client-database-modal-overlay" class="modal-overlay" onclick="clientDatabaseOverlayClick(event)">
-  <div id="client-database-modal" class="modal-box">
-    <div class="modal-header">
-      <span class="modal-title" id="client-database-modal-title">Add Database</span>
-      <button class="modal-close" onclick="closeClientDatabaseModal()" data-ic="x"></button>
-    </div>
-    <div class="modal-body">
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Database Name</label>
-          <input id="cdb-name" type="text" placeholder="e.g. Middleware Database" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Engine</label>
-          <input id="cdb-engine" type="text" placeholder="e.g. PostgreSQL, SQL Server" />
-        </div>
-        <div class="form-group">
-          <label>Host</label>
-          <input id="cdb-host" type="text" placeholder="e.g. db.client.com" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Port</label>
-          <input id="cdb-port" type="text" placeholder="e.g. 5432" />
-        </div>
-        <div class="form-group">
-          <label>Username</label>
-          <input id="cdb-username" type="text" placeholder="e.g. middleware" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Password</label>
-          <input id="cdb-password" type="text" placeholder="Database login password" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Version (optional)</label>
-          <input id="cdb-version" type="text" placeholder="e.g. PostgreSQL 15" />
-        </div>
-        <div class="form-group">
-          <label>Credential Location (optional)</label>
-          <input id="cdb-cred-location" type="text" placeholder="e.g. Bitwarden — IT-Ops vault" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Notes</label>
-          <textarea id="cdb-notes" placeholder="Reference notes only"></textarea>
-        </div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn" onclick="closeClientDatabaseModal()">Cancel</button>
-      <button class="btn primary" id="client-database-modal-submit" onclick="submitClientDatabaseModal()">Add Database</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══ CLIENT EXTERNAL SERVICE ADD/EDIT MODAL ══ -->
-<div id="client-external-modal-overlay" class="modal-overlay" onclick="clientExternalOverlayClick(event)">
-  <div id="client-external-modal" class="modal-box">
-    <div class="modal-header">
-      <span class="modal-title" id="client-external-modal-title">Add External Service</span>
-      <button class="modal-close" onclick="closeClientExternalModal()" data-ic="x"></button>
-    </div>
-    <div class="modal-body">
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Service Name</label>
-          <input id="cext-name" type="text" placeholder="e.g. Uploader Service - Production" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group full">
-          <label>URL</label>
-          <input id="cext-url" type="text" placeholder="e.g. https://apis.example.gov.sa/v1?API_KEY=..." />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Company Code</label>
-          <input id="cext-company-code" type="text" placeholder="e.g. 131" />
-        </div>
-        <div class="form-group">
-          <label>Secret Key</label>
-          <input id="cext-secret-key" type="text" placeholder="Integration secret key" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Expiry Date (optional)</label>
-          <input id="cext-expiry" type="date" />
-        </div>
-        <div class="form-group">
-          <label>Contact (optional)</label>
-          <input id="cext-contact" type="text" placeholder="e.g. support@vendor.com" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Notes</label>
-          <textarea id="cext-notes" placeholder="Reference notes only"></textarea>
-        </div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn" onclick="closeClientExternalModal()">Cancel</button>
-      <button class="btn primary" id="client-external-modal-submit" onclick="submitClientExternalModal()">Add Service</button>
     </div>
   </div>
 </div>
@@ -6251,7 +6133,7 @@ function clearErrors() { clearErrorsIn('body'); }
 // ── Keyboard shortcuts ──
 document.addEventListener('keydown', e => {
   const inputFocused = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
-  const anyOpen = ['modal-overlay','print-overlay','month-overlay','sub-modal-overlay','sub-settings-overlay','backlog-modal-overlay','project-modal-overlay','link-task-overlay','palette-overlay','task-detail-overlay','companydoc-modal-overlay','client-vpn-modal-overlay','client-server-modal-overlay','client-database-modal-overlay','client-external-modal-overlay','client-internal-modal-overlay','client-group-rename-modal-overlay','client-new-group-modal-overlay','client-record-info-overlay','client-edit-confirm-overlay','client-history-overlay']
+  const anyOpen = ['modal-overlay','print-overlay','month-overlay','sub-modal-overlay','sub-settings-overlay','backlog-modal-overlay','project-modal-overlay','link-task-overlay','palette-overlay','task-detail-overlay','companydoc-modal-overlay','client-vpn-modal-overlay','client-server-modal-overlay','client-internal-modal-overlay','client-group-rename-modal-overlay','client-new-group-modal-overlay','client-record-info-overlay','client-edit-confirm-overlay','client-history-overlay']
     .some(id => document.getElementById(id).classList.contains('open'));
 
   // Command palette — available everywhere, even while typing in a field.
@@ -6265,7 +6147,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     closeModal(); closePrint(); closeMonthView(); closeSubModal(); closeSubSettings(); closeBacklogModal();
     closeProjectModal(); closeLinkModal(); closePalette(); closeTaskDetail(); closeCompanyDocModal();
-    closeClientVpnModal(); closeClientServerModal(); closeClientDatabaseModal(); closeClientExternalModal(); closeClientInternalModal(); closeClientGroupRenameModal(); closeClientNewGroupModal();
+    closeClientVpnModal(); closeClientServerModal(); closeClientInternalModal(); closeClientGroupRenameModal(); closeClientNewGroupModal();
     closeClientRecordInfoModal(); cancelClientEditConfirm(); closeClientHistoryModal();
     closeSessionModal(); closeWlHistoryModal(); closeMergeModal(); closeShortcutsOverlay(); closeHowThinksOverlay();
     document.querySelectorAll('.top-menu.open').forEach(m => m.classList.remove('open'));
@@ -6286,8 +6168,6 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('companydoc-modal-overlay').classList.contains('open')) submitCompanyDocModal();
     if (document.getElementById('client-vpn-modal-overlay').classList.contains('open')) submitClientVpnModal();
     if (document.getElementById('client-server-modal-overlay').classList.contains('open')) submitClientServerModal();
-    if (document.getElementById('client-database-modal-overlay').classList.contains('open')) submitClientDatabaseModal();
-    if (document.getElementById('client-external-modal-overlay').classList.contains('open')) submitClientExternalModal();
     if (document.getElementById('client-internal-modal-overlay').classList.contains('open')) submitClientInternalModal();
     if (document.getElementById('client-group-rename-modal-overlay').classList.contains('open')) submitClientGroupRename();
     if (document.getElementById('client-new-group-modal-overlay').classList.contains('open')) submitClientNewGroupModal();
@@ -7599,14 +7479,13 @@ async function renderOverview() {
   const daysLogged = ov.daysLogged;
 
   // Cross-module attention data — one aggregated read (attention:list) across
-  // subscription renewals, Company Document renewals, and the three client_*
-  // tables with an expiry_date (Auth/VPN, External Services, Internal
-  // Systems), instead of each source re-deriving its own urgency separately.
+  // subscription renewals, Company Document renewals, and the two client_*
+  // tables with an expiry_date and a UI (Auth/VPN, Internal Systems), instead
+  // of each source re-deriving its own urgency separately.
   const ATTENTION_META = {
     subscription:     { icon: ic('credit-card'),    kind: 'Renews' },
     companyDocument:  { icon: ic('calendar-check'), kind: 'Renews' },
     clientVpn:        { icon: ic('layers'),          kind: 'Auth expires' },
-    clientExternal:   { icon: ic('layers'),          kind: 'External Service expires' },
     clientInternal:   { icon: ic('layers'),          kind: 'Internal System expires' },
   };
   let rawAttention = [];
@@ -10562,27 +10441,23 @@ async function undoDeleteCompanyDoc() {
 // editable sub-list sections).
 let clientsList = [];
 let clientsLoaded = false;
-let clientRecordFilter = '';  // matches within each client's own records (auth/servers/databases/external/internal)
+let clientRecordFilter = '';  // matches within each client's own records (auth/servers/internal)
 let currentClient = null;       // Client (from clients:get) shown in the detail view
 let clientVpnEditId = null;      // null = create mode in the Auth modal
 let clientServerEditId = null;   // null = create mode in the Server modal
-let clientDatabaseEditId = null; // null = create mode in the Database modal
-let clientExternalEditId = null; // null = create mode in the External Service modal
 let clientInternalEditId = null; // null = create mode in the Internal System modal
 let clientGroupRenameKind = null;    // 'server' | 'internal' — which section's group is being renamed
 let clientGroupRenameOldName = null; // the group's current systemName
 let clientNewGroupKind = null;       // 'server' | 'internal' — which section's "+ New Group" modal is open
 
 // Detail-view search (per human-identifying fields only — never credentials)
-// + type filter (all 5 sections shown by default). Reset per client on open;
+// + type filter (all 4 sections shown by default). Reset per client on open;
 // preserved across an in-place reload (post-CRUD refresh of the same client).
 let clientDetailSearch = '';
 const CLIENT_DETAIL_TYPES = [
   { key: 'projects',  label: 'Projects' },
   { key: 'auth',      label: 'Auth' },
   { key: 'servers',   label: 'Servers' },
-  { key: 'databases', label: 'Databases' },
-  { key: 'external',  label: 'External' },
   { key: 'internal',  label: 'Internal' },
 ];
 let clientDetailTypes = new Set(CLIENT_DETAIL_TYPES.map(t => t.key));
@@ -10635,8 +10510,7 @@ function buildClientCard(c, projectCount) {
   count.innerHTML = ic('zap');
   count.appendChild(document.createTextNode(
     c.vpnCount + ' auth' + ' · ' + c.serverCount + ' server' + (c.serverCount === 1 ? '' : 's')
-    + ' · ' + c.databaseCount + ' database' + (c.databaseCount === 1 ? '' : 's')
-    + ' · ' + c.externalServiceCount + ' external' + ' · ' + c.internalSystemCount + ' internal'
+    + ' · ' + c.internalSystemCount + ' internal'
     + ' · ' + (projectCount || 0) + ' project' + (projectCount === 1 ? '' : 's')));
   foot.appendChild(count);
   const open = pjMk('span', 'pj-card-open', 'Open');
@@ -10795,14 +10669,6 @@ const CLIENT_RECORD_INFO_FIELDS = {
     ['host', 'Host (IP)'], ['hostname', 'Hostname'], ['os', 'Operating System'],
     ['username', 'Username'], ['password', 'Password', true], ['notes', 'Notes'],
   ],
-  databases: [
-    ['name', 'Name'], ['engine', 'Engine'], ['host', 'Host'], ['port', 'Port'], ['username', 'Username'],
-    ['password', 'Password', true], ['version', 'Version'], ['credentialLocation', 'Credential Location'], ['notes', 'Notes'],
-  ],
-  external: [
-    ['name', 'Name'], ['url', 'URL'], ['companyCode', 'Company Code'], ['secretKey', 'Secret Key', true],
-    ['expiryDate', 'Expiry Date'], ['contact', 'Contact'], ['notes', 'Notes'],
-  ],
   internal: [
     ['name', 'Name'], ['url', 'URL'], ['username', 'Username'], ['password', 'Password', true],
     ['systemName', 'System Name'], ['environment', 'Environment'], ['companyCode', 'Company Code'],
@@ -10810,8 +10676,7 @@ const CLIENT_RECORD_INFO_FIELDS = {
   ],
 };
 const CLIENT_RECORD_ARRAY_KEY = {
-  auth: 'vpnConnections', servers: 'servers', databases: 'databases',
-  external: 'externalServices', internal: 'internalSystems',
+  auth: 'vpnConnections', servers: 'servers', internal: 'internalSystems',
 };
 let _clientRecordInfoCurrent = null; // { companyId, presetSearch } — for the "Open Client" footer button
 
@@ -10966,8 +10831,6 @@ function renderClientDetailSections(c) {
   const allServers = Array.isArray(c.servers) ? c.servers : [];
   const allInternalSystems = Array.isArray(c.internalSystems) ? c.internalSystems : [];
   const vpns = Array.isArray(c.vpnConnections) ? c.vpnConnections : [];
-  const databases = Array.isArray(c.databases) ? c.databases : [];
-  const externalServices = Array.isArray(c.externalServices) ? c.externalServices : [];
 
   if (clientDetailTypes.size === 0) {
     host.appendChild(pjMk('div', 'cp-records-empty', 'All sections are hidden — enable at least one filter above.'));
@@ -11066,50 +10929,6 @@ function renderClientDetailSections(c) {
       ungroupedServers.forEach(s => srvSec.appendChild(buildClientServerCard(s)));
     }
     host.appendChild(srvSec);
-  }
-
-  // ── Databases section ──
-  if (clientDetailTypes.has('databases')) {
-    const dbSec = pjMk('div', 'pj-section');
-    const dHead = pjMk('div', 'pj-section-head');
-    const dTitle = pjMk('div', 'pj-section-title');
-    dTitle.innerHTML = ic('layers');
-    dTitle.appendChild(document.createTextNode('Databases (' + databases.length + ')'));
-    dHead.appendChild(dTitle);
-    const dActions = pjMk('div', 'pj-section-actions');
-    const dAddBtn = pjMk('button', 'btn primary');
-    dAddBtn.innerHTML = ic('plus') + ' Add Database';
-    dAddBtn.addEventListener('click', () => openClientDatabaseModal());
-    dActions.appendChild(dAddBtn);
-    dHead.appendChild(dActions);
-    dbSec.appendChild(dHead);
-    const shownDatabases = databases.filter(d => textMatch([d.name, d.engine, d.host], q));
-    if (databases.length === 0) dbSec.appendChild(pjMk('div', 'cp-records-empty', 'No databases recorded yet.'));
-    else if (shownDatabases.length === 0) dbSec.appendChild(pjMk('div', 'cp-records-empty', 'No databases match your search.'));
-    else shownDatabases.forEach(d => dbSec.appendChild(buildClientDatabaseCard(d)));
-    host.appendChild(dbSec);
-  }
-
-  // ── External Services section ──
-  if (clientDetailTypes.has('external')) {
-    const extSec = pjMk('div', 'pj-section');
-    const eHead = pjMk('div', 'pj-section-head');
-    const eTitle = pjMk('div', 'pj-section-title');
-    eTitle.innerHTML = ic('external-link');
-    eTitle.appendChild(document.createTextNode('External Services (' + externalServices.length + ')'));
-    eHead.appendChild(eTitle);
-    const eActions = pjMk('div', 'pj-section-actions');
-    const eAddBtn = pjMk('button', 'btn primary');
-    eAddBtn.innerHTML = ic('plus') + ' Add Service';
-    eAddBtn.addEventListener('click', () => openClientExternalModal());
-    eActions.appendChild(eAddBtn);
-    eHead.appendChild(eActions);
-    extSec.appendChild(eHead);
-    const shownExternal = externalServices.filter(x => textMatch([x.name, x.url], q));
-    if (externalServices.length === 0) extSec.appendChild(pjMk('div', 'cp-records-empty', 'No external services recorded yet.'));
-    else if (shownExternal.length === 0) extSec.appendChild(pjMk('div', 'cp-records-empty', 'No external services match your search.'));
-    else shownExternal.forEach(x => extSec.appendChild(buildClientExternalServiceCard(x)));
-    host.appendChild(extSec);
   }
 
   // ── Internal Systems section (portals sharing a System name are grouped
@@ -11843,260 +11662,6 @@ async function deleteClientServerEntry(id) {
     } catch { toast('Could not restore server'); return; }
     // Its identity can have been taken by another server during the undo window.
     if (res && res.ok === false) { toast(res.error || 'Could not restore server'); return; }
-    await reloadCurrentClient();
-  });
-}
-
-function buildClientDatabaseCard(d) {
-  const card = pjMk('div', 'cl-item-card');
-  const main = pjMk('div', 'cl-item-main');
-  main.appendChild(pjMk('div', 'cl-item-title', d.name || '(unnamed database)'));
-  const metaBits = [d.engine, d.version, d.host, d.port ? ('Port ' + d.port) : ''].filter(Boolean).join(' · ');
-  if (metaBits) main.appendChild(pjMk('div', 'cl-item-meta', metaBits));
-  if (d.username || d.password) {
-    const cred = pjMk('div', 'cl-item-meta cl-item-cred');
-    if (d.username) cred.appendChild(pjMk('span', null, 'User: ' + d.username));
-    if (d.password) {
-      const pwWrap = pjMk('span', 'cl-pw-wrap');
-      const pwText = pjMk('span', 'cl-pw-text', '••••••••');
-      // See buildClientVpnCard's identical comment: value stays in the closed-
-      // over `d` record, never in a DOM attribute.
-      let pwMasked = true;
-      const pwToggle = pjMk('button', 'cd-icon-btn cl-pw-toggle');
-      pwToggle.innerHTML = ic('eye');
-      pwToggle.title = 'Show/hide password';
-      pwToggle.addEventListener('click', () => {
-        pwMasked = !pwMasked;
-        pwText.textContent = pwMasked ? '••••••••' : d.password;
-      });
-      pwWrap.appendChild(document.createTextNode('Pass: '));
-      pwWrap.appendChild(pwText);
-      pwWrap.appendChild(pwToggle);
-      cred.appendChild(pwWrap);
-    }
-    main.appendChild(cred);
-  }
-  if (d.credentialLocation) main.appendChild(pjMk('div', 'cl-item-meta', 'Credential location: ' + d.credentialLocation));
-  if (d.notes) main.appendChild(pjMk('div', 'cl-item-notes', d.notes));
-  main.appendChild(pjMk('div', 'cl-item-updated', clUpdatedLabel(d)));
-  card.appendChild(main);
-
-  const actions = pjMk('div', 'cl-item-actions');
-  const histBtn = pjMk('button', 'cd-icon-btn');
-  histBtn.innerHTML = ic('clock');
-  histBtn.title = 'View history';
-  histBtn.addEventListener('click', () => openClientHistoryModal('database', d.id, d.name));
-  actions.appendChild(histBtn);
-  const editBtn = pjMk('button', 'cd-icon-btn');
-  editBtn.innerHTML = ic('pencil');
-  editBtn.title = 'Edit';
-  editBtn.addEventListener('click', () => openClientDatabaseModal(d));
-  actions.appendChild(editBtn);
-  const delBtn = pjMk('button', 'cd-icon-btn danger');
-  delBtn.innerHTML = ic('trash-2');
-  delBtn.title = 'Delete';
-  delBtn.addEventListener('click', () =>
-    showDeleteConfirm(actions, () => deleteClientDatabaseEntry(d.id), () => renderClientDetail(currentClient)));
-  actions.appendChild(delBtn);
-  card.appendChild(actions);
-  return card;
-}
-
-// ── Database modal ──
-function openClientDatabaseModal(d) {
-  clientDatabaseEditId = d ? d.id : null;
-  document.getElementById('client-database-modal-title').textContent = d ? 'Edit Database' : 'Add Database';
-  document.getElementById('client-database-modal-submit').textContent = d ? 'Save Changes' : 'Add Database';
-  document.getElementById('cdb-name').value = d ? (d.name || '') : '';
-  document.getElementById('cdb-engine').value = d ? (d.engine || '') : '';
-  document.getElementById('cdb-host').value = d ? (d.host || '') : '';
-  document.getElementById('cdb-port').value = d ? (d.port || '') : '';
-  document.getElementById('cdb-username').value = d ? (d.username || '') : '';
-  document.getElementById('cdb-password').value = d ? (d.password || '') : '';
-  document.getElementById('cdb-version').value = d ? (d.version || '') : '';
-  document.getElementById('cdb-cred-location').value = d ? (d.credentialLocation || '') : '';
-  document.getElementById('cdb-notes').value = d ? (d.notes || '') : '';
-  clearErrorsIn('#client-database-modal');
-  document.getElementById('client-database-modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById('cdb-name').focus(), 80);
-}
-function closeClientDatabaseModal() {
-  document.getElementById('client-database-modal-overlay').classList.remove('open');
-  clientDatabaseEditId = null;
-}
-function clientDatabaseOverlayClick(e) {
-  if (e.target === document.getElementById('client-database-modal-overlay')) closeClientDatabaseModal();
-}
-async function submitClientDatabaseModal() {
-  clearErrorsIn('#client-database-modal');
-  const name = document.getElementById('cdb-name').value.trim();
-  if (!name) { markError('cdb-name'); return; }
-  const data = {
-    name,
-    engine:   document.getElementById('cdb-engine').value.trim(),
-    host:     document.getElementById('cdb-host').value.trim(),
-    port:     document.getElementById('cdb-port').value.trim(),
-    username: document.getElementById('cdb-username').value.trim(),
-    password: document.getElementById('cdb-password').value.trim(),
-    version:  document.getElementById('cdb-version').value.trim(),
-    credentialLocation: document.getElementById('cdb-cred-location').value.trim(),
-    notes:    document.getElementById('cdb-notes').value.trim(),
-  };
-  if (clientDatabaseEditId != null) {
-    const before = (currentClient?.databases || []).find(d => d.id === clientDatabaseEditId);
-    const changes = diffClientFields(before, data, DATABASE_CONFIRM_FIELDS);
-    if (changes.length && !(await confirmClientFieldChanges(changes))) return;
-  }
-  try {
-    if (clientDatabaseEditId != null) await window.api.updateClientDatabase(clientDatabaseEditId, data);
-    else await window.api.createClientDatabase(currentClient.id, data);
-    closeClientDatabaseModal();
-    toast('Database saved');
-  } catch { toast('Could not save database'); return; }
-  await reloadCurrentClient();
-}
-async function deleteClientDatabaseEntry(id) {
-  const snapshot = (currentClient?.databases || []).find(d => d.id === id);
-  try { await window.api.deleteClientDatabase(id); }
-  catch { toast('Could not delete database'); renderClientDetail(currentClient); return; }
-  await reloadCurrentClient();
-  if (!snapshot) return;
-  showGenericUndo('Database deleted', async () => {
-    try {
-      await window.api.createClientDatabase(snapshot.companyId, {
-        name: snapshot.name, engine: snapshot.engine, host: snapshot.host, port: snapshot.port,
-        username: snapshot.username, password: snapshot.password,
-        version: snapshot.version, credentialLocation: snapshot.credentialLocation, notes: snapshot.notes,
-      });
-    } catch { toast('Could not restore database'); return; }
-    await reloadCurrentClient();
-  });
-}
-
-function buildClientExternalServiceCard(x) {
-  const card = pjMk('div', 'cl-item-card');
-  const main = pjMk('div', 'cl-item-main');
-  main.appendChild(pjMk('div', 'cl-item-title', x.name || '(unnamed service)'));
-  if (x.url) main.appendChild(pjMk('div', 'cl-item-meta', x.url));
-  if (x.companyCode || x.secretKey) {
-    const cred = pjMk('div', 'cl-item-meta cl-item-cred');
-    if (x.companyCode) cred.appendChild(pjMk('span', null, 'Company Code: ' + x.companyCode));
-    if (x.secretKey) {
-      const skWrap = pjMk('span', 'cl-pw-wrap');
-      const skText = pjMk('span', 'cl-pw-text', '••••••••');
-      // See buildClientVpnCard's identical comment: value stays in the closed-
-      // over `x` record, never in a DOM attribute.
-      let skMasked = true;
-      const skToggle = pjMk('button', 'cd-icon-btn cl-pw-toggle');
-      skToggle.innerHTML = ic('eye');
-      skToggle.title = 'Show/hide secret key';
-      skToggle.addEventListener('click', () => {
-        skMasked = !skMasked;
-        skText.textContent = skMasked ? '••••••••' : x.secretKey;
-      });
-      skWrap.appendChild(document.createTextNode('Secret Key: '));
-      skWrap.appendChild(skText);
-      skWrap.appendChild(skToggle);
-      cred.appendChild(skWrap);
-    }
-    main.appendChild(cred);
-  }
-  if (x.contact) main.appendChild(pjMk('div', 'cl-item-meta', 'Contact: ' + x.contact));
-  if (x.expiryDate) {
-    const status = cdRenewalStatus(x.expiryDate);
-    const row = pjMk('div', 'cd-renewal' + (status ? ' ' + status : ''));
-    row.innerHTML = ic('calendar-clock');
-    const prefix = status === 'overdue' ? 'Overdue — ' : status === 'soon' ? 'Expires soon — ' : 'Expires ';
-    row.appendChild(document.createTextNode(prefix + new Date(x.expiryDate + 'T00:00:00').toLocaleDateString()));
-    main.appendChild(row);
-  }
-  if (x.notes) main.appendChild(pjMk('div', 'cl-item-notes', x.notes));
-  main.appendChild(pjMk('div', 'cl-item-updated', clUpdatedLabel(x)));
-  card.appendChild(main);
-
-  const actions = pjMk('div', 'cl-item-actions');
-  const histBtn = pjMk('button', 'cd-icon-btn');
-  histBtn.innerHTML = ic('clock');
-  histBtn.title = 'View history';
-  histBtn.addEventListener('click', () => openClientHistoryModal('external', x.id, x.name));
-  actions.appendChild(histBtn);
-  const editBtn = pjMk('button', 'cd-icon-btn');
-  editBtn.innerHTML = ic('pencil');
-  editBtn.title = 'Edit';
-  editBtn.addEventListener('click', () => openClientExternalModal(x));
-  actions.appendChild(editBtn);
-  const delBtn = pjMk('button', 'cd-icon-btn danger');
-  delBtn.innerHTML = ic('trash-2');
-  delBtn.title = 'Delete';
-  delBtn.addEventListener('click', () =>
-    showDeleteConfirm(actions, () => deleteClientExternalServiceEntry(x.id), () => renderClientDetail(currentClient)));
-  actions.appendChild(delBtn);
-  card.appendChild(actions);
-  return card;
-}
-
-// ── External Service modal ──
-function openClientExternalModal(x) {
-  clientExternalEditId = x ? x.id : null;
-  document.getElementById('client-external-modal-title').textContent = x ? 'Edit External Service' : 'Add External Service';
-  document.getElementById('client-external-modal-submit').textContent = x ? 'Save Changes' : 'Add Service';
-  document.getElementById('cext-name').value = x ? (x.name || '') : '';
-  document.getElementById('cext-url').value = x ? (x.url || '') : '';
-  document.getElementById('cext-company-code').value = x ? (x.companyCode || '') : '';
-  document.getElementById('cext-secret-key').value = x ? (x.secretKey || '') : '';
-  document.getElementById('cext-expiry').value = x ? (x.expiryDate || '') : '';
-  document.getElementById('cext-contact').value = x ? (x.contact || '') : '';
-  document.getElementById('cext-notes').value = x ? (x.notes || '') : '';
-  clearErrorsIn('#client-external-modal');
-  document.getElementById('client-external-modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById('cext-name').focus(), 80);
-}
-function closeClientExternalModal() {
-  document.getElementById('client-external-modal-overlay').classList.remove('open');
-  clientExternalEditId = null;
-}
-function clientExternalOverlayClick(e) {
-  if (e.target === document.getElementById('client-external-modal-overlay')) closeClientExternalModal();
-}
-async function submitClientExternalModal() {
-  clearErrorsIn('#client-external-modal');
-  const name = document.getElementById('cext-name').value.trim();
-  if (!name) { markError('cext-name'); return; }
-  const data = {
-    name,
-    url:         document.getElementById('cext-url').value.trim(),
-    companyCode: document.getElementById('cext-company-code').value.trim(),
-    secretKey:   document.getElementById('cext-secret-key').value.trim(),
-    expiryDate:  document.getElementById('cext-expiry').value || null,
-    contact:     document.getElementById('cext-contact').value.trim(),
-    notes:       document.getElementById('cext-notes').value.trim(),
-  };
-  if (clientExternalEditId != null) {
-    const before = (currentClient?.externalServices || []).find(x => x.id === clientExternalEditId);
-    const changes = diffClientFields(before, data, EXTERNAL_CONFIRM_FIELDS);
-    if (changes.length && !(await confirmClientFieldChanges(changes))) return;
-  }
-  try {
-    if (clientExternalEditId != null) await window.api.updateClientExternalService(clientExternalEditId, data);
-    else await window.api.createClientExternalService(currentClient.id, data);
-    closeClientExternalModal();
-    toast('External service saved');
-  } catch { toast('Could not save external service'); return; }
-  await reloadCurrentClient();
-}
-async function deleteClientExternalServiceEntry(id) {
-  const snapshot = (currentClient?.externalServices || []).find(x => x.id === id);
-  try { await window.api.deleteClientExternalService(id); }
-  catch { toast('Could not delete external service'); renderClientDetail(currentClient); return; }
-  await reloadCurrentClient();
-  if (!snapshot) return;
-  showGenericUndo('External service deleted', async () => {
-    try {
-      await window.api.createClientExternalService(snapshot.companyId, {
-        name: snapshot.name, url: snapshot.url, companyCode: snapshot.companyCode,
-        secretKey: snapshot.secretKey, expiryDate: snapshot.expiryDate, contact: snapshot.contact, notes: snapshot.notes,
-      });
-    } catch { toast('Could not restore external service'); return; }
     await reloadCurrentClient();
   });
 }
