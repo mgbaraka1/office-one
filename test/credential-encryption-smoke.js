@@ -84,6 +84,12 @@ try {
 
   const companyId = db.getLookupsByCategory('COMPANY')[0]?.id;
   if (!companyId) throw new Error('no COMPANY lookup to attach test records to');
+  // Since migrations 038/039 a server IS its (System, Role, Environment) triple —
+  // all three required and unique per client — so the seed below needs a real
+  // SYSTEM this client has no server under, or the create is (correctly) refused.
+  const usedSystems = new Set(db.getClient(userId, companyId).servers.map(s => s.systemName));
+  const freeSystem = db.getLookupsByCategory('SYSTEM').find(s => !usedSystems.has(s.label));
+  if (!freeSystem) throw new Error('need an unused SYSTEM lookup in this copy');
 
   // ── Gate 1 — no cipher configured: literal plain-text passthrough ──────────
   db.configureCredentialEncryption(null);
@@ -101,11 +107,18 @@ try {
   // ever wired up, which is exactly the population migration 032 must catch.
   const seeded = {
     vpn: db.createClientVpn(userId, companyId, { connectionName: 'CE seed vpn', password: 'seed-vpn-pw' }),
-    server: db.createClientServer(userId, companyId, { serverName: 'CE seed server', password: 'seed-server-pw' }),
+    server: db.createClientServer(userId, companyId, {
+      systemName: freeSystem.label, role: 'APPLICATIONS', environment: 'PRODUCTION', password: 'seed-server-pw',
+    }),
     database: db.createClientDatabase(userId, companyId, { name: 'CE seed db', password: 'seed-db-pw' }),
     external: db.createClientExternalService(userId, companyId, { name: 'CE seed ext', secretKey: 'seed-ext-secret' }),
     internal: db.createClientInternalSystem(userId, companyId, { name: 'CE seed int', password: 'seed-int-pw', secretKey: 'seed-int-secret' }),
   };
+  // A refused create returns {ok:false}, not a record — without this the later
+  // gates would quietly skip whichever table failed to seed instead of failing.
+  for (const [k, v] of Object.entries(seeded)) {
+    if (!v || !v.id) throw new Error(`could not seed the ${k} record: ${JSON.stringify(v)}`);
+  }
 
   // ── Gate 2 — configure the fake cipher, apply migrations for the first time ─
   db.configureCredentialEncryption(fakeCipher);
