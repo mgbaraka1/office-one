@@ -422,20 +422,33 @@
 
 /**
  * One server recorded against a client (`clients:server-*`).
+ *
+ * Since migration 038 a server is IDENTIFIED by the triple systemName - role -
+ * environment: all three are required on write, and the triple must be unique
+ * within a client (validated in db.js's resolveServerIdentity for a readable
+ * error, and by a UNIQUE index on the table). A create/update whose triple is
+ * incomplete or already taken resolves to `{ok: false, error}` instead of the
+ * record — the same convention `projects:link-task` uses.
  * @typedef {Object} ClientServer
  * @property {number} id
  * @property {number} companyId  The COMPANY lookup_codes id this belongs to.
- * @property {string} serverName
  * @property {string} host       Free text IP/hostname.
- * @property {string} environment 'PRODUCTION' | 'TEST' (hardcoded, not lookup-driven).
+ * @property {string} environment 'PRODUCTION' | 'TEST' (hardcoded, not lookup-driven). Identity part 3. May also be a 'nullN' placeholder on legacy data — see `role` below.
  * @property {string} os         Free text (e.g. 'Ubuntu 22.04').
  * @property {string} hostname   Free text — a separate hostname distinct from `host` (the IP). Since migration 022.
- * @property {string} username   Since migration 022. Stored in plain text (no encryption layer in this app).
- * @property {string} password   Since migration 022. Stored in plain text (no encryption layer in this app).
- * @property {string} systemName Free text (e.g. 'RabbitMQ'), since migration 023 — groups with a ClientInternalSystem sharing the same systemName + environment on the Clients "Systems" grouped view.
- * @property {string} role                Since migration 026 — free text purpose/role (e.g. 'Web/App server', 'DB host', 'Load Balancer').
- * @property {string} port                Since migration 026 — free text (e.g. SSH/RDP port); distinct from a database's port.
- * @property {string} credentialLocation  Since migration 026 — free text reference to where the real login is managed, for records where this table's own password field isn't the source of truth.
+ * @property {string} username   Since migration 022. Encrypted at rest since migration 032; decrypted transparently on read.
+ * @property {string} password   Since migration 022. Encrypted at rest since migration 032; decrypted transparently on read.
+ * @property {number|null} systemId       Identity part 1. The SYSTEM lookup_codes id — since migration 039 a server's System is lookup-backed, not free text.
+ * @property {string} systemName Identity part 1's value, round-tripped as the SYSTEM lookup **label** (e.g. 'Online Platform') — the display convention SYSTEM uses everywhere else, which also keeps the label-based grouping (migration 023) working. On WRITE, accepts a SYSTEM label or code; free text is refused.
+ * @property {boolean} systemActive       False when the System is one of migration 039's nullN placeholders — i.e. this row still needs a real system picked.
+ * @property {string} legacySystemName    The pre-039 free-text system name, read-only and never written again (inert legacy column, same convention as tasks.source).
+ * @property {string} role                Identity part 2. Since migration 038 a SERVER_ROLE lookup CODE (a logic field, like status), not the pre-038 free text. Rows the migration found with no role carry a soft-disabled 'nullN' placeholder code for the user to replace by hand.
+ * @property {string} roleLabel           Display label for `role` (e.g. 'Applications'), resolved server-side.
+ * @property {boolean} roleActive         False when `role` is one of migration 038's nullN placeholders — i.e. this row still needs a real role picked.
+ * @property {string} legacyRole          The pre-038 free-text role, read-only and never written again (inert legacy column, same convention as tasks.source). '' when there never was one.
+ * @property {string} legacyServerName    The pre-identity free-text server name. A server has no name of its own — the triple names it — so this column is inert legacy plumbing now: read-only, never written again, exposed only so the original wording stays recoverable.
+ * @property {string} legacyPort              Was migration 026's free-text SSH/RDP port. Inert legacy plumbing, same as legacyServerName (it was empty on every row when the field was retired).
+ * @property {string} legacyCredentialLocation  Was migration 026's free-text credential-location reference. Inert legacy plumbing, same as legacyServerName (also empty on every row when retired).
  * @property {string} notes
  * @property {number} sortOrder
  * @property {string} createdAt

@@ -86,8 +86,18 @@ try {
   // No-expiry-date controls on the two tables that DO have the column, plus
   // the two tables that have NO expiry_date column at all.
   const vpnNoDate = db.createClientVpn(userId, companyId, { connectionName: 'ATTN vpn no expiry', password: '' });
-  const server = db.createClientServer(userId, companyId, { serverName: 'ATTN test server', password: '' });
+  // A server IS its (System, Role, Environment) triple since migrations 038/039 —
+  // all three required — so seeding one needs a real SYSTEM this client has no
+  // server under, or the create is (correctly) refused and this gate would pass
+  // vacuously, proving nothing about client_servers.
+  const usedSystems = new Set(db.getClient(userId, companyId).servers.map(s => s.systemName));
+  const freeSystem = db.getLookupsByCategory('SYSTEM').find(s => !usedSystems.has(s.label));
+  if (!freeSystem) throw new Error('need an unused SYSTEM lookup in this copy');
+  const server = db.createClientServer(userId, companyId, {
+    systemName: freeSystem.label, role: 'APPLICATIONS', environment: 'PRODUCTION', password: '',
+  });
   const database = db.createClientDatabase(userId, companyId, { name: 'ATTN test database', password: '' });
+  if (!server?.id || !database?.id) throw new Error('could not seed the server/database controls');
 
   const items = db.getAttentionItems(userId);
 
@@ -127,9 +137,13 @@ try {
     !findByTitle('ATTN doc with no renewal date') && !findByTitle('ATTN vpn no expiry'),
     `noDateDocFound=${!!findByTitle('ATTN doc with no renewal date')} noDateVpnFound=${!!findByTitle('ATTN vpn no expiry')}`);
 
+  // A server has no name to look up by, so this checks the item TYPES instead —
+  // which is the real claim anyway: neither table is a source at all.
+  const serverItems = items.filter(i => i.type === 'server' || i.type === 'database');
   record('Gate 4: client_servers/client_databases (no expiry_date column) never contribute items',
-    !findByTitle('ATTN test server') && !findByTitle('ATTN test database'),
-    `serverFound=${!!findByTitle('ATTN test server')} databaseFound=${!!findByTitle('ATTN test database')}`);
+    serverItems.length === 0 && !findByTitle('ATTN test database'),
+    `server/database-typed items=${serverItems.length} databaseFoundByTitle=${!!findByTitle('ATTN test database')} ` +
+    `(seeded server #${server.id}, database #${database.id})`);
 
   record('Gate (sanity): exactly 5 new attention items were added by this seed (5 dated records)',
     items.length === before + 5, `before=${before} after=${items.length}`);
