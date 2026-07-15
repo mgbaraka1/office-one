@@ -889,6 +889,26 @@
     .cl-env-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; padding: 2px 8px; border-radius: 999px; }
     .cl-env-badge.production { background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--good); }
     .cl-env-badge.test { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+    /* A nullN placeholder left by migration 038 for a field the old data never had. */
+    .cl-env-badge.placeholder, .cl-role-placeholder { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+    .cl-role-placeholder { font-weight: 600; }
+    /* The server card's "System - Role - Environment" identity line. */
+    /* The identity triple IS the server's title, so it inherits .cl-item-title's
+       weight; only the Environment part keeps the old badge's Production/UAT
+       color, since the badge itself would just repeat text the line already shows. */
+    .cl-server-identity .cl-item-muted { color: var(--muted); font-weight: 400; }
+    .cl-server-identity .cl-srv-env-production { color: var(--good); }
+    .cl-server-identity .cl-srv-env-test { color: var(--warn); }
+    /* Server identity: the three parts read as one "System - Role - Environment"
+       line. The compound selector is load-bearing — it has to out-specify
+       .form-row's `display: grid` (1fr 1fr), which is declared later in this
+       stylesheet and would otherwise stack these 3 fields + 2 dashes. */
+    .form-row.cs-identity-row { display: flex; align-items: flex-end; gap: 10px; }
+    .form-row.cs-identity-row .form-group { flex: 1 1 0; min-width: 0; }
+    .cs-identity-dash { flex: 0 0 auto; padding-bottom: 11px; color: var(--muted); font-weight: 700; }
+    .cs-identity-preview { margin: calc(-1 * var(--space-2)) 0 var(--space-4); min-height: 16px; font-size: 12px; color: var(--muted); }
+    .cs-identity-preview .cs-identity-value { color: var(--text); font-weight: 600; }
+    .cs-identity-preview.bad { color: var(--bad); }
     .cl-item-cred { display: flex; gap: 14px; flex-wrap: wrap; }
     .cl-pw-wrap { display: inline-flex; align-items: center; gap: 4px; }
     .cl-pw-toggle { width: 20px; height: 20px; padding: 2px; }
@@ -2042,9 +2062,6 @@
     <button class="nav-item" data-module="all-tasks" onclick="switchModule('all-tasks')">
       <span class="nav-icon" data-ic="list"></span>All Tasks
     </button>
-    <button class="nav-item" data-module="clients-projects" onclick="switchModule('clients-projects')">
-      <span class="nav-icon" data-ic="briefcase"></span>Clients Projects
-    </button>
     <button class="nav-item" data-module="internal-tasks" onclick="switchModule('internal-tasks')">
       <span class="nav-icon" data-ic="building"></span>Internal Tasks
     </button>
@@ -2581,7 +2598,7 @@
 </div>
 
 <!-- ══ PROJECT DETAIL — a single project's full page (profile, documents, linked
-     tasks). Reached only via Clients Projects (openProjectById); there is no
+     tasks). Reached only via the Clients page (openProjectById); there is no
      standalone Projects list anymore, so this module has no sidebar entry of
      its own. Kept as its own #module-projects host purely so
      switchModule('projects') can toggle it exactly like every other module.
@@ -2600,28 +2617,6 @@
      Purely a filtered/grouped view over the same projectsList this module
      loads — clicking a project card reuses openProjectById, same as every
      other cross-link in the app, to open the PROJECT DETAIL module above. ══ -->
-<div id="module-clients-projects" class="app-module">
-  <div id="clients-projects-topbar" class="page-header">
-    <span class="page-title"><span class="ti-ic" data-ic="briefcase"></span>Clients Projects</span>
-    <div class="topbar-right">
-      <input type="text" id="clients-projects-filter" class="mod-search" placeholder="Search clients…" oninput="applyClientsProjectsListFilter()">
-      <button class="btn primary" onclick="openProjectModal()"><span data-ic="plus"></span>New Project</button>
-    </div>
-  </div>
-
-  <!-- List view: one card per client with ≥1 linked project -->
-  <div id="clients-projects-list-view" class="pj-scroll">
-    <div class="pj-grid" id="clients-projects-grid"></div>
-    <div id="clients-projects-empty-state" class="cp-placeholder" style="display:none">
-      <div class="icon" data-ic="briefcase"></div>
-      <p>No client-linked projects yet — link a company to a project from <strong>Projects</strong></p>
-    </div>
-  </div>
-
-  <!-- Detail view: the selected client's own projects, as cards (built by JS) -->
-  <div id="clients-projects-detail-view" class="pj-detail-scroll" style="display:none"></div>
-</div>
-
 <!-- ══ ALL TASKS MODULE — a cross-cutting, filterable view of every task the user
      owns (linked to a Project, a Department, both, or neither), each showing its
      full session history. Reuses buildLinkedTaskCard (Projects/Internal Tasks'
@@ -2818,25 +2813,29 @@
       <button class="modal-close" onclick="closeClientServerModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Server Name</label>
-          <input id="cs-name" type="text" placeholder="e.g. App Server 1" />
-        </div>
-      </div>
-      <div class="form-row">
+      <!-- The identity triple comes first and reads as one line: a server IS its
+           System - Role - Environment, and the three together must be unique
+           within the client. -->
+      <div class="form-row cs-identity-row">
         <div class="form-group">
-          <label>System (optional)</label>
-          <input id="cs-system" type="text" placeholder="e.g. RabbitMQ — groups with a matching portal" />
+          <label>System</label>
+          <select id="cs-system" onchange="renderServerIdentityPreview()"></select>
         </div>
+        <span class="cs-identity-dash" aria-hidden="true">-</span>
+        <div class="form-group">
+          <label>Role</label>
+          <select id="cs-role" onchange="renderServerIdentityPreview()"></select>
+        </div>
+        <span class="cs-identity-dash" aria-hidden="true">-</span>
         <div class="form-group">
           <label>Environment</label>
-          <select id="cs-environment">
+          <select id="cs-environment" onchange="renderServerIdentityPreview()">
             <option value="PRODUCTION">Production</option>
             <option value="TEST">UAT</option>
           </select>
         </div>
       </div>
+      <div class="cs-identity-preview" id="cs-identity-preview"></div>
       <div class="form-row">
         <div class="form-group full">
           <label>IP Address</label>
@@ -2861,22 +2860,6 @@
         <div class="form-group">
           <label>Password</label>
           <input id="cs-password" type="text" placeholder="Login password" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Role / Purpose (optional)</label>
-          <input id="cs-role" type="text" placeholder="e.g. Web/App server, DB host, Load Balancer" />
-        </div>
-        <div class="form-group">
-          <label>Port (optional)</label>
-          <input id="cs-port" type="text" placeholder="e.g. 22 (SSH), 3389 (RDP)" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group full">
-          <label>Credential Location (optional)</label>
-          <input id="cs-cred-location" type="text" placeholder="e.g. Bitwarden — IT-Ops vault" />
         </div>
       </div>
       <div class="form-row">
@@ -3100,11 +3083,22 @@
 <div id="client-group-rename-modal-overlay" class="modal-overlay" onclick="clientGroupRenameOverlayClick(event)">
   <div id="client-group-rename-modal" class="modal-box">
     <div class="modal-header">
-      <span class="modal-title">Rename System Group</span>
+      <span class="modal-title" id="cgr-title">Rename System Group</span>
       <button class="modal-close" onclick="closeClientGroupRenameModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
-      <div class="form-row">
+      <!-- Servers: a group IS a SYSTEM lookup (migration 039), so this MOVES the
+           group's servers to another system — renaming the system itself is a
+           catalog edit in Settings → Systems. Internal systems still group by a
+           free-text tag, so they keep the text field. -->
+      <div class="form-row" id="cgr-system-row" style="display:none">
+        <div class="form-group full">
+          <label>Move these servers to system</label>
+          <select id="cgr-system"></select>
+          <div class="general-hint">To rename the system itself, edit it in Settings → Systems — that relabels it everywhere at once.</div>
+        </div>
+      </div>
+      <div class="form-row" id="cgr-name-row">
         <div class="form-group full">
           <label>Group Name</label>
           <input id="cgr-name" type="text" placeholder="e.g. Travel Cover" />
@@ -3126,7 +3120,16 @@
       <button class="modal-close" onclick="closeClientNewGroupModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
-      <div class="form-row">
+      <!-- Servers group BY their SYSTEM lookup (migration 039), so the group is
+           picked from the catalog rather than typed. Internal systems still use
+           a free-text tag. -->
+      <div class="form-row" id="cng-system-row" style="display:none">
+        <div class="form-group full">
+          <label>System</label>
+          <select id="cng-system"></select>
+        </div>
+      </div>
+      <div class="form-row" id="cng-name-row">
         <div class="form-group full">
           <label>Group Name</label>
           <input id="cng-name" type="text" placeholder="e.g. Travel Cover" />
@@ -3414,6 +3417,7 @@
       <button class="stab" data-tab="companyDocCategory" onclick="switchTab(this)"><span class="stab-icon" data-ic="calendar-check"></span> Company Doc Categories</button>
       <button class="stab" data-tab="department"    onclick="switchTab(this)"><span class="stab-icon" data-ic="building"></span> Department</button>
       <button class="stab" data-tab="taskSourceType" onclick="switchTab(this)"><span class="stab-icon" data-ic="external-link"></span> Task Source Types</button>
+      <button class="stab" data-tab="serverRole"    onclick="switchTab(this)"><span class="stab-icon" data-ic="server"></span> Server Roles</button>
       <div class="settings-group-label">Maintenance</div>
       <button class="stab" data-tab="maintenance" onclick="switchTab(this)"><span class="stab-icon" data-ic="wrench"></span> Maintenance</button>
     </div>
@@ -3457,6 +3461,7 @@
       <div class="settings-panel" id="tab-companyDocCategory"></div>
       <div class="settings-panel" id="tab-department"></div>
       <div class="settings-panel" id="tab-taskSourceType"></div>
+      <div class="settings-panel" id="tab-serverRole"></div>
       <div class="settings-panel" id="tab-maintenance">
         <div class="maint-section">
           <div class="maint-section-head">
@@ -3814,6 +3819,7 @@ const ICONS = {
   "shield-alert": "<path d=\"M20 13c0 5-3.5 7.5-7.35 8.95a1 1 0 0 1-1.3 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\" /><path d=\"M12 8v4\" /><path d=\"M12 16h.01\" />",
   "wrench": "<path d=\"M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z\" />",
   "database": "<ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\" /><path d=\"M3 5V19A9 3 0 0 0 21 19V5\" /><path d=\"M3 12A9 3 0 0 0 21 12\" />",
+  "server": "<rect width=\"20\" height=\"8\" x=\"2\" y=\"2\" rx=\"2\" ry=\"2\" /><rect width=\"20\" height=\"8\" x=\"2\" y=\"14\" rx=\"2\" ry=\"2\" /><line x1=\"6\" x2=\"6.01\" y1=\"6\" y2=\"6\" /><line x1=\"6\" x2=\"6.01\" y1=\"18\" y2=\"18\" />",
   "rotate-ccw": "<path d=\"M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8\" /><path d=\"M3 3v5h5\" />",
   "zap": "<path d=\"M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z\" />",
   "triangle-alert": "<path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\" /><path d=\"M12 9v4\" /><path d=\"M12 17h.01\" />",
@@ -3953,12 +3959,14 @@ const LK_CAT = {
   projectStatus: 'PROJECT_STATUS', projectDocument: 'PROJECT_DOCUMENT',
   companyDocCategory: 'COMPANY_DOCUMENT_CATEGORY', department: 'DEPARTMENT',
   projectCategory: 'PROJECT_CATEGORY', taskSourceType: 'TASK_SOURCE_TYPE',
+  serverRole: 'SERVER_ROLE',
 };
 const LK_VALUE = {             // 'label' = stored as display label; 'code' = stored as code
   companies: 'label', systems: 'label', natural: 'label',
   timeType: 'code', status: 'code', currency: 'code', billingCycle: 'code',
   projectStatus: 'code', projectDocument: 'code', companyDocCategory: 'code',
   department: 'label', projectCategory: 'code', taskSourceType: 'code',
+  serverRole: 'code',
 };
 
 // Active options for a category, ordered for dropdowns.
@@ -4590,7 +4598,7 @@ function buildTaskSearchSelect(host, tasks, initialId, placeholder, onChange) {
 // The tabs edit a working copy of the catalog (lookupsDraft, keyed by category).
 // Existing entries are relabeled / reordered / soft-disabled in place; new entries
 // get a server-generated stable code on save. Codes are never edited or deleted.
-const SETTINGS_TABS = ['companies', 'systems', 'natural', 'timeType', 'status', 'projectStatus', 'projectCategory', 'projectDocument', 'companyDocCategory', 'department', 'taskSourceType'];
+const SETTINGS_TABS = ['companies', 'systems', 'natural', 'timeType', 'status', 'projectStatus', 'projectCategory', 'projectDocument', 'companyDocCategory', 'department', 'taskSourceType', 'serverRole'];
 
 // Settings is a nav page (not a modal): switchModule('settings') calls this to
 // (re)load a working copy of the catalog and render the editors fresh each visit.
@@ -6289,7 +6297,7 @@ document.addEventListener('keydown', e => {
       e.preventDefault();
       if      (activeModule === 'subscriptions') openSubModal();
       else if (activeModule === 'timesheet')     openModal();
-      else if (activeModule === 'clients-projects' || activeModule === 'projects') openProjectModal();
+      else if (activeModule === 'clients' || activeModule === 'projects') openProjectModal();
       else if (activeModule === 'companydocs')   openCompanyDocModal();
       // analytics / reports have no Add action — Ctrl+N is a no-op there
     }
@@ -7167,12 +7175,11 @@ function switchModule(name) {
   if (activeModule === name) {
     if (name === 'browse') setBrowseKind(browseKind);
     else if (name === 'clients') backToClientsList();
-    else if (name === 'clients-projects') backToClientsProjectsList();
     return;
   }
   activeModule = name;
   // 'projects' is an internal-only pseudo-module (a single project's detail
-  // page, reached only via Clients Projects / openProjectById) — it has no
+  // page, reached only via the Clients page / openProjectById) — it has no
   // sidebar entry and is never a valid "Start on last page" landing target.
   if (name !== 'projects') {
     uiState.lastModule = name;
@@ -7183,10 +7190,11 @@ function switchModule(name) {
     el.classList.toggle('active', el.id === 'module-' + name);
   });
   document.querySelectorAll('.nav-item').forEach(el => {
-    // Viewing a project's detail page keeps the Clients Projects nav item
-    // highlighted, since that's still the section the user is "inside".
+    // Viewing a project's detail page keeps the Clients nav item highlighted,
+    // since that's still the section the user is "inside" (Projects now live
+    // inside each client's detail view).
     el.classList.toggle('active', el.dataset.module === name
-      || (name === 'projects' && el.dataset.module === 'clients-projects'));
+      || (name === 'projects' && el.dataset.module === 'clients'));
   });
 
   if (name === 'timesheet') {
@@ -7210,9 +7218,6 @@ function switchModule(name) {
   } else if (name === 'all-tasks') {
     window.api.setTitle('Cooperation Tools — All Tasks');
     initAllTasksModule();
-  } else if (name === 'clients-projects') {
-    window.api.setTitle('Cooperation Tools — Clients Projects');
-    initClientsProjectsModule();
   } else if (name === 'internal-tasks') {
     window.api.setTitle('Cooperation Tools — Internal Tasks');
     initInternalTasksModule();
@@ -8407,15 +8412,20 @@ function pjMk(tag, cls, text) {
 }
 
 async function loadProjectsList() {
-  const grid = document.getElementById('clients-projects-grid');
-  if (!grid.childElementCount) { grid.style.display = ''; showSkeleton(grid, 'cards', 3); }
   let list;
   try { list = await window.api.listProjects(); }
   catch { toast('Could not load projects'); return; }
   projectsList = Array.isArray(list) ? list : [];
   projectsLoaded = true;
   syncProjectIndex();
-  renderClientsProjectsList();
+  // Projects now live inside the Clients module (the retired Clients Projects
+  // page was merged into it) — refresh whichever Clients view is showing: the
+  // Projects section in an open client's detail, or the per-card project counts
+  // on the client list.
+  if (activeModule === 'clients') {
+    if (currentClient && document.getElementById('client-detail-sections')) renderClientDetailSections(currentClient);
+    else if (clientsLoaded) renderClientsList();
+  }
 }
 
 // ── Project index (lightweight {id,name,status} cache for the Project field) ──
@@ -9009,8 +9019,8 @@ function showProjectDetailView() {
   document.getElementById('projects-detail-view').style.display = '';
 }
 
-// Builds one project card, used by the Clients Projects grid. `onOpen(projectId)`
-// is called on click — see openClientsProjectsDetail/openProjectById below.
+// Builds one project card, used by the Clients page's per-client Projects
+// section. `onOpen(projectId)` is called on click — see openProjectById.
 function buildProjectCard(p, onOpen) {
   const card = pjMk('div', 'pj-card pj-accent-' + (PJ_STATUS_CLASS[p.status] || 'active'));
   card.addEventListener('click', () => onOpen(p.id));
@@ -9062,195 +9072,35 @@ function pjCardMetaRow(icon, names, max = 4) {
   return row;
 }
 
-// ══ CLIENTS PROJECTS MODULE — a client-first view over the same projectsList
-// the Projects module already loads (no separate cache, no new IPC). A
-// project linked to ≥1 company is grouped under its FIRST linked company
-// (companies[0] — already ordered by lookup sort_order/label, the same order
-// its own pill row shows), so a multi-client project appears exactly once
-// here, never duplicated across clients. Opening a project card reuses
-// openProjectById (switches to the Projects module + opens its detail view) —
-// there is no separate detail view to keep in sync. ══
-let cpjSelectedCompanyId = null; // null = list view; else showing that client's projects
-let cpjListFilter = '';
-let cpjDetailFilter = '';
+// ══ PROJECTS ↔ CLIENTS — projects are surfaced client-first, inside each
+// client's detail view on the Clients page (the standalone Clients Projects
+// page was merged into Clients). A project linked to ≥1 company is grouped
+// under its FIRST linked company (companies[0] — already ordered by lookup
+// sort_order/label, the same order its own pill row shows), so a multi-client
+// project appears under exactly one client, never duplicated. The single
+// project detail view (#module-projects, openProjectById) is unchanged; its
+// breadcrumbs read back to the Clients page. ══
 
-function initClientsProjectsModule() {
-  cpjSelectedCompanyId = null;
-  showClientsProjectsListView();
-  if (!projectsLoaded) loadProjectsList();
-  else renderClientsProjectsList();
-}
-
-function backToClientsProjectsList() {
-  cpjSelectedCompanyId = null;
-  showClientsProjectsListView();
-  renderClientsProjectsList(); // counts may have changed
-}
-
-function showClientsProjectsListView() {
-  document.getElementById('clients-projects-detail-view').style.display = 'none';
-  document.getElementById('clients-projects-list-view').style.display = '';
-}
-function showClientsProjectsDetailView() {
-  document.getElementById('clients-projects-list-view').style.display = 'none';
-  document.getElementById('clients-projects-detail-view').style.display = '';
-}
-
-// A project's grouping client — its first linked company (see the module
-// note above for why "first" is the chosen rule for a multi-client project).
+// A project's grouping client — its first linked company (see the note above
+// for why "first" is the chosen rule for a multi-client project).
 function cpjPrimaryCompany(p) {
   return (p.companies && p.companies.length) ? p.companies[0] : null;
 }
 
-function applyClientsProjectsListFilter() {
-  cpjListFilter = document.getElementById('clients-projects-filter').value.toLowerCase().trim();
-  renderClientsProjectsList();
-}
-
-function renderClientsProjectsList() {
-  const grid  = document.getElementById('clients-projects-grid');
-  const empty = document.getElementById('clients-projects-empty-state');
-  grid.innerHTML = '';
-
-  const byCompany = new Map(); // companyId -> { id, label, projects: [] }
-  projectsList.forEach(p => {
-    const co = cpjPrimaryCompany(p);
-    if (!co) return;
-    if (!byCompany.has(co.id)) byCompany.set(co.id, { id: co.id, label: co.label, projects: [] });
-    byCompany.get(co.id).projects.push(p);
-  });
-
-  if (byCompany.size === 0) {
-    grid.style.display = 'none';
-    empty.style.display = 'flex';
-    empty.querySelector('p').innerHTML = 'No client-linked projects yet — link a company to a project from <strong>Projects</strong>';
-    return;
-  }
-
-  // Order like every other Company list in the app (lookup sort_order) —
-  // includeInactive so a project's client is never silently dropped just
-  // because that company code was later soft-disabled.
-  const orderIndex = new Map(lkOptions('COMPANY', true).map((o, i) => [o.id, i]));
-  const clients = Array.from(byCompany.values())
-    .filter(c => textMatch([c.label], cpjListFilter))
-    .sort((a, b) => (orderIndex.get(a.id) ?? 999999) - (orderIndex.get(b.id) ?? 999999));
-
-  if (clients.length === 0) {
-    grid.style.display = 'none';
-    empty.style.display = 'flex';
-    empty.querySelector('p').textContent = 'No clients match your search';
-    return;
-  }
-  grid.style.display = '';
-  empty.style.display = 'none';
-
-  clients.forEach(c => {
-    const card = pjMk('div', 'pj-card');
-    card.addEventListener('click', () => openClientsProjectsDetail(c.id));
-
-    const head = pjMk('div', 'pj-card-head');
-    head.appendChild(pjMk('div', 'pj-card-name', c.label || 'Untitled'));
-    card.appendChild(head);
-
-    const foot = pjMk('div', 'pj-card-foot');
-    const count = pjMk('span', 'pj-card-count');
-    count.innerHTML = ic('clipboard-list');
-    count.appendChild(document.createTextNode(c.projects.length + ' project' + (c.projects.length === 1 ? '' : 's')));
-    foot.appendChild(count);
-    const open = pjMk('span', 'pj-card-open', 'Open');
-    open.insertAdjacentHTML('beforeend', ic('chevron-right'));
-    foot.appendChild(open);
-    card.appendChild(foot);
-
-    grid.appendChild(card);
-  });
-}
-
-function openClientsProjectsDetail(companyId) {
-  cpjSelectedCompanyId = companyId;
-  cpjDetailFilter = '';
-  showClientsProjectsDetailView();
-  renderClientsProjectsDetail();
-}
-
-function applyClientsProjectsDetailFilter() {
-  const el = document.getElementById('cpj-detail-filter');
-  cpjDetailFilter = (el ? el.value : '').toLowerCase().trim();
-  renderClientsProjectsDetailGrid();
-}
-
-function renderClientsProjectsDetail() {
-  const host = document.getElementById('clients-projects-detail-view');
-  host.innerHTML = '';
-  if (cpjSelectedCompanyId == null) { backToClientsProjectsList(); return; }
-
-  const co = lkOptions('COMPANY', true).find(o => o.id === cpjSelectedCompanyId);
-  const label = co ? co.label : 'Client';
-
-  const crumbs = pjMk('div', 'pj-crumbs');
-  const crumbRoot = pjMk('button', 'pj-crumb-link', 'Clients Projects');
-  crumbRoot.addEventListener('click', backToClientsProjectsList);
-  crumbs.appendChild(crumbRoot);
-  const sep = pjMk('span', 'pj-crumb-sep');
-  sep.innerHTML = ic('chevron-right');
-  crumbs.appendChild(sep);
-  crumbs.appendChild(pjMk('span', 'pj-crumb-here', label));
-  host.appendChild(crumbs);
-
-  const head = pjMk('div', 'pj-detail-head');
-  head.appendChild(pjMk('div', 'pj-detail-title', label));
-  host.appendChild(head);
-
-  const toolbar = pjMk('div');
-  toolbar.style.marginBottom = 'var(--space-4)';
-  const searchInput = document.createElement('input');
-  searchInput.type = 'text';
-  searchInput.id = 'cpj-detail-filter';
-  searchInput.className = 'mod-search';
-  searchInput.placeholder = 'Search this client’s projects…';
-  searchInput.value = cpjDetailFilter;
-  searchInput.addEventListener('input', applyClientsProjectsDetailFilter);
-  toolbar.appendChild(searchInput);
-  host.appendChild(toolbar);
-
-  const gridHost = pjMk('div');
-  gridHost.id = 'cpj-detail-grid-host';
-  host.appendChild(gridHost);
-
-  renderClientsProjectsDetailGrid();
-}
-
-function renderClientsProjectsDetailGrid() {
-  const gridHost = document.getElementById('cpj-detail-grid-host');
-  if (!gridHost) return;
-  gridHost.innerHTML = '';
-
-  const projects = projectsList.filter(p => {
-    const co = cpjPrimaryCompany(p);
-    return co && co.id === cpjSelectedCompanyId;
-  });
-  const shown = projects.filter(p => textMatch(
-    [p.name, ...(p.systems || []).map(s => s.label), pjStatusLabel(p.status), pjCategoryLabel(p.category), p.description],
-    cpjDetailFilter));
-
-  if (shown.length === 0) {
-    const ph = pjMk('div', 'cp-placeholder');
-    ph.innerHTML = '<div class="icon">' + ic('clipboard-list') + '</div><p>'
-      + (projects.length ? 'No projects match your search' : 'No projects for this client yet') + '</p>';
-    gridHost.appendChild(ph);
-    return;
-  }
-
-  const grid = pjMk('div', 'pj-grid');
-  shown.forEach(p => grid.appendChild(buildProjectCard(p, openProjectById)));
-  gridHost.appendChild(grid);
+// Return from a single-project detail view to the Clients page. If the project
+// belongs to a client, land on that client's detail (where its Projects section
+// now lives); otherwise fall back to the Clients list.
+function backToClientsFromProject(project) {
+  const co = project ? cpjPrimaryCompany(project) : null;
+  switchModule('clients');
+  if (co) openClientDetail(co.id);
 }
 
 async function openProjectDetail(id) {
   let project;
   try { project = await window.api.getProject(id); }
   catch { toast('Could not open project'); return; }
-  if (!project) { toast('Project not found'); await loadProjectsList(); backToClientsProjectsList(); return; }
+  if (!project) { toast('Project not found'); await loadProjectsList(); backToClientsFromProject(null); return; }
   currentProject = project;
   showProjectDetailView();
   renderProjectDetail(project);
@@ -9261,7 +9111,7 @@ async function reloadCurrentProject() {
   let project;
   try { project = await window.api.getProject(currentProject.id); }
   catch { return; }
-  if (!project) { backToClientsProjectsList(); return; }
+  if (!project) { backToClientsFromProject(null); return; }
   currentProject = project;
   renderProjectDetail(project);
 }
@@ -9271,10 +9121,10 @@ function renderProjectDetail(p) {
   host.innerHTML = '';
   window.api.setTitle('Cooperation Tools — ' + (p.name || 'Project'));
 
-  // Breadcrumb trail: Clients Projects / <client, if any> / <name>
+  // Breadcrumb trail: Clients / <client, if any> / <name>
   const crumbs = pjMk('div', 'pj-crumbs');
-  const crumbRoot = pjMk('button', 'pj-crumb-link', 'Clients Projects');
-  crumbRoot.addEventListener('click', backToClientsProjectsList);
+  const crumbRoot = pjMk('button', 'pj-crumb-link', 'Clients');
+  crumbRoot.addEventListener('click', () => { switchModule('clients'); backToClientsList(); });
   crumbs.appendChild(crumbRoot);
   const primaryCompany = cpjPrimaryCompany(p);
   if (primaryCompany) {
@@ -9283,8 +9133,8 @@ function renderProjectDetail(p) {
     crumbs.appendChild(clientSep);
     const crumbClient = pjMk('button', 'pj-crumb-link', primaryCompany.label);
     crumbClient.addEventListener('click', () => {
-      switchModule('clients-projects');
-      openClientsProjectsDetail(primaryCompany.id);
+      switchModule('clients');
+      openClientDetail(primaryCompany.id);
     });
     crumbs.appendChild(crumbClient);
   }
@@ -9800,7 +9650,7 @@ async function deleteCurrentProject() {
   try { await window.api.deleteProject(snapshot.id); }
   catch { toast('Could not delete project'); buildDetailActions(document.querySelector('.pj-detail-actions')); return; }
   showProjectUndoToast(snapshot);
-  backToClientsProjectsList();
+  backToClientsFromProject(snapshot);
 }
 function showProjectUndoToast(snapshot) {
   undoProject = snapshot;
@@ -10728,6 +10578,7 @@ let clientNewGroupKind = null;       // 'server' | 'internal' — which section'
 // preserved across an in-place reload (post-CRUD refresh of the same client).
 let clientDetailSearch = '';
 const CLIENT_DETAIL_TYPES = [
+  { key: 'projects',  label: 'Projects' },
   { key: 'auth',      label: 'Auth' },
   { key: 'servers',   label: 'Servers' },
   { key: 'databases', label: 'Databases' },
@@ -10738,6 +10589,10 @@ let clientDetailTypes = new Set(CLIENT_DETAIL_TYPES.map(t => t.key));
 
 function initClientsModule() {
   showClientsListView();
+  // Projects are shown inside each client's detail (and counted on the list
+  // cards) since the Clients Projects page was merged in — make sure the shared
+  // projectsList is loaded; loadProjectsList() re-renders this view when it lands.
+  if (!projectsLoaded) loadProjectsList();
   if (!clientsLoaded) loadClientsList();
   else renderClientsList();
 }
@@ -10767,7 +10622,7 @@ function showClientDetailView() {
   document.getElementById('clients-detail-view').style.display = '';
 }
 
-function buildClientCard(c) {
+function buildClientCard(c, projectCount) {
   const card = pjMk('div', 'pj-card');
   card.addEventListener('click', () => openClientDetail(c.id));
 
@@ -10781,7 +10636,8 @@ function buildClientCard(c) {
   count.appendChild(document.createTextNode(
     c.vpnCount + ' auth' + ' · ' + c.serverCount + ' server' + (c.serverCount === 1 ? '' : 's')
     + ' · ' + c.databaseCount + ' database' + (c.databaseCount === 1 ? '' : 's')
-    + ' · ' + c.externalServiceCount + ' external' + ' · ' + c.internalSystemCount + ' internal'));
+    + ' · ' + c.externalServiceCount + ' external' + ' · ' + c.internalSystemCount + ' internal'
+    + ' · ' + (projectCount || 0) + ' project' + (projectCount === 1 ? '' : 's')));
   foot.appendChild(count);
   const open = pjMk('span', 'pj-card-open', 'Open');
   open.insertAdjacentHTML('beforeend', ic('chevron-right'));
@@ -10789,6 +10645,18 @@ function buildClientCard(c) {
   card.appendChild(foot);
 
   return card;
+}
+
+// Per-company project count (first-linked-company grouping, see cpjPrimaryCompany)
+// — used for the list-card badge and reused wherever a client's project tally
+// is needed. Reads the shared projectsList (empty until loadProjectsList lands).
+function clientProjectCounts() {
+  const counts = new Map();
+  projectsList.forEach(p => {
+    const co = cpjPrimaryCompany(p);
+    if (co) counts.set(co.id, (counts.get(co.id) || 0) + 1);
+  });
+  return counts;
 }
 
 // List view: an empty search box shows the usual card grid; typing in it
@@ -10814,7 +10682,8 @@ function renderClientsList() {
     results.style.display = 'none';
     grid.style.display = '';
     empty.style.display = 'none';
-    clientsList.forEach(c => grid.appendChild(buildClientCard(c)));
+    const projCounts = clientProjectCounts();
+    clientsList.forEach(c => grid.appendChild(buildClientCard(c, projCounts.get(c.id) || 0)));
     return;
   }
 
@@ -10895,6 +10764,9 @@ async function openClientDetail(companyId, presetSearch) {
   clientDetailSearch = presetSearch || ''; // fresh search context per client; type filter persists
   showClientDetailView();
   renderClientDetail(client);
+  // The Projects section reads the shared projectsList; load it if it isn't yet
+  // (loadProjectsList re-renders the open client's sections when it lands).
+  if (!projectsLoaded) loadProjectsList();
   uiState.filters.clients = { companyId };
   saveUiStateDebounced();
 }
@@ -10919,9 +10791,9 @@ const CLIENT_RECORD_INFO_FIELDS = {
     ['credentialLocation', 'Credential Location'], ['notes', 'Notes'],
   ],
   servers: [
-    ['serverName', 'Server Name'], ['host', 'Host (IP)'], ['environment', 'Environment'], ['os', 'Operating System'],
-    ['hostname', 'Hostname'], ['username', 'Username'], ['password', 'Password', true], ['systemName', 'System Name'],
-    ['role', 'Role'], ['port', 'Port'], ['credentialLocation', 'Credential Location'], ['notes', 'Notes'],
+    ['systemName', 'System'], ['roleLabel', 'Role'], ['environment', 'Environment'],
+    ['host', 'Host (IP)'], ['hostname', 'Hostname'], ['os', 'Operating System'],
+    ['username', 'Username'], ['password', 'Password', true], ['notes', 'Notes'],
   ],
   databases: [
     ['name', 'Name'], ['engine', 'Engine'], ['host', 'Host'], ['port', 'Port'], ['username', 'Username'],
@@ -11080,7 +10952,7 @@ function renderClientDetail(c) {
   renderClientDetailSections(c);
 }
 
-// Rebuilds only the 5 record sections (not the toolbar/search input above),
+// Rebuilds only the record sections (not the toolbar/search input above),
 // filtered by `clientDetailSearch` (human-identifying fields only — never
 // password/secretKey, per the no-credential-search rule) and `clientDetailTypes`.
 // Called on every search keystroke / type-chip toggle, and once from
@@ -11100,6 +10972,40 @@ function renderClientDetailSections(c) {
   if (clientDetailTypes.size === 0) {
     host.appendChild(pjMk('div', 'cp-records-empty', 'All sections are hidden — enable at least one filter above.'));
     return;
+  }
+
+  // ── Projects section (this client's own projects — merged in from the retired
+  // Clients Projects page; a project is grouped under its FIRST linked company,
+  // so it appears under exactly one client. Cards reuse buildProjectCard and
+  // click through to the single-project detail view via openProjectById). ──
+  if (clientDetailTypes.has('projects')) {
+    const projects = projectsList.filter(p => {
+      const co = cpjPrimaryCompany(p);
+      return co && co.id === c.id;
+    });
+    const shownProjects = projects.filter(p => textMatch(
+      [p.name, ...(p.systems || []).map(s => s.label), pjStatusLabel(p.status), pjCategoryLabel(p.category), p.description], q));
+    const pjSec = pjMk('div', 'pj-section');
+    const pjHead = pjMk('div', 'pj-section-head');
+    const pjTitle = pjMk('div', 'pj-section-title');
+    pjTitle.innerHTML = ic('briefcase');
+    pjTitle.appendChild(document.createTextNode('Projects (' + projects.length + ')'));
+    pjHead.appendChild(pjTitle);
+    const pjActions = pjMk('div', 'pj-section-actions');
+    const pjAddBtn = pjMk('button', 'btn primary');
+    pjAddBtn.innerHTML = ic('plus') + ' New Project';
+    pjAddBtn.addEventListener('click', () => openProjectModal());
+    pjActions.appendChild(pjAddBtn);
+    pjHead.appendChild(pjActions);
+    pjSec.appendChild(pjHead);
+    if (projects.length === 0) pjSec.appendChild(pjMk('div', 'cp-records-empty', 'No projects for this client yet.'));
+    else if (shownProjects.length === 0) pjSec.appendChild(pjMk('div', 'cp-records-empty', 'No projects match your search.'));
+    else {
+      const pjGrid = pjMk('div', 'pj-grid');
+      shownProjects.forEach(p => pjGrid.appendChild(buildProjectCard(p, openProjectById)));
+      pjSec.appendChild(pjGrid);
+    }
+    host.appendChild(pjSec);
   }
 
   // ── Auth section (VPN, PAM, and other login/connection records) ──
@@ -11145,7 +11051,11 @@ function renderClientDetailSections(c) {
     sActions.appendChild(sAddBtn);
     sHead.appendChild(sActions);
     srvSec.appendChild(sHead);
-    const shownServers = allServers.filter(s => textMatch([s.serverName, s.host, s.hostname, s.systemName], q));
+    // roleLabel joins the searchable fields now that Role is part of a server's
+    // identity (migration 038) — searching "Applications" should find them.
+    // `environment` is deliberately left out: "Production" matches most servers,
+    // which is noise rather than a search.
+    const shownServers = allServers.filter(s => textMatch([s.host, s.hostname, s.os, s.systemName, s.roleLabel], q));
     if (allServers.length === 0) {
       srvSec.appendChild(pjMk('div', 'cp-records-empty', 'No servers recorded yet.'));
     } else if (shownServers.length === 0) {
@@ -11299,7 +11209,9 @@ function buildSystemGroupCard(group, cardBuilder, kind) {
   titleRow.appendChild(document.createTextNode(group.name));
   const renameBtn = pjMk('button', 'cd-icon-btn');
   renameBtn.innerHTML = ic('pencil');
-  renameBtn.title = 'Rename group';
+  // Servers group by a SYSTEM lookup, so the action is "move to another system"
+  // rather than a rename (see openClientGroupRenameModal).
+  renameBtn.title = kind === 'server' ? 'Move group to another system' : 'Rename group';
   renameBtn.addEventListener('click', () => openClientGroupRenameModal(kind, group.name));
   titleRow.appendChild(renameBtn);
   card.appendChild(titleRow);
@@ -11311,15 +11223,23 @@ function buildSystemGroupCard(group, cardBuilder, kind) {
   return card;
 }
 
-// ── System group rename modal — bulk-renames systemName on every record in
-// the group within one section (servers or internal systems); no groups table. ──
+// ── System group modal — for internal systems, bulk-renames the free-text
+// systemName tag on every record in the group. For servers (migration 039) a
+// group IS a SYSTEM lookup, so it instead MOVES the group's servers onto another
+// system; renaming the system itself belongs in Settings → Systems, which
+// relabels it everywhere at once rather than only on this client's servers. ──
 function openClientGroupRenameModal(kind, name) {
   clientGroupRenameKind = kind;
   clientGroupRenameOldName = name;
-  document.getElementById('cgr-name').value = name;
+  const isServer = kind === 'server';
+  document.getElementById('cgr-title').textContent = isServer ? 'Move System Group' : 'Rename System Group';
+  document.getElementById('cgr-system-row').style.display = isServer ? '' : 'none';
+  document.getElementById('cgr-name-row').style.display = isServer ? 'none' : '';
+  if (isServer) fillIdentitySelect('cgr-system', 'SYSTEM', 'label', name, 'Select a system…', 'system');
+  else document.getElementById('cgr-name').value = name;
   clearErrorsIn('#client-group-rename-modal');
   document.getElementById('client-group-rename-modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById('cgr-name').focus(), 80);
+  setTimeout(() => document.getElementById(isServer ? 'cgr-system' : 'cgr-name').focus(), 80);
 }
 function closeClientGroupRenameModal() {
   document.getElementById('client-group-rename-modal-overlay').classList.remove('open');
@@ -11331,14 +11251,20 @@ function clientGroupRenameOverlayClick(e) {
 }
 async function submitClientGroupRename() {
   clearErrorsIn('#client-group-rename-modal');
-  const newName = document.getElementById('cgr-name').value.trim();
-  if (!newName) { markError('cgr-name'); return; }
+  const isServer = clientGroupRenameKind === 'server';
+  const field = isServer ? 'cgr-system' : 'cgr-name';
+  const newName = document.getElementById(field).value.trim();
+  if (!newName) { markError(field); return; }
+  let res;
   try {
-    if (clientGroupRenameKind === 'server') await window.api.renameClientServerSystemGroup(currentClient.id, clientGroupRenameOldName, newName);
-    else await window.api.renameClientInternalSystemGroup(currentClient.id, clientGroupRenameOldName, newName);
-    closeClientGroupRenameModal();
-    toast('Group renamed');
-  } catch { toast('Could not rename group'); return; }
+    if (isServer) res = await window.api.renameClientServerSystemGroup(currentClient.id, clientGroupRenameOldName, newName);
+    else res = await window.api.renameClientInternalSystemGroup(currentClient.id, clientGroupRenameOldName, newName);
+  } catch { toast('Could not save group'); return; }
+  // Moving a server group can land two servers on the same
+  // System / Role / Environment — refused whole rather than half-applied.
+  if (res && res.ok === false && res.error) { markError(field); toast(res.error); return; }
+  closeClientGroupRenameModal();
+  toast(isServer ? 'Group moved' : 'Group renamed');
   await reloadCurrentClient();
 }
 
@@ -11350,6 +11276,9 @@ function openClientNewGroupModal(kind) {
   const isServer = kind === 'server';
   document.getElementById('client-new-group-modal-title').textContent = isServer ? 'New Server Group' : 'New System Group';
   const records = (isServer ? currentClient?.servers : currentClient?.internalSystems) || [];
+  document.getElementById('cng-system-row').style.display = isServer ? '' : 'none';
+  document.getElementById('cng-name-row').style.display = isServer ? 'none' : '';
+  if (isServer) fillIdentitySelect('cng-system', 'SYSTEM', 'label', '', 'Select a system…', 'system');
   document.getElementById('cng-name').value = '';
   const list = document.getElementById('cng-list');
   list.innerHTML = '';
@@ -11366,7 +11295,7 @@ function openClientNewGroupModal(kind) {
       const cb = document.createElement('input');
       cb.type = 'checkbox'; cb.id = 'cng-item-' + r.id; cb.value = String(r.id);
       row.appendChild(cb);
-      const label = pjMk('label', null, isServer ? r.serverName : r.name);
+      const label = pjMk('label', null, isServer ? serverIdentityText(r) : r.name);
       label.htmlFor = cb.id;
       row.appendChild(label);
       if (r.systemName) row.appendChild(pjMk('span', 'cng-row-group', 'in “' + r.systemName + '”'));
@@ -11386,16 +11315,22 @@ function clientNewGroupModalOverlayClick(e) {
 }
 async function submitClientNewGroupModal() {
   clearErrorsIn('#client-new-group-modal');
-  const name = document.getElementById('cng-name').value.trim();
-  if (!name) { markError('cng-name'); return; }
+  const isServer = clientNewGroupKind === 'server';
+  const field = isServer ? 'cng-system' : 'cng-name';
+  const name = document.getElementById(field).value.trim();
+  if (!name) { markError(field); return; }
   const ids = Array.from(document.querySelectorAll('#cng-list input[type="checkbox"]:checked')).map(cb => Number(cb.value));
   if (!ids.length) { toast('Select at least one record to include'); return; }
+  let res;
   try {
-    if (clientNewGroupKind === 'server') await window.api.assignClientServerGroup(currentClient.id, ids, name);
-    else await window.api.assignClientInternalGroup(currentClient.id, ids, name);
-    closeClientNewGroupModal();
-    toast('Group created');
+    if (isServer) res = await window.api.assignClientServerGroup(currentClient.id, ids, name);
+    else res = await window.api.assignClientInternalGroup(currentClient.id, ids, name);
   } catch { toast('Could not create group'); return; }
+  // Same identity clash as the move above: two picked servers sharing a
+  // Role + Environment can't both sit under one System.
+  if (res && res.ok === false && res.error) { markError(field); toast(res.error); return; }
+  closeClientNewGroupModal();
+  toast('Group created');
   await reloadCurrentClient();
 }
 
@@ -11408,9 +11343,11 @@ const VPN_CONFIRM_FIELDS = [
   ['expiryDate', 'Expiry Date'], ['credentialLocation', 'Credential Location'], ['notes', 'Notes'],
 ];
 const SERVER_CONFIRM_FIELDS = [
-  ['serverName', 'Server Name'], ['host', 'Host (IP)'], ['environment', 'Environment'], ['os', 'Operating System'],
-  ['hostname', 'Hostname'], ['username', 'Username'], ['password', 'Password'], ['systemName', 'System Name'],
-  ['role', 'Role'], ['port', 'Port'], ['credentialLocation', 'Credential Location'], ['notes', 'Notes'],
+  ['host', 'Host (IP)'], ['environment', 'Environment'], ['os', 'Operating System'],
+  ['hostname', 'Hostname'], ['username', 'Username'], ['password', 'Password'],
+  ['systemName', 'System'],   // already a SYSTEM label on both sides of the diff
+  ['role', 'Role', v => lkLabel('SERVER_ROLE', v)],
+  ['notes', 'Notes'],
 ];
 const DATABASE_CONFIRM_FIELDS = [
   ['name', 'Name'], ['engine', 'Engine'], ['host', 'Host'], ['port', 'Port'], ['username', 'Username'],
@@ -11439,13 +11376,17 @@ function clFieldStr(v) {
 // OLD value was non-empty AND actually changed are returned — a previously-
 // empty field being filled in for the first time is a fill-in, not an edit,
 // and per the Phase 2 spec never needs confirmation.
+// `fmt` (optional 3rd element of a field def) maps a stored value to its
+// human-facing form for the dialog — a lookup code to its label. The comparison
+// itself always stays on the raw stored values.
 function diffClientFields(before, next, fieldDefs) {
   const changes = [];
-  fieldDefs.forEach(([key, label]) => {
+  fieldDefs.forEach(([key, label, fmt]) => {
     const oldStr = before ? clFieldStr(before[key]) : '';
     const newStr = clFieldStr(next[key]);
     if (!oldStr || oldStr === newStr) return;
-    changes.push({ label, oldValue: oldStr, newValue: newStr });
+    const show = v => (fmt ? clFieldStr(fmt(v)) : v);
+    changes.push({ label, oldValue: show(oldStr), newValue: show(newStr) });
   });
   return changes;
 }
@@ -11584,17 +11525,50 @@ function buildClientVpnCard(v) {
   return card;
 }
 
+// 'PRODUCTION'|'TEST' -> their display labels; anything else is one of migration
+// 038's nullN environment placeholders and shows as-is.
+function srvEnvLabel(env) {
+  if (env === 'PRODUCTION') return 'Production';
+  if (env === 'TEST') return 'UAT';
+  return env || '';
+}
+function srvEnvIsKnown(env) { return env === 'PRODUCTION' || env === 'TEST'; }
+
+// Plain-text form of a server's identity — for anywhere that needs a name for
+// the record (history modal title, group checklist, toasts). A server has no
+// name of its own anymore: the triple IS its name.
+function serverIdentityText(s) {
+  return [s.systemName || '(no system)', s.roleLabel || '(no role)', srvEnvLabel(s.environment) || '(no environment)'].join(' - ');
+}
+
+// The card's identity line — the server's title, and the same
+// "System - Role - Environment" string the Add/Edit modal previews, since that
+// triple is what identifies the server. Each part is called out in amber when
+// it's still a nullN placeholder, so what needs fixing is obvious without
+// opening the record.
+function buildServerIdentityLine(s) {
+  const line = pjMk('div', 'cl-item-title cl-server-identity');
+  const part = (text, isPlaceholder, fallback) => {
+    if (!text) return pjMk('span', 'cl-item-muted', fallback);
+    return isPlaceholder ? pjMk('span', 'cl-role-placeholder', text) : pjMk('span', null, text);
+  };
+  // System/Role are lookup-backed: a soft-disabled code is one of migration
+  // 038/039's nullN placeholders, which is exactly what needs calling out.
+  line.appendChild(part(s.systemName, !!s.systemId && !s.systemActive, '(no system)'));
+  line.appendChild(document.createTextNode(' - '));
+  line.appendChild(part(s.roleLabel, !!s.role && !s.roleActive, '(no role)'));
+  line.appendChild(document.createTextNode(' - '));
+  const env = part(srvEnvLabel(s.environment), !srvEnvIsKnown(s.environment), '(no environment)');
+  if (srvEnvIsKnown(s.environment)) env.classList.add('cl-srv-env-' + s.environment.toLowerCase());
+  line.appendChild(env);
+  return line;
+}
+
 function buildClientServerCard(s) {
   const card = pjMk('div', 'cl-item-card');
   const main = pjMk('div', 'cl-item-main');
-  const title = pjMk('div', 'cl-item-title');
-  title.appendChild(document.createTextNode(s.serverName || '(unnamed server)'));
-  if (s.environment) {
-    const envLabel = s.environment === 'PRODUCTION' ? 'Production' : (s.environment === 'TEST' ? 'UAT' : s.environment);
-    title.appendChild(pjMk('span', 'cl-env-badge ' + s.environment.toLowerCase(), envLabel));
-  }
-  main.appendChild(title);
-  const metaBits = [s.host, s.hostname, s.os, s.role, s.port ? ('Port ' + s.port) : ''].filter(Boolean).join(' · ');
+  main.appendChild(buildServerIdentityLine(s));
+  const metaBits = [s.host, s.hostname, s.os].filter(Boolean).join(' · ');
   if (metaBits) main.appendChild(pjMk('div', 'cl-item-meta', metaBits));
   if (s.username || s.password) {
     const cred = pjMk('div', 'cl-item-meta cl-item-cred');
@@ -11619,7 +11593,6 @@ function buildClientServerCard(s) {
     }
     main.appendChild(cred);
   }
-  if (s.credentialLocation) main.appendChild(pjMk('div', 'cl-item-meta', 'Credential location: ' + s.credentialLocation));
   if (s.notes) main.appendChild(pjMk('div', 'cl-item-notes', s.notes));
   main.appendChild(pjMk('div', 'cl-item-updated', clUpdatedLabel(s)));
   card.appendChild(main);
@@ -11628,7 +11601,7 @@ function buildClientServerCard(s) {
   const histBtn = pjMk('button', 'cd-icon-btn');
   histBtn.innerHTML = ic('clock');
   histBtn.title = 'View history';
-  histBtn.addEventListener('click', () => openClientHistoryModal('server', s.id, s.serverName));
+  histBtn.addEventListener('click', () => openClientHistoryModal('server', s.id, serverIdentityText(s)));
   actions.appendChild(histBtn);
   const editBtn = pjMk('button', 'cd-icon-btn');
   editBtn.innerHTML = ic('pencil');
@@ -11720,25 +11693,88 @@ async function deleteClientVpnEntry(id) {
 }
 
 // ── Server modal ──
+// Fills one of the identity dropdowns from its lookup catalog. Only ACTIVE codes
+// are offerable, but a record still sitting on one of migration 038/039's
+// soft-disabled nullN placeholders keeps it as its current value — otherwise
+// editing anything else on that record would silently re-point it at whatever
+// happened to be first in the list. `valueKey` follows the category's own
+// round-trip convention: SERVER_ROLE by code, SYSTEM by label.
+function fillIdentitySelect(selectId, category, valueKey, current, blankText, kindWord) {
+  const sel = document.getElementById(selectId);
+  sel.innerHTML = '';
+  const blank = document.createElement('option');
+  blank.value = '';
+  blank.textContent = blankText;
+  sel.appendChild(blank);
+  const active = lkOptions(category);
+  active.forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o[valueKey];
+    opt.textContent = o.label;
+    sel.appendChild(opt);
+  });
+  const cur = current || '';
+  if (cur && !active.some(o => o[valueKey] === cur)) {
+    const opt = document.createElement('option');
+    opt.value = cur;
+    opt.textContent = (lkLabel(category, cur) || cur) + ' — placeholder, pick a real ' + kindWord;
+    sel.appendChild(opt);
+  }
+  sel.value = cur;
+}
+
+// The Environment select is a fixed Production/UAT pair, so a legacy row carrying
+// a nullN placeholder environment needs its value added back the same way.
+function fillServerEnvSelect(s) {
+  const sel = document.getElementById('cs-environment');
+  sel.querySelectorAll('option[data-placeholder]').forEach(o => o.remove());
+  const env = s ? (s.environment || '') : '';
+  if (env && env !== 'PRODUCTION' && env !== 'TEST') {
+    const opt = document.createElement('option');
+    opt.value = env;
+    opt.dataset.placeholder = '1';
+    opt.textContent = env + ' — placeholder, pick a real environment';
+    sel.appendChild(opt);
+  }
+  sel.value = env || 'PRODUCTION';
+}
+
+// Live "System - Role - Environment" line under the identity row, so the thing
+// that has to be unique is visible as one value while it's being typed.
+function renderServerIdentityPreview() {
+  const el = document.getElementById('cs-identity-preview');
+  if (!el) return;
+  // Resolve all three through the catalog/label helpers rather than reading the
+  // option's text, which carries the "— placeholder, pick a real X" suffix.
+  const system = lkLabel('SYSTEM', document.getElementById('cs-system').value);
+  const role = lkLabel('SERVER_ROLE', document.getElementById('cs-role').value);
+  const env = srvEnvLabel(document.getElementById('cs-environment').value);
+  el.classList.remove('bad');
+  if (!system || !role || !env) {
+    el.textContent = 'All three identify the server and must be unique for this client.';
+    return;
+  }
+  el.innerHTML = 'Identity: <span class="cs-identity-value">' +
+    esc(system) + ' - ' + esc(role) + ' - ' + esc(env) + '</span>';
+}
+
 function openClientServerModal(s) {
   clientServerEditId = s ? s.id : null;
   document.getElementById('client-server-modal-title').textContent = s ? 'Edit Server' : 'Add Server';
   document.getElementById('client-server-modal-submit').textContent = s ? 'Save Changes' : 'Add Server';
-  document.getElementById('cs-name').value = s ? (s.serverName || '') : '';
   document.getElementById('cs-host').value = s ? (s.host || '') : '';
-  document.getElementById('cs-environment').value = s ? (s.environment || 'PRODUCTION') : 'PRODUCTION';
-  document.getElementById('cs-system').value = s ? (s.systemName || '') : '';
+  fillIdentitySelect('cs-system', 'SYSTEM', 'label', s ? s.systemName : '', 'Select a system…', 'system');
+  fillIdentitySelect('cs-role', 'SERVER_ROLE', 'code', s ? s.role : '', 'Select a role…', 'role');
+  fillServerEnvSelect(s);
   document.getElementById('cs-hostname').value = s ? (s.hostname || '') : '';
   document.getElementById('cs-os').value = s ? (s.os || '') : '';
   document.getElementById('cs-username').value = s ? (s.username || '') : '';
   document.getElementById('cs-password').value = s ? (s.password || '') : '';
-  document.getElementById('cs-role').value = s ? (s.role || '') : '';
-  document.getElementById('cs-port').value = s ? (s.port || '') : '';
-  document.getElementById('cs-cred-location').value = s ? (s.credentialLocation || '') : '';
   document.getElementById('cs-notes').value = s ? (s.notes || '') : '';
+  renderServerIdentityPreview();
   clearErrorsIn('#client-server-modal');
   document.getElementById('client-server-modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById('cs-name').focus(), 80);
+  setTimeout(() => document.getElementById('cs-system').focus(), 80);
 }
 function closeClientServerModal() {
   document.getElementById('client-server-modal-overlay').classList.remove('open');
@@ -11749,20 +11785,22 @@ function clientServerOverlayClick(e) {
 }
 async function submitClientServerModal() {
   clearErrorsIn('#client-server-modal');
-  const serverName = document.getElementById('cs-name').value.trim();
-  if (!serverName) { markError('cs-name'); return; }
+  const systemName = document.getElementById('cs-system').value;   // a SYSTEM label
+  const role = document.getElementById('cs-role').value;
+  const environment = document.getElementById('cs-environment').value;
+  // System / Role / Environment are what identify the server — all three required.
+  let bad = false;
+  if (!systemName) { markError('cs-system'); bad = true; }
+  if (!role) { markError('cs-role'); bad = true; }
+  if (!environment) { markError('cs-environment'); bad = true; }
+  if (bad) return;
   const data = {
-    serverName,
+    systemName, role, environment,
     host:        document.getElementById('cs-host').value.trim(),
-    environment: document.getElementById('cs-environment').value || 'PRODUCTION',
-    systemName:  document.getElementById('cs-system').value.trim(),
     hostname:    document.getElementById('cs-hostname').value.trim(),
     os:          document.getElementById('cs-os').value.trim(),
     username:    document.getElementById('cs-username').value.trim(),
     password:    document.getElementById('cs-password').value.trim(),
-    role:        document.getElementById('cs-role').value.trim(),
-    port:        document.getElementById('cs-port').value.trim(),
-    credentialLocation: document.getElementById('cs-cred-location').value.trim(),
     notes:       document.getElementById('cs-notes').value.trim(),
   };
   if (clientServerEditId != null) {
@@ -11770,12 +11808,22 @@ async function submitClientServerModal() {
     const changes = diffClientFields(before, data, SERVER_CONFIRM_FIELDS);
     if (changes.length && !(await confirmClientFieldChanges(changes))) return;
   }
+  let res;
   try {
-    if (clientServerEditId != null) await window.api.updateClientServer(clientServerEditId, data);
-    else await window.api.createClientServer(currentClient.id, data);
-    closeClientServerModal();
-    toast('Server saved');
+    if (clientServerEditId != null) res = await window.api.updateClientServer(clientServerEditId, data);
+    else res = await window.api.createClientServer(currentClient.id, data);
   } catch { toast('Could not save server'); return; }
+  // A rejected identity comes back as {ok:false,error} rather than throwing — the
+  // modal stays open with the three parts flagged so the clash can be fixed.
+  if (res && res.ok === false) {
+    ['cs-system', 'cs-role', 'cs-environment'].forEach(markError);
+    const preview = document.getElementById('cs-identity-preview');
+    preview.classList.add('bad');
+    preview.textContent = res.error || 'That System / Role / Environment is already taken.';
+    return;
+  }
+  closeClientServerModal();
+  toast('Server saved');
   await reloadCurrentClient();
 }
 async function deleteClientServerEntry(id) {
@@ -11785,14 +11833,16 @@ async function deleteClientServerEntry(id) {
   await reloadCurrentClient();
   if (!snapshot) return;
   showGenericUndo('Server deleted', async () => {
+    let res;
     try {
-      await window.api.createClientServer(snapshot.companyId, {
-        serverName: snapshot.serverName, host: snapshot.host, environment: snapshot.environment,
+      res = await window.api.createClientServer(snapshot.companyId, {
+        host: snapshot.host, environment: snapshot.environment,
         systemName: snapshot.systemName, hostname: snapshot.hostname, os: snapshot.os, username: snapshot.username,
-        password: snapshot.password, role: snapshot.role, port: snapshot.port, credentialLocation: snapshot.credentialLocation,
-        notes: snapshot.notes,
+        password: snapshot.password, role: snapshot.role, notes: snapshot.notes,
       });
     } catch { toast('Could not restore server'); return; }
+    // Its identity can have been taken by another server during the undo window.
+    if (res && res.ok === false) { toast(res.error || 'Could not restore server'); return; }
     await reloadCurrentClient();
   });
 }
@@ -12275,7 +12325,6 @@ const PAL_PAGES = [
   { icon: 'building-2',       label: 'Browse — Companies', go: 'companies' },
   { icon: 'folder',           label: 'Browse — Systems',   go: 'systems' },
   { icon: 'list',             label: 'All Tasks',     go: 'all-tasks' },
-  { icon: 'briefcase',        label: 'Clients Projects', go: 'clients-projects' },
   { icon: 'layers',           label: 'Clients',       go: 'clients' },
   { icon: 'credit-card',      label: 'Subscriptions', go: 'subscriptions' },
   { icon: 'calendar-check',   label: 'Company Documents', go: 'companydocs' },
@@ -12295,6 +12344,7 @@ const PAL_SETTINGS_TABS = [
   { key: 'projectStatus', label: 'Project Status' }, { key: 'projectCategory', label: 'Project Category' },
   { key: 'projectDocument', label: 'Project Documents' }, { key: 'companyDocCategory', label: 'Company Doc Categories' },
   { key: 'department', label: 'Department' }, { key: 'taskSourceType', label: 'Task Source Types' },
+  { key: 'serverRole', label: 'Server Roles' },
 ];
 
 async function openPalette() {
@@ -12365,7 +12415,7 @@ function renderPalette() {
   // Quick actions
   const acts = [
     { icon: 'plus',          label: 'Add record — log work',      match: 'add record log work session new', run: () => { switchModule('timesheet'); openModal(); } },
-    { icon: 'clipboard-list',label: 'New project',                match: 'new project create',              run: () => { switchModule('clients-projects'); openProjectModal(); } },
+    { icon: 'clipboard-list',label: 'New project',                match: 'new project create',              run: () => { switchModule('clients'); openProjectModal(); } },
     { icon: 'calendar-check',label: 'Go to today',                match: 'today now current day',           run: () => { switchModule('timesheet'); goToday(); } },
     { icon: 'moon',          label: 'Toggle dark / light theme',  match: 'theme dark light mode toggle',    run: toggleTheme },
     { icon: 'compass',       label: 'How This App Thinks',        match: 'how this app thinks help model cheat sheet', run: openHowThinksOverlay },
@@ -12549,6 +12599,9 @@ async function init() {
   // 'projects' is excluded even though `#module-projects` exists — it's the
   // internal-only single-project detail host (no sidebar entry, see
   // switchModule), never a valid landing page on its own.
+  // The retired 'clients-projects' page is folded into 'clients', so a stale
+  // saved value lands the returning user on the merged Clients page.
+  if (uiState.lastModule === 'clients-projects') uiState.lastModule = 'clients';
   const landingModule = (uiState.startOnLastPage && uiState.lastModule && uiState.lastModule !== 'projects'
     && document.getElementById('module-' + uiState.lastModule)) ? uiState.lastModule : 'analytics';
   switchModule(landingModule);

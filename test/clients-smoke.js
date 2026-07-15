@@ -150,26 +150,41 @@ try {
     JSON.stringify(updatedVpn));
 
   // ── Server CRUD ──────────────────────────────────────────────────────────────
+  // Since migration 038 a server is identified by systemName - role - environment:
+  // all three are required, so every payload here carries them. Since migration
+  // 039 the System must be a real SYSTEM lookup label (free text is refused), so
+  // these pick real catalog entries rather than inventing names. The identity
+  // rule itself has its own dedicated gates in test/server-identity-smoke.js.
+  // Pick systems companyA has no servers under, so these writes can't collide
+  // with the real data in the copied DB (the identity triple is enforced now).
+  const usedByCompanyA = new Set(db.getClient(userId, companyA).servers.map(s => s.systemName));
+  const freeSystems = db.getLookupsByCategory('SYSTEM').filter(s => !usedByCompanyA.has(s.label));
+  if (freeSystems.length < 2) throw new Error('need 2 unused SYSTEM lookups in this copy');
+  const sysOne = freeSystems[0].label, sysTwo = freeSystems[1].label;
+
   const srv = db.createClientServer(userId, companyA, {
-    serverName: 'App Server 1', host: '10.0.0.5', environment: 'PRODUCTION', os: 'Ubuntu 22.04',
-    hostname: 'app-srv-1', username: 'admin', password: 'srv-secret', systemName: 'RabbitMQ', notes: 'main app box',
+    host: '10.0.0.5', environment: 'PRODUCTION', os: 'Ubuntu 22.04',
+    hostname: 'app-srv-1', username: 'admin', password: 'srv-secret', systemName: sysOne,
+    role: 'APPLICATIONS', notes: 'main app box',
   });
   record('createClientServer: persisted with fields', srv && srv.companyId === companyA
-    && srv.serverName === 'App Server 1' && srv.environment === 'PRODUCTION', JSON.stringify(srv));
+    && srv.host === '10.0.0.5' && srv.environment === 'PRODUCTION', JSON.stringify(srv));
   record('createClientServer: persists hostname/username/password (migration 022)',
     srv && srv.hostname === 'app-srv-1' && srv.username === 'admin' && srv.password === 'srv-secret', JSON.stringify(srv));
-  record('createClientServer: persists systemName (migration 023)', srv && srv.systemName === 'RabbitMQ', JSON.stringify(srv));
+  record('createClientServer: persists systemName (migration 023, lookup-backed since 039)',
+    srv && srv.systemName === sysOne, JSON.stringify(srv));
 
   const updatedSrv = db.updateClientServer(userId, srv.id, {
-    serverName: 'App Server 1 (renamed)', host: '10.0.0.6', environment: 'TEST', os: 'Ubuntu 24.04',
-    hostname: 'app-srv-1-test', username: 'admin2', password: 'new-srv-secret', systemName: 'RabbitMQ v2', notes: 'moved to test',
+    host: '10.0.0.6', environment: 'TEST', os: 'Ubuntu 24.04',
+    hostname: 'app-srv-1-test', username: 'admin2', password: 'new-srv-secret', systemName: sysTwo,
+    role: 'APPLICATIONS', notes: 'moved to test',
   });
   record('updateClientServer: fields changed in place, id stable', updatedSrv.id === srv.id
     && updatedSrv.environment === 'TEST' && updatedSrv.os === 'Ubuntu 24.04', JSON.stringify(updatedSrv));
   record('updateClientServer: hostname/username/password changed in place',
     updatedSrv.hostname === 'app-srv-1-test' && updatedSrv.username === 'admin2' && updatedSrv.password === 'new-srv-secret',
     JSON.stringify(updatedSrv));
-  record('updateClientServer: systemName changed in place', updatedSrv.systemName === 'RabbitMQ v2', JSON.stringify(updatedSrv));
+  record('updateClientServer: systemName changed in place', updatedSrv.systemName === sysTwo, JSON.stringify(updatedSrv));
 
   // ── Database CRUD ────────────────────────────────────────────────────────────
   const database = db.createClientDatabase(userId, companyA, {
@@ -268,7 +283,7 @@ try {
     updatedInt.companyCode === '106' && updatedInt.secretKey === 'new-int-secret', JSON.stringify(updatedInt));
 
   // ── Per-company isolation ────────────────────────────────────────────────────
-  db.createClientServer(userId, companyB, { serverName: 'Other Client Box', host: '10.1.1.1', environment: 'PRODUCTION', os: 'Windows Server 2022', notes: '' });
+  db.createClientServer(userId, companyB, { host: '10.1.1.1', environment: 'PRODUCTION', os: 'Windows Server 2022', systemName: sysOne, role: 'SERVICES', notes: '' });
   db.createClientDatabase(userId, companyB, { name: 'Other Client DB', engine: 'MongoDB', host: '10.1.1.2', port: '27017', username: 'x', password: 'y', notes: '' });
   db.createClientExternalService(userId, companyB, { name: 'Other Client Service', url: 'https://other.example.com', companyCode: '999', secretKey: 'z', notes: '' });
   db.createClientInternalSystem(userId, companyB, { name: 'Other Client Portal', url: 'http://10.2.2.2/', username: 'x', password: 'y', notes: '' });
@@ -276,9 +291,9 @@ try {
   const clientBAfter = db.getClient(userId, companyB);
   if (companyA !== companyB) {
     record('Per-company isolation: company A does not see company B\'s server',
-      !clientAAfter.servers.some(s => s.serverName === 'Other Client Box'), '');
+      !clientAAfter.servers.some(s => s.host === '10.1.1.1'), '');
     record('Per-company isolation: company B sees its own server',
-      clientBAfter.servers.some(s => s.serverName === 'Other Client Box'), '');
+      clientBAfter.servers.some(s => s.host === '10.1.1.1'), '');
     record('Per-company isolation: company A does not see company B\'s database',
       !clientAAfter.databases.some(d => d.name === 'Other Client DB'), '');
     record('Per-company isolation: company B sees its own database',
@@ -301,7 +316,7 @@ try {
   if (otherUserRow) {
     const stolenVpn = db.updateClientVpn(otherUserRow.id, vpn.id, { connectionName: 'stolen' });
     record('Ownership: another user cannot update this VPN connection', stolenVpn === null, JSON.stringify(stolenVpn));
-    const stolenSrv = db.updateClientServer(otherUserRow.id, srv.id, { serverName: 'stolen' });
+    const stolenSrv = db.updateClientServer(otherUserRow.id, srv.id, { host: 'stolen' });
     record('Ownership: another user cannot update this server', stolenSrv === null, JSON.stringify(stolenSrv));
     const stolenDb = db.updateClientDatabase(otherUserRow.id, database.id, { name: 'stolen' });
     record('Ownership: another user cannot update this database', stolenDb === null, JSON.stringify(stolenDb));
