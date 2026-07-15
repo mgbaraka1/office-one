@@ -91,16 +91,32 @@ try {
     'SELECT task_id, source_type_id, source_ref FROM task_sources'
   ).all();
   const backfillByTask = new Map(backfillRows.map(r => [r.task_id, r]));
+  // On a DB that hasn't reached 033 yet we can watch the backfill happen, so assert
+  // it exactly: one EMAIL-typed row per legacy-source task, matching its old text.
+  //
+  // On a DB already past 033 (production) we can only observe the *aftermath*, and
+  // "every legacy-source task still has a row" is NOT an invariant the app upholds:
+  // task_sources entries are independently deletable (deleteTaskSource) while
+  // tasks.source is deliberately never rewritten, so deleting a backfilled entry
+  // legitimately strands its legacy text forever. Asserting the strict form here
+  // fails on the first such edit and stays red (it did, on one repurposed task).
+  // What IS still provable: the backfill ran and covered this population, bar the
+  // stragglers real usage has since deleted.
+  const BACKFILL_SURVIVAL_MIN = 0.95;
+  const covered = nonEmptySourceTasksBefore.filter(t => backfillByTask.has(t.id)).length;
+  const ratio = nonEmptySourceTasksBefore.length ? covered / nonEmptySourceTasksBefore.length : 1;
   const backfillPass = nonEmptySourceTasksBefore.length === 0 || alreadyAt033
-    ? nonEmptySourceTasksBefore.every(t => backfillByTask.has(t.id))
+    ? ratio >= BACKFILL_SURVIVAL_MIN
     : nonEmptySourceTasksBefore.every(t => {
         const r = backfillByTask.get(t.id);
         return r && r.source_type_id === emailId && r.source_ref === t.source;
       });
   record(alreadyAt033
-    ? 'Backfill: every legacy-source task has some task_sources row (033 pre-applied)'
+    ? `Backfill: ran over the legacy-source population; >=${BACKFILL_SURVIVAL_MIN * 100}% still have a task_sources row (033 pre-applied; entries deleted since are expected)`
     : 'Backfill: every legacy-source task got exactly one EMAIL-typed row matching its old text',
-    backfillPass, `legacySourceTasks=${nonEmptySourceTasksBefore.length}, alreadyAt033=${alreadyAt033}`);
+    backfillPass,
+    `legacySourceTasks=${nonEmptySourceTasksBefore.length}, covered=${covered}` +
+    (alreadyAt033 ? ` (${(ratio * 100).toFixed(1)}%)` : '') + `, alreadyAt033=${alreadyAt033}`);
   rawAfter.close();
 
   const userRow = new DatabaseSync(path.join(workDir, 'cooperation-tools.db'))

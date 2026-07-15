@@ -532,9 +532,10 @@ function getOverviewStats(userId, today, monthStart) {
 
 // ── Attention center (Milestone 3) ──────────────────────────────────────────
 // One aggregated read across every date-urgent source in the app: subscription
-// renewals, Company Document renewals, and the three client_* tables that
-// carry an expiry_date (Auth/VPN, External Services, Internal Systems —
-// client_servers/client_databases have no expiry_date column). Deliberately
+// renewals, Company Document renewals, and the two client_* tables that carry
+// an expiry_date AND still have a UI (Auth/VPN, Internal Systems —
+// client_servers has no expiry_date column, and the External Services section
+// was retired, so its own expiry_date no longer feeds this). Deliberately
 // returns raw dates + a deep-link target, not a computed urgency tier — the
 // renderer already has daysUntil()/renewClass()/renewLabel() (Subscriptions'
 // own helpers, already generic) and reuses them here instead of duplicating
@@ -552,9 +553,6 @@ function getAttentionItems(userId) {
   });
   db.prepare('SELECT id, connection_name, expiry_date, company_id FROM client_vpn_connections WHERE user_id = ?').all(userId).forEach(v => {
     if (v.expiry_date) items.push({ type: 'clientVpn', id: v.id, title: v.connection_name || 'Auth', date: v.expiry_date, module: 'clients', companyId: v.company_id });
-  });
-  db.prepare('SELECT id, name, expiry_date, company_id FROM client_external_services WHERE user_id = ?').all(userId).forEach(e => {
-    if (e.expiry_date) items.push({ type: 'clientExternal', id: e.id, title: e.name || 'External Service', date: e.expiry_date, module: 'clients', companyId: e.company_id });
   });
   db.prepare('SELECT id, name, expiry_date, company_id FROM client_internal_systems WHERE user_id = ?').all(userId).forEach(i => {
     if (i.expiry_date) items.push({ type: 'clientInternal', id: i.id, title: i.name || 'Internal System', date: i.expiry_date, module: 'clients', companyId: i.company_id });
@@ -2305,6 +2303,9 @@ const LOOKUP_MERGE_TARGETS = {
   COMPANY: {
     simple: [
       ['tasks', 'company_id'], ['client_vpn_connections', 'company_id'], ['client_servers', 'company_id'],
+      // client_databases/client_external_services are retired (no UI, no CRUD, no rows)
+      // but still listed: a repoint over an empty table is free, and dropping them here
+      // would silently leave dangling FKs if a row ever reappeared.
       ['client_databases', 'company_id'], ['client_external_services', 'company_id'], ['client_internal_systems', 'company_id'],
     ],
     junctions: [['project_companies', 'company_id', 'project_id']],
@@ -2432,6 +2433,8 @@ function decryptCredentialValue(stored) {
 const CREDENTIAL_COLUMNS = [
   ['client_vpn_connections', ['password']],
   ['client_servers', ['password']],
+  // Retired sections (no UI, no CRUD, no rows) — kept so the pass still catches
+  // any legacy plaintext credential that outlived its section.
   ['client_databases', ['password']],
   ['client_external_services', ['secret_key']],
   ['client_internal_systems', ['password', 'secret_key']],
@@ -2496,20 +2499,6 @@ function clientServerToApi(r) {
     notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
   };
 }
-function clientDatabaseToApi(r) {
-  return {
-    id: r.id, companyId: r.company_id, name: r.name, engine: r.engine, host: r.host, port: r.port,
-    username: r.username, password: decryptCredentialValue(r.password), version: r.version || '', credentialLocation: r.credential_location || '',
-    notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
-  };
-}
-function clientExternalServiceToApi(r) {
-  return {
-    id: r.id, companyId: r.company_id, name: r.name, url: r.url, companyCode: r.company_code,
-    secretKey: decryptCredentialValue(r.secret_key), expiryDate: r.expiry_date || '', contact: r.contact || '',
-    notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
-  };
-}
 function clientInternalSystemToApi(r) {
   return {
     id: r.id, companyId: r.company_id, name: r.name, url: r.url, username: r.username, password: decryptCredentialValue(r.password),
@@ -2521,10 +2510,12 @@ function clientInternalSystemToApi(r) {
 }
 
 // ── Field-edit history (audit trail) ────────────────────────────────────────
-// One row per changed field on an UPDATE to any of the five client_* tables
-// (never on create/delete — delete-undo re-creates from a snapshot, which is
-// a create, not an edit). `record_type` distinguishes which of the five
-// tables `record_id` points into (see migration 027 for why there's no FK).
+// One row per changed field on an UPDATE to any of the three client_* tables
+// that still have a UI (never on create/delete — delete-undo re-creates from a
+// snapshot, which is a create, not an edit). `record_type` distinguishes which
+// table `record_id` points into (see migration 027 for why there's no FK); the
+// retired 'database'/'external' discriminators are never written again, but any
+// historical row carrying one is left in place, unread.
 // Field-def lists below double as: (a) which columns participate in the
 // diff, (b) the human label shown in the confirm dialog / history view, and
 // (c) which fields are `sensitive` — those log a fixed '(hidden)' placeholder
@@ -2545,14 +2536,6 @@ const SERVER_HISTORY_FIELDS = [
   ['system_id', 'System', false, lkLabelOf],
   ['role_id', 'Role', false, lkLabelOf],
   ['notes', 'Notes'],
-];
-const DATABASE_HISTORY_FIELDS = [
-  ['name', 'Name'], ['engine', 'Engine'], ['host', 'Host'], ['port', 'Port'], ['username', 'Username'],
-  ['password', 'Password', true], ['version', 'Version'], ['credential_location', 'Credential Location'], ['notes', 'Notes'],
-];
-const EXTERNAL_HISTORY_FIELDS = [
-  ['name', 'Name'], ['url', 'URL'], ['company_code', 'Company Code'], ['secret_key', 'Secret Key', true],
-  ['expiry_date', 'Expiry Date'], ['contact', 'Contact'], ['notes', 'Notes'],
 ];
 const INTERNAL_HISTORY_FIELDS = [
   ['name', 'Name'], ['url', 'URL'], ['username', 'Username'], ['password', 'Password', true],
@@ -2635,21 +2618,6 @@ function listClients(userId) {
       fields: [r.host, r.hostname, r.os, lkLabel(r.system_id), lkLabel(r.role_id)].filter(Boolean),
     })
   );
-  const dbase = groupClientRows(
-    db.prepare('SELECT id, company_id, name, engine, host FROM client_databases WHERE user_id = ?').all(userId),
-    r => ({
-      id: r.id, type: 'databases', typeLabel: 'Database', name: r.name || '(unnamed)',
-      detail: [r.engine, r.host].filter(Boolean).join(' · '),
-      fields: [r.name, r.engine, r.host].filter(Boolean),
-    })
-  );
-  const ext = groupClientRows(
-    db.prepare('SELECT id, company_id, name, url FROM client_external_services WHERE user_id = ?').all(userId),
-    r => ({
-      id: r.id, type: 'external', typeLabel: 'External', name: r.name || '(unnamed)',
-      detail: r.url || '', fields: [r.name, r.url].filter(Boolean),
-    })
-  );
   const int_ = groupClientRows(
     db.prepare('SELECT id, company_id, name, url, system_name FROM client_internal_systems WHERE user_id = ?').all(userId),
     r => ({
@@ -2660,18 +2628,18 @@ function listClients(userId) {
   );
   return companies.map(c => ({
     id: c.id, label: c.label,
-    vpnCount: vpn.counts.get(c.id) || 0, serverCount: srv.counts.get(c.id) || 0, databaseCount: dbase.counts.get(c.id) || 0,
-    externalServiceCount: ext.counts.get(c.id) || 0, internalSystemCount: int_.counts.get(c.id) || 0,
+    vpnCount: vpn.counts.get(c.id) || 0, serverCount: srv.counts.get(c.id) || 0,
+    internalSystemCount: int_.counts.get(c.id) || 0,
     records: [
-      ...(vpn.records.get(c.id) || []), ...(srv.records.get(c.id) || []), ...(dbase.records.get(c.id) || []),
-      ...(ext.records.get(c.id) || []), ...(int_.records.get(c.id) || []),
+      ...(vpn.records.get(c.id) || []), ...(srv.records.get(c.id) || []),
+      ...(int_.records.get(c.id) || []),
     ],
   }));
 }
 
 // One client's detail: the COMPANY lookup's label + its auth connections,
-// servers, databases, external services, and internal systems (all ordered).
-// Returns null if companyId isn't a real COMPANY row.
+// servers, and internal systems (all ordered). Returns null if companyId isn't
+// a real COMPANY row.
 function getClient(userId, companyId) {
   if (!isLookupId('COMPANY', Number(companyId))) return null;
   const vpnConnections = db.prepare(
@@ -2680,16 +2648,10 @@ function getClient(userId, companyId) {
   const servers = db.prepare(
     'SELECT * FROM client_servers WHERE company_id = ? AND user_id = ? ORDER BY sort_order, id'
   ).all(companyId, userId).map(clientServerToApi);
-  const databases = db.prepare(
-    'SELECT * FROM client_databases WHERE company_id = ? AND user_id = ? ORDER BY sort_order, id'
-  ).all(companyId, userId).map(clientDatabaseToApi);
-  const externalServices = db.prepare(
-    'SELECT * FROM client_external_services WHERE company_id = ? AND user_id = ? ORDER BY sort_order, id'
-  ).all(companyId, userId).map(clientExternalServiceToApi);
   const internalSystems = db.prepare(
     'SELECT * FROM client_internal_systems WHERE company_id = ? AND user_id = ? ORDER BY sort_order, id'
   ).all(companyId, userId).map(clientInternalSystemToApi);
-  return { id: Number(companyId), label: lkLabel(Number(companyId)), vpnConnections, servers, databases, externalServices, internalSystems };
+  return { id: Number(companyId), label: lkLabel(Number(companyId)), vpnConnections, servers, internalSystems };
 }
 
 function createClientVpn(userId, companyId, data) {
@@ -2870,75 +2832,6 @@ function assignClientServerGroup(userId, companyId, recordIds, groupName) {
   return { ok: true, count };
 }
 
-function createClientDatabase(userId, companyId, data) {
-  if (!isLookupId('COMPANY', Number(companyId))) return null;
-  const now = new Date().toISOString();
-  const id = Number(db.prepare(
-    `INSERT INTO client_databases(user_id, company_id, name, engine, host, port, username, password, version, credential_location, notes, sort_order, created_at, updated_at)
-     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
-  ).run(userId, companyId, data?.name ?? '', data?.engine ?? '', data?.host ?? '',
-        data?.port ?? '', data?.username ?? '', encryptCredentialValue(data?.password ?? ''), data?.version ?? '',
-        data?.credentialLocation ?? '', data?.notes ?? '', now, now).lastInsertRowid);
-  return clientDatabaseToApi(db.prepare('SELECT * FROM client_databases WHERE id = ?').get(id));
-}
-function updateClientDatabase(userId, id, data) {
-  const beforeRaw = db.prepare('SELECT * FROM client_databases WHERE id = ? AND user_id = ?').get(id, userId);
-  if (!beforeRaw) return null;
-  const before = { ...beforeRaw, password: decryptCredentialValue(beforeRaw.password) };
-  const next = {
-    name: data?.name ?? '', engine: data?.engine ?? '', host: data?.host ?? '', port: data?.port ?? '',
-    username: data?.username ?? '', password: data?.password ?? '',
-    version: data?.version ?? '', credential_location: data?.credentialLocation ?? '', notes: data?.notes ?? '',
-  };
-  tx(() => {
-    recordClientFieldHistory(userId, 'database', id, before, next, DATABASE_HISTORY_FIELDS);
-    db.prepare(
-      `UPDATE client_databases SET name = ?, engine = ?, host = ?, port = ?, username = ?, password = ?,
-         version = ?, credential_location = ?, notes = ?, updated_at = ?
-        WHERE id = ? AND user_id = ?`
-    ).run(next.name, next.engine, next.host, next.port, next.username, encryptCredentialValue(next.password),
-          next.version, next.credential_location, next.notes, new Date().toISOString(), id, userId);
-  });
-  return clientDatabaseToApi(db.prepare('SELECT * FROM client_databases WHERE id = ?').get(id));
-}
-function deleteClientDatabase(userId, id) {
-  db.prepare('DELETE FROM client_databases WHERE id = ? AND user_id = ?').run(id, userId);
-  return { ok: true };
-}
-
-function createClientExternalService(userId, companyId, data) {
-  if (!isLookupId('COMPANY', Number(companyId))) return null;
-  const now = new Date().toISOString();
-  const id = Number(db.prepare(
-    `INSERT INTO client_external_services(user_id, company_id, name, url, company_code, secret_key, expiry_date, contact, notes, sort_order, created_at, updated_at)
-     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
-  ).run(userId, companyId, data?.name ?? '', data?.url ?? '', data?.companyCode ?? '', encryptCredentialValue(data?.secretKey ?? ''),
-        data?.expiryDate ?? null, data?.contact ?? '', data?.notes ?? '', now, now).lastInsertRowid);
-  return clientExternalServiceToApi(db.prepare('SELECT * FROM client_external_services WHERE id = ?').get(id));
-}
-function updateClientExternalService(userId, id, data) {
-  const beforeRaw = db.prepare('SELECT * FROM client_external_services WHERE id = ? AND user_id = ?').get(id, userId);
-  if (!beforeRaw) return null;
-  const before = { ...beforeRaw, secret_key: decryptCredentialValue(beforeRaw.secret_key) };
-  const next = {
-    name: data?.name ?? '', url: data?.url ?? '', company_code: data?.companyCode ?? '', secret_key: data?.secretKey ?? '',
-    expiry_date: data?.expiryDate ?? null, contact: data?.contact ?? '', notes: data?.notes ?? '',
-  };
-  tx(() => {
-    recordClientFieldHistory(userId, 'external', id, before, next, EXTERNAL_HISTORY_FIELDS);
-    db.prepare(
-      `UPDATE client_external_services SET name = ?, url = ?, company_code = ?, secret_key = ?, expiry_date = ?, contact = ?, notes = ?, updated_at = ?
-        WHERE id = ? AND user_id = ?`
-    ).run(next.name, next.url, next.company_code, encryptCredentialValue(next.secret_key), next.expiry_date, next.contact, next.notes,
-          new Date().toISOString(), id, userId);
-  });
-  return clientExternalServiceToApi(db.prepare('SELECT * FROM client_external_services WHERE id = ?').get(id));
-}
-function deleteClientExternalService(userId, id) {
-  db.prepare('DELETE FROM client_external_services WHERE id = ? AND user_id = ?').run(id, userId);
-  return { ok: true };
-}
-
 function normalizeSubServices(subServices) {
   if (!Array.isArray(subServices)) return [];
   return subServices
@@ -3034,8 +2927,6 @@ module.exports = {
   encryptAllPendingCredentials,
   createClientVpn, updateClientVpn, deleteClientVpn,
   createClientServer, updateClientServer, deleteClientServer, renameClientServerSystemGroup, assignClientServerGroup,
-  createClientDatabase, updateClientDatabase, deleteClientDatabase,
-  createClientExternalService, updateClientExternalService, deleteClientExternalService,
   createClientInternalSystem, updateClientInternalSystem, deleteClientInternalSystem, renameClientInternalSystemGroup, assignClientInternalGroup,
   loadLookups, saveLookups, getLookupsByCategory,
   loadSubscriptions, saveSubscriptions,
