@@ -25,6 +25,11 @@ const USERNAME_MIN = 3;
 const USERNAME_MAX = 32;
 const USERNAME_RE  = /^[A-Za-z0-9._-]+$/;
 const PASSWORD_MIN = 8;
+const PASSWORD_MAX = 1024;
+const MAX_LOGIN_FAILURES = 5;
+const LOGIN_LOCK_MS = 30_000;
+const loginFailures = new Map();
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync('invalid-login-placeholder', SALT_ROUNDS);
 
 // The single in-memory session for this process. null === not authenticated.
 let session = null;   // { userId: number, username: string } | null
@@ -41,9 +46,11 @@ function validateUsername(username) {
 }
 
 function validatePassword(password) {
-  if (String(password || '').length < PASSWORD_MIN) {
+  const length = String(password || '').length;
+  if (length < PASSWORD_MIN) {
     return `Password must be at least ${PASSWORD_MIN} characters.`;
   }
+  if (length > PASSWORD_MAX) return `Password must be at most ${PASSWORD_MAX} characters.`;
   return null;
 }
 
@@ -77,23 +84,40 @@ function setup(username, password) {
   try {
     const placeholder = db.getUnclaimedUser();
     if (placeholder) { db.claimUser(placeholder.id, uname, hash); id = placeholder.id; }
-    else { id = db.createUser(uname, hash); }
+    else { id = db.createUser(uname, hash, true); }
   } catch { return { ok: false, error: 'That username is already taken.' }; }
 
-  session = { userId: id, username: uname };
-  return { ok: true, user: { id, username: uname } };
+  session = { userId: id, username: uname, isAdmin: true };
+  return { ok: true, user: { id, username: uname, isAdmin: true } };
 }
 
 // Verify credentials and start a session. Generic error on any failure so we
 // don't reveal whether the username exists.
 function login(username, password) {
   const uname = String(username || '').trim();
+  const failureKey = uname.toLowerCase();
+  const failure = loginFailures.get(failureKey);
+  if (failure?.blockedUntil > Date.now()) {
+    const seconds = Math.ceil((failure.blockedUntil - Date.now()) / 1000);
+    return { ok: false, error: `Too many attempts. Try again in ${seconds} seconds.` };
+  }
   const user = uname ? db.getUserByUsername(uname) : null;
-  const ok = user && user.is_active && bcrypt.compareSync(String(password || ''), user.password_hash);
-  if (!ok) return { ok: false, error: 'Incorrect username or password.' };
+  const suppliedPassword = String(password || '').slice(0, PASSWORD_MAX + 1);
+  const candidateHash = user?.is_active ? (user.password_hash || DUMMY_PASSWORD_HASH) : DUMMY_PASSWORD_HASH;
+  const passwordMatches = bcrypt.compareSync(suppliedPassword.slice(0, PASSWORD_MAX), candidateHash);
+  const ok = !!(user?.is_active && suppliedPassword.length <= PASSWORD_MAX && passwordMatches);
+  if (!ok) {
+    const count = (failure?.count || 0) + 1;
+    loginFailures.set(failureKey, {
+      count,
+      blockedUntil: count >= MAX_LOGIN_FAILURES ? Date.now() + LOGIN_LOCK_MS : 0,
+    });
+    return { ok: false, error: 'Incorrect username or password.' };
+  }
 
-  session = { userId: user.id, username: user.username };
-  return { ok: true, user: { id: user.id, username: user.username } };
+  loginFailures.delete(failureKey);
+  session = { userId: user.id, username: user.username, isAdmin: !!user.is_admin };
+  return { ok: true, user: { id: user.id, username: user.username, isAdmin: !!user.is_admin } };
 }
 
 function logout() {
@@ -102,7 +126,38 @@ function logout() {
 }
 
 function currentUser() {
-  return session ? { id: session.userId, username: session.username } : null;
+  return session ? { id: session.userId, username: session.username, isAdmin: !!session.isAdmin } : null;
+}
+
+function requireAdmin() {
+  if (!session) throw new Error('Not authenticated');
+  if (!session.isAdmin) throw new Error('Administrator access required');
+  return session.userId;
+}
+
+function addUser(username, password) {
+  requireAdmin();
+  const uErr = validateUsername(username);
+  if (uErr) return { ok: false, error: uErr };
+  const pErr = validatePassword(password);
+  if (pErr) return { ok: false, error: pErr };
+  const uname = String(username).trim();
+  try {
+    const id = db.createUser(uname, bcrypt.hashSync(String(password), SALT_ROUNDS), false);
+    return { ok: true, user: { id, username: uname, isAdmin: false } };
+  } catch { return { ok: false, error: 'That username is already taken.' }; }
+}
+
+function changePassword(currentPassword, newPassword) {
+  const userId = requireUserId();
+  const pErr = validatePassword(newPassword);
+  if (pErr) return { ok: false, error: pErr };
+  const user = db.getUserById(userId);
+  if (!user || !bcrypt.compareSync(String(currentPassword || ''), user.password_hash)) {
+    return { ok: false, error: 'Current password is incorrect.' };
+  }
+  db.updateUserPassword(userId, bcrypt.hashSync(String(newPassword), SALT_ROUNDS));
+  return { ok: true };
 }
 
 // The id every data query must be scoped to. Throws when no one is logged in, so
@@ -117,6 +172,6 @@ function isAuthenticated() {
 }
 
 module.exports = {
-  status, setup, login, logout, currentUser,
-  requireUserId, isAuthenticated,
+  status, setup, login, logout, currentUser, addUser, changePassword,
+  requireUserId, requireAdmin, isAuthenticated,
 };

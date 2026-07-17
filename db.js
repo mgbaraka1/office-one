@@ -50,6 +50,23 @@ function safeParse(text, fallback) {
   try { return JSON.parse(text); } catch { return fallback; }
 }
 
+// Resolve a path and prove it stays inside the expected root. Renderer-controlled
+// lookup codes and database metadata must never escape userData.
+function resolveInside(root, ...parts) {
+  const base = path.resolve(root);
+  const candidate = path.resolve(base, ...parts.map(p => String(p ?? '')));
+  const rel = path.relative(base, candidate);
+  if (rel.startsWith('..' + path.sep) || rel === '..' || path.isAbsolute(rel)) {
+    throw new Error('Resolved path is outside the allowed data directory');
+  }
+  return candidate;
+}
+
+function resolveStoredPath(relativePath) {
+  if (!relativePath || path.isAbsolute(String(relativePath))) throw new Error('Invalid stored file path');
+  return resolveInside(userDataDir, relativePath);
+}
+
 // ── Typed key/value stores (replaced the single generic `meta` table) ─────────
 //   app_settings  — shared application config that should travel with the data
 //                   (lookups, default subscription currency)
@@ -66,6 +83,14 @@ const appGet = (key) => kvGet('app_settings', key);
 const appSet = (key, value) => kvSet('app_settings', key, value);
 const machineGet = (key) => kvGet('machine_prefs', key);
 const machineSet = (key, value) => kvSet('machine_prefs', key, value);
+function userGet(userId, key) {
+  const row = db.prepare('SELECT value FROM user_settings WHERE user_id = ? AND key = ?').get(userId, key);
+  return row ? row.value : undefined;
+}
+function userSet(userId, key, value) {
+  db.prepare(`INSERT INTO user_settings(user_id, key, value) VALUES(?, ?, ?)
+              ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value`).run(userId, key, value);
+}
 
 // ── Lookup catalog cache (normalized categories) ──────────────────────────────
 // An in-memory snapshot of `lookup_codes`, rebuilt lazily and invalidated on edit.
@@ -178,11 +203,13 @@ function applyMigrations() {
 
 // Step 3 — best-effort housekeeping. Never throws; never blocks boot.
 function runMaintenance() {
-  if (!dbWasNew) rotateBackups();   // snapshot an existing DB before the user touches it
+  const backup = !dbWasNew ? rotateBackups() : { ok: true, skipped: true };
   const projectIds = sweepOrphanProjectFiles();        // drop file folders for projects that no longer exist
   const companyDocumentIds = sweepOrphanCompanyDocumentFiles(); // same, for company_documents/{id}/ folders
-  _lastOrphanSweepReport = { projectIds, companyDocumentIds, ranAt: new Date().toISOString() };
-  try { encryptAllPendingCredentials(); } catch { /* best-effort — never blocks boot */ }
+  _lastOrphanSweepReport = { projectIds, companyDocumentIds, backup, ranAt: new Date().toISOString() };
+  try { encryptAllPendingCredentials(); }
+  catch (err) { console.error('[security] pending credential encryption failed:', String(err?.message || err)); }
+  return _lastOrphanSweepReport;
 }
 
 // Safety net for the deferred file purge: remove any projects/{id}/ folder whose
@@ -196,7 +223,7 @@ function runMaintenance() {
 // process launch) — a sweep's result is only meaningful for "what happened
 // this boot", and by the time it's viewed the orphans are already gone, so
 // there's nothing left to persist or re-scan.
-let _lastOrphanSweepReport = { projectIds: [], companyDocumentIds: [], ranAt: null };
+let _lastOrphanSweepReport = { projectIds: [], companyDocumentIds: [], backup: null, ranAt: null };
 function getOrphanSweepReport() { return _lastOrphanSweepReport; }
 
 function sweepOrphanProjectFiles() {
@@ -247,7 +274,12 @@ function rotateBackups(keep = 5) {
       .sort((a, b) => a.mtimeMs - b.mtimeMs)   // oldest first, by actual mtime — not filename text
       .map(f => f.name);
     while (files.length > keep) fs.rmSync(path.join(dir, files.shift()), { force: true });
-  } catch { /* non-critical */ }
+    return { ok: true };
+  } catch (err) {
+    const error = String(err?.message || err);
+    console.error('[backup] automatic rotation failed:', error);
+    return { ok: false, error };
+  }
 }
 
 // ── Users (authentication) ──────────────────────────────────────────────────
@@ -271,23 +303,34 @@ function getUnclaimedUser() {
 // Turn the placeholder into the real first account, in place, so it keeps owning
 // all the data migration 002 assigned to it.
 function claimUser(id, username, passwordHash) {
-  db.prepare('UPDATE users SET username = ?, password_hash = ?, is_active = 1 WHERE id = ?')
+  db.prepare('UPDATE users SET username = ?, password_hash = ?, is_active = 1, is_admin = 1 WHERE id = ?')
     .run(username, passwordHash, id);
 }
 
 function getUserByUsername(username) {
   return db.prepare(
-    'SELECT id, username, password_hash, created_at, is_active FROM users WHERE username = ?'
+    'SELECT id, username, password_hash, created_at, is_active, is_admin FROM users WHERE username = ?'
   ).get(username) || null;
+}
+
+function getUserById(id) {
+  return db.prepare(
+    'SELECT id, username, password_hash, created_at, is_active, is_admin FROM users WHERE id = ?'
+  ).get(id) || null;
 }
 
 // Insert a new account and return its generated id. Caller supplies an already
 // hashed password. Throws on a duplicate username (UNIQUE constraint).
-function createUser(username, passwordHash) {
+function createUser(username, passwordHash, isAdmin = false) {
   const info = db.prepare(
-    'INSERT INTO users(username, password_hash, created_at, is_active) VALUES(?, ?, ?, 1)'
-  ).run(username, passwordHash, new Date().toISOString());
+    'INSERT INTO users(username, password_hash, created_at, is_active, is_admin) VALUES(?, ?, ?, 1, ?)'
+  ).run(username, passwordHash, new Date().toISOString(), isAdmin ? 1 : 0);
   return Number(info.lastInsertRowid);
+}
+
+function updateUserPassword(id, passwordHash) {
+  return db.prepare('UPDATE users SET password_hash = ? WHERE id = ? AND is_active = 1')
+    .run(passwordHash, id).changes > 0;
 }
 
 // ── Tasks + work logs (renderer sees the legacy "day rows" shape) ─────────────
@@ -570,16 +613,16 @@ function getLookupsByCategory(category, includeInactive = false) {
 }
 // Full catalog (every category, incl. inactive) + the default employee name —
 // what the renderer loads once at boot to build all dropdowns.
-function loadLookups() {
+function loadLookups(userId) {
   const categories = {};
   for (const cat of LOOKUP_CATEGORIES) categories[cat] = getLookupsByCategory(cat, true);
-  return { categories, defaultName: appGet('default_employee_name') || '' };
+  return { categories, defaultName: userGet(userId, 'default_employee_name') || '' };
 }
 // Persist edits from the Settings catalog editor. Existing rows are updated in
 // place (label / order / active); new rows get a generated unique code. Entries
 // are NEVER hard-deleted — disable via isActive:false (soft-disable). Codes are
 // immutable once created (they are the stable identity historical rows point at).
-function saveLookups(data) {
+function saveLookups(userId, data) {
   tx(() => {
     if (data && data.categories) {
       const now = new Date().toISOString();
@@ -614,14 +657,19 @@ function saveLookups(data) {
             upd.run(label, sort, active, itemId);
             usedLabels.set(key, itemId);
           } else {
-            const code = uniqueCode(cat, String(item.code || '').trim().toUpperCase() || slugCode(label));
+            const requestedCode = String(item.code || '').trim().toUpperCase();
+            const baseCode = requestedCode || slugCode(label);
+            if (!/^[A-Z][A-Z0-9_]{0,63}$/.test(baseCode)) {
+              throw new Error(`Invalid lookup code for ${cat}`);
+            }
+            const code = uniqueCode(cat, baseCode);
             const newId = Number(ins.run(cat, code, label, sort, active, now).lastInsertRowid);
             usedLabels.set(key, newId);
           }
         });
       }
     }
-    if (data && typeof data.defaultName === 'string') appSet('default_employee_name', data.defaultName.trim());
+    if (data && typeof data.defaultName === 'string') userSet(userId, 'default_employee_name', data.defaultName.trim());
   });
   lkInvalidate();
   return { ok: true };
@@ -641,7 +689,7 @@ function loadSubscriptions(userId) {
     billingCycle: lkCode(s.billing_cycle_id) || 'MONTHLY',
     endDate: s.endDate, renewalDate: s.renewalDate,
   }));
-  const defaultCurrency = appGet('subscriptions_default_currency') || 'USD';
+  const defaultCurrency = userGet(userId, 'subscriptions_default_currency') || 'USD';
   return { subscriptions, defaultCurrency };
 }
 function saveSubscriptions(userId, data) {
@@ -649,6 +697,15 @@ function saveSubscriptions(userId, data) {
   const currency = data?.defaultCurrency || 'USD';
   const now = new Date().toISOString();
   tx(() => {
+    const ownerStmt = db.prepare('SELECT user_id FROM subscriptions WHERE id = ?');
+    for (const s of list) {
+      const id = String(s?.id ?? '');
+      if (!id || id.length > 128) throw new Error('Invalid subscription id');
+      const existing = ownerStmt.get(id);
+      if (existing && Number(existing.user_id) !== Number(userId)) {
+        throw new Error('Subscription id belongs to another account');
+      }
+    }
     const keep = new Set(list.map(s => s.id));
     const del = db.prepare('DELETE FROM subscriptions WHERE id = ? AND user_id = ?');
     for (const row of db.prepare('SELECT id FROM subscriptions WHERE user_id = ?').all(userId)) {
@@ -659,7 +716,8 @@ function saveSubscriptions(userId, data) {
                            ON CONFLICT(id) DO UPDATE SET
                              name=excluded.name, cost=excluded.cost, currency_id=excluded.currency_id,
                              billing_cycle_id=excluded.billing_cycle_id, end_date=excluded.end_date,
-                             renewal_date=excluded.renewal_date, sort_order=excluded.sort_order, updated_at=excluded.updated_at`);
+                             renewal_date=excluded.renewal_date, sort_order=excluded.sort_order, updated_at=excluded.updated_at
+                           WHERE subscriptions.user_id = excluded.user_id`);
     list.forEach((s, i) => {
       const cost = Number.parseFloat(String(s.cost ?? '').replace(/[^0-9.]/g, '')) || 0;
       const currencyId = lkId('CURRENCY', s.currency) ?? lkId('CURRENCY', 'USD');
@@ -669,7 +727,7 @@ function saveSubscriptions(userId, data) {
         s.endDate || null, s.renewalDate || null, i, now
       );
     });
-    appSet('subscriptions_default_currency', currency);
+    userSet(userId, 'subscriptions_default_currency', currency);
   });
   return { ok: true };
 }
@@ -707,6 +765,32 @@ const PROJECT_DOC_TYPES = {
   webp: 'image/webp',
 };
 const PROJECT_DOC_EXTENSIONS = Object.keys(PROJECT_DOC_TYPES);
+const MAX_DOCUMENT_BYTES = 100 * 1024 * 1024;
+
+function safeDocumentType(documentType) {
+  const code = String(documentType ?? '');
+  return /^[A-Z][A-Z0-9_]{0,63}$/.test(code) && lkId('PROJECT_DOCUMENT', code) != null ? code : null;
+}
+
+function uploadHeaderMatches(srcPath, ext) {
+  const fd = fs.openSync(srcPath, 'r');
+  try {
+    const b = Buffer.alloc(16);
+    const n = fs.readSync(fd, b, 0, b.length, 0);
+    const h = b.subarray(0, n);
+    const starts = (...bytes) => bytes.every((v, i) => h[i] === v);
+    if (ext === 'pdf') return h.subarray(0, 5).toString('ascii') === '%PDF-';
+    if (ext === 'doc') return starts(0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1);
+    if (ext === 'docx') return starts(0x50, 0x4B, 0x03, 0x04) || starts(0x50, 0x4B, 0x05, 0x06);
+    if (ext === 'png') return starts(0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A);
+    if (ext === 'jpg' || ext === 'jpeg') return starts(0xFF, 0xD8, 0xFF);
+    if (ext === 'gif') return ['GIF87a', 'GIF89a'].includes(h.subarray(0, 6).toString('ascii'));
+    if (ext === 'webp') return h.subarray(0, 4).toString('ascii') === 'RIFF' && h.subarray(8, 12).toString('ascii') === 'WEBP';
+    return false;
+  } finally {
+    fs.closeSync(fd);
+  }
+}
 
 // Lowercase extension (no dot) of a path, '' if none.
 function fileExt(p) {
@@ -904,7 +988,7 @@ function getProject(userId, id) {
       size: r.file_size || 0,
       mimeType: r.mime_type || '',
       uploadedAt: r.uploaded_at || '',
-      exists: fs.existsSync(path.join(userDataDir, r.file_path)),
+      exists: (() => { try { return fs.existsSync(resolveStoredPath(r.file_path)); } catch { return false; } })(),
     } : null;
     return { documentType: o.code, label: o.label, isAvailable: hasFile, file };
   });
@@ -988,7 +1072,8 @@ function deleteProject(userId, id) {
 // first, then the old one removed (best-effort). Returns { ok, project } | { ok:false, error }.
 function saveProjectDocumentFile(userId, projectId, documentType, srcPath) {
   if (!ownsProject(userId, projectId)) return { ok: false, error: 'Project not found' };
-  if (lkId('PROJECT_DOCUMENT', documentType) == null) return { ok: false, error: 'Unknown document type' };
+  documentType = safeDocumentType(documentType);
+  if (!documentType) return { ok: false, error: 'Unknown or unsafe document type' };
   const ext = fileExt(srcPath);
   if (!PROJECT_DOC_EXTENSIONS.includes(ext)) {
     return { ok: false, error: `Unsupported file type (.${ext || '?'}). Allowed: ${PROJECT_DOC_EXTENSIONS.join(', ')}` };
@@ -996,14 +1081,21 @@ function saveProjectDocumentFile(userId, projectId, documentType, srcPath) {
   let size;
   try { size = fs.statSync(srcPath).size; }
   catch { return { ok: false, error: 'Could not read the selected file' }; }
+  if (size <= 0 || size > MAX_DOCUMENT_BYTES) {
+    return { ok: false, error: 'File must be between 1 byte and 100 MB' };
+  }
+  try {
+    if (!uploadHeaderMatches(srcPath, ext)) return { ok: false, error: 'The file contents do not match its extension' };
+  } catch { return { ok: false, error: 'Could not validate the selected file' }; }
 
   // Prior file (for the replace case) — capture before we overwrite the row.
-  const prev = db.prepare('SELECT file_path FROM project_documents WHERE project_id = ? AND document_type = ?')
+  const prev = db.prepare(`SELECT file_path, original_name, file_size, mime_type, uploaded_at
+                             FROM project_documents WHERE project_id = ? AND document_type = ?`)
     .get(projectId, documentType);
 
   // {docType}-{timestamp}.{ext} — the timestamp makes duplicate filenames impossible.
   const relPath = path.join('projects', String(projectId), 'documents', `${documentType}-${Date.now()}.${ext}`);
-  const absPath = path.join(userDataDir, relPath);
+  const absPath = resolveStoredPath(relPath);
   try {
     fs.mkdirSync(path.dirname(absPath), { recursive: true });
     fs.copyFileSync(srcPath, absPath);
@@ -1025,21 +1117,27 @@ function saveProjectDocumentFile(userId, projectId, documentType, srcPath) {
     return { ok: false, error: 'Could not record the file: ' + String(err?.message || err) };
   }
 
-  // Replace succeeded — remove the superseded file (best-effort; never blocks).
-  if (prev?.file_path && prev.file_path !== relPath) {
-    try { fs.rmSync(path.join(userDataDir, prev.file_path), { force: true }); } catch { /* best effort */ }
-  }
-  return { ok: true, project: getProject(userId, projectId) };
+  // Keep the superseded bytes until the next orphan sweep so replacement can
+  // be undone from the renderer's five-second action toast.
+  const replacedFile = prev?.file_path ? {
+    path: prev.file_path, originalName: prev.original_name || '', size: prev.file_size || 0,
+    mimeType: prev.mime_type || '', uploadedAt: prev.uploaded_at || '',
+  } : null;
+  return { ok: true, project: getProject(userId, projectId), replacedFile };
 }
 
 // Resolve the absolute on-disk path of a stored document (for download / open),
 // after an ownership check. `exists` reflects whether the file is actually present.
 function resolveProjectDocumentFile(userId, projectId, documentType) {
   if (!ownsProject(userId, projectId)) return { ok: false, error: 'Project not found' };
+  documentType = safeDocumentType(documentType);
+  if (!documentType) return { ok: false, error: 'Unknown or unsafe document type' };
   const r = db.prepare('SELECT file_path, original_name FROM project_documents WHERE project_id = ? AND document_type = ?')
     .get(projectId, documentType);
   if (!r?.file_path) return { ok: false, error: 'No file for this document' };
-  const absPath = path.join(userDataDir, r.file_path);
+  let absPath;
+  try { absPath = resolveStoredPath(r.file_path); }
+  catch { return { ok: false, error: 'Stored file path is invalid' }; }
   return { ok: true, absPath, originalName: r.original_name || path.basename(r.file_path), exists: fs.existsSync(absPath) };
 }
 
@@ -1047,17 +1145,59 @@ function resolveProjectDocumentFile(userId, projectId, documentType) {
 // slot stays listed, just back to "not available"). Best-effort on the unlink.
 function removeProjectDocumentFile(userId, projectId, documentType) {
   if (!ownsProject(userId, projectId)) return { ok: false, error: 'Project not found' };
-  const r = db.prepare('SELECT file_path FROM project_documents WHERE project_id = ? AND document_type = ?')
+  documentType = safeDocumentType(documentType);
+  if (!documentType) return { ok: false, error: 'Unknown or unsafe document type' };
+  const r = db.prepare(`SELECT file_path, original_name, file_size, mime_type, uploaded_at
+                          FROM project_documents WHERE project_id = ? AND document_type = ?`)
     .get(projectId, documentType);
-  if (r?.file_path) {
-    try { fs.rmSync(path.join(userDataDir, r.file_path), { force: true }); } catch { /* best effort */ }
-  }
   db.prepare(
     `UPDATE project_documents
         SET is_available = 0, file_path = NULL, original_name = NULL, file_size = NULL, mime_type = NULL, uploaded_at = NULL
       WHERE project_id = ? AND document_type = ?`
   ).run(projectId, documentType);
-  return { ok: true, project: getProject(userId, projectId) };
+  const removedFile = r?.file_path ? {
+    path: r.file_path, originalName: r.original_name || '', size: r.file_size || 0,
+    mimeType: r.mime_type || '', uploadedAt: r.uploaded_at || '',
+  } : null;
+  return { ok: true, project: getProject(userId, projectId), removedFile };
+}
+
+function restoreProjectDocumentFile(userId, projectId, documentType, fileMeta) {
+  if (!ownsProject(userId, projectId)) return { ok: false, error: 'Project not found' };
+  documentType = safeDocumentType(documentType);
+  if (!documentType || !fileMeta?.path) return { ok: false, error: 'Invalid restore request' };
+  let absPath;
+  try {
+    absPath = resolveStoredPath(fileMeta.path);
+    resolveInside(path.join(projectDir(Number(projectId)), 'documents'), absPath);
+  } catch { return { ok: false, error: 'Stored file path is invalid' }; }
+  if (!fs.existsSync(absPath)) return { ok: false, error: 'The previous file is no longer available' };
+  const current = db.prepare(`SELECT file_path, original_name, file_size, mime_type, uploaded_at
+                                FROM project_documents WHERE project_id = ? AND document_type = ?`)
+    .get(projectId, documentType);
+  db.prepare(
+    `UPDATE project_documents SET is_available = 1, file_path = ?, original_name = ?,
+       file_size = ?, mime_type = ?, uploaded_at = ? WHERE project_id = ? AND document_type = ?`
+  ).run(fileMeta.path, String(fileMeta.originalName || path.basename(fileMeta.path)), Number(fileMeta.size) || 0,
+        String(fileMeta.mimeType || ''), String(fileMeta.uploadedAt || new Date().toISOString()), projectId, documentType);
+  const replacedFile = current?.file_path && current.file_path !== fileMeta.path ? {
+    path: current.file_path, originalName: current.original_name || '', size: current.file_size || 0,
+    mimeType: current.mime_type || '', uploadedAt: current.uploaded_at || '',
+  } : null;
+  return { ok: true, project: getProject(userId, projectId), replacedFile };
+}
+
+function purgeUnreferencedProjectDocumentFile(userId, projectId, relPath) {
+  if (!ownsProject(userId, projectId) || !relPath) return { ok: false };
+  const referenced = db.prepare('SELECT 1 FROM project_documents WHERE project_id = ? AND file_path = ?')
+    .get(projectId, relPath);
+  if (referenced) return { ok: false, error: 'File is still in use' };
+  try {
+    const absPath = resolveStoredPath(relPath);
+    resolveInside(path.join(projectDir(Number(projectId)), 'documents'), absPath);
+    fs.rmSync(absPath, { force: true });
+    return { ok: true };
+  } catch { return { ok: false, error: 'Invalid stored file path' }; }
 }
 
 // Delete a project's ENTIRE file folder (projects/{id}/ — not just documents/, so
@@ -1109,7 +1249,7 @@ function restoreProjectFiles(userId, oldProjectId, newProjectId, fileDocs) {
     if (!d?.file?.path || lkId('PROJECT_DOCUMENT', d.documentType) == null) continue;
     // Re-home the relative path onto the new id (same basename, new folder).
     const relPath = path.join('projects', String(Number(newProjectId)), 'documents', path.basename(d.file.path));
-    if (!fs.existsSync(path.join(userDataDir, relPath))) continue; // file didn't survive — skip
+    if (!fs.existsSync(resolveStoredPath(relPath))) continue; // file didn't survive — skip
     ins.run(newProjectId, d.documentType, relPath, d.file.originalName || path.basename(relPath),
             d.file.size || 0, d.file.mimeType || PROJECT_DOC_TYPES[fileExt(relPath)] || '', d.file.uploadedAt || new Date().toISOString());
   }
@@ -1140,7 +1280,7 @@ function companyDocumentToApi(r) {
     file: hasFile ? {
       path: r.file_path, originalName: r.original_name || '', size: r.file_size || 0,
       mimeType: r.mime_type || '', uploadedAt: r.uploaded_at || '',
-      exists: fs.existsSync(path.join(userDataDir, r.file_path)),
+      exists: (() => { try { return fs.existsSync(resolveStoredPath(r.file_path)); } catch { return false; } })(),
     } : null,
   };
 }
@@ -1204,12 +1344,17 @@ function saveCompanyDocumentFile(userId, id, srcPath) {
   let size;
   try { size = fs.statSync(srcPath).size; }
   catch { return { ok: false, error: 'Could not read the selected file' }; }
+  if (size <= 0 || size > MAX_DOCUMENT_BYTES) return { ok: false, error: 'File must be between 1 byte and 100 MB' };
+  try {
+    if (!uploadHeaderMatches(srcPath, ext)) return { ok: false, error: 'The file contents do not match its extension' };
+  } catch { return { ok: false, error: 'Could not validate the selected file' }; }
 
-  const prev = db.prepare('SELECT file_path FROM company_documents WHERE id = ?').get(id);
+  const prev = db.prepare(`SELECT file_path, original_name, file_size, mime_type, uploaded_at
+                             FROM company_documents WHERE id = ? AND user_id = ?`).get(id, userId);
 
   // {timestamp}.{ext} — one file slot per card, so no type prefix is needed.
   const relPath = path.join('company_documents', String(id), `${Date.now()}.${ext}`);
-  const absPath = path.join(userDataDir, relPath);
+  const absPath = resolveStoredPath(relPath);
   try {
     fs.mkdirSync(path.dirname(absPath), { recursive: true });
     fs.copyFileSync(srcPath, absPath);
@@ -1230,11 +1375,11 @@ function saveCompanyDocumentFile(userId, id, srcPath) {
     return { ok: false, error: 'Could not record the file: ' + String(err?.message || err) };
   }
 
-  // Replace succeeded — remove the superseded file (best-effort; never blocks).
-  if (prev?.file_path && prev.file_path !== relPath) {
-    try { fs.rmSync(path.join(userDataDir, prev.file_path), { force: true }); } catch { /* best effort */ }
-  }
-  return { ok: true, document: getCompanyDocument(userId, id) };
+  const replacedFile = prev?.file_path ? {
+    path: prev.file_path, originalName: prev.original_name || '', size: prev.file_size || 0,
+    mimeType: prev.mime_type || '', uploadedAt: prev.uploaded_at || '',
+  } : null;
+  return { ok: true, document: getCompanyDocument(userId, id), replacedFile };
 }
 
 // Resolve the absolute on-disk path of a card's file (for download / open),
@@ -1243,7 +1388,9 @@ function resolveCompanyDocumentFile(userId, id) {
   if (!ownsCompanyDocument(userId, id)) return { ok: false, error: 'Document not found' };
   const r = db.prepare('SELECT file_path, original_name FROM company_documents WHERE id = ?').get(id);
   if (!r?.file_path) return { ok: false, error: 'No file for this document' };
-  const absPath = path.join(userDataDir, r.file_path);
+  let absPath;
+  try { absPath = resolveStoredPath(r.file_path); }
+  catch { return { ok: false, error: 'Stored file path is invalid' }; }
   return { ok: true, absPath, originalName: r.original_name || path.basename(r.file_path), exists: fs.existsSync(absPath) };
 }
 
@@ -1251,16 +1398,53 @@ function resolveCompanyDocumentFile(userId, id) {
 // just back to "no file"). Best-effort on the unlink.
 function removeCompanyDocumentFile(userId, id) {
   if (!ownsCompanyDocument(userId, id)) return { ok: false, error: 'Document not found' };
-  const r = db.prepare('SELECT file_path FROM company_documents WHERE id = ?').get(id);
-  if (r?.file_path) {
-    try { fs.rmSync(path.join(userDataDir, r.file_path), { force: true }); } catch { /* best effort */ }
-  }
+  const r = db.prepare(`SELECT file_path, original_name, file_size, mime_type, uploaded_at
+                          FROM company_documents WHERE id = ? AND user_id = ?`).get(id, userId);
   db.prepare(
     `UPDATE company_documents
         SET file_path = NULL, original_name = NULL, file_size = NULL, mime_type = NULL, uploaded_at = NULL, updated_at = ?
       WHERE id = ? AND user_id = ?`
   ).run(new Date().toISOString(), id, userId);
-  return { ok: true, document: getCompanyDocument(userId, id) };
+  const removedFile = r?.file_path ? {
+    path: r.file_path, originalName: r.original_name || '', size: r.file_size || 0,
+    mimeType: r.mime_type || '', uploadedAt: r.uploaded_at || '',
+  } : null;
+  return { ok: true, document: getCompanyDocument(userId, id), removedFile };
+}
+
+function restoreRemovedCompanyDocumentFile(userId, id, fileMeta) {
+  if (!ownsCompanyDocument(userId, id) || !fileMeta?.path) return { ok: false, error: 'Document not found' };
+  let absPath;
+  try {
+    absPath = resolveStoredPath(fileMeta.path);
+    resolveInside(companyDocumentDir(Number(id)), absPath);
+  } catch { return { ok: false, error: 'Stored file path is invalid' }; }
+  if (!fs.existsSync(absPath)) return { ok: false, error: 'The previous file is no longer available' };
+  const current = db.prepare(`SELECT file_path, original_name, file_size, mime_type, uploaded_at
+                                FROM company_documents WHERE id = ? AND user_id = ?`).get(id, userId);
+  db.prepare(`UPDATE company_documents SET file_path = ?, original_name = ?, file_size = ?, mime_type = ?,
+                uploaded_at = ?, updated_at = ? WHERE id = ? AND user_id = ?`)
+    .run(fileMeta.path, String(fileMeta.originalName || path.basename(fileMeta.path)), Number(fileMeta.size) || 0,
+      String(fileMeta.mimeType || ''), String(fileMeta.uploadedAt || new Date().toISOString()),
+      new Date().toISOString(), id, userId);
+  const replacedFile = current?.file_path && current.file_path !== fileMeta.path ? {
+    path: current.file_path, originalName: current.original_name || '', size: current.file_size || 0,
+    mimeType: current.mime_type || '', uploadedAt: current.uploaded_at || '',
+  } : null;
+  return { ok: true, document: getCompanyDocument(userId, id), replacedFile };
+}
+
+function purgeUnreferencedCompanyDocumentFile(userId, id, relPath) {
+  if (!ownsCompanyDocument(userId, id) || !relPath) return { ok: false };
+  const referenced = db.prepare('SELECT 1 FROM company_documents WHERE id = ? AND user_id = ? AND file_path = ?')
+    .get(id, userId, relPath);
+  if (referenced) return { ok: false, error: 'File is still in use' };
+  try {
+    const absPath = resolveStoredPath(relPath);
+    resolveInside(companyDocumentDir(Number(id)), absPath);
+    fs.rmSync(absPath, { force: true });
+    return { ok: true };
+  } catch { return { ok: false, error: 'Invalid stored file path' }; }
 }
 
 // Delete a card's entire file folder (company_documents/{id}/). Called when the
@@ -1305,7 +1489,7 @@ function restoreCompanyDocumentFile(userId, oldId, newId, fileMeta) {
 
   // Re-home the relative path onto the new id (same basename, new folder).
   const relPath = path.join('company_documents', String(Number(newId)), path.basename(fileMeta.path));
-  if (!fs.existsSync(path.join(userDataDir, relPath))) return { ok: true, document: getCompanyDocument(userId, newId) }; // file didn't survive — skip
+  if (!fs.existsSync(resolveStoredPath(relPath))) return { ok: true, document: getCompanyDocument(userId, newId) }; // file didn't survive — skip
 
   db.prepare(
     `UPDATE company_documents
@@ -1510,12 +1694,14 @@ function isValidDateStr(s) {
 }
 
 function workLogWriteFields(data) {
-  const mins = (data?.minutes === '' || data?.minutes === null || data?.minutes === undefined) ? null : Number(data.minutes);
+  const mins = Number(data?.minutes);
   const rawDate = String(data?.date ?? '').slice(0, 10);
+  if (!isValidDateStr(rawDate)) throw new Error('A valid work-log date is required');
+  if (!Number.isInteger(mins) || mins < 1 || mins > 1440) throw new Error('Minutes must be a whole number from 1 to 1440');
   return {
-    date: isValidDateStr(rawDate) ? rawDate : new Date().toISOString().slice(0, 10),
+    date: rawDate,
     description: String(data?.description ?? ''),
-    minutes: (Number.isFinite(mins) && mins >= 0) ? mins : null,
+    minutes: mins,
     time_type_id: lkId('TIME_TYPE', data?.time),
     activity_type_id: lkId('ACTIVITY_TYPE', data?.natural),
   };
@@ -2093,12 +2279,17 @@ function savePrefs(prefs) {
 // before any window exists) since only the renderer knows which module/filter
 // UI is active. One JSON blob, same shape as the renderer's own in-memory
 // `uiState` object — db.js never interprets its contents.
-function loadUiState() {
-  const v = machineGet('ui_state');
+function loadUiState(userId) {
+  const row = db.prepare('SELECT value FROM user_ui_state WHERE user_id = ?').get(userId);
+  const v = row?.value;
   return v ? safeParse(v, {}) : {};
 }
-function saveUiState(state) {
-  try { machineSet('ui_state', JSON.stringify(state || {})); } catch { /* non-critical */ }
+function saveUiState(userId, state) {
+  try {
+    db.prepare(`INSERT INTO user_ui_state(user_id, value) VALUES(?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET value = excluded.value`)
+      .run(userId, JSON.stringify(state || {}));
+  } catch { /* non-critical */ }
 }
 
 // ── Lifecycle / backup ──────────────────────────────────────────────────────
@@ -2138,6 +2329,35 @@ function listBackups() {
     .sort((a, b) => b.mtime.localeCompare(a.mtime));
 }
 
+function validateBackupCandidate(file) {
+  let candidate;
+  try {
+    candidate = new DatabaseSync(file, { readOnly: true });
+    const integrity = candidate.prepare('PRAGMA integrity_check').all();
+    if (integrity.length !== 1 || integrity[0].integrity_check !== 'ok') {
+      return { ok: false, error: 'Backup failed SQLite integrity_check' };
+    }
+    const fk = candidate.prepare('PRAGMA foreign_key_check').all();
+    if (fk.length) return { ok: false, error: 'Backup contains dangling foreign-key references' };
+    const required = new Set(candidate.prepare(
+      `SELECT name FROM sqlite_master WHERE type = 'table'`
+    ).all().map(r => r.name));
+    for (const name of ['users', 'schema_migrations', 'tasks', 'work_logs']) {
+      if (!required.has(name)) return { ok: false, error: `Backup is missing required table: ${name}` };
+    }
+    const candidateHead = Number(candidate.prepare('SELECT MAX(version) AS v FROM schema_migrations').get()?.v ?? -1);
+    const currentHead = Number(db.prepare('SELECT MAX(version) AS v FROM schema_migrations').get()?.v ?? -1);
+    if (candidateHead < 0 || candidateHead > currentHead) {
+      return { ok: false, error: 'Backup schema is not compatible with this app version' };
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: 'Backup could not be validated: ' + String(err?.message || err) };
+  } finally {
+    try { candidate?.close(); } catch { /* best effort */ }
+  }
+}
+
 // Restore the live DB from one of the files listBackups() returns — the single
 // riskiest operation in the app, since it replaces the live data file wholesale.
 // Never accepts an arbitrary path from the renderer: `backupFilename` is
@@ -2155,6 +2375,9 @@ function restoreBackup(backupFilename) {
 
   const srcFile = path.join(userDataDir, 'backups', safeName);
   const liveFile = dbPath();
+
+  const validation = validateBackupCandidate(srcFile);
+  if (!validation.ok) return validation;
 
   const preRestoreDir = path.join(userDataDir, 'pre-restore-backup');
   fs.mkdirSync(preRestoreDir, { recursive: true });
@@ -2408,8 +2631,15 @@ function companyDocumentDir(id) {
 // readable, never throws.
 const CREDENTIAL_MARKER = 'enc:v1:';
 let _credentialCipher = null; // electron.safeStorage-shaped: {isEncryptionAvailable, encryptString, decryptString}
+let _allowPlaintextCredentialsForTests = false;
 function configureCredentialEncryption(safeStorageLike) {
   _credentialCipher = safeStorageLike || null;
+}
+function allowPlaintextCredentialsForTests() {
+  _allowPlaintextCredentialsForTests = true;
+}
+function disallowPlaintextCredentialsForTests() {
+  _allowPlaintextCredentialsForTests = false;
 }
 function isCredentialEncryptionAvailable() {
   try { return !!(_credentialCipher && _credentialCipher.isEncryptionAvailable()); }
@@ -2418,9 +2648,12 @@ function isCredentialEncryptionAvailable() {
 function encryptCredentialValue(plain) {
   if (plain == null || plain === '') return plain ?? '';
   if (typeof plain === 'string' && plain.startsWith(CREDENTIAL_MARKER)) return plain; // already encrypted
-  if (!isCredentialEncryptionAvailable()) return plain; // fallback: unencrypted (flagged via isCredentialEncryptionAvailable())
+  if (!isCredentialEncryptionAvailable()) {
+    if (_allowPlaintextCredentialsForTests) return plain;
+    throw new Error('Secure credential storage is unavailable; the secret was not saved');
+  }
   try { return CREDENTIAL_MARKER + _credentialCipher.encryptString(String(plain)).toString('base64'); }
-  catch { return plain; } // never let a crypto hiccup block a save
+  catch (err) { throw new Error('Credential encryption failed; the secret was not saved', { cause: err }); }
 }
 function decryptCredentialValue(stored) {
   if (stored == null || stored === '') return stored ?? '';
@@ -2906,7 +3139,7 @@ module.exports = {
   openConnection, applyMigrations, runMaintenance,
   close, backup, dbPath,
   projectsRootDir, projectDir,
-  countUsers, getUserByUsername, createUser, getUnclaimedUser, claimUser,
+  countUsers, getUserByUsername, getUserById, createUser, updateUserPassword, getUnclaimedUser, claimUser,
   listDays, loadDaysRange,
   listCompanies, listSystems, companyEntries, systemEntries, getFilteredWorkLogs,
   getAnalytics, getOverviewStats, getAttentionItems,
@@ -2917,13 +3150,16 @@ module.exports = {
   getTaskSources, createTaskSource, updateTaskSource, deleteTaskSource, getTaskFieldHistory,
   listWorkLogs, logsForDate, addWorkLog, updateWorkLog, moveWorkLog, mergeTasks, deleteWorkLog, getWorkLogHistory,
   setDayName, getDayName,
-  saveProjectDocumentFile, resolveProjectDocumentFile, removeProjectDocumentFile,
+  saveProjectDocumentFile, resolveProjectDocumentFile, removeProjectDocumentFile, restoreProjectDocumentFile,
+  purgeUnreferencedProjectDocumentFile,
   purgeProjectFiles, restoreProjectFiles,
   listCompanyDocuments, getCompanyDocument, createCompanyDocument, updateCompanyDocument, deleteCompanyDocument,
-  saveCompanyDocumentFile, resolveCompanyDocumentFile, removeCompanyDocumentFile,
+  saveCompanyDocumentFile, resolveCompanyDocumentFile, removeCompanyDocumentFile, restoreRemovedCompanyDocumentFile,
+  purgeUnreferencedCompanyDocumentFile,
   purgeCompanyDocumentFiles, restoreCompanyDocumentFile, companyDocumentsRootDir,
   listClients, getClient, getClientFieldHistory,
-  configureCredentialEncryption, isCredentialEncryptionAvailable, encryptCredentialValue, decryptCredentialValue,
+  configureCredentialEncryption, allowPlaintextCredentialsForTests, disallowPlaintextCredentialsForTests,
+  isCredentialEncryptionAvailable, encryptCredentialValue, decryptCredentialValue,
   encryptAllPendingCredentials,
   createClientVpn, updateClientVpn, deleteClientVpn,
   createClientServer, updateClientServer, deleteClientServer, renameClientServerSystemGroup, assignClientServerGroup,

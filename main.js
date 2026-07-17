@@ -9,14 +9,34 @@ const auth   = require('./auth');
 // never reach the data layer before authenticating.
 function authed(handler) {
   return (event, ...args) => {
+    assertTrustedSender(event);
     if (!auth.isAuthenticated()) throw new Error('Not authenticated');
     return handler(event, ...args);
   };
 }
 
+function trusted(handler) {
+  return (event, ...args) => {
+    assertTrustedSender(event);
+    return handler(event, ...args);
+  };
+}
+
+function admin(handler) {
+  return authed((event, ...args) => {
+    auth.requireAdmin();
+    return handler(event, ...args);
+  });
+}
+
+function assertTrustedSender(event) {
+  if (!win || win.isDestroyed() || event.sender !== win.webContents) throw new Error('Untrusted IPC sender');
+  const senderUrl = event.senderFrame?.url || event.sender.getURL();
+  if (senderUrl !== win.webContents.getURL()) throw new Error('Untrusted IPC origin');
+}
+
 let win;
 let allowClose = false;       // set once the renderer has flushed pending saves
-let closeFallback = null;     // safety timer for the close handshake
 
 function createWindow() {
   const prefs = db.loadPrefs();
@@ -31,18 +51,18 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
     },
     title: 'Cooperation Tools',
   });
   if (prefs.maximized) win.maximize();
   win.loadFile('index.html');
+  win.webContents.session.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
 
-  // Defense in depth: the app is a single local page. Deny any attempt to open
-  // new windows or navigate the top frame elsewhere. The one legitimate popup
-  // is the print-preview window (about:blank, written via document.write); real
-  // web links are handed to the OS browser (mirrors the openExternal allowlist).
+  // Defense in depth: the app is a single local page. Deny every renderer-created
+  // window; printing uses a main-process-owned, sandboxed window below.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url === '' || url === 'about:blank') return { action: 'allow' };
     try {
       const u = new URL(url);
       if (u.protocol === 'http:' || u.protocol === 'https:') shell.openExternal(u.href);
@@ -67,21 +87,18 @@ function createWindow() {
     if (!allowClose) {
       e.preventDefault();
       win.webContents.send('app:beforeClose');
-      // Safety net: if the renderer never reports back, close anyway.
-      closeFallback = setTimeout(() => {
-        allowClose = true;
-        if (win && !win.isDestroyed()) win.close();
-      }, 1500);
     }
   });
 }
 
 // ── Authentication (ungated — these are the gate) ──
-ipcMain.handle('auth:status',      ()                     => auth.status());
-ipcMain.handle('auth:setup',       (_e, username, pass)   => auth.setup(username, pass));
-ipcMain.handle('auth:login',       (_e, username, pass)   => auth.login(username, pass));
-ipcMain.handle('auth:logout',      ()                     => auth.logout());
-ipcMain.handle('auth:currentUser', ()                     => auth.currentUser());
+ipcMain.handle('auth:status',      trusted(()                     => auth.status()));
+ipcMain.handle('auth:setup',       trusted((_e, username, pass)   => auth.setup(username, pass)));
+ipcMain.handle('auth:login',       trusted((_e, username, pass)   => auth.login(username, pass)));
+ipcMain.handle('auth:logout',      trusted(()                     => auth.logout()));
+ipcMain.handle('auth:currentUser', trusted(()                     => auth.currentUser()));
+ipcMain.handle('auth:addUser',     admin((_e, username, pass)     => auth.addUser(username, pass)));
+ipcMain.handle('auth:changePassword', authed((_e, currentPass, newPass) => auth.changePassword(currentPass, newPass)));
 
 // ── Days ── (userId always comes from the authenticated session, never the renderer)
 // day:save / day:get retired in Phase C2 — the Timesheet persists work sessions
@@ -102,9 +119,13 @@ ipcMain.handle('analytics:overview', authed((_e, today, monthStart)          => 
 ipcMain.handle('attention:list', authed(() => db.getAttentionItems(auth.requireUserId())));
 
 // ── Lookups (normalized catalog — shared app config) ──
-ipcMain.handle('lookups:get',         authed(()                              => db.loadLookups()));
+ipcMain.handle('lookups:get',         authed(()                              => db.loadLookups(auth.requireUserId())));
 ipcMain.handle('lookups:getByCategory', authed((_e, category, includeInactive) => db.getLookupsByCategory(category, includeInactive)));
-ipcMain.handle('lookups:save',        authed((_e, data)                      => db.saveLookups(data)));
+ipcMain.handle('lookups:save', authed((_e, data) => {
+  const user = auth.currentUser();
+  if (data?.categories && !user?.isAdmin) throw new Error('Administrator access required');
+  return db.saveLookups(auth.requireUserId(), data);
+}));
 
 // ── Subscriptions ──
 ipcMain.handle('subscriptions:list', authed(()         => db.loadSubscriptions(auth.requireUserId())));
@@ -209,6 +230,10 @@ ipcMain.handle('projects:open-document', authed(async (_e, projectId, documentTy
 // Remove — delete the file from disk and clear its metadata.
 ipcMain.handle('projects:remove-document', authed((_e, projectId, documentType) =>
   db.removeProjectDocumentFile(auth.requireUserId(), projectId, documentType)));
+ipcMain.handle('projects:restore-document', authed((_e, projectId, documentType, fileMeta) =>
+  db.restoreProjectDocumentFile(auth.requireUserId(), projectId, documentType, fileMeta)));
+ipcMain.handle('projects:purge-document-file', authed((_e, projectId, relPath) =>
+  db.purgeUnreferencedProjectDocumentFile(auth.requireUserId(), projectId, relPath)));
 // Delete-undo file handling: purge the whole folder when the undo window lapses,
 // or move it onto the re-created project's new id when the user undoes.
 ipcMain.handle('projects:purge-files',  authed((_e, projectId)            => db.purgeProjectFiles(auth.requireUserId(), projectId)));
@@ -257,6 +282,10 @@ ipcMain.handle('companydocs:open-document', authed(async (_e, id) => {
 }));
 // Remove — delete the file from disk and clear its metadata (keeps the card).
 ipcMain.handle('companydocs:remove-document', authed((_e, id) => db.removeCompanyDocumentFile(auth.requireUserId(), id)));
+ipcMain.handle('companydocs:restore-document', authed((_e, id, fileMeta) =>
+  db.restoreRemovedCompanyDocumentFile(auth.requireUserId(), id, fileMeta)));
+ipcMain.handle('companydocs:purge-document-file', authed((_e, id, relPath) =>
+  db.purgeUnreferencedCompanyDocumentFile(auth.requireUserId(), id, relPath)));
 // Delete-undo file handling: purge the card's folder when the undo window
 // lapses, or move it onto the re-created card's new id when the user undoes.
 ipcMain.handle('companydocs:purge-files',   authed((_e, id)                     => db.purgeCompanyDocumentFiles(auth.requireUserId(), id)));
@@ -283,11 +312,11 @@ ipcMain.handle('clients:field-history', authed((_e, recordType, recordId) => db.
 // ── UI state (Milestone 11 — this-machine-only, like window prefs, but the
 // renderer needs read/write access since only it knows which module/filter
 // UI is active) ──
-ipcMain.handle('ui:getState', authed(() => db.loadUiState()));
-ipcMain.handle('ui:setState', authed((_e, state) => { db.saveUiState(state); return { ok: true }; }));
+ipcMain.handle('ui:getState', authed(() => db.loadUiState(auth.requireUserId())));
+ipcMain.handle('ui:setState', authed((_e, state) => { db.saveUiState(auth.requireUserId(), state); return { ok: true }; }));
 
 // ── Backup ──
-ipcMain.handle('db:backup', authed(async () => {
+ipcMain.handle('db:backup', admin(async () => {
   const stamp = new Date().toISOString().slice(0, 10);
   const { canceled, filePath } = await dialog.showSaveDialog(win, {
     title: 'Back up database',
@@ -300,29 +329,29 @@ ipcMain.handle('db:backup', authed(async () => {
 }));
 
 // ── Maintenance panel (Milestone 6) ──
-ipcMain.handle('maintenance:listBackups', authed(() => db.listBackups()));
+ipcMain.handle('maintenance:listBackups', admin(() => db.listBackups()));
 // The single riskiest handler in the app: replaces the live DB file, then
 // relaunches. db.restoreBackup() already validates the filename against the
 // real backups/ listing and takes a forced pre-restore backup before touching
 // anything; if it reports ok, the app MUST restart for a fresh
 // db.openConnection() to pick up the restored file — there is no safe way to
 // keep running against the connection that was just closed out from under it.
-ipcMain.handle('maintenance:restoreBackup', authed((_e, filename) => {
+ipcMain.handle('maintenance:restoreBackup', admin((_e, filename) => {
   const res = db.restoreBackup(filename);
   if (res.ok) { app.relaunch(); app.exit(0); }
   return res;
 }));
-ipcMain.handle('maintenance:integrityCheck', authed(() => db.checkIntegrity()));
-ipcMain.handle('maintenance:lookupDuplicates', authed(() => db.findLookupDuplicates()));
-ipcMain.handle('maintenance:mergeLookups', authed((_e, category, targetId, sourceId) => db.mergeLookupDuplicate(category, targetId, sourceId)));
-ipcMain.handle('maintenance:orphanSweepReport', authed(() => db.getOrphanSweepReport()));
+ipcMain.handle('maintenance:integrityCheck', admin(() => db.checkIntegrity()));
+ipcMain.handle('maintenance:lookupDuplicates', admin(() => db.findLookupDuplicates()));
+ipcMain.handle('maintenance:mergeLookups', admin((_e, category, targetId, sourceId) => db.mergeLookupDuplicate(category, targetId, sourceId)));
+ipcMain.handle('maintenance:orphanSweepReport', admin(() => db.getOrphanSweepReport()));
 
 // One-click Full Backup (Milestone 8) — captures the DB, projects/ and
 // company_documents/ file trees, and the rotating backups/ snapshots into a
 // single new timestamped folder on the Desktop. db.fullBackup() never imports
 // electron, so it's handed the resolved Desktop path here (same separation
 // configureCredentialEncryption() already established).
-ipcMain.handle('maintenance:fullBackup', authed(() => {
+ipcMain.handle('maintenance:fullBackup', admin(() => {
   try { return db.fullBackup(app.getPath('desktop')); }
   catch (err) { return { ok: false, error: String(err?.message || err) }; }
 }));
@@ -330,7 +359,7 @@ ipcMain.handle('maintenance:fullBackup', authed(() => {
 // an arbitrary path from the renderer: only a direct child of the Desktop
 // whose name matches the fixed prefix db.fullBackup() itself generates is
 // allowed through to shell.openPath.
-ipcMain.handle('maintenance:openBackupFolder', authed((_e, folderPath) => {
+ipcMain.handle('maintenance:openBackupFolder', admin((_e, folderPath) => {
   const desktop = app.getPath('desktop');
   const resolved = path.resolve(String(folderPath || ''));
   if (path.dirname(resolved) !== desktop || !path.basename(resolved).startsWith('CooperationTools-Backup-')) {
@@ -346,15 +375,23 @@ ipcMain.handle('maintenance:openBackupFolder', authed((_e, folderPath) => {
 ipcMain.handle('report:exportPDF', authed(async (_e, html, defaultName) => {
   let pdfWin;
   try {
+    const reportHtml = String(html || '');
+    if (!reportHtml || Buffer.byteLength(reportHtml, 'utf8') > 10 * 1024 * 1024) {
+      return { ok: false, error: 'Report content is empty or too large' };
+    }
+    const safeDefaultName = path.basename(String(defaultName || 'report.pdf')).slice(0, 180) || 'report.pdf';
     const { canceled, filePath } = await dialog.showSaveDialog(win, {
       title: 'Save report as PDF',
-      defaultPath: defaultName || 'report.pdf',
+      defaultPath: safeDefaultName,
       filters: [{ name: 'PDF document', extensions: ['pdf'] }],
     });
     if (canceled || !filePath) return { ok: false };
 
-    pdfWin = new BrowserWindow({ show: false, webPreferences: { offscreen: false } });
-    await pdfWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+    pdfWin = new BrowserWindow({
+      show: false,
+      webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, javascript: false },
+    });
+    await pdfWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(reportHtml));
     // Give webfonts/layout a beat to settle before snapshotting.
     await new Promise(r => setTimeout(r, 350));
     const pdf = await pdfWin.webContents.printToPDF({ printBackground: true, margins: { marginType: 'default' } });
@@ -367,28 +404,68 @@ ipcMain.handle('report:exportPDF', authed(async (_e, html, defaultName) => {
   }
 }));
 
+ipcMain.handle('report:print', authed(async (_e, html) => {
+  let printWin;
+  try {
+    const reportHtml = String(html || '');
+    if (!reportHtml || Buffer.byteLength(reportHtml, 'utf8') > 10 * 1024 * 1024) {
+      return { ok: false, error: 'Report content is empty or too large' };
+    }
+    printWin = new BrowserWindow({
+      show: false,
+      webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, javascript: false },
+    });
+    await printWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(reportHtml));
+    await new Promise(r => setTimeout(r, 350));
+    return await new Promise(resolve => {
+      printWin.webContents.print({ printBackground: true }, (success, failureReason) => {
+        resolve(success ? { ok: true } : { ok: false, error: failureReason || 'Printing failed' });
+      });
+    });
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err) };
+  } finally {
+    if (printWin && !printWin.isDestroyed()) printWin.destroy();
+  }
+}));
+
 // ── Close handshake ──
-ipcMain.handle('app:flushComplete', () => {
-  clearTimeout(closeFallback);
+ipcMain.handle('app:flushComplete', trusted(() => {
   allowClose = true;
   if (win && !win.isDestroyed()) win.close();
-});
+}));
+ipcMain.handle('app:cancelClose', trusted(() => {
+  return { ok: true };
+}));
+ipcMain.handle('app:confirmSaveFailure', trusted(async (_e, error) => {
+  const result = await dialog.showMessageBox(win, {
+    type: 'warning',
+    title: 'Unsaved changes',
+    message: 'Some changes could not be saved.',
+    detail: String(error || 'Unknown save error'),
+    buttons: ['Retry', 'Cancel close', 'Close without saving'],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+  });
+  return ['retry', 'cancel', 'discard'][result.response] || 'cancel';
+}));
 
 // ── Security status (read-only, not user-scoped — no authed() needed) ──
 // Whether client credentials (Clients page) are actually being encrypted at
 // rest this run — surfaced as a Settings banner when false (safeStorage
 // unavailable, e.g. a locked-down environment with no OS keychain).
-ipcMain.handle('security:credentialEncryptionStatus', () => ({ available: db.isCredentialEncryptionAvailable() }));
+ipcMain.handle('security:credentialEncryptionStatus', trusted(() => ({ available: db.isCredentialEncryptionAvailable() })));
 
 // ── Window controls ──
-ipcMain.handle('window:setTitle',   (_e, title) => { if (win) win.setTitle(title); });
-ipcMain.handle('shell:openExternal', (_e, url)  => {
+ipcMain.handle('window:setTitle', trusted((_e, title) => { if (win) win.setTitle(String(title || '').slice(0, 200)); }));
+ipcMain.handle('shell:openExternal', authed((_e, url)  => {
   // Only ever hand off real web links to the OS — never file:, javascript:, etc.
   try {
     const u = new URL(String(url));
     if (u.protocol === 'http:' || u.protocol === 'https:') shell.openExternal(u.href);
   } catch { /* not a valid URL — ignore */ }
-});
+}));
 
 // Dev convenience: load KEY=VALUE pairs from a local .env into process.env.
 // Only in development — packaged builds ignore it so a stray .env can't alter a
@@ -437,7 +514,16 @@ app.whenReady().then(() => {
     console.log('[paths] database file    :', db.dbPath());
     console.log('[paths] project files root:', db.projectsRootDir());
     db.applyMigrations();
-    db.runMaintenance();
+    const maintenance = db.runMaintenance();
+    createWindow();
+    if (maintenance?.backup?.ok === false) {
+      dialog.showMessageBox(win, {
+        type: 'warning',
+        title: 'Automatic backup failed',
+        message: 'The app opened, but its launch backup could not be created.',
+        detail: maintenance.backup.error || 'Check the data-folder permissions and available disk space.',
+      });
+    }
   } catch (err) {
     // A failed DB open (locked, corrupt, permissions) must not leave the user
     // with an invisible, windowless process — surface it and exit.
@@ -450,7 +536,6 @@ app.whenReady().then(() => {
     app.quit();
     return;
   }
-  createWindow();
 });
 app.on('window-all-closed', () => {
   db.close();   // checkpoint WAL + close handle cleanly
