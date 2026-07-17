@@ -2,10 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; form-action 'self'">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; connect-src 'none'; img-src 'self' data:">
   <title>Cooperation Tools</title>
   <script>
     // Apply saved theme before first paint to avoid a flash of the wrong theme.
@@ -107,7 +104,7 @@
     ::selection { background: color-mix(in srgb, var(--primary) 38%, transparent); color: var(--text); }
     :focus-visible { outline: none; box-shadow: 0 0 0 3px var(--primary-glow); border-radius: 4px; }
     body {
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       font-size: 14px; background: var(--bg); color: var(--text);
       height: 100vh; display: flex; overflow: hidden;
       -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
@@ -342,7 +339,7 @@
     }
     .total-chip .stat-value {
       font-size: 22px; font-weight: 800; color: var(--text);
-      font-family: 'JetBrains Mono', monospace; letter-spacing: -.5px;
+      font-family: 'Cascadia Mono', Consolas, monospace; letter-spacing: -.5px;
       line-height: 1.1;
     }
     #row-count-card:hover { border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); box-shadow: var(--shadow-sm); }
@@ -2082,7 +2079,7 @@
     <button id="theme-toggle" class="nav-item" onclick="toggleTheme()" title="Switch between light and dark mode">
       <span class="nav-icon" id="theme-icon" data-ic="moon"></span><span id="theme-label">Dark Mode</span>
     </button>
-    <div class="backup-btn-wrap">
+    <div class="backup-btn-wrap admin-only">
       <button id="backup-btn" class="nav-item" onclick="toggleTopMenu(event,'backup-choice-menu')" title="Back up your data — a full backup or just the database">
         <span class="nav-icon" data-ic="save"></span>Backup Data
       </button>
@@ -2526,7 +2523,7 @@
 </div>
 
 <!-- ══ UNDO TOAST ══ -->
-<div id="undo-toast">
+<div id="undo-toast" role="status" aria-live="polite">
   <span id="undo-toast-label">Row deleted</span>
   <button id="undo-toast-btn" onclick="undoDelete()">Undo</button>
 </div>
@@ -2707,7 +2704,7 @@
 </div>
 
 <!-- ══ COMPANY DOCUMENT DELETE UNDO TOAST ══ -->
-<div id="companydoc-undo-toast">
+<div id="companydoc-undo-toast" role="status" aria-live="polite">
   <span>Document deleted</span>
   <button id="companydoc-undo-toast-btn" onclick="undoDeleteCompanyDoc()">Undo</button>
 </div>
@@ -2778,7 +2775,7 @@
       <div class="form-row">
         <div class="form-group full">
           <label>Password</label>
-          <input id="cv-password" type="text" placeholder="VPN login password" />
+          <input id="cv-password" type="password" autocomplete="new-password" placeholder="VPN login password" />
         </div>
       </div>
       <div class="form-row">
@@ -2859,7 +2856,7 @@
         </div>
         <div class="form-group">
           <label>Password</label>
-          <input id="cs-password" type="text" placeholder="Login password" />
+          <input id="cs-password" type="password" autocomplete="new-password" placeholder="Login password" />
         </div>
       </div>
       <div class="form-row">
@@ -2917,7 +2914,7 @@
         </div>
         <div class="form-group">
           <label>Password</label>
-          <input id="cint-password" type="text" placeholder="Login password" />
+          <input id="cint-password" type="password" autocomplete="new-password" placeholder="Login password" />
         </div>
       </div>
       <div class="form-row">
@@ -2927,7 +2924,7 @@
         </div>
         <div class="form-group">
           <label>Secret Key (optional)</label>
-          <input id="cint-secret-key" type="text" placeholder="Integration secret key" />
+          <input id="cint-secret-key" type="password" autocomplete="off" placeholder="Integration secret key" />
         </div>
       </div>
       <div class="form-row">
@@ -3270,7 +3267,7 @@
 </div>
 
 <!-- ══ PROJECT DELETE UNDO TOAST ══ -->
-<div id="project-undo-toast">
+<div id="project-undo-toast" role="status" aria-live="polite">
   <span>Project deleted</span>
   <button id="project-undo-toast-btn" onclick="undoDeleteProject()">Undo</button>
 </div>
@@ -3287,7 +3284,7 @@
     <!-- Settings list -->
     <div class="settings-tabs">
       <button class="stab active" data-tab="general" onclick="switchTab(this)"><span class="stab-icon" data-ic="sliders-horizontal"></span> General</button>
-      <div class="settings-group-label">Lookups</div>
+      <div class="settings-group-label admin-only">Lookups</div>
       <button class="stab" data-tab="companies"     onclick="switchTab(this)"><span class="stab-icon" data-ic="building-2"></span> Companies</button>
       <button class="stab" data-tab="systems"       onclick="switchTab(this)"><span class="stab-icon" data-ic="folder"></span> Systems</button>
       <button class="stab" data-tab="natural"       onclick="switchTab(this)"><span class="stab-icon" data-ic="tag"></span> Natural</button>
@@ -3300,23 +3297,56 @@
       <button class="stab" data-tab="department"    onclick="switchTab(this)"><span class="stab-icon" data-ic="building"></span> Department</button>
       <button class="stab" data-tab="taskSourceType" onclick="switchTab(this)"><span class="stab-icon" data-ic="external-link"></span> Task Source Types</button>
       <button class="stab" data-tab="serverRole"    onclick="switchTab(this)"><span class="stab-icon" data-ic="server"></span> Server Roles</button>
-      <div class="settings-group-label">Maintenance</div>
-      <button class="stab" data-tab="maintenance" onclick="switchTab(this)"><span class="stab-icon" data-ic="wrench"></span> Maintenance</button>
+      <div class="settings-group-label admin-only">Maintenance</div>
+      <button class="stab admin-only" data-tab="maintenance" onclick="switchTab(this)"><span class="stab-icon" data-ic="wrench"></span> Maintenance</button>
     </div>
     <!-- Panels -->
     <div class="settings-panels">
       <div class="settings-panel active" id="tab-general">
         <div id="credential-encryption-banner" class="security-banner" style="display:none">
           <span data-ic="shield-alert"></span>
-          <span>Client credentials (Clients page passwords/secret keys) are currently stored in <b>plain text</b> —
-            this machine's secure storage (Windows DPAPI) isn't available right now, so encryption is skipped.
-            Nothing is broken; this is just less protected than usual.</span>
+          <span>Secure credential storage (Windows DPAPI) is unavailable. Saving a client password or secret key is
+            blocked until secure storage becomes available; existing encrypted credentials remain protected.</span>
         </div>
         <div class="general-field">
-          <label>Default Name</label>
+          <label for="setting-default-name">Default Name</label>
           <input id="setting-default-name" type="text" placeholder="e.g. Moustafa Baraka" />
         </div>
         <p class="general-hint">Pre-fills the Name field when opening a new day with no existing data.</p>
+        <hr class="modal-tasksection-divider" style="margin:20px 0" />
+        <h3>Account Security</h3>
+        <div class="general-field">
+          <label for="account-current-password">Current password</label>
+          <input id="account-current-password" type="password" autocomplete="current-password" />
+        </div>
+        <div class="general-field">
+          <label for="account-new-password">New password</label>
+          <input id="account-new-password" type="password" autocomplete="new-password" minlength="8" />
+        </div>
+        <div class="general-field">
+          <label for="account-confirm-password">Confirm new password</label>
+          <input id="account-confirm-password" type="password" autocomplete="new-password" minlength="8" />
+        </div>
+        <button class="btn" onclick="changeOwnPassword()">Change Password</button>
+        <p class="general-hint" id="account-password-status" role="status" aria-live="polite"></p>
+        <div class="admin-only">
+          <hr class="modal-tasksection-divider" style="margin:20px 0" />
+          <h3>Add Account</h3>
+          <div class="general-field">
+            <label for="new-account-username">Username</label>
+            <input id="new-account-username" type="text" autocomplete="off" minlength="3" maxlength="32" />
+          </div>
+          <div class="general-field">
+            <label for="new-account-password">Temporary password</label>
+            <input id="new-account-password" type="password" autocomplete="new-password" minlength="8" />
+          </div>
+          <div class="general-field">
+            <label for="new-account-confirm">Confirm password</label>
+            <input id="new-account-confirm" type="password" autocomplete="new-password" minlength="8" />
+          </div>
+          <button class="btn" onclick="addAccount()">Create Account</button>
+          <p class="general-hint" id="new-account-status" role="status" aria-live="polite"></p>
+        </div>
         <hr class="modal-tasksection-divider" style="margin:20px 0" />
         <div class="general-field">
           <label>Start on</label>
@@ -3541,7 +3571,7 @@
 </div>
 
 <!-- ══ SUBSCRIPTION UNDO TOAST ══ -->
-<div id="sub-undo-toast">
+<div id="sub-undo-toast" role="status" aria-live="polite">
   <span>Subscription deleted</span>
   <button id="sub-undo-toast-btn" onclick="undoDeleteSub()">Undo</button>
 </div>
@@ -3775,6 +3805,7 @@ function watchAriaLabels() {
 function trapFocusIn(overlayEl) {
   const box = overlayEl.querySelector('.modal-box');
   if (!box) return;
+  overlayEl._returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   const focusable = () => [...box.querySelectorAll(
     'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
   )].filter(el => el.offsetParent !== null);
@@ -3804,6 +3835,8 @@ function releaseFocusTrap(overlayEl) {
     overlayEl.removeEventListener('keydown', overlayEl._focusTrapKeydown);
     overlayEl._focusTrapKeydown = null;
   }
+  if (overlayEl._returnFocus?.isConnected) overlayEl._returnFocus.focus();
+  overlayEl._returnFocus = null;
 }
 function watchModalFocusTraps() {
   const obs = new MutationObserver(mutations => {
@@ -3813,7 +3846,28 @@ function watchModalFocusTraps() {
       if (el.classList.contains('open')) trapFocusIn(el); else releaseFocusTrap(el);
     });
   });
-  document.querySelectorAll('.modal-overlay').forEach(el => obs.observe(el, { attributes: true, attributeFilter: ['class'] }));
+  document.querySelectorAll('.modal-overlay').forEach((el, index) => {
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-modal', 'true');
+    const heading = el.querySelector('h1,h2,h3,.modal-title');
+    if (heading) {
+      if (!heading.id) heading.id = `modal-title-${index + 1}`;
+      el.setAttribute('aria-labelledby', heading.id);
+    } else {
+      el.setAttribute('aria-label', 'Dialog');
+    }
+    obs.observe(el, { attributes: true, attributeFilter: ['class'] });
+  });
+}
+
+function connectFormLabels(root = document) {
+  let serial = 0;
+  root.querySelectorAll('label:not([for])').forEach(label => {
+    const field = label.parentElement?.querySelector('input:not([type="hidden"]),select,textarea');
+    if (!field) return;
+    if (!field.id) field.id = `labelled-field-${++serial}`;
+    label.htmlFor = field.id;
+  });
 }
 
 // ── State ──
@@ -3958,11 +4012,14 @@ function totalMins(rowArr) {
   return rowArr.reduce((s, r) => s + (parseFloat(r.minutes) || 0), 0);
 }
 let _toastTimer = null;
+let _toastExpire = null;
 // `opts.actionLabel`/`opts.onAction` add a click action button (e.g. "Open
 // folder") alongside the message; `opts.duration` overrides the auto-dismiss.
 function toast(msg, opts) {
   const el = document.getElementById('app-toast');
   if (!el) return;
+  clearTimeout(_toastTimer);
+  if (_toastExpire) { const expire = _toastExpire; _toastExpire = null; expire(); }
   el.innerHTML = '';
   const span = document.createElement('span');
   span.textContent = msg;
@@ -3971,12 +4028,19 @@ function toast(msg, opts) {
     const btn = document.createElement('button');
     btn.className = 'toast-action-btn';
     btn.textContent = opts.actionLabel;
-    btn.addEventListener('click', opts.onAction);
+    btn.addEventListener('click', async () => {
+      clearTimeout(_toastTimer);
+      _toastExpire = null;
+      await opts.onAction();
+    });
     el.appendChild(btn);
   }
   el.classList.add('show');
-  clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => el.classList.remove('show'), (opts && opts.duration) || 2600);
+  _toastExpire = opts?.onExpire || null;
+  _toastTimer = setTimeout(() => {
+    el.classList.remove('show');
+    if (_toastExpire) { const expire = _toastExpire; _toastExpire = null; expire(); }
+  }, (opts && opts.duration) || 2600);
 }
 
 // ── Loading skeletons ──
@@ -4486,7 +4550,7 @@ const SETTINGS_TABS = ['companies', 'systems', 'natural', 'timeType', 'status', 
 // (re)load a working copy of the catalog and render the editors fresh each visit.
 async function initSettingsModule() {
   lookupsDraft = JSON.parse(JSON.stringify(LK.categories || {}));
-  SETTINGS_TABS.forEach(renderLookupPanel);
+  if (_currentUser?.isAdmin) SETTINGS_TABS.forEach(renderLookupPanel);
   document.getElementById('setting-default-name').value = LK.defaultName || '';
   document.querySelectorAll('#setting-startonlastpage-ctl .seg-btn').forEach(b =>
     b.classList.toggle('active', (b.dataset.val === 'last') === !!uiState.startOnLastPage));
@@ -4514,7 +4578,8 @@ async function saveSettings() {
       .map((o, i) => ({ id: o.id ?? null, code: o.code, label: String(o.label || '').trim(), sortOrder: i, isActive: o.isActive !== false }))
       .filter(o => o.label);
   }
-  const payload = { categories, defaultName: document.getElementById('setting-default-name').value.trim() };
+  const payload = { defaultName: document.getElementById('setting-default-name').value.trim() };
+  if (_currentUser?.isAdmin) payload.categories = categories;
   try {
     await window.api.saveLookups(payload);
     LK = await window.api.loadLookups();   // refresh — new entries now have stable codes
@@ -4523,6 +4588,34 @@ async function saveSettings() {
   renderTable();                            // reflect any relabeled values immediately
   renderFilterChips();
   toast('Settings saved');
+}
+
+async function changeOwnPassword() {
+  const current = document.getElementById('account-current-password');
+  const next = document.getElementById('account-new-password');
+  const confirm = document.getElementById('account-confirm-password');
+  const status = document.getElementById('account-password-status');
+  status.textContent = '';
+  if (next.value !== confirm.value) { status.textContent = 'New passwords do not match.'; confirm.focus(); return; }
+  let result;
+  try { result = await window.api.authChangePassword(current.value, next.value); }
+  catch { result = { ok: false, error: 'Could not change the password.' }; }
+  status.textContent = result?.ok ? 'Password changed.' : (result?.error || 'Could not change the password.');
+  if (result?.ok) { current.value = ''; next.value = ''; confirm.value = ''; }
+}
+
+async function addAccount() {
+  const username = document.getElementById('new-account-username');
+  const password = document.getElementById('new-account-password');
+  const confirm = document.getElementById('new-account-confirm');
+  const status = document.getElementById('new-account-status');
+  status.textContent = '';
+  if (password.value !== confirm.value) { status.textContent = 'Passwords do not match.'; confirm.focus(); return; }
+  let result;
+  try { result = await window.api.authAddUser(username.value.trim(), password.value); }
+  catch { result = { ok: false, error: 'Could not create the account.' }; }
+  status.textContent = result?.ok ? `Account “${result.user.username}” created.` : (result?.error || 'Could not create the account.');
+  if (result?.ok) { username.value = ''; password.value = ''; confirm.value = ''; }
 }
 
 // ══ MAINTENANCE TAB (Milestone 6) ═════════════════════════════════════════════
@@ -6382,14 +6475,11 @@ function buildReportDoc(innerHTML, title) {
   ).join('\n');
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'none'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src data:">
     <title>${esc(title || 'Report')}</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: 'Inter', 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #111; padding: 48px 52px; background: #fff; }
+      body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #111; padding: 48px 52px; background: #fff; }
       table, td, th, tr, tbody, thead, tfoot { background: #fff; color: #111; }
       .rpt-table { width:100%; border-collapse:collapse; font-size:11.5px; border:1.5px solid #111; }
       .rpt-table thead th { padding:7px 8px; text-align:left; font-size:9px; font-weight:700; color:#111; background:#f0f0f0; text-transform:uppercase; letter-spacing:.5px; border:1px solid #bbb; border-bottom:1.5px solid #111; }
@@ -6400,13 +6490,12 @@ function buildReportDoc(innerHTML, title) {
   </head><body>${innerHTML}</body></html>`;
 }
 
-function triggerPrint() {
+async function triggerPrint() {
   const frame = document.getElementById('print-frame');
-  const win = window.open('', '_blank', 'width=940,height=800');
-  win.document.write(buildReportDoc(frame.innerHTML, 'Report'));
-  win.document.close();
-  win.focus();
-  setTimeout(() => { win.print(); }, 450);
+  let res;
+  try { res = await window.api.printReport(buildReportDoc(frame.innerHTML, 'Report')); }
+  catch { res = { ok: false, error: 'Printing failed' }; }
+  if (!res?.ok) toast(res?.error || 'Printing failed');
 }
 
 // Save the currently-previewed report directly to a PDF file (Chromium printToPDF).
@@ -7956,10 +8045,9 @@ async function exportAnalyticsPDF() {
   const { label } = anRange();
   const body = document.getElementById('an-scroll').innerHTML;
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'none'">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src data:">
     <style>${css}
-      body { font-family:'Inter',sans-serif; background:#fff; padding:28px 32px; display:block; }
+      body { font-family:'Segoe UI',Arial,sans-serif; background:#fff; padding:28px 32px; display:block; }
       .an-report-title { font-size:20px; font-weight:700; color:#2a2722; margin-bottom:4px; }
       .an-report-sub { font-size:12px; color:#8a857c; margin-bottom:20px; }
     </style></head>
@@ -9424,16 +9512,32 @@ function applyDocResult(res, failMsg) {
 }
 
 async function uploadDoc(documentType) {
+  const projectId = currentProject.id;
   let res;
-  try { res = await window.api.uploadProjectDocument(currentProject.id, documentType); }
+  try { res = await window.api.uploadProjectDocument(projectId, documentType); }
   catch { toast('Could not upload file'); return; }
-  if (applyDocResult(res, 'Could not upload file')) toast('File saved');
+  if (!applyDocResult(res, 'Could not upload file')) return;
+  if (res.replacedFile) {
+    toast('File replaced', { actionLabel: 'Undo', duration: 5000, onAction: async () => {
+      const restored = await window.api.restoreProjectDocument(projectId, documentType, res.replacedFile);
+      if (restored?.ok && restored.replacedFile?.path) await window.api.purgeProjectDocumentFile(projectId, restored.replacedFile.path);
+      if (currentProject?.id === projectId) applyDocResult(restored, 'Could not restore the previous file');
+      toast(restored?.ok ? 'Previous file restored' : (restored?.error || 'Could not restore the previous file'));
+    }, onExpire: () => window.api.purgeProjectDocumentFile(projectId, res.replacedFile.path).catch(() => {}) });
+  } else toast('File saved');
 }
 async function removeDoc(documentType) {
+  const projectId = currentProject.id;
   let res;
-  try { res = await window.api.removeProjectDocument(currentProject.id, documentType); }
+  try { res = await window.api.removeProjectDocument(projectId, documentType); }
   catch { toast('Could not remove file'); return; }
-  if (applyDocResult(res, 'Could not remove file')) toast('File removed');
+  if (!applyDocResult(res, 'Could not remove file')) return;
+  if (!res.removedFile) { toast('File removed'); return; }
+  toast('File removed', { actionLabel: 'Undo', duration: 5000, onAction: async () => {
+    const restored = await window.api.restoreProjectDocument(projectId, documentType, res.removedFile);
+    if (currentProject?.id === projectId) applyDocResult(restored, 'Could not restore the file');
+    toast(restored?.ok ? 'File restored' : (restored?.error || 'Could not restore the file'));
+  }, onExpire: () => window.api.purgeProjectDocumentFile(projectId, res.removedFile.path).catch(() => {}) });
 }
 async function downloadDoc(documentType) {
   let res;
@@ -10370,13 +10474,27 @@ async function uploadCompanyDocFile(id) {
   let res;
   try { res = await window.api.uploadCompanyDocument(id); }
   catch { toast('Could not upload file'); return; }
-  if (applyCompanyDocFileResult(res, 'Could not upload file')) toast('File saved');
+  if (!applyCompanyDocFileResult(res, 'Could not upload file')) return;
+  if (res.replacedFile) {
+    toast('File replaced', { actionLabel: 'Undo', duration: 5000, onAction: async () => {
+      const restored = await window.api.restoreRemovedCompanyDocument(id, res.replacedFile);
+      if (restored?.ok && restored.replacedFile?.path) await window.api.purgeCompanyDocumentFile(id, restored.replacedFile.path);
+      if (restored?.ok) applyCompanyDocFileResult(restored, 'Could not restore the previous file');
+      toast(restored?.ok ? 'Previous file restored' : (restored?.error || 'Could not restore the previous file'));
+    }, onExpire: () => window.api.purgeCompanyDocumentFile(id, res.replacedFile.path).catch(() => {}) });
+  } else toast('File saved');
 }
 async function removeCompanyDocFile(id) {
   let res;
   try { res = await window.api.removeCompanyDocument(id); }
   catch { toast('Could not remove file'); return; }
-  if (applyCompanyDocFileResult(res, 'Could not remove file')) toast('File removed');
+  if (!applyCompanyDocFileResult(res, 'Could not remove file')) return;
+  if (!res.removedFile) { toast('File removed'); return; }
+  toast('File removed', { actionLabel: 'Undo', duration: 5000, onAction: async () => {
+    const restored = await window.api.restoreRemovedCompanyDocument(id, res.removedFile);
+    if (restored?.ok) applyCompanyDocFileResult(restored, 'Could not restore the file');
+    toast(restored?.ok ? 'File restored' : (restored?.error || 'Could not restore the file'));
+  }, onExpire: () => window.api.purgeCompanyDocumentFile(id, res.removedFile.path).catch(() => {}) });
 }
 async function downloadCompanyDocFile(id) {
   let res;
@@ -12111,12 +12229,33 @@ async function flushPending() {
     tasks.push(window.api.setDayName(activeDate, document.getElementById('hName').value));
   }
   if (subsLoaded)     tasks.push(saveSubscriptionsData());
-  try { await Promise.all(tasks); } catch { /* best effort */ }
+  const results = await Promise.allSettled(tasks);
+  const failures = results.filter(r => r.status === 'rejected');
+  if (failures.length) {
+    const messages = failures.map(r => String(r.reason?.message || r.reason || 'Save failed'));
+    throw new Error(messages.join('\n'));
+  }
 }
 
+let _closeFlowRunning = false;
 window.api.onBeforeClose(async () => {
-  await flushPending();
-  window.api.flushComplete();
+  if (_closeFlowRunning) return;
+  _closeFlowRunning = true;
+  while (true) {
+    try {
+      await flushPending();
+      await window.api.flushComplete();
+      return;
+    } catch (error) {
+      const choice = await window.api.confirmSaveFailure(String(error?.message || error));
+      if (choice === 'retry') continue;
+      if (choice === 'discard') { await window.api.flushComplete(); return; }
+      await window.api.cancelClose();
+      toast('Close cancelled — your unsaved changes are still open.');
+      _closeFlowRunning = false;
+      return;
+    }
+  }
 });
 
 // ── Init ──
@@ -12188,6 +12327,7 @@ async function init() {
 // the now-gated data layer) only runs after a successful login/setup.
 let _authMode  = 'login';   // 'login' | 'setup'
 let _appBooted = false;
+let _currentUser = null;
 
 async function bootAuth() {
   let status;
@@ -12246,8 +12386,14 @@ async function submitAuth(e) {
 }
 
 async function startApp(user) {
+  _currentUser = user || null;
   const su = document.getElementById('sidebar-user');
-  if (su) su.innerHTML = 'Signed in as <b>' + esc(user && user.username || '') + '</b>';
+  if (su) su.innerHTML = 'Signed in as <b>' + esc(user && user.username || '') + '</b>' +
+    (user?.isAdmin ? '<small>Administrator</small>' : '');
+  document.querySelectorAll('.admin-only').forEach(el => { el.hidden = !user?.isAdmin; });
+  document.querySelectorAll('.settings-tabs .stab').forEach(el => {
+    if (el.dataset.tab !== 'general') el.hidden = !user?.isAdmin;
+  });
   if (_appBooted) return;
   _appBooted = true;
   await init();
@@ -12262,8 +12408,9 @@ async function doLogout() {
 hydrateIcons();   // swap all static [data-ic] placeholders for inline Lucide SVG
 watchAriaLabels(); // mirror every button's title onto aria-label, now and going forward
 watchModalFocusTraps(); // Tab-cycle + initial focus inside every .modal-overlay (Milestone 5)
+connectFormLabels(); // associate visible labels with their form controls
 bootAuth();
 </script>
-<div id="app-toast" class="app-toast"></div>
+<div id="app-toast" class="app-toast" role="status" aria-live="polite"></div>
 </body>
 </html>

@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('api', {
   authLogout:      ()                 => ipcRenderer.invoke('auth:logout'),
   /** @returns {Promise<import('./ipc-types').AuthUser|null>} */
   authCurrentUser: ()                 => ipcRenderer.invoke('auth:currentUser'),
+  authAddUser:     (username, pass)   => ipcRenderer.invoke('auth:addUser', username, pass),
+  authChangePassword: (currentPass, newPass) => ipcRenderer.invoke('auth:changePassword', currentPass, newPass),
 
   // ── Days ──
   // NB: day:save / day:get were retired in Phase C2 — the Timesheet now persists
@@ -141,6 +143,8 @@ contextBridge.exposeInMainWorld('api', {
   openProjectDocument:     (projectId, documentType) => ipcRenderer.invoke('projects:open-document', projectId, documentType),
   /** @returns {Promise<import('./ipc-types').DocFileResult>} */
   removeProjectDocument:   (projectId, documentType) => ipcRenderer.invoke('projects:remove-document', projectId, documentType),
+  restoreProjectDocument:  (projectId, documentType, fileMeta) => ipcRenderer.invoke('projects:restore-document', projectId, documentType, fileMeta),
+  purgeProjectDocumentFile: (projectId, relPath) => ipcRenderer.invoke('projects:purge-document-file', projectId, relPath),
   purgeProjectFiles:       (projectId)               => ipcRenderer.invoke('projects:purge-files', projectId),
   restoreProjectFiles:     (oldId, newId, docs)      => ipcRenderer.invoke('projects:restore-files', oldId, newId, docs),
 
@@ -164,6 +168,8 @@ contextBridge.exposeInMainWorld('api', {
   openCompanyDocument:     (id) => ipcRenderer.invoke('companydocs:open-document', id),
   /** @returns {Promise<import('./ipc-types').CompanyDocFileResult>} */
   removeCompanyDocument:   (id) => ipcRenderer.invoke('companydocs:remove-document', id),
+  restoreRemovedCompanyDocument: (id, fileMeta) => ipcRenderer.invoke('companydocs:restore-document', id, fileMeta),
+  purgeCompanyDocumentFile: (id, relPath) => ipcRenderer.invoke('companydocs:purge-document-file', id, relPath),
   purgeCompanyDocumentFiles: (id)                    => ipcRenderer.invoke('companydocs:purge-files', id),
   restoreCompanyDocumentFile: (oldId, newId, fileMeta) => ipcRenderer.invoke('companydocs:restore-file', oldId, newId, fileMeta),
 
@@ -215,7 +221,10 @@ contextBridge.exposeInMainWorld('api', {
   openBackupFolder:  (folderPath) => ipcRenderer.invoke('maintenance:openBackupFolder', folderPath),
   /** @returns {Promise<import('./ipc-types').FileResult>} */
   exportPDF:         (html, name) => ipcRenderer.invoke('report:exportPDF', html, name),
+  printReport:       (html)       => ipcRenderer.invoke('report:print', html),
   flushComplete:     ()           => ipcRenderer.invoke('app:flushComplete'),
+  cancelClose:       ()           => ipcRenderer.invoke('app:cancelClose'),
+  confirmSaveFailure: (error)     => ipcRenderer.invoke('app:confirmSaveFailure', error),
   onBeforeClose:  (cb)            => ipcRenderer.on('app:beforeClose', () => cb()),
   setTitle:       (title)         => ipcRenderer.invoke('window:setTitle', title),
   openExternal:   (url)           => ipcRenderer.invoke('shell:openExternal', url),

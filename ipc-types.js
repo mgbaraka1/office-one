@@ -592,6 +592,7 @@
  * @typedef {Object} AuthUser
  * @property {number} id
  * @property {string} username
+ * @property {boolean} isAdmin
  */
 
 /**
@@ -675,8 +676,8 @@
  */
 
 /**
- * Milestone 11 — this-machine-only UI state (`ui:getState`/`ui:setState`,
- * `machine_prefs` key `ui_state`), so the renderer can land back where the
+ * Milestone 11/40 — per-account UI state (`ui:getState`/`ui:setState`,
+ * `user_ui_state`), so the renderer can land back where that user
  * user left off instead of always Analytics. db.js stores/returns this as an
  * opaque JSON blob — it never interprets the shape, only the renderer does.
  * @typedef {Object} UiState
@@ -689,9 +690,8 @@
  * Result of `security:credentialEncryptionStatus` — whether the five client_*
  * tables' password/secret_key columns are actually being encrypted at rest
  * this run (Milestone 2, migration 032). `false` means safeStorage is
- * unavailable (e.g. a locked-down environment with no OS keychain) and
- * credentials are being stored in plain text, same as before Milestone 2 —
- * surfaced as a Settings banner rather than a silent regression.
+ * unavailable (e.g. a locked-down environment with no OS keychain). New or
+ * changed non-empty credential writes are then blocked, and Settings shows a banner.
  * @typedef {Object} CredentialEncryptionStatus
  * @property {boolean} available
  */

@@ -29,7 +29,7 @@
     "node": ">=18"
   },
   "devDependencies": {
-    "electron": "^42.3.3",
+    "electron": "^42.7.0",
     "electron-builder": "^25.1.8"
   },
   "build": {
