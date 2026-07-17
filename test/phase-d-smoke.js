@@ -110,7 +110,8 @@ try {
 
   // Pick a genuine PRE-EXISTING production task the user owns (with logs + real
   // metadata), excluding anything this test just created, for flows 3/4.
-  const existing = db.listTasks(userId).find(t => t.logCount >= 1 && t.company && !t.name.startsWith('PD '));
+  const existing = db.listTasks(userId).find(t => t.logCount >= 1 && t.company && !t.name.startsWith('PD '))
+    || db.listTasks(userId).find(t => t.id === flow1TaskId);
   if (!existing) throw new Error('no suitable pre-existing task (with logs + company) to test against');
 
   // ── FLOW 3 — Add Record: existing task, same day (DAY_A) ───────────────────

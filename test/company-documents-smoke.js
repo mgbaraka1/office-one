@@ -140,12 +140,12 @@ try {
 
   // ── File: replace ─────────────────────────────────────────────────────────
   const srcFile2 = path.join(workDir, 'source2.png');
-  fs.writeFileSync(srcFile2, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  fs.writeFileSync(srcFile2, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
   const replaceRes = db.saveCompanyDocumentFile(userId, created.id, srcFile2);
   const afterReplace = replaceRes.ok ? replaceRes.document : null;
-  record('Replace: new file recorded, old file removed from disk', replaceRes.ok
-    && afterReplace.file.originalName === 'source2.png' && fileAbs1 && !fs.existsSync(fileAbs1),
-    'newName=' + (afterReplace && afterReplace.file.originalName) + ' oldGone=' + (fileAbs1 && !fs.existsSync(fileAbs1)));
+  record('Replace: new file recorded, previous file retained for undo', replaceRes.ok
+    && afterReplace.file.originalName === 'source2.png' && fileAbs1 && fs.existsSync(fileAbs1) && replaceRes.replacedFile,
+    'newName=' + (afterReplace && afterReplace.file.originalName) + ' oldRetained=' + (fileAbs1 && fs.existsSync(fileAbs1)));
 
   // ── File: resolve (download/open path resolution) ────────────────────────
   const resolved = db.resolveCompanyDocumentFile(userId, created.id);
@@ -154,9 +154,12 @@ try {
   // ── File: remove (keeps card, clears file) ────────────────────────────────
   const fileAbs2 = path.join(userDataDirOf(workDir), afterReplace.file.path);
   const removeRes = db.removeCompanyDocumentFile(userId, created.id);
-  record('Remove: card survives, file cleared + deleted from disk', removeRes.ok
-    && removeRes.document.file === null && !fs.existsSync(fileAbs2),
+  record('Remove: card survives, metadata clears, bytes retained for undo', removeRes.ok
+    && removeRes.document.file === null && fs.existsSync(fileAbs2) && removeRes.removedFile,
     JSON.stringify(removeRes.ok && removeRes.document.file));
+  const restoredRemoval = db.restoreRemovedCompanyDocumentFile(userId, created.id, removeRes.removedFile);
+  record('Remove undo: previous file metadata is restored', restoredRemoval.ok
+    && restoredRemoval.document.file?.originalName === 'source2.png', JSON.stringify(restoredRemoval.document.file));
 
   // ── Delete + undo/purge lifecycle (mirrors Projects delete/restore) ───────
   // Re-upload a file so the delete/undo dance actually has something to move.

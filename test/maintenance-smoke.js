@@ -79,7 +79,7 @@ try {
 
   // ── Gate 3/4/5 — lookup duplicates + merge ──────────────────────────────────
   const companyA = db.createProject(userId, { name: 'Maint test project A', description: '', companyIds: [], systemIds: [], status: 'ACTIVE', category: 'NEW_PROJECT' });
-  const cur = db.loadLookups();
+  const cur = db.loadLookups(userId);
   const nextCategories = { ...cur.categories };
   nextCategories.COMPANY = [
     ...nextCategories.COMPANY.map(c => ({ id: c.id, code: c.code, label: c.label, sortOrder: c.sortOrder, isActive: c.isActive })),
@@ -89,7 +89,7 @@ try {
   // saveLookups rejects a same-batch case-collision (by design, see Conventions) —
   // so to genuinely simulate a pre-existing duplicate (from before that guard
   // existed), insert the second one directly at the SQL level instead.
-  db.saveLookups({ categories: { COMPANY: nextCategories.COMPANY.slice(0, -1) }, defaultName: '' });
+  db.saveLookups(userId, { categories: { COMPANY: nextCategories.COMPANY.slice(0, -1) }, defaultName: '' });
   const targetCode = db.getLookupsByCategory('COMPANY').find(c => c.label === 'Maint Dupe Co');
   const rawDb = new DatabaseSync(dbFilePath);
   rawDb.prepare("INSERT INTO lookup_codes(category, code, label, sort_order, is_active, created_at) VALUES('COMPANY', 'MAINT_DUPE_CO_2', 'MAINT DUPE CO', 1001, 1, ?)").run(new Date().toISOString());
