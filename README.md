@@ -6,12 +6,13 @@ All operational data stays on the device in an embedded SQLite database. There i
 
 ## Main features
 
-- Timesheet sessions grouped under date-independent tasks, including a live timer and per-session activity/time type.
+- Fast daily logging with grouped task sessions, Repeat Last, remembered session defaults, duration presets, a live timer, and per-session activity/time type.
 - Client projects with linked tasks and tracked uploaded documents.
 - Internal tasks organized by department, plus an all-tasks view and task detail/history data.
-- Client reference records for authentication connections, servers, and internal systems.
+- A tabbed Client workspace with a summary, projects, authentication connections, servers, and internal systems.
 - Recurring subscriptions and renewal-tracked company documents.
-- SQL-aggregated analytics, attention items, browse/report filters, and main-process-owned PDF printing.
+- An accessible Overview with attention items first, period comparisons, chart data tables, browse/report filters, and main-process-owned PDF printing.
+- A responsive, keyboard-friendly interface with compact navigation, connected form errors, focus management, reduced-motion support, and high-contrast light/dark themes.
 - Multi-user accounts: the first account is the administrator; administrators can add users, and each user can change their password.
 - Rotating database snapshots, validated restore, integrity checks, and full Desktop backups containing the DB and uploaded-file trees.
 
@@ -73,7 +74,7 @@ Full backups are written outside the live data directory to a timestamped Deskto
 - `main.js` — Electron lifecycle, trusted/authenticated/admin IPC boundaries, dialogs, printing, and OS integration.
 - `auth.js` — bcrypt validation, login throttling, account administration, and the in-memory session.
 - `db.js` — SQLite connection, migrations, maintenance/backups, ownership-scoped CRUD, validation, and analytics.
-- `migrations/` — append-only migrations `000` through `040`; migration `040` adds administrators and per-user settings/UI state.
+- `migrations/` — append-only migrations `000` through `041`; migration `040` adds administrators and per-user settings/UI state, and `041` adds the private-server System lookups.
 - `preload.js` — the context-isolated `window.api` bridge.
 - `index.html` — the renderer UI.
 - `test/` — standalone smoke tests orchestrated by `test/run-all.js` against generated fixtures.
