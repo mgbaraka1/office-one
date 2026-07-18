@@ -17,9 +17,10 @@
     :root {
       color-scheme: light;
       /* Brand colors — from sayedtimesheet design system */
-      --primary: #14b8a6;
-      --primary-strong: #0d9488;
-      --primary-glow: rgba(20,184,166,.35);
+      /* Darker action teal keeps white button text above AA contrast. */
+      --primary: #0f766e;
+      --primary-strong: #115e59;
+      --primary-glow: rgba(13,148,136,.28);
       --good: #34d399;
       --warn: #f5b544;
       --bad: #f25e6b;
@@ -50,18 +51,18 @@
       --border:     #e2e7f0;
       --text:       #1a1f2e;
       --muted:      #646c84;
-      --accent:     #14b8a6;
-      --accent-bg:  color-mix(in srgb, #14b8a6 12%, #f4f6fb);
+      --accent:     #0f766e;
+      --accent-bg:  color-mix(in srgb, #0f766e 12%, #f4f6fb);
       --row-hover:  #f1f3f9;
       --input-focus-bg: #ffffff;
       --error-bg:   #fff5f5;
-      --done:       #dcfce7; --done-text: #16a34a;
+      --done:       #dcfce7; --done-text: #166534;
       --prog:       #fef9c3; --prog-text: #a16207;
-      --open:       #dbeafe; --open-text: #2563eb;
-      --blocked:    #fee2e2; --blocked-text: #dc2626;
-      --renew-ok:   #dcfce7; --renew-ok-text: #16a34a;
+      --open:       #dbeafe; --open-text: #1d4ed8;
+      --blocked:    #fee2e2; --blocked-text: #b91c1c;
+      --renew-ok:   #dcfce7; --renew-ok-text: #166534;
       --renew-soon: #fef9c3; --renew-soon-text: #a16207;
-      --renew-urgent: #fee2e2; --renew-urgent-text: #dc2626;
+      --renew-urgent: #fee2e2; --renew-urgent-text: #b91c1c;
       --radius:     14px;
       --radius-sm:  10px;
       /* Spacing scale — use these instead of ad-hoc literals */
@@ -83,7 +84,7 @@
       --border:     #242428;
       --text:       #f3f4f7;
       --muted:      #9095a3;
-      --accent:     #14b8a6;
+      --accent:     #2dd4bf;
       --accent-bg:  color-mix(in srgb, #14b8a6 14%, #0c0c0f);
       --row-hover:  #161619;
       --input-focus-bg: #070708;
@@ -102,7 +103,7 @@
     }
     * { box-sizing: border-box; margin: 0; padding: 0; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
     ::selection { background: color-mix(in srgb, var(--primary) 38%, transparent); color: var(--text); }
-    :focus-visible { outline: none; box-shadow: 0 0 0 3px var(--primary-glow); border-radius: 4px; }
+    :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; box-shadow: none; border-radius: 4px; }
     body {
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       font-size: 14px; background: var(--bg); color: var(--text);
@@ -131,7 +132,8 @@
       letter-spacing: 3px; text-transform: uppercase; line-height: 1.5;
       padding: 0 6px;
     }
-    .sidebar-brand span { color: var(--primary); font-size: 12px; letter-spacing: 3px; }
+    .brand-compact { display: none; font-size: 18px; letter-spacing: 1px; color: var(--primary); }
+    .sidebar-brand .brand-full > span { color: #2dd4bf; font-size: 12px; letter-spacing: 3px; }
     .sidebar-nav { display: flex; flex-direction: column; gap: 3px; overflow-y: auto; }
     .nav-section {
       font-size: 10px; font-weight: 700; text-transform: uppercase;
@@ -151,6 +153,7 @@
     .nav-item.active {
       background: color-mix(in srgb, var(--primary) 16%, transparent); color: #fff; font-weight: 600;
     }
+    .nav-item[aria-current="page"] { background: color-mix(in srgb, var(--primary) 16%, transparent); }
     .nav-item.active::before {
       content: ''; position: absolute; left: -16px; top: 50%; transform: translateY(-50%);
       width: 4px; height: 20px; border-radius: 0 4px 4px 0; background: var(--primary);
@@ -172,7 +175,15 @@
       from { opacity: 0; transform: translateY(5px); }
       to   { opacity: 1; transform: none; }
     }
-    @media (prefers-reduced-motion: reduce) { .app-module.active { animation: none; } }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+      }
+      .app-module.active { animation: none; }
+    }
 
     /* ══ PAGE HEADER (one shared component for every module top bar) ══ */
     .page-header {
@@ -322,14 +333,14 @@
 
     /* Totals bar — stat cards row (sayedtimesheet style) */
     #totals-bar {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;
-      padding: 14px 18px; background: var(--bg);
+      display: grid; grid-template-columns: repeat(3, minmax(150px, 1fr)); gap: 10px;
+      padding: 12px 18px; background: var(--bg);
       flex-shrink: 0;
     }
     .total-chip {
       display: flex; flex-direction: column; gap: 4px;
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 14px 16px;
+      border-radius: var(--radius); padding: 11px 14px;
       transition: border-color var(--speed), box-shadow var(--speed);
     }
     .total-chip:hover { border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); box-shadow: var(--shadow-sm); }
@@ -342,6 +353,7 @@
       font-family: 'Cascadia Mono', Consolas, monospace; letter-spacing: -.5px;
       line-height: 1.1;
     }
+    .total-chip .summary-meta { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
     #row-count-card:hover { border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); box-shadow: var(--shadow-sm); }
     /* Name/Date inputs kept functional for the JS but not shown as cards */
     #totals-bar .hidden-fields { display: none; }
@@ -349,7 +361,7 @@
     .total-chip.ot-chip.has-value .stat-value { color: var(--bad); }
 
     /* Table */
-    #table-wrap { flex: 1; overflow-y: auto; padding: var(--space-5) var(--space-6) var(--space-7); }
+    #table-wrap { flex: 1; overflow: auto; padding: var(--space-5) var(--space-6) var(--space-7); }
 
     table { width: 100%; border-collapse: separate; border-spacing: 0; }
     thead th {
@@ -920,7 +932,7 @@
     .cl-subsvc-list { margin-top: 6px; border-top: 1px dashed var(--border); padding-top: 6px; }
     .cl-subsvc-row-view { font-size: 12.5px; color: var(--muted); font-family: 'JetBrains Mono', monospace; display: flex; gap: 8px; padding: 2px 0; }
     .cl-subsvc-row-view .cl-subsvc-label { color: var(--text); font-weight: 600; flex-shrink: 0; }
-    /* Detail-view search + type-filter toolbar (sits above the 5 sections) */
+    /* Detail-workspace search + tabs */
     .cl-detail-toolbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 14px 0 4px; }
     .cl-detail-search { width: 280px; }
     /* List-view records search (searches every client's own records, not just its name) */
@@ -1100,6 +1112,7 @@
     /* Horizontal bar list */
     .an-bars { display: flex; flex-direction: column; gap: 9px; }
     .an-bar-row { display: grid; grid-template-columns: 120px 1fr 56px; align-items: center; gap: 10px; }
+    button.an-bar-row { width: 100%; border: 0; background: none; padding: 0; font: inherit; text-align: left; color: inherit; }
     .an-bar-label { font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .an-bar-track { display: block; background: var(--surface2); border-radius: 6px; height: 18px; overflow: hidden; }
     .an-bar-fill { display: block; height: 100%; border-radius: 6px; background: var(--accent); min-width: 2px; transition: width .35s ease; }
@@ -1109,7 +1122,7 @@
     .an-donut-wrap { display: flex; align-items: center; gap: 20px; }
     .an-donut { flex-shrink: 0; }
     .an-donut-center { font-size: 18px; font-weight: 700; fill: var(--text); }
-    .an-donut-center-sub { font-size: 9px; fill: var(--muted); }
+    .an-donut-center-sub { font-size: 11px; fill: var(--muted); }
     .an-legend { display: flex; flex-direction: column; gap: 7px; flex: 1; }
     .an-legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text); }
     .an-legend-dot { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
@@ -1122,9 +1135,9 @@
     .an-trend-dot { fill: var(--accent); }
     .an-trend-dot.peak { stroke: var(--surface); stroke-width: 2; }
     .an-trend-grid { stroke: var(--border); stroke-width: 1; }
-    .an-trend-lbl { fill: var(--muted); font-size: 10px; }
+    .an-trend-lbl { fill: var(--muted); font-size: 11px; }
     .an-trend-avg { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 5 4; opacity: .6; }
-    .an-trend-avg-lbl { fill: var(--muted); font-size: 10px; font-weight: 600; }
+    .an-trend-avg-lbl { fill: var(--muted); font-size: 11px; font-weight: 600; }
     .an-trend-peak-lbl { fill: var(--accent); font-size: 11px; font-weight: 700; }
 
     /* Heatmap (GitHub-style) */
@@ -1142,14 +1155,14 @@
     /* Year heatmap fills the full content width: week columns flex to 1fr and
        cells stay square via aspect-ratio, so all 12 months show without scroll. */
     .an-heat-months { display: flex; gap: 3px; padding-left: 30px; margin-bottom: 4px; height: 12px; }
-    .an-heat-mcol { flex: 1 1 0; min-width: 0; font-size: 9.5px; color: var(--muted); white-space: nowrap; overflow: visible; }
+    .an-heat-mcol { flex: 1 1 0; min-width: 0; font-size: 10.5px; color: var(--muted); white-space: nowrap; overflow: visible; }
     .an-heat-body { display: flex; gap: 6px; align-items: stretch; }
     .an-heat-weekdays { display: flex; flex-direction: column; gap: 3px; flex: 0 0 24px; width: 24px; }
-    .an-heat-wd { flex: 1; display: flex; align-items: center; justify-content: flex-end; font-size: 9px; color: var(--muted); }
+    .an-heat-wd { flex: 1; display: flex; align-items: center; justify-content: flex-end; font-size: 10.5px; color: var(--muted); }
     .an-heat { display: flex; gap: 3px; flex: 1; min-width: 0; }
     .an-heat-col { display: flex; flex-direction: column; gap: 3px; flex: 1 1 0; min-width: 0; }
     .an-heat-col .an-heat-cell { width: 100%; height: auto; aspect-ratio: 1 / 1; }
-    .an-heat-cell { width: 13px; height: 13px; border-radius: 3px; background: var(--surface2); cursor: pointer; }
+    .an-heat-cell { width: 13px; height: 13px; padding: 0; border: 0; border-radius: 3px; background: var(--surface2); cursor: pointer; }
     .an-heat-cell.h1 { background: color-mix(in srgb, var(--accent) 30%, var(--surface2)); }
     .an-heat-cell.h2 { background: color-mix(in srgb, var(--accent) 55%, var(--surface2)); }
     .an-heat-cell.h3 { background: color-mix(in srgb, var(--accent) 78%, var(--surface2)); }
@@ -1309,6 +1322,7 @@
     .modal-header {
       display: flex; align-items: center; justify-content: space-between;
       padding: 22px 26px 0;
+      position: sticky; top: 0; z-index: 5; background: var(--surface);
     }
     .modal-title { font-size: var(--fs-title); font-weight: 700; letter-spacing: var(--ls-title); }
     .modal-close {
@@ -1351,12 +1365,18 @@
     .modal-footer {
       display: flex; justify-content: flex-end; gap: 10px;
       padding: 0 26px 22px;
+      position: sticky; bottom: 0; z-index: 5; background: var(--surface);
+      border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+      padding-top: 14px;
     }
 
     .field-error {
       border-color: var(--bad) !important;
       background: var(--error-bg) !important;
       animation: shake .25s ease;
+    }
+    .field-error-message {
+      color: var(--bad); font-size: 12px; line-height: 1.35; margin-top: 2px;
     }
     @keyframes shake {
       0%,100% { transform: translateX(0); }
@@ -1367,6 +1387,82 @@
     /* ══ SETTINGS MODAL ══ */
     .settings-body {
       display: flex; flex: 1; overflow: hidden;
+    }
+    .settings-search-wrap { padding: 0 8px 12px; }
+    .settings-search {
+      width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm);
+      background: var(--surface2); color: var(--text); padding: 9px 10px; font: inherit;
+    }
+    .settings-save-status { color: var(--muted); font-size: 12px; min-width: 56px; text-align: right; }
+
+    .duration-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 1px; }
+    .duration-preset {
+      border: 1px solid var(--border); background: var(--surface); color: var(--muted);
+      border-radius: 999px; padding: 5px 9px; font: 600 12px/1 inherit; cursor: pointer;
+    }
+    .duration-preset:hover, .duration-preset.active, .duration-preset[aria-pressed="true"] {
+      border-color: var(--accent); color: var(--accent); background: var(--accent-bg);
+    }
+
+    .workspace-tabs { margin-left: 4px; }
+    .client-overview-grid { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 12px; margin-bottom: 18px; }
+    .client-overview-card {
+      border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius);
+      padding: 15px; display: flex; flex-direction: column; gap: 5px;
+    }
+    .client-overview-card b { font-size: 24px; color: var(--text); }
+    .client-overview-card span { color: var(--muted); font-size: 12px; }
+    .client-overview-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+
+    .an-data-details { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px; }
+    .an-data-details summary { cursor: pointer; color: var(--accent); font-size: 12px; font-weight: 700; }
+    .an-data-table { width: 100%; margin-top: 8px; border-collapse: collapse; font-size: 12px; }
+    .an-data-table th, .an-data-table td { padding: 7px 8px; border-bottom: 1px solid var(--border); text-align: left; }
+    .an-data-table td:last-child, .an-data-table th:last-child { text-align: right; }
+    .an-more-insights { margin-top: 20px; }
+    .an-more-insights > summary {
+      cursor: pointer; list-style: none; border: 1px solid var(--border); background: var(--surface);
+      border-radius: var(--radius); padding: 12px 14px; color: var(--text); font-weight: 700;
+    }
+    .an-more-insights > summary::before { content: '＋'; margin-right: 8px; color: var(--accent); }
+    .an-more-insights[open] > summary::before { content: '−'; }
+
+    .sr-only {
+      position: absolute !important; width: 1px !important; height: 1px !important;
+      padding: 0 !important; margin: -1px !important; overflow: hidden !important;
+      clip: rect(0,0,0,0) !important; white-space: nowrap !important; border: 0 !important;
+    }
+
+    @media (max-width: 1180px) {
+      #sidebar { width: 216px; padding: 20px 12px; gap: 18px; }
+      .page-header { flex-wrap: wrap; }
+      .page-header .topbar-right { flex-wrap: wrap; }
+      #filter-bar { flex-wrap: wrap; }
+      #totals-bar { padding-inline: 14px; }
+      #table-wrap { padding-inline: 14px; }
+      #ts-table th:nth-child(1), #ts-table td:nth-child(1),
+      #ts-table th:nth-child(3), #ts-table td:nth-child(3),
+      #ts-table th:nth-child(4), #ts-table td:nth-child(4),
+      #ts-table th:nth-child(10), #ts-table td:nth-child(10) { display: none; }
+    }
+
+    @media (max-width: 1050px) {
+      #sidebar { width: 76px; padding: 18px 10px; align-items: stretch; }
+      .brand-full, .nav-label, .nav-section, .sidebar-user { display: none; }
+      .brand-compact { display: block; text-align: center; }
+      .sidebar-brand { padding: 0; text-align: center; }
+      .nav-item { justify-content: center; padding: 11px 8px; gap: 0; }
+      .nav-item.active::before { left: -10px; }
+      .nav-badge { position: absolute; right: 3px; top: 3px; }
+      .sidebar-footer { gap: 6px; }
+      .client-overview-grid { grid-template-columns: repeat(2, 1fr); }
+      .an-scroll { padding-inline: var(--space-5); }
+    }
+
+    @media (max-width: 760px) {
+      .form-row { grid-template-columns: 1fr; }
+      #totals-bar { grid-template-columns: 1fr; }
+      .client-overview-grid { grid-template-columns: 1fr; }
     }
 
     /* Tabs */
@@ -2039,55 +2135,50 @@
 
 <!-- ══ SIDEBAR ══ -->
 <div id="sidebar">
-  <div class="sidebar-brand">MOS TA FA<br><span>COOPERATION TOOLS</span></div>
-  <nav class="sidebar-nav">
+  <div class="sidebar-brand"><span class="brand-full">MOS TA FA<br><span>COOPERATION TOOLS</span></span><span class="brand-compact">CT</span></div>
+  <nav class="sidebar-nav" aria-label="Primary navigation">
     <div class="nav-section">Track</div>
-    <button class="nav-item" data-module="timesheet" onclick="switchModule('timesheet')">
-      <span class="nav-icon" data-ic="clock"></span>Timesheet
+    <button class="nav-item" data-module="timesheet" onclick="switchModule('timesheet')" title="Today — Timesheet">
+      <span class="nav-icon" data-ic="clock"></span><span class="nav-label">Today</span>
     </button>
-    <div class="nav-section">Analyze</div>
-    <button class="nav-item active" data-module="analytics" onclick="switchModule('analytics')">
-      <span class="nav-icon" data-ic="layout-dashboard"></span>Analytics
+    <button class="nav-item" data-module="all-tasks" data-modules="all-tasks internal-tasks" onclick="switchModule('all-tasks')" title="Tasks">
+      <span class="nav-icon" data-ic="list"></span><span class="nav-label">Tasks</span>
     </button>
-    <button class="nav-item" data-module="reports" onclick="switchModule('reports')">
-      <span class="nav-icon" data-ic="file-text"></span>Reports
-    </button>
-    <button class="nav-item" data-module="browse" onclick="switchModule('browse')">
-      <span class="nav-icon" data-ic="compass"></span>Browse
-    </button>
-    <div class="nav-section">Manage</div>
-    <button class="nav-item" data-module="all-tasks" onclick="switchModule('all-tasks')">
-      <span class="nav-icon" data-ic="list"></span>All Tasks
-    </button>
-    <button class="nav-item" data-module="internal-tasks" onclick="switchModule('internal-tasks')">
-      <span class="nav-icon" data-ic="building"></span>Internal Tasks
-    </button>
+    <div class="nav-section">Clients &amp; Assets</div>
     <button class="nav-item" data-module="clients" onclick="switchModule('clients')">
-      <span class="nav-icon" data-ic="layers"></span>Clients<span class="nav-badge" id="nav-badge-clients"></span>
+      <span class="nav-icon" data-ic="layers"></span><span class="nav-label">Clients</span><span class="nav-badge" id="nav-badge-clients"></span>
     </button>
     <button class="nav-item" data-module="subscriptions" onclick="switchModule('subscriptions')">
-      <span class="nav-icon" data-ic="credit-card"></span>Subscriptions<span class="nav-badge" id="nav-badge-subscriptions"></span>
+      <span class="nav-icon" data-ic="credit-card"></span><span class="nav-label">Subscriptions</span><span class="nav-badge" id="nav-badge-subscriptions"></span>
     </button>
     <button class="nav-item" data-module="companydocs" onclick="switchModule('companydocs')">
-      <span class="nav-icon" data-ic="calendar-check"></span>Company Docs<span class="nav-badge" id="nav-badge-companydocs"></span>
+      <span class="nav-icon" data-ic="calendar-check"></span><span class="nav-label">Company Docs</span><span class="nav-badge" id="nav-badge-companydocs"></span>
     </button>
+    <div class="nav-section">Review</div>
+    <button class="nav-item active" data-module="analytics" onclick="switchModule('analytics')">
+      <span class="nav-icon" data-ic="layout-dashboard"></span><span class="nav-label">Overview</span>
+    </button>
+    <button class="nav-item" data-module="reports" onclick="switchModule('reports')">
+      <span class="nav-icon" data-ic="file-text"></span><span class="nav-label">Reports</span>
+    </button>
+    <div class="nav-section">Administration</div>
     <button class="nav-item" data-module="settings" onclick="switchModule('settings')">
-      <span class="nav-icon" data-ic="settings"></span>Settings
+      <span class="nav-icon" data-ic="settings"></span><span class="nav-label">Settings</span>
     </button>
   </nav>
   <div class="sidebar-footer">
     <button id="theme-toggle" class="nav-item" onclick="toggleTheme()" title="Switch between light and dark mode">
-      <span class="nav-icon" id="theme-icon" data-ic="moon"></span><span id="theme-label">Dark Mode</span>
+      <span class="nav-icon" id="theme-icon" data-ic="moon"></span><span id="theme-label" class="nav-label">Dark Mode</span>
     </button>
     <div class="backup-btn-wrap admin-only">
       <button id="backup-btn" class="nav-item" onclick="toggleTopMenu(event,'backup-choice-menu')" title="Back up your data — a full backup or just the database">
-        <span class="nav-icon" data-ic="save"></span>Backup Data
+        <span class="nav-icon" data-ic="save"></span><span class="nav-label">Backup Data</span>
       </button>
       <div class="top-menu" id="backup-choice-menu"></div>
     </div>
     <div class="sidebar-user" id="sidebar-user"></div>
     <button id="logout-btn" class="nav-item" onclick="doLogout()" title="Log out of this session">
-      <span class="nav-icon" data-ic="log-out"></span>Log Out
+      <span class="nav-icon" data-ic="log-out"></span><span class="nav-label">Log Out</span>
     </button>
   </div>
 </div>
@@ -2095,7 +2186,7 @@
 <!-- ══ ANALYTICS MODULE (home / overview) ══ -->
 <div id="module-analytics" class="app-module">
   <div id="an-topbar" class="page-header">
-    <span class="page-title"><span class="ti-ic" data-ic="layout-dashboard"></span>Analytics</span>
+    <span class="page-title"><span class="ti-ic" data-ic="layout-dashboard"></span>Overview</span>
     <div class="seg-ctl" id="an-period">
       <button class="seg-btn" data-period="week"  onclick="setAnPeriod('week')">This Week</button>
       <button class="seg-btn active" data-period="month" onclick="setAnPeriod('month')">This Month</button>
@@ -2122,6 +2213,21 @@
          launch, regardless of which page the "Start on" setting lands on. -->
     <div class="dash-quick-actions" id="dash-quick-actions"></div>
     <div class="dash-stats" id="dash-stats"></div>
+
+    <div class="an-section">
+      <span class="an-section-title"><span data-ic="bell"></span>Needs Attention</span>
+      <span class="an-section-line"></span>
+    </div>
+    <div class="an-grid">
+      <div class="an-card">
+        <div class="an-card-head"><span class="an-card-title">Upcoming Renewals</span><span class="an-card-sub" id="dash-attention-sub"></span></div>
+        <div class="dash-attention" id="dash-attention"></div>
+      </div>
+      <div class="an-card">
+        <div class="an-card-head"><span class="an-card-title">Recurring Spend</span><span class="an-card-sub" id="an-spend-sub">Subscriptions</span></div>
+        <div id="an-spend"></div>
+      </div>
+    </div>
 
     <!-- ── Time Tracking: everything driven by the selected period ── -->
     <div class="an-section">
@@ -2153,7 +2259,9 @@
       </div>
     </div>
 
-    <div class="an-grid">
+    <details class="an-more-insights">
+      <summary>More breakdowns and yearly activity</summary>
+    <div class="an-grid" style="margin-top:16px">
       <div class="an-card">
         <div class="an-card-head"><span class="an-card-title">Hours by Department</span><span class="an-card-sub" id="an-department-sub"></span></div>
         <div id="an-department"></div>
@@ -2196,21 +2304,7 @@
       </div>
     </div>
 
-    <!-- ── Needs Attention: cross-module reminders ── -->
-    <div class="an-section">
-      <span class="an-section-title"><span data-ic="bell"></span>Needs Attention</span>
-      <span class="an-section-line"></span>
-    </div>
-    <div class="an-grid">
-      <div class="an-card">
-        <div class="an-card-head"><span class="an-card-title">Upcoming Renewals</span><span class="an-card-sub" id="dash-attention-sub"></span></div>
-        <div class="dash-attention" id="dash-attention"></div>
-      </div>
-      <div class="an-card">
-        <div class="an-card-head"><span class="an-card-title">Recurring Spend</span><span class="an-card-sub" id="an-spend-sub">Subscriptions</span></div>
-        <div id="an-spend"></div>
-      </div>
-    </div>
+    </details>
   </div>
 </div>
 
@@ -2302,6 +2396,7 @@
       <span id="save-status"></span>
       <button class="btn today-btn" id="btn-today" onclick="goToday()"><span data-ic="calendar-check"></span>Today</button>
       <button class="btn" onclick="openMonthView()" title="Month overview"><span data-ic="calendar-days"></span>Month</button>
+      <button class="btn" id="btn-repeat-last" onclick="repeatLastSession()" title="Prefill a new session from the latest session shown"><span data-ic="copy"></span>Repeat Last</button>
       <button class="btn primary" onclick="openModal()"><span data-ic="plus"></span>Add Record <kbd>⌃N</kbd></button>
     </div>
   </div>
@@ -2316,24 +2411,19 @@
       <input id="hDate" type="date" />
     </div>
     <div class="total-chip">
-      <span class="lbl">Total Minutes</span>
-      <span class="stat-value" id="total-min">0</span>
-    </div>
-    <div class="total-chip">
-      <span class="lbl">Total Hours</span>
+      <span class="lbl">Hours Logged</span>
       <span class="stat-value" id="total-hrs">0.00</span>
+      <span class="summary-meta"><span id="total-min">0</span> minutes</span>
     </div>
     <div class="total-chip" id="row-count-card">
       <span class="lbl">Sessions</span>
       <span class="stat-value" id="row-count">0</span>
+      <span class="summary-meta">on the selected day</span>
     </div>
     <div class="total-chip ot-chip">
-      <span class="lbl">Over Time Total Minutes</span>
-      <span class="stat-value" id="total-ot-min">0</span>
-    </div>
-    <div class="total-chip ot-chip">
-      <span class="lbl">Over Time Total Hours</span>
+      <span class="lbl">Over Time</span>
       <span class="stat-value" id="total-ot-hrs">0.00</span>
+      <span class="summary-meta"><span id="total-ot-min">0</span> minutes</span>
     </div>
   </div>
 
@@ -2474,6 +2564,13 @@
           <div class="form-group">
             <label>Minutes</label>
             <input id="f-minutes" type="number" min="1" max="1440" placeholder="e.g. 45" />
+            <div class="duration-presets" data-duration-for="f-minutes" aria-label="Quick duration">
+              <button type="button" class="duration-preset" onclick="setDurationPreset('f-minutes',15,this)">15m</button>
+              <button type="button" class="duration-preset" onclick="setDurationPreset('f-minutes',30,this)">30m</button>
+              <button type="button" class="duration-preset" onclick="setDurationPreset('f-minutes',45,this)">45m</button>
+              <button type="button" class="duration-preset" onclick="setDurationPreset('f-minutes',60,this)">1h</button>
+              <button type="button" class="duration-preset" onclick="setDurationPreset('f-minutes',90,this)">1.5h</button>
+            </div>
           </div>
         </div>
         <div class="form-row">
@@ -2621,7 +2718,11 @@
      can be edited — and reassigned to a different task — from here too. ══ -->
 <div id="module-all-tasks" class="app-module">
   <div class="page-header">
-    <span class="page-title"><span class="ti-ic" data-ic="list"></span>All Tasks</span>
+    <span class="page-title"><span class="ti-ic" data-ic="list"></span>Tasks</span>
+    <div class="seg-ctl workspace-tabs" aria-label="Task workspace">
+      <button class="seg-btn active" type="button" onclick="switchModule('all-tasks')">All Tasks</button>
+      <button class="seg-btn" type="button" onclick="switchModule('internal-tasks')">Departments</button>
+    </div>
   </div>
   <div class="cp-records-panel" id="at-panel" style="width:100%"></div>
 </div>
@@ -2632,7 +2733,11 @@
      no "create department" flow here, only picking one and managing its tasks. -->
 <div id="module-internal-tasks" class="app-module">
   <div class="page-header">
-    <span class="page-title"><span class="ti-ic" data-ic="building"></span>Internal Tasks</span>
+    <span class="page-title"><span class="ti-ic" data-ic="list"></span>Tasks</span>
+    <div class="seg-ctl workspace-tabs" aria-label="Task workspace">
+      <button class="seg-btn" type="button" onclick="switchModule('all-tasks')">All Tasks</button>
+      <button class="seg-btn active" type="button" onclick="switchModule('internal-tasks')">Departments</button>
+    </div>
   </div>
   <div class="cp-body">
     <div class="cp-list-panel">
@@ -2778,6 +2883,8 @@
           <input id="cv-password" type="password" autocomplete="new-password" placeholder="VPN login password" />
         </div>
       </div>
+      <details class="modal-more">
+        <summary>Advanced details <span class="modal-more-hint">— expiry, credential location, notes</span></summary>
       <div class="form-row">
         <div class="form-group">
           <label>Expiry Date (optional)</label>
@@ -2794,6 +2901,7 @@
           <textarea id="cv-notes" placeholder="Reference notes only"></textarea>
         </div>
       </div>
+      </details>
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeClientVpnModal()">Cancel</button>
@@ -2917,6 +3025,8 @@
           <input id="cint-password" type="password" autocomplete="new-password" placeholder="Login password" />
         </div>
       </div>
+      <details class="modal-more">
+        <summary>Integration and advanced details <span class="modal-more-hint">— secret, expiry, endpoints, notes</span></summary>
       <div class="form-row">
         <div class="form-group">
           <label>Company Code (optional)</label>
@@ -2950,6 +3060,7 @@
           <textarea id="cint-notes" placeholder="Reference notes only"></textarea>
         </div>
       </div>
+      </details>
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeClientInternalModal()">Cancel</button>
@@ -3194,6 +3305,13 @@
           <div class="form-group">
             <label>Minutes</label>
             <input id="sm-minutes" type="number" min="1" max="1440" placeholder="e.g. 45" />
+            <div class="duration-presets" data-duration-for="sm-minutes" aria-label="Quick duration">
+              <button type="button" class="duration-preset" onclick="setDurationPreset('sm-minutes',15,this)">15m</button>
+              <button type="button" class="duration-preset" onclick="setDurationPreset('sm-minutes',30,this)">30m</button>
+              <button type="button" class="duration-preset" onclick="setDurationPreset('sm-minutes',45,this)">45m</button>
+              <button type="button" class="duration-preset" onclick="setDurationPreset('sm-minutes',60,this)">1h</button>
+              <button type="button" class="duration-preset" onclick="setDurationPreset('sm-minutes',90,this)">1.5h</button>
+            </div>
           </div>
         </div>
         <div class="form-row">
@@ -3277,14 +3395,20 @@
   <div id="settings-topbar" class="page-header">
     <span class="page-title"><span class="ti-ic" data-ic="settings"></span>Settings</span>
     <div class="topbar-right">
-      <button class="btn primary" onclick="saveSettings()">Save Changes</button>
+      <span class="settings-save-status" id="settings-save-status" role="status" aria-live="polite"></span>
+      <button class="btn primary" id="settings-save-btn" onclick="saveSettings()">Save General Settings</button>
     </div>
   </div>
   <div class="settings-body">
     <!-- Settings list -->
     <div class="settings-tabs">
+      <div class="settings-search-wrap">
+        <label class="sr-only" for="settings-search">Find a setting</label>
+        <input class="settings-search" id="settings-search" type="search" placeholder="Find a setting…" oninput="filterSettingsTabs()" />
+      </div>
+      <div class="settings-group-label">Account &amp; Preferences</div>
       <button class="stab active" data-tab="general" onclick="switchTab(this)"><span class="stab-icon" data-ic="sliders-horizontal"></span> General</button>
-      <div class="settings-group-label admin-only">Lookups</div>
+      <div class="settings-group-label admin-only">Catalogs</div>
       <button class="stab" data-tab="companies"     onclick="switchTab(this)"><span class="stab-icon" data-ic="building-2"></span> Companies</button>
       <button class="stab" data-tab="systems"       onclick="switchTab(this)"><span class="stab-icon" data-ic="folder"></span> Systems</button>
       <button class="stab" data-tab="natural"       onclick="switchTab(this)"><span class="stab-icon" data-ic="tag"></span> Natural</button>
@@ -3297,7 +3421,7 @@
       <button class="stab" data-tab="department"    onclick="switchTab(this)"><span class="stab-icon" data-ic="building"></span> Department</button>
       <button class="stab" data-tab="taskSourceType" onclick="switchTab(this)"><span class="stab-icon" data-ic="external-link"></span> Task Source Types</button>
       <button class="stab" data-tab="serverRole"    onclick="switchTab(this)"><span class="stab-icon" data-ic="server"></span> Server Roles</button>
-      <div class="settings-group-label admin-only">Maintenance</div>
+      <div class="settings-group-label admin-only">Data &amp; Recovery</div>
       <button class="stab admin-only" data-tab="maintenance" onclick="switchTab(this)"><span class="stab-icon" data-ic="wrench"></span> Maintenance</button>
     </div>
     <!-- Panels -->
@@ -3774,25 +3898,74 @@ function hydrateIcons(root) {
 // for the initial DOM, then a MutationObserver keeps it in sync forever after —
 // any button created (or re-titled) anywhere in the app gets it automatically.
 function syncAriaLabelFromTitle(el) {
-  if (el.nodeType === 1 && el.tagName === 'BUTTON' && el.title && !el.hasAttribute('aria-label')) {
+  if (el.nodeType !== 1 || el.tagName !== 'BUTTON' || !el.title) return;
+  if (!el.hasAttribute('aria-label') || el.dataset.autoAriaLabel === '1') {
     el.setAttribute('aria-label', el.title);
+    el.dataset.autoAriaLabel = '1';
   }
 }
 function syncAriaLabelsFromTitle(root) {
-  (root || document).querySelectorAll('button[title]:not([aria-label])').forEach(syncAriaLabelFromTitle);
+  const scope = root || document;
+  if (scope.matches?.('button[title]')) syncAriaLabelFromTitle(scope);
+  scope.querySelectorAll?.('button[title]').forEach(syncAriaLabelFromTitle);
 }
+
+const KEYBOARD_CLICKABLE = '.cal-day:not(.empty),.status-badge,.dash-att-item,.an-bar-row.clickable,.month-cell.has,.cl-search-table tbody tr,.pj-card';
+function makeKeyboardClickable(el) {
+  if (!(el instanceof HTMLElement) || el.dataset.keyboardClickable === '1') return;
+  el.dataset.keyboardClickable = '1';
+  if (!el.hasAttribute('role')) el.setAttribute('role', 'button');
+  if (!el.hasAttribute('tabindex')) el.tabIndex = 0;
+  el.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault(); el.click();
+  });
+}
+
+function syncControlSemantics(root = document) {
+  const scopes = [root, ...(root.querySelectorAll ? root.querySelectorAll('*') : [])];
+  scopes.forEach(el => {
+    if (!(el instanceof Element)) return;
+    if (el.classList.contains('modal-close') && !el.title) el.title = 'Close dialog';
+    if (el.matches(KEYBOARD_CLICKABLE)) makeKeyboardClickable(el);
+    if (el.classList.contains('seg-btn')) el.setAttribute('aria-pressed', String(el.classList.contains('active')));
+    if (el.matches('.nav-item[data-module]')) {
+      if (!el.title) el.title = el.querySelector('.nav-label')?.textContent?.trim() || '';
+      if (el.classList.contains('active')) el.setAttribute('aria-current', 'page');
+      else el.removeAttribute('aria-current');
+    }
+    if (el.matches('#module-settings .stab')) el.setAttribute('aria-selected', String(el.classList.contains('active')));
+  });
+  root.querySelectorAll?.('.seg-ctl').forEach(ctl => {
+    if (!ctl.hasAttribute('role')) ctl.setAttribute('role', 'group');
+    ctl.querySelectorAll('.seg-btn').forEach(btn => btn.setAttribute('aria-pressed', String(btn.classList.contains('active'))));
+  });
+  root.querySelectorAll?.('.nav-item[data-module]').forEach(btn => {
+    if (btn.classList.contains('active')) btn.setAttribute('aria-current', 'page');
+    else btn.removeAttribute('aria-current');
+  });
+  root.querySelectorAll?.('#module-settings .settings-tabs').forEach(el => el.setAttribute('role', 'tablist'));
+  root.querySelectorAll?.('#module-settings .stab').forEach(btn => {
+    btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-selected', String(btn.classList.contains('active')));
+    btn.setAttribute('aria-controls', 'tab-' + btn.dataset.tab);
+  });
+  root.querySelectorAll?.('#module-settings .settings-panel').forEach(panel => panel.setAttribute('role', 'tabpanel'));
+  syncAriaLabelsFromTitle(root);
+}
+
 function watchAriaLabels() {
-  syncAriaLabelsFromTitle();
+  syncControlSemantics();
   new MutationObserver(mutations => {
     for (const m of mutations) {
-      if (m.type === 'attributes') { syncAriaLabelFromTitle(m.target); continue; }
+      if (m.type === 'attributes') { syncControlSemantics(m.target); continue; }
       m.addedNodes.forEach(node => {
         if (node.nodeType !== 1) return;
-        syncAriaLabelFromTitle(node);
-        syncAriaLabelsFromTitle(node);
+        syncControlSemantics(node);
+        connectFormLabels(node);
       });
     }
-  }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['title'] });
+  }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['title', 'class'] });
 }
 
 // ── Modal focus-trap + initial focus (Milestone 5) ──────────────────────────
@@ -3860,12 +4033,12 @@ function watchModalFocusTraps() {
   });
 }
 
+let _connectedLabelSerial = 0;
 function connectFormLabels(root = document) {
-  let serial = 0;
   root.querySelectorAll('label:not([for])').forEach(label => {
     const field = label.parentElement?.querySelector('input:not([type="hidden"]),select,textarea');
     if (!field) return;
-    if (!field.id) field.id = `labelled-field-${++serial}`;
+    if (!field.id) field.id = `labelled-field-${++_connectedLabelSerial}`;
     label.htmlFor = field.id;
   });
 }
@@ -3950,19 +4123,44 @@ let activeModule = null;
 // whenever the active module or a tracked module's filters change. db.js
 // stores this as an opaque JSON blob (machine_prefs key ui_state) — only the
 // renderer interprets `filters`' per-module shape.
-let uiState = { startOnLastPage: true, lastModule: 'analytics', filters: {} };
+let uiState = { startOnLastPage: true, lastModule: 'analytics', filters: {}, sessionDefaults: {} };
 async function loadUiStateFromMain() {
   try {
     const loaded = await window.api.getUiState();
-    uiState = Object.assign({ startOnLastPage: true, lastModule: 'analytics', filters: {} }, loaded || {});
+    uiState = Object.assign({ startOnLastPage: true, lastModule: 'analytics', filters: {}, sessionDefaults: {} }, loaded || {});
   } catch { /* keep defaults */ }
   if (!uiState.filters || typeof uiState.filters !== 'object') uiState.filters = {};
+  if (!uiState.sessionDefaults || typeof uiState.sessionDefaults !== 'object') uiState.sessionDefaults = {};
 }
 let _uiStateSaveTimer = null;
 function saveUiStateDebounced() {
   clearTimeout(_uiStateSaveTimer);
   _uiStateSaveTimer = setTimeout(() => { window.api.saveUiState(uiState).catch(() => {}); }, 300);
 }
+
+function rememberSessionDefaults(time, natural) {
+  uiState.sessionDefaults = { time: time || '', natural: natural || '' };
+  saveUiStateDebounced();
+}
+function setDurationPreset(inputId, minutes, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  input.value = String(minutes);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  syncDurationPresets(inputId, btn);
+  input.focus();
+}
+function syncDurationPresets(inputId, selectedBtn = null) {
+  const value = Number(document.getElementById(inputId)?.value || 0);
+  document.querySelectorAll(`.duration-presets[data-duration-for="${inputId}"] .duration-preset`).forEach(btn => {
+    const pressed = btn === selectedBtn || Number(btn.textContent.replace(/[^0-9.]/g, '')) * (btn.textContent.includes('h') ? 60 : 1) === value;
+    btn.classList.toggle('active', pressed);
+    btn.setAttribute('aria-pressed', String(pressed));
+  });
+}
+document.addEventListener('input', e => {
+  if (e.target?.id === 'f-minutes' || e.target?.id === 'sm-minutes') syncDurationPresets(e.target.id);
+});
 
 // ── Module search filters ──
 let subFilter = '';
@@ -4554,6 +4752,8 @@ async function initSettingsModule() {
   document.getElementById('setting-default-name').value = LK.defaultName || '';
   document.querySelectorAll('#setting-startonlastpage-ctl .seg-btn').forEach(b =>
     b.classList.toggle('active', (b.dataset.val === 'last') === !!uiState.startOnLastPage));
+  const activeTab = document.querySelector('#module-settings .stab.active')?.dataset.tab || 'general';
+  syncSettingsSaveButton(activeTab);
   try {
     const status = await window.api.getCredentialEncryptionStatus();
     document.getElementById('credential-encryption-banner').style.display = status.available ? 'none' : '';
@@ -4570,6 +4770,10 @@ function setStartOnLastPage(startOnLast) {
 }
 
 async function saveSettings() {
+  const statusEl = document.getElementById('settings-save-status');
+  const saveBtn = document.getElementById('settings-save-btn');
+  if (statusEl) statusEl.textContent = 'Saving…';
+  if (saveBtn) saveBtn.disabled = true;
   // Build the catalog payload (sort_order = position), keeping only labelled rows.
   const categories = {};
   for (const uiKey of SETTINGS_TABS) {
@@ -4583,10 +4787,16 @@ async function saveSettings() {
   try {
     await window.api.saveLookups(payload);
     LK = await window.api.loadLookups();   // refresh — new entries now have stable codes
-  } catch { toast('Could not save settings'); return; }
+  } catch {
+    if (statusEl) statusEl.textContent = 'Not saved';
+    if (saveBtn) saveBtn.disabled = false;
+    toast('Could not save settings'); return;
+  }
   initSettingsModule();                     // re-sync the draft with server-assigned codes
   renderTable();                            // reflect any relabeled values immediately
   renderFilterChips();
+  if (statusEl) statusEl.textContent = 'Saved';
+  if (saveBtn) saveBtn.disabled = false;
   toast('Settings saved');
 }
 
@@ -4775,7 +4985,29 @@ function switchTab(btn) {
   document.querySelectorAll('#module-settings .settings-panel').forEach(p => p.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  syncSettingsSaveButton(btn.dataset.tab);
+  syncControlSemantics(document.getElementById('module-settings'));
   if (btn.dataset.tab === 'maintenance') renderMaintenanceTab();
+}
+
+function syncSettingsSaveButton(tab) {
+  const btn = document.getElementById('settings-save-btn');
+  if (!btn) return;
+  btn.hidden = tab === 'maintenance';
+  btn.textContent = tab === 'general' ? 'Save General Settings' : 'Save Catalog Changes';
+  document.getElementById('settings-save-status').textContent = '';
+}
+
+function filterSettingsTabs() {
+  const q = (document.getElementById('settings-search')?.value || '').trim().toLowerCase();
+  const tabs = [...document.querySelectorAll('#module-settings .stab')];
+  tabs.forEach(btn => { btn.hidden = !!q && !btn.textContent.toLowerCase().includes(q); });
+  document.querySelectorAll('#module-settings .settings-group-label').forEach(label => { label.hidden = !!q; });
+  const active = document.querySelector('#module-settings .stab.active');
+  if (active?.hidden) {
+    const first = tabs.find(btn => !btn.hidden);
+    if (first) switchTab(first);
+  }
 }
 
 function renderLookupPanel(uiKey) {
@@ -4946,22 +5178,38 @@ function statusClass(s) {
 
 // ── Day view mode: sessions grouped under their task (default) or a flat list ──
 let tsView = (localStorage.getItem('ct-ts-view') === 'flat') ? 'flat' : 'grouped';
+const tsNarrow = () => window.innerWidth <= 1100;
 function setTsView(v) {
   tsView = v === 'flat' ? 'flat' : 'grouped';
   try { localStorage.setItem('ct-ts-view', tsView); } catch (e) { /* private mode */ }
   renderTable();
 }
 function syncTsViewCtl() {
-  document.querySelectorAll('#ts-view-ctl .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.view === tsView));
+  const effective = tsNarrow() ? 'grouped' : tsView;
+  document.querySelectorAll('#ts-view-ctl .seg-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.view === effective);
+    if (b.dataset.view === 'flat') {
+      b.disabled = tsNarrow();
+      b.title = tsNarrow() ? 'Grouped view is used automatically in compact windows' : '';
+    }
+  });
 }
 function renderTable() {
   syncTsViewCtl();
-  const grouped = tsView === 'grouped';
+  const grouped = tsNarrow() || tsView === 'grouped';
   document.getElementById('ts-table').style.display  = grouped ? 'none' : '';
   document.getElementById('ts-groups').style.display = grouped ? 'flex' : 'none';
   if (grouped) renderTableGrouped();
   else renderTableFlat();
 }
+let _lastTsNarrow = tsNarrow();
+window.addEventListener('resize', () => {
+  const narrow = tsNarrow();
+  if (narrow !== _lastTsNarrow) {
+    _lastTsNarrow = narrow;
+    if (activeModule === 'timesheet') renderTable();
+  }
+});
 
 // Grouped view: one card per task, its sessions nested (mirrors the two-level model).
 function renderTableGrouped() {
@@ -5964,17 +6212,19 @@ async function openModal(idx = null, opts = {}) {
   const isSession = !isEdit && sessionTaskId != null;
   const row = isEdit ? rows[idx] : (opts.prefill || null);
   const modal = document.getElementById('modal');
+  const defaults = !isEdit ? uiState.sessionDefaults : {};
 
   document.getElementById('modal-title').textContent = isEdit ? 'Edit Record' : (isSession ? 'Add Session' : 'Add Record');
   document.querySelector('#modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : (isSession ? 'Add Session' : 'Add Record');
 
   // Session-level fields (always editable) — natural is per-session, same as
   // time type, so it's populated here regardless of edit/add-session/lock state.
-  populateSelect('f-time', 'timeType', row?.time || '');
-  populateSelect('f-natural', 'natural', row?.natural || '');
+  populateSelect('f-time', 'timeType', row?.time || defaults.time || '');
+  populateSelect('f-natural', 'natural', row?.natural || defaults.natural || '');
   document.getElementById('f-date').value        = (isEdit ? (row?.date || activeDate) : activeDate) || fmt(new Date());
   document.getElementById('f-description').value = isSession ? '' : (row?.description || '');
   document.getElementById('f-minutes').value     = isSession ? '' : (row?.minutes || '');
+  syncDurationPresets('f-minutes');
 
   if (isEdit) {
     // Editing an existing record — the full task-field form, prefilled from the row.
@@ -6014,7 +6264,10 @@ async function openModal(idx = null, opts = {}) {
     document.getElementById('f-mode-toggle-row').style.display = isSession ? 'none' : '';
     document.querySelector('#modal .modal-more').open = false;   // reset closed for a fresh Add
     document.querySelectorAll('#f-mode-toggle .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === 'existing'));
-    if (sessionTaskId == null) { blankSelect('f-time'); blankSelect('f-natural'); }
+    if (sessionTaskId == null) {
+      if (!defaults.time) blankSelect('f-time');
+      if (!defaults.natural) blankSelect('f-natural');
+    }
     // Lightweight (Milestone 7) — this picker never renders sessions, just the
     // two-line rich option (name/company/system/status/last-worked/hours).
     try { modalTaskList = await window.api.getTasksIndex(); } catch { modalTaskList = []; }
@@ -6096,11 +6349,11 @@ async function submitModal() {
   if (minRaw !== '') {
     const minVal = parseInt(minRaw, 10);
     if (isNaN(minVal) || minVal < 1 || minVal > 1440 || String(minVal) !== minRaw) {
-      markError('f-minutes'); valid = false;
+      markError('f-minutes', 'Enter a whole number from 1 to 1440.'); valid = false;
     }
   }
 
-  if (!valid) return;
+  if (!valid) { focusFirstError('#modal'); return; }
 
   const descVal   = document.getElementById('f-description').value.trim();
   const taskName  = document.getElementById('f-taskname').value.trim() || descVal;
@@ -6117,6 +6370,7 @@ async function submitModal() {
     projectId:   fProjectPicker ? fProjectPicker.getSelectedId() : null,
     date:        dateVal,
   };
+  rememberSessionDefaults(record.time, record.natural);
   const sourceRows = readTaskSourceRows('f-sources-list');
   const targetDate = dateVal || activeDate;
 
@@ -6211,23 +6465,72 @@ async function submitModal() {
   }
 }
 
+function repeatLastSession() {
+  const source = [...rows].reverse().find(r => r.taskId != null);
+  if (!source) { toast('No saved session is available to repeat on this day'); return; }
+  openSessionModal(null, {
+    mode: 'create',
+    task: { id: source.taskId, name: source.taskName, status: source.status },
+    defaultDate: activeDate,
+    prefill: {
+      time: source.time, natural: source.natural,
+      description: source.description, minutes: source.minutes,
+    },
+  });
+}
+
 // Shared field-error helpers (used by every module's form validation).
-function markError(id) {
+function clearFieldError(el) {
+  if (!el) return;
+  el.classList.remove('field-error');
+  el.removeAttribute('aria-invalid');
+  const errorId = el.dataset.errorMessageId;
+  if (errorId) {
+    document.getElementById(errorId)?.remove();
+    const described = (el.getAttribute('aria-describedby') || '').split(/\s+/).filter(x => x && x !== errorId);
+    if (described.length) el.setAttribute('aria-describedby', described.join(' '));
+    else el.removeAttribute('aria-describedby');
+    delete el.dataset.errorMessageId;
+  }
+}
+function markError(id, message = 'Please complete this field.') {
   const el = document.getElementById(id);
+  if (!el) return;
+  const errorScope = el.closest('.modal-box, form') || document.body;
+  const hadError = !!errorScope.querySelector('.field-error');
+  clearFieldError(el);
   el.classList.add('field-error');
-  el.addEventListener('input',  () => el.classList.remove('field-error'), { once: true });
-  el.addEventListener('change', () => el.classList.remove('field-error'), { once: true });
+  el.setAttribute('aria-invalid', 'true');
+  const error = document.createElement('div');
+  error.className = 'field-error-message';
+  error.id = id + '-error-message';
+  error.textContent = message;
+  el.insertAdjacentElement('afterend', error);
+  el.dataset.errorMessageId = error.id;
+  const described = new Set((el.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean));
+  described.add(error.id);
+  el.setAttribute('aria-describedby', [...described].join(' '));
+  el.addEventListener('input',  () => clearFieldError(el), { once: true });
+  el.addEventListener('change', () => clearFieldError(el), { once: true });
+  if (!hadError) setTimeout(() => el.focus(), 0);
 }
 function clearErrorsIn(scope) {
-  document.querySelectorAll(scope + ' .field-error').forEach(el => el.classList.remove('field-error'));
+  document.querySelectorAll(scope + ' .field-error').forEach(clearFieldError);
 }
 function clearErrors() { clearErrorsIn('body'); }
+function focusFirstError(scope) {
+  document.querySelector(scope + ' .field-error')?.focus();
+}
 
 // ── Keyboard shortcuts ──
 document.addEventListener('keydown', e => {
   const inputFocused = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
-  const anyOpen = ['modal-overlay','print-overlay','month-overlay','sub-modal-overlay','sub-settings-overlay','backlog-modal-overlay','project-modal-overlay','link-task-overlay','palette-overlay','task-detail-overlay','companydoc-modal-overlay','client-vpn-modal-overlay','client-server-modal-overlay','client-internal-modal-overlay','client-group-rename-modal-overlay','client-new-group-modal-overlay','client-record-info-overlay','client-edit-confirm-overlay','client-history-overlay']
-    .some(id => document.getElementById(id).classList.contains('open'));
+  // One selector covers current and future modal overlays. The former hand-kept
+  // id list missed newer Session/History/Merge/help overlays, allowing Ctrl+N
+  // to open a second dialog behind them.
+  const anyOpen = !!document.querySelector(
+    '.modal-overlay.open, #print-overlay.open, #palette-overlay.open, #shortcuts-overlay.open, #howthinks-overlay.open'
+  );
 
   // Command palette — available everywhere, even while typing in a field.
   if (e.ctrlKey && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
@@ -7162,9 +7465,11 @@ function switchModule(name) {
     // Viewing a project's detail page keeps the Clients nav item highlighted,
     // since that's still the section the user is "inside" (Projects now live
     // inside each client's detail view).
-    el.classList.toggle('active', el.dataset.module === name
+    const ownedModules = (el.dataset.modules || el.dataset.module || '').split(/\s+/).filter(Boolean);
+    el.classList.toggle('active', ownedModules.includes(name)
       || (name === 'projects' && el.dataset.module === 'clients'));
   });
+  syncControlSemantics(document.getElementById('sidebar'));
 
   if (name === 'timesheet') {
     window.api.setTitle('Cooperation Tools — Timesheet — ' + activeDate);
@@ -7173,7 +7478,7 @@ function switchModule(name) {
     if (!subsLoaded) loadSubscriptionsData();
     else renderSubscriptions();
   } else if (name === 'analytics') {
-    window.api.setTitle('Cooperation Tools — Analytics');
+    window.api.setTitle('Cooperation Tools — Overview');
     analyticsLoaded = true;
     renderAnalytics();
   } else if (name === 'reports') {
@@ -7185,7 +7490,7 @@ function switchModule(name) {
   } else if (name === 'browse') {
     setBrowseKind(browseKind);
   } else if (name === 'all-tasks') {
-    window.api.setTitle('Cooperation Tools — All Tasks');
+    window.api.setTitle('Cooperation Tools — Tasks');
     initAllTasksModule();
   } else if (name === 'internal-tasks') {
     window.api.setTitle('Cooperation Tools — Internal Tasks');
@@ -7747,7 +8052,16 @@ async function renderAnalytics() {
   }
   const fetchFrom = heatFrom < from ? heatFrom : from;
   const fetchTo   = to > fmt(todayD) ? to : fmt(todayD);
-  const an = await window.api.loadAnalytics(from, to, fetchFrom, fetchTo);
+  const fromDate = new Date(from + 'T00:00:00');
+  const toDate = new Date(to + 'T00:00:00');
+  const spanDays = Math.max(1, Math.round((toDate - fromDate) / 864e5) + 1);
+  const previousToDate = new Date(fromDate); previousToDate.setDate(previousToDate.getDate() - 1);
+  const previousFromDate = new Date(previousToDate); previousFromDate.setDate(previousFromDate.getDate() - spanDays + 1);
+  const previousFrom = fmt(previousFromDate), previousTo = fmt(previousToDate);
+  const [an, previous] = await Promise.all([
+    window.api.loadAnalytics(from, to, fetchFrom, fetchTo),
+    window.api.loadAnalytics(previousFrom, previousTo, previousFrom, previousTo),
+  ]);
 
   const dayMin = an.dayMin, dayOtMin = an.dayOtMin;
   const byCompany = an.byCompany, bySystem = an.bySystem, byType = an.byType, byNatural = an.byNatural;
@@ -7758,10 +8072,15 @@ async function renderAnalytics() {
   const otMin   = byType['OVERTIME'] || 0;
   const pct = (m) => totalMin ? Math.round((m / totalMin) * 100) : 0;
   const completionRate = recordCount ? Math.round((doneCount / recordCount) * 100) : 0;
+  const previousTotal = Number(previous?.totalMin || 0);
+  const periodDelta = previousTotal
+    ? Math.round(((totalMin - previousTotal) / previousTotal) * 100)
+    : null;
+  const comparison = periodDelta == null ? 'no previous activity' : `${periodDelta >= 0 ? '+' : ''}${periodDelta}% vs previous period`;
 
   // ── KPIs ──
   const kpis = [
-    { label: 'Total Hours', val: (totalMin / 60).toFixed(1), unit: 'h', foot: `${recordCount} record${recordCount === 1 ? '' : 's'}`, cls: 'accent' },
+    { label: 'Total Hours', val: (totalMin / 60).toFixed(1), unit: 'h', foot: `${recordCount} record${recordCount === 1 ? '' : 's'} · ${comparison}`, cls: 'accent' },
     { label: lkLabel('TIME_TYPE', 'WORK_TIME') || 'Work Time', val: (workMin / 60).toFixed(1),  unit: 'h', foot: `${pct(workMin)}% of total`, cls: '' },
     { label: lkLabel('TIME_TYPE', 'OVERTIME')  || 'Over Time', val: (otMin / 60).toFixed(1),    unit: 'h', foot: `${pct(otMin)}% of total`, cls: '' },
     { label: 'Avg / Day',   val: activeDays ? (totalMin / 60 / activeDays).toFixed(1) : '0', unit: 'h', foot: `${activeDays} active day${activeDays === 1 ? '' : 's'}`, cls: '' },
@@ -7832,7 +8151,11 @@ function renderAnBars(elId, map, subId, linkKind) {
   if (!items.length) { el.innerHTML = `<div class="an-empty">No tracked time in this period.</div>`; return; }
   const top = items.slice(0, 8);
   const max = top[0][1];
-  el.innerHTML = `<div class="an-bars">${top.map(([k, v]) => anBarRow(k, v, max, anFmtHrs(v), null, linkKind)).join('')}</div>`;
+  const rows = items.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(anFmtHrs(v))}</td></tr>`).join('');
+  el.innerHTML = `<div class="an-bars">${top.map(([k, v]) => anBarRow(k, v, max, anFmtHrs(v), null, linkKind)).join('')}</div>
+    <details class="an-data-details"><summary>View data table</summary>
+      <table class="an-data-table"><thead><tr><th>Category</th><th>Hours</th></tr></thead><tbody>${rows}</tbody></table>
+    </details>`;
 }
 
 const AN_BAR_LINK_ATTRS = {
@@ -7845,12 +8168,14 @@ function anBarRow(label, value, max, display, color, linkKind) {
   const style = `width:${w}%${color ? `;background:${color}` : ''}`;
   const linkFn = linkKind && AN_BAR_LINK_ATTRS[linkKind];
   const linkAttrs = linkFn ? linkFn(label) : '';
+  const tag = linkFn ? 'button' : 'div';
+  const type = linkFn ? ' type="button"' : '';
   return `
-    <div class="an-bar-row${linkFn ? ' clickable' : ''}"${linkAttrs}>
+    <${tag}${type} class="an-bar-row${linkFn ? ' clickable' : ''}"${linkAttrs}>
       <span class="an-bar-label" title="${esc(label)}">${esc(label)}</span>
       <span class="an-bar-track"><span class="an-bar-fill" style="${style}"></span></span>
       <span class="an-bar-val">${esc(display)}</span>
-    </div>`;
+    </${tag}>`;
 }
 
 // Milestone 4 chart click-through — Analytics' "Hours by Department" bar,
@@ -7887,7 +8212,8 @@ function anDonut(segments, totalMin) {
     </div>`).join('');
   return `
     <div class="an-donut-wrap">
-      <svg class="an-donut" width="120" height="120" viewBox="0 0 120 120">
+      <svg class="an-donut" width="120" height="120" viewBox="0 0 120 120" role="img" aria-label="Time breakdown, ${(total / 60).toFixed(1)} total hours">
+        <title>Time breakdown, ${(total / 60).toFixed(1)} total hours</title>
         ${circles}
         <text class="an-donut-center" x="60" y="58" text-anchor="middle">${(total / 60).toFixed(1)}h</text>
         <text class="an-donut-center-sub" x="60" y="72" text-anchor="middle">TOTAL</text>
@@ -7953,7 +8279,9 @@ function anTrend(from, to, dayMin) {
 
   // Unique gradient id per call — multiple trends coexist on the page.
   const gradId = 'anTrendGrad' + (++_anTrendSeq);
-  return `<svg class="an-trend" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+  const activeRows = dates.map((date, i) => vals[i] > 0 ? `<tr><td>${date}</td><td>${vals[i].toFixed(1)}h</td></tr>` : '').join('');
+  return `<svg class="an-trend" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Daily hours trend from ${from} to ${to}; peak ${rawMax.toFixed(1)} hours, average ${avg.toFixed(1)} hours">
+    <title>Daily hours trend from ${from} to ${to}</title>
     <defs><linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.30"/>
       <stop offset="100%" stop-color="var(--accent)" stop-opacity="0.02"/>
@@ -7965,7 +8293,10 @@ function anTrend(from, to, dayMin) {
     ${dots}
     ${peakLbl}
     ${xlabels}
-  </svg>`;
+  </svg>
+  <details class="an-data-details"><summary>View active-day data</summary>
+    <table class="an-data-table"><thead><tr><th>Date</th><th>Hours</th></tr></thead><tbody>${activeRows || '<tr><td colspan="2">No active days</td></tr>'}</tbody></table>
+  </details>`;
 }
 
 // GitHub-style contribution grid. `start` is a Sunday; renders `weeks` columns,
@@ -7993,7 +8324,9 @@ function anHeatmap(start, weeks, dayMin, today) {
       else cls = 'h4';
       const title = future ? '' : `${ds} · ${anFmtHrs(mins)}`;
       const onclick = future ? '' : ` onclick="anJumpToDay('${ds}')"`;
-      col += `<div class="an-heat-cell ${cls}" title="${title}"${onclick}></div>`;
+      col += future
+        ? `<span class="an-heat-cell ${cls}" aria-hidden="true"></span>`
+        : `<button type="button" class="an-heat-cell ${cls}" title="${title}" aria-label="${title}"${onclick}></button>`;
       cur.setDate(cur.getDate() + 1);
     }
     cols.push(`<div class="an-heat-col">${col}</div>`);
@@ -8390,7 +8723,7 @@ async function loadProjectsList() {
   // Projects section in an open client's detail, or the per-card project counts
   // on the client list.
   if (activeModule === 'clients') {
-    if (currentClient && document.getElementById('client-detail-sections')) renderClientDetailSections(currentClient);
+  if (currentClient && document.getElementById('client-detail-sections')) renderClientDetail(currentClient);
     else if (clientsLoaded) renderClientsList();
   }
 }
@@ -8568,16 +8901,19 @@ let smTaskPicker = null;
 async function openSessionModal(workLog, opts = {}) {
   const mode = opts.mode === 'create' ? 'create' : 'edit';
   _sessionModalCtx = { mode, workLog, task: opts.task || null, onSaved: opts.onSaved || null };
+  const prefill = opts.prefill || {};
+  const defaults = uiState.sessionDefaults || {};
 
   document.getElementById('session-modal-title').textContent = mode === 'create' ? 'Add Session' : 'Edit Session';
   document.getElementById('session-modal-submit').textContent = mode === 'create' ? 'Add Session' : 'Save Changes';
 
   document.getElementById('sm-date').value = mode === 'create' ? (opts.defaultDate || fmt(new Date())) : (workLog.date || '');
-  populateSelect('sm-time', 'timeType', mode === 'create' ? '' : (workLog.time || ''));
-  populateSelect('sm-natural', 'natural', mode === 'create' ? '' : (workLog.natural || ''));
-  document.getElementById('sm-description').value = mode === 'create' ? '' : (workLog.description || '');
-  document.getElementById('sm-minutes').value = mode === 'create' ? '' :
+  populateSelect('sm-time', 'timeType', mode === 'create' ? (prefill.time || defaults.time || '') : (workLog.time || ''));
+  populateSelect('sm-natural', 'natural', mode === 'create' ? (prefill.natural || defaults.natural || '') : (workLog.natural || ''));
+  document.getElementById('sm-description').value = mode === 'create' ? (prefill.description || '') : (workLog.description || '');
+  document.getElementById('sm-minutes').value = mode === 'create' ? (prefill.minutes || '') :
     ((workLog.minutes === '' || workLog.minutes == null) ? '' : workLog.minutes);
+  syncDurationPresets('sm-minutes');
 
   const pickerHost = document.getElementById('sm-task');
   const summaryHost = document.getElementById('sm-task-summary');
@@ -8631,10 +8967,10 @@ async function submitSessionModal() {
   if (minRaw !== '') {
     const minVal = parseInt(minRaw, 10);
     if (isNaN(minVal) || minVal < 1 || minVal > 1440 || String(minVal) !== minRaw) {
-      markError('sm-minutes'); valid = false;
+      markError('sm-minutes', 'Enter a whole number from 1 to 1440.'); valid = false;
     }
   }
-  if (!valid) return;
+  if (!valid) { focusFirstError('#session-modal'); return; }
 
   const payload = {
     date:        document.getElementById('sm-date').value,
@@ -8643,6 +8979,7 @@ async function submitSessionModal() {
     description: document.getElementById('sm-description').value.trim(),
     minutes:     minRaw === '' ? '' : parseInt(minRaw, 10),
   };
+  rememberSessionDefaults(payload.time, payload.natural);
 
   const { mode, workLog, task, onSaved } = _sessionModalCtx;
   if (mode === 'create') {
@@ -10569,16 +10906,17 @@ let clientGroupRenameOldName = null; // the group's current systemName
 let clientNewGroupKind = null;       // 'server' | 'internal' — which section's "+ New Group" modal is open
 
 // Detail-view search (per human-identifying fields only — never credentials)
-// + type filter (all 4 sections shown by default). Reset per client on open;
-// preserved across an in-place reload (post-CRUD refresh of the same client).
+// + one active workspace tab. Reset per client on open; preserved across an
+// in-place reload (post-CRUD refresh of the same client).
 let clientDetailSearch = '';
 const CLIENT_DETAIL_TYPES = [
+  { key: 'overview',  label: 'Overview' },
   { key: 'projects',  label: 'Projects' },
-  { key: 'auth',      label: 'Auth' },
+  { key: 'auth',      label: 'Access' },
   { key: 'servers',   label: 'Servers' },
-  { key: 'internal',  label: 'Internal' },
+  { key: 'internal',  label: 'Systems' },
 ];
-let clientDetailTypes = new Set(CLIENT_DETAIL_TYPES.map(t => t.key));
+let clientDetailTab = 'overview';
 
 function initClientsModule() {
   showClientsListView();
@@ -10753,13 +11091,15 @@ async function openClientDetail(companyId, presetSearch) {
   catch { toast('Could not open client'); return; }
   if (!client) { toast('Client not found'); return; }
   currentClient = client;
-  clientDetailSearch = presetSearch || ''; // fresh search context per client; type filter persists
+  clientDetailSearch = presetSearch || '';
+  clientDetailTab = presetSearch ? 'overview' : (uiState.filters.clients?.tab || 'overview');
+  if (!CLIENT_DETAIL_TYPES.some(t => t.key === clientDetailTab)) clientDetailTab = 'overview';
   showClientDetailView();
   renderClientDetail(client);
   // The Projects section reads the shared projectsList; load it if it isn't yet
   // (loadProjectsList re-renders the open client's sections when it lands).
   if (!projectsLoaded) loadProjectsList();
-  uiState.filters.clients = { companyId };
+  uiState.filters.clients = { companyId, tab: clientDetailTab };
   saveUiStateDebounced();
 }
 async function reloadCurrentClient() {
@@ -10907,7 +11247,7 @@ function renderClientDetail(c) {
   head.appendChild(pjMk('div', 'pj-detail-title', c.label || 'Untitled'));
   host.appendChild(head);
 
-  // Search + type-filter toolbar. Kept out of the re-rendered sections
+  // Search + workspace-tab toolbar. Kept out of the re-rendered section
   // container so typing in the search box never rebuilds (and loses focus
   // on) the input itself — only #client-detail-sections is rebuilt below.
   const toolbar = pjMk('div', 'cl-detail-toolbar');
@@ -10919,10 +11259,20 @@ function renderClientDetail(c) {
   searchInput.value = clientDetailSearch;
   searchInput.addEventListener('input', applyClientDetailSearch);
   toolbar.appendChild(searchInput);
-  const typeChips = pjMk('div', 'filter-chips');
+  const typeChips = pjMk('div', 'seg-ctl workspace-tabs');
+  typeChips.setAttribute('aria-label', 'Client workspace');
+  const projectCount = projectsList.filter(p => cpjPrimaryCompany(p)?.id === c.id).length;
+  const counts = {
+    projects: projectCount,
+    auth: Array.isArray(c.vpnConnections) ? c.vpnConnections.length : 0,
+    servers: Array.isArray(c.servers) ? c.servers.length : 0,
+    internal: Array.isArray(c.internalSystems) ? c.internalSystems.length : 0,
+  };
   CLIENT_DETAIL_TYPES.forEach(t => {
-    const btn = pjMk('button', 'filter-chip' + (clientDetailTypes.has(t.key) ? ' active' : ''), t.label);
-    btn.addEventListener('click', () => toggleClientDetailType(t.key, btn));
+    const count = t.key === 'overview' ? '' : ` (${counts[t.key] || 0})`;
+    const btn = pjMk('button', 'seg-btn' + (clientDetailTab === t.key ? ' active' : ''), t.label + count);
+    btn.type = 'button';
+    btn.addEventListener('click', () => setClientDetailTab(t.key));
     typeChips.appendChild(btn);
   });
   toolbar.appendChild(typeChips);
@@ -10937,8 +11287,8 @@ function renderClientDetail(c) {
 
 // Rebuilds only the record sections (not the toolbar/search input above),
 // filtered by `clientDetailSearch` (human-identifying fields only — never
-// password/secretKey, per the no-credential-search rule) and `clientDetailTypes`.
-// Called on every search keystroke / type-chip toggle, and once from
+// password/secretKey, per the no-credential-search rule) and the active detail tab.
+// Called on every search keystroke / workspace-tab switch, and once from
 // renderClientDetail on open/reload.
 function renderClientDetailSections(c) {
   const host = document.getElementById('client-detail-sections');
@@ -10950,16 +11300,17 @@ function renderClientDetailSections(c) {
   const allInternalSystems = Array.isArray(c.internalSystems) ? c.internalSystems : [];
   const vpns = Array.isArray(c.vpnConnections) ? c.vpnConnections : [];
 
-  if (clientDetailTypes.size === 0) {
-    host.appendChild(pjMk('div', 'cp-records-empty', 'All sections are hidden — enable at least one filter above.'));
+  if (!q && clientDetailTab === 'overview') {
+    renderClientOverview(host, c, allServers, allInternalSystems, vpns);
     return;
   }
+  const showSection = key => !!q || clientDetailTab === key;
 
   // ── Projects section (this client's own projects — merged in from the retired
   // Clients Projects page; a project is grouped under its FIRST linked company,
   // so it appears under exactly one client. Cards reuse buildProjectCard and
   // click through to the single-project detail view via openProjectById). ──
-  if (clientDetailTypes.has('projects')) {
+  if (showSection('projects')) {
     const projects = projectsList.filter(p => {
       const co = cpjPrimaryCompany(p);
       return co && co.id === c.id;
@@ -10990,7 +11341,7 @@ function renderClientDetailSections(c) {
   }
 
   // ── Auth section (VPN, PAM, and other login/connection records) ──
-  if (clientDetailTypes.has('auth')) {
+  if (showSection('auth')) {
     const vpnSec = pjMk('div', 'pj-section');
     const vHead = pjMk('div', 'pj-section-head');
     const vTitle = pjMk('div', 'pj-section-title');
@@ -11013,7 +11364,7 @@ function renderClientDetailSections(c) {
 
   // ── Server Information section (servers sharing a System name are grouped
   // into a sub-card, split into one page per environment; the rest render flat) ──
-  if (clientDetailTypes.has('servers')) {
+  if (showSection('servers')) {
     const srvSec = pjMk('div', 'pj-section');
     const sHead = pjMk('div', 'pj-section-head');
     const sTitle = pjMk('div', 'pj-section-title');
@@ -11051,7 +11402,7 @@ function renderClientDetailSections(c) {
 
   // ── Internal Systems section (portals sharing a System name are grouped
   // into a sub-card, split into one page per environment; the rest render flat) ──
-  if (clientDetailTypes.has('internal')) {
+  if (showSection('internal')) {
     const intSec = pjMk('div', 'pj-section');
     const iHead = pjMk('div', 'pj-section-head');
     const iTitle = pjMk('div', 'pj-section-title');
@@ -11084,15 +11435,58 @@ function renderClientDetailSections(c) {
   }
 }
 
+function renderClientOverview(host, c, servers, internalSystems, vpns) {
+  const projects = projectsList.filter(p => cpjPrimaryCompany(p)?.id === c.id);
+  const grid = pjMk('div', 'client-overview-grid');
+  [
+    ['Projects', projects.length],
+    ['Access records', vpns.length],
+    ['Servers', servers.length],
+    ['Internal systems', internalSystems.length],
+  ].forEach(([label, count]) => {
+    const card = pjMk('div', 'client-overview-card');
+    card.appendChild(pjMk('b', '', String(count)));
+    card.appendChild(pjMk('span', '', label));
+    grid.appendChild(card);
+  });
+  host.appendChild(grid);
+
+  const actions = pjMk('div', 'client-overview-actions');
+  [
+    ['plus', 'New Project', () => openProjectModal(), 'primary'],
+    ['zap', 'Add Access', () => openClientVpnModal(), ''],
+    ['server', 'Add Server', () => openClientServerModal(), ''],
+    ['layout-dashboard', 'Add System', () => openClientInternalModal(), ''],
+  ].forEach(([icon, label, run, emphasis]) => {
+    const btn = pjMk('button', 'btn' + (emphasis ? ' ' + emphasis : ''));
+    btn.type = 'button'; btn.innerHTML = ic(icon) + label; btn.addEventListener('click', run);
+    actions.appendChild(btn);
+  });
+  host.appendChild(actions);
+
+  const note = pjMk('div', 'pj-section');
+  const title = pjMk('div', 'pj-section-title');
+  title.innerHTML = ic('layers') + 'Workspace summary';
+  note.appendChild(title);
+  note.appendChild(pjMk('div', 'general-hint',
+    'Use the tabs above to manage this client’s projects, access records, servers, and internal systems. Search spans every tab without searching passwords or secret keys.'));
+  host.appendChild(note);
+}
+
 function applyClientDetailSearch() {
   clientDetailSearch = (document.getElementById('client-detail-search').value || '').toLowerCase().trim();
   renderClientDetailSections(currentClient);
 }
 
-function toggleClientDetailType(key, btn) {
-  if (clientDetailTypes.has(key)) { clientDetailTypes.delete(key); btn.classList.remove('active'); }
-  else                             { clientDetailTypes.add(key);    btn.classList.add('active'); }
-  renderClientDetailSections(currentClient);
+function setClientDetailTab(key) {
+  if (!CLIENT_DETAIL_TYPES.some(t => t.key === key)) key = 'overview';
+  clientDetailTab = key;
+  clientDetailSearch = '';
+  if (currentClient) {
+    uiState.filters.clients = { companyId: currentClient.id, tab: key };
+    saveUiStateDebounced();
+    renderClientDetail(currentClient);
+  }
 }
 
 // "Updated 3 days ago" / "Updated today" / falls back to an absolute date
@@ -11569,6 +11963,7 @@ function openClientVpnModal(v) {
   document.getElementById('cv-expiry').value = v ? (v.expiryDate || '') : '';
   document.getElementById('cv-cred-location').value = v ? (v.credentialLocation || '') : '';
   document.getElementById('cv-notes').value = v ? (v.notes || '') : '';
+  document.querySelector('#client-vpn-modal .modal-more').open = !!(v && (v.expiryDate || v.credentialLocation || v.notes));
   clearErrorsIn('#client-vpn-modal');
   document.getElementById('client-vpn-modal-overlay').classList.add('open');
   setTimeout(() => document.getElementById('cv-name').focus(), 80);
@@ -11932,6 +12327,9 @@ function openClientInternalModal(s) {
   document.getElementById('cint-notes').value = s ? (s.notes || '') : '';
   document.getElementById('cint-subservices-list').innerHTML = '';
   (s && Array.isArray(s.subServices) ? s.subServices : []).forEach(sub => addClientInternalSubServiceRow(sub.label, sub.url));
+  document.querySelector('#client-internal-modal .modal-more').open = !!(s && (
+    s.companyCode || s.secretKey || s.expiryDate || s.role || s.notes || (s.subServices || []).length
+  ));
   clearErrorsIn('#client-internal-modal');
   document.getElementById('client-internal-modal-overlay').classList.add('open');
   setTimeout(() => document.getElementById('cint-name').focus(), 80);
@@ -12002,12 +12400,13 @@ let _palActive = 0;
 let _palTasks = [];      // Task[] fetched once per open
 
 const PAL_PAGES = [
-  { icon: 'clock',            label: 'Timesheet',     go: 'timesheet' },
-  { icon: 'layout-dashboard', label: 'Analytics',     go: 'analytics' },
+  { icon: 'clock',            label: 'Today — Timesheet', go: 'timesheet' },
+  { icon: 'layout-dashboard', label: 'Overview',      go: 'analytics' },
   { icon: 'file-text',        label: 'Reports',       go: 'reports' },
   { icon: 'building-2',       label: 'Browse — Companies', go: 'companies' },
   { icon: 'folder',           label: 'Browse — Systems',   go: 'systems' },
-  { icon: 'list',             label: 'All Tasks',     go: 'all-tasks' },
+  { icon: 'list',             label: 'Tasks — All',   go: 'all-tasks' },
+  { icon: 'building',         label: 'Tasks — Departments', go: 'internal-tasks' },
   { icon: 'layers',           label: 'Clients',       go: 'clients' },
   { icon: 'credit-card',      label: 'Subscriptions', go: 'subscriptions' },
   { icon: 'calendar-check',   label: 'Company Documents', go: 'companydocs' },
@@ -12223,7 +12622,9 @@ async function flushPending() {
   clearTimeout(_nameSaveTimer);
   clearTimeout(_dayNameTimer);
   clearTimeout(_subSaveTimer);
+  clearTimeout(_uiStateSaveTimer);
   const tasks = [];
+  tasks.push(window.api.saveUiState(uiState));
   if (activeDate) {
     tasks.push(persistTimesheet());   // flush any pending granular work-log saves
     tasks.push(window.api.setDayName(activeDate, document.getElementById('hName').value));
@@ -12306,6 +12707,15 @@ async function init() {
   // The retired 'clients-projects' page is folded into 'clients', so a stale
   // saved value lands the returning user on the merged Clients page.
   if (uiState.lastModule === 'clients-projects') uiState.lastModule = 'clients';
+  // Browse remains an advanced palette/deep-link destination, but is no longer
+  // a primary sidebar page. Carry its last Company/System slice into Tasks so
+  // an upgrade never opens on a page with no primary-navigation context.
+  if (uiState.lastModule === 'browse') {
+    const savedBrowse = uiState.filters.browse || {};
+    uiState.filters.allTasks = Object.assign({}, uiState.filters.allTasks || {},
+      savedBrowse.kind === 'systems' ? { system: savedBrowse.selected || '' } : { company: savedBrowse.selected || '' });
+    uiState.lastModule = 'all-tasks';
+  }
   const landingModule = (uiState.startOnLastPage && uiState.lastModule && uiState.lastModule !== 'projects'
     && document.getElementById('module-' + uiState.lastModule)) ? uiState.lastModule : 'analytics';
   switchModule(landingModule);
