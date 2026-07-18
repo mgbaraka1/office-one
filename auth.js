@@ -25,7 +25,11 @@ const USERNAME_MIN = 3;
 const USERNAME_MAX = 32;
 const USERNAME_RE  = /^[A-Za-z0-9._-]+$/;
 const PASSWORD_MIN = 8;
-const PASSWORD_MAX = 1024;
+// bcrypt silently ignores bytes after the first 72. Enforce that exact UTF-8
+// boundary before every hash/compare operation so two different strings can
+// never become the same credential. This is a byte limit, not a JS character
+// limit: non-ASCII characters may occupy more than one byte.
+const PASSWORD_MAX_BYTES = 72;
 const MAX_LOGIN_FAILURES = 5;
 const LOGIN_LOCK_MS = 30_000;
 const loginFailures = new Map();
@@ -46,11 +50,13 @@ function validateUsername(username) {
 }
 
 function validatePassword(password) {
-  const length = String(password || '').length;
-  if (length < PASSWORD_MIN) {
+  const value = String(password || '');
+  if (value.length < PASSWORD_MIN) {
     return `Password must be at least ${PASSWORD_MIN} characters.`;
   }
-  if (length > PASSWORD_MAX) return `Password must be at most ${PASSWORD_MAX} characters.`;
+  if (Buffer.byteLength(value, 'utf8') > PASSWORD_MAX_BYTES) {
+    return `Password must be at most ${PASSWORD_MAX_BYTES} UTF-8 bytes.`;
+  }
   return null;
 }
 
@@ -102,10 +108,13 @@ function login(username, password) {
     return { ok: false, error: `Too many attempts. Try again in ${seconds} seconds.` };
   }
   const user = uname ? db.getUserByUsername(uname) : null;
-  const suppliedPassword = String(password || '').slice(0, PASSWORD_MAX + 1);
+  const suppliedPassword = String(password || '');
   const candidateHash = user?.is_active ? (user.password_hash || DUMMY_PASSWORD_HASH) : DUMMY_PASSWORD_HASH;
-  const passwordMatches = bcrypt.compareSync(suppliedPassword.slice(0, PASSWORD_MAX), candidateHash);
-  const ok = !!(user?.is_active && suppliedPassword.length <= PASSWORD_MAX && passwordMatches);
+  const passwordWithinBcryptLimit = Buffer.byteLength(suppliedPassword, 'utf8') <= PASSWORD_MAX_BYTES;
+  // Keep the dummy comparison for invalid/overlong input so the failure path
+  // does not disclose whether the username exists or has a legacy long hash.
+  const passwordMatches = bcrypt.compareSync(passwordWithinBcryptLimit ? suppliedPassword : '', candidateHash);
+  const ok = !!(user?.is_active && passwordWithinBcryptLimit && passwordMatches);
   if (!ok) {
     const count = (failure?.count || 0) + 1;
     loginFailures.set(failureKey, {
