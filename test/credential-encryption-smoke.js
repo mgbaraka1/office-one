@@ -18,8 +18,8 @@
 //   1. With NO cipher configured (safeStorage "unavailable"): passwords
 //      round-trip as literal plain text through create/read, unchanged.
 //   2. Configuring a cipher, then applying migrations for the first time:
-//      migration 032 takes a pre-migration backup (outside backups/) and
-//      encrypts every already-plaintext password/secret_key across all five
+//      migration 032 encrypts every already-plaintext password/secret_key
+//      across all five tables, then takes an encrypted rollback backup
 //      tables (idempotent on re-run — no double-encryption).
 //   3. db.js's encryptAllPendingCredentials() (NOT just the one-shot
 //      migration) is what actually does the encrypting — proven by manually
@@ -163,9 +163,16 @@ try {
 
     const backupDir = path.join(workDir, 'pre-encryption-backup');
     const backupFiles = fs.existsSync(backupDir) ? fs.readdirSync(backupDir) : [];
-    record('Gate 2d: a pre-migration backup was copied to <userData>/pre-encryption-backup/ (outside backups/)',
-      backupFiles.some(f => f.startsWith('cooperation-tools-PRE-032-ENCRYPT-') && f.endsWith('.db')),
-      `files=${JSON.stringify(backupFiles)}`);
+    const backupName = backupFiles.find(f => f.startsWith('cooperation-tools-PRE-032-ENCRYPT-') && f.endsWith('.db'));
+    let backupEncrypted = false;
+    if (backupName) {
+      const backupDb = new DatabaseSync(path.join(backupDir, backupName));
+      const backupRow = backupDb.prepare('SELECT password AS v FROM client_vpn_connections WHERE id = ?').get(seeded.vpn.id);
+      backupEncrypted = !!backupRow && backupRow.v.startsWith('enc:v1:') && !backupRow.v.includes('seed-vpn-pw');
+      backupDb.close();
+    }
+    record('Gate 2d: migration 032 rollback backup exists and contains encrypted, not plaintext, credentials',
+      !!backupName && backupEncrypted, `file=${backupName || '(missing)'} encrypted=${backupEncrypted}`);
 
     // Idempotent re-run: applying again must not double-encrypt (no nested marker).
     db.applyMigrations();
@@ -198,6 +205,26 @@ try {
     record('Gate 3: encryptAllPendingCredentials() catches a manually-downgraded plaintext value on a later call (self-healing, not one-shot)',
       res.encrypted >= 1 && rawCheck.v.startsWith('enc:v1:') && !rawCheck.v.includes('downgraded-plain-pw'),
       `encryptedCount=${res.encrypted} rawValue="${rawCheck.v.slice(0, 20)}..."`);
+  }
+
+  // Older releases already left plaintext rollback copies on disk. Simulate
+  // one and prove the maintenance sanitizer preserves the DB while encrypting
+  // its credential cells in place.
+  {
+    const backupDir = path.join(workDir, 'pre-encryption-backup');
+    fs.mkdirSync(backupDir, { recursive: true });
+    const legacyPath = path.join(backupDir, 'cooperation-tools-PRE-032-ENCRYPT-LEGACY.db');
+    db.backup(legacyPath);
+    const legacyRaw = new DatabaseSync(legacyPath);
+    legacyRaw.prepare('UPDATE client_vpn_connections SET password = ? WHERE id = ?').run('legacy-backup-plain', seeded.vpn.id);
+    legacyRaw.close();
+    const sanitized = db.sanitizeLegacyCredentialBackups();
+    const sanitizedRaw = new DatabaseSync(legacyPath);
+    const sanitizedRow = sanitizedRaw.prepare('SELECT password AS v FROM client_vpn_connections WHERE id = ?').get(seeded.vpn.id);
+    sanitizedRaw.close();
+    record('Gate 3b: maintenance sanitizes a legacy plaintext migration backup in place',
+      sanitized.files >= 1 && sanitized.encrypted >= 1 && sanitizedRow.v.startsWith('enc:v1:') && !sanitizedRow.v.includes('legacy-backup-plain'),
+      `files=${sanitized.files} encrypted=${sanitized.encrypted}`);
   }
 
   // ── Gate 4 — create/update round-trip with the cipher live ──────────────────

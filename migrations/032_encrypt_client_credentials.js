@@ -5,7 +5,7 @@
 // client_external_services, client_internal_systems) have always been stored
 // in plain text (see CLAUDE.md's repeated admission of this). This migration
 // does NOT touch the schema at all (the columns are already TEXT — ciphertext
-// fits fine as base64) — it takes a forced pre-migration backup, then runs
+// fits fine as base64) — it encrypts first, then takes a forced rollback backup
 // the first encrypt pass via db.js's `encryptAllPendingCredentials()` (which
 // delegates to whatever cipher main.js configured at boot —
 // electron.safeStorage, wired up before applyMigrations() runs).
@@ -18,18 +18,18 @@
 // alone would never get a second chance to retroactively encrypt anything —
 // it's already marked applied in schema_migrations. So the actual per-row
 // encrypt logic lives in db.js's encryptAllPendingCredentials(), called both
-// here (once, right after the backup) AND from runMaintenance() on every
+// here (once, immediately before the backup) AND from runMaintenance() on every
 // subsequent boot — cheap and fully idempotent (a value already carrying the
 // `enc:v1:` marker is left untouched), so it safely "catches up" whenever the
 // cipher becomes available, however many boots later that turns out to be.
 //
-// Forced pre-migration backup: before any row is touched, the live DB file
+// Forced migration backup: after encryption commits, the live DB file
 // (+ -wal/-shm) is copied into <userData>/pre-encryption-backup/ — deliberately
 // OUTSIDE <userData>/backups/, since that folder's "keep newest 5" rotation
 // prunes by filename text rather than real mtime (see CLAUDE.md) and a backup
 // this important should never be at risk of that. This backup folder is never
 // auto-pruned by anything in this app. Only taken if a cipher is configured
-// this run (no point backing up before a pass that won't do anything yet).
+// this run. Older pre-encryption copies are sanitized by runMaintenance().
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -45,6 +45,11 @@ module.exports = {
 
     if (!dbModule.isCredentialEncryptionAvailable()) return; // nothing to do yet; runMaintenance() catches up later
 
+    // Encrypt atomically before persisting the rollback copy. Older releases
+    // copied first and left plaintext secrets in this backup directory;
+    // runMaintenance() sanitizes those legacy copies on the next secure boot.
+    dbModule.encryptAllPendingCredentials();
+
     const dbFile = dbModule.dbPath();
     const backupDir = path.join(path.dirname(dbFile), 'pre-encryption-backup');
     fs.mkdirSync(backupDir, { recursive: true });
@@ -55,7 +60,5 @@ module.exports = {
         fs.copyFileSync(src, path.join(backupDir, 'cooperation-tools-PRE-032-ENCRYPT-' + stamp + '.db' + suffix));
       }
     }
-
-    dbModule.encryptAllPendingCredentials();
   },
 };
