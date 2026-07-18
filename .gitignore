@@ -28,6 +28,9 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Codex Security scan working artifacts (reports, ledgers, and local PoCs)
+.codex-security-stage/
+
 # Environment / secrets — commit only the example, never a real .env
 .env
 .env.*

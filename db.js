@@ -203,13 +203,32 @@ function applyMigrations() {
 
 // Step 3 — best-effort housekeeping. Never throws; never blocks boot.
 function runMaintenance() {
+  // Security maintenance must precede every automatic snapshot. A database
+  // that first gained safeStorage after migration 032 may still contain
+  // pending plaintext values; rotating before this pass would preserve them.
+  try {
+    encryptAllPendingCredentials();
+    sanitizeLegacyCredentialBackups();
+  }
+  catch (err) { console.error('[security] credential maintenance failed:', String(err?.message || err)); }
   const backup = !dbWasNew ? rotateBackups() : { ok: true, skipped: true };
   const projectIds = sweepOrphanProjectFiles();        // drop file folders for projects that no longer exist
   const companyDocumentIds = sweepOrphanCompanyDocumentFiles(); // same, for company_documents/{id}/ folders
   _lastOrphanSweepReport = { projectIds, companyDocumentIds, backup, ranAt: new Date().toISOString() };
-  try { encryptAllPendingCredentials(); }
-  catch (err) { console.error('[security] pending credential encryption failed:', String(err?.message || err)); }
   return _lastOrphanSweepReport;
+}
+// A lookup with no access rows is global. Once any access row exists it is
+// private and only the listed users may resolve or select it.
+function canAccessLookup(userId, id) {
+  if (id == null || id === '') return false;
+  const restricted = db.prepare('SELECT 1 FROM lookup_code_user_access WHERE lookup_id = ? LIMIT 1').get(Number(id));
+  if (!restricted) return true;
+  if (userId == null) return false;
+  return !!db.prepare('SELECT 1 FROM lookup_code_user_access WHERE lookup_id = ? AND user_id = ?').get(Number(id), Number(userId));
+}
+function lkIdForUser(userId, category, value) {
+  const id = lkId(category, value);
+  return id != null && canAccessLookup(userId, id) ? id : null;
 }
 
 // Safety net for the deferred file purge: remove any projects/{id}/ folder whose
@@ -606,16 +625,16 @@ function getAttentionItems(userId) {
 // ── Lookups (normalized catalog — shared app config, not per-user) ────────────
 // Options for one category, ordered for dropdowns. Active-only by default; the
 // Settings editor passes includeInactive to manage soft-disabled entries.
-function getLookupsByCategory(category, includeInactive = false) {
+function getLookupsByCategory(category, includeInactive = false, userId = null) {
   return (lk().byCat[category] || [])
-    .filter(r => includeInactive || r.is_active)
+    .filter(r => (includeInactive || r.is_active) && (userId == null || canAccessLookup(userId, r.id)))
     .map(r => ({ id: r.id, code: r.code, label: r.label, sortOrder: r.sort_order, isActive: !!r.is_active }));
 }
 // Full catalog (every category, incl. inactive) + the default employee name —
 // what the renderer loads once at boot to build all dropdowns.
 function loadLookups(userId) {
   const categories = {};
-  for (const cat of LOOKUP_CATEGORIES) categories[cat] = getLookupsByCategory(cat, true);
+  for (const cat of LOOKUP_CATEGORIES) categories[cat] = getLookupsByCategory(cat, true, userId);
   return { categories, defaultName: userGet(userId, 'default_employee_name') || '' };
 }
 // Persist edits from the Settings catalog editor. Existing rows are updated in
@@ -651,6 +670,7 @@ function saveLookups(userId, data) {
           const key = label.toLowerCase();
           const owner = usedLabels.get(key);
           if (owner != null && owner !== itemId) return; // another code already owns this label — skip
+          if (itemId != null && !canAccessLookup(userId, itemId)) return; // guessed private id
           const sort   = Number.isInteger(item.sortOrder) ? item.sortOrder : i;
           const active = item.isActive === false ? 0 : 1;
           if (itemId != null && lk().idTo.has(itemId)) {
@@ -873,13 +893,13 @@ function projectCompanies(projectId) {
 // Replace a project's system links with the given lookup ids (SYSTEM category).
 // Invalid / non-SYSTEM / duplicate ids are skipped. Caller wraps this in a tx.
 // Mirrors setProjectCompanies — a project can span several systems (migration 009).
-function setProjectSystems(projectId, systemIds) {
+function setProjectSystems(userId, projectId, systemIds) {
   db.prepare('DELETE FROM project_systems WHERE project_id = ?').run(projectId);
   const ins = db.prepare('INSERT OR IGNORE INTO project_systems(project_id, system_id) VALUES(?, ?)');
   const seen = new Set();
   for (const raw of (Array.isArray(systemIds) ? systemIds : [])) {
     const id = Number(raw);
-    if (!Number.isInteger(id) || seen.has(id) || !isLookupId('SYSTEM', id)) continue;
+    if (!Number.isInteger(id) || seen.has(id) || !isLookupId('SYSTEM', id) || !canAccessLookup(userId, id)) continue;
     seen.add(id);
     ins.run(projectId, id);
   }
@@ -914,7 +934,7 @@ function createProject(userId, data) {
           resolveParentProjectId(userId, data?.parentProjectId),
           now, now).lastInsertRowid);
     setProjectCompanies(id, data?.companyIds);
-    setProjectSystems(id, data?.systemIds);
+    setProjectSystems(userId, id, data?.systemIds);
   });
   return getProject(userId, id);
 }
@@ -1032,7 +1052,7 @@ function updateProject(userId, id, data) {
           resolveParentProjectId(userId, data?.parentProjectId, id),
           new Date().toISOString(), id, userId);
     setProjectCompanies(id, data?.companyIds);
-    setProjectSystems(id, data?.systemIds);
+    setProjectSystems(userId, id, data?.systemIds);
   });
   return getProject(userId, id);
 }
@@ -1676,7 +1696,7 @@ function taskWriteFields(userId, data) {
     name: String(data?.name ?? '').trim(),
     status_id: lkId('ENTRY_STATUS', data?.status) ?? lkId('ENTRY_STATUS', 'IN_PROGRESS'),
     company_id: lkId('COMPANY', data?.company),
-    system_id: lkId('SYSTEM', data?.system),
+    system_id: lkIdForUser(userId, 'SYSTEM', data?.system),
     project_id: ownedProjectId(userId, data?.projectId),
     department_id: lkId('DEPARTMENT', data?.department),
     support_year_id: ownedSupportYearId(userId, data?.supportYearId),
@@ -2006,7 +2026,7 @@ function updateTaskMeta(userId, id, data) {
   const name = String(data?.name ?? '').trim();
   const status_id = lkId('ENTRY_STATUS', data?.status) ?? lkId('ENTRY_STATUS', 'IN_PROGRESS');
   const company_id = lkId('COMPANY', data?.company);
-  const system_id = lkId('SYSTEM', data?.system);
+  const system_id = lkIdForUser(userId, 'SYSTEM', data?.system);
   // Same "don't blank a legacy fallback field the caller didn't actually send"
   // guard as updateTask() — belt-and-braces here too, since the Timesheet's
   // own payload (tsTaskPayload) always sends *some* source string, so this
@@ -2300,6 +2320,7 @@ function close() {
   try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch { /* best effort */ }
   try { db.close(); } catch { /* already closing */ }
   db = undefined;
+  lkInvalidate();
 }
 
 // Copy the live database to `destPath`. Checkpoints first so the single .db file
@@ -2684,19 +2705,65 @@ const CREDENTIAL_COLUMNS = [
 function encryptAllPendingCredentials() {
   if (!isCredentialEncryptionAvailable()) return { encrypted: 0 };
   let encrypted = 0;
-  CREDENTIAL_COLUMNS.forEach(([table, columns]) => {
-    columns.forEach(column => {
-      const rows = db.prepare(`SELECT id, ${column} AS v FROM ${table} WHERE ${column} IS NOT NULL AND ${column} != ''`).all();
-      rows.forEach(row => {
-        const enc = encryptCredentialValue(row.v);
-        if (enc !== row.v) {
-          db.prepare(`UPDATE ${table} SET ${column} = ? WHERE id = ?`).run(enc, row.id);
-          encrypted++;
-        }
+  tx(() => {
+    CREDENTIAL_COLUMNS.forEach(([table, columns]) => {
+      columns.forEach(column => {
+        const rows = db.prepare(`SELECT id, ${column} AS v FROM ${table} WHERE ${column} IS NOT NULL AND ${column} != ''`).all();
+        rows.forEach(row => {
+          const enc = encryptCredentialValue(row.v);
+          if (enc !== row.v) {
+            db.prepare(`UPDATE ${table} SET ${column} = ? WHERE id = ?`).run(enc, row.id);
+            encrypted++;
+          }
+        });
       });
     });
   });
   return { encrypted };
+}
+
+// Migration 032 originally copied the database before encrypting credentials.
+// Sanitize those exact rollback copies in place once safeStorage is available.
+// Each file remains a valid, restorable SQLite database; only credential cells
+// are transformed, atomically, with the same marker/cipher as the live store.
+function sanitizeLegacyCredentialBackups() {
+  if (!isCredentialEncryptionAvailable()) return { files: 0, encrypted: 0 };
+  const backupDir = path.join(userDataDir, 'pre-encryption-backup');
+  if (!fs.existsSync(backupDir)) return { files: 0, encrypted: 0 };
+  const names = fs.readdirSync(backupDir)
+    .filter(name => /^cooperation-tools-PRE-032-ENCRYPT-.*\.db$/.test(name));
+  let files = 0, encrypted = 0;
+  for (const name of names) {
+    const file = resolveInside(backupDir, name);
+    const backupDb = new DatabaseSync(file);
+    try {
+      backupDb.exec('PRAGMA busy_timeout = 5000');
+      backupDb.exec('BEGIN IMMEDIATE');
+      for (const [table, columns] of CREDENTIAL_COLUMNS) {
+        const exists = backupDb.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table);
+        if (!exists) continue;
+        for (const column of columns) {
+          const rows = backupDb.prepare(`SELECT id, ${column} AS v FROM ${table} WHERE ${column} IS NOT NULL AND ${column} != ''`).all();
+          for (const row of rows) {
+            const enc = encryptCredentialValue(row.v);
+            if (enc !== row.v) {
+              backupDb.prepare(`UPDATE ${table} SET ${column} = ? WHERE id = ?`).run(enc, row.id);
+              encrypted++;
+            }
+          }
+        }
+      }
+      backupDb.exec('COMMIT');
+      backupDb.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+      files++;
+    } catch (err) {
+      try { backupDb.exec('ROLLBACK'); } catch {}
+      throw err;
+    } finally {
+      backupDb.close();
+    }
+  }
+  return { files, encrypted };
 }
 
 function clientVpnToApi(r) {
@@ -2945,7 +3012,7 @@ function serverIdentityLabel(r) {
 // surfaces it.
 function resolveServerIdentity(userId, companyId, data, excludeId) {
   const environment = String(data?.environment ?? '').trim();
-  const systemId = lkId('SYSTEM', String(data?.systemName ?? '').trim());
+  const systemId = lkIdForUser(userId, 'SYSTEM', String(data?.systemName ?? '').trim());
   const roleId = lkId('SERVER_ROLE', data?.role ?? '');
   if (systemId == null || !environment || roleId == null) return { ok: false, error: SERVER_IDENTITY_INCOMPLETE };
   const clash = db.prepare(
@@ -3033,8 +3100,8 @@ function serverGroupMoveConflicts(userId, companyId, movingIds, systemId) {
 // relabels it everywhere at once instead of only on this client's servers.
 // Name/channel kept for continuity. `oldName`/`newName` are SYSTEM labels/codes.
 function renameClientServerSystemGroup(userId, companyId, oldName, newName) {
-  const fromId = lkId('SYSTEM', String(oldName ?? '').trim());
-  const toId = lkId('SYSTEM', String(newName ?? '').trim());
+  const fromId = lkIdForUser(userId, 'SYSTEM', String(oldName ?? '').trim());
+  const toId = lkIdForUser(userId, 'SYSTEM', String(newName ?? '').trim());
   if (fromId == null || toId == null) return { ok: false, count: 0 };
   const movingIds = db.prepare(
     'SELECT id FROM client_servers WHERE user_id = ? AND company_id = ? AND system_id IS ?'
@@ -3051,7 +3118,7 @@ function renameClientServerSystemGroup(userId, companyId, oldName, newName) {
 // as opposed to renameClientServerSystemGroup's match-by-old-name bulk rename.
 // `groupName` is a SYSTEM label/code since migration 039 (a group is a system).
 function assignClientServerGroup(userId, companyId, recordIds, groupName) {
-  const systemId = lkId('SYSTEM', String(groupName ?? '').trim());
+  const systemId = lkIdForUser(userId, 'SYSTEM', String(groupName ?? '').trim());
   if (systemId == null || !Array.isArray(recordIds) || !recordIds.length) return { ok: false, count: 0 };
   const conflicts = serverGroupMoveConflicts(userId, companyId, recordIds, systemId);
   if (conflicts.length) return { ok: false, count: 0, error: SERVER_IDENTITY_ERROR, conflicts };
@@ -3160,7 +3227,7 @@ module.exports = {
   listClients, getClient, getClientFieldHistory,
   configureCredentialEncryption, allowPlaintextCredentialsForTests, disallowPlaintextCredentialsForTests,
   isCredentialEncryptionAvailable, encryptCredentialValue, decryptCredentialValue,
-  encryptAllPendingCredentials,
+  encryptAllPendingCredentials, sanitizeLegacyCredentialBackups,
   createClientVpn, updateClientVpn, deleteClientVpn,
   createClientServer, updateClientServer, deleteClientServer, renameClientServerSystemGroup, assignClientServerGroup,
   createClientInternalSystem, updateClientInternalSystem, deleteClientInternalSystem, renameClientInternalSystemGroup, assignClientInternalGroup,

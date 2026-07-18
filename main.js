@@ -120,7 +120,8 @@ ipcMain.handle('attention:list', authed(() => db.getAttentionItems(auth.requireU
 
 // ── Lookups (normalized catalog — shared app config) ──
 ipcMain.handle('lookups:get',         authed(()                              => db.loadLookups(auth.requireUserId())));
-ipcMain.handle('lookups:getByCategory', authed((_e, category, includeInactive) => db.getLookupsByCategory(category, includeInactive)));
+ipcMain.handle('lookups:getByCategory', authed((_e, category, includeInactive) =>
+  db.getLookupsByCategory(category, includeInactive, auth.requireUserId())));
 ipcMain.handle('lookups:save', authed((_e, data) => {
   const user = auth.currentUser();
   if (data?.categories && !user?.isAdmin) throw new Error('Administrator access required');
