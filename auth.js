@@ -144,7 +144,22 @@ function requireAdmin() {
   return session.userId;
 }
 
-function addUser(username, password) {
+function userToApi(user) {
+  return user ? {
+    id: Number(user.id), username: user.username,
+    isAdmin: !!(user.isAdmin ?? user.is_admin),
+    isActive: !!(user.isActive ?? user.is_active),
+    createdAt: user.createdAt ?? user.created_at ?? '',
+  } : null;
+}
+
+function listUsers() {
+  const userId = requireUserId();
+  const rows = session.isAdmin ? db.listUsers() : [db.getUserById(userId)].filter(Boolean);
+  return rows.map(user => ({ ...userToApi(user), isCurrent: Number(user.id) === userId }));
+}
+
+function addUser(username, password, isAdmin = false) {
   requireAdmin();
   const uErr = validateUsername(username);
   if (uErr) return { ok: false, error: uErr };
@@ -152,9 +167,53 @@ function addUser(username, password) {
   if (pErr) return { ok: false, error: pErr };
   const uname = String(username).trim();
   try {
-    const id = db.createUser(uname, bcrypt.hashSync(String(password), SALT_ROUNDS), false);
-    return { ok: true, user: { id, username: uname, isAdmin: false } };
+    const adminRole = !!isAdmin;
+    const id = db.createUser(uname, bcrypt.hashSync(String(password), SALT_ROUNDS), adminRole);
+    return { ok: true, user: { id, username: uname, isAdmin: adminRole, isActive: true } };
   } catch { return { ok: false, error: 'That username is already taken.' }; }
+}
+
+function updateUser(id, data) {
+  const actorId = requireUserId();
+  const targetId = Number(id);
+  const target = Number.isInteger(targetId) ? db.getUserById(targetId) : null;
+  if (!target || target.username === '__unclaimed__') return { ok: false, error: 'Account not found.' };
+  const isSelf = targetId === actorId;
+  if (!session.isAdmin && !isSelf) return { ok: false, error: 'Administrator access required.' };
+
+  const username = String(data?.username ?? target.username).trim();
+  const uErr = validateUsername(username);
+  if (uErr) return { ok: false, error: uErr };
+
+  const isAdmin = session.isAdmin && typeof data?.isAdmin === 'boolean' ? data.isAdmin : !!target.is_admin;
+  const isActive = session.isAdmin && typeof data?.isActive === 'boolean' ? data.isActive : !!target.is_active;
+  if (isSelf && !isActive) return { ok: false, error: 'You cannot deactivate your current account.' };
+  if (target.is_active && target.is_admin && (!isAdmin || !isActive) && db.countActiveAdmins() <= 1) {
+    return { ok: false, error: 'At least one active administrator is required.' };
+  }
+
+  let passwordHash;
+  const password = String(data?.password || '');
+  if (password) {
+    const pErr = validatePassword(password);
+    if (pErr) return { ok: false, error: pErr };
+    if (isSelf) {
+      if (!bcrypt.compareSync(String(data?.currentPassword || ''), target.password_hash)) {
+        return { ok: false, error: 'Current password is incorrect.' };
+      }
+    } else if (!session.isAdmin) {
+      return { ok: false, error: 'Administrator access required.' };
+    }
+    passwordHash = bcrypt.hashSync(password, SALT_ROUNDS);
+  }
+
+  try {
+    db.updateUserAccount(targetId, { username, isAdmin, isActive, passwordHash });
+  } catch {
+    return { ok: false, error: 'That username is already taken.' };
+  }
+  if (isSelf) session = { userId: actorId, username, isAdmin };
+  return { ok: true, user: userToApi(db.getUserById(targetId)), currentUser: currentUser() };
 }
 
 function changePassword(currentPassword, newPassword) {
@@ -181,6 +240,6 @@ function isAuthenticated() {
 }
 
 module.exports = {
-  status, setup, login, logout, currentUser, addUser, changePassword,
+  status, setup, login, logout, currentUser, listUsers, addUser, updateUser, changePassword,
   requireUserId, requireAdmin, isAuthenticated,
 };

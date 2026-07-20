@@ -97,8 +97,15 @@ ipcMain.handle('auth:setup',       trusted((_e, username, pass)   => auth.setup(
 ipcMain.handle('auth:login',       trusted((_e, username, pass)   => auth.login(username, pass)));
 ipcMain.handle('auth:logout',      trusted(()                     => auth.logout()));
 ipcMain.handle('auth:currentUser', trusted(()                     => auth.currentUser()));
-ipcMain.handle('auth:addUser',     admin((_e, username, pass)     => auth.addUser(username, pass)));
+ipcMain.handle('auth:listUsers',   authed(()                            => auth.listUsers()));
+ipcMain.handle('auth:addUser',     admin((_e, username, pass, isAdmin) => auth.addUser(username, pass, isAdmin)));
+ipcMain.handle('auth:updateUser',  authed((_e, id, data)               => auth.updateUser(id, data)));
 ipcMain.handle('auth:changePassword', authed((_e, currentPass, newPass) => auth.changePassword(currentPass, newPass)));
+
+// ── App metadata (read-only) ──
+// Resolve this from Electron/package.json at runtime so the renderer never has
+// a second, manually-maintained version string that can drift during releases.
+ipcMain.handle('app:version', trusted(() => app.getVersion()));
 
 // ── Days ── (userId always comes from the authenticated session, never the renderer)
 // day:save / day:get retired in Phase C2 — the Timesheet persists work sessions

@@ -13,7 +13,7 @@ All operational data stays on the device in an embedded SQLite database. There i
 - Recurring subscriptions and renewal-tracked company documents.
 - An accessible Overview with attention items first, period comparisons, chart data tables, browse/report filters, and main-process-owned PDF printing.
 - A responsive, keyboard-friendly interface with compact navigation, connected form errors, focus management, reduced-motion support, and high-contrast light/dark themes.
-- Multi-user accounts: the first account is the administrator; administrators can add users, and each user can change their password.
+- Multi-user accounts with a dedicated User Management page: administrators can create accounts, assign Administrator or Standard User permissions, rename/deactivate users, and reset passwords; every user can edit their own username and password.
 - Rotating database snapshots, validated restore, integrity checks, and full Desktop backups containing the DB and uploaded-file trees.
 
 ## Security model
