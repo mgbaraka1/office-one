@@ -40,7 +40,6 @@
       "db.js",
       "auth.js",
       "preload.js",
-      "ipc-types.js",
       "index.html",
       "migrations/**/*",
       "package.json",

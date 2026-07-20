@@ -4500,7 +4500,7 @@ function textMatch(values, q) {
   if (!q) return true;
   const words = q.split(/\s+/).filter(Boolean);
   if (!words.length) return true;
-  const hay = values.map(v => String(v ?? '').toLowerCase()).join('   ');
+  const hay = values.map(v => String(v ?? '').toLowerCase()).join(' ');
   return words.every(w => hay.includes(w));
 }
 
@@ -6135,7 +6135,6 @@ function setUnsaved() {
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(persistTimesheet, 300);
 }
-function autoSave() { setUnsaved(); }   // legacy alias
 
 // Reconcile in-memory rows against the DB: upsert each (create task+log for a new
 // row, or update task + log for an existing one), then delete any work_log that
@@ -6212,14 +6211,6 @@ function clearStatus() { document.getElementById('save-status').textContent = ''
 // created only via Projects, never here. Edit mode is unchanged: it opens the
 // full task-field form so a record's task-level metadata can still be corrected
 // in place.
-// opts.existingTaskId → open directly with that task pre-chosen (Add Session).
-// As of the compact Session edit modal (openSessionModal's create mode), no
-// caller passes this anymore — every "add a session to a known task" entry
-// point (grouped/flat Timesheet rows, Task Detail, the palette) now opens
-// that modal directly instead. Left in place (not removed) since it's inert
-// dead code behind an opt-in flag, not a live path worth the regression risk
-// of surgically stripping out of this shared Add/Edit function; a future
-// cleanup pass could remove isSession/sessionTaskId entirely.
 let fExistingTaskPicker = null;
 let recordMode = 'existing';   // 'existing' (add mode); edit mode uses 'new' internally to show the full task form
 
@@ -6314,22 +6305,20 @@ function applyExistingTaskSelection(taskId) {
 async function openModal(idx = null, opts = {}) {
   editIdx = idx;
   const isEdit = idx !== null;
-  const sessionTaskId = opts.existingTaskId ?? null;
-  const isSession = !isEdit && sessionTaskId != null;
   const row = isEdit ? rows[idx] : (opts.prefill || null);
   const modal = document.getElementById('modal');
   const defaults = !isEdit ? uiState.sessionDefaults : {};
 
-  document.getElementById('modal-title').textContent = isEdit ? 'Edit Record' : (isSession ? 'Add Session' : 'Add Record');
-  document.querySelector('#modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : (isSession ? 'Add Session' : 'Add Record');
+  document.getElementById('modal-title').textContent = isEdit ? 'Edit Record' : 'Add Record';
+  document.querySelector('#modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : 'Add Record';
 
   // Session-level fields (always editable) — natural is per-session, same as
   // time type, so it's populated here regardless of edit/add-session/lock state.
   populateSelect('f-time', 'timeType', row?.time || defaults.time || '');
   populateSelect('f-natural', 'natural', row?.natural || defaults.natural || '');
   document.getElementById('f-date').value        = (isEdit ? (row?.date || activeDate) : activeDate) || fmt(new Date());
-  document.getElementById('f-description').value = isSession ? '' : (row?.description || '');
-  document.getElementById('f-minutes').value     = isSession ? '' : (row?.minutes || '');
+  document.getElementById('f-description').value = row?.description || '';
+  document.getElementById('f-minutes').value     = row?.minutes || '';
   syncDurationPresets('f-minutes');
 
   if (isEdit) {
@@ -6362,38 +6351,22 @@ async function openModal(idx = null, opts = {}) {
     document.querySelector('#modal .modal-more').open = (row?.projectId != null) || fetchedSources.length > 0;
   } else {
     // Add mode — defaults to logging a session against an existing task; the
-    // New Task toggle (hidden for "Add Session", where the task is already
-    // fixed) switches to the full task-creation form instead.
+    // New Task toggle switches to the full task-creation form instead.
     recordMode = 'existing';
     modal.classList.add('mode-existing');
     modal.classList.remove('mode-new');
-    document.getElementById('f-mode-toggle-row').style.display = isSession ? 'none' : '';
+    document.getElementById('f-mode-toggle-row').style.display = '';
     document.querySelector('#modal .modal-more').open = false;   // reset closed for a fresh Add
     document.querySelectorAll('#f-mode-toggle .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === 'existing'));
-    if (sessionTaskId == null) {
-      if (!defaults.time) blankSelect('f-time');
-      if (!defaults.natural) blankSelect('f-natural');
-    }
+    if (!defaults.time) blankSelect('f-time');
+    if (!defaults.natural) blankSelect('f-natural');
     // Lightweight (Milestone 7) — this picker never renders sessions, just the
     // two-line rich option (name/company/system/status/last-worked/hours).
     try { modalTaskList = await window.api.getTasksIndex(); } catch { modalTaskList = []; }
     if (!Array.isArray(modalTaskList)) modalTaskList = [];
-    // Safety: if we're logging against a specific task but the fetch missed it
-    // (offline/error), synthesize it from the source row so the prefill still works.
-    if (sessionTaskId != null && !modalTaskList.some(t => t.id === sessionTaskId) && row) {
-      modalTaskList = modalTaskList.concat([{
-        id: sessionTaskId, name: row.taskName || row.description || '',
-        company: row.company, system: row.system,
-        status: row.status, source: row.source, projectId: row.projectId ?? null,
-      }]);
-    }
-    rebuildExistingTaskPicker(sessionTaskId);
-    applyExistingTaskSelection(sessionTaskId);   // prefill from the chosen task, if any
-    if (isSession) {
-      setTimeout(() => document.getElementById('f-description').focus(), 80);
-    } else {
-      setTimeout(() => document.querySelector('#f-existing-task .ss-input')?.focus(), 60);
-    }
+    rebuildExistingTaskPicker(null);
+    applyExistingTaskSelection(null);
+    setTimeout(() => document.querySelector('#f-existing-task .ss-input')?.focus(), 60);
   }
 
   clearErrorsIn('#modal');
@@ -6623,7 +6596,6 @@ function markError(id, message = 'Please complete this field.') {
 function clearErrorsIn(scope) {
   document.querySelectorAll(scope + ' .field-error').forEach(clearFieldError);
 }
-function clearErrors() { clearErrorsIn('body'); }
 function focusFirstError(scope) {
   document.querySelector(scope + ' .field-error')?.focus();
 }
