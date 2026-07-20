@@ -26,10 +26,26 @@ gate('field validation exposes aria-invalid and readable messages', html.include
 gate('shortcut suppression covers all current modal overlays', html.includes("'.modal-overlay.open, #print-overlay.open, #palette-overlay.open, #shortcuts-overlay.open, #howthinks-overlay.open'"));
 
 gate('sidebar consolidates All and Department tasks under one destination', html.includes('data-modules="all-tasks internal-tasks"'));
+gate('sidebar shows the signed-in identity, explicit role, and runtime app version',
+  html.includes('id="sidebar-user-avatar"')
+  && html.includes("user?.isAdmin ? 'Administrator' : 'Standard User'")
+  && html.includes('await window.api.appVersion()')
+  && html.includes('id="app-version"'));
 gate('advanced Browse destinations remain available in the command palette', html.includes("label: 'Browse — Companies'") && html.includes("label: 'Browse — Systems'"));
 gate('Client detail has Overview, Projects, Access, Servers, and Systems tabs', ['overview', 'projects', 'auth', 'servers', 'internal'].every(key => html.includes(`{ key: '${key}'`)) && html.includes('function renderClientOverview('));
 gate('Settings has search and context-specific save actions', html.includes('id="settings-search"') && html.includes('function syncSettingsSaveButton('));
+gate('account controls live on a dedicated User Management page',
+  html.includes('data-tab="users"')
+  && html.includes('id="user-list"')
+  && html.includes('id="user-edit-role"')
+  && html.includes('function renderUserManagement()')
+  && !html.includes('id="setting-default-name"')
+  && !html.includes('<h3>Account Security</h3>')
+  && !html.includes('<h3>Add Account</h3>'));
 gate('Analytics offers accessible data tables and labelled SVG charts', html.includes('class="an-data-details"') && html.includes('role="img" aria-label="Daily hours trend'));
+gate('Project Categories UI is retired', !html.includes('id="p-category"')
+  && !html.includes('Project Category</button>')
+  && !html.includes('Hours by Project Category'));
 
 const ids = ['dash-attention', 'an-spend', 'total-min', 'total-ot-min', 'settings-save-btn', 'settings-search'];
 gate('key UI hosts remain unique', ids.every(id => count(new RegExp(`id="${id}"`, 'g')) === 1));

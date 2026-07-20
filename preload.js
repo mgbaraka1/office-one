@@ -15,8 +15,16 @@ contextBridge.exposeInMainWorld('api', {
   authLogout:      ()                 => ipcRenderer.invoke('auth:logout'),
   /** @returns {Promise<import('./ipc-types').AuthUser|null>} */
   authCurrentUser: ()                 => ipcRenderer.invoke('auth:currentUser'),
-  authAddUser:     (username, pass)   => ipcRenderer.invoke('auth:addUser', username, pass),
+  /** @returns {Promise<import('./ipc-types').ManagedUser[]>} */
+  authListUsers:   ()                 => ipcRenderer.invoke('auth:listUsers'),
+  authAddUser:     (username, pass, isAdmin = false) => ipcRenderer.invoke('auth:addUser', username, pass, isAdmin),
+  /** @returns {Promise<import('./ipc-types').AuthResult>} */
+  authUpdateUser:  (id, data)         => ipcRenderer.invoke('auth:updateUser', id, data),
   authChangePassword: (currentPass, newPass) => ipcRenderer.invoke('auth:changePassword', currentPass, newPass),
+
+  // ── App metadata ──
+  /** @returns {Promise<string>} */
+  appVersion:      ()                 => ipcRenderer.invoke('app:version'),
 
   // ── Days ──
   // NB: day:save / day:get were retired in Phase C2 — the Timesheet now persists

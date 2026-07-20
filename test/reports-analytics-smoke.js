@@ -13,11 +13,9 @@
 // Run:  node test/reports-analytics-smoke.js
 //
 // Gates exercised:
-//   1. getAnalytics's new byDepartment/byProjectCategory maps correctly
-//      aggregate minutes for a seeded department-linked task and a seeded
-//      project-category-linked task, keyed by lookup label.
-//   2. A task with neither a department nor a project link contributes to
-//      neither new map (no accidental "(none)" bucket).
+//   1. getAnalytics's byDepartment map correctly aggregates minutes for a
+//      seeded department-linked task, keyed by lookup label.
+//   2. A task without a department contributes no accidental "(none)" bucket.
 //   3. getFilteredWorkLogs (the Custom Date-Range report's backing query)
 //      correctly narrows by from/to, by company, by system, and by
 //      projectId, each independently and combined (ANDed).
@@ -70,8 +68,8 @@ try {
   const deptOpt = db.getLookupsByCategory('DEPARTMENT')[0];
   if (!companyLabel || !systemLabel || !deptOpt) throw new Error('missing a required lookup category to seed against');
 
-  // ── Gate 1/2 — Analytics department + project-category dimensions ──────────
-  const project = db.createProject(userId, { name: 'RA test project', description: '', companyIds: [], systemIds: [], status: 'ACTIVE', category: 'CR_EXISTING' });
+  // ── Gate 1/2 — Analytics department dimension ──────────────────────────────
+  const project = db.createProject(userId, { name: 'RA test project', description: '', companyIds: [], systemIds: [], status: 'ACTIVE' });
   const deptTask = db.createTask(userId, { name: 'RA dept task', status: 'OPEN', company: '', system: '', source: '', department: deptOpt.label });
   db.addWorkLog(userId, deptTask.id, { date: DAY_A, description: 'dept session', minutes: 45, time: 'WORK_TIME' });
   const projTask = db.createTask(userId, { name: 'RA project task', status: 'OPEN', company: '', system: '', source: '', projectId: project.id });
@@ -80,15 +78,12 @@ try {
   db.addWorkLog(userId, plainTask.id, { date: DAY_A, description: 'plain session', minutes: 15, time: 'WORK_TIME' });
 
   const an = db.getAnalytics(userId, DAY_A, DAY_A, DAY_A, DAY_A);
-  record('Gate 1a: byDepartment aggregates the seeded department-linked task\'s minutes under its label',
+  record('Gate 1: byDepartment aggregates the seeded department-linked task\'s minutes under its label',
     (an.byDepartment[deptOpt.label] || 0) >= 45, `byDepartment[${deptOpt.label}]=${an.byDepartment[deptOpt.label]}`);
-  record('Gate 1b: byProjectCategory aggregates the seeded project-linked task\'s minutes under CR_EXISTING\'s label',
-    (an.byProjectCategory['CR on Existing Project'] || 0) >= 30, `byProjectCategory=${JSON.stringify(an.byProjectCategory)}`);
 
   const plainInDept = Object.values(an.byDepartment).length && an.byDepartment['undefined'];
-  const plainInCat = an.byProjectCategory['undefined'];
-  record('Gate 2: a task with neither department nor project link contributes to neither new map',
-    !plainInDept && !plainInCat, `plainInDept=${!!plainInDept} plainInCat=${!!plainInCat}`);
+  record('Gate 2: a task without a department contributes no undefined bucket',
+    !plainInDept, `plainInDept=${!!plainInDept}`);
 
   // ── Gates 3/4 — getFilteredWorkLogs (Custom Date-Range report) ──────────────
   const fCompany = db.createTask(userId, { name: 'RA filter company task', status: 'OPEN', company: companyLabel, system: '', source: '' });
