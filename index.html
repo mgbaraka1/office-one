@@ -999,6 +999,14 @@
     .ts-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary-strong); font-weight: 600; }
     .ts-badge-more { color: var(--muted); font-weight: 500; }
     .ts-list-compact { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+    /* Task Detail keeps sources compact until the user asks to edit them. The
+       editor spans the metadata grid so URL/title fields have enough room. */
+    .td-sources-field { grid-column: 1 / -1; }
+    .td-sources-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+    .td-sources-head .pj-field-label { margin-bottom: 0; }
+    .td-sources-editor { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; background: var(--surface2); }
+    .td-sources-editor-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; }
+    .td-sources-editor-actions > div { display: flex; gap: 8px; }
 
     /* ══ HOME OVERVIEW (merged into the Analytics view) ══ */
     .dash-greeting { margin-bottom: 22px; }
@@ -2046,6 +2054,12 @@
     #modal .seg-btn { flex: 1; justify-content: center; padding: 7px 11px; }
     #modal.mode-existing .modal-taskfields { display: none; }
     #modal.mode-new #f-existing-task-row { display: none !important; }
+    /* The row pencil edits one work-log only. */
+    #modal.mode-edit #f-mode-toggle-row,
+    #modal.mode-edit #f-existing-task-row,
+    #modal.mode-edit #f-task-summary,
+    #modal.mode-edit #f-lock-hint,
+    #modal.mode-edit .modal-taskfields { display: none !important; }
     .modal-task-summary {
       display: none; font-size: var(--fs-sm); color: var(--muted); line-height: 1.5;
       background: var(--surface2); border: 1px solid var(--border);
@@ -2594,7 +2608,7 @@
       </div>
       <!-- Session-level fields — always editable, in both Existing Task and New Task modes. -->
       <div class="modal-tasksection">
-        <div class="modal-tasksection-head"><span data-ic="clock"></span>New Session Details</div>
+        <div class="modal-tasksection-head" id="f-session-heading"><span data-ic="clock"></span>New Session Details</div>
         <div class="form-row">
           <div class="form-group">
             <label>Date <span style="text-transform:none;font-weight:500;color:var(--muted)">— the day this session was worked</span></label>
@@ -6212,7 +6226,7 @@ function clearStatus() { document.getElementById('save-status').textContent = ''
 // full task-field form so a record's task-level metadata can still be corrected
 // in place.
 let fExistingTaskPicker = null;
-let recordMode = 'existing';   // 'existing' (add mode); edit mode uses 'new' internally to show the full task form
+let recordMode = 'existing';   // Add mode only: 'existing' or 'new'.
 
 // The task-level fields (prefilled + locked when logging against an existing
 // task; hidden entirely on the existing path). Session-level fields (date,
@@ -6311,6 +6325,7 @@ async function openModal(idx = null, opts = {}) {
 
   document.getElementById('modal-title').textContent = isEdit ? 'Edit Record' : 'Add Record';
   document.querySelector('#modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : 'Add Record';
+  document.getElementById('f-session-heading').innerHTML = ic('clock') + (isEdit ? 'Session Details' : 'New Session Details');
 
   // Session-level fields (always editable) — natural is per-session, same as
   // time type, so it's populated here regardless of edit/add-session/lock state.
@@ -6323,36 +6338,19 @@ async function openModal(idx = null, opts = {}) {
 
   if (isEdit) {
     // Editing an existing record — the full task-field form, prefilled from the row.
-    recordMode = 'new';
     modal.classList.remove('mode-existing');
-    modal.classList.add('mode-new');
+    modal.classList.remove('mode-new');
+    modal.classList.add('mode-edit');
     document.getElementById('f-mode-toggle-row').style.display = 'none';
     fExistingTaskPicker = null;
-    document.getElementById('f-lock-hint').hidden = true;
     document.getElementById('f-task-summary').classList.remove('has-task');
-    populateSelect('f-company', 'companies', row?.company || '');
-    populateSelect('f-system',  'systems',   row?.system  || '');
-    populateSelect('f-status',  'status',    row?.status  || '');
-    document.getElementById('f-taskname').value = row?.taskName || '';
     document.getElementById('f-sources-list').innerHTML = '';
-    let fetchedSources = [];
-    if (row?.taskId) {
-      try { fetchedSources = (await window.api.getTask(row.taskId))?.sources || []; }
-      catch { fetchedSources = []; }
-    }
-    _fSourceOriginalIds = fetchedSources.map(s => s.id);
-    fetchedSources.forEach(s => addTaskSourceRow('f-sources-list', s));
-    MODAL_TASK_FIELDS.forEach(id => { document.getElementById(id).disabled = false; });
-    fProjectPicker = buildSearchSelect(document.getElementById('f-project'),
-      projectFieldOptions(row?.projectId ?? null), row?.projectId ?? null, 'No project');
-    // Milestone 10's "More options" collapse defaults closed for a brand-new
-    // task, but an edit whose record already has a project link or sources
-    // opens it automatically so existing data is never hidden by default.
-    document.querySelector('#modal .modal-more').open = (row?.projectId != null) || fetchedSources.length > 0;
+    _fSourceOriginalIds = [];
   } else {
     // Add mode — defaults to logging a session against an existing task; the
     // New Task toggle switches to the full task-creation form instead.
     recordMode = 'existing';
+    modal.classList.remove('mode-edit');
     modal.classList.add('mode-existing');
     modal.classList.remove('mode-new');
     document.getElementById('f-mode-toggle-row').style.display = '';
@@ -6412,7 +6410,7 @@ async function submitModal() {
     { id: 'f-natural',     val: document.getElementById('f-natural').value },
     { id: 'f-description', val: document.getElementById('f-description').value.trim() },
   ];
-  if (!loggingExisting) {
+  if (!isEdit && !loggingExisting) {
     required.push(
       { id: 'f-company', val: document.getElementById('f-company').value },
       { id: 'f-system',  val: document.getElementById('f-system').value },
@@ -6433,6 +6431,38 @@ async function submitModal() {
   }
 
   if (!valid) { focusFirstError('#modal'); return; }
+
+  // The row pencil is deliberately a work-log-only operation. Task metadata,
+  // links, and sources are neither read from this form nor written on save.
+  if (isEdit) {
+    const origRow = rows[editIdx];
+    const merged = Object.assign({}, origRow, {
+      date: document.getElementById('f-date').value,
+      time: document.getElementById('f-time').value,
+      natural: document.getElementById('f-natural').value,
+      description: document.getElementById('f-description').value.trim(),
+      minutes: minRaw === '' ? '' : parseInt(minRaw, 10),
+    });
+    rememberSessionDefaults(merged.time, merged.natural);
+    try {
+      if (merged.eid) await window.api.updateWorkLog(merged.eid, tsLogPayload(merged));
+    } catch { toast('Could not save the record'); return; }
+    if (activeTimer.rowRef === origRow) activeTimer.rowRef = merged;
+    rows[editIdx] = merged;
+    closeModal();
+    if (merged.date !== activeDate) {
+      await refreshSavedDays();
+      await switchDay(merged.date);
+      toast('Moved to ' + merged.date);
+    } else if (!merged.eid) {
+      renderTable();
+      setUnsaved();
+    } else {
+      renderTable();
+      flashSaved();
+    }
+    return;
+  }
 
   const descVal   = document.getElementById('f-description').value.trim();
   const taskName  = document.getElementById('f-taskname').value.trim() || descVal;
@@ -6733,7 +6763,7 @@ function buildDailyReportHTML(srcRows, date, name, sourcesByTaskId) {
   const otherHrs = (otherMin / 60).toFixed(2);
 
   // Group the day's work sessions by their task (two-level model): a task header
-  // row (name + client/system/activity + subtotal) followed by each session's
+  // row (company + system/project label + task title + subtotal) followed by each session's
   // time / description / minutes. Order = first appearance in the day.
   const groups = [];
   const byTask = new Map();
@@ -6751,7 +6781,18 @@ function buildDailyReportHTML(srcRows, date, name, sourcesByTaskId) {
   });
 
   const rowsHTML = groups.length ? groups.map((g, gi) => {
-    const metaBits = [g.company, g.system].filter(Boolean).join(' · ');
+    // Daily report task titles use COMPANY - PROJECT/SYSTEM - TASK. Historical
+    // task names often already begin with the System value (for example,
+    // "Payment Gateway - Check..."); strip that prefix so it is not printed twice.
+    const companyTitle = String(g.company || '').trim().toUpperCase();
+    const projectTitle = String(g.system || '').trim().toUpperCase();
+    let taskTitle = String(g.taskName || '(untitled task)').trim();
+    const existingPrefix = String(g.system || '').trim();
+    if (existingPrefix && taskTitle.toLocaleLowerCase().startsWith(existingPrefix.toLocaleLowerCase())) {
+      const remainder = taskTitle.slice(existingPrefix.length).replace(/^\s*[-–—:]\s*/, '').trim();
+      if (remainder) taskTitle = remainder;
+    }
+    const reportTaskTitle = [companyTitle, projectTitle, taskTitle].filter(Boolean).join(' - ');
     // Sources are task-level, so they're listed once per task group (below the
     // header) rather than repeated on every session row. A task not yet
     // re-saved since before migration 033 has no structured entries here —
@@ -6784,7 +6825,7 @@ function buildDailyReportHTML(srcRows, date, name, sourcesByTaskId) {
     return `
       <tr>
         <td colspan="4" style="background:#f0f0f0 !important;font-weight:700;color:#111;padding:8px 8px">
-          ${gi + 1}. ${esc(g.taskName)}${metaBits ? `<span style="font-weight:500;color:#666;font-size:10px"> — ${esc(metaBits)}</span>` : ''}
+          ${gi + 1}. ${esc(reportTaskTitle)}
           <span style="float:right;font-weight:800">${g.subtotal} min · ${(g.subtotal / 60).toFixed(2)} h</span>
         </td>
       </tr>
@@ -9073,7 +9114,20 @@ function renderTaskDetail(t) {
     sourcesNode.className = 'ts-badge';
     sourcesNode.textContent = t.source;
   }
-  grid.appendChild(field('Sources', sourcesNode));
+  const sourcesField = pjMk('div', 'td-sources-field');
+  const sourcesHead = pjMk('div', 'td-sources-head');
+  sourcesHead.appendChild(pjMk('div', 'pj-field-label', 'Sources'));
+  const editSourcesBtn = pjMk('button', 'btn');
+  editSourcesBtn.type = 'button';
+  editSourcesBtn.innerHTML = ic('pencil') + ' Edit sources';
+  editSourcesBtn.addEventListener('click', () => renderTaskDetailSourcesEditor(t, sourcesField));
+  sourcesHead.appendChild(editSourcesBtn);
+  sourcesField.appendChild(sourcesHead);
+  const sourcesVal = pjMk('div', 'pj-field-val');
+  if (sourcesNode) sourcesVal.appendChild(sourcesNode);
+  else sourcesVal.appendChild(pjMk('span', 'ts-empty-hint', 'No sources added yet.'));
+  sourcesField.appendChild(sourcesVal);
+  grid.appendChild(sourcesField);
   grid.appendChild(field('Company', t.company));
   grid.appendChild(field('System', t.system));
   if (t.projectId != null) {
@@ -9187,6 +9241,56 @@ function renderTaskDetail(t) {
     });
     body.appendChild(table);
   }
+}
+
+// Switches Task Detail's read-only source badges into the shared structured
+// source editor. Saving touches task_sources only; task metadata and container
+// links are deliberately left alone.
+function renderTaskDetailSourcesEditor(task, host) {
+  const originalIds = (task.sources || []).map(s => s.id);
+  host.innerHTML = '';
+
+  const head = pjMk('div', 'td-sources-head');
+  head.appendChild(pjMk('div', 'pj-field-label', 'Sources'));
+  host.appendChild(head);
+
+  const editor = pjMk('div', 'td-sources-editor');
+  const list = pjMk('div');
+  list.id = 'td-sources-list';
+  editor.appendChild(list);
+
+  const actions = pjMk('div', 'td-sources-editor-actions');
+  const addBtn = pjMk('button', 'btn');
+  addBtn.type = 'button';
+  addBtn.innerHTML = ic('plus') + ' Add Source';
+  addBtn.addEventListener('click', () => addTaskSourceRow('td-sources-list'));
+  actions.appendChild(addBtn);
+
+  const saveActions = pjMk('div');
+  const cancelBtn = pjMk('button', 'btn', 'Cancel');
+  cancelBtn.type = 'button';
+  cancelBtn.addEventListener('click', () => renderTaskDetail(task));
+  saveActions.appendChild(cancelBtn);
+  const saveBtn = pjMk('button', 'btn primary', 'Save Sources');
+  saveBtn.type = 'button';
+  saveBtn.addEventListener('click', async () => {
+    saveBtn.disabled = true;
+    try {
+      await saveTaskSources(task.id, readTaskSourceRows('td-sources-list'), originalIds);
+      await reloadTimesheet();
+      await openTaskDetail(task.id);
+      toast('Sources updated');
+    } catch {
+      saveBtn.disabled = false;
+      toast('Could not save sources');
+    }
+  });
+  saveActions.appendChild(saveBtn);
+  actions.appendChild(saveActions);
+  editor.appendChild(actions);
+  host.appendChild(editor);
+
+  (task.sources || []).forEach(source => addTaskSourceRow('td-sources-list', source));
 }
 
 // Delete one session from the Task Detail modal. Mirrors the Timesheet
