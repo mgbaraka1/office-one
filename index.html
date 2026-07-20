@@ -602,15 +602,8 @@
     .pj-status-on-hold   { background: rgba(245,181,68,.18);  color: var(--warn); }
     .pj-status-completed { background: rgba(100,108,132,.16); color: var(--muted); }
 
-    /* badge cluster (status + category) — kept as one flex child so pj-card-head's
-       space-between still just has two items: name, and this cluster */
+    /* Badge cluster keeps the status aligned at the end of the card header. */
     .pj-card-badges { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-
-    /* category badge — shared by cards and the detail header */
-    .pj-cat { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
-    .pj-cat-new    { background: rgba(20,184,166,.16);  color: var(--primary); }
-    .pj-cat-cr     { background: rgba(245,181,68,.18);  color: var(--warn); }
-    .pj-cat-annual { background: rgba(52,211,153,.16);  color: var(--good); }
 
     /* detail view */
     .pj-detail-scroll { flex: 1; overflow-y: auto; padding: var(--space-5) var(--space-6) var(--space-7); }
@@ -1011,17 +1004,6 @@
     .dash-greeting { margin-bottom: 22px; }
     .dash-greeting h1 { font-size: var(--fs-display); font-weight: 700; color: var(--text); letter-spacing: var(--ls-display); }
     .dash-greeting p { font-size: 14px; color: var(--muted); margin-top: 4px; }
-    /* Quick actions (Milestone 11) */
-    .dash-quick-actions { display: flex; gap: 10px; margin-bottom: 22px; flex-wrap: wrap; }
-    .dash-quick-actions:empty { display: none; }
-    .dash-quick-btn {
-      display: flex; align-items: center; gap: 7px;
-      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
-      padding: 9px 16px; font-size: 13px; font-weight: 600; color: var(--text);
-      cursor: pointer; font-family: inherit; transition: all var(--speed);
-    }
-    .dash-quick-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
-    .dash-quick-btn .lic { width: 15px; height: 15px; }
     .dash-stats {
       display: grid; grid-template-columns: repeat(2, 1fr);
       gap: 16px; margin-bottom: 4px;
@@ -1448,7 +1430,7 @@
 
     @media (max-width: 1050px) {
       #sidebar { width: 76px; padding: 18px 10px; align-items: stretch; }
-      .brand-full, .nav-label, .nav-section, .sidebar-user { display: none; }
+      .brand-full, .nav-label, .nav-section, .sidebar-user, .app-version { display: none; }
       .brand-compact { display: block; text-align: center; }
       .sidebar-brand { padding: 0; text-align: center; }
       .nav-item { justify-content: center; padding: 11px 8px; gap: 0; }
@@ -1548,6 +1530,43 @@
     }
     .general-field input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); background: var(--input-focus-bg); }
     .general-hint { font-size: 12px; color: var(--muted); line-height: 1.5; }
+    /* User management */
+    .user-page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+    .user-page-title { font-size: 18px; font-weight: 700; color: var(--text); }
+    .user-list { display: flex; flex-direction: column; gap: 8px; }
+    .user-card {
+      display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+      border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface2);
+    }
+    .user-card.inactive { opacity: .68; }
+    .user-card-avatar {
+      width: 38px; height: 38px; flex: 0 0 38px; display: grid; place-items: center;
+      border-radius: 11px; background: var(--accent-bg); color: var(--accent);
+      font-size: 15px; font-weight: 800; text-transform: uppercase;
+    }
+    .user-card-main { min-width: 0; flex: 1; }
+    .user-card-name { font-size: 13.5px; font-weight: 650; color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+    .user-card-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 3px; font-size: 11.5px; color: var(--muted); }
+    .user-role-badge, .user-status-badge { padding: 2px 7px; border-radius: 999px; font-size: 10px; font-weight: 700; }
+    .user-role-badge { background: var(--accent-bg); color: var(--accent); }
+    .user-status-badge { background: color-mix(in srgb, var(--good) 14%, transparent); color: var(--good); }
+    .user-status-badge.inactive { background: color-mix(in srgb, var(--muted) 14%, transparent); color: var(--muted); }
+    .user-editor {
+      margin-top: 10px; padding: 16px; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); background: var(--surface2);
+    }
+    .user-editor[hidden] { display: none; }
+    .user-editor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .user-editor-grid .full { grid-column: 1 / -1; }
+    .user-editor select {
+      border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 9px 12px;
+      font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text); outline: none;
+    }
+    .user-editor-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+    .user-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); }
+    .user-check input { width: 16px; height: 16px; accent-color: var(--primary); }
+    .user-form-status { min-height: 18px; margin-top: 8px; color: var(--bad); font-size: 12px; }
+    @media (max-width: 760px) { .user-editor-grid { grid-template-columns: 1fr; } .user-editor-grid .full { grid-column: auto; } }
     /* Settings banner — safeStorage-unavailable notice (credential encryption) */
     .security-banner {
       display: flex; align-items: flex-start; gap: 10px;
@@ -2103,8 +2122,28 @@
     .auth-btn:hover { background: var(--primary-strong); }
     .auth-btn:disabled { opacity: .6; cursor: default; }
     .auth-error { min-height: 16px; margin: 10px 2px 0; font-size: 12px; color: var(--bad); text-align: center; }
-    .sidebar-user { font-size: 11px; color: var(--sidebar-muted); padding: 4px 14px 2px; }
-    .sidebar-user b { color: var(--sidebar-fg); font-weight: 600; }
+    .sidebar-user {
+      display: flex; align-items: center; gap: 10px; min-width: 0;
+      padding: 10px 11px; border: 1px solid color-mix(in srgb, var(--sidebar-fg) 10%, transparent);
+      border-radius: var(--radius-sm); background: color-mix(in srgb, var(--sidebar-fg) 5%, transparent);
+    }
+    .sidebar-user-avatar {
+      width: 34px; height: 34px; flex: 0 0 34px; display: grid; place-items: center;
+      border-radius: 10px; background: color-mix(in srgb, var(--primary) 30%, var(--sidebar-bg));
+      border: 1px solid color-mix(in srgb, var(--primary) 52%, transparent);
+      color: #fff; font-size: 14px; font-weight: 800; text-transform: uppercase;
+    }
+    .sidebar-user-copy { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+    .sidebar-username {
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      color: var(--sidebar-fg); font-size: 13px; font-weight: 650;
+    }
+    .sidebar-role { display: flex; align-items: center; gap: 5px; color: var(--sidebar-muted); font-size: 10.5px; }
+    .sidebar-role::before {
+      content: ''; width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%;
+      background: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
+    }
+    .app-version { color: var(--sidebar-muted); font-size: 10px; letter-spacing: .35px; text-align: center; }
 
   </style>
 </head>
@@ -2176,10 +2215,17 @@
       </button>
       <div class="top-menu" id="backup-choice-menu"></div>
     </div>
-    <div class="sidebar-user" id="sidebar-user"></div>
+    <div class="sidebar-user" id="sidebar-user" aria-label="Signed-in account">
+      <div class="sidebar-user-avatar" id="sidebar-user-avatar" aria-hidden="true"></div>
+      <div class="sidebar-user-copy">
+        <div class="sidebar-username" id="sidebar-username"></div>
+        <div class="sidebar-role" id="sidebar-role"></div>
+      </div>
+    </div>
     <button id="logout-btn" class="nav-item" onclick="doLogout()" title="Log out of this session">
       <span class="nav-icon" data-ic="log-out"></span><span class="nav-label">Log Out</span>
     </button>
+    <div class="app-version" id="app-version" aria-label="Application version"></div>
   </div>
 </div>
 
@@ -2209,9 +2255,6 @@
       <h1 id="dash-hello">Welcome back</h1>
       <p id="dash-date"></p>
     </div>
-    <!-- Quick actions (Milestone 11) — the most common actions one click from
-         launch, regardless of which page the "Start on" setting lands on. -->
-    <div class="dash-quick-actions" id="dash-quick-actions"></div>
     <div class="dash-stats" id="dash-stats"></div>
 
     <div class="an-section">
@@ -2265,10 +2308,6 @@
       <div class="an-card">
         <div class="an-card-head"><span class="an-card-title">Hours by Department</span><span class="an-card-sub" id="an-department-sub"></span></div>
         <div id="an-department"></div>
-      </div>
-      <div class="an-card">
-        <div class="an-card-head"><span class="an-card-title">Hours by Project Category</span><span class="an-card-sub" id="an-project-category-sub"></span></div>
-        <div id="an-project-category"></div>
       </div>
     </div>
 
@@ -3220,19 +3259,9 @@
         </div>
       </div>
       <div class="form-row">
-        <div class="form-group">
+        <div class="form-group full">
           <label>Status</label>
           <select id="p-status"></select>
-        </div>
-        <div class="form-group">
-          <label>Category</label>
-          <select id="p-category" onchange="onProjectCategoryChange()"></select>
-        </div>
-      </div>
-      <div class="form-row" id="p-related-project-row" style="display:none">
-        <div class="form-group full">
-          <label>Related Project <span style="text-transform:none;font-weight:500;color:var(--muted)">— the project this one relates to</span></label>
-          <div id="p-related-project"></div>
         </div>
       </div>
       <div class="form-row">
@@ -3396,7 +3425,7 @@
     <span class="page-title"><span class="ti-ic" data-ic="settings"></span>Settings</span>
     <div class="topbar-right">
       <span class="settings-save-status" id="settings-save-status" role="status" aria-live="polite"></span>
-      <button class="btn primary" id="settings-save-btn" onclick="saveSettings()">Save General Settings</button>
+      <button class="btn primary" id="settings-save-btn" onclick="saveSettings()" hidden>Save Catalog Changes</button>
     </div>
   </div>
   <div class="settings-body">
@@ -3408,6 +3437,7 @@
       </div>
       <div class="settings-group-label">Account &amp; Preferences</div>
       <button class="stab active" data-tab="general" onclick="switchTab(this)"><span class="stab-icon" data-ic="sliders-horizontal"></span> General</button>
+      <button class="stab" data-tab="users" onclick="switchTab(this)"><span class="stab-icon" data-ic="users"></span> User Management</button>
       <div class="settings-group-label admin-only">Catalogs</div>
       <button class="stab" data-tab="companies"     onclick="switchTab(this)"><span class="stab-icon" data-ic="building-2"></span> Companies</button>
       <button class="stab" data-tab="systems"       onclick="switchTab(this)"><span class="stab-icon" data-ic="folder"></span> Systems</button>
@@ -3415,7 +3445,6 @@
       <button class="stab" data-tab="timeType"      onclick="switchTab(this)"><span class="stab-icon" data-ic="alarm-clock"></span> Time Type</button>
       <button class="stab" data-tab="status"        onclick="switchTab(this)"><span class="stab-icon" data-ic="flag"></span> Status</button>
       <button class="stab" data-tab="projectStatus" onclick="switchTab(this)"><span class="stab-icon" data-ic="clipboard-list"></span> Project Status</button>
-      <button class="stab" data-tab="projectCategory" onclick="switchTab(this)"><span class="stab-icon" data-ic="tag"></span> Project Category</button>
       <button class="stab" data-tab="projectDocument" onclick="switchTab(this)"><span class="stab-icon" data-ic="file-text"></span> Project Documents</button>
       <button class="stab" data-tab="companyDocCategory" onclick="switchTab(this)"><span class="stab-icon" data-ic="calendar-check"></span> Company Doc Categories</button>
       <button class="stab" data-tab="department"    onclick="switchTab(this)"><span class="stab-icon" data-ic="building"></span> Department</button>
@@ -3433,46 +3462,6 @@
             blocked until secure storage becomes available; existing encrypted credentials remain protected.</span>
         </div>
         <div class="general-field">
-          <label for="setting-default-name">Default Name</label>
-          <input id="setting-default-name" type="text" placeholder="e.g. Moustafa Baraka" />
-        </div>
-        <p class="general-hint">Pre-fills the Name field when opening a new day with no existing data.</p>
-        <hr class="modal-tasksection-divider" style="margin:20px 0" />
-        <h3>Account Security</h3>
-        <div class="general-field">
-          <label for="account-current-password">Current password</label>
-          <input id="account-current-password" type="password" autocomplete="current-password" />
-        </div>
-        <div class="general-field">
-          <label for="account-new-password">New password</label>
-          <input id="account-new-password" type="password" autocomplete="new-password" minlength="8" />
-        </div>
-        <div class="general-field">
-          <label for="account-confirm-password">Confirm new password</label>
-          <input id="account-confirm-password" type="password" autocomplete="new-password" minlength="8" />
-        </div>
-        <button class="btn" onclick="changeOwnPassword()">Change Password</button>
-        <p class="general-hint" id="account-password-status" role="status" aria-live="polite"></p>
-        <div class="admin-only">
-          <hr class="modal-tasksection-divider" style="margin:20px 0" />
-          <h3>Add Account</h3>
-          <div class="general-field">
-            <label for="new-account-username">Username</label>
-            <input id="new-account-username" type="text" autocomplete="off" minlength="3" maxlength="32" />
-          </div>
-          <div class="general-field">
-            <label for="new-account-password">Temporary password</label>
-            <input id="new-account-password" type="password" autocomplete="new-password" minlength="8" />
-          </div>
-          <div class="general-field">
-            <label for="new-account-confirm">Confirm password</label>
-            <input id="new-account-confirm" type="password" autocomplete="new-password" minlength="8" />
-          </div>
-          <button class="btn" onclick="addAccount()">Create Account</button>
-          <p class="general-hint" id="new-account-status" role="status" aria-live="polite"></p>
-        </div>
-        <hr class="modal-tasksection-divider" style="margin:20px 0" />
-        <div class="general-field">
           <label>Start on</label>
           <div class="seg-ctl" id="setting-startonlastpage-ctl">
             <button type="button" class="seg-btn" data-val="last" onclick="setStartOnLastPage(true)">Last page</button>
@@ -3486,13 +3475,60 @@
         <p class="general-hint">A one-page explainer of the Task → Sessions → optional Project/Department model,
           plus the quickest path for each everyday journey.</p>
       </div>
+      <div class="settings-panel" id="tab-users">
+        <div class="user-page-head">
+          <div>
+            <div class="user-page-title">User Management</div>
+            <p class="general-hint">Manage account details and access. Administrators can manage every account; standard users can edit only their own profile and password.</p>
+          </div>
+          <button class="btn primary admin-only" id="user-add-btn" onclick="openUserEditor()"><span data-ic="user-plus"></span>Add User</button>
+        </div>
+        <div class="user-list" id="user-list"></div>
+        <div class="user-editor" id="user-editor" hidden>
+          <h3 id="user-editor-title">Edit User</h3>
+          <div class="user-editor-grid">
+            <div class="general-field full">
+              <label for="user-edit-username">Username</label>
+              <input id="user-edit-username" type="text" autocomplete="off" minlength="3" maxlength="32" />
+            </div>
+            <div class="general-field user-admin-control">
+              <label for="user-edit-role">Permissions</label>
+              <select id="user-edit-role">
+                <option value="standard">Standard User — own data and preferences</option>
+                <option value="admin">Administrator — full settings, backup and user access</option>
+              </select>
+            </div>
+            <div class="general-field user-admin-control">
+              <label>Account status</label>
+              <label class="user-check"><input id="user-edit-active" type="checkbox" /> Active — can sign in</label>
+            </div>
+            <div class="general-field full" id="user-current-password-field">
+              <label for="user-edit-current-password">Current password</label>
+              <input id="user-edit-current-password" type="password" autocomplete="current-password" />
+              <span class="general-hint">Required only when changing your own password.</span>
+            </div>
+            <div class="general-field">
+              <label for="user-edit-password" id="user-edit-password-label">New password</label>
+              <input id="user-edit-password" type="password" autocomplete="new-password" minlength="8" />
+            </div>
+            <div class="general-field">
+              <label for="user-edit-confirm">Confirm password</label>
+              <input id="user-edit-confirm" type="password" autocomplete="new-password" minlength="8" />
+            </div>
+          </div>
+          <div class="user-form-status" id="user-form-status" role="status" aria-live="polite"></div>
+          <div class="user-editor-actions">
+            <button class="btn" onclick="closeUserEditor()">Cancel</button>
+            <button class="btn primary" id="user-save-btn" onclick="saveManagedUser()">Save User</button>
+          </div>
+        </div>
+      </div>
       <div class="settings-panel" id="tab-companies"></div>
       <div class="settings-panel" id="tab-systems"></div>
       <div class="settings-panel" id="tab-natural"></div>
       <div class="settings-panel" id="tab-timeType"></div>
       <div class="settings-panel" id="tab-status"></div>
       <div class="settings-panel" id="tab-projectStatus"></div>
-      <div class="settings-panel" id="tab-projectCategory"></div>
       <div class="settings-panel" id="tab-projectDocument"></div>
       <div class="settings-panel" id="tab-companyDocCategory"></div>
       <div class="settings-panel" id="tab-department"></div>
@@ -4067,14 +4103,14 @@ const LK_CAT = {
   currency: 'CURRENCY', billingCycle: 'BILLING_CYCLE',
   projectStatus: 'PROJECT_STATUS', projectDocument: 'PROJECT_DOCUMENT',
   companyDocCategory: 'COMPANY_DOCUMENT_CATEGORY', department: 'DEPARTMENT',
-  projectCategory: 'PROJECT_CATEGORY', taskSourceType: 'TASK_SOURCE_TYPE',
+  taskSourceType: 'TASK_SOURCE_TYPE',
   serverRole: 'SERVER_ROLE',
 };
 const LK_VALUE = {             // 'label' = stored as display label; 'code' = stored as code
   companies: 'label', systems: 'label', natural: 'label',
   timeType: 'code', status: 'code', currency: 'code', billingCycle: 'code',
   projectStatus: 'code', projectDocument: 'code', companyDocCategory: 'code',
-  department: 'label', projectCategory: 'code', taskSourceType: 'code',
+  department: 'label', taskSourceType: 'code',
   serverRole: 'code',
 };
 
@@ -4187,7 +4223,6 @@ let _undoProjectTimer = null;
 let linkableTasks    = [];   // picker source: unlinked Task[]
 let pCompaniesPicker = null;     // tag-picker handles for the project modal
 let pSystemsPicker   = null;
-let pRelatedProjectPicker = null; // search-select handle for the related-project field (CR/Annual Support only)
 let projectIndex     = [];       // lightweight [{id,name,status}] for the Timesheet/Project task Project field
 let fProjectPicker   = null;     // search-select handle in the timesheet record modal
 let bProjectPicker   = null;     // search-select handle in the project task modal
@@ -4742,18 +4777,18 @@ function buildTaskSearchSelect(host, tasks, initialId, placeholder, onChange) {
 // The tabs edit a working copy of the catalog (lookupsDraft, keyed by category).
 // Existing entries are relabeled / reordered / soft-disabled in place; new entries
 // get a server-generated stable code on save. Codes are never edited or deleted.
-const SETTINGS_TABS = ['companies', 'systems', 'natural', 'timeType', 'status', 'projectStatus', 'projectCategory', 'projectDocument', 'companyDocCategory', 'department', 'taskSourceType', 'serverRole'];
+const SETTINGS_TABS = ['companies', 'systems', 'natural', 'timeType', 'status', 'projectStatus', 'projectDocument', 'companyDocCategory', 'department', 'taskSourceType', 'serverRole'];
 
 // Settings is a nav page (not a modal): switchModule('settings') calls this to
 // (re)load a working copy of the catalog and render the editors fresh each visit.
 async function initSettingsModule() {
   lookupsDraft = JSON.parse(JSON.stringify(LK.categories || {}));
   if (_currentUser?.isAdmin) SETTINGS_TABS.forEach(renderLookupPanel);
-  document.getElementById('setting-default-name').value = LK.defaultName || '';
   document.querySelectorAll('#setting-startonlastpage-ctl .seg-btn').forEach(b =>
     b.classList.toggle('active', (b.dataset.val === 'last') === !!uiState.startOnLastPage));
   const activeTab = document.querySelector('#module-settings .stab.active')?.dataset.tab || 'general';
   syncSettingsSaveButton(activeTab);
+  if (activeTab === 'users') renderUserManagement();
   try {
     const status = await window.api.getCredentialEncryptionStatus();
     document.getElementById('credential-encryption-banner').style.display = status.available ? 'none' : '';
@@ -4782,7 +4817,7 @@ async function saveSettings() {
       .map((o, i) => ({ id: o.id ?? null, code: o.code, label: String(o.label || '').trim(), sortOrder: i, isActive: o.isActive !== false }))
       .filter(o => o.label);
   }
-  const payload = { defaultName: document.getElementById('setting-default-name').value.trim() };
+  const payload = {};
   if (_currentUser?.isAdmin) payload.categories = categories;
   try {
     await window.api.saveLookups(payload);
@@ -4800,32 +4835,99 @@ async function saveSettings() {
   toast('Settings saved');
 }
 
-async function changeOwnPassword() {
-  const current = document.getElementById('account-current-password');
-  const next = document.getElementById('account-new-password');
-  const confirm = document.getElementById('account-confirm-password');
-  const status = document.getElementById('account-password-status');
-  status.textContent = '';
-  if (next.value !== confirm.value) { status.textContent = 'New passwords do not match.'; confirm.focus(); return; }
-  let result;
-  try { result = await window.api.authChangePassword(current.value, next.value); }
-  catch { result = { ok: false, error: 'Could not change the password.' }; }
-  status.textContent = result?.ok ? 'Password changed.' : (result?.error || 'Could not change the password.');
-  if (result?.ok) { current.value = ''; next.value = ''; confirm.value = ''; }
+let managedUsers = [];
+let managedUserId = null; // null means create mode
+
+async function renderUserManagement() {
+  const host = document.getElementById('user-list');
+  if (!host) return;
+  host.innerHTML = '<div class="maint-empty">Loading users…</div>';
+  try { managedUsers = await window.api.authListUsers(); }
+  catch { managedUsers = []; host.innerHTML = '<div class="maint-empty">Could not load users.</div>'; return; }
+  host.innerHTML = '';
+  managedUsers.forEach(user => {
+    const card = pjMk('div', 'user-card' + (user.isActive ? '' : ' inactive'));
+    card.appendChild(pjMk('div', 'user-card-avatar', Array.from(user.username || '?')[0]?.toUpperCase() || '?'));
+    const main = pjMk('div', 'user-card-main');
+    const name = pjMk('div', 'user-card-name', user.username + (user.isCurrent ? ' (you)' : ''));
+    name.title = user.username;
+    main.appendChild(name);
+    const meta = pjMk('div', 'user-card-meta');
+    meta.appendChild(pjMk('span', 'user-role-badge', user.isAdmin ? 'Administrator' : 'Standard User'));
+    meta.appendChild(pjMk('span', 'user-status-badge' + (user.isActive ? '' : ' inactive'), user.isActive ? 'Active' : 'Inactive'));
+    if (user.createdAt) meta.appendChild(document.createTextNode('Created ' + new Date(user.createdAt).toLocaleDateString()));
+    main.appendChild(meta);
+    card.appendChild(main);
+    const edit = pjMk('button', 'btn', 'Edit');
+    edit.type = 'button'; edit.addEventListener('click', () => openUserEditor(user.id));
+    card.appendChild(edit);
+    host.appendChild(card);
+  });
+  if (!managedUsers.length) host.innerHTML = '<div class="maint-empty">No users found.</div>';
+  const addBtn = document.getElementById('user-add-btn');
+  if (addBtn) addBtn.hidden = !_currentUser?.isAdmin;
 }
 
-async function addAccount() {
-  const username = document.getElementById('new-account-username');
-  const password = document.getElementById('new-account-password');
-  const confirm = document.getElementById('new-account-confirm');
-  const status = document.getElementById('new-account-status');
+function openUserEditor(id = null) {
+  const user = id == null ? null : managedUsers.find(item => item.id === Number(id));
+  if (id != null && !user) return;
+  managedUserId = user?.id ?? null;
+  const creating = !user;
+  const isSelf = !!user?.isCurrent;
+  document.getElementById('user-editor-title').textContent = creating ? 'Add User' : 'Edit User';
+  document.getElementById('user-edit-username').value = user?.username || '';
+  document.getElementById('user-edit-role').value = user?.isAdmin ? 'admin' : 'standard';
+  const active = document.getElementById('user-edit-active');
+  active.checked = creating || !!user?.isActive;
+  active.disabled = isSelf;
+  document.querySelectorAll('#user-editor .user-admin-control').forEach(el => { el.hidden = !_currentUser?.isAdmin; });
+  document.getElementById('user-current-password-field').hidden = !isSelf;
+  document.getElementById('user-edit-password-label').textContent = creating ? 'Temporary password' : 'New password (optional)';
+  ['user-edit-current-password', 'user-edit-password', 'user-edit-confirm'].forEach(key => { document.getElementById(key).value = ''; });
+  document.getElementById('user-form-status').textContent = '';
+  document.getElementById('user-save-btn').textContent = creating ? 'Create User' : 'Save User';
+  document.getElementById('user-editor').hidden = false;
+  document.getElementById('user-edit-username').focus();
+}
+
+function closeUserEditor() {
+  managedUserId = null;
+  document.getElementById('user-editor').hidden = true;
+  document.getElementById('user-form-status').textContent = '';
+}
+
+async function saveManagedUser() {
+  const status = document.getElementById('user-form-status');
+  const saveBtn = document.getElementById('user-save-btn');
+  const username = document.getElementById('user-edit-username').value.trim();
+  const password = document.getElementById('user-edit-password').value;
+  const confirm = document.getElementById('user-edit-confirm').value;
+  const creating = managedUserId == null;
   status.textContent = '';
-  if (password.value !== confirm.value) { status.textContent = 'Passwords do not match.'; confirm.focus(); return; }
+  if (!username) { status.textContent = 'Username is required.'; document.getElementById('user-edit-username').focus(); return; }
+  if (creating && !password) { status.textContent = 'A temporary password is required.'; document.getElementById('user-edit-password').focus(); return; }
+  if (password !== confirm) { status.textContent = 'Passwords do not match.'; document.getElementById('user-edit-confirm').focus(); return; }
+  saveBtn.disabled = true;
   let result;
-  try { result = await window.api.authAddUser(username.value.trim(), password.value); }
-  catch { result = { ok: false, error: 'Could not create the account.' }; }
-  status.textContent = result?.ok ? `Account “${result.user.username}” created.` : (result?.error || 'Could not create the account.');
-  if (result?.ok) { username.value = ''; password.value = ''; confirm.value = ''; }
+  try {
+    if (creating) {
+      result = await window.api.authAddUser(username, password, document.getElementById('user-edit-role').value === 'admin');
+    } else {
+      result = await window.api.authUpdateUser(managedUserId, {
+        username,
+        isAdmin: document.getElementById('user-edit-role').value === 'admin',
+        isActive: document.getElementById('user-edit-active').checked,
+        currentPassword: document.getElementById('user-edit-current-password').value,
+        password,
+      });
+    }
+  } catch { result = { ok: false, error: 'Could not save the user.' }; }
+  saveBtn.disabled = false;
+  if (!result?.ok) { status.textContent = result?.error || 'Could not save the user.'; return; }
+  if (result.currentUser) await startApp(result.currentUser);
+  closeUserEditor();
+  await renderUserManagement();
+  toast(creating ? 'User created' : 'User updated');
 }
 
 // ══ MAINTENANCE TAB (Milestone 6) ═════════════════════════════════════════════
@@ -4988,20 +5090,24 @@ function switchTab(btn) {
   syncSettingsSaveButton(btn.dataset.tab);
   syncControlSemantics(document.getElementById('module-settings'));
   if (btn.dataset.tab === 'maintenance') renderMaintenanceTab();
+  if (btn.dataset.tab === 'users') renderUserManagement();
 }
 
 function syncSettingsSaveButton(tab) {
   const btn = document.getElementById('settings-save-btn');
   if (!btn) return;
-  btn.hidden = tab === 'maintenance';
-  btn.textContent = tab === 'general' ? 'Save General Settings' : 'Save Catalog Changes';
+  btn.hidden = tab === 'maintenance' || tab === 'general' || tab === 'users';
+  btn.textContent = 'Save Catalog Changes';
   document.getElementById('settings-save-status').textContent = '';
 }
 
 function filterSettingsTabs() {
   const q = (document.getElementById('settings-search')?.value || '').trim().toLowerCase();
   const tabs = [...document.querySelectorAll('#module-settings .stab')];
-  tabs.forEach(btn => { btn.hidden = !!q && !btn.textContent.toLowerCase().includes(q); });
+  tabs.forEach(btn => {
+    const permitted = _currentUser?.isAdmin || btn.dataset.tab === 'general' || btn.dataset.tab === 'users';
+    btn.hidden = !permitted || (!!q && !btn.textContent.toLowerCase().includes(q));
+  });
   document.querySelectorAll('#module-settings .settings-group-label').forEach(label => { label.hidden = !!q; });
   const active = document.querySelector('#module-settings .stab.active');
   if (active?.hidden) {
@@ -7818,51 +7924,11 @@ function greetWord() {
   return 'Good evening';
 }
 
-// Milestone 11 — the most common actions one click from launch, regardless
-// of which page "Start on" actually lands the user on: Log work (Add Record),
-// Continue the single most-recently-worked non-DONE task (same source/window
-// as the Continue-yesterday strip), and Full Backup.
-async function renderDashQuickActions() {
-  const host = document.getElementById('dash-quick-actions');
-  if (!host) return;
-  host.innerHTML = '';
-
-  const logBtn = document.createElement('button');
-  logBtn.type = 'button'; logBtn.className = 'dash-quick-btn';
-  logBtn.innerHTML = ic('plus') + 'Log work';
-  logBtn.addEventListener('click', () => openModal());
-  host.appendChild(logBtn);
-
-  let tasks = [];
-  try { tasks = await window.api.getTasksIndex(); } catch { tasks = []; }
-  if (!Array.isArray(tasks)) tasks = [];
-  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - TASK_PICKER_RECENT_DAYS);
-  const cutoffStr = fmt(cutoff);
-  const mostRecent = tasks
-    .filter(t => t.status !== 'DONE' && t.lastDate && t.lastDate >= cutoffStr)
-    .sort((a, b) => (b.lastDate || '').localeCompare(a.lastDate || ''))[0];
-  if (mostRecent) {
-    const contBtn = document.createElement('button');
-    contBtn.type = 'button'; contBtn.className = 'dash-quick-btn';
-    contBtn.innerHTML = ic('rotate-ccw') + 'Continue ' + esc(mostRecent.name || '(untitled task)');
-    contBtn.addEventListener('click', () => openSessionModal(null, { mode: 'create', task: mostRecent }));
-    host.appendChild(contBtn);
-  }
-
-  const backupBtn = document.createElement('button');
-  backupBtn.type = 'button'; backupBtn.className = 'dash-quick-btn';
-  backupBtn.innerHTML = ic('database') + 'Full Backup';
-  backupBtn.addEventListener('click', () => runFullBackup());
-  host.appendChild(backupBtn);
-}
-
 async function renderOverview() {
   const name = LK.defaultName ? LK.defaultName.split(' ')[0] : 'Moustafa';
   document.getElementById('dash-hello').textContent = `${greetWord()}, ${name}`;
   document.getElementById('dash-date').textContent =
     new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  renderDashQuickActions();
-
   // Today + month-to-date hours — aggregated in SQL (no day blobs shipped).
   if (!document.getElementById('dash-stats').childElementCount) showSkeleton('dash-stats', 'cards', 2);
   const now = new Date();
@@ -8065,7 +8131,7 @@ async function renderAnalytics() {
 
   const dayMin = an.dayMin, dayOtMin = an.dayOtMin;
   const byCompany = an.byCompany, bySystem = an.bySystem, byType = an.byType, byNatural = an.byNatural;
-  const byDepartment = an.byDepartment || {}, byProjectCategory = an.byProjectCategory || {};
+  const byDepartment = an.byDepartment || {};
   const totalMin = an.totalMin, recordCount = an.recordCount, activeDays = an.activeDays, doneCount = an.doneCount;
 
   const workMin = byType['WORK_TIME'] || 0;
@@ -8097,11 +8163,8 @@ async function renderAnalytics() {
   renderAnBars('an-company', byCompany, 'an-company-sub', 'companies');
   renderAnBars('an-system', bySystem, 'an-system-sub', 'systems');
 
-  // ── Bar charts: department (Milestone 4, cross-links into All Tasks, since
-  // Browse has no equivalent slice) + project category (plain, non-clickable —
-  // the Projects list it used to click into no longer exists as its own page) ──
+  // Department cross-links into All Tasks, since Browse has no equivalent slice.
   renderAnBars('an-department', byDepartment, 'an-department-sub', 'department');
-  renderAnBars('an-project-category', byProjectCategory, 'an-project-category-sub', null);
 
   // ── Daily hours + companion Over-Time trend ──
   // These follow the selected period so the charts reflect the searched range.
@@ -8182,9 +8245,6 @@ function anBarRow(label, value, max, display, color, linkKind) {
 // which has no Browse-slice equivalent (Browse only slices by company/
 // system). Resolves to All Tasks' department filter (by lookup id, not
 // label), that dimension's own existing filter UI, not a new one.
-// ("Hours by Project Category" used to click through to the standalone
-// Projects list's category filter; that page no longer exists as its own
-// entry point, so those bars are plain/non-clickable now — see renderAnBars.)
 function openAllTasksForDepartment(label) {
   const dept = lkFind('DEPARTMENT', label);
   atPresetFilter = { departmentId: dept ? dept.id : null };
@@ -8696,13 +8756,6 @@ function clearSubErrors()  { clearErrorsIn('#sub-modal'); }
 const PJ_STATUS_CLASS = { 'ACTIVE': 'active', 'ON_HOLD': 'on-hold', 'COMPLETED': 'completed' };
 function pjStatusLabel(s) { return lkLabel('PROJECT_STATUS', s) || (s || 'Active'); }
 function pjStatusClass(s) { return 'pj-status pj-status-' + (PJ_STATUS_CLASS[s] || 'active'); }
-// Category is a PROJECT_CATEGORY lookup code — required on every project since
-// migration 031. A category that requires a related-project reference (CR/Annual
-// Support) is distinguished from New Project, which never carries one.
-const PJ_CATEGORY_CLASS = { 'NEW_PROJECT': 'new', 'CR_EXISTING': 'cr', 'ANNUAL_SUPPORT': 'annual' };
-const PJ_CATEGORY_NEEDS_RELATED = new Set(['CR_EXISTING', 'ANNUAL_SUPPORT']);
-function pjCategoryLabel(c) { return lkLabel('PROJECT_CATEGORY', c) || ''; }
-function pjCategoryClass(c) { return 'pj-cat pj-cat-' + (PJ_CATEGORY_CLASS[c] || 'new'); }
 // Small DOM helper local to the Projects module (uniquely named to avoid clashes).
 function pjMk(tag, cls, text) {
   const e = document.createElement(tag);
@@ -8758,42 +8811,6 @@ function projectFieldOptions(currentId) {
   }
   return opts;
 }
-// Options for the Related Project field (CR/Annual-Support categories only):
-// active projects, excluding the project currently being edited (no self-link),
-// plus the currently-linked one if it is no longer active (mirrors projectFieldOptions).
-function relatedProjectFieldOptions(currentId, excludeProjectId) {
-  const opts = projectIndex
-    .filter(p => p.status === 'ACTIVE' && (excludeProjectId == null || p.id !== Number(excludeProjectId)))
-    .map(p => ({ id: p.id, label: p.name }));
-  if (currentId != null && currentId !== '' && !opts.some(o => o.id === Number(currentId))) {
-    const p = projectIndex.find(x => x.id === Number(currentId));
-    if (p) opts.push({ id: p.id, label: p.name + ' (' + pjStatusLabel(p.status).toLowerCase() + ')' });
-  }
-  return opts;
-}
-
-// Category select needs an unselected placeholder — category is required with no
-// implicit default, unlike Status which defaults to 'ACTIVE'.
-function populateProjectCategorySelect(currentVal) {
-  const el = document.getElementById('p-category');
-  el.innerHTML = '';
-  const placeholder = document.createElement('option');
-  placeholder.value = ''; placeholder.textContent = 'Select category…'; placeholder.disabled = true;
-  if (!currentVal) placeholder.selected = true;
-  el.appendChild(placeholder);
-  lkOptions('PROJECT_CATEGORY').forEach(opt => {
-    const o = document.createElement('option');
-    o.value = opt.code; o.textContent = opt.label;
-    if (opt.code === currentVal) o.selected = true;
-    el.appendChild(o);
-  });
-}
-// Toggles the Related Project field — only CR_EXISTING/ANNUAL_SUPPORT carry one.
-function onProjectCategoryChange() {
-  const needsRelated = PJ_CATEGORY_NEEDS_RELATED.has(document.getElementById('p-category').value);
-  document.getElementById('p-related-project-row').style.display = needsRelated ? '' : 'none';
-}
-
 // Build a compact pill naming the linked project (for a table row), or null.
 // The pill cross-links into the project's detail view.
 function projectRowTag(projectId) {
@@ -9329,13 +9346,11 @@ function buildProjectCard(p, onOpen) {
   const card = pjMk('div', 'pj-card pj-accent-' + (PJ_STATUS_CLASS[p.status] || 'active'));
   card.addEventListener('click', () => onOpen(p.id));
 
-  // Head — name + status pill + category badge (badges grouped so the flex
-  // space-between still only has two items: name, and the badge cluster)
+  // Head — name + status pill.
   const head = pjMk('div', 'pj-card-head');
   head.appendChild(pjMk('div', 'pj-card-name', p.name || 'Untitled project'));
   const badges = pjMk('div', 'pj-card-badges');
   badges.appendChild(pjMk('span', pjStatusClass(p.status), pjStatusLabel(p.status)));
-  if (p.category) badges.appendChild(pjMk('span', pjCategoryClass(p.category), pjCategoryLabel(p.category)));
   head.appendChild(badges);
   card.appendChild(head);
 
@@ -9344,7 +9359,6 @@ function buildProjectCard(p, onOpen) {
   const systemNames  = (p.systems || []).map(s => s.label).filter(Boolean);
   if (companyNames.length) card.appendChild(pjCardMetaRow('building-2', companyNames));
   if (systemNames.length)  card.appendChild(pjCardMetaRow('folder', systemNames));
-  if (p.relatedProjectId && p.relatedProjectName) card.appendChild(pjCardMetaRow('external-link', [p.relatedProjectName]));
 
   if (p.description) card.appendChild(pjMk('div', 'pj-card-desc', p.description));
 
@@ -9454,7 +9468,6 @@ function renderProjectDetail(p) {
   const title = pjMk('div', 'pj-detail-title');
   title.appendChild(document.createTextNode(p.name || 'Untitled project'));
   title.appendChild(pjMk('span', pjStatusClass(p.status), pjStatusLabel(p.status)));
-  if (p.category) title.appendChild(pjMk('span', pjCategoryClass(p.category), pjCategoryLabel(p.category)));
   titleWrap.appendChild(title);
   head.appendChild(titleWrap);
 
@@ -9500,14 +9513,6 @@ function renderProjectDetail(p) {
   grid.appendChild(pillField('Companies', p.companies, 'companies'));
   grid.appendChild(pillField('Systems', p.systems, 'systems'));
   grid.appendChild(field('Status', pjStatusLabel(p.status)));
-  grid.appendChild(field('Category', pjCategoryLabel(p.category)));
-  if (p.relatedProjectId && p.relatedProjectName) {
-    const relField = pjMk('div');
-    relField.appendChild(pjMk('div', 'pj-field-label', 'Related Project'));
-    const tag = projectRowTag(p.relatedProjectId);
-    relField.appendChild(tag || pjMk('div', 'pj-field-val', p.relatedProjectName));
-    grid.appendChild(relField);
-  }
   const descField = pjMk('div'); descField.style.gridColumn = '1 / -1';
   descField.appendChild(pjMk('div', 'pj-field-label', 'Description'));
   descField.appendChild(pjMk('div', 'pj-field-val', p.description || '—'));
@@ -9907,11 +9912,6 @@ function openProjectModal(id = null) {
     lkOptions('SYSTEM').map(o => ({ id: o.id, label: o.label })),
     (src?.systems || []).map(s => s.id), 'Search systems…');
   populateSelect('p-status', 'projectStatus', src?.status || 'ACTIVE');
-  populateProjectCategorySelect(src?.category || '');
-  pRelatedProjectPicker = buildSearchSelect(document.getElementById('p-related-project'),
-    relatedProjectFieldOptions(src?.relatedProjectId ?? null, src?.id ?? null),
-    src?.relatedProjectId ?? null, 'Search projects…');
-  onProjectCategoryChange();
   document.getElementById('p-description').value  = src?.description || '';
 
   clearErrorsIn('#project-modal');
@@ -9930,16 +9930,11 @@ async function submitProjectModal() {
   clearErrorsIn('#project-modal');
   const name = document.getElementById('p-name').value.trim();
   if (!name) { markError('p-name'); return; }
-  const category = document.getElementById('p-category').value;
-  if (!category) { markError('p-category'); return; }
-  const needsRelated = PJ_CATEGORY_NEEDS_RELATED.has(category);
   const data = {
     name,
     companyIds:  pCompaniesPicker ? pCompaniesPicker.getSelectedIds() : [],
     systemIds:   pSystemsPicker ? pSystemsPicker.getSelectedIds() : [],
     status:      document.getElementById('p-status').value || 'ACTIVE',
-    category,
-    relatedProjectId: needsRelated && pRelatedProjectPicker ? pRelatedProjectPicker.getSelectedId() : null,
     description: document.getElementById('p-description').value.trim(),
   };
 
@@ -10001,7 +9996,6 @@ async function undoDeleteProject() {
   try {
     const created = await window.api.createProject({
       name: snap.name, description: snap.description, status: snap.status,
-      category: snap.category, relatedProjectId: snap.relatedProjectId,
       systemIds: (snap.systems || []).map(s => s.id), companyIds: (snap.companies || []).map(c => c.id),
     });
     // Move the still-on-disk files onto the re-created project and re-record their
@@ -11316,7 +11310,7 @@ function renderClientDetailSections(c) {
       return co && co.id === c.id;
     });
     const shownProjects = projects.filter(p => textMatch(
-      [p.name, ...(p.systems || []).map(s => s.label), pjStatusLabel(p.status), pjCategoryLabel(p.category), p.description], q));
+      [p.name, ...(p.systems || []).map(s => s.label), pjStatusLabel(p.status), p.description], q));
     const pjSec = pjMk('div', 'pj-section');
     const pjHead = pjMk('div', 'pj-section-head');
     const pjTitle = pjMk('div', 'pj-section-title');
@@ -12420,10 +12414,10 @@ let _palSubscriptions = [];
 // with the human label each tab button already shows; jumping calls the
 // existing switchTab(btn) with that tab's real button element (not a fake one).
 const PAL_SETTINGS_TABS = [
-  { key: 'general', label: 'General' }, { key: 'companies', label: 'Companies' },
+  { key: 'general', label: 'General' }, { key: 'users', label: 'User Management' }, { key: 'companies', label: 'Companies' },
   { key: 'systems', label: 'Systems' }, { key: 'natural', label: 'Natural' },
   { key: 'timeType', label: 'Time Type' }, { key: 'status', label: 'Status' },
-  { key: 'projectStatus', label: 'Project Status' }, { key: 'projectCategory', label: 'Project Category' },
+  { key: 'projectStatus', label: 'Project Status' },
   { key: 'projectDocument', label: 'Project Documents' }, { key: 'companyDocCategory', label: 'Company Doc Categories' },
   { key: 'department', label: 'Department' }, { key: 'taskSourceType', label: 'Task Source Types' },
   { key: 'serverRole', label: 'Server Roles' },
@@ -12508,7 +12502,9 @@ function renderPalette() {
   if (acts.length) groups.push({ label: 'Actions', items: acts });
 
   // Settings tabs (jump straight to a lookup category editor)
-  const settingsTabs = q ? PAL_SETTINGS_TABS.filter(t => t.label.toLowerCase().includes(q) || ('settings ' + t.label.toLowerCase()).includes(q))
+  const settingsTabs = q ? PAL_SETTINGS_TABS
+    .filter(t => _currentUser?.isAdmin || t.key === 'general' || t.key === 'users')
+    .filter(t => t.label.toLowerCase().includes(q) || ('settings ' + t.label.toLowerCase()).includes(q))
     .map(t => ({
       icon: 'settings', label: 'Settings — ' + t.label, hint: 'Go to',
       run: () => { switchModule('settings'); const btn = document.querySelector('.stab[data-tab="' + t.key + '"]'); if (btn) switchTab(btn); },
@@ -12797,12 +12793,29 @@ async function submitAuth(e) {
 
 async function startApp(user) {
   _currentUser = user || null;
-  const su = document.getElementById('sidebar-user');
-  if (su) su.innerHTML = 'Signed in as <b>' + esc(user && user.username || '') + '</b>' +
-    (user?.isAdmin ? '<small>Administrator</small>' : '');
+  const username = user?.username || '';
+  const role = user?.isAdmin ? 'Administrator' : 'Standard User';
+  const userCard = document.getElementById('sidebar-user');
+  const usernameEl = document.getElementById('sidebar-username');
+  if (usernameEl) { usernameEl.textContent = username; usernameEl.title = username; }
+  const avatarEl = document.getElementById('sidebar-user-avatar');
+  if (avatarEl) avatarEl.textContent = Array.from(username.trim())[0]?.toUpperCase() || '?';
+  const roleEl = document.getElementById('sidebar-role');
+  if (roleEl) roleEl.textContent = role;
+  if (userCard) {
+    userCard.title = username + ' — ' + role;
+    userCard.setAttribute('aria-label', 'Signed in as ' + username + ', ' + role);
+  }
+  const versionEl = document.getElementById('app-version');
+  if (versionEl) {
+    try {
+      const version = await window.api.appVersion();
+      versionEl.textContent = version ? 'Cooperation Tools v' + version : '';
+    } catch { versionEl.textContent = ''; }
+  }
   document.querySelectorAll('.admin-only').forEach(el => { el.hidden = !user?.isAdmin; });
   document.querySelectorAll('.settings-tabs .stab').forEach(el => {
-    if (el.dataset.tab !== 'general') el.hidden = !user?.isAdmin;
+    if (el.dataset.tab !== 'general' && el.dataset.tab !== 'users') el.hidden = !user?.isAdmin;
   });
   if (_appBooted) return;
   _appBooted = true;

@@ -25,7 +25,7 @@ const fs   = require('node:fs');
 // table under one of these category discriminators. The renderer fetches options
 // per-category and stores a stable `code` (logic fields) or display `label`
 // (company/system/activity) — never a hardcoded string.
-const LOOKUP_CATEGORIES = ['COMPANY', 'SYSTEM', 'ACTIVITY_TYPE', 'TIME_TYPE', 'ENTRY_STATUS', 'CURRENCY', 'BILLING_CYCLE', 'PROJECT_STATUS', 'PROJECT_DOCUMENT', 'COMPANY_DOCUMENT_CATEGORY', 'DEPARTMENT', 'PROJECT_CATEGORY', 'TASK_SOURCE_TYPE', 'SERVER_ROLE'];
+const LOOKUP_CATEGORIES = ['COMPANY', 'SYSTEM', 'ACTIVITY_TYPE', 'TIME_TYPE', 'ENTRY_STATUS', 'CURRENCY', 'BILLING_CYCLE', 'PROJECT_STATUS', 'PROJECT_DOCUMENT', 'COMPANY_DOCUMENT_CATEGORY', 'DEPARTMENT', 'TASK_SOURCE_TYPE', 'SERVER_ROLE'];
 
 let db;          // DatabaseSync instance
 let userDataDir; // resolved userData folder (backups, db file)
@@ -171,7 +171,8 @@ function openConnection(dir) {
 // recorded in `schema_migrations` once applied. By default a migration runs
 // inside a single transaction; a migration may set `manualTransaction: true` to
 // manage its own transaction/PRAGMA sequencing (needed for table rebuilds where
-// `PRAGMA foreign_keys` must toggle outside a transaction).
+// `PRAGMA foreign_keys` must toggle outside a transaction). A migration marked
+// `destructive: true` receives a full snapshot before it runs on an existing DB.
 function applyMigrations() {
   db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
              version    INTEGER PRIMARY KEY,
@@ -195,6 +196,12 @@ function applyMigrations() {
 
   for (const m of migrations) {
     if (applied.has(m.version)) continue;
+    if (m.destructive && !dbWasNew) {
+      const dir = path.join(userDataDir, 'pre-migration-backup');
+      fs.mkdirSync(dir, { recursive: true });
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      backup(path.join(dir, `cooperation-tools-PRE-MIGRATION-${m.version}-${stamp}.db`));
+    }
     const run = () => { m.up(db); record.run(m.version, m.name, new Date().toISOString()); };
     if (m.manualTransaction) run();   // migration owns its own tx/PRAGMA sequencing
     else tx(run);
@@ -338,6 +345,23 @@ function getUserById(id) {
   ).get(id) || null;
 }
 
+function listUsers() {
+  return db.prepare(
+    `SELECT id, username, created_at AS createdAt, is_active AS isActive, is_admin AS isAdmin
+       FROM users
+      WHERE username != '__unclaimed__'
+      ORDER BY is_active DESC, LOWER(username), id`
+  ).all().map(row => ({
+    ...row,
+    isActive: !!row.isActive,
+    isAdmin: !!row.isAdmin,
+  }));
+}
+
+function countActiveAdmins() {
+  return db.prepare('SELECT COUNT(*) AS n FROM users WHERE is_active = 1 AND is_admin = 1').get().n;
+}
+
 // Insert a new account and return its generated id. Caller supplies an already
 // hashed password. Throws on a duplicate username (UNIQUE constraint).
 function createUser(username, passwordHash, isAdmin = false) {
@@ -350,6 +374,21 @@ function createUser(username, passwordHash, isAdmin = false) {
 function updateUserPassword(id, passwordHash) {
   return db.prepare('UPDATE users SET password_hash = ? WHERE id = ? AND is_active = 1')
     .run(passwordHash, id).changes > 0;
+}
+
+function updateUserAccount(id, data) {
+  const current = getUserById(id);
+  if (!current || current.username === '__unclaimed__') return false;
+  const passwordHash = data?.passwordHash || current.password_hash;
+  return db.prepare(
+    'UPDATE users SET username = ?, is_admin = ?, is_active = ?, password_hash = ? WHERE id = ?'
+  ).run(
+    data?.username ?? current.username,
+    data?.isAdmin == null ? current.is_admin : (data.isAdmin ? 1 : 0),
+    data?.isActive == null ? current.is_active : (data.isActive ? 1 : 0),
+    passwordHash,
+    id
+  ).changes > 0;
 }
 
 // ── Tasks + work logs (renderer sees the legacy "day rows" shape) ─────────────
@@ -553,12 +592,8 @@ function getAnalytics(userId, from, to, spanFrom, spanTo) {
   const byNatural = mapOf(`SELECT lc.label AS k, SUM(wl.minutes) AS v ${FROM} JOIN lookup_codes lc ON lc.id = wl.activity_type_id ${WHERE} AND wl.minutes > 0 GROUP BY lc.label`);
   // time-type keyed by stable CODE; unset time_type buckets under 'OTHER'.
   const byType    = mapOf(`SELECT COALESCE(lc.code, 'OTHER') AS k, SUM(wl.minutes) AS v ${FROM} LEFT JOIN lookup_codes lc ON lc.id = wl.time_type_id ${WHERE} AND wl.minutes > 0 GROUP BY k`);
-  // Milestone 4 — department (tasks.department_id, keyed by label) and project
-  // category (projects.category_id via tasks.project_id, keyed by label) dimensions.
+  // Department is keyed by its display label (INNER JOIN drops unset FKs).
   const byDepartment = mapOf(`SELECT lc.label AS k, COALESCE(SUM(wl.minutes),0) AS v ${FROM} JOIN lookup_codes lc ON lc.id = t.department_id ${WHERE} GROUP BY lc.label`);
-  const byProjectCategory = mapOf(
-    `SELECT lc.label AS k, COALESCE(SUM(wl.minutes),0) AS v ${FROM} JOIN projects p ON p.id = t.project_id JOIN lookup_codes lc ON lc.id = p.category_id ${WHERE} GROUP BY lc.label`
-  );
 
   const perDay = (otOnly) => {
     const m = {};
@@ -572,7 +607,7 @@ function getAnalytics(userId, from, to, spanFrom, spanTo) {
 
   return {
     totalMin: totals.totalMin, recordCount: totals.recordCount, doneCount: totals.doneCount || 0,
-    activeDays, byCompany, bySystem, byNatural, byType, byDepartment, byProjectCategory,
+    activeDays, byCompany, bySystem, byNatural, byType, byDepartment,
     dayMin: perDay(false), dayOtMin: perDay(true),
   };
 }
@@ -759,14 +794,8 @@ function saveSubscriptions(userId, data) {
 // backlog tasks — via a nullable project_id FK. A project also references one or
 // more COMPANY lookup codes (its
 // clients, via the project_companies junction), one or more SYSTEM lookups (via
-// the project_systems junction), and a PROJECT_STATUS lookup code (status). Since
-// migration 031, a project also carries a required PROJECT_CATEGORY lookup code
-// (category_id — New Project / CR on Existing Project / Project Annual Support,
-// round-tripped as its code like status, since the UI branches on it) and an
-// optional self-referencing related_project_id (only meaningful for the CR/Annual
-// Support categories — the project this one is a change request against or is
-// providing annual support for). Every query is scoped to the authenticated owner
-// (`userId`). The tracked document types are driven by the PROJECT_DOCUMENT lookup
+// the project_systems junction), and a PROJECT_STATUS lookup code (status). Every
+// query is scoped to the authenticated owner (`userId`). The tracked document types are driven by the PROJECT_DOCUMENT lookup
 // category (manageable in Settings); a project_documents row stores availability
 // keyed by the document's stable lookup code, created lazily on first toggle.
 const DEFAULT_PROJECT_STATUS = 'ACTIVE';
@@ -830,21 +859,10 @@ function ownedProjectId(userId, projectId) {
   return ownsProject(userId, Number(projectId)) ? Number(projectId) : null;
 }
 
-// Validate a CR/Annual-Support project's optional back-reference to the project
-// it relates to: must belong to the user and cannot point at itself (excludeId is
-// the project being written, or null on create where self-reference is moot).
-function resolveRelatedProjectId(userId, relatedProjectId, excludeId = null) {
-  if (relatedProjectId == null) return null;
-  const rid = Number(relatedProjectId);
-  if (!Number.isInteger(rid) || (excludeId != null && rid === Number(excludeId))) return null;
-  return ownedProjectId(userId, rid);
-}
-
 // Validate a Sub-Project's parent link (migration 035): must belong to the user,
 // cannot point at itself, and — nesting is capped at one level deep — the parent
 // itself must be a top-level project (its own parent_project_id must be NULL), so
-// a sub-project can never itself gain sub-projects. App-layer only, mirroring
-// resolveRelatedProjectId (no DB-level check beyond the plain FK).
+// a sub-project can never itself gain sub-projects. App-layer only.
 function resolveParentProjectId(userId, parentProjectId, excludeId = null) {
   if (parentProjectId == null) return null;
   const pid = Number(parentProjectId);
@@ -925,12 +943,10 @@ function createProject(userId, data) {
   let id;
   tx(() => {
     id = Number(db.prepare(
-      `INSERT INTO projects(user_id, name, description, status, category_id, related_project_id, parent_project_id, created_at, updated_at)
-       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO projects(user_id, name, description, status, parent_project_id, created_at, updated_at)
+       VALUES(?, ?, ?, ?, ?, ?, ?)`
     ).run(userId, data?.name ?? '', data?.description ?? '',
           data?.status || DEFAULT_PROJECT_STATUS,
-          lkId('PROJECT_CATEGORY', data?.category),
-          resolveRelatedProjectId(userId, data?.relatedProjectId),
           resolveParentProjectId(userId, data?.parentProjectId),
           now, now).lastInsertRowid);
     setProjectCompanies(id, data?.companyIds);
@@ -948,8 +964,6 @@ function createProject(userId, data) {
 function listProjects(userId) {
   return db.prepare(
     `SELECT p.id, p.name, p.description, p.status,
-            p.category_id AS categoryId, p.related_project_id AS relatedProjectId,
-            (SELECT name FROM projects rp WHERE rp.id = p.related_project_id) AS relatedProjectName,
             p.created_at AS createdAt,
             (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id) AS taskCount,
             (SELECT COUNT(*) FROM projects sp WHERE sp.parent_project_id = p.id) AS subProjectCount,
@@ -957,9 +971,8 @@ function listProjects(userId) {
        FROM projects p
       WHERE p.user_id = ? AND p.parent_project_id IS NULL
       ORDER BY p.created_at DESC, p.id DESC`
-  ).all(userId).map(({ categoryId, ...p }) => ({
+  ).all(userId).map(p => ({
     ...p,
-    category: lkCode(categoryId),
     companies: projectCompanies(p.id),
     systems: projectSystems(p.id),
   }));
@@ -975,16 +988,13 @@ function listProjects(userId) {
 function getProject(userId, id) {
   const row = db.prepare(
     `SELECT p.id, p.name, p.description, p.status,
-            p.category_id AS categoryId, p.related_project_id AS relatedProjectId,
-            (SELECT name FROM projects rp WHERE rp.id = p.related_project_id) AS relatedProjectName,
             p.parent_project_id AS parentProjectId,
             (SELECT name FROM projects pp WHERE pp.id = p.parent_project_id) AS parentProjectName,
             p.created_at AS createdAt
        FROM projects p WHERE p.id = ? AND p.user_id = ?`
   ).get(id, userId);
   if (!row) return null;
-  const { categoryId, ...p } = row;
-  p.category = lkCode(categoryId);
+  const p = row;
 
   const tasks = projectTasks(userId, id);
 
@@ -1041,15 +1051,19 @@ function projectTasks(userId, projectId) {
 // the refreshed project, or null if the caller doesn't own it.
 function updateProject(userId, id, data) {
   if (!ownsProject(userId, id)) return null;
+  const current = db.prepare(
+    'SELECT parent_project_id FROM projects WHERE id = ? AND user_id = ?'
+  ).get(id, userId);
+  const parentProjectId = Object.prototype.hasOwnProperty.call(data || {}, 'parentProjectId')
+    ? resolveParentProjectId(userId, data.parentProjectId, id)
+    : current.parent_project_id;
   tx(() => {
     db.prepare(
-      `UPDATE projects SET name = ?, description = ?, status = ?, category_id = ?, related_project_id = ?, parent_project_id = ?, updated_at = ?
+      `UPDATE projects SET name = ?, description = ?, status = ?, parent_project_id = ?, updated_at = ?
         WHERE id = ? AND user_id = ?`
     ).run(data?.name ?? '', data?.description ?? '',
           data?.status || DEFAULT_PROJECT_STATUS,
-          lkId('PROJECT_CATEGORY', data?.category),
-          resolveRelatedProjectId(userId, data?.relatedProjectId, id),
-          resolveParentProjectId(userId, data?.parentProjectId, id),
+          parentProjectId,
           new Date().toISOString(), id, userId);
     setProjectCompanies(id, data?.companyIds);
     setProjectSystems(userId, id, data?.systemIds);
@@ -2776,7 +2790,7 @@ function clientVpnToApi(r) {
 }
 // The identity triple's two lookup-backed parts follow their category's own
 // round-trip convention: `role` as the SERVER_ROLE **code** (a logic field, like
-// status/projectCategory) and `systemName` as the SYSTEM **label** (a display
+// status) and `systemName` as the SYSTEM **label** (a display
 // field, like company/system everywhere else — which also keeps the renderer's
 // label-based System grouping working unchanged). `roleActive`/`systemActive`
 // false marks one of migration 038/039's nullN placeholders: still the row's
@@ -3206,7 +3220,8 @@ module.exports = {
   openConnection, applyMigrations, runMaintenance,
   close, backup, dbPath,
   projectsRootDir, projectDir,
-  countUsers, getUserByUsername, getUserById, createUser, updateUserPassword, getUnclaimedUser, claimUser,
+  countUsers, getUserByUsername, getUserById, listUsers, countActiveAdmins,
+  createUser, updateUserPassword, updateUserAccount, getUnclaimedUser, claimUser,
   listDays, loadDaysRange,
   listCompanies, listSystems, companyEntries, systemEntries, getFilteredWorkLogs,
   getAnalytics, getOverviewStats, getAttentionItems,

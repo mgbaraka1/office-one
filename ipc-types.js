@@ -270,9 +270,6 @@
  * @property {ProjectCompany[]} companies  Linked client companies (COMPANY lookups).
  * @property {ProjectSystem[]} systems     Linked systems (SYSTEM lookups, many-to-many).
  * @property {string} status               A PROJECT_STATUS lookup code (e.g. 'ACTIVE').
- * @property {string} category             A PROJECT_CATEGORY lookup code ('NEW_PROJECT'|'CR_EXISTING'|'ANNUAL_SUPPORT').
- * @property {number|null} relatedProjectId    Set only for CR_EXISTING/ANNUAL_SUPPORT — the project this one relates to.
- * @property {string|null} relatedProjectName  Display name of relatedProjectId, resolved server-side.
  * @property {string} createdAt
  * @property {number} taskCount            Number of tasks linked to the project.
  * @property {number} subProjectCount      Retired (migration 035's Sub-Projects) — always 0 now, no UI ever creates one.
@@ -300,9 +297,6 @@
  * @property {ProjectCompany[]} companies  Linked client companies (COMPANY lookups).
  * @property {ProjectSystem[]} systems     Linked systems (SYSTEM lookups, many-to-many).
  * @property {string} status               A PROJECT_STATUS lookup code (e.g. 'ACTIVE').
- * @property {string} category             A PROJECT_CATEGORY lookup code ('NEW_PROJECT'|'CR_EXISTING'|'ANNUAL_SUPPORT').
- * @property {number|null} relatedProjectId    Set only for CR_EXISTING/ANNUAL_SUPPORT — the project this one relates to.
- * @property {string|null} relatedProjectName  Display name of relatedProjectId, resolved server-side.
  * @property {number|null} parentProjectId     Retired (migration 035's Sub-Projects) — always null now, no UI ever sets it.
  * @property {string|null} parentProjectName   Retired alongside parentProjectId — always null now.
  * @property {string} createdAt
@@ -318,8 +312,6 @@
  * @property {number[]} companyIds   COMPANY lookup ids to link (replaces existing).
  * @property {number[]} systemIds    SYSTEM lookup ids to link (replaces existing).
  * @property {string} status         A PROJECT_STATUS lookup code.
- * @property {string} category         A PROJECT_CATEGORY lookup code — required.
- * @property {number|null} relatedProjectId  Optional; only meaningful for CR_EXISTING/ANNUAL_SUPPORT.
  */
 
 /**
@@ -568,7 +560,6 @@
  * @property {Object<string,number>} byNatural
  * @property {Object<string,number>} byType
  * @property {Object<string,number>} byDepartment       DEPARTMENT lookup label → minutes (Milestone 4)
- * @property {Object<string,number>} byProjectCategory  PROJECT_CATEGORY lookup label → minutes (Milestone 4)
  * @property {Object<string,number>} dayMin     date → total minutes
  * @property {Object<string,number>} dayOtMin   date → over-time minutes
  */
@@ -596,10 +587,22 @@
  */
 
 /**
+ * Safe account-management projection; password hashes never leave the main process.
+ * @typedef {Object} ManagedUser
+ * @property {number} id
+ * @property {string} username
+ * @property {boolean} isAdmin
+ * @property {boolean} isActive
+ * @property {boolean} isCurrent
+ * @property {string} createdAt
+ */
+
+/**
  * @typedef {Object} AuthResult
  * @property {boolean} ok
  * @property {string} [error]      Present when ok is false.
  * @property {AuthUser} [user]     Present when ok is true.
+ * @property {AuthUser} [currentUser] Updated session identity after editing the signed-in account.
  */
 
 /**
