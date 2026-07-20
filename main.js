@@ -96,11 +96,9 @@ ipcMain.handle('auth:status',      trusted(()                     => auth.status
 ipcMain.handle('auth:setup',       trusted((_e, username, pass)   => auth.setup(username, pass)));
 ipcMain.handle('auth:login',       trusted((_e, username, pass)   => auth.login(username, pass)));
 ipcMain.handle('auth:logout',      trusted(()                     => auth.logout()));
-ipcMain.handle('auth:currentUser', trusted(()                     => auth.currentUser()));
 ipcMain.handle('auth:listUsers',   authed(()                            => auth.listUsers()));
 ipcMain.handle('auth:addUser',     admin((_e, username, pass, isAdmin) => auth.addUser(username, pass, isAdmin)));
 ipcMain.handle('auth:updateUser',  authed((_e, id, data)               => auth.updateUser(id, data)));
-ipcMain.handle('auth:changePassword', authed((_e, currentPass, newPass) => auth.changePassword(currentPass, newPass)));
 
 // ── App metadata (read-only) ──
 // Resolve this from Electron/package.json at runtime so the renderer never has
@@ -127,8 +125,6 @@ ipcMain.handle('attention:list', authed(() => db.getAttentionItems(auth.requireU
 
 // ── Lookups (normalized catalog — shared app config) ──
 ipcMain.handle('lookups:get',         authed(()                              => db.loadLookups(auth.requireUserId())));
-ipcMain.handle('lookups:getByCategory', authed((_e, category, includeInactive) =>
-  db.getLookupsByCategory(category, includeInactive, auth.requireUserId())));
 ipcMain.handle('lookups:save', authed((_e, data) => {
   const user = auth.currentUser();
   if (data?.categories && !user?.isAdmin) throw new Error('Administrator access required');
@@ -155,7 +151,6 @@ ipcMain.handle('tasks:update', authed((_e, id, data) => db.updateTask(auth.requi
 ipcMain.handle('tasks:update-meta', authed((_e, id, data) => db.updateTaskMeta(auth.requireUserId(), id, data)));
 ipcMain.handle('tasks:delete', authed((_e, id)       => db.deleteTask(auth.requireUserId(), id)));
 ipcMain.handle('tasks:merge',  authed((_e, sourceId, targetId) => db.mergeTasks(auth.requireUserId(), sourceId, targetId)));
-ipcMain.handle('tasks:field-history', authed((_e, id) => db.getTaskFieldHistory(auth.requireUserId(), id)));
 
 // ── Task Sources (structured source list — migration 033) ──
 ipcMain.handle('tasks:source-create', authed((_e, taskId, data) => db.createTaskSource(auth.requireUserId(), taskId, data)));
@@ -163,7 +158,6 @@ ipcMain.handle('tasks:source-update', authed((_e, id, data)     => db.updateTask
 ipcMain.handle('tasks:source-delete', authed((_e, id)           => db.deleteTaskSource(auth.requireUserId(), id)));
 
 // ── Work logs (v2 — dated work sessions belonging to a task) ──
-ipcMain.handle('worklogs:byTask', authed((_e, taskId)      => db.listWorkLogs(auth.requireUserId(), taskId)));
 ipcMain.handle('worklogs:byDate', authed((_e, date)        => db.logsForDate(auth.requireUserId(), date)));
 ipcMain.handle('worklogs:add',    authed((_e, taskId, data) => db.addWorkLog(auth.requireUserId(), taskId, data)));
 ipcMain.handle('worklogs:update', authed((_e, id, data)    => db.updateWorkLog(auth.requireUserId(), id, data)));
@@ -249,7 +243,6 @@ ipcMain.handle('projects:restore-files', authed((_e, oldId, newId, docs)  => db.
 
 // ── Company Documents (standalone card-per-document module) ──
 ipcMain.handle('companydocs:list',   authed(()             => db.listCompanyDocuments(auth.requireUserId())));
-ipcMain.handle('companydocs:get',    authed((_e, id)       => db.getCompanyDocument(auth.requireUserId(), id)));
 ipcMain.handle('companydocs:create', authed((_e, data)     => db.createCompanyDocument(auth.requireUserId(), data)));
 ipcMain.handle('companydocs:update', authed((_e, id, data) => db.updateCompanyDocument(auth.requireUserId(), id, data)));
 ipcMain.handle('companydocs:delete', authed((_e, id)       => db.deleteCompanyDocument(auth.requireUserId(), id)));
