@@ -74,7 +74,7 @@ Full backups are written outside the live data directory to a timestamped Deskto
 - `main.js` — Electron lifecycle, trusted/authenticated/admin IPC boundaries, dialogs, printing, and OS integration.
 - `auth.js` — bcrypt validation, login throttling, account administration, and the in-memory session.
 - `db.js` — SQLite connection, migrations, maintenance/backups, ownership-scoped CRUD, validation, and analytics.
-- `migrations/` — append-only migrations `000` through `041`; migration `040` adds administrators and per-user settings/UI state, and `041` adds the private-server System lookups.
+- `migrations/` — append-only migrations `000` through `042`; migration `042` removes the retired Project Category fields and lookup rows.
 - `preload.js` — the context-isolated `window.api` bridge.
 - `index.html` — the renderer UI.
 - `test/` — standalone smoke tests orchestrated by `test/run-all.js` against generated fixtures.

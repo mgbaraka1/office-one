@@ -13,14 +13,11 @@ contextBridge.exposeInMainWorld('api', {
   /** @returns {Promise<import('./ipc-types').AuthResult>} */
   authLogin:       (username, pass)   => ipcRenderer.invoke('auth:login', username, pass),
   authLogout:      ()                 => ipcRenderer.invoke('auth:logout'),
-  /** @returns {Promise<import('./ipc-types').AuthUser|null>} */
-  authCurrentUser: ()                 => ipcRenderer.invoke('auth:currentUser'),
   /** @returns {Promise<import('./ipc-types').ManagedUser[]>} */
   authListUsers:   ()                 => ipcRenderer.invoke('auth:listUsers'),
   authAddUser:     (username, pass, isAdmin = false) => ipcRenderer.invoke('auth:addUser', username, pass, isAdmin),
   /** @returns {Promise<import('./ipc-types').AuthResult>} */
   authUpdateUser:  (id, data)         => ipcRenderer.invoke('auth:updateUser', id, data),
-  authChangePassword: (currentPass, newPass) => ipcRenderer.invoke('auth:changePassword', currentPass, newPass),
 
   // ── App metadata ──
   /** @returns {Promise<string>} */
@@ -56,8 +53,6 @@ contextBridge.exposeInMainWorld('api', {
   // ── Lookups (normalized catalog — shared app config) ──
   /** @returns {Promise<import('./ipc-types').Lookups>} */
   loadLookups:    ()              => ipcRenderer.invoke('lookups:get'),
-  /** @returns {Promise<import('./ipc-types').LookupOption[]>} */
-  getLookupsByCategory: (category, includeInactive) => ipcRenderer.invoke('lookups:getByCategory', category, includeInactive),
   saveLookups:    (data)          => ipcRenderer.invoke('lookups:save', data),
 
   // ── Subscriptions ──
@@ -84,8 +79,6 @@ contextBridge.exposeInMainWorld('api', {
   deleteTask:     (id)            => ipcRenderer.invoke('tasks:delete', id),
   /** Move every session from sourceId onto targetId, then delete sourceId. @returns {Promise<import('./ipc-types').TaskMergeResult>} */
   mergeTasks:     (sourceId, targetId) => ipcRenderer.invoke('tasks:merge', sourceId, targetId),
-  /** Read-only, newest first. @returns {Promise<import('./ipc-types').TaskFieldHistoryEntry[]>} */
-  getTaskFieldHistory: (id)       => ipcRenderer.invoke('tasks:field-history', id),
 
   // ── Task Sources (structured source list — a task can carry any number) ──
   /** @returns {Promise<import('./ipc-types').TaskSource|null>} */
@@ -96,8 +89,6 @@ contextBridge.exposeInMainWorld('api', {
   deleteTaskSource: (id)           => ipcRenderer.invoke('tasks:source-delete', id),
 
   // ── Work logs (v2 — dated work sessions belonging to a task) ──
-  /** @returns {Promise<import('./ipc-types').WorkLog[]>} */
-  listWorkLogs:   (taskId)        => ipcRenderer.invoke('worklogs:byTask', taskId),
   /** @returns {Promise<import('./ipc-types').WorkLogOnDate[]>} */
   workLogsByDate: (date)          => ipcRenderer.invoke('worklogs:byDate', date),
   /** @returns {Promise<import('./ipc-types').WorkLogMutationResult>} */
@@ -143,9 +134,6 @@ contextBridge.exposeInMainWorld('api', {
   // ── Project document files (bytes on disk under userData) ──
   /** @returns {Promise<import('./ipc-types').DocFileResult>} */
   uploadProjectDocument:   (projectId, documentType) => ipcRenderer.invoke('projects:upload-document', projectId, documentType),
-  /** Replace = upload again; the prior file is removed server-side on conflict. */
-  /** @returns {Promise<import('./ipc-types').DocFileResult>} */
-  replaceProjectDocument:  (projectId, documentType) => ipcRenderer.invoke('projects:upload-document', projectId, documentType),
   /** @returns {Promise<import('./ipc-types').FileResult>} */
   downloadProjectDocument: (projectId, documentType) => ipcRenderer.invoke('projects:download-document', projectId, documentType),
   openProjectDocument:     (projectId, documentType) => ipcRenderer.invoke('projects:open-document', projectId, documentType),
@@ -159,8 +147,6 @@ contextBridge.exposeInMainWorld('api', {
   // ── Company Documents (standalone card-per-document module) ──
   /** @returns {Promise<import('./ipc-types').CompanyDocument[]>} */
   listCompanyDocuments:  ()          => ipcRenderer.invoke('companydocs:list'),
-  /** @returns {Promise<import('./ipc-types').CompanyDocument|null>} */
-  getCompanyDocument:    (id)        => ipcRenderer.invoke('companydocs:get', id),
   /** @returns {Promise<import('./ipc-types').CompanyDocument>} */
   createCompanyDocument: (data)      => ipcRenderer.invoke('companydocs:create', data),
   /** @returns {Promise<import('./ipc-types').CompanyDocument|null>} */
@@ -168,9 +154,6 @@ contextBridge.exposeInMainWorld('api', {
   deleteCompanyDocument: (id)        => ipcRenderer.invoke('companydocs:delete', id),
   /** @returns {Promise<import('./ipc-types').CompanyDocFileResult>} */
   uploadCompanyDocument:   (id) => ipcRenderer.invoke('companydocs:upload-document', id),
-  /** Replace = upload again; the prior file is removed server-side on conflict. */
-  /** @returns {Promise<import('./ipc-types').CompanyDocFileResult>} */
-  replaceCompanyDocument:  (id) => ipcRenderer.invoke('companydocs:upload-document', id),
   /** @returns {Promise<import('./ipc-types').FileResult>} */
   downloadCompanyDocument: (id) => ipcRenderer.invoke('companydocs:download-document', id),
   openCompanyDocument:     (id) => ipcRenderer.invoke('companydocs:open-document', id),
