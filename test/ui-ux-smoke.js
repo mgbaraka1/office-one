@@ -18,6 +18,17 @@ gate('responsive Timesheet forces grouped mode at narrow widths', html.includes(
 gate('session defaults are persisted in per-user UI state', html.includes('sessionDefaults: {}') && html.includes('rememberSessionDefaults(payload.time, payload.natural)'));
 gate('both session forms expose quick duration presets', count(/data-duration-for="(?:f|sm)-minutes"/g) === 2 && count(/class="duration-preset"/g) === 10);
 gate('Repeat Last is available from the Timesheet top bar', html.includes('id="btn-repeat-last"') && html.includes('function repeatLastSession()'));
+gate('Task Detail can add, edit, and remove structured sources inline',
+  html.includes('function renderTaskDetailSourcesEditor(task, host)')
+  && html.includes("addTaskSourceRow('td-sources-list')")
+  && html.includes("saveTaskSources(task.id, readTaskSourceRows('td-sources-list'), originalIds)"));
+gate('Edit Record is session-only and writes the work log directly',
+  html.includes('#modal.mode-edit .modal-taskfields { display: none !important; }')
+  && html.includes("modal.classList.add('mode-edit')")
+  && html.includes('if (merged.eid) await window.api.updateWorkLog(merged.eid, tsLogPayload(merged));'));
+gate('Daily Work Report titles tasks as COMPANY - PROJECT/SYSTEM - TASK without a duplicate prefix',
+  html.includes("const reportTaskTitle = [companyTitle, projectTitle, taskTitle].filter(Boolean).join(' - ')")
+  && html.includes('taskTitle.slice(existingPrefix.length)'));
 
 gate('primary action teal meets the intended high-contrast token', html.includes('--primary: #0f766e;'));
 gate('modal close buttons receive a generated accessible name', html.includes("el.classList.contains('modal-close') && !el.title") && html.includes("el.title = 'Close dialog'"));
