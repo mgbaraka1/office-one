@@ -2462,6 +2462,7 @@
     /* Page chrome becomes a floating command surface. */
     .page-header {
       min-height: 66px; padding: 13px 26px; gap: 12px;
+      position: relative; z-index: 50;
       background: color-mix(in srgb, var(--surface-1) 88%, transparent);
       border-bottom: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
       backdrop-filter: blur(18px) saturate(135%);
@@ -2469,7 +2470,7 @@
     }
     .page-title {
       margin-right: 9px; font-size: 17px; font-weight: 760; letter-spacing: -.35px;
-      position: relative; min-width: 162px; padding-bottom: 17px;
+      position: relative; min-width: 230px; padding-bottom: 17px;
     }
     .page-title::after {
       position: absolute; left: 34px; bottom: 0;
