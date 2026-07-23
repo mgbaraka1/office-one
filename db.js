@@ -19,6 +19,7 @@
 const { DatabaseSync } = require('node:sqlite');
 const path = require('node:path');
 const fs   = require('node:fs');
+const crypto = require('node:crypto');
 
 // ── Lookup catalog categories (see migration 003) ────────────────────────────
 // Every bounded category/type/status field is normalized into the `lookup_codes`
@@ -672,6 +673,49 @@ function getAttentionItems(userId) {
     if (i.expiry_date) items.push({ type: 'clientInternal', id: i.id, title: i.name || 'Internal System', date: i.expiry_date, module: 'clients', companyId: i.company_id });
   });
   return items;
+}
+
+// Compact cross-module activity stream for the Overview. Append-only task and
+// session histories provide precise changes; document-oriented modules
+// contribute their latest update. Credential values and article content never
+// enter this payload.
+function getRecentActivity(userId, requestedLimit = 16) {
+  const limit = Math.max(1, Math.min(50, Number(requestedLimit) || 16));
+  return db.prepare(
+    `SELECT kind, entityId, parentId, title, detail, changedAt, module FROM (
+       SELECT 'task' AS kind, h.task_id AS entityId, NULL AS parentId,
+              COALESCE(t.name, 'Deleted task #' || h.task_id) AS title,
+              h.field_name || ' changed' AS detail, h.changed_at AS changedAt, 'all-tasks' AS module
+         FROM task_field_history h
+         LEFT JOIN tasks t ON t.id = h.task_id AND t.user_id = h.user_id
+        WHERE h.user_id = ?
+       UNION ALL
+       SELECT 'session', h.work_log_id, wl.task_id,
+              COALESCE(t.name, 'Deleted session #' || h.work_log_id),
+              h.field_name || ' changed', h.changed_at, 'all-tasks'
+         FROM work_log_history h
+         LEFT JOIN work_logs wl ON wl.id = h.work_log_id AND wl.user_id = h.user_id
+         LEFT JOIN tasks t ON t.id = wl.task_id AND t.user_id = h.user_id
+        WHERE h.user_id = ?
+       UNION ALL
+       SELECT 'project', p.id, NULL, p.name, 'Project updated', p.updated_at, 'clients'
+         FROM projects p WHERE p.user_id = ?
+       UNION ALL
+       SELECT 'knowledge', k.id, NULL, k.title, 'Knowledge item updated', k.updated_at, 'knowledge'
+         FROM knowledge_items k WHERE k.user_id = ?
+       UNION ALL
+       SELECT 'company-document', d.id, NULL, d.name, 'Company document updated', d.updated_at, 'companydocs'
+         FROM company_documents d WHERE d.user_id = ?
+     ) ORDER BY changedAt DESC LIMIT ?`
+  ).all(userId, userId, userId, userId, userId, limit).map(row => ({
+    kind: row.kind,
+    id: row.entityId,
+    parentId: row.parentId ?? null,
+    title: row.title || '',
+    detail: row.detail || '',
+    changedAt: row.changedAt || '',
+    module: row.module,
+  }));
 }
 
 // ── Lookups (normalized catalog — shared app config, not per-user) ────────────
@@ -2242,15 +2286,37 @@ function nextWorkLogSort(taskId) {
 // rather than risking two SQL queries drifting out of sync over time.
 function getTasksIndex(userId) {
   const tasks = db.prepare(
-    `SELECT t.*,
-            (SELECT COUNT(*)                 FROM work_logs w WHERE w.task_id = t.id) AS logCount,
-            (SELECT COALESCE(SUM(w.minutes),0) FROM work_logs w WHERE w.task_id = t.id) AS totalMinutes,
-            (SELECT MIN(w.date)              FROM work_logs w WHERE w.task_id = t.id) AS firstDate,
-            (SELECT MAX(w.date)              FROM work_logs w WHERE w.task_id = t.id) AS lastDate
-            ${TASK_SOURCE_SUMMARY_COLS}
-       FROM tasks t WHERE t.user_id = ?
+    `WITH log_rollup AS (
+       SELECT task_id, COUNT(*) AS logCount, COALESCE(SUM(minutes), 0) AS totalMinutes,
+              MIN(date) AS firstDate, MAX(date) AS lastDate
+         FROM work_logs WHERE user_id = ? GROUP BY task_id
+     ),
+     ranked_sources AS (
+       SELECT ts.task_id, ts.source_ref, ts.source_url, lc.code AS source_type,
+              COUNT(*) OVER (PARTITION BY ts.task_id) AS source_count,
+              ROW_NUMBER() OVER (PARTITION BY ts.task_id ORDER BY ts.sort_order, ts.id) AS source_rank
+         FROM task_sources ts
+         LEFT JOIN lookup_codes lc ON lc.id = ts.source_type_id
+        WHERE ts.user_id = ?
+     ),
+     source_rollup AS (
+       SELECT task_id, MAX(source_count) AS source_count,
+              MAX(CASE WHEN source_rank = 1 THEN source_ref END) AS source_ref_first,
+              MAX(CASE WHEN source_rank = 1 THEN source_url END) AS source_url_first,
+              MAX(CASE WHEN source_rank = 1 THEN source_type END) AS source_type_first
+         FROM ranked_sources GROUP BY task_id
+     )
+     SELECT t.*, COALESCE(l.logCount, 0) AS logCount,
+            COALESCE(l.totalMinutes, 0) AS totalMinutes,
+            l.firstDate, l.lastDate,
+            COALESCE(s.source_count, 0) AS source_count,
+            s.source_ref_first, s.source_url_first, s.source_type_first
+       FROM tasks t
+       LEFT JOIN log_rollup l ON l.task_id = t.id
+       LEFT JOIN source_rollup s ON s.task_id = t.id
+      WHERE t.user_id = ?
       ORDER BY t.created_at DESC, t.id DESC`
-  ).all(userId);
+  ).all(userId, userId, userId);
   return tasks.map(t => taskToApi(t, {
     logCount: t.logCount, totalMinutes: t.totalMinutes, firstDate: t.firstDate, lastDate: t.lastDate,
     ...taskSourceSummaryFields(t),
@@ -2708,6 +2774,37 @@ function loadUiState(userId) {
   const v = row?.value;
   return v ? safeParse(v, {}) : {};
 }
+
+function workspaceSearchQuery(text) {
+  const tokens = String(text ?? '').normalize('NFKC').match(/[\p{L}\p{N}_-]+/gu) || [];
+  return tokens.slice(0, 12).map(token => `"${token.replaceAll('"', '""')}"*`).join(' AND ');
+}
+
+// Bounded, user-scoped search for the command palette. Blank queries return
+// recently touched items; nonblank queries use migration 046's FTS5 index.
+function searchWorkspace(userId, text, requestedLimit = 30) {
+  const limit = Math.max(1, Math.min(50, Number(requestedLimit) || 30));
+  const query = workspaceSearchQuery(text);
+  const rows = query
+    ? db.prepare(
+      `SELECT kind, entity_id AS id, title, subtitle, updated_at AS updatedAt, bm25(workspace_search) AS rank
+         FROM workspace_search
+        WHERE workspace_search MATCH ? AND user_id = ?
+        ORDER BY rank, updated_at DESC LIMIT ?`
+    ).all(query, Number(userId), limit)
+    : db.prepare(
+      `SELECT kind, entity_id AS id, title, subtitle, updated_at AS updatedAt, 0 AS rank
+         FROM workspace_search WHERE user_id = ?
+        ORDER BY updated_at DESC LIMIT ?`
+    ).all(Number(userId), limit);
+  return rows.map(row => ({
+    kind: row.kind,
+    id: /^\d+$/.test(String(row.id)) ? Number(row.id) : String(row.id),
+    title: row.title || '',
+    subtitle: row.subtitle || '',
+    updatedAt: row.updatedAt || '',
+  }));
+}
 function saveUiState(userId, state) {
   try {
     db.prepare(`INSERT INTO user_ui_state(user_id, value) VALUES(?, ?)
@@ -2865,6 +2962,103 @@ function copyDirRecursive(src, dest) {
   return { count, bytes, existed: true };
 }
 
+// Read-only recovery-readiness snapshot for administrators. This deliberately
+// combines database health, backup validation, attachment reachability, storage
+// headroom, and encryption portability in one place so a green integrity check
+// cannot be mistaken for a complete recovery plan.
+function getSystemDiagnostics() {
+  const integrity = checkIntegrity();
+  const backups = listBackups();
+  const backupResults = backups.map(item => ({
+    ...item,
+    ...validateBackupCandidate(path.join(userDataDir, 'backups', item.name)),
+  }));
+  const missingFiles = [];
+  let referencedFiles = 0;
+  for (const [table, column] of [
+    ['project_documents', 'file_path'],
+    ['company_documents', 'file_path'],
+    ['knowledge_attachments', 'file_path'],
+  ]) {
+    const rows = db.prepare(`SELECT id, ${column} AS filePath FROM "${table}" WHERE ${column} IS NOT NULL AND ${column} != ''`).all();
+    for (const row of rows) {
+      referencedFiles++;
+      try {
+        if (!fs.existsSync(resolveStoredPath(row.filePath))) missingFiles.push({ table, id: row.id, path: row.filePath });
+      } catch {
+        missingFiles.push({ table, id: row.id, path: row.filePath });
+      }
+    }
+  }
+  const fileSize = file => {
+    try { return fs.statSync(file).size; } catch { return 0; }
+  };
+  let freeBytes = null;
+  try { freeBytes = Number(fs.statfsSync(userDataDir).bavail) * Number(fs.statfsSync(userDataDir).bsize); } catch {}
+  const schemaHead = Number(db.prepare('SELECT MAX(version) AS v FROM schema_migrations').get()?.v || 0);
+  const searchRows = Number(db.prepare('SELECT COUNT(*) AS n FROM workspace_search').get()?.n || 0);
+  return {
+    generatedAt: new Date().toISOString(),
+    appVersion: getAppVersion() || '',
+    schemaHead,
+    sqliteVersion: db.prepare('SELECT sqlite_version() AS v').get().v,
+    journalMode: db.prepare('PRAGMA journal_mode').get().journal_mode,
+    foreignKeysEnabled: Number(db.prepare('PRAGMA foreign_keys').get().foreign_keys) === 1,
+    integrity,
+    dataDirectory: userDataDir,
+    databaseBytes: fileSize(dbPath()),
+    walBytes: fileSize(dbPath() + '-wal'),
+    freeBytes,
+    users: Number(db.prepare('SELECT COUNT(*) AS n FROM users').get().n),
+    workspaceSearchRows: searchRows,
+    referencedFiles,
+    missingFiles,
+    backups: {
+      count: backupResults.length,
+      validCount: backupResults.filter(item => item.ok).length,
+      latest: backupResults[0] || null,
+      invalid: backupResults.filter(item => !item.ok).map(item => ({ name: item.name, error: item.error })),
+    },
+    credentialEncryptionAvailable: isCredentialEncryptionAvailable(),
+    credentialPortability: 'Encrypted client passwords and secret keys are tied to the Windows account that created them.',
+  };
+}
+
+function sha256File(file) {
+  const hash = crypto.createHash('sha256');
+  const fd = fs.openSync(file, 'r');
+  const buffer = Buffer.allocUnsafe(1024 * 1024);
+  try {
+    let bytesRead;
+    while ((bytesRead = fs.readSync(fd, buffer, 0, buffer.length, null)) > 0) {
+      hash.update(buffer.subarray(0, bytesRead));
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+  return hash.digest('hex');
+}
+
+function buildBackupFileInventory(root) {
+  const files = [];
+  const walk = (dir) => {
+    for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, ent.name);
+      if (ent.isDirectory()) walk(abs);
+      else if (ent.isFile() && ent.name !== 'manifest.json') {
+        const stat = fs.statSync(abs);
+        files.push({
+          path: path.relative(root, abs).split(path.sep).join('/'),
+          size: stat.size,
+          sha256: sha256File(abs),
+        });
+      }
+    }
+  };
+  walk(root);
+  return files.sort((a, b) => a.path.localeCompare(b.path));
+}
+
 function getAppVersion() {
   try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version; }
   catch { return null; }
@@ -2872,7 +3066,7 @@ function getAppVersion() {
 
 function fullBackup(desktopDir) {
   if (!db) throw new Error('database not open');
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').slice(0, 19);
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '');
   const destRoot = path.join(desktopDir, `CooperationTools-Backup-${stamp}`);
   fs.mkdirSync(destRoot, { recursive: true });
 
@@ -2913,10 +3107,181 @@ function fullBackup(desktopDir) {
     folders,
     totalFileCount,
     totalByteCount,
+    fileInventory: buildBackupFileInventory(destRoot),
   };
   fs.writeFileSync(path.join(destRoot, 'manifest.json'), JSON.stringify(manifest, null, 2));
 
   return { ok: true, path: destRoot, manifest };
+}
+
+const FULL_BACKUP_DIRS = ['projects', 'company_documents', 'knowledge_hub', 'backups'];
+
+function inspectFullBackup(bundleDir) {
+  const root = path.resolve(String(bundleDir || ''));
+  try {
+    if (!fs.statSync(root).isDirectory()) return { ok: false, error: 'Selected backup is not a folder' };
+  } catch {
+    return { ok: false, error: 'Selected backup folder does not exist' };
+  }
+  if (!path.basename(root).startsWith('CooperationTools-Backup-')) {
+    return { ok: false, error: 'Selected folder is not a Cooperation Tools full backup' };
+  }
+
+  const manifestFile = path.join(root, 'manifest.json');
+  const candidateDb = path.join(root, 'cooperation-tools.db');
+  if (!fs.existsSync(manifestFile) || !fs.existsSync(candidateDb)) {
+    return { ok: false, error: 'Full backup is missing its manifest or database' };
+  }
+
+  let manifest;
+  try {
+    const stat = fs.statSync(manifestFile);
+    if (stat.size > 25 * 1024 * 1024) return { ok: false, error: 'Backup manifest is unexpectedly large' };
+    manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+  } catch (err) {
+    return { ok: false, error: 'Backup manifest could not be read: ' + String(err?.message || err) };
+  }
+
+  const dbValidation = validateBackupCandidate(candidateDb);
+  if (!dbValidation.ok) return dbValidation;
+
+  const warnings = [];
+  const inventory = Array.isArray(manifest.fileInventory) ? manifest.fileInventory : null;
+  if (inventory) {
+    const seen = new Set();
+    for (const item of inventory) {
+      const rel = String(item?.path || '');
+      if (!rel || seen.has(rel)) return { ok: false, error: 'Backup manifest contains an invalid file inventory' };
+      seen.add(rel);
+      let abs;
+      try { abs = resolveInside(root, ...rel.split('/')); }
+      catch { return { ok: false, error: 'Backup manifest contains an unsafe file path' }; }
+      if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) {
+        return { ok: false, error: 'Backup file is missing: ' + rel };
+      }
+      const size = fs.statSync(abs).size;
+      if (size !== Number(item.size) || sha256File(abs) !== item.sha256) {
+        return { ok: false, error: 'Backup file failed checksum validation: ' + rel };
+      }
+    }
+    if (!seen.has('cooperation-tools.db')) {
+      return { ok: false, error: 'Backup manifest does not cover the database file' };
+    }
+  } else {
+    warnings.push('This backup predates file checksums; database and attachment references were still validated.');
+  }
+
+  let candidate;
+  try {
+    candidate = new DatabaseSync(candidateDb, { readOnly: true });
+    const actualHead = Number(candidate.prepare('SELECT MAX(version) AS v FROM schema_migrations').get()?.v ?? -1);
+    if (Number(manifest.schemaHead) !== actualHead) {
+      return { ok: false, error: 'Backup manifest schema version does not match its database' };
+    }
+    const refs = [
+      ['project_documents', 'file_path'],
+      ['company_documents', 'file_path'],
+      ['knowledge_attachments', 'file_path'],
+    ];
+    for (const [table, column] of refs) {
+      const exists = candidate.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table);
+      if (!exists) continue;
+      const rows = candidate.prepare(`SELECT ${column} AS filePath FROM "${table}" WHERE ${column} IS NOT NULL AND ${column} != ''`).all();
+      for (const row of rows) {
+        const rel = String(row.filePath || '');
+        let abs;
+        try {
+          if (path.isAbsolute(rel)) throw new Error('absolute path');
+          abs = resolveInside(root, rel);
+        } catch {
+          return { ok: false, error: `Backup database contains an unsafe file path in ${table}` };
+        }
+        if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) {
+          return { ok: false, error: `Backup is missing a file referenced by ${table}: ${rel}` };
+        }
+      }
+    }
+  } catch (err) {
+    return { ok: false, error: 'Backup attachment references could not be validated: ' + String(err?.message || err) };
+  } finally {
+    try { candidate?.close(); } catch {}
+  }
+
+  return {
+    ok: true,
+    path: root,
+    name: path.basename(root),
+    manifest: {
+      appVersion: manifest.appVersion || '',
+      createdAt: manifest.createdAt || '',
+      schemaHead: manifest.schemaHead,
+      totalFileCount: Number(manifest.totalFileCount) || 0,
+      totalByteCount: Number(manifest.totalByteCount) || 0,
+    },
+    warnings,
+  };
+}
+
+function restoreFullBackup(bundleDir) {
+  const inspection = inspectFullBackup(bundleDir);
+  if (!inspection.ok) return inspection;
+
+  const sourceRoot = inspection.path;
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const recoveryRoot = path.join(userDataDir, 'pre-full-restore-backup');
+  fs.mkdirSync(recoveryRoot, { recursive: true });
+  const recovery = fullBackup(recoveryRoot);
+
+  const stageRoot = resolveInside(userDataDir, `.full-restore-stage-${stamp}`);
+  const rollbackRoot = resolveInside(userDataDir, `.full-restore-rollback-${stamp}`);
+  fs.mkdirSync(stageRoot, { recursive: true });
+  try {
+    fs.copyFileSync(path.join(sourceRoot, 'cooperation-tools.db'), path.join(stageRoot, 'cooperation-tools.db'));
+    for (const dir of FULL_BACKUP_DIRS) {
+      const source = path.join(sourceRoot, dir);
+      const target = path.join(stageRoot, dir);
+      copyDirRecursive(source, target);
+      fs.mkdirSync(target, { recursive: true });
+    }
+  } catch (err) {
+    fs.rmSync(stageRoot, { recursive: true, force: true });
+    return { ok: false, error: 'Full restore could not be staged: ' + String(err?.message || err) };
+  }
+
+  close();
+  fs.mkdirSync(rollbackRoot, { recursive: true });
+  const installed = [];
+  const movedAside = [];
+  const targets = ['cooperation-tools.db', ...FULL_BACKUP_DIRS];
+  try {
+    for (const name of targets) {
+      const live = path.join(userDataDir, name);
+      if (fs.existsSync(live)) {
+        fs.renameSync(live, path.join(rollbackRoot, name));
+        movedAside.push(name);
+      }
+    }
+    for (const name of targets) {
+      const staged = path.join(stageRoot, name);
+      fs.renameSync(staged, path.join(userDataDir, name));
+      installed.push(name);
+    }
+    fs.rmSync(stageRoot, { recursive: true, force: true });
+    fs.rmSync(rollbackRoot, { recursive: true, force: true });
+    return { ok: true, recoveryPath: recovery.path };
+  } catch (err) {
+    for (const name of installed.reverse()) {
+      const live = path.join(userDataDir, name);
+      if (fs.existsSync(live)) fs.rmSync(live, { recursive: true, force: true });
+    }
+    for (const name of movedAside.reverse()) {
+      const saved = path.join(rollbackRoot, name);
+      if (fs.existsSync(saved)) fs.renameSync(saved, path.join(userDataDir, name));
+    }
+    try { fs.rmSync(stageRoot, { recursive: true, force: true }); } catch {}
+    try { openConnection(userDataDir); } catch {}
+    return { ok: false, error: 'Full restore failed and the previous data was put back: ' + String(err?.message || err) };
+  }
 }
 
 // Case-insensitive label collisions per lookup_codes category — the exact class
@@ -3621,11 +3986,11 @@ module.exports = {
   createUser, updateUserPassword, updateUserAccount, getUnclaimedUser, claimUser,
   listDays, loadDaysRange,
   listCompanies, listSystems, companyEntries, systemEntries, getFilteredWorkLogs,
-  getAnalytics, getOverviewStats, getAttentionItems,
+  getAnalytics, getOverviewStats, getAttentionItems, getRecentActivity,
   createProject, listProjects, getProject, updateProject, deleteProject,
   linkTask, unlinkTask, listLinkableTasks,
   listDepartments, getDepartment, linkDepartmentTask, unlinkDepartmentTask, listLinkableTasksForDepartment,
-  listTasks, getTasksIndex, getTask, createTask, updateTask, updateTaskMeta, deleteTask,
+  listTasks, getTasksIndex, getTask, searchWorkspace, createTask, updateTask, updateTaskMeta, deleteTask,
   getTaskSources, createTaskSource, updateTaskSource, deleteTaskSource, getTaskFieldHistory,
   listWorkLogs, logsForDate, addWorkLog, updateWorkLog, moveWorkLog, mergeTasks, deleteWorkLog, getWorkLogHistory,
   setDayName, getDayName,
@@ -3651,6 +4016,6 @@ module.exports = {
   loadSubscriptions, saveSubscriptions,
   loadPrefs, savePrefs,
   loadUiState, saveUiState,
-  listBackups, restoreBackup, checkIntegrity, findLookupDuplicates, mergeLookupDuplicate, getOrphanSweepReport,
-  fullBackup,
+  listBackups, restoreBackup, checkIntegrity, getSystemDiagnostics, findLookupDuplicates, mergeLookupDuplicate, getOrphanSweepReport,
+  fullBackup, inspectFullBackup, restoreFullBackup,
 };

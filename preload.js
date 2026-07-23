@@ -49,6 +49,7 @@ contextBridge.exposeInMainWorld('api', {
   loadOverviewStats: (today, monthStart)       => ipcRenderer.invoke('analytics:overview', today, monthStart),
   /** @returns {Promise<import('./ipc-types').AttentionItem[]>} */
   getAttentionItems: ()                        => ipcRenderer.invoke('attention:list'),
+  getRecentActivity: ()                        => ipcRenderer.invoke('activity:list'),
 
   // ── Lookups (normalized catalog — shared app config) ──
   /** @returns {Promise<import('./ipc-types').Lookups>} */
@@ -68,6 +69,7 @@ contextBridge.exposeInMainWorld('api', {
   listTasks:      ()              => ipcRenderer.invoke('tasks:list'),
   /** Lightweight — no nested workLogs (Milestone 7). @returns {Promise<import('./ipc-types').Task[]>} */
   getTasksIndex:  ()              => ipcRenderer.invoke('tasks:index'),
+  searchWorkspace: (query, limit = 30) => ipcRenderer.invoke('search:workspace', query, limit),
   /** @returns {Promise<import('./ipc-types').Task|null>} */
   getTask:        (id)            => ipcRenderer.invoke('tasks:get', id),
   /** @returns {Promise<import('./ipc-types').Task>} */
@@ -219,6 +221,7 @@ contextBridge.exposeInMainWorld('api', {
   restoreBackup:     (filename)   => ipcRenderer.invoke('maintenance:restoreBackup', filename),
   /** @returns {Promise<import('./ipc-types').IntegrityCheckResult>} */
   checkIntegrity:    ()           => ipcRenderer.invoke('maintenance:integrityCheck'),
+  getSystemDiagnostics: ()        => ipcRenderer.invoke('maintenance:diagnostics'),
   /** @returns {Promise<import('./ipc-types').LookupDuplicateGroup[]>} */
   getLookupDuplicates: ()         => ipcRenderer.invoke('maintenance:lookupDuplicates'),
   /** @returns {Promise<{ok: boolean, error?: string}>} */
@@ -227,6 +230,10 @@ contextBridge.exposeInMainWorld('api', {
   getOrphanSweepReport: ()        => ipcRenderer.invoke('maintenance:orphanSweepReport'),
   /** @returns {Promise<import('./ipc-types').FullBackupResult>} */
   fullBackup:        ()           => ipcRenderer.invoke('maintenance:fullBackup'),
+  /** Opens a native folder picker and validates the selected full-backup bundle. */
+  selectFullBackup:  ()           => ipcRenderer.invoke('maintenance:selectFullBackup'),
+  /** Restores the last main-process-validated full-backup bundle, then relaunches the app. */
+  restoreSelectedFullBackup: ()   => ipcRenderer.invoke('maintenance:restoreSelectedFullBackup'),
   /** @returns {Promise<{ok: boolean, error?: string}>} */
   openBackupFolder:  (folderPath) => ipcRenderer.invoke('maintenance:openBackupFolder', folderPath),
   /** @returns {Promise<import('./ipc-types').FileResult>} */
@@ -234,7 +241,7 @@ contextBridge.exposeInMainWorld('api', {
   printReport:       (html)       => ipcRenderer.invoke('report:print', html),
   flushComplete:     ()           => ipcRenderer.invoke('app:flushComplete'),
   cancelClose:       ()           => ipcRenderer.invoke('app:cancelClose'),
-  confirmSaveFailure: (error)     => ipcRenderer.invoke('app:confirmSaveFailure', error),
+  confirmSaveFailure: (error, action) => ipcRenderer.invoke('app:confirmSaveFailure', error, action),
   onBeforeClose:  (cb)            => ipcRenderer.on('app:beforeClose', () => cb()),
   setTitle:       (title)         => ipcRenderer.invoke('window:setTitle', title),
   openExternal:   (url)           => ipcRenderer.invoke('shell:openExternal', url),
