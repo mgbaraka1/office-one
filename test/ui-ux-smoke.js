@@ -57,6 +57,86 @@ gate('Analytics offers accessible data tables and labelled SVG charts', html.inc
 gate('Project Categories UI is retired', !html.includes('id="p-category"')
   && !html.includes('Project Category</button>')
   && !html.includes('Hours by Project Category'));
+gate('Knowledge Hub is a first-class searchable module with safe undo',
+  html.includes('data-module="knowledge"')
+  && html.includes('id="module-knowledge"')
+  && html.includes('function renderKnowledgeList()')
+  && html.includes('function openKnowledgeDetail(id)')
+  && html.includes('id="knowledge-undo-toast"')
+  && html.includes("label: 'Knowledge Hub'"));
+gate('HTML hidden state cannot be overridden by component display rules',
+  html.includes('[hidden] { display: none !important; }')
+  && html.includes('function showKnowledgeListView()')
+  && html.includes('function showKnowledgeDetailView()'));
+gate('Knowledge Hub is generic and tag-first, with no domain relationship selectors',
+  html.includes("appendKnowledgeFilterSection(host, 'tags', 'Tags'")
+  && html.includes("x.startsWith('TAG:')")
+  && html.includes('id="kh-tag-tokens"')
+  && !html.includes('id="kh-company-checks"')
+  && !html.includes('id="kh-system-checks"')
+  && !html.includes('id="kh-project-checks"'));
+gate('Knowledge Hub has user-defined groups with item membership',
+  html.includes('id="knowledge-group-modal-overlay"')
+  && html.includes('function saveKnowledgeGroup()')
+  && html.includes("x.startsWith('GROUP:')")
+  && html.includes('groupIds: [...knowledgeEditorGroupIds]')
+  && html.includes('Include Knowledge Items'));
+gate('Knowledge group editing preserves archived members and uses a valid inline delete host',
+  html.includes("item.status === 'ARCHIVED' ? ' (Archived)' : ''")
+  && html.includes('knowledgeItems.forEach(item => {')
+  && html.includes("showDeleteConfirm(host, () => deleteKnowledgeGroup(group)"));
+gate('Knowledge Hub documents require a name and version',
+  html.includes('id="knowledge-document-modal-overlay"')
+  && html.includes('id="kh-document-version"')
+  && html.includes('id="kh-document-names"')
+  && html.includes('function submitKnowledgeDocument()')
+  && html.includes('formatKnowledgeVersion(file.version)'));
+gate('Knowledge Hub list reflects document-library usage',
+  html.includes('<option value="documents">Most documents</option>')
+  && html.includes('function knowledgeRowSubtitle(item, q')
+  && html.includes('function knowledgeDocumentCount(item)')
+  && html.includes("documentCount + ' document'"));
+gate('Knowledge Hub keeps navigation and empty states focused',
+  html.includes('filter(type => type.count || knowledgeFilters.has(type.key))')
+  && html.includes('id="kh-empty-title"')
+  && html.includes('id="kh-empty-clear"')
+  && html.includes('function resetKnowledgeFilters()'));
+gate('Knowledge detail is document-first and supports adding a new version',
+  html.indexOf("const files = pjMk('section', 'kh-section')") < html.indexOf("if (item.content)")
+  && html.includes('function buildKnowledgeDocumentFamily(item, files)')
+  && html.includes("khButton('New version'")
+  && html.includes('function openKnowledgeDocumentModal(itemId, documentName'));
+gate('Knowledge item duplication creates stable numbered copy titles',
+  html.includes('function nextKnowledgeCopyTitle(title)')
+  && html.includes('while (used.has(candidate.toLowerCase()))'));
+gate('Knowledge item delete replaces an older undo safely',
+  html.includes('const previous = knowledgeUndo')
+  && html.includes('purgeKnowledgeFiles(previous.oldId)'));
+gate('Knowledge Hub offers authoring preview, safe links, and recoverable drafts',
+  html.includes('id="kh-content-preview"')
+  && html.includes('function renderKnowledgeContent(host, value)')
+  && html.includes('uiState.knowledgeDraft = knowledgeEditorSnapshot()')
+  && html.includes('function recoverKnowledgeDraft()'));
+gate('Knowledge Hub supports combined accessible filters and highlighted search snippets',
+  html.includes('let knowledgeFilters = new Set()')
+  && html.includes('aria-label="Active filters"')
+  && html.includes("b.setAttribute('aria-pressed'")
+  && html.includes('function appendHighlightedText(host, text, q)'));
+gate('Knowledge Hub keyboard shortcuts cover all three dialogs',
+  html.includes('closeKnowledgeEditor(); closeKnowledgeGroupEditor(); closeKnowledgeDocumentModal()')
+  && html.includes("contains('open')) saveKnowledgeGroup()")
+  && html.includes("contains('open')) submitKnowledgeDocument()"));
+gate('Knowledge Hub supports article-first and document-first creation',
+  html.includes("startKnowledgeCreation('ARTICLE')")
+  && html.includes("startKnowledgeCreation('DOCUMENT')")
+  && html.includes("mode === 'DOCUMENT'"));
+gate('Knowledge Hub has no reference URL or review-date UI',
+  !html.includes('id="kh-review-input"')
+  && !html.includes('id="kh-link-editor"')
+  && !html.includes('Reference links')
+  && !html.includes('NEEDS_REVIEW'));
+gate('Knowledge types are administrator-managed in Settings',
+  html.includes('data-tab="knowledgeType"') && html.includes("knowledgeType: 'KNOWLEDGE_TYPE'"));
 
 const ids = ['dash-attention', 'an-spend', 'total-min', 'total-ot-min', 'settings-save-btn', 'settings-search'];
 gate('key UI hosts remain unique', ids.every(id => count(new RegExp(`id="${id}"`, 'g')) === 1));

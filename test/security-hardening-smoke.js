@@ -52,7 +52,8 @@ try {
   db.configureCredentialEncryption(null);
   db.disallowPlaintextCredentialsForTests();
   let plaintextBlocked = false;
-  try { db.createClientVpn(user.id, 45, { connectionName: 'Blocked secret', password: 'must-not-leak' }); }
+  const companyId = db.getLookupsByCategory('COMPANY').find(x => x.isActive)?.id;
+  try { db.createClientVpn(user.id, companyId, { connectionName: 'Blocked secret', password: 'must-not-leak' }); }
   catch { plaintextBlocked = true; }
   record('Credential writes fail closed when secure storage is unavailable', plaintextBlocked);
   db.allowPlaintextCredentialsForTests();
