@@ -17,7 +17,9 @@ All operational data stays on the device in an embedded SQLite database. There i
   persistent density/canvas/motion comfort controls, reversible Focus Mode, focus
   management, and coordinated high-contrast light/dark themes.
 - Multi-user accounts with a dedicated User Management page: administrators can create accounts, assign Administrator or Standard User permissions, rename/deactivate users, and reset passwords; every user can edit their own username and password.
-- Rotating database snapshots, validated restore, integrity checks, and full Desktop backups containing the DB and uploaded-file trees.
+- Rotating database snapshots, validated restore, integrity checks, and checksum-verified full backup/restore bundles containing the DB and every uploaded-file tree.
+- SQLite full-text Quick Find across tasks, projects, Knowledge Hub, company documents, and subscriptions, plus an account-scoped Recent Changes feed.
+- Administrator Recovery Readiness diagnostics covering live integrity, every rotating snapshot, referenced files, disk headroom, search health, and Windows credential portability.
 
 ## Security model
 
@@ -25,7 +27,7 @@ All operational data stays on the device in an embedded SQLite database. There i
 - Client passwords and secret keys are encrypted with Electron `safeStorage` (Windows DPAPI). Secret writes fail closed if secure storage is unavailable.
 - Renderer isolation uses `contextIsolation`, Chromium sandboxing, disabled Node integration, a narrow preload bridge, trusted-sender IPC checks, denied permission requests, and denied renderer-created windows.
 - Uploaded files are ownership-checked, path-contained, limited to 100 MB, and validated by extension and file signature.
-- Backup restore accepts only a listed snapshot and validates SQLite integrity, foreign keys, required tables, and schema compatibility before replacing the live DB.
+- Database restore accepts only a listed snapshot and validates SQLite integrity, foreign keys, required tables, and schema compatibility. Full Restore validates its manifest, SHA-256 checksums, and every database-referenced attachment before changing live data.
 
 ## Tech stack
 
@@ -45,6 +47,7 @@ There is no development transpilation or native addon build.
 npm install
 npm start
 npm test
+npm run test:e2e
 ```
 
 `npm test` creates a synthetic user profile and fixture database under the OS temporary directory. It never reads or copies `%APPDATA%\timesheet\`.
@@ -57,7 +60,7 @@ npm run build:win
 npm run pack
 ```
 
-Production releases should be code-signed through the Windows signing configuration/environment used by `electron-builder`.
+`npm run test:e2e` launches a hidden real Electron instance against a disposable profile. Windows CI runs the complete smoke suite, Electron E2E, and packaging. Tagged releases build NSIS and portable artifacts; configure `WINDOWS_CSC_LINK` and `WINDOWS_CSC_KEY_PASSWORD` repository secrets for signed releases.
 
 ## Data and backups
 
@@ -70,17 +73,20 @@ Production releases should be code-signed through the Windows signing configurat
 
 The package name must remain `timesheet`; Electron derives the production data-folder name from it. Development can override the data location with `COOPERATION_TOOLS_DATA_DIR` as shown in `.env.example`.
 
-Full backups are written outside the live data directory to a timestamped Desktop folder and include the DB, uploaded files, snapshots, and a manifest. Deleting or replacing uploaded documents offers a five-second Undo action.
+Full backups are written outside the live data directory to a timestamped Desktop folder and include the DB, uploaded files, snapshots, and a SHA-256 file inventory. Settings → Maintenance can validate and restore the complete bundle; it first creates a separate full recovery point and stages all replacement files before closing SQLite. Ordinary data and files are portable, but DPAPI-encrypted client secrets require the same Windows account or must be re-entered. Deleting or replacing uploaded documents offers a five-second Undo action.
 
 ## Architecture
 
 - `main.js` — Electron lifecycle, trusted/authenticated/admin IPC boundaries, dialogs, printing, and OS integration.
 - `auth.js` — bcrypt validation, login throttling, account administration, and the in-memory session.
 - `db.js` — SQLite connection, migrations, maintenance/backups, ownership-scoped CRUD, validation, and analytics.
-- `migrations/` — append-only migrations `000` through `042`; migration `042` removes the retired Project Category fields and lookup rows.
+- `migrations/` — append-only migrations `000` through `046`; migration `046` adds the trigger-maintained, user-scoped FTS5 workspace index.
+- `ipc-contracts.js` — executable, fail-closed validation contracts for every renderer-to-main channel.
 - `preload.js` — the context-isolated `window.api` bridge.
-- `index.html` — the renderer UI.
-- `test/` — standalone smoke tests orchestrated by `test/run-all.js` against generated fixtures.
+- `index.html` — renderer markup and module containers.
+- `renderer/` — shared CSS, bootstrap/core logic, and domain-focused classic-script feature modules.
+- `test/` — synthetic smoke suites plus real Electron E2E.
+- `.github/workflows/` — Windows verification and tagged-release automation.
 
 The work model is `tasks` → `work_logs`: a task is date-independent and each log is one dated session. A task can optionally belong to one project or one department, never both.
 

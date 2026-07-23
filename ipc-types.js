@@ -680,6 +680,18 @@
  */
 
 /**
+ * One account-scoped entry in Overview's Recent Changes feed.
+ * @typedef {Object} RecentActivityItem
+ * @property {'task'|'session'|'project'|'knowledge'|'company-document'} kind
+ * @property {number} id
+ * @property {number|null} parentId
+ * @property {string} title
+ * @property {string} detail
+ * @property {string} changedAt
+ * @property {string} module
+ */
+
+/**
  * One file in <userData>/backups/ (Milestone 6, maintenance:listBackups).
  * @typedef {Object} BackupFileInfo
  * @property {string} name   Filename, e.g. cooperation-tools-2026-07-06-10-00-00.db
@@ -694,6 +706,29 @@
  * @property {boolean} ok
  * @property {string[]} integrityMessages       Empty when ok; otherwise each integrity_check violation line.
  * @property {Object[]} foreignKeyViolations    Raw PRAGMA foreign_key_check rows (table/rowid/parent/fkid).
+ */
+
+/**
+ * Read-only administrator recovery audit returned by maintenance:diagnostics.
+ * @typedef {Object} SystemDiagnostics
+ * @property {string} generatedAt
+ * @property {string} appVersion
+ * @property {number} schemaHead
+ * @property {string} sqliteVersion
+ * @property {string} journalMode
+ * @property {boolean} foreignKeysEnabled
+ * @property {IntegrityCheckResult} integrity
+ * @property {string} dataDirectory
+ * @property {number} databaseBytes
+ * @property {number} walBytes
+ * @property {number|null} freeBytes
+ * @property {number} users
+ * @property {number} workspaceSearchRows
+ * @property {number} referencedFiles
+ * @property {Array<{table:string,id:number,path:string}>} missingFiles
+ * @property {{count:number,validCount:number,latest:(BackupFileInfo|null),invalid:Array<{name:string,error:string}>}} backups
+ * @property {boolean} credentialEncryptionAvailable
+ * @property {string} credentialPortability
  */
 
 /**
@@ -725,7 +760,21 @@
  * @property {string} [path]      The new backup folder's absolute path.
  * @property {string} [error]
  * @property {Object} [manifest]  Same content written to manifest.json (appVersion, createdAt,
- *                                schemaHead, tableRowCounts, folders, totalFileCount, totalByteCount).
+ *                                schemaHead, tableRowCounts, folders, totalFileCount, totalByteCount,
+ *                                and fileInventory with SHA-256 per copied file).
+ */
+
+/**
+ * Result of choosing and validating a complete backup through
+ * `maintenance:selectFullBackup`. The selected absolute path remains private to
+ * the main process; the renderer receives display metadata only.
+ * @typedef {Object} FullBackupInspection
+ * @property {boolean} ok
+ * @property {boolean} [canceled]
+ * @property {string} [name]
+ * @property {string} [error]
+ * @property {string[]} [warnings]
+ * @property {{appVersion:string,createdAt:string,schemaHead:number,totalFileCount:number,totalByteCount:number}} [manifest]
  */
 
 /**
