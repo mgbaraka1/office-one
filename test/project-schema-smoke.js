@@ -42,6 +42,9 @@ let beforeCounts;
     `INSERT OR IGNORE INTO lookup_codes(category, code, label, sort_order, is_active, created_at)
      VALUES('PROJECT_CATEGORY', ?, ?, ?, 1, ?)`
   ).run('NEW_PROJECT', 'New Project', 0, now);
+  // Rewind only 042. Later Knowledge Hub migrations are already reflected in
+  // this copied schema (045 removes review_date), so replaying historical 043
+  // against that newer shape would incorrectly recreate its retired index.
   prep.prepare('DELETE FROM schema_migrations WHERE version = 42').run();
   prep.close();
 }
@@ -71,9 +74,10 @@ try {
     const snapshot = new DatabaseSync(path.join(workDir, 'pre-migration-backup', migrationBackups[0]), { readOnly: true });
     const snapshotColumns = snapshot.prepare('PRAGMA table_info(projects)').all().map(c => c.name);
     const snapshotHead = snapshot.prepare('SELECT MAX(version) AS version FROM schema_migrations').get().version;
+    const snapshotHas42 = !!snapshot.prepare('SELECT 1 FROM schema_migrations WHERE version = 42').get();
     const snapshotIntegrity = snapshot.prepare('PRAGMA integrity_check').get().integrity_check;
     snapshot.close();
-    record('Pre-migration snapshot is intact and restorable', snapshotHead === 41
+    record('Pre-migration snapshot is intact and restorable', !snapshotHas42
       && snapshotColumns.includes('category_id') && snapshotColumns.includes('related_project_id')
       && snapshotIntegrity === 'ok',
     `head=${snapshotHead} integrity=${snapshotIntegrity}`);

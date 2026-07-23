@@ -194,6 +194,7 @@ ipcMain.handle('departments:linkable-tasks', authed(()                  => db.li
 // Allowlist mirrors db.PROJECT_DOC_TYPES; the native dialog also filters by it so
 // the user only sees permitted types (the db layer re-validates regardless).
 const DOC_UPLOAD_EXTENSIONS = ['pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'gif', 'webp'];
+const KNOWLEDGE_UPLOAD_EXTENSIONS = [...DOC_UPLOAD_EXTENSIONS, 'xls', 'xlsx', 'txt'];
 // Upload (and replace — db.saveProjectDocumentFile deletes the prior file on conflict).
 ipcMain.handle('projects:upload-document', authed(async (_e, projectId, documentType) => {
   const { canceled, filePaths } = await dialog.showOpenDialog(win, {
@@ -292,6 +293,51 @@ ipcMain.handle('companydocs:purge-document-file', authed((_e, id, relPath) =>
 ipcMain.handle('companydocs:purge-files',   authed((_e, id)                     => db.purgeCompanyDocumentFiles(auth.requireUserId(), id)));
 ipcMain.handle('companydocs:restore-file',  authed((_e, oldId, newId, fileMeta) => db.restoreCompanyDocumentFile(auth.requireUserId(), oldId, newId, fileMeta)));
 
+// ── Knowledge Hub ──
+ipcMain.handle('knowledge:list',    authed(()             => db.listKnowledgeItems(auth.requireUserId())));
+ipcMain.handle('knowledge:get',     authed((_e, id)       => db.getKnowledgeItem(auth.requireUserId(), id)));
+ipcMain.handle('knowledge:create',  authed((_e, data)     => db.createKnowledgeItem(auth.requireUserId(), data)));
+ipcMain.handle('knowledge:update',  authed((_e, id, data) => db.updateKnowledgeItem(auth.requireUserId(), id, data)));
+ipcMain.handle('knowledge:delete',  authed((_e, id)       => db.deleteKnowledgeItem(auth.requireUserId(), id)));
+ipcMain.handle('knowledge:restore', authed((_e, oldId, snapshot) => db.restoreKnowledgeItem(auth.requireUserId(), oldId, snapshot)));
+ipcMain.handle('knowledge:groups-list', authed(() => db.listKnowledgeGroups(auth.requireUserId())));
+ipcMain.handle('knowledge:group-create', authed((_e, data) => db.createKnowledgeGroup(auth.requireUserId(), data)));
+ipcMain.handle('knowledge:group-update', authed((_e, id, data) => db.updateKnowledgeGroup(auth.requireUserId(), id, data)));
+ipcMain.handle('knowledge:group-delete', authed((_e, id) => db.deleteKnowledgeGroup(auth.requireUserId(), id)));
+ipcMain.handle('knowledge:upload-attachment', authed(async (_e, itemId, documentMeta) => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    title: 'Choose document file', properties: ['openFile'],
+    filters: [
+      { name: 'Knowledge files', extensions: KNOWLEDGE_UPLOAD_EXTENSIONS },
+      { name: 'PDF', extensions: ['pdf'] }, { name: 'Word', extensions: ['doc', 'docx'] },
+      { name: 'Excel', extensions: ['xls', 'xlsx'] }, { name: 'Text', extensions: ['txt'] },
+      { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },
+    ],
+  });
+  if (canceled || !filePaths?.[0]) return { ok: false, canceled: true };
+  return db.saveKnowledgeAttachment(auth.requireUserId(), itemId, filePaths[0], documentMeta);
+}));
+ipcMain.handle('knowledge:download-attachment', authed(async (_e, attachmentId) => {
+  const r = db.resolveKnowledgeAttachment(auth.requireUserId(), attachmentId);
+  if (!r.ok) return r;
+  if (!r.exists) return { ok: false, error: 'The attachment is missing from disk' };
+  const { canceled, filePath } = await dialog.showSaveDialog(win, { title: 'Save attachment as', defaultPath: r.originalName });
+  if (canceled || !filePath) return { ok: false, canceled: true };
+  try { fs.copyFileSync(r.absPath, filePath); return { ok: true, path: filePath }; }
+  catch (err) { return { ok: false, error: String(err?.message || err) }; }
+}));
+ipcMain.handle('knowledge:open-attachment', authed(async (_e, attachmentId) => {
+  const r = db.resolveKnowledgeAttachment(auth.requireUserId(), attachmentId);
+  if (!r.ok) return r;
+  if (!r.exists) return { ok: false, error: 'The attachment is missing from disk' };
+  const error = await shell.openPath(r.absPath);
+  return error ? { ok: false, error } : { ok: true };
+}));
+ipcMain.handle('knowledge:remove-attachment', authed((_e, attachmentId) => db.removeKnowledgeAttachment(auth.requireUserId(), attachmentId)));
+ipcMain.handle('knowledge:restore-attachment', authed((_e, itemId, fileMeta) => db.restoreKnowledgeAttachment(auth.requireUserId(), itemId, fileMeta)));
+ipcMain.handle('knowledge:purge-attachment', authed((_e, itemId, relPath) => db.purgeKnowledgeAttachment(auth.requireUserId(), itemId, relPath)));
+ipcMain.handle('knowledge:purge-files', authed((_e, itemId) => db.purgeKnowledgeFiles(auth.requireUserId(), itemId)));
+
 // ── Clients (Auth + Server Information + Databases per COMPANY lookup) ──
 ipcMain.handle('clients:list', authed(()               => db.listClients(auth.requireUserId())));
 ipcMain.handle('clients:get',  authed((_e, companyId)  => db.getClient(auth.requireUserId(), companyId)));
@@ -348,7 +394,7 @@ ipcMain.handle('maintenance:mergeLookups', admin((_e, category, targetId, source
 ipcMain.handle('maintenance:orphanSweepReport', admin(() => db.getOrphanSweepReport()));
 
 // One-click Full Backup (Milestone 8) — captures the DB, projects/ and
-// company_documents/ file trees, and the rotating backups/ snapshots into a
+// company_documents/ and knowledge_hub/ file trees, and the rotating backups/ snapshots into a
 // single new timestamped folder on the Desktop. db.fullBackup() never imports
 // electron, so it's handed the resolved Desktop path here (same separation
 // configureCredentialEncryption() already established).

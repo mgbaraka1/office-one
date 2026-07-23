@@ -1,7 +1,7 @@
 {
   "name": "timesheet",
-  "version": "5.1.2",
-  "description": "Cooperation Tools — an offline, multi-user Electron desktop app for tracking daily timesheets, recurring subscriptions, client/system Projects, renewal-tracked Company Documents, and per-client VPN/server reference info, with read-only analytics and PDF reports. Each account's data is isolated. Data is stored in a self-contained, zero-config embedded SQLite database (Node's built-in node:sqlite, bundled with Electron — no server, no separate install, no native build).",
+  "version": "5.2.3",
+  "description": "Cooperation Tools — an offline, multi-user Electron desktop app for timesheets, projects, client infrastructure, company documents, and a searchable Knowledge Hub, with analytics and PDF reports. Each account's data is isolated in an embedded SQLite database.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",

@@ -102,6 +102,7 @@
       --track:      #1c1c20;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+    [hidden] { display: none !important; }
     ::selection { background: color-mix(in srgb, var(--primary) 38%, transparent); color: var(--text); }
     :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; box-shadow: none; border-radius: 4px; }
     body {
@@ -1423,6 +1424,108 @@
       clip: rect(0,0,0,0) !important; white-space: nowrap !important; border: 0 !important;
     }
 
+    /* ══ KNOWLEDGE HUB ══ */
+    .kh-shell { flex: 1; min-height: 0; display: grid; grid-template-columns: 240px minmax(0, 1fr); }
+    .kh-filters { border-right: 1px solid var(--border); background: var(--surface); padding: 20px 14px; overflow-y: auto; }
+    .kh-filter-title { color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; margin: 14px 8px 9px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .kh-filter-title:first-child { margin-top: 2px; }
+    .kh-filter-section.collapsed .kh-filter-items { display: none; }
+    .kh-filter-toggle { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 2px 4px; border-radius: 5px; }
+    .kh-filter-toggle:hover { color: var(--text); background: var(--surface2); }
+    .kh-filter-more { margin: 5px 8px 0; border: 0; background: none; color: var(--primary); cursor: pointer; padding: 4px 2px; font: 700 11px/1 inherit; }
+    .kh-filter-btn { width: 100%; border: 0; background: none; color: var(--text); padding: 9px 10px; border-radius: var(--radius-sm); text-align: left; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; font: inherit; }
+    .kh-filter-btn:hover { background: var(--surface2); }
+    .kh-filter-btn.active { color: var(--primary); background: var(--primary-glow); font-weight: 700; }
+    .kh-filter-btn span:last-child { color: var(--muted); font-size: 11px; }
+    .kh-main { min-width: 0; overflow-y: auto; padding: var(--space-5) var(--space-6) var(--space-7); }
+    .kh-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; color: var(--muted); font-size: 12px; }
+    .kh-active-filters { display: flex; flex-wrap: wrap; gap: 7px; margin: -4px 0 14px; }
+    .kh-filter-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border)); background: var(--primary-glow); color: var(--primary); padding: 5px 9px; border-radius: 999px; cursor: pointer; font: 700 11px/1 inherit; }
+    .kh-filter-chip:hover { border-color: var(--primary); }
+    .kh-sort { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: var(--radius-sm); padding: 7px 9px; }
+    .kh-list { display: flex; flex-direction: column; gap: 9px; }
+    .kh-row { width: 100%; border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius); padding: 15px 16px; color: var(--text); text-align: left; cursor: pointer; display: grid; grid-template-columns: 42px minmax(0,1fr) auto; gap: 13px; transition: border-color .15s, transform .15s, box-shadow .15s; }
+    .kh-row:hover { border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+    .kh-row-icon { width: 42px; height: 42px; border-radius: 11px; background: var(--primary-glow); color: var(--primary); display: grid; place-items: center; }
+    .kh-row-title { font-size: 15px; font-weight: 750; margin: 1px 0 4px; }
+    .kh-row-summary { color: var(--muted); font-size: 12.5px; line-height: 1.45; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    mark.kh-hit { color: inherit; background: color-mix(in srgb, var(--warn) 35%, transparent); border-radius: 3px; padding: 0 1px; }
+    .kh-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 9px; }
+    .kh-pill { display: inline-flex; align-items: center; border: 1px solid var(--border); background: var(--surface2); color: var(--muted); border-radius: 999px; padding: 3px 8px; font-size: 10.5px; font-weight: 700; }
+    .kh-pill.published { color: var(--good); background: var(--success-bg); border-color: color-mix(in srgb, var(--good) 25%, var(--border)); }
+    .kh-pill.draft { color: var(--warn); background: var(--warning-bg); }
+    .kh-pill.overdue { color: var(--bad); background: var(--error-bg); border-color: color-mix(in srgb, var(--bad) 25%, var(--border)); }
+    button.kh-pill { cursor: pointer; font-family: inherit; }
+    button.kh-pill:hover { border-color: var(--primary); color: var(--primary); }
+    .kh-row-date { color: var(--muted); font-size: 11px; white-space: nowrap; }
+    .kh-empty { min-height: 330px; display: grid; place-items: center; text-align: center; color: var(--muted); }
+    .kh-empty-inner { max-width: 390px; }
+    .kh-empty .lic { width: 42px; height: 42px; color: var(--primary); margin-bottom: 10px; }
+    .kh-detail { max-width: 1050px; margin: 0 auto; }
+    .kh-breadcrumb { border: 0; background: none; color: var(--primary); cursor: pointer; padding: 0; margin-bottom: 18px; font: 700 12px/1 inherit; }
+    .kh-detail-head { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; margin-bottom: 22px; }
+    .kh-detail h1 { font-size: 28px; line-height: 1.2; margin: 7px 0 7px; }
+    .kh-detail-summary { color: var(--muted); font-size: 14px; line-height: 1.55; max-width: 760px; }
+    .kh-detail-updated { color: var(--muted); font-size: 11px; margin-top: 8px; }
+    .kh-detail-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
+    .kh-section { border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 13px; }
+    .kh-section h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .7px; color: var(--muted); margin: 0 0 12px; }
+    .kh-content { white-space: pre-wrap; line-height: 1.7; font-size: 14px; }
+    .kh-content > :first-child { margin-top: 0; }
+    .kh-content > :last-child { margin-bottom: 0; }
+    .kh-content h1, .kh-content h2, .kh-content h3 { color: var(--text); line-height: 1.3; margin: 1.2em 0 .45em; text-transform: none; letter-spacing: 0; }
+    .kh-content h1 { font-size: 22px; } .kh-content h2 { font-size: 18px; } .kh-content h3 { font-size: 15px; }
+    .kh-content p, .kh-content ul, .kh-content ol, .kh-content pre { margin: .65em 0; }
+    .kh-content pre { overflow-x: auto; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface2); font: 12px/1.55 'Cascadia Mono', Consolas, monospace; }
+    .kh-content a { color: var(--primary); text-decoration: underline; cursor: pointer; }
+    .kh-resource { display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--border); padding: 10px 0; }
+    .kh-resource:first-of-type { border-top: 0; padding-top: 0; }
+    .kh-resource-copy { flex: 1; min-width: 0; }
+    .kh-resource-copy b, .kh-resource-copy span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .kh-resource-copy span { color: var(--muted); font-size: 11px; margin-top: 3px; }
+    .kh-document-family { border-top: 1px solid var(--border); padding: 12px 0 3px; }
+    .kh-document-family:first-of-type { border-top: 0; padding-top: 0; }
+    .kh-document-family-head { display: flex; align-items: center; gap: 10px; }
+    .kh-document-family-head strong { flex: 1; min-width: 0; }
+    .kh-document-history { margin-left: 27px; }
+    .kh-document-history[hidden] { display: none; }
+    .kh-document-history-toggle { border: 0; background: none; color: var(--primary); cursor: pointer; padding: 6px 0; font: 700 11px/1 inherit; }
+    .kh-overflow { position: relative; }
+    .kh-overflow-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 8; min-width: 150px; padding: 5px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); box-shadow: var(--shadow); }
+    .kh-overflow-menu button { display: block; width: 100%; border: 0; background: none; color: var(--text); padding: 8px 9px; text-align: left; border-radius: 6px; cursor: pointer; font: inherit; font-size: 12px; }
+    .kh-overflow-menu button:hover { background: var(--surface2); }
+    .kh-overflow-menu button.danger { color: var(--bad); }
+    .kh-version-pill { color: var(--primary); background: var(--primary-glow); border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border)); border-radius: 999px; padding: 4px 9px; font-size: 10.5px; font-weight: 800; white-space: nowrap; }
+    .kh-group-picker { max-height: 310px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px; }
+    .kh-group-choice { display: flex; gap: 10px; align-items: center; padding: 8px; border-radius: var(--radius-sm); }
+    .kh-group-choice:hover { background: var(--surface2); }
+    .kh-group-choice input { width: auto; }
+    #knowledge-modal { width: min(1180px, calc(100vw - 34px)); height: min(850px, calc(100vh - 34px)); max-height: calc(100vh - 34px); }
+    #knowledge-modal .modal-body { display: flex; flex-direction: column; min-height: 0; }
+    .kh-editor-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); gap: 14px; flex: 1; min-height: 310px; }
+    .kh-editor-pane { display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; background: var(--surface); }
+    .kh-editor-toolbar { display: flex; flex-wrap: wrap; gap: 4px; padding: 7px; border-bottom: 1px solid var(--border); background: var(--surface2); }
+    .kh-editor-toolbar button { min-width: 30px; border: 1px solid transparent; background: transparent; color: var(--text); padding: 5px 7px; border-radius: 5px; cursor: pointer; font: 700 12px/1 inherit; }
+    .kh-editor-toolbar button:hover { border-color: var(--border); background: var(--surface); }
+    #kh-content-input { flex: 1; min-height: 260px; resize: none; border: 0; border-radius: 0; font: 13px/1.6 'Cascadia Mono', Consolas, monospace; }
+    #kh-content-input:focus { box-shadow: none; }
+    .kh-preview-head { padding: 11px 13px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .7px; text-transform: uppercase; }
+    #kh-content-preview { flex: 1; overflow: auto; padding: 16px 18px; }
+    .kh-recovery { display: flex; align-items: center; gap: 9px; padding: 9px 11px; margin-bottom: 12px; border: 1px solid color-mix(in srgb, var(--warn) 35%, var(--border)); border-radius: var(--radius-sm); background: var(--warning-bg); color: var(--text); font-size: 12px; }
+    .kh-recovery span { flex: 1; }
+    .kh-token-field { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-height: 40px; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+    .kh-token-field:focus-within { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-glow); }
+    .kh-token { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 4px 7px; background: var(--primary-glow); color: var(--primary); font-size: 11px; font-weight: 750; }
+    .kh-token button { border: 0; background: none; color: inherit; cursor: pointer; padding: 0; line-height: 1; }
+    .kh-token-field input { flex: 1; min-width: 150px; border: 0; padding: 3px; box-shadow: none !important; }
+    .kh-editor-groups { max-height: 150px; overflow: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px; }
+    .kh-create-menu { position: relative; }
+    .kh-create-options { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; width: 230px; padding: 6px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); box-shadow: var(--shadow); }
+    .kh-create-options button { width: 100%; display: block; border: 0; background: none; color: var(--text); text-align: left; padding: 9px 10px; border-radius: 6px; cursor: pointer; }
+    .kh-create-options button:hover { background: var(--surface2); }
+    @media (max-width: 820px) { .kh-editor-grid { grid-template-columns: 1fr; } #knowledge-modal { height: calc(100vh - 20px); } .kh-editor-pane.preview { display: none; } .kh-editor-groups { grid-template-columns: 1fr; } }
+    @media (max-width: 900px) { .kh-shell { grid-template-columns: 1fr; } .kh-filters { border-right: 0; border-bottom: 1px solid var(--border); display: flex; gap: 5px; overflow-x: auto; padding: 10px 14px; } .kh-filter-title { display:none; } .kh-filter-btn { width: auto; white-space: nowrap; } }
+
     @media (max-width: 1180px) {
       #sidebar { width: 216px; padding: 20px 12px; gap: 18px; }
       .page-header { flex-wrap: wrap; }
@@ -1938,7 +2041,7 @@
     #timer-stop-btn:hover { background: var(--good); color: #fff; border-color: var(--good); }
 
     /* ══ UNDO TOAST ══ */
-    #undo-toast, #sub-undo-toast, #project-undo-toast, #companydoc-undo-toast {
+    #undo-toast, #sub-undo-toast, #project-undo-toast, #companydoc-undo-toast, #knowledge-undo-toast {
       position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
       background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
       padding: 13px 22px; display: none; align-items: center; gap: 12px;
@@ -1947,17 +2050,17 @@
       animation: toastIn .2s var(--ease);
       white-space: nowrap;
     }
-    #undo-toast.visible, #sub-undo-toast.visible, #project-undo-toast.visible, #companydoc-undo-toast.visible { display: flex; }
+    #undo-toast.visible, #sub-undo-toast.visible, #project-undo-toast.visible, #companydoc-undo-toast.visible, #knowledge-undo-toast.visible { display: flex; }
     @keyframes toastIn {
       from { opacity: 0; transform: translateX(-50%) translateY(8px); }
       to   { opacity: 1; transform: translateX(-50%) translateY(0); }
     }
-    #undo-toast-btn, #sub-undo-toast-btn, #project-undo-toast-btn, #companydoc-undo-toast-btn {
+    #undo-toast-btn, #sub-undo-toast-btn, #project-undo-toast-btn, #companydoc-undo-toast-btn, #knowledge-undo-toast-btn {
       background: var(--primary); border: none; border-radius: 8px;
       padding: 3px 12px; font-size: 12px; font-weight: 700;
       color: #fff; cursor: pointer; font-family: inherit; transition: background var(--speed);
     }
-    #undo-toast-btn:hover, #sub-undo-toast-btn:hover, #project-undo-toast-btn:hover, #companydoc-undo-toast-btn:hover { background: var(--primary-strong); }
+    #undo-toast-btn:hover, #sub-undo-toast-btn:hover, #project-undo-toast-btn:hover, #companydoc-undo-toast-btn:hover, #knowledge-undo-toast-btn:hover { background: var(--primary-strong); }
 
     /* ══ CROSS-LINKS (clickable data → related views) ══ */
     .cell-link {
@@ -2206,6 +2309,9 @@
     </button>
     <button class="nav-item" data-module="companydocs" onclick="switchModule('companydocs')">
       <span class="nav-icon" data-ic="calendar-check"></span><span class="nav-label">Company Docs</span><span class="nav-badge" id="nav-badge-companydocs"></span>
+    </button>
+    <button class="nav-item" data-module="knowledge" onclick="switchModule('knowledge')">
+      <span class="nav-icon" data-ic="book-open"></span><span class="nav-label">Knowledge Hub</span><span class="nav-badge" id="nav-badge-knowledge"></span>
     </button>
     <div class="nav-section">Review</div>
     <button class="nav-item active" data-module="analytics" onclick="switchModule('analytics')">
@@ -2802,6 +2908,91 @@
     <div class="cp-records-panel" id="dept-tasks-panel"></div>
   </div>
 </div>
+
+<!-- ══ KNOWLEDGE HUB MODULE ══ -->
+<div id="module-knowledge" class="app-module">
+  <div class="page-header">
+    <span class="page-title"><span class="ti-ic" data-ic="book-open"></span>Knowledge Hub</span>
+    <div class="topbar-right">
+      <label class="sr-only" for="kh-search">Search Knowledge Hub</label>
+      <input type="search" id="kh-search" class="mod-search" placeholder="Search titles, content, documents, or tags…" oninput="renderKnowledgeList()">
+      <button class="btn" onclick="openKnowledgeGroupEditor()"><span data-ic="folder-plus"></span>New Group</button>
+      <div class="kh-create-menu">
+        <button class="btn primary" id="kh-create-btn" aria-haspopup="menu" aria-expanded="false" onclick="toggleKnowledgeCreateMenu()"><span data-ic="plus"></span>New Knowledge Item</button>
+        <div class="kh-create-options" id="kh-create-options" role="menu" hidden>
+          <button role="menuitem" onclick="startKnowledgeCreation('ARTICLE')"><strong>Write an article</strong><br><span class="modal-hint">Create guidance, steps, or troubleshooting notes</span></button>
+          <button role="menuitem" onclick="startKnowledgeCreation('DOCUMENT')"><strong>Upload a document</strong><br><span class="modal-hint">Create an item and attach its first version</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="kh-list-view" class="kh-shell">
+    <aside class="kh-filters" id="kh-filters"></aside>
+    <main class="kh-main">
+      <div class="kh-summary"><span id="kh-result-count" role="status"></span><label><span class="sr-only">Sort knowledge items</span><select id="kh-sort" class="kh-sort" aria-label="Sort knowledge items" onchange="renderKnowledgeList()"><option value="updated">Recently updated</option><option value="title">Title</option><option value="documents">Most documents</option><option value="created">Recently created</option></select></label></div>
+      <div id="kh-active-filters" class="kh-active-filters" aria-label="Active filters"></div>
+      <div id="kh-list" class="kh-list"></div>
+      <div id="kh-empty" class="kh-empty" hidden><div class="kh-empty-inner"><span data-ic="book-open"></span><h3 id="kh-empty-title">No knowledge found</h3><p id="kh-empty-copy">Create a manual, integration guide, procedure, or troubleshooting note.</p><button id="kh-empty-clear" class="btn" onclick="resetKnowledgeFilters()" hidden>Clear filters</button></div></div>
+    </main>
+  </div>
+  <div id="kh-detail-view" class="kh-main" hidden></div>
+</div>
+
+<div id="knowledge-modal-overlay" class="modal-overlay" onclick="knowledgeEditorOverlayClick(event)">
+  <div id="knowledge-modal" class="modal-box">
+    <div class="modal-header"><span class="modal-title" id="kh-modal-title">New Knowledge Item</span><button class="modal-close" onclick="closeKnowledgeEditor()" data-ic="x"></button></div>
+    <div class="modal-body">
+      <div id="kh-recovery" class="kh-recovery" hidden><span>An unsaved draft is available for this item.</span><button class="btn small" onclick="recoverKnowledgeDraft()">Recover</button><button class="btn small" onclick="discardKnowledgeDraft()">Discard</button></div>
+      <div class="form-row"><div class="form-group full"><label>Title</label><input id="kh-title-input" maxlength="300" placeholder="A clear, searchable title"></div></div>
+      <div class="form-row"><div class="form-group"><label>Type</label><select id="kh-type-input"></select></div><div class="form-group"><label>Status</label><select id="kh-status-input"><option value="DRAFT">Draft</option><option value="PUBLISHED">Ready</option><option value="ARCHIVED">Archived</option></select><div class="modal-hint">Ready means finalized for your personal library; it is not shared with other accounts.</div></div></div>
+      <div class="form-row"><div class="form-group full"><label>Summary</label><textarea id="kh-summary-input" maxlength="2000" placeholder="What this item helps someone understand or do"></textarea></div></div>
+      <div class="form-group full"><label for="kh-content-input">Contents</label><div class="kh-editor-grid">
+        <div class="kh-editor-pane">
+          <div class="kh-editor-toolbar" aria-label="Formatting tools">
+            <button type="button" title="Heading" onclick="formatKnowledgeText('heading')">H2</button>
+            <button type="button" title="Bulleted list" onclick="formatKnowledgeText('bullet')">• List</button>
+            <button type="button" title="Numbered list" onclick="formatKnowledgeText('number')">1. List</button>
+            <button type="button" title="Code block" onclick="formatKnowledgeText('code')">&lt;/&gt;</button>
+            <button type="button" title="Link" onclick="formatKnowledgeText('link')">Link</button>
+          </div>
+          <textarea id="kh-content-input" placeholder="Write prerequisites, steps, notes, and troubleshooting guidance…" oninput="previewKnowledgeContent()"></textarea>
+        </div>
+        <div class="kh-editor-pane preview"><div class="kh-preview-head">Preview</div><div id="kh-content-preview" class="kh-content"></div></div>
+      </div><div class="modal-hint">Formatting uses safe Markdown-style headings, lists, code blocks, and links. Do not store passwords or secret keys here.</div></div>
+      <div class="form-row">
+        <div class="form-group"><label for="kh-tags-input">Tags</label><div id="kh-tag-field" class="kh-token-field" onclick="document.getElementById('kh-tags-input').focus()"><div id="kh-tag-tokens"></div><input id="kh-tags-input" list="kh-tag-suggestions" placeholder="Add a tag and press Enter"><datalist id="kh-tag-suggestions"></datalist></div><div class="modal-hint"><span id="kh-tag-count">0</span>/30 tags. Existing tags are suggested automatically.</div></div>
+        <div class="form-group"><label>Groups</label><input id="kh-editor-group-search" type="search" placeholder="Filter groups…" oninput="renderKnowledgeEditorGroups()"><div id="kh-editor-groups" class="kh-editor-groups"></div></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn" onclick="closeKnowledgeEditor()">Cancel</button><button class="btn primary" id="kh-save-btn" onclick="saveKnowledgeEditor()">Create Item</button></div>
+  </div>
+</div>
+
+<div id="knowledge-group-modal-overlay" class="modal-overlay" onclick="knowledgeGroupOverlayClick(event)">
+  <div id="knowledge-group-modal" class="modal-box">
+    <div class="modal-header"><span class="modal-title" id="kh-group-modal-title">New Group</span><button class="modal-close" onclick="closeKnowledgeGroupEditor()" data-ic="x"></button></div>
+    <div class="modal-body">
+      <div class="form-row"><div class="form-group full"><label>Group Name</label><input id="kh-group-name" maxlength="120" placeholder="e.g. Employee Onboarding"></div></div>
+      <div class="form-row"><div class="form-group full"><label>Description</label><textarea id="kh-group-description" maxlength="1000" placeholder="What belongs in this group"></textarea></div></div>
+      <div class="form-row"><div class="form-group full"><label>Include Knowledge Items</label><input id="kh-group-item-search" type="search" placeholder="Filter knowledge items…" oninput="filterKnowledgeGroupItems()"><div id="kh-group-items" class="kh-group-picker"></div></div></div>
+    </div>
+    <div class="modal-footer"><div id="kh-group-delete-host"></div><span style="flex:1"></span><button class="btn" onclick="closeKnowledgeGroupEditor()">Cancel</button><button class="btn primary" id="kh-group-save" onclick="saveKnowledgeGroup()">Create Group</button></div>
+  </div>
+</div>
+
+<div id="knowledge-document-modal-overlay" class="modal-overlay" onclick="knowledgeDocumentOverlayClick(event)">
+  <div id="knowledge-document-modal" class="modal-box">
+    <div class="modal-header"><span class="modal-title" id="kh-document-modal-title">Add Document</span><button class="modal-close" onclick="closeKnowledgeDocumentModal()" data-ic="x"></button></div>
+    <div class="modal-body">
+      <div class="form-row"><div class="form-group full"><label>Document Name</label><input id="kh-document-name" list="kh-document-names" maxlength="200" placeholder="e.g. Installation Manual"><datalist id="kh-document-names"></datalist><div class="modal-hint">Reuse an existing document name when uploading a newer version.</div></div></div>
+      <div class="form-row"><div class="form-group full"><label>Version</label><input id="kh-document-version" maxlength="60" placeholder="e.g. 1.0, 2026.07, Rev B"></div></div>
+      <div class="modal-hint">After continuing, choose the document file from your computer.</div>
+    </div>
+    <div class="modal-footer"><button class="btn" onclick="closeKnowledgeDocumentModal()">Cancel</button><button class="btn primary" onclick="submitKnowledgeDocument()">Choose File</button></div>
+  </div>
+</div>
+
+<div id="knowledge-undo-toast" role="status" aria-live="polite"><span>Knowledge item deleted</span><button id="knowledge-undo-toast-btn" onclick="undoDeleteKnowledgeItem()">Undo</button></div>
 
 <!-- ══ COMPANY DOCUMENTS MODULE ══ -->
 <div id="module-companydocs" class="app-module">
@@ -3461,6 +3652,7 @@
       <button class="stab" data-tab="projectStatus" onclick="switchTab(this)"><span class="stab-icon" data-ic="clipboard-list"></span> Project Status</button>
       <button class="stab" data-tab="projectDocument" onclick="switchTab(this)"><span class="stab-icon" data-ic="file-text"></span> Project Documents</button>
       <button class="stab" data-tab="companyDocCategory" onclick="switchTab(this)"><span class="stab-icon" data-ic="calendar-check"></span> Company Doc Categories</button>
+      <button class="stab" data-tab="knowledgeType" onclick="switchTab(this)"><span class="stab-icon" data-ic="book-open"></span> Knowledge Types</button>
       <button class="stab" data-tab="department"    onclick="switchTab(this)"><span class="stab-icon" data-ic="building"></span> Department</button>
       <button class="stab" data-tab="taskSourceType" onclick="switchTab(this)"><span class="stab-icon" data-ic="external-link"></span> Task Source Types</button>
       <button class="stab" data-tab="serverRole"    onclick="switchTab(this)"><span class="stab-icon" data-ic="server"></span> Server Roles</button>
@@ -3545,6 +3737,7 @@
       <div class="settings-panel" id="tab-projectStatus"></div>
       <div class="settings-panel" id="tab-projectDocument"></div>
       <div class="settings-panel" id="tab-companyDocCategory"></div>
+      <div class="settings-panel" id="tab-knowledgeType"></div>
       <div class="settings-panel" id="tab-department"></div>
       <div class="settings-panel" id="tab-taskSourceType"></div>
       <div class="settings-panel" id="tab-serverRole"></div>
@@ -3554,7 +3747,7 @@
             <span data-ic="database"></span><span>Full Backup</span>
             <button class="btn" id="maint-fullbackup-btn" style="margin-left:auto" onclick="runFullBackup('maint-fullbackup-btn')">Back Up Everything to Desktop</button>
           </div>
-          <p class="general-hint">Captures the database, uploaded project files, company document files, and the
+          <p class="general-hint">Captures the database, uploaded project files, company document files, Knowledge Hub documents, and the
             rotating backup snapshots into one new timestamped folder on your Desktop — the most complete
             recovery point the app can produce. Nothing is written back into the live data folder.</p>
         </div>
@@ -4116,14 +4309,14 @@ const LK_CAT = {
   timeType: 'TIME_TYPE', status: 'ENTRY_STATUS',
   currency: 'CURRENCY', billingCycle: 'BILLING_CYCLE',
   projectStatus: 'PROJECT_STATUS', projectDocument: 'PROJECT_DOCUMENT',
-  companyDocCategory: 'COMPANY_DOCUMENT_CATEGORY', department: 'DEPARTMENT',
+  companyDocCategory: 'COMPANY_DOCUMENT_CATEGORY', knowledgeType: 'KNOWLEDGE_TYPE', department: 'DEPARTMENT',
   taskSourceType: 'TASK_SOURCE_TYPE',
   serverRole: 'SERVER_ROLE',
 };
 const LK_VALUE = {             // 'label' = stored as display label; 'code' = stored as code
   companies: 'label', systems: 'label', natural: 'label',
   timeType: 'code', status: 'code', currency: 'code', billingCycle: 'code',
-  projectStatus: 'code', projectDocument: 'code', companyDocCategory: 'code',
+  projectStatus: 'code', projectDocument: 'code', companyDocCategory: 'code', knowledgeType: 'code',
   department: 'label', taskSourceType: 'code',
   serverRole: 'code',
 };
@@ -4791,7 +4984,7 @@ function buildTaskSearchSelect(host, tasks, initialId, placeholder, onChange) {
 // The tabs edit a working copy of the catalog (lookupsDraft, keyed by category).
 // Existing entries are relabeled / reordered / soft-disabled in place; new entries
 // get a server-generated stable code on save. Codes are never edited or deleted.
-const SETTINGS_TABS = ['companies', 'systems', 'natural', 'timeType', 'status', 'projectStatus', 'projectDocument', 'companyDocCategory', 'department', 'taskSourceType', 'serverRole'];
+const SETTINGS_TABS = ['companies', 'systems', 'natural', 'timeType', 'status', 'projectStatus', 'projectDocument', 'companyDocCategory', 'knowledgeType', 'department', 'taskSourceType', 'serverRole'];
 
 // Settings is a nav page (not a modal): switchModule('settings') calls this to
 // (re)load a working copy of the catalog and render the editors fresh each visit.
@@ -5083,7 +5276,7 @@ async function renderMaintenanceOrphanReport() {
   host.innerHTML = '<div class="maint-empty">Loading…</div>';
   let report;
   try { report = await window.api.getOrphanSweepReport(); } catch { host.innerHTML = '<div class="maint-empty">Could not load the sweep report.</div>'; return; }
-  const total = (report.projectIds || []).length + (report.companyDocumentIds || []).length;
+  const total = (report.projectIds || []).length + (report.companyDocumentIds || []).length + (report.knowledgeItemIds || []).length;
   if (!report.ranAt) { host.innerHTML = '<div class="maint-empty">No sweep has run yet this session.</div>'; return; }
   if (!total) {
     host.innerHTML = '<div class="maint-empty">Nothing to clean up as of the last launch (' + new Date(report.ranAt).toLocaleString() + ').</div>';
@@ -5092,6 +5285,7 @@ async function renderMaintenanceOrphanReport() {
   const parts = [];
   if (report.projectIds.length) parts.push(report.projectIds.length + ' orphaned project folder' + (report.projectIds.length === 1 ? '' : 's'));
   if (report.companyDocumentIds.length) parts.push(report.companyDocumentIds.length + ' orphaned company document folder' + (report.companyDocumentIds.length === 1 ? '' : 's'));
+  if ((report.knowledgeItemIds || []).length) parts.push(report.knowledgeItemIds.length + ' orphaned Knowledge Hub folder' + (report.knowledgeItemIds.length === 1 ? '' : 's'));
   host.innerHTML = '<div class="maint-row-meta">Last launch (' + new Date(report.ranAt).toLocaleString() + ') removed ' + esc(parts.join(' and ')) + '.</div>';
 }
 
@@ -6654,6 +6848,7 @@ document.addEventListener('keydown', e => {
     closeClientVpnModal(); closeClientServerModal(); closeClientInternalModal(); closeClientGroupRenameModal(); closeClientNewGroupModal();
     closeClientRecordInfoModal(); cancelClientEditConfirm(); closeClientHistoryModal();
     closeSessionModal(); closeWlHistoryModal(); closeMergeModal(); closeShortcutsOverlay(); closeHowThinksOverlay();
+    closeKnowledgeEditor(); closeKnowledgeGroupEditor(); closeKnowledgeDocumentModal(); toggleKnowledgeCreateMenu(false);
     document.querySelectorAll('.top-menu.open').forEach(m => m.classList.remove('open'));
   }
   // "?" opens the keyboard-shortcuts overlay — only when not typing in a field
@@ -6670,6 +6865,9 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('backlog-modal-overlay').classList.contains('open')) submitBacklogModal();
     if (document.getElementById('project-modal-overlay').classList.contains('open')) submitProjectModal();
     if (document.getElementById('companydoc-modal-overlay').classList.contains('open')) submitCompanyDocModal();
+    if (document.getElementById('knowledge-modal-overlay').classList.contains('open')) saveKnowledgeEditor();
+    if (document.getElementById('knowledge-group-modal-overlay').classList.contains('open')) saveKnowledgeGroup();
+    if (document.getElementById('knowledge-document-modal-overlay').classList.contains('open')) submitKnowledgeDocument();
     if (document.getElementById('client-vpn-modal-overlay').classList.contains('open')) submitClientVpnModal();
     if (document.getElementById('client-server-modal-overlay').classList.contains('open')) submitClientServerModal();
     if (document.getElementById('client-internal-modal-overlay').classList.contains('open')) submitClientInternalModal();
@@ -6683,6 +6881,7 @@ document.addEventListener('keydown', e => {
       else if (activeModule === 'timesheet')     openModal();
       else if (activeModule === 'clients' || activeModule === 'projects') openProjectModal();
       else if (activeModule === 'companydocs')   openCompanyDocModal();
+      else if (activeModule === 'knowledge')     openKnowledgeEditor();
       // analytics / reports have no Add action — Ctrl+N is a no-op there
     }
     // Day navigation: Ctrl+Left = earlier day, Ctrl+Right = later day
@@ -7617,6 +7816,9 @@ function switchModule(name) {
   } else if (name === 'companydocs') {
     window.api.setTitle('Cooperation Tools — Company Documents');
     initCompanyDocsModule();
+  } else if (name === 'knowledge') {
+    window.api.setTitle('Cooperation Tools — Knowledge Hub');
+    initKnowledgeModule();
   } else if (name === 'clients') {
     window.api.setTitle('Cooperation Tools — Clients');
     initClientsModule();
@@ -8486,7 +8688,7 @@ function renderBackupChoiceMenu() {
 }
 
 // ── Full Backup (Milestone 8) ──
-// Captures the DB + projects/ + company_documents/ + backups/ into one new
+// Captures the DB + projects/ + company_documents/ + knowledge_hub/ + backups/ into one new
 // timestamped Desktop folder. Shared by the sidebar menu and the Settings ->
 // Maintenance card; `btnId` lets each caller show its own loading state.
 async function runFullBackup(btnId) {
@@ -10654,6 +10856,635 @@ async function doDeleteDeptTask(task) {
   });
 }
 
+// ══ KNOWLEDGE HUB ══════════════════════════════════════════════════════════
+let knowledgeItems = [], knowledgeGroups = [], knowledgeLoaded = false;
+let knowledgeFilters = new Set(), knowledgeFilterSections = {}, knowledgeFilterShowAll = {};
+let knowledgeCurrentId = null, knowledgeCurrentItem = null, knowledgeEditId = null;
+let knowledgeUndo = null, knowledgeUndoTimer = null, knowledgeEditorDirty = false;
+let knowledgeGroupEditId = null, knowledgeDocumentItemId = null, knowledgeCreationMode = 'ARTICLE';
+let knowledgeEditorTags = [], knowledgeEditorGroupIds = new Set(), knowledgePendingDraft = null;
+let knowledgeUiRestored = false, knowledgeListFocus = null;
+
+function knowledgeDocumentCount(item) { return Number(item.documentCount ?? item.documents?.length ?? 0); }
+function knowledgeStatusLabel(status) { return status === 'PUBLISHED' ? 'Ready' : status === 'ARCHIVED' ? 'Archived' : 'Draft'; }
+function initKnowledgeModule() {
+  if (!knowledgeUiRestored) {
+    const saved = uiState.filters?.knowledge || {};
+    const restored = Array.isArray(saved.filters) ? saved.filters : saved.filter && saved.filter !== 'ALL'
+      ? [saved.filter.startsWith('TYPE:') || saved.filter.startsWith('TAG:') || saved.filter.startsWith('GROUP:') ? saved.filter : 'STATUS:' + saved.filter]
+      : [];
+    knowledgeFilters = new Set(restored);
+    knowledgeFilterSections = Object.assign({}, saved.sections || {});
+    document.getElementById('kh-search').value = saved.query || '';
+    document.getElementById('kh-sort').value = ['updated', 'title', 'documents', 'created'].includes(saved.sort) ? saved.sort : 'updated';
+    knowledgeUiRestored = true;
+  }
+  showKnowledgeListView();
+  knowledgeCurrentId = null;
+  knowledgeCurrentItem = null;
+  if (!knowledgeLoaded) loadKnowledgeItems(); else renderKnowledgeList();
+}
+function showKnowledgeListView() {
+  document.getElementById('kh-list-view').hidden = false;
+  document.getElementById('kh-detail-view').hidden = true;
+}
+function showKnowledgeDetailView() {
+  document.getElementById('kh-list-view').hidden = true;
+  document.getElementById('kh-detail-view').hidden = false;
+}
+async function loadKnowledgeItems(openId) {
+  try {
+    [knowledgeItems, knowledgeGroups] = await Promise.all([window.api.listKnowledgeItems(), window.api.listKnowledgeGroups()]);
+    knowledgeItems ||= []; knowledgeGroups ||= []; knowledgeLoaded = true;
+    [...knowledgeFilters].forEach(key => {
+      if (key.startsWith('GROUP:') && !knowledgeGroups.some(group => group.id === Number(key.slice(6)))) knowledgeFilters.delete(key);
+    });
+  } catch { toast('Could not load Knowledge Hub'); return; }
+  const targetId = openId != null ? openId : knowledgeCurrentId;
+  if (targetId != null && knowledgeItems.some(item => item.id === Number(targetId))) await openKnowledgeDetail(targetId);
+  else { showKnowledgeListView(); knowledgeCurrentId = null; knowledgeCurrentItem = null; renderKnowledgeList(); }
+}
+function toggleKnowledgeCreateMenu(force) {
+  const menu = document.getElementById('kh-create-options'), button = document.getElementById('kh-create-btn');
+  const open = force == null ? menu.hidden : !!force;
+  menu.hidden = !open;
+  button.setAttribute('aria-expanded', String(open));
+  if (open) setTimeout(() => menu.querySelector('button')?.focus(), 0);
+}
+function startKnowledgeCreation(mode) {
+  knowledgeCreationMode = mode === 'DOCUMENT' ? 'DOCUMENT' : 'ARTICLE';
+  toggleKnowledgeCreateMenu(false);
+  openKnowledgeEditor();
+}
+document.addEventListener('click', event => {
+  const menu = document.querySelector('.kh-create-menu');
+  if (menu && !menu.contains(event.target)) toggleKnowledgeCreateMenu(false);
+});
+function knowledgeFilterDimension(key) {
+  return key.startsWith('TYPE:') ? 'TYPE' : key.startsWith('STATUS:') ? 'STATUS' : key.startsWith('GROUP:') ? 'GROUP' : 'TAG';
+}
+function toggleKnowledgeFilter(key) {
+  const dimension = knowledgeFilterDimension(key);
+  if (knowledgeFilters.has(key)) knowledgeFilters.delete(key);
+  else {
+    if (dimension !== 'TAG') [...knowledgeFilters].forEach(current => {
+      if (knowledgeFilterDimension(current) === dimension) knowledgeFilters.delete(current);
+    });
+    knowledgeFilters.add(key);
+  }
+  renderKnowledgeList();
+}
+function appendKnowledgeFilterSection(host, id, title, entries, limit = 8) {
+  if (!entries.length) return;
+  const section = pjMk('div', 'kh-filter-section' + (knowledgeFilterSections[id] ? ' collapsed' : ''));
+  section.dataset.filterId = id;
+  if (id === 'groups' || id === 'tags') section.dataset.searchable = 'true';
+  const heading = pjMk('div', 'kh-filter-title'), label = pjMk('span', '', title);
+  const toggle = pjMk('button', 'kh-filter-toggle', knowledgeFilterSections[id] ? '▸' : '▾');
+  toggle.title = (knowledgeFilterSections[id] ? 'Expand ' : 'Collapse ') + title;
+  toggle.setAttribute('aria-expanded', String(!knowledgeFilterSections[id]));
+  toggle.onclick = () => { knowledgeFilterSections[id] = !knowledgeFilterSections[id]; renderKnowledgeList(); };
+  heading.append(label, toggle); section.appendChild(heading);
+  const items = pjMk('div', 'kh-filter-items');
+  entries.forEach((entry, index) => {
+    const active = knowledgeFilters.has(entry.key);
+    const b = pjMk('button', 'kh-filter-btn' + (active ? ' active' : ''));
+    b.setAttribute('aria-pressed', String(active));
+    b.dataset.filterLabel = entry.label.toLowerCase();
+    b.dataset.overflow = String(index >= limit);
+    b.hidden = index >= limit && !knowledgeFilterShowAll[id];
+    b.append(document.createTextNode(entry.label), pjMk('span', '', String(entry.count)));
+    b.onclick = () => toggleKnowledgeFilter(entry.key);
+    items.appendChild(b);
+  });
+  if (entries.length > limit) {
+    const more = pjMk('button', 'kh-filter-more', knowledgeFilterShowAll[id] ? 'Show fewer' : `Show all ${entries.length}`);
+    more.onclick = () => { knowledgeFilterShowAll[id] = !knowledgeFilterShowAll[id]; renderKnowledgeList(); };
+    items.appendChild(more);
+  }
+  section.appendChild(items); host.appendChild(section);
+}
+function renderKnowledgeFilters() {
+  const host = document.getElementById('kh-filters'); host.innerHTML = '';
+  const browse = pjMk('div', 'kh-filter-section'), heading = pjMk('div', 'kh-filter-title', 'Browse');
+  const all = pjMk('button', 'kh-filter-btn' + (!knowledgeFilters.size ? ' active' : ''));
+  all.setAttribute('aria-pressed', String(!knowledgeFilters.size));
+  all.append(document.createTextNode('All knowledge'), pjMk('span', '', String(knowledgeItems.filter(x => x.status !== 'ARCHIVED').length)));
+  all.onclick = () => { knowledgeFilters.clear(); renderKnowledgeList(); };
+  browse.append(heading, all);
+  const facetSearch = document.createElement('input'); facetSearch.type = 'search'; facetSearch.className = 'mod-search';
+  facetSearch.style.cssText = 'width:100%;min-width:0;margin-top:8px'; facetSearch.placeholder = 'Filter groups or tags…';
+  facetSearch.setAttribute('aria-label', 'Filter Knowledge Hub groups and tags');
+  facetSearch.oninput = () => filterKnowledgeFacetButtons(facetSearch.value);
+  browse.appendChild(facetSearch); host.appendChild(browse);
+  const types = lkOptions('KNOWLEDGE_TYPE').map(type => ({
+    key: 'TYPE:' + type.code, label: type.label,
+    count: knowledgeItems.filter(x => x.type === type.code && x.status !== 'ARCHIVED').length,
+  })).filter(type => type.count || knowledgeFilters.has(type.key));
+  appendKnowledgeFilterSection(host, 'types', 'Types', types);
+  const statuses = [['PUBLISHED', 'Ready'], ['DRAFT', 'Drafts'], ['ARCHIVED', 'Archived']]
+    .map(([status, label]) => ({ key: 'STATUS:' + status, label, count: knowledgeItems.filter(x => x.status === status).length }))
+    .filter(status => status.count || knowledgeFilters.has(status.key));
+  appendKnowledgeFilterSection(host, 'status', 'Status', statuses);
+  const groups = knowledgeGroups.map(group => ({
+    key: 'GROUP:' + group.id, label: group.name,
+    count: group.itemIds.filter(id => knowledgeItems.some(x => x.id === id && x.status !== 'ARCHIVED')).length,
+  }));
+  appendKnowledgeFilterSection(host, 'groups', 'Groups', groups);
+  const selectedGroupKey = [...knowledgeFilters].find(key => key.startsWith('GROUP:'));
+  if (selectedGroupKey) {
+    const selectedGroup = knowledgeGroups.find(group => group.id === Number(selectedGroupKey.slice(6)));
+    if (selectedGroup) {
+      const edit = pjMk('button', 'kh-filter-btn', 'Edit selected group');
+      edit.style.fontSize = '11px'; edit.onclick = () => openKnowledgeGroupEditor(selectedGroup); host.appendChild(edit);
+    }
+  }
+  const tagCounts = new Map();
+  knowledgeItems.filter(x => x.status !== 'ARCHIVED').forEach(item => (item.tags || []).forEach(tag => {
+    const key = tag.toLowerCase(), current = tagCounts.get(key);
+    tagCounts.set(key, { label: current?.label || tag, count: (current?.count || 0) + 1 });
+  }));
+  const tags = [...tagCounts.entries()].sort((a, b) => b[1].count - a[1].count || a[1].label.localeCompare(b[1].label))
+    .map(([key, tag]) => ({ key: 'TAG:' + key, label: '#' + tag.label, count: tag.count }));
+  appendKnowledgeFilterSection(host, 'tags', 'Tags', tags, 10);
+}
+function filterKnowledgeFacetButtons(value) {
+  const q = String(value || '').trim().toLowerCase();
+  document.querySelectorAll('#kh-filters .kh-filter-section[data-searchable] .kh-filter-btn').forEach(button => {
+    button.hidden = q ? !String(button.dataset.filterLabel || '').includes(q)
+      : button.dataset.overflow === 'true' && !knowledgeFilterShowAll[button.closest('.kh-filter-section')?.dataset.filterId];
+  });
+  document.querySelectorAll('#kh-filters .kh-filter-section[data-searchable]').forEach(section => {
+    section.classList.toggle('collapsed', !q && !!knowledgeFilterSections[section.dataset.filterId]);
+  });
+}
+function knowledgeMatches(item, q) {
+  const tagQuery = String(q || '').replace(/^#/, '');
+  return textMatch([item.title, item.summary, item.content, item.typeLabel, ...(item.tags || []),
+    ...(item.groups || []).map(x => x.name), ...(item.documents || []).flatMap(x => [x.name, x.version, x.originalName])], q)
+    || (!!tagQuery && (item.tags || []).some(tag => tag.toLowerCase().includes(tagQuery)));
+}
+function knowledgePassesFilters(item) {
+  const status = [...knowledgeFilters].filter(x => x.startsWith('STATUS:')).map(x => x.slice(7));
+  const types = [...knowledgeFilters].filter(x => x.startsWith('TYPE:')).map(x => x.slice(5));
+  const groups = [...knowledgeFilters].filter(x => x.startsWith('GROUP:')).map(x => Number(x.slice(6)));
+  const tags = [...knowledgeFilters].filter(x => x.startsWith('TAG:')).map(x => x.slice(4));
+  if (!status.length && item.status === 'ARCHIVED') return false;
+  if (status.length && !status.includes(item.status)) return false;
+  if (types.length && !types.includes(item.type)) return false;
+  if (groups.length && !groups.some(id => (item.groups || []).some(group => group.id === id))) return false;
+  if (tags.length && !tags.every(tag => (item.tags || []).some(value => value.toLowerCase() === tag))) return false;
+  return true;
+}
+function knowledgeRowSubtitle(item, q = '') {
+  const content = String(item.content || ''), words = String(q || '').split(/\s+/).filter(Boolean);
+  const hit = words.map(word => content.toLowerCase().indexOf(word.toLowerCase())).find(index => index >= 0);
+  if (hit != null) {
+    const start = Math.max(0, hit - 55), snippet = content.slice(start, start + 170).replace(/\s+/g, ' ').trim();
+    return (start ? '…' : '') + snippet + (start + 170 < content.length ? '…' : '');
+  }
+  if (item.summary) return item.summary;
+  const docs = item.documents || [];
+  if (docs.length) {
+    const names = [...new Set(docs.map(document => document.name).filter(Boolean))];
+    return knowledgeDocumentCount(item) + ' document' + (knowledgeDocumentCount(item) === 1 ? '' : 's') + (names.length ? ' · ' + names.slice(0, 2).join(' · ') : '');
+  }
+  if (content) return content.split(/\r?\n/).find(line => line.trim())?.trim() || 'Written knowledge item';
+  return 'No documents or written content yet';
+}
+function appendHighlightedText(host, text, q) {
+  const words = [...new Set(String(q || '').split(/\s+/).filter(Boolean))].sort((a, b) => b.length - a.length);
+  if (!words.length) { host.textContent = text; return; }
+  const escaped = words.map(word => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const regex = new RegExp('(' + escaped.join('|') + ')', 'ig');
+  String(text || '').split(regex).forEach(part => {
+    if (words.some(word => word.toLowerCase() === part.toLowerCase())) host.appendChild(pjMk('mark', 'kh-hit', part));
+    else host.appendChild(document.createTextNode(part));
+  });
+}
+function renderKnowledgeActiveFilters() {
+  const host = document.getElementById('kh-active-filters'); host.innerHTML = '';
+  [...knowledgeFilters].forEach(key => {
+    let label = key;
+    if (key.startsWith('TYPE:')) label = lkOptions('KNOWLEDGE_TYPE').find(x => x.code === key.slice(5))?.label || key.slice(5);
+    else if (key.startsWith('STATUS:')) label = knowledgeStatusLabel(key.slice(7));
+    else if (key.startsWith('GROUP:')) label = knowledgeGroups.find(x => x.id === Number(key.slice(6)))?.name || 'Group';
+    else if (key.startsWith('TAG:')) label = '#' + key.slice(4);
+    const chip = pjMk('button', 'kh-filter-chip', label + ' ×'); chip.title = 'Remove filter ' + label;
+    chip.onclick = () => toggleKnowledgeFilter(key); host.appendChild(chip);
+  });
+}
+function resetKnowledgeFilters() {
+  knowledgeFilters.clear(); document.getElementById('kh-search').value = ''; renderKnowledgeList();
+}
+function renderKnowledgeList() {
+  if (!knowledgeLoaded) return;
+  renderKnowledgeFilters(); renderKnowledgeActiveFilters();
+  const q = (document.getElementById('kh-search').value || '').trim().toLowerCase();
+  let shown = knowledgeItems.filter(item => knowledgePassesFilters(item) && (!q || knowledgeMatches(item, q)));
+  const sort = document.getElementById('kh-sort').value;
+  shown.sort((a, b) => sort === 'title' ? a.title.localeCompare(b.title)
+    : sort === 'documents' ? knowledgeDocumentCount(b) - knowledgeDocumentCount(a) || a.title.localeCompare(b.title)
+    : sort === 'created' ? b.createdAt.localeCompare(a.createdAt) : b.updatedAt.localeCompare(a.updatedAt));
+  const documentCount = shown.reduce((sum, item) => sum + knowledgeDocumentCount(item), 0);
+  document.getElementById('kh-result-count').textContent = shown.length + ' item' + (shown.length === 1 ? '' : 's') + ' · ' + documentCount + ' document' + (documentCount === 1 ? '' : 's');
+  const list = document.getElementById('kh-list'), empty = document.getElementById('kh-empty');
+  list.innerHTML = ''; empty.hidden = shown.length > 0;
+  if (!shown.length) {
+    const hasQuery = !!q, filtered = knowledgeFilters.size > 0;
+    document.getElementById('kh-empty-title').textContent = hasQuery ? 'No search results' : filtered ? 'Nothing in this view' : 'No knowledge yet';
+    document.getElementById('kh-empty-copy').textContent = hasQuery ? 'Try fewer words, a document version, or a different tag.' : filtered ? 'Remove a filter to broaden this view.' : 'Create an item, then add written guidance or versioned documents.';
+    document.getElementById('kh-empty-clear').hidden = !hasQuery && !filtered;
+  }
+  shown.forEach(item => {
+    const row = pjMk('button', 'kh-row'); row.dataset.knowledgeId = item.id;
+    const icon = pjMk('span', 'kh-row-icon'); icon.innerHTML = ic(item.type === 'TROUBLESHOOTING' ? 'wrench' : item.type === 'INTEGRATION_GUIDE' ? 'plug' : 'book-open');
+    const copy = pjMk('div'), title = pjMk('div', 'kh-row-title'), summary = pjMk('div', 'kh-row-summary');
+    appendHighlightedText(title, item.title, q); appendHighlightedText(summary, knowledgeRowSubtitle(item, q), q);
+    copy.append(title, summary);
+    const meta = pjMk('div', 'kh-meta');
+    meta.appendChild(pjMk('span', 'kh-pill ' + item.status.toLowerCase(), knowledgeStatusLabel(item.status)));
+    if (item.typeLabel) meta.appendChild(pjMk('span', 'kh-pill', item.typeLabel));
+    (item.groups || []).slice(0, 2).forEach(group => meta.appendChild(pjMk('span', 'kh-pill', group.name)));
+    if ((item.groups || []).length > 2) meta.appendChild(pjMk('span', 'kh-pill', '+' + (item.groups.length - 2) + ' groups'));
+    (item.tags || []).slice(0, 3).forEach(tag => meta.appendChild(pjMk('span', 'kh-pill', '#' + tag)));
+    if ((item.tags || []).length > 3) meta.appendChild(pjMk('span', 'kh-pill', '+' + (item.tags.length - 3) + ' tags'));
+    if (knowledgeDocumentCount(item)) meta.appendChild(pjMk('span', 'kh-pill', knowledgeDocumentCount(item) + ' document' + (knowledgeDocumentCount(item) === 1 ? '' : 's')));
+    copy.appendChild(meta);
+    row.append(icon, copy, pjMk('span', 'kh-row-date', 'Updated ' + new Date(item.updatedAt).toLocaleDateString()));
+    row.onclick = () => { knowledgeListFocus = row; openKnowledgeDetail(item.id); }; list.appendChild(row);
+  });
+  uiState.filters ||= {};
+  uiState.filters.knowledge = { filters: [...knowledgeFilters], query: q, sort, sections: knowledgeFilterSections };
+  saveUiStateDebounced();
+}
+function khButton(label, cls, fn) { const b = pjMk('button', 'btn' + (cls ? ' ' + cls : ''), label); b.onclick = fn; return b; }
+function formatKnowledgeVersion(value) { const version = String(value || '1.0').trim(); return /^(v|rev(?:ision)?\b)/i.test(version) ? version : 'v' + version; }
+function knowledgeVersionCompare(a, b) { return String(b.version || '').localeCompare(String(a.version || ''), undefined, { numeric: true, sensitivity: 'base' }) || String(b.uploadedAt).localeCompare(String(a.uploadedAt)); }
+function buildKnowledgeOverflow(actions) {
+  const wrap = pjMk('div', 'kh-overflow'), trigger = khButton('•••', 'small', () => {});
+  trigger.title = 'More actions'; trigger.setAttribute('aria-haspopup', 'menu'); trigger.setAttribute('aria-expanded', 'false');
+  const menu = pjMk('div', 'kh-overflow-menu'); menu.setAttribute('role', 'menu'); menu.hidden = true;
+  trigger.onclick = event => {
+    event.stopPropagation();
+    document.querySelectorAll('.kh-overflow-menu').forEach(other => { if (other !== menu) other.hidden = true; });
+    menu.hidden = !menu.hidden; trigger.setAttribute('aria-expanded', String(!menu.hidden));
+  };
+  menu.onclick = event => event.stopPropagation();
+  actions.forEach(action => { const button = pjMk('button', action.danger ? 'danger' : '', action.label); button.onclick = () => { menu.hidden = true; action.run(); }; menu.appendChild(button); });
+  wrap.append(trigger, menu); return wrap;
+}
+document.addEventListener('click', () => document.querySelectorAll('.kh-overflow-menu').forEach(menu => {
+  menu.hidden = true; menu.parentElement?.querySelector('[aria-haspopup="menu"]')?.setAttribute('aria-expanded', 'false');
+}));
+async function openKnowledgeDetail(id) {
+  const listItem = knowledgeItems.find(x => x.id === Number(id)); if (!listItem) return;
+  knowledgeCurrentId = listItem.id; showKnowledgeDetailView();
+  const host = document.getElementById('kh-detail-view'); host.innerHTML = '';
+  const loading = pjMk('div', 'kh-detail'); loading.appendChild(pjMk('div', 'kh-detail-summary', 'Loading knowledge item…')); host.appendChild(loading);
+  let item;
+  try { item = await window.api.getKnowledgeItem(listItem.id); } catch { toast('Could not load knowledge item'); closeKnowledgeDetail(); return; }
+  if (!item || knowledgeCurrentId !== listItem.id) return;
+  knowledgeCurrentItem = item; host.innerHTML = '';
+  const page = pjMk('div', 'kh-detail'), back = pjMk('button', 'kh-breadcrumb', '← Knowledge Hub');
+  back.onclick = closeKnowledgeDetail; page.appendChild(back);
+  const head = pjMk('div', 'kh-detail-head'), copy = pjMk('div'), badges = pjMk('div', 'kh-meta');
+  badges.appendChild(pjMk('span', 'kh-pill ' + item.status.toLowerCase(), knowledgeStatusLabel(item.status)));
+  if (item.typeLabel) badges.appendChild(pjMk('span', 'kh-pill', item.typeLabel));
+  copy.append(badges, pjMk('h1', '', item.title), pjMk('div', 'kh-detail-summary', item.summary || knowledgeRowSubtitle(item)), pjMk('div', 'kh-detail-updated', 'Updated ' + new Date(item.updatedAt).toLocaleString()));
+  const actions = pjMk('div', 'kh-detail-actions');
+  actions.append(khButton('Edit', 'primary', () => openKnowledgeEditor(item)), khButton('Add document', '', () => openKnowledgeDocumentModal(item.id)));
+  actions.appendChild(buildKnowledgeOverflow([
+    { label: 'Duplicate as draft', run: () => duplicateKnowledgeItem(item) },
+    ...(item.status === 'DRAFT' ? [{ label: 'Mark as ready', run: () => setKnowledgeStatus(item, 'PUBLISHED') }]
+      : item.status === 'PUBLISHED' ? [{ label: 'Move back to draft', run: () => setKnowledgeStatus(item, 'DRAFT') }] : []),
+    { label: item.status === 'ARCHIVED' ? 'Restore as draft' : 'Archive', run: () => setKnowledgeStatus(item, item.status === 'ARCHIVED' ? 'DRAFT' : 'ARCHIVED') },
+    { label: 'Delete item', danger: true, run: () => showDeleteConfirm(actions, () => deleteKnowledgeItem(item), () => openKnowledgeDetail(item.id)) },
+  ]));
+  head.append(copy, actions); page.appendChild(head);
+  const files = pjMk('section', 'kh-section');
+  files.appendChild(pjMk('h3', '', 'Documents (' + item.documents.length + ')'));
+  if (!item.documents.length) files.appendChild(pjMk('div', 'kh-detail-summary', 'No documents yet — add the first versioned file.'));
+  const families = new Map();
+  item.documents.forEach(file => {
+    const key = String(file.name || file.originalName || 'Document').trim().toLowerCase();
+    if (!families.has(key)) families.set(key, []);
+    families.get(key).push(file);
+  });
+  [...families.values()].sort((a, b) => String(a[0].name).localeCompare(String(b[0].name))).forEach(family => files.appendChild(buildKnowledgeDocumentFamily(item, family)));
+  page.appendChild(files);
+  if (item.content) {
+    const content = pjMk('section', 'kh-section'), rendered = pjMk('div', 'kh-content');
+    content.append(pjMk('h3', '', 'Written guidance'), rendered); renderKnowledgeContent(rendered, item.content); page.appendChild(content);
+  }
+  const organization = pjMk('section', 'kh-section'), orgTitle = pjMk('div');
+  orgTitle.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px';
+  orgTitle.append(pjMk('h3', '', 'Organization'), khButton('Edit organization', 'small', () => openKnowledgeEditor(item)));
+  organization.appendChild(orgTitle);
+  const chips = pjMk('div', 'kh-meta');
+  (item.groups || []).forEach(group => {
+    const chip = pjMk('button', 'kh-pill', group.name); chip.onclick = () => { knowledgeFilters.add('GROUP:' + group.id); closeKnowledgeDetail(); }; chips.appendChild(chip);
+  });
+  (item.tags || []).forEach(tag => {
+    const chip = pjMk('button', 'kh-pill', '#' + tag); chip.onclick = () => { knowledgeFilters.add('TAG:' + tag.toLowerCase()); closeKnowledgeDetail(); }; chips.appendChild(chip);
+  });
+  if (!chips.childElementCount) chips.appendChild(pjMk('span', 'kh-detail-summary', 'No groups or tags yet.'));
+  organization.appendChild(chips); page.appendChild(organization);
+  host.appendChild(page); back.focus();
+}
+function closeKnowledgeDetail() {
+  knowledgeCurrentId = null; knowledgeCurrentItem = null; showKnowledgeListView(); renderKnowledgeList();
+  setTimeout(() => { if (knowledgeListFocus?.isConnected) knowledgeListFocus.focus(); }, 0);
+}
+function buildKnowledgeDocumentFamily(item, files) {
+  files.sort(knowledgeVersionCompare); const latest = files[0], family = pjMk('div', 'kh-document-family'), head = pjMk('div', 'kh-document-family-head');
+  const icon = pjMk('span'); icon.innerHTML = ic(latest.exists ? 'file-text' : 'triangle-alert');
+  const copy = pjMk('div', 'kh-resource-copy');
+  copy.append(pjMk('b', '', latest.name || latest.originalName || '(document)'), pjMk('span', '', `Latest ${formatKnowledgeVersion(latest.version)} · ${latest.originalName} · ${fmtFileSize(latest.size)}${latest.exists ? '' : ' · Missing from disk'}`));
+  head.append(icon, copy, pjMk('span', 'kh-version-pill', formatKnowledgeVersion(latest.version)), khButton('New version', 'small', () => openKnowledgeDocumentModal(item.id, latest.name)));
+  if (latest.exists) head.appendChild(khButton('Open', 'small primary', () => openKnowledgeAttachment(latest.id)));
+  head.appendChild(buildKnowledgeOverflow([
+    ...(latest.exists ? [{ label: 'Download latest', run: () => downloadKnowledgeAttachment(latest.id) }] : []),
+    { label: 'Remove latest version', danger: true, run: () => showDeleteConfirm(head, () => removeKnowledgeAttachment(item.id, latest.id), () => openKnowledgeDetail(item.id)) },
+  ]));
+  family.appendChild(head);
+  if (files.length > 1) {
+    const toggle = pjMk('button', 'kh-document-history-toggle', `Show ${files.length - 1} previous version${files.length === 2 ? '' : 's'}`);
+    const history = pjMk('div', 'kh-document-history'); history.hidden = true;
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.onclick = () => { history.hidden = !history.hidden; toggle.setAttribute('aria-expanded', String(!history.hidden)); toggle.textContent = history.hidden ? `Show ${files.length - 1} previous version${files.length === 2 ? '' : 's'}` : 'Hide previous versions'; };
+    files.slice(1).forEach(file => history.appendChild(buildKnowledgeAttachmentHistoryRow(item, file)));
+    family.append(toggle, history);
+  }
+  return family;
+}
+function buildKnowledgeAttachmentHistoryRow(item, file) {
+  const row = pjMk('div', 'kh-resource'), copy = pjMk('div', 'kh-resource-copy');
+  copy.append(pjMk('b', '', formatKnowledgeVersion(file.version)), pjMk('span', '', `${file.originalName} · ${fmtFileSize(file.size)} · Added ${new Date(file.uploadedAt).toLocaleDateString()}${file.exists ? '' : ' · Missing from disk'}`));
+  row.append(copy);
+  if (file.exists) row.appendChild(khButton('Open', 'small', () => openKnowledgeAttachment(file.id)));
+  row.appendChild(buildKnowledgeOverflow([
+    ...(file.exists ? [{ label: 'Download', run: () => downloadKnowledgeAttachment(file.id) }] : []),
+    { label: 'Remove version', danger: true, run: () => showDeleteConfirm(row, () => removeKnowledgeAttachment(item.id, file.id), () => openKnowledgeDetail(item.id)) },
+  ]));
+  return row;
+}
+function appendKnowledgeInline(parent, text) {
+  const regex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/ig; let last = 0, match;
+  while ((match = regex.exec(text))) {
+    parent.appendChild(document.createTextNode(text.slice(last, match.index)));
+    const url = match[2], link = document.createElement('a'); link.href = '#'; link.textContent = match[1]; link.title = url;
+    link.onclick = event => { event.preventDefault(); window.api.openExternal(url); };
+    parent.appendChild(link); last = regex.lastIndex;
+  }
+  parent.appendChild(document.createTextNode(text.slice(last)));
+}
+function renderKnowledgeContent(host, value) {
+  host.innerHTML = ''; const lines = String(value || '').split(/\r?\n/); let code = null, list = null, listType = '';
+  const closeList = () => { list = null; listType = ''; };
+  lines.forEach(line => {
+    if (line.trim().startsWith('```')) {
+      closeList();
+      if (code) code = null;
+      else { code = document.createElement('pre'); host.appendChild(code); }
+      return;
+    }
+    if (code) { code.textContent += (code.textContent ? '\n' : '') + line; return; }
+    const heading = line.match(/^(#{1,3})\s+(.+)$/), bullet = line.match(/^\s*[-*]\s+(.+)$/), number = line.match(/^\s*\d+\.\s+(.+)$/);
+    if (heading) {
+      closeList(); const h = document.createElement('h' + heading[1].length); appendKnowledgeInline(h, heading[2]); host.appendChild(h);
+    } else if (bullet || number) {
+      const wanted = bullet ? 'ul' : 'ol';
+      if (!list || listType !== wanted) { list = document.createElement(wanted); listType = wanted; host.appendChild(list); }
+      const li = document.createElement('li'); appendKnowledgeInline(li, (bullet || number)[1]); list.appendChild(li);
+    } else if (!line.trim()) {
+      closeList();
+    } else {
+      closeList(); const p = document.createElement('p'); appendKnowledgeInline(p, line); host.appendChild(p);
+    }
+  });
+  if (!host.childElementCount) host.appendChild(pjMk('p', 'kh-detail-summary', 'Your formatted preview will appear here.'));
+}
+function previewKnowledgeContent() { renderKnowledgeContent(document.getElementById('kh-content-preview'), document.getElementById('kh-content-input').value); }
+function formatKnowledgeText(kind) {
+  const input = document.getElementById('kh-content-input'), start = input.selectionStart, end = input.selectionEnd, selected = input.value.slice(start, end);
+  const formats = {
+    heading: ['## ', selected || 'Heading'], bullet: ['- ', selected || 'List item'], number: ['1. ', selected || 'List item'],
+    code: ['```\n', (selected || 'code') + '\n```'], link: ['[', (selected || 'Link text') + '](https://example.com)'],
+  };
+  const [prefix, body] = formats[kind] || ['', selected]; input.setRangeText(prefix + body, start, end, 'end');
+  input.dispatchEvent(new Event('input', { bubbles: true })); input.focus();
+}
+function normalizeKnowledgeTag(value) { return String(value || '').trim().replace(/^#/, '').replace(/\s+/g, ' ').slice(0, 60); }
+function addKnowledgeTag(value) {
+  const tag = normalizeKnowledgeTag(value); if (!tag || knowledgeEditorTags.length >= 30 || knowledgeEditorTags.some(x => x.toLowerCase() === tag.toLowerCase())) return;
+  knowledgeEditorTags.push(tag); renderKnowledgeEditorTags(); markKnowledgeEditorDirty();
+}
+function renderKnowledgeEditorTags() {
+  const host = document.getElementById('kh-tag-tokens'); host.innerHTML = '';
+  knowledgeEditorTags.forEach((tag, index) => {
+    const token = pjMk('span', 'kh-token'); token.appendChild(document.createTextNode('#' + tag));
+    const remove = pjMk('button', '', '×'); remove.type = 'button'; remove.title = 'Remove tag ' + tag;
+    remove.onclick = event => { event.stopPropagation(); knowledgeEditorTags.splice(index, 1); renderKnowledgeEditorTags(); markKnowledgeEditorDirty(); };
+    token.appendChild(remove); host.appendChild(token);
+  });
+  document.getElementById('kh-tag-count').textContent = String(knowledgeEditorTags.length);
+}
+function setupKnowledgeTagInput() {
+  const input = document.getElementById('kh-tags-input');
+  input.onkeydown = event => {
+    if (event.key === 'Enter' || event.key === ',') { event.preventDefault(); addKnowledgeTag(input.value); input.value = ''; }
+    else if (event.key === 'Backspace' && !input.value && knowledgeEditorTags.length) { knowledgeEditorTags.pop(); renderKnowledgeEditorTags(); markKnowledgeEditorDirty(); }
+  };
+  input.onblur = () => { if (input.value.trim()) { addKnowledgeTag(input.value); input.value = ''; } };
+}
+function renderKnowledgeEditorGroups() {
+  const host = document.getElementById('kh-editor-groups'), q = (document.getElementById('kh-editor-group-search').value || '').trim().toLowerCase();
+  host.innerHTML = '';
+  const shown = knowledgeGroups.filter(group => !q || group.name.toLowerCase().includes(q) || group.description.toLowerCase().includes(q));
+  if (!shown.length) { host.appendChild(pjMk('div', 'kh-detail-summary', knowledgeGroups.length ? 'No groups match.' : 'No groups yet.')); return; }
+  shown.forEach(group => {
+    const label = pjMk('label', 'kh-group-choice'), input = document.createElement('input'); input.type = 'checkbox'; input.value = group.id;
+    input.checked = knowledgeEditorGroupIds.has(group.id);
+    input.onchange = () => { input.checked ? knowledgeEditorGroupIds.add(group.id) : knowledgeEditorGroupIds.delete(group.id); markKnowledgeEditorDirty(); };
+    label.append(input, pjMk('span', '', group.name)); host.appendChild(label);
+  });
+}
+function knowledgeEditorSnapshot() {
+  return {
+    itemId: knowledgeEditId, mode: knowledgeCreationMode, title: document.getElementById('kh-title-input').value,
+    type: document.getElementById('kh-type-input').value, status: document.getElementById('kh-status-input').value,
+    summary: document.getElementById('kh-summary-input').value, content: document.getElementById('kh-content-input').value,
+    tags: [...knowledgeEditorTags], groupIds: [...knowledgeEditorGroupIds], savedAt: new Date().toISOString(),
+  };
+}
+function markKnowledgeEditorDirty() {
+  knowledgeEditorDirty = true; uiState.knowledgeDraft = knowledgeEditorSnapshot(); saveUiStateDebounced();
+}
+function applyKnowledgeEditorData(data) {
+  document.getElementById('kh-title-input').value = data?.title || '';
+  document.getElementById('kh-summary-input').value = data?.summary || '';
+  document.getElementById('kh-content-input').value = data?.content || '';
+  document.getElementById('kh-status-input').value = data?.status || 'DRAFT';
+  document.getElementById('kh-type-input').value = data?.type || '';
+  knowledgeEditorTags = [...(data?.tags || [])];
+  knowledgeEditorGroupIds = new Set(data?.groupIds || data?.groups?.map(group => group.id) || []);
+  renderKnowledgeEditorTags(); renderKnowledgeEditorGroups(); previewKnowledgeContent();
+}
+function recoverKnowledgeDraft() {
+  if (!knowledgePendingDraft) return;
+  knowledgeCreationMode = knowledgePendingDraft.mode || knowledgeCreationMode; applyKnowledgeEditorData(knowledgePendingDraft);
+  knowledgePendingDraft = null; document.getElementById('kh-recovery').hidden = true; knowledgeEditorDirty = true; toast('Unsaved draft recovered');
+}
+function discardKnowledgeDraft() {
+  knowledgePendingDraft = null; delete uiState.knowledgeDraft; saveUiStateDebounced();
+  document.getElementById('kh-recovery').hidden = true;
+}
+function openKnowledgeEditor(item) {
+  knowledgeEditId = item?.id || null; knowledgeEditorDirty = false;
+  document.getElementById('kh-modal-title').textContent = item ? 'Edit Knowledge Item' : knowledgeCreationMode === 'DOCUMENT' ? 'New Document Item' : 'New Knowledge Item';
+  document.getElementById('kh-save-btn').textContent = item ? 'Save Changes' : knowledgeCreationMode === 'DOCUMENT' ? 'Create & Choose File' : 'Create Item';
+  const type = document.getElementById('kh-type-input'); type.innerHTML = '<option value="">No type</option>';
+  lkOptions('KNOWLEDGE_TYPE').forEach(option => { const el = document.createElement('option'); el.value = option.code; el.textContent = option.label; type.appendChild(el); });
+  document.getElementById('kh-editor-group-search').value = '';
+  applyKnowledgeEditorData(item || { status: 'DRAFT', tags: [], groups: [] });
+  const suggestions = document.getElementById('kh-tag-suggestions'); suggestions.innerHTML = '';
+  [...new Set(knowledgeItems.flatMap(entry => entry.tags || []))].sort((a, b) => a.localeCompare(b)).forEach(tag => { const option = document.createElement('option'); option.value = tag; suggestions.appendChild(option); });
+  setupKnowledgeTagInput(); clearErrorsIn('#knowledge-modal');
+  const draft = uiState.knowledgeDraft;
+  knowledgePendingDraft = draft && Number(draft.itemId || 0) === Number(knowledgeEditId || 0) ? draft : null;
+  document.getElementById('kh-recovery').hidden = !knowledgePendingDraft;
+  const overlay = document.getElementById('knowledge-modal-overlay'); overlay.classList.add('open');
+  overlay.oninput = event => { if (event.target.id !== 'kh-editor-group-search' && event.target.id !== 'kh-tags-input') markKnowledgeEditorDirty(); };
+  overlay.onchange = event => { if (!event.target.closest('#kh-editor-groups')) markKnowledgeEditorDirty(); };
+  setTimeout(() => document.getElementById('kh-title-input').focus(), 60);
+}
+function closeKnowledgeEditor(force) {
+  if (!force && knowledgeEditorDirty && !confirm('Close the editor? Your changes are saved as a recoverable draft.')) return;
+  knowledgeEditorDirty = false; knowledgeEditId = null; knowledgePendingDraft = null;
+  document.getElementById('knowledge-modal-overlay').classList.remove('open');
+}
+function knowledgeEditorOverlayClick(event) { if (event.target === document.getElementById('knowledge-modal-overlay')) closeKnowledgeEditor(); }
+async function saveKnowledgeEditor() {
+  const input = document.getElementById('kh-tags-input'); if (input.value.trim()) { addKnowledgeTag(input.value); input.value = ''; }
+  clearErrorsIn('#knowledge-modal'); const title = document.getElementById('kh-title-input').value.trim();
+  if (!title) { markError('kh-title-input'); return; }
+  const editing = knowledgeEditId, mode = knowledgeCreationMode;
+  const data = {
+    title, type: document.getElementById('kh-type-input').value, status: document.getElementById('kh-status-input').value,
+    summary: document.getElementById('kh-summary-input').value.trim(), content: document.getElementById('kh-content-input').value.trim(),
+    tags: knowledgeEditorTags, groupIds: [...knowledgeEditorGroupIds],
+  };
+  try {
+    const saved = editing ? await window.api.updateKnowledgeItem(editing, data) : await window.api.createKnowledgeItem(data);
+    delete uiState.knowledgeDraft; saveUiStateDebounced(); knowledgeEditorDirty = false; closeKnowledgeEditor(true);
+    toast(editing ? 'Knowledge item saved' : 'Knowledge item created'); await loadKnowledgeItems(saved.id);
+    if (!editing && mode === 'DOCUMENT') openKnowledgeDocumentModal(saved.id);
+    knowledgeCreationMode = 'ARTICLE';
+  } catch (error) { toast(error?.message || 'Could not save knowledge item'); }
+}
+function nextKnowledgeCopyTitle(title) {
+  const base = String(title || 'Knowledge Item').replace(/(?:\s+—\s+Copy(?:\s+\d+)?)+$/i, '').trim() || 'Knowledge Item';
+  const used = new Set(knowledgeItems.map(item => item.title.toLowerCase())); let candidate = base + ' — Copy', n = 2;
+  while (used.has(candidate.toLowerCase())) candidate = base + ' — Copy ' + n++; return candidate;
+}
+async function duplicateKnowledgeItem(item) {
+  try {
+    const copy = await window.api.createKnowledgeItem({ title: nextKnowledgeCopyTitle(item.title), type: item.type, status: 'DRAFT', summary: item.summary, content: item.content, tags: item.tags, groupIds: item.groups.map(group => group.id) });
+    toast('Draft copy created with the same tags and groups'); await loadKnowledgeItems(copy.id);
+  } catch { toast('Could not duplicate item'); }
+}
+async function setKnowledgeStatus(item, status) {
+  try {
+    const saved = await window.api.updateKnowledgeItem(item.id, { title: item.title, type: item.type, status, summary: item.summary, content: item.content, tags: item.tags });
+    toast(status === 'ARCHIVED' ? 'Knowledge item archived' : status === 'PUBLISHED' ? 'Knowledge item marked ready' : 'Knowledge item moved to draft'); await loadKnowledgeItems(saved.id);
+  } catch { toast('Could not update knowledge status'); }
+}
+async function deleteKnowledgeItem(item) {
+  let result; try { result = await window.api.deleteKnowledgeItem(item.id); } catch { toast('Could not delete item'); return; }
+  if (!result?.ok) { toast(result?.error || 'Could not delete item'); return; }
+  const previous = knowledgeUndo; if (previous) window.api.purgeKnowledgeFiles(previous.oldId).catch(() => {});
+  clearTimeout(knowledgeUndoTimer); knowledgeUndo = { oldId: item.id, snapshot: result.snapshot };
+  knowledgeItems = knowledgeItems.filter(x => x.id !== item.id); closeKnowledgeDetail();
+  const bar = document.getElementById('knowledge-undo-toast'); bar.classList.add('visible');
+  knowledgeUndoTimer = setTimeout(() => { const pending = knowledgeUndo; knowledgeUndo = null; bar.classList.remove('visible'); if (pending) window.api.purgeKnowledgeFiles(pending.oldId).catch(() => {}); }, 5000);
+}
+async function undoDeleteKnowledgeItem() {
+  if (!knowledgeUndo) return; const pending = knowledgeUndo; knowledgeUndo = null; clearTimeout(knowledgeUndoTimer);
+  document.getElementById('knowledge-undo-toast').classList.remove('visible');
+  try { const result = await window.api.restoreKnowledgeItem(pending.oldId, pending.snapshot); if (!result?.ok) throw new Error(); toast('Knowledge item restored'); await loadKnowledgeItems(result.item.id); }
+  catch { toast('Could not restore knowledge item'); }
+}
+function openKnowledgeDocumentModal(itemId, documentName = '') {
+  knowledgeDocumentItemId = itemId; const item = knowledgeCurrentItem?.id === Number(itemId) ? knowledgeCurrentItem : knowledgeItems.find(entry => entry.id === Number(itemId));
+  const nameInput = document.getElementById('kh-document-name'), versionInput = document.getElementById('kh-document-version'), options = document.getElementById('kh-document-names'); options.innerHTML = '';
+  [...new Set((item?.documents || []).map(document => document.name).filter(Boolean))].sort((a, b) => a.localeCompare(b)).forEach(name => { const option = document.createElement('option'); option.value = name; options.appendChild(option); });
+  nameInput.value = documentName || ''; versionInput.value = documentName ? '' : '1.0';
+  document.getElementById('kh-document-modal-title').textContent = documentName ? 'Add New Version' : 'Add Document';
+  clearErrorsIn('#knowledge-document-modal'); document.getElementById('knowledge-document-modal-overlay').classList.add('open');
+  setTimeout(() => (documentName ? versionInput : nameInput).focus(), 50);
+}
+function closeKnowledgeDocumentModal() { knowledgeDocumentItemId = null; document.getElementById('knowledge-document-modal-overlay').classList.remove('open'); }
+function knowledgeDocumentOverlayClick(event) { if (event.target === document.getElementById('knowledge-document-modal-overlay')) closeKnowledgeDocumentModal(); }
+async function submitKnowledgeDocument() {
+  const itemId = knowledgeDocumentItemId, name = document.getElementById('kh-document-name').value.trim(), version = document.getElementById('kh-document-version').value.trim();
+  clearErrorsIn('#knowledge-document-modal'); if (!name) { markError('kh-document-name'); return; } if (!version) { markError('kh-document-version'); return; }
+  let result; try { result = await window.api.uploadKnowledgeAttachment(itemId, { name, version }); } catch { toast('Could not add document'); return; }
+  if (result?.canceled) return; if (!result?.ok) { toast(result?.error || 'Could not add document'); return; }
+  closeKnowledgeDocumentModal(); toast('Document added'); await loadKnowledgeItems(itemId);
+}
+async function openKnowledgeAttachment(id) { const result = await window.api.openKnowledgeAttachment(id); if (!result?.ok) toast(result?.error || 'Could not open attachment'); }
+async function downloadKnowledgeAttachment(id) { const result = await window.api.downloadKnowledgeAttachment(id); if (result && !result.ok && !result.canceled) toast(result.error || 'Could not save attachment'); else if (result?.ok) toast('Attachment saved'); }
+async function removeKnowledgeAttachment(itemId, attachmentId) {
+  let result; try { result = await window.api.removeKnowledgeAttachment(attachmentId); } catch { toast('Could not remove document'); return; }
+  if (!result?.ok) { toast(result?.error || 'Could not remove document'); return; }
+  await loadKnowledgeItems(itemId);
+  toast('Document removed', { actionLabel: 'Undo', duration: 5000, onAction: async () => { const restored = await window.api.restoreKnowledgeAttachment(itemId, result.removedFile); if (restored?.ok) await loadKnowledgeItems(itemId); toast(restored?.ok ? 'Document restored' : 'Could not restore document'); }, onExpire: () => window.api.purgeKnowledgeAttachment(itemId, result.removedFile.path).catch(() => {}) });
+}
+function openKnowledgeGroupEditor(group) {
+  knowledgeGroupEditId = group?.id || null; document.getElementById('kh-group-modal-title').textContent = group ? 'Edit Group' : 'New Group';
+  document.getElementById('kh-group-save').textContent = group ? 'Save Group' : 'Create Group';
+  const deleteHost = document.getElementById('kh-group-delete-host'); deleteHost.innerHTML = ''; deleteHost.hidden = !group;
+  if (group) deleteHost.appendChild(khButton('Delete Group', 'danger', confirmDeleteKnowledgeGroup));
+  document.getElementById('kh-group-name').value = group?.name || ''; document.getElementById('kh-group-description').value = group?.description || '';
+  document.getElementById('kh-group-item-search').value = '';
+  const host = document.getElementById('kh-group-items'); host.innerHTML = '';
+  if (!knowledgeItems.length) host.appendChild(pjMk('div', 'kh-detail-summary', 'Create knowledge items first, or create an empty group now.'));
+  knowledgeItems.forEach(item => {
+    const label = pjMk('label', 'kh-group-choice'), input = document.createElement('input'); input.type = 'checkbox'; input.value = item.id; input.checked = !!group?.itemIds?.includes(item.id);
+    label.append(input, pjMk('span', '', item.title + (item.status === 'ARCHIVED' ? ' (Archived)' : ''))); host.appendChild(label);
+  });
+  clearErrorsIn('#knowledge-group-modal'); document.getElementById('knowledge-group-modal-overlay').classList.add('open'); setTimeout(() => document.getElementById('kh-group-name').focus(), 50);
+}
+function filterKnowledgeGroupItems() {
+  const q = (document.getElementById('kh-group-item-search').value || '').trim().toLowerCase();
+  document.querySelectorAll('#kh-group-items .kh-group-choice').forEach(label => { label.hidden = !!q && !label.textContent.toLowerCase().includes(q); });
+}
+function closeKnowledgeGroupEditor() { knowledgeGroupEditId = null; document.getElementById('knowledge-group-modal-overlay').classList.remove('open'); }
+function knowledgeGroupOverlayClick(event) { if (event.target === document.getElementById('knowledge-group-modal-overlay')) closeKnowledgeGroupEditor(); }
+async function saveKnowledgeGroup() {
+  const name = document.getElementById('kh-group-name').value.trim(); if (!name) { markError('kh-group-name'); return; }
+  const data = { name, description: document.getElementById('kh-group-description').value.trim(), itemIds: [...document.querySelectorAll('#kh-group-items input:checked')].map(x => Number(x.value)) };
+  try {
+    const editing = knowledgeGroupEditId, group = editing ? await window.api.updateKnowledgeGroup(editing, data) : await window.api.createKnowledgeGroup(data);
+    closeKnowledgeGroupEditor(); toast(editing ? 'Group saved' : 'Group created'); knowledgeCurrentId = null; await loadKnowledgeItems();
+    knowledgeFilters.add('GROUP:' + group.id); renderKnowledgeList();
+  } catch (error) { toast(error?.message || 'Could not save group'); }
+}
+function confirmDeleteKnowledgeGroup() {
+  const group = knowledgeGroups.find(x => x.id === knowledgeGroupEditId), host = document.getElementById('kh-group-delete-host');
+  if (!group) return; showDeleteConfirm(host, () => deleteKnowledgeGroup(group), () => openKnowledgeGroupEditor(group), 'Delete group?');
+}
+async function deleteKnowledgeGroup(group) {
+  let result; try { result = await window.api.deleteKnowledgeGroup(group.id); } catch { toast('Could not delete group'); return; }
+  if (!result?.ok) { toast(result?.error || 'Could not delete group'); return; }
+  closeKnowledgeGroupEditor(); knowledgeFilters.delete('GROUP:' + group.id); await loadKnowledgeItems();
+  toast('Group deleted', { actionLabel: 'Undo', duration: 5000, onAction: async () => {
+    try { const restored = await window.api.createKnowledgeGroup({ name: result.snapshot.name, description: result.snapshot.description, itemIds: result.snapshot.itemIds }); toast('Group restored'); await loadKnowledgeItems(); knowledgeFilters.add('GROUP:' + restored.id); renderKnowledgeList(); }
+    catch { toast('Could not restore group'); }
+  } });
+}
+
 // ══ COMPANY DOCUMENTS — standalone card-per-document module ════════════════
 // Independent of Projects: each card IS the entity (name/category/renewal
 // date/notes + at most one file), not a slot in a per-project catalog. Delete
@@ -12480,10 +13311,12 @@ const PAL_PAGES = [
   { icon: 'layers',           label: 'Clients',       go: 'clients' },
   { icon: 'credit-card',      label: 'Subscriptions', go: 'subscriptions' },
   { icon: 'calendar-check',   label: 'Company Documents', go: 'companydocs' },
+  { icon: 'book-open',        label: 'Knowledge Hub', go: 'knowledge' },
   { icon: 'settings',         label: 'Settings',      go: 'settings' },
 ];
 
 let _palCompanyDocs = [];  // lazy-loaded, same pattern as _palTasks (Milestone 5)
+let _palKnowledge = [];
 let _palSubscriptions = [];
 
 // Settings tabs (Milestone 5 palette expansion) — mirrors SETTINGS_TABS' keys
@@ -12495,6 +13328,7 @@ const PAL_SETTINGS_TABS = [
   { key: 'timeType', label: 'Time Type' }, { key: 'status', label: 'Status' },
   { key: 'projectStatus', label: 'Project Status' },
   { key: 'projectDocument', label: 'Project Documents' }, { key: 'companyDocCategory', label: 'Company Doc Categories' },
+  { key: 'knowledgeType', label: 'Knowledge Types' },
   { key: 'department', label: 'Department' }, { key: 'taskSourceType', label: 'Task Source Types' },
   { key: 'serverRole', label: 'Server Roles' },
 ];
@@ -12503,7 +13337,7 @@ async function openPalette() {
   document.getElementById('palette-overlay').classList.add('open');
   const inp = document.getElementById('palette-input');
   inp.value = '';
-  _palTasks = []; _palCompanyDocs = []; _palSubscriptions = [];
+  _palTasks = []; _palCompanyDocs = []; _palKnowledge = []; _palSubscriptions = [];
   renderPalette();
   setTimeout(() => inp.focus(), 40);
   // Results load in the background; re-render once each arrives (if still open).
@@ -12516,6 +13350,10 @@ async function openPalette() {
     const docs = await window.api.listCompanyDocuments();
     if (Array.isArray(docs)) { _palCompanyDocs = docs; if (paletteIsOpen()) renderPalette(); }
   } catch { /* company docs just won't appear in results */ }
+  try {
+    const knowledge = await window.api.listKnowledgeItems();
+    if (Array.isArray(knowledge)) { _palKnowledge = knowledge; if (paletteIsOpen()) renderPalette(); }
+  } catch { /* knowledge just won't appear in results */ }
   try {
     const subData = await window.api.loadSubscriptions();
     if (subData && Array.isArray(subData.subscriptions)) { _palSubscriptions = subData.subscriptions; if (paletteIsOpen()) renderPalette(); }
@@ -12568,6 +13406,7 @@ function renderPalette() {
   const acts = [
     { icon: 'plus',          label: 'Add record — log work',      match: 'add record log work session new', run: () => { switchModule('timesheet'); openModal(); } },
     { icon: 'clipboard-list',label: 'New project',                match: 'new project create',              run: () => { switchModule('clients'); openProjectModal(); } },
+    { icon: 'book-open',     label: 'New knowledge item',         match: 'new knowledge manual guide article create', run: () => { switchModule('knowledge'); openKnowledgeEditor(); } },
     { icon: 'calendar-check',label: 'Go to today',                match: 'today now current day',           run: () => { switchModule('timesheet'); goToday(); } },
     { icon: 'moon',          label: 'Toggle dark / light theme',  match: 'theme dark light mode toggle',    run: toggleTheme },
     { icon: 'compass',       label: 'How This App Thinks',        match: 'how this app thinks help model cheat sheet', run: openHowThinksOverlay },
@@ -12608,6 +13447,11 @@ function renderPalette() {
     .map(d => ({ icon: 'calendar-check', label: d.name || '(unnamed document)', hint: 'Open Company Docs',
       run: () => { switchModule('companydocs'); scrollToAndHighlight('[data-doc-id="' + d.id + '"]'); } })) : [];
   if (docHits.length) groups.push({ label: 'Company Documents', items: docHits });
+
+  const knowledgeHits = q ? _palKnowledge.filter(k => knowledgeMatches(k, q)).slice(0, 6)
+    .map(k => ({ icon: 'book-open', label: k.title || '(untitled knowledge)', hint: k.typeLabel || 'Open Knowledge Hub',
+      run: () => { switchModule('knowledge'); knowledgeItems = _palKnowledge; knowledgeLoaded = true; openKnowledgeDetail(k.id); } })) : [];
+  if (knowledgeHits.length) groups.push({ label: 'Knowledge Hub', items: knowledgeHits });
 
   // Subscriptions (lazy-loaded, same pattern as tasks). Milestone 11: same
   // scroll+highlight treatment as Company Documents above.
