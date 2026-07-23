@@ -3,6 +3,21 @@ const fs = require('node:fs');
 const path = require('node:path');
 const db     = require('./db');
 const auth   = require('./auth');
+const { validateIpcArgs } = require('./ipc-contracts');
+
+const e2ePort = !app.isPackaged ? Number(process.env.COOPERATION_TOOLS_E2E_PORT) : 0;
+const isE2ERun = Number.isInteger(e2ePort) && e2ePort > 0 && e2ePort <= 65535;
+if (isE2ERun) app.commandLine.appendSwitch('remote-debugging-port', String(e2ePort));
+
+// Every invoke crosses this one executable contract boundary before its
+// authentication/authorization wrapper or handler runs. Adding a channel
+// without adding a contract fails closed and is caught by the contract smoke
+// test, so payload validation cannot silently drift behind the preload bridge.
+const registerIpcHandler = ipcMain.handle.bind(ipcMain);
+ipcMain.handle = (channel, listener) => registerIpcHandler(channel, (event, ...args) => {
+  validateIpcArgs(channel, args);
+  return listener(event, ...args);
+});
 
 // Wrap a data IPC handler so it fails closed when no one is logged in. Every
 // handler that reads or writes user data goes through this — the renderer can
@@ -37,10 +52,12 @@ function assertTrustedSender(event) {
 
 let win;
 let allowClose = false;       // set once the renderer has flushed pending saves
+let selectedFullBackup = null; // main-process-only path chosen through the native folder dialog
 
 function createWindow() {
   const prefs = db.loadPrefs();
   win = new BrowserWindow({
+    show:      !isE2ERun,
     width:     prefs.width  || 1400,
     height:    prefs.height || 800,
     x:         prefs.x,
@@ -122,6 +139,7 @@ ipcMain.handle('systems:entries',   authed((_e, name) => db.systemEntries(auth.r
 ipcMain.handle('analytics:summary',  authed((_e, from, to, spanFrom, spanTo) => db.getAnalytics(auth.requireUserId(), from, to, spanFrom, spanTo)));
 ipcMain.handle('analytics:overview', authed((_e, today, monthStart)          => db.getOverviewStats(auth.requireUserId(), today, monthStart)));
 ipcMain.handle('attention:list', authed(() => db.getAttentionItems(auth.requireUserId())));
+ipcMain.handle('activity:list', authed(() => db.getRecentActivity(auth.requireUserId())));
 
 // ── Lookups (normalized catalog — shared app config) ──
 ipcMain.handle('lookups:get',         authed(()                              => db.loadLookups(auth.requireUserId())));
@@ -141,6 +159,7 @@ ipcMain.handle('subscriptions:save', authed((_e, data) => db.saveSubscriptions(a
 // page for it anymore.
 ipcMain.handle('tasks:list',   authed(()             => db.listTasks(auth.requireUserId())));
 ipcMain.handle('tasks:index',  authed(()             => db.getTasksIndex(auth.requireUserId())));
+ipcMain.handle('search:workspace', authed((_e, query, limit) => db.searchWorkspace(auth.requireUserId(), query, limit)));
 ipcMain.handle('tasks:get',    authed((_e, id)       => db.getTask(auth.requireUserId(), id)));
 ipcMain.handle('tasks:create', authed((_e, data)     => db.createTask(auth.requireUserId(), data)));
 ipcMain.handle('tasks:update', authed((_e, id, data) => db.updateTask(auth.requireUserId(), id, data)));
@@ -389,6 +408,7 @@ ipcMain.handle('maintenance:restoreBackup', admin((_e, filename) => {
   return res;
 }));
 ipcMain.handle('maintenance:integrityCheck', admin(() => db.checkIntegrity()));
+ipcMain.handle('maintenance:diagnostics', admin(() => db.getSystemDiagnostics()));
 ipcMain.handle('maintenance:lookupDuplicates', admin(() => db.findLookupDuplicates()));
 ipcMain.handle('maintenance:mergeLookups', admin((_e, category, targetId, sourceId) => db.mergeLookupDuplicate(category, targetId, sourceId)));
 ipcMain.handle('maintenance:orphanSweepReport', admin(() => db.getOrphanSweepReport()));
@@ -401,6 +421,24 @@ ipcMain.handle('maintenance:orphanSweepReport', admin(() => db.getOrphanSweepRep
 ipcMain.handle('maintenance:fullBackup', admin(() => {
   try { return db.fullBackup(app.getPath('desktop')); }
   catch (err) { return { ok: false, error: String(err?.message || err) }; }
+}));
+ipcMain.handle('maintenance:selectFullBackup', admin(async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    title: 'Choose a Cooperation Tools full backup folder',
+    properties: ['openDirectory'],
+  });
+  if (canceled || !filePaths[0]) return { ok: false, canceled: true };
+  const inspection = db.inspectFullBackup(filePaths[0]);
+  selectedFullBackup = inspection.ok ? inspection.path : null;
+  return inspection;
+}));
+ipcMain.handle('maintenance:restoreSelectedFullBackup', admin(() => {
+  if (!selectedFullBackup) return { ok: false, error: 'No validated full backup is selected' };
+  const selected = selectedFullBackup;
+  selectedFullBackup = null;
+  const res = db.restoreFullBackup(selected);
+  if (res.ok) { app.relaunch(); app.exit(0); }
+  return res;
 }));
 // Opens the folder a just-completed full backup was written to. Never trusts
 // an arbitrary path from the renderer: only a direct child of the Desktop
@@ -484,13 +522,14 @@ ipcMain.handle('app:flushComplete', trusted(() => {
 ipcMain.handle('app:cancelClose', trusted(() => {
   return { ok: true };
 }));
-ipcMain.handle('app:confirmSaveFailure', trusted(async (_e, error) => {
+ipcMain.handle('app:confirmSaveFailure', trusted(async (_e, error, action = 'close') => {
+  const loggingOut = action === 'logout';
   const result = await dialog.showMessageBox(win, {
     type: 'warning',
     title: 'Unsaved changes',
     message: 'Some changes could not be saved.',
     detail: String(error || 'Unknown save error'),
-    buttons: ['Retry', 'Cancel close', 'Close without saving'],
+    buttons: ['Retry', loggingOut ? 'Cancel logout' : 'Cancel close', loggingOut ? 'Log out without saving' : 'Close without saving'],
     defaultId: 0,
     cancelId: 1,
     noLink: true,
@@ -551,7 +590,7 @@ app.whenReady().then(() => {
     // renderer via preload.
     db.configureCredentialEncryption(safeStorage);
     if (!db.isCredentialEncryptionAvailable()) {
-      console.warn('[security] safeStorage unavailable — client credentials will be stored in plain text this run.');
+      console.warn('[security] safeStorage unavailable — saving client passwords and secret keys is blocked.');
     }
     db.openConnection(app.getPath('userData'));
     // Path verification (Phase 1): confirm the project-files root shares the same

@@ -7,7 +7,14 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const html = [
+  fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8'),
+  fs.readFileSync(path.join(__dirname, '..', 'renderer', 'bootstrap.js'), 'utf8'),
+  fs.readFileSync(path.join(__dirname, '..', 'renderer', 'app.css'), 'utf8'),
+  fs.readFileSync(path.join(__dirname, '..', 'renderer', 'core.js'), 'utf8'),
+  ...['timesheet', 'workspace', 'tasks', 'knowledge', 'company-documents', 'clients', 'shell']
+    .map(name => fs.readFileSync(path.join(__dirname, '..', 'renderer', 'features', name + '.js'), 'utf8')),
+].join('\n');
 const results = [];
 function gate(name, pass) { results.push({ name, pass: !!pass }); }
 function count(pattern) { return (html.match(pattern) || []).length; }
@@ -45,11 +52,12 @@ gate('sidebar shows the signed-in identity, explicit role, and runtime app versi
   && html.includes("user?.isAdmin ? 'Administrator' : 'Standard User'")
   && html.includes('await window.api.appVersion()')
   && html.includes('id="app-version"'));
-gate('Quick Find is visible, shortcut-labelled, and loads workspace indexes concurrently',
+gate('Quick Find is visible, shortcut-labelled, and uses bounded SQLite full-text search',
   html.includes('class="sidebar-quickfind"')
   && html.includes('aria-keyshortcuts="Control+K"')
   && html.includes('id="palette-overlay" class="modal-overlay" aria-label="Quick Find"')
-  && html.includes('await Promise.allSettled(loads)')
+  && html.includes('window.api.searchWorkspace')
+  && html.includes('requestPaletteWorkspace')
   && html.includes("listHost.setAttribute('aria-busy', 'true')")
   && html.includes("overlayEl.querySelector('.modal-box, #palette')"));
 gate('precision workspace shell has a persistent user-controlled navigation rail',
@@ -77,6 +85,10 @@ gate('Overview is an active workflow launchpad, not only a reporting surface',
   && html.includes(`class="dash-launch primary" onclick="runCreateFlow('session')"`)
   && html.includes(`class="dash-launch" onclick="openCreateHub()"`)
   && html.includes(`class="dash-launch" onclick="openPalette()"`));
+gate('Overview exposes an account-scoped Recent Changes workflow',
+  html.includes('id="dash-activity"')
+  && html.includes('window.api.getRecentActivity()')
+  && html.includes("item.kind === 'knowledge'"));
 gate('Calm Workspace exposes persistent eye-comfort controls without data APIs',
   html.includes('id="workspace-view-overlay"')
   && html.includes('id="workspace-view-btn"')
@@ -201,6 +213,20 @@ gate('Knowledge Hub has no reference URL or review-date UI',
   && !html.includes('NEEDS_REVIEW'));
 gate('Knowledge types are administrator-managed in Settings',
   html.includes('data-tab="knowledgeType"') && html.includes("knowledgeType: 'KNOWLEDGE_TYPE'"));
+gate('logout uses the same explicit save-failure recovery flow as window closing',
+  html.includes("flushPendingWithRecovery('logout'")
+  && html.includes("confirmSaveFailure(String(error?.message || error), action)")
+  && !html.includes("try { await flushPending(); } catch { /* best effort */ }"));
+gate('Maintenance exposes validated full-bundle restore with typed confirmation',
+  html.includes('id="maint-fullrestore-btn"')
+  && html.includes('function chooseFullBackupForRestore(btnId)')
+  && html.includes('window.api.selectFullBackup()')
+  && html.includes('window.api.restoreSelectedFullBackup()')
+  && html.includes("input.value !== selected.name"));
+gate('Maintenance exposes recovery readiness and Windows credential portability guidance',
+  html.includes('id="maint-diagnostics-result"')
+  && html.includes('window.api.getSystemDiagnostics()')
+  && html.includes('Windows DPAPI'));
 
 const ids = ['dash-attention', 'an-spend', 'total-min', 'total-ot-min', 'settings-save-btn', 'settings-search'];
 gate('key UI hosts remain unique', ids.every(id => count(new RegExp(`id="${id}"`, 'g')) === 1));

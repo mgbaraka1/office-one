@@ -26,6 +26,9 @@
 //      migration head.
 //   6. Nothing is written under the source <userData> (workDir) itself —
 //      fullBackup() only ever writes into the destination folder.
+//   7. The manifest carries SHA-256 checksums; tampering is rejected.
+//   8. Full restore replaces the DB and all managed file trees only after
+//      staging them, and creates a complete pre-restore recovery bundle.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const fs   = require('node:fs');
@@ -119,8 +122,10 @@ try {
 
   // ── Gate 5 — manifest content sanity (row counts + schema head) ─────────
   const manifestOnDisk = JSON.parse(fs.readFileSync(path.join(destRoot, 'manifest.json'), 'utf8'));
-  const liveTaskCount = new DatabaseSync(dbFilePath).prepare('SELECT COUNT(*) AS c FROM tasks').get().c;
-  const liveHeadRow = new DatabaseSync(dbFilePath).prepare('SELECT MAX(version) AS v FROM schema_migrations').get();
+  const liveCheckDb = new DatabaseSync(dbFilePath);
+  const liveTaskCount = liveCheckDb.prepare('SELECT COUNT(*) AS c FROM tasks').get().c;
+  const liveHeadRow = liveCheckDb.prepare('SELECT MAX(version) AS v FROM schema_migrations').get();
+  liveCheckDb.close();
   record('Gate 5a: manifest.json on disk matches the returned manifest object',
     manifestOnDisk.schemaHead === res.manifest.schemaHead && manifestOnDisk.tableRowCounts.tasks === res.manifest.tableRowCounts.tasks,
     JSON.stringify({ onDisk: manifestOnDisk.schemaHead, returned: res.manifest.schemaHead }));
@@ -130,6 +135,11 @@ try {
     res.manifest.schemaHead === liveHeadRow.v, `manifest=${res.manifest.schemaHead} live=${liveHeadRow.v}`);
   record('Gate 5d: manifest.totalFileCount/totalByteCount are positive and consistent',
     res.manifest.totalFileCount > 0 && res.manifest.totalByteCount > 0, JSON.stringify({ files: res.manifest.totalFileCount, bytes: res.manifest.totalByteCount }));
+  record('Gate 5e: manifest contains a checksum inventory covering the DB and seeded project files',
+    Array.isArray(res.manifest.fileInventory)
+      && res.manifest.fileInventory.some(f => f.path === 'cooperation-tools.db' && /^[a-f0-9]{64}$/.test(f.sha256))
+      && res.manifest.fileInventory.some(f => f.path === 'projects/999999/documents/quote.pdf'),
+    `inventory=${res.manifest.fileInventory?.length || 0}`);
 
   // ── Gate 6 — nothing written back into the source userData (workDir) ────
   const workDirEntriesBefore = new Set(['cooperation-tools.db', 'cooperation-tools.db-wal', 'cooperation-tools.db-shm', 'projects']);
@@ -137,6 +147,47 @@ try {
   const unexpectedNewEntries = workDirEntriesAfter.filter(e => !workDirEntriesBefore.has(e) && e !== 'backups'); // rotateBackups() itself is a separate, pre-existing mechanism
   record('Gate 6: fullBackup() wrote nothing new under the source userData dir itself',
     unexpectedNewEntries.length === 0, 'unexpectedNewEntries=' + JSON.stringify(unexpectedNewEntries));
+
+  // ── Gate 7 — validation rejects a bundle whose file no longer matches its checksum
+  const tamperedRoot = path.join(fakeDesktopDir, 'CooperationTools-Backup-TAMPERED');
+  fs.cpSync(destRoot, tamperedRoot, { recursive: true });
+  fs.writeFileSync(path.join(tamperedRoot, 'projects', '999999', 'documents', 'quote.pdf'), 'tampered bytes');
+  const tamperedInspection = db.inspectFullBackup(tamperedRoot);
+  record('Gate 7: inspectFullBackup() rejects a tampered managed file',
+    tamperedInspection.ok === false && /checksum/i.test(tamperedInspection.error || ''),
+    JSON.stringify(tamperedInspection));
+
+  // ── Gate 8 — restore the complete known-good bundle (disposable workDir only)
+  const postBackupTask = db.createTask(userId, { name: 'Created after full backup', status: 'OPEN' });
+  fs.writeFileSync(path.join(seededProjectDir, 'quote.pdf'), 'changed after backup');
+  fs.writeFileSync(path.join(db.projectsRootDir(), 'live-only.txt'), 'must disappear on restore');
+  const validInspection = db.inspectFullBackup(destRoot);
+  record('Gate 8a: inspectFullBackup() validates the untouched bundle before restore',
+    validInspection.ok === true, JSON.stringify(validInspection));
+
+  const restore = db.restoreFullBackup(destRoot);
+  record('Gate 8b: restoreFullBackup() completes and reports its recovery bundle',
+    restore.ok === true && fs.existsSync(restore.recoveryPath),
+    JSON.stringify(restore));
+
+  if (restore.ok) {
+    db.openConnection(workDir);
+    const restoredProjectFile = path.join(db.projectsRootDir(), '999999', 'documents', 'quote.pdf');
+    record('Gate 8c: full restore replaces both database state and managed file trees',
+      db.getTask(userId, postBackupTask.id) === null
+        && fs.readFileSync(restoredProjectFile, 'utf8') === 'fake pdf bytes'
+        && !fs.existsSync(path.join(db.projectsRootDir(), 'live-only.txt')),
+      JSON.stringify({
+        postBackupTaskGone: db.getTask(userId, postBackupTask.id) === null,
+        restoredBytes: fs.readFileSync(restoredProjectFile, 'utf8'),
+        liveOnlyGone: !fs.existsSync(path.join(db.projectsRootDir(), 'live-only.txt')),
+      }));
+    record('Gate 8d: pre-full-restore recovery bundle contains its own DB, manifest, and managed trees',
+      fs.existsSync(path.join(restore.recoveryPath, 'cooperation-tools.db'))
+        && fs.existsSync(path.join(restore.recoveryPath, 'manifest.json'))
+        && fs.existsSync(path.join(restore.recoveryPath, 'projects')),
+      restore.recoveryPath);
+  }
 
 } catch (err) {
   console.error('\nTEST HARNESS ERROR: ' + (err && err.stack || err));
