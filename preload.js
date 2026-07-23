@@ -164,6 +164,25 @@ contextBridge.exposeInMainWorld('api', {
   purgeCompanyDocumentFiles: (id)                    => ipcRenderer.invoke('companydocs:purge-files', id),
   restoreCompanyDocumentFile: (oldId, newId, fileMeta) => ipcRenderer.invoke('companydocs:restore-file', oldId, newId, fileMeta),
 
+  // ── Knowledge Hub ──
+  listKnowledgeItems:   ()              => ipcRenderer.invoke('knowledge:list'),
+  getKnowledgeItem:     (id)            => ipcRenderer.invoke('knowledge:get', id),
+  createKnowledgeItem:  (data)          => ipcRenderer.invoke('knowledge:create', data),
+  updateKnowledgeItem:  (id, data)      => ipcRenderer.invoke('knowledge:update', id, data),
+  deleteKnowledgeItem:  (id)            => ipcRenderer.invoke('knowledge:delete', id),
+  restoreKnowledgeItem: (oldId, snapshot) => ipcRenderer.invoke('knowledge:restore', oldId, snapshot),
+  listKnowledgeGroups:         ()             => ipcRenderer.invoke('knowledge:groups-list'),
+  createKnowledgeGroup:        (data)         => ipcRenderer.invoke('knowledge:group-create', data),
+  updateKnowledgeGroup:        (id, data)     => ipcRenderer.invoke('knowledge:group-update', id, data),
+  deleteKnowledgeGroup:        (id)           => ipcRenderer.invoke('knowledge:group-delete', id),
+  uploadKnowledgeAttachment:   (itemId, meta) => ipcRenderer.invoke('knowledge:upload-attachment', itemId, meta),
+  downloadKnowledgeAttachment: (attachmentId) => ipcRenderer.invoke('knowledge:download-attachment', attachmentId),
+  openKnowledgeAttachment:     (attachmentId) => ipcRenderer.invoke('knowledge:open-attachment', attachmentId),
+  removeKnowledgeAttachment:   (attachmentId) => ipcRenderer.invoke('knowledge:remove-attachment', attachmentId),
+  restoreKnowledgeAttachment:  (itemId, fileMeta) => ipcRenderer.invoke('knowledge:restore-attachment', itemId, fileMeta),
+  purgeKnowledgeAttachment:    (itemId, relPath) => ipcRenderer.invoke('knowledge:purge-attachment', itemId, relPath),
+  purgeKnowledgeFiles:         (itemId) => ipcRenderer.invoke('knowledge:purge-files', itemId),
+
   // ── Clients (Auth + Server Information + Databases per COMPANY lookup) ──
   /** @returns {Promise<import('./ipc-types').ClientListItem[]>} */
   listClients: ()                     => ipcRenderer.invoke('clients:list'),

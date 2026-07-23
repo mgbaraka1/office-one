@@ -25,7 +25,7 @@ const fs   = require('node:fs');
 // table under one of these category discriminators. The renderer fetches options
 // per-category and stores a stable `code` (logic fields) or display `label`
 // (company/system/activity) — never a hardcoded string.
-const LOOKUP_CATEGORIES = ['COMPANY', 'SYSTEM', 'ACTIVITY_TYPE', 'TIME_TYPE', 'ENTRY_STATUS', 'CURRENCY', 'BILLING_CYCLE', 'PROJECT_STATUS', 'PROJECT_DOCUMENT', 'COMPANY_DOCUMENT_CATEGORY', 'DEPARTMENT', 'TASK_SOURCE_TYPE', 'SERVER_ROLE'];
+const LOOKUP_CATEGORIES = ['COMPANY', 'SYSTEM', 'ACTIVITY_TYPE', 'TIME_TYPE', 'ENTRY_STATUS', 'CURRENCY', 'BILLING_CYCLE', 'PROJECT_STATUS', 'PROJECT_DOCUMENT', 'COMPANY_DOCUMENT_CATEGORY', 'KNOWLEDGE_TYPE', 'DEPARTMENT', 'TASK_SOURCE_TYPE', 'SERVER_ROLE'];
 
 let db;          // DatabaseSync instance
 let userDataDir; // resolved userData folder (backups, db file)
@@ -221,7 +221,8 @@ function runMaintenance() {
   const backup = !dbWasNew ? rotateBackups() : { ok: true, skipped: true };
   const projectIds = sweepOrphanProjectFiles();        // drop file folders for projects that no longer exist
   const companyDocumentIds = sweepOrphanCompanyDocumentFiles(); // same, for company_documents/{id}/ folders
-  _lastOrphanSweepReport = { projectIds, companyDocumentIds, backup, ranAt: new Date().toISOString() };
+  const knowledgeItemIds = sweepOrphanKnowledgeFiles();
+  _lastOrphanSweepReport = { projectIds, companyDocumentIds, knowledgeItemIds, backup, ranAt: new Date().toISOString() };
   return _lastOrphanSweepReport;
 }
 // A lookup with no access rows is global. Once any access row exists it is
@@ -249,7 +250,7 @@ function lkIdForUser(userId, category, value) {
 // process launch) — a sweep's result is only meaningful for "what happened
 // this boot", and by the time it's viewed the orphans are already gone, so
 // there's nothing left to persist or re-scan.
-let _lastOrphanSweepReport = { projectIds: [], companyDocumentIds: [], backup: null, ranAt: null };
+let _lastOrphanSweepReport = { projectIds: [], companyDocumentIds: [], knowledgeItemIds: [], backup: null, ranAt: null };
 function getOrphanSweepReport() { return _lastOrphanSweepReport; }
 
 function sweepOrphanProjectFiles() {
@@ -306,6 +307,22 @@ function rotateBackups(keep = 5) {
     console.error('[backup] automatic rotation failed:', error);
     return { ok: false, error };
   }
+}
+
+function sweepOrphanKnowledgeFiles() {
+  const removed = [];
+  try {
+    const root = knowledgeRootDir();
+    if (!fs.existsSync(root)) return removed;
+    const live = new Set(db.prepare('SELECT id FROM knowledge_items').all().map(r => String(r.id)));
+    for (const name of fs.readdirSync(root)) {
+      if (/^\d+$/.test(name) && !live.has(name)) {
+        fs.rmSync(path.join(root, name), { recursive: true, force: true });
+        removed.push(name);
+      }
+    }
+  } catch { /* non-critical */ }
+  return removed;
 }
 
 // ── Users (authentication) ──────────────────────────────────────────────────
@@ -814,6 +831,13 @@ const PROJECT_DOC_TYPES = {
   webp: 'image/webp',
 };
 const PROJECT_DOC_EXTENSIONS = Object.keys(PROJECT_DOC_TYPES);
+const KNOWLEDGE_DOC_TYPES = {
+  ...PROJECT_DOC_TYPES,
+  xls:  'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  txt:  'text/plain',
+};
+const KNOWLEDGE_DOC_EXTENSIONS = Object.keys(KNOWLEDGE_DOC_TYPES);
 const MAX_DOCUMENT_BYTES = 100 * 1024 * 1024;
 
 function safeDocumentType(documentType) {
@@ -839,6 +863,16 @@ function uploadHeaderMatches(srcPath, ext) {
   } finally {
     fs.closeSync(fd);
   }
+}
+function knowledgeUploadHeaderMatches(srcPath, ext) {
+  if (ext === 'xls') return uploadHeaderMatches(srcPath, 'doc');
+  if (ext === 'xlsx') return uploadHeaderMatches(srcPath, 'docx');
+  if (ext === 'txt') {
+    const fd = fs.openSync(srcPath, 'r');
+    try { const sample = Buffer.alloc(4096); const n = fs.readSync(fd, sample, 0, sample.length, 0); return !sample.subarray(0, n).includes(0); }
+    finally { fs.closeSync(fd); }
+  }
+  return uploadHeaderMatches(srcPath, ext);
 }
 
 // Lowercase extension (no dot) of a path, '' if none.
@@ -1533,6 +1567,362 @@ function restoreCompanyDocumentFile(userId, oldId, newId, fileMeta) {
         fileMeta.mimeType || PROJECT_DOC_TYPES[fileExt(relPath)] || '', fileMeta.uploadedAt || new Date().toISOString(),
         new Date().toISOString(), newId, userId);
   return { ok: true, document: getCompanyDocument(userId, newId) };
+}
+
+// ── Knowledge Hub ────────────────────────────────────────────────────────────
+// User-owned articles with tags, groups, and version-labeled documents. Files live under
+// <userData>/knowledge_hub/{itemId}/attachments/.
+const KNOWLEDGE_STATUSES = new Set(['DRAFT', 'PUBLISHED', 'ARCHIVED']);
+const pendingKnowledgeDeletes = new Map(); // deleted item id -> user id
+
+function ownsKnowledgeItem(userId, id) {
+  return !!db.prepare('SELECT 1 FROM knowledge_items WHERE id = ? AND user_id = ?').get(id, userId);
+}
+function knowledgeStatus(value) {
+  const s = String(value || 'DRAFT').toUpperCase();
+  return KNOWLEDGE_STATUSES.has(s) ? s : 'DRAFT';
+}
+function knowledgeAttachmentToApi(r) {
+  return {
+    id: r.id, path: r.file_path, originalName: r.original_name || '', size: r.file_size || 0,
+    name: r.document_name || r.original_name || '', version: r.version_label || '1.0',
+    mimeType: r.mime_type || '', uploadedAt: r.uploaded_at || '', sortOrder: r.sort_order || 0,
+    exists: (() => { try { return fs.existsSync(resolveStoredPath(r.file_path)); } catch { return false; } })(),
+  };
+}
+function knowledgeItemToApi(r) {
+  const itemId = r.id;
+  const documents = db.prepare(
+    'SELECT * FROM knowledge_attachments WHERE item_id = ? AND user_id = ? ORDER BY sort_order, id'
+  ).all(itemId, r.user_id).map(knowledgeAttachmentToApi);
+  const tags = db.prepare(
+    `SELECT kt.name FROM knowledge_item_tags kit JOIN knowledge_tags kt ON kt.id = kit.tag_id
+      WHERE kit.item_id = ? AND kt.user_id = ? ORDER BY kt.name COLLATE NOCASE`
+  ).all(itemId, r.user_id).map(x => x.name);
+  const groups = db.prepare(
+    `SELECT g.id, g.name FROM knowledge_group_items gi
+       JOIN knowledge_groups g ON g.id = gi.group_id
+      WHERE gi.item_id = ? AND g.user_id = ? ORDER BY g.sort_order, g.name COLLATE NOCASE`
+  ).all(itemId, r.user_id).map(x => ({ id: x.id, name: x.name }));
+  return {
+    id: itemId, title: r.title || '', type: lkCode(r.type_id), typeLabel: lkLabel(r.type_id),
+    status: r.status, summary: r.summary || '', content: r.content || '',
+    createdAt: r.created_at, updatedAt: r.updated_at, documents, tags, groups,
+  };
+}
+function listKnowledgeItems(userId) {
+  const rows = db.prepare('SELECT * FROM knowledge_items WHERE user_id = ? ORDER BY updated_at DESC, id DESC').all(userId);
+  if (!rows.length) return [];
+  const tagsByItem = new Map(), groupsByItem = new Map(), documentsByItem = new Map();
+  db.prepare(
+    `SELECT kit.item_id, kt.name FROM knowledge_item_tags kit
+       JOIN knowledge_tags kt ON kt.id = kit.tag_id
+       JOIN knowledge_items k ON k.id = kit.item_id
+      WHERE k.user_id = ? AND kt.user_id = ?
+      ORDER BY kt.name COLLATE NOCASE`
+  ).all(userId, userId).forEach(row => {
+    if (!tagsByItem.has(row.item_id)) tagsByItem.set(row.item_id, []);
+    tagsByItem.get(row.item_id).push(row.name);
+  });
+  db.prepare(
+    `SELECT gi.item_id, g.id, g.name FROM knowledge_group_items gi
+       JOIN knowledge_groups g ON g.id = gi.group_id
+       JOIN knowledge_items k ON k.id = gi.item_id
+      WHERE k.user_id = ? AND g.user_id = ?
+      ORDER BY g.sort_order, g.name COLLATE NOCASE`
+  ).all(userId, userId).forEach(row => {
+    if (!groupsByItem.has(row.item_id)) groupsByItem.set(row.item_id, []);
+    groupsByItem.get(row.item_id).push({ id: row.id, name: row.name });
+  });
+  db.prepare(
+    `SELECT a.item_id, a.document_name, a.version_label, a.original_name
+       FROM knowledge_attachments a
+       JOIN knowledge_items k ON k.id = a.item_id
+      WHERE a.user_id = ? AND k.user_id = ?
+      ORDER BY a.sort_order, a.id`
+  ).all(userId, userId).forEach(row => {
+    if (!documentsByItem.has(row.item_id)) documentsByItem.set(row.item_id, []);
+    documentsByItem.get(row.item_id).push({
+      name: row.document_name || row.original_name || '',
+      version: row.version_label || '1.0',
+      originalName: row.original_name || '',
+    });
+  });
+  return rows.map(row => {
+    const documents = documentsByItem.get(row.id) || [];
+    return {
+      id: row.id, title: row.title || '', type: lkCode(row.type_id), typeLabel: lkLabel(row.type_id),
+      status: row.status, summary: row.summary || '', content: row.content || '',
+      createdAt: row.created_at, updatedAt: row.updated_at,
+      tags: tagsByItem.get(row.id) || [], groups: groupsByItem.get(row.id) || [],
+      documents, documentCount: documents.length,
+    };
+  });
+}
+function getKnowledgeItem(userId, id) {
+  const r = db.prepare('SELECT * FROM knowledge_items WHERE id = ? AND user_id = ?').get(id, userId);
+  return r ? knowledgeItemToApi(r) : null;
+}
+function setKnowledgeChildren(userId, itemId, data) {
+  db.prepare('DELETE FROM knowledge_item_tags WHERE item_id = ?').run(itemId);
+  const ensureTag = db.prepare(
+    `INSERT INTO knowledge_tags(user_id, name, created_at) VALUES(?, ?, ?)
+     ON CONFLICT(user_id, name) DO UPDATE SET name = excluded.name RETURNING id`
+  );
+  const addTag = db.prepare('INSERT OR IGNORE INTO knowledge_item_tags(item_id, tag_id) VALUES(?, ?)');
+  const seen = new Set();
+  (Array.isArray(data?.tags) ? data.tags : []).slice(0, 30).forEach(value => {
+    const name = String(value || '').trim().replace(/\s+/g, ' ').slice(0, 60);
+    const key = name.toLowerCase();
+    if (!name || seen.has(key)) return;
+    seen.add(key);
+    const row = ensureTag.get(userId, name, new Date().toISOString());
+    addTag.run(itemId, row.id);
+  });
+  if (Object.prototype.hasOwnProperty.call(data || {}, 'groupIds')) {
+    db.prepare('DELETE FROM knowledge_group_items WHERE item_id = ?').run(itemId);
+    const ownsGroup = db.prepare('SELECT 1 FROM knowledge_groups WHERE id = ? AND user_id = ?');
+    const nextSort = db.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM knowledge_group_items WHERE group_id = ?');
+    const addGroup = db.prepare('INSERT OR IGNORE INTO knowledge_group_items(group_id, item_id, sort_order) VALUES(?, ?, ?)');
+    const seenGroups = new Set();
+    (Array.isArray(data?.groupIds) ? data.groupIds : []).slice(0, 100).forEach(value => {
+      const groupId = Number(value);
+      if (!Number.isInteger(groupId) || groupId <= 0 || seenGroups.has(groupId) || !ownsGroup.get(groupId, userId)) return;
+      seenGroups.add(groupId);
+      addGroup.run(groupId, itemId, nextSort.get(groupId).n);
+    });
+  }
+}
+function createKnowledgeItem(userId, data) {
+  const title = String(data?.title || '').trim();
+  if (!title) throw new Error('Knowledge title is required');
+  const typeId = lkIdForUser(userId, 'KNOWLEDGE_TYPE', data?.type);
+  const now = new Date().toISOString();
+  let id;
+  tx(() => {
+    id = Number(db.prepare(
+      `INSERT INTO knowledge_items(user_id, title, type_id, status, summary, content, created_at, updated_at)
+       VALUES(?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(userId, title.slice(0, 300), typeId, knowledgeStatus(data?.status), String(data?.summary || '').slice(0, 2000),
+      String(data?.content || ''), now, now).lastInsertRowid);
+    setKnowledgeChildren(userId, id, data);
+  });
+  return getKnowledgeItem(userId, id);
+}
+function updateKnowledgeItem(userId, id, data) {
+  if (!ownsKnowledgeItem(userId, id)) return null;
+  const title = String(data?.title || '').trim();
+  if (!title) throw new Error('Knowledge title is required');
+  const typeId = lkIdForUser(userId, 'KNOWLEDGE_TYPE', data?.type);
+  tx(() => {
+    db.prepare(
+      `UPDATE knowledge_items SET title = ?, type_id = ?, status = ?, summary = ?, content = ?, updated_at = ?
+        WHERE id = ? AND user_id = ?`
+    ).run(title.slice(0, 300), typeId, knowledgeStatus(data?.status), String(data?.summary || '').slice(0, 2000),
+      String(data?.content || ''), new Date().toISOString(), id, userId);
+    setKnowledgeChildren(userId, id, data);
+  });
+  return getKnowledgeItem(userId, id);
+}
+function deleteKnowledgeItem(userId, id) {
+  const snapshot = getKnowledgeItem(userId, id);
+  if (!snapshot) return { ok: false, error: 'Knowledge item not found' };
+  db.prepare('DELETE FROM knowledge_items WHERE id = ? AND user_id = ?').run(id, userId);
+  pendingKnowledgeDeletes.set(Number(id), userId);
+  return { ok: true, snapshot };
+}
+function restoreKnowledgeItem(userId, oldId, snapshot) {
+  if (pendingKnowledgeDeletes.get(Number(oldId)) !== userId) return { ok: false, error: 'Not authorized to restore this item' };
+  const restored = createKnowledgeItem(userId, {
+    title: snapshot?.title, type: snapshot?.type, status: snapshot?.status, summary: snapshot?.summary,
+    content: snapshot?.content, tags: snapshot?.tags,
+  });
+  pendingKnowledgeDeletes.delete(Number(oldId));
+  const oldDir = knowledgeItemDir(Number(oldId));
+  const newDir = knowledgeItemDir(restored.id);
+  if (path.resolve(oldDir) !== path.resolve(newDir) && fs.existsSync(oldDir)) {
+    try { fs.rmSync(newDir, { recursive: true, force: true }); fs.renameSync(oldDir, newDir); } catch { /* best effort */ }
+  }
+  const add = db.prepare(
+    `INSERT INTO knowledge_attachments(user_id, item_id, file_path, original_name, file_size, mime_type, sort_order, uploaded_at)
+     VALUES(?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  (snapshot?.documents || []).forEach((file, index) => {
+    const rel = path.join('knowledge_hub', String(restored.id), 'attachments', path.basename(String(file.path || '')));
+    let exists = false;
+    try { exists = !!path.basename(String(file.path || '')) && fs.existsSync(resolveStoredPath(rel)); } catch { /* skip */ }
+    if (exists) add.run(userId, restored.id, rel, file.originalName || path.basename(rel), Number(file.size) || 0,
+      file.mimeType || '', index, file.uploadedAt || new Date().toISOString());
+  });
+  const setDocumentMeta = db.prepare(
+    'UPDATE knowledge_attachments SET document_name = ?, version_label = ? WHERE item_id = ? AND sort_order = ?'
+  );
+  (snapshot?.documents || []).forEach((file, index) =>
+    setDocumentMeta.run(String(file.name || file.originalName || 'Document').slice(0, 200),
+      String(file.version || '1.0').slice(0, 60), restored.id, index));
+  const restoreMembership = db.prepare(
+    `INSERT OR IGNORE INTO knowledge_group_items(group_id, item_id, sort_order)
+     SELECT id, ?, COALESCE((SELECT MAX(sort_order) + 1 FROM knowledge_group_items WHERE group_id = knowledge_groups.id), 0)
+       FROM knowledge_groups WHERE id = ? AND user_id = ?`
+  );
+  (snapshot?.groups || []).forEach(group => restoreMembership.run(restored.id, group.id, userId));
+  return { ok: true, item: getKnowledgeItem(userId, restored.id) };
+}
+function saveKnowledgeAttachment(userId, itemId, srcPath, documentMeta = {}) {
+  if (!ownsKnowledgeItem(userId, itemId)) return { ok: false, error: 'Knowledge item not found' };
+  const documentName = String(documentMeta?.name || path.basename(srcPath)).trim().slice(0, 200) || path.basename(srcPath);
+  const versionLabel = String(documentMeta?.version || '1.0').trim().slice(0, 60) || '1.0';
+  const duplicate = db.prepare(
+    `SELECT 1 FROM knowledge_attachments
+      WHERE item_id = ? AND user_id = ?
+        AND LOWER(TRIM(document_name)) = LOWER(TRIM(?))
+        AND LOWER(TRIM(version_label)) = LOWER(TRIM(?))`
+  ).get(itemId, userId, documentName, versionLabel);
+  if (duplicate) return { ok: false, error: 'This document version already exists' };
+  const ext = fileExt(srcPath);
+  if (!KNOWLEDGE_DOC_EXTENSIONS.includes(ext)) return { ok: false, error: `Unsupported file type (.${ext || '?'})` };
+  let size;
+  try { size = fs.statSync(srcPath).size; } catch { return { ok: false, error: 'Could not read the selected file' }; }
+  if (size <= 0 || size > MAX_DOCUMENT_BYTES) return { ok: false, error: 'File must be between 1 byte and 100 MB' };
+  try { if (!knowledgeUploadHeaderMatches(srcPath, ext)) return { ok: false, error: 'The file contents do not match its extension' }; }
+  catch { return { ok: false, error: 'Could not validate the selected file' }; }
+  const relPath = path.join('knowledge_hub', String(itemId), 'attachments', `${Date.now()}-${Math.floor(Math.random() * 100000)}.${ext}`);
+  const absPath = resolveStoredPath(relPath);
+  try { fs.mkdirSync(path.dirname(absPath), { recursive: true }); fs.copyFileSync(srcPath, absPath); }
+  catch (err) { return { ok: false, error: 'Could not save the file: ' + String(err?.message || err) }; }
+  try {
+    const sort = db.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM knowledge_attachments WHERE item_id = ?').get(itemId).n;
+    db.prepare(
+      `INSERT INTO knowledge_attachments(user_id, item_id, file_path, original_name, file_size, mime_type, sort_order, uploaded_at, document_name, version_label)
+       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(userId, itemId, relPath, path.basename(srcPath), size, KNOWLEDGE_DOC_TYPES[ext], sort, new Date().toISOString(),
+      documentName, versionLabel);
+    db.prepare('UPDATE knowledge_items SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), itemId);
+  } catch (err) { try { fs.rmSync(absPath, { force: true }); } catch {} return { ok: false, error: String(err?.message || err) }; }
+  return { ok: true, item: getKnowledgeItem(userId, itemId) };
+}
+function resolveKnowledgeAttachment(userId, attachmentId) {
+  const r = db.prepare(
+    `SELECT a.* FROM knowledge_attachments a JOIN knowledge_items k ON k.id = a.item_id
+      WHERE a.id = ? AND a.user_id = ? AND k.user_id = ?`
+  ).get(attachmentId, userId, userId);
+  if (!r) return { ok: false, error: 'Attachment not found' };
+  let absPath;
+  try { absPath = resolveStoredPath(r.file_path); resolveInside(knowledgeItemDir(r.item_id), absPath); }
+  catch { return { ok: false, error: 'Stored file path is invalid' }; }
+  return { ok: true, absPath, originalName: r.original_name, exists: fs.existsSync(absPath) };
+}
+function removeKnowledgeAttachment(userId, attachmentId) {
+  const r = db.prepare(
+    `SELECT a.* FROM knowledge_attachments a JOIN knowledge_items k ON k.id = a.item_id
+      WHERE a.id = ? AND a.user_id = ? AND k.user_id = ?`
+  ).get(attachmentId, userId, userId);
+  if (!r) return { ok: false, error: 'Attachment not found' };
+  db.prepare('DELETE FROM knowledge_attachments WHERE id = ? AND user_id = ?').run(attachmentId, userId);
+  db.prepare('UPDATE knowledge_items SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), r.item_id);
+  return { ok: true, item: getKnowledgeItem(userId, r.item_id), removedFile: knowledgeAttachmentToApi(r) };
+}
+function restoreKnowledgeAttachment(userId, itemId, fileMeta) {
+  if (!ownsKnowledgeItem(userId, itemId) || !fileMeta?.path) return { ok: false, error: 'Knowledge item not found' };
+  const documentName = String(fileMeta.name || fileMeta.originalName || 'Document').trim().slice(0, 200) || 'Document';
+  const versionLabel = String(fileMeta.version || '1.0').trim().slice(0, 60) || '1.0';
+  if (db.prepare(
+    `SELECT 1 FROM knowledge_attachments
+      WHERE item_id = ? AND user_id = ?
+        AND LOWER(TRIM(document_name)) = LOWER(TRIM(?))
+        AND LOWER(TRIM(version_label)) = LOWER(TRIM(?))`
+  ).get(itemId, userId, documentName, versionLabel)) {
+    return { ok: false, error: 'This document version already exists' };
+  }
+  let absPath;
+  try { absPath = resolveStoredPath(fileMeta.path); resolveInside(knowledgeItemDir(itemId), absPath); }
+  catch { return { ok: false, error: 'Stored file path is invalid' }; }
+  if (!fs.existsSync(absPath)) return { ok: false, error: 'The previous file is no longer available' };
+  const sort = db.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM knowledge_attachments WHERE item_id = ?').get(itemId).n;
+  db.prepare(
+    `INSERT INTO knowledge_attachments(user_id, item_id, file_path, original_name, file_size, mime_type, sort_order, uploaded_at, document_name, version_label)
+     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(userId, itemId, fileMeta.path, fileMeta.originalName || path.basename(fileMeta.path), Number(fileMeta.size) || 0,
+    fileMeta.mimeType || '', sort, fileMeta.uploadedAt || new Date().toISOString(),
+    documentName, versionLabel);
+  return { ok: true, item: getKnowledgeItem(userId, itemId) };
+}
+function purgeKnowledgeAttachment(userId, itemId, relPath) {
+  if (!ownsKnowledgeItem(userId, itemId) || !relPath) return { ok: false };
+  if (db.prepare('SELECT 1 FROM knowledge_attachments WHERE item_id = ? AND user_id = ? AND file_path = ?').get(itemId, userId, relPath)) {
+    return { ok: false, error: 'File is still in use' };
+  }
+  try { const abs = resolveStoredPath(relPath); resolveInside(knowledgeItemDir(itemId), abs); fs.rmSync(abs, { force: true }); return { ok: true }; }
+  catch { return { ok: false, error: 'Invalid stored file path' }; }
+}
+function purgeKnowledgeFiles(userId, itemId) {
+  const n = Number(itemId);
+  if (pendingKnowledgeDeletes.get(n) !== userId) return { ok: false, error: 'Not authorized to purge this item' };
+  pendingKnowledgeDeletes.delete(n);
+  try { fs.rmSync(knowledgeItemDir(n), { recursive: true, force: true }); } catch {}
+  return { ok: true };
+}
+
+function knowledgeGroupToApi(r) {
+  const itemIds = db.prepare(
+    `SELECT gi.item_id FROM knowledge_group_items gi
+       JOIN knowledge_items k ON k.id = gi.item_id
+      WHERE gi.group_id = ? AND k.user_id = ? ORDER BY gi.sort_order, gi.item_id`
+  ).all(r.id, r.user_id).map(x => x.item_id);
+  return {
+    id: r.id, name: r.name, description: r.description || '', sortOrder: r.sort_order || 0,
+    itemIds, createdAt: r.created_at, updatedAt: r.updated_at,
+  };
+}
+function listKnowledgeGroups(userId) {
+  return db.prepare('SELECT * FROM knowledge_groups WHERE user_id = ? ORDER BY sort_order, name COLLATE NOCASE')
+    .all(userId).map(knowledgeGroupToApi);
+}
+function setKnowledgeGroupItems(userId, groupId, itemIds) {
+  db.prepare('DELETE FROM knowledge_group_items WHERE group_id = ?').run(groupId);
+  const owns = db.prepare('SELECT 1 FROM knowledge_items WHERE id = ? AND user_id = ?');
+  const add = db.prepare('INSERT OR IGNORE INTO knowledge_group_items(group_id, item_id, sort_order) VALUES(?, ?, ?)');
+  const seen = new Set();
+  (Array.isArray(itemIds) ? itemIds : []).slice(0, 500).forEach(value => {
+    const id = Number(value);
+    if (!Number.isInteger(id) || id <= 0 || seen.has(id) || !owns.get(id, userId)) return;
+    seen.add(id);
+    add.run(groupId, id, seen.size - 1);
+  });
+}
+function createKnowledgeGroup(userId, data) {
+  const name = String(data?.name || '').trim();
+  if (!name) throw new Error('Group name is required');
+  const now = new Date().toISOString();
+  let id;
+  tx(() => {
+    const sort = db.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM knowledge_groups WHERE user_id = ?').get(userId).n;
+    id = Number(db.prepare(
+      `INSERT INTO knowledge_groups(user_id, name, description, sort_order, created_at, updated_at)
+       VALUES(?, ?, ?, ?, ?, ?)`
+    ).run(userId, name.slice(0, 120), String(data?.description || '').slice(0, 1000), sort, now, now).lastInsertRowid);
+    setKnowledgeGroupItems(userId, id, data?.itemIds);
+  });
+  return listKnowledgeGroups(userId).find(x => x.id === id);
+}
+function updateKnowledgeGroup(userId, id, data) {
+  const current = db.prepare('SELECT * FROM knowledge_groups WHERE id = ? AND user_id = ?').get(id, userId);
+  if (!current) return null;
+  const name = String(data?.name || '').trim();
+  if (!name) throw new Error('Group name is required');
+  tx(() => {
+    db.prepare(
+      `UPDATE knowledge_groups SET name = ?, description = ?, updated_at = ? WHERE id = ? AND user_id = ?`
+    ).run(name.slice(0, 120), String(data?.description || '').slice(0, 1000), new Date().toISOString(), id, userId);
+    setKnowledgeGroupItems(userId, id, data?.itemIds);
+  });
+  return listKnowledgeGroups(userId).find(x => x.id === Number(id));
+}
+function deleteKnowledgeGroup(userId, id) {
+  const group = listKnowledgeGroups(userId).find(x => x.id === Number(id));
+  if (!group) return { ok: false, error: 'Group not found' };
+  db.prepare('DELETE FROM knowledge_groups WHERE id = ? AND user_id = ?').run(id, userId);
+  return { ok: true, snapshot: group };
 }
 
 // Link / unlink a task to a project, addressed directly by its task id (the
@@ -2445,7 +2835,7 @@ function checkIntegrity() {
 
 // ── Full Backup (Milestone 8) ───────────────────────────────────────────────
 // One action that captures everything the app owns — not just the DB. Copies
-// the checkpointed DB, the projects/ and company_documents/ file trees, and
+// the checkpointed DB, the projects/, company_documents/, and knowledge_hub/ file trees, and
 // the rotating backups/ snapshots into a single new timestamped folder, plus
 // a manifest.json summary. `desktopDir` is passed in by the caller (main.js
 // resolves app.getPath('desktop')) — db.js never imports electron, the same
@@ -2453,7 +2843,7 @@ function checkIntegrity() {
 // with respect to <userData>: nothing here is written back into it.
 
 // Recursively copies `src` into `dest`. A missing `src` is not an error (a
-// fresh-ish install may have no projects/ or company_documents/ yet) — it's
+// fresh-ish install may have no projects/, company_documents/, or knowledge_hub/ yet) — it's
 // reported via `existed: false` so the manifest can note it was skipped.
 function copyDirRecursive(src, dest) {
   let count = 0, bytes = 0;
@@ -2493,6 +2883,7 @@ function fullBackup(desktopDir) {
   for (const [key, srcDir] of [
     ['projects', projectsRootDir()],
     ['company_documents', companyDocumentsRootDir()],
+    ['knowledge_hub', knowledgeRootDir()],
     ['backups', path.join(userDataDir, 'backups')],
   ]) {
     const destDir = path.join(destRoot, key);
@@ -2635,6 +3026,12 @@ function companyDocumentsRootDir() {
 }
 function companyDocumentDir(id) {
   return path.join(companyDocumentsRootDir(), String(id));
+}
+function knowledgeRootDir() {
+  return path.join(userDataDir, 'knowledge_hub');
+}
+function knowledgeItemDir(id) {
+  return path.join(knowledgeRootDir(), String(id));
 }
 
 // ── Clients (Auth + Server Information + Databases + External Services +
@@ -3219,7 +3616,7 @@ function assignClientInternalGroup(userId, companyId, recordIds, groupName) {
 module.exports = {
   openConnection, applyMigrations, runMaintenance,
   close, backup, dbPath,
-  projectsRootDir,
+  projectsRootDir, knowledgeRootDir,
   countUsers, getUserByUsername, getUserById, listUsers, countActiveAdmins,
   createUser, updateUserPassword, updateUserAccount, getUnclaimedUser, claimUser,
   listDays, loadDaysRange,
@@ -3239,6 +3636,10 @@ module.exports = {
   saveCompanyDocumentFile, resolveCompanyDocumentFile, removeCompanyDocumentFile, restoreRemovedCompanyDocumentFile,
   purgeUnreferencedCompanyDocumentFile,
   purgeCompanyDocumentFiles, restoreCompanyDocumentFile,
+  listKnowledgeItems, getKnowledgeItem, createKnowledgeItem, updateKnowledgeItem, deleteKnowledgeItem, restoreKnowledgeItem,
+  saveKnowledgeAttachment, resolveKnowledgeAttachment, removeKnowledgeAttachment, restoreKnowledgeAttachment,
+  purgeKnowledgeAttachment, purgeKnowledgeFiles,
+  listKnowledgeGroups, createKnowledgeGroup, updateKnowledgeGroup, deleteKnowledgeGroup,
   listClients, getClient, getClientFieldHistory,
   configureCredentialEncryption, allowPlaintextCredentialsForTests, disallowPlaintextCredentialsForTests,
   isCredentialEncryptionAvailable,

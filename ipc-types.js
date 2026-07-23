@@ -614,6 +614,55 @@
  */
 
 /**
+ * A complete user-owned Knowledge Hub article returned by knowledge:get and mutations.
+ * @typedef {Object} KnowledgeItem
+ * @property {number} id
+ * @property {string} title
+ * @property {string} type              KNOWLEDGE_TYPE code, or ''.
+ * @property {string} typeLabel
+ * @property {'DRAFT'|'PUBLISHED'|'ARCHIVED'} status
+ * @property {string} summary
+ * @property {string} content
+ * @property {string[]} tags
+ * @property {Array<{id:number,name:string}>} groups
+ * @property {Array<{id:number,path:string,name:string,version:string,originalName:string,size:number,mimeType:string,uploadedAt:string,exists:boolean}>} documents
+ * @property {string} createdAt
+ * @property {string} updatedAt
+ */
+
+/**
+ * Lightweight Knowledge Hub list/search row. It keeps full searchable article
+ * text but returns only document identity/version metadata; knowledge:get loads
+ * file paths, sizes, existence, and the remaining attachment actions on demand.
+ * @typedef {Object} KnowledgeItemIndex
+ * @property {number} id
+ * @property {string} title
+ * @property {string} type
+ * @property {string} typeLabel
+ * @property {'DRAFT'|'PUBLISHED'|'ARCHIVED'} status
+ * @property {string} summary
+ * @property {string} content
+ * @property {string[]} tags
+ * @property {Array<{id:number,name:string}>} groups
+ * @property {Array<{name:string,version:string,originalName:string}>} documents
+ * @property {number} documentCount
+ * @property {string} createdAt
+ * @property {string} updatedAt
+ */
+
+/**
+ * A user-defined Knowledge Hub collection. Membership is many-to-many.
+ * @typedef {Object} KnowledgeGroup
+ * @property {number} id
+ * @property {string} name
+ * @property {string} description
+ * @property {number[]} itemIds
+ * @property {number} sortOrder
+ * @property {string} createdAt
+ * @property {string} updatedAt
+ */
+
+/**
  * One date-urgent item from `attention:list` (db.getAttentionItems) — the
  * Milestone 3 aggregation across subscription renewals, Company Document
  * renewals, and the three client_* tables with an expiry_date (Auth/VPN,
@@ -661,13 +710,14 @@
  * @typedef {Object} OrphanSweepReport
  * @property {string[]} projectIds          project ids whose projects/{id}/ folder was removed this boot.
  * @property {string[]} companyDocumentIds   company_documents ids whose folder was removed this boot.
+ * @property {string[]} knowledgeItemIds     knowledge_hub ids whose folder was removed this boot.
  * @property {string|null} ranAt            ISO timestamp of the boot that produced this report, or null before first boot.
  */
 
 /**
  * Result of `maintenance:fullBackup` (Milestone 8) — a single new timestamped
  * folder on the Desktop containing the checkpointed DB, full copies of
- * projects/ and company_documents/, and the rotating backups/ snapshots, plus
+ * projects/, company_documents/, knowledge_hub/, and the rotating backups/ snapshots, plus
  * a manifest.json summary. Read-only with respect to <userData> — nothing
  * this writes lives under the live data folder.
  * @typedef {Object} FullBackupResult
