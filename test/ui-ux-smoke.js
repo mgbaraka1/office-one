@@ -80,6 +80,14 @@ gate('every primary workspace header now explains its workflow context',
   html.includes("#topbar .page-title::after { content: 'Capture today without breaking your flow'; }")
   && html.includes("#clients-topbar .page-title::after { content: 'Projects, access, infrastructure, and systems'; }")
   && html.includes("#settings-topbar .page-title::after { content: 'Workspace behavior and managed catalogs'; }"));
+gate('desktop header titles reserve enough width for their workflow subtitles',
+  html.includes('position: relative; min-width: 230px; padding-bottom: 17px;')
+  && html.includes('.page-title { min-width: auto; padding-bottom: 0; }')
+  && html.includes('.page-title::after { display: none; }'));
+gate('page headers keep dropdowns above backdrop-filtered workspace cards',
+  html.includes('position: relative; z-index: 50;')
+  && html.includes('#cal-dropdown')
+  && html.includes('z-index: 500;'));
 gate('Overview is an active workflow launchpad, not only a reporting surface',
   html.includes('class="dash-launchpad" aria-label="Start a workflow"')
   && html.includes(`class="dash-launch primary" onclick="runCreateFlow('session')"`)
@@ -135,6 +143,7 @@ gate('Project Categories UI is retired', !html.includes('id="p-category"')
   && !html.includes('Hours by Project Category'));
 gate('Knowledge Hub is a first-class searchable module with safe undo',
   html.includes('data-module="knowledge"')
+  && html.includes('"book-open": "<path')
   && html.includes('id="module-knowledge"')
   && html.includes('function renderKnowledgeList()')
   && html.includes('function openKnowledgeDetail(id)')
