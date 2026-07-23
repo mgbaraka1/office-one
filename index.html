@@ -135,6 +135,24 @@
     }
     .brand-compact { display: none; font-size: 18px; letter-spacing: 1px; color: var(--primary); }
     .sidebar-brand .brand-full > span { color: #2dd4bf; font-size: 12px; letter-spacing: 3px; }
+    .sidebar-quickfind {
+      display: flex; align-items: center; gap: 10px; width: 100%;
+      padding: 9px 11px; border: 1px solid color-mix(in srgb, var(--sidebar-fg) 13%, transparent);
+      border-radius: var(--radius-sm); background: color-mix(in srgb, var(--sidebar-fg) 6%, transparent);
+      color: var(--sidebar-fg); cursor: pointer; font: 600 12px/1.2 inherit; text-align: left;
+      transition: background var(--speed), border-color var(--speed), color var(--speed);
+    }
+    .sidebar-quickfind:hover {
+      background: var(--sidebar-hover);
+      border-color: color-mix(in srgb, var(--primary) 55%, transparent);
+      color: #fff;
+    }
+    .sidebar-quickfind .lic { width: 16px; height: 16px; color: #2dd4bf; }
+    .quickfind-key {
+      margin-left: auto; padding: 2px 6px; border: 1px solid color-mix(in srgb, var(--sidebar-fg) 16%, transparent);
+      border-radius: 5px; color: var(--sidebar-muted); background: color-mix(in srgb, var(--sidebar-bg) 60%, transparent);
+      font: 600 10px/1.3 'Cascadia Mono', Consolas, monospace;
+    }
     .sidebar-nav { display: flex; flex-direction: column; gap: 3px; overflow-y: auto; }
     .nav-section {
       font-size: 10px; font-weight: 700; text-transform: uppercase;
@@ -466,7 +484,7 @@
       padding: 4px; font-size: 11px; cursor: pointer; color: var(--muted);
       font-family: inherit; transition: all var(--speed);
       display: inline-flex; align-items: center; justify-content: center;
-      min-width: 22px; min-height: 22px;
+      min-width: 28px; min-height: 28px;
     }
     .row-btn:hover { background: var(--elevate); color: var(--text); }
     .row-btn.del:hover { background: color-mix(in srgb, var(--bad) 12%, transparent); border-color: color-mix(in srgb, var(--bad) 28%, transparent); color: var(--bad); }
@@ -477,7 +495,8 @@
     .row-btn:disabled { opacity: .3; cursor: default; pointer-events: none; }
 
     tbody tr td .row-actions { opacity: 0; transform: translateX(6px); transition: opacity var(--speed), transform var(--speed); }
-    tbody tr:hover td .row-actions { opacity: 1; transform: none; }
+    tbody tr:hover td .row-actions,
+    tbody tr:focus-within td .row-actions { opacity: 1; transform: none; }
 
     /* Timer-running row */
     tbody tr.timer-running td { background: color-mix(in srgb, var(--good) 8%, var(--surface)) !important; }
@@ -595,7 +614,9 @@
     .pj-card-count .lic { width: 14px; height: 14px; }
     .pj-card-open { font-size: 12px; font-weight: 600; color: var(--primary); display: inline-flex; align-items: center; gap: 4px; opacity: 0; transform: translateX(-4px); transition: opacity .28s, transform .28s; }
     .pj-card-open .lic { width: 14px; height: 14px; }
-    .pj-card:hover .pj-card-open { opacity: 1; transform: translateX(0); }
+    .pj-card:hover .pj-card-open,
+    .pj-card:focus .pj-card-open,
+    .pj-card:focus-within .pj-card-open { opacity: 1; transform: translateX(0); }
 
     /* status pill — shared by cards, list, and the detail header */
     .pj-status { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
@@ -959,7 +980,9 @@
     .cl-info-value { font-size: 13.5px; color: var(--text); word-break: break-word; }
     .cl-info-value.empty { color: var(--muted); opacity: .6; font-style: italic; }
     .cl-info-copy-hint { font-size: 11px; font-weight: 600; color: var(--primary); opacity: 0; transition: opacity var(--speed); flex-shrink: 0; white-space: nowrap; }
-    .cl-info-row:hover .cl-info-copy-hint { opacity: 1; }
+    .cl-info-row:hover .cl-info-copy-hint,
+    .cl-info-row:focus .cl-info-copy-hint,
+    .cl-info-row:focus-within .cl-info-copy-hint { opacity: 1; }
     .cl-info-subrow { padding-left: 12px; margin-top: 6px; border-left: 2px solid var(--border); }
     .cl-info-subrow-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 8px; border-radius: var(--radius-sm); cursor: pointer; }
     .cl-info-subrow-line:hover { background: var(--row-hover); }
@@ -1541,9 +1564,10 @@
 
     @media (max-width: 1050px) {
       #sidebar { width: 76px; padding: 18px 10px; align-items: stretch; }
-      .brand-full, .nav-label, .nav-section, .sidebar-user, .app-version { display: none; }
+      .brand-full, .nav-label, .nav-section, .sidebar-user, .app-version, .quickfind-key { display: none; }
       .brand-compact { display: block; text-align: center; }
       .sidebar-brand { padding: 0; text-align: center; }
+      .sidebar-quickfind { justify-content: center; padding: 10px 8px; }
       .nav-item { justify-content: center; padding: 11px 8px; gap: 0; }
       .nav-item.active::before { left: -10px; }
       .nav-badge { position: absolute; right: 3px; top: 3px; }
@@ -1556,6 +1580,12 @@
       .form-row { grid-template-columns: 1fr; }
       #totals-bar { grid-template-columns: 1fr; }
       .client-overview-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (hover: none), (pointer: coarse) {
+      tbody tr td .row-actions,
+      .pj-card .pj-card-open,
+      .cl-info-copy-hint { opacity: 1; transform: none; }
     }
 
     /* Tabs */
@@ -2150,6 +2180,8 @@
       display: flex; align-items: center; gap: 14px; padding: 8px 16px;
       border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); background: var(--surface2);
     }
+    #palette-status { margin-left: auto; min-width: 170px; text-align: right; }
+    #palette-list[aria-busy="true"] { cursor: progress; }
     #palette-foot kbd { font-size: 10px; padding: 1px 6px; margin: 0 4px 0 0; }
 
     /* ══ RECORD MODAL — two-path mode + grouped New Task section ══ */
@@ -2262,6 +2294,652 @@
     }
     .app-version { color: var(--sidebar-muted); font-size: 10px; letter-spacing: .35px; text-align: center; }
 
+    /* ═══════════════════════════════════════════════════════════════════════
+       VISION 2026 — PRECISION WORKSPACE
+       A deliberate product-level visual system layered over the mature app.
+       Keeps every existing workflow and selector intact while transforming
+       hierarchy, navigation, surfaces, density, and interaction feedback.
+       ═══════════════════════════════════════════════════════════════════════ */
+    :root {
+      --primary: #4f46e5;
+      --primary-strong: #3730a3;
+      --primary-glow: rgba(79,70,229,.24);
+      --accent: #4f46e5;
+      --accent-bg: color-mix(in srgb, #4f46e5 10%, #f5f7fb);
+      --surface-0: #f3f5fa;
+      --surface-1: rgba(255,255,255,.92);
+      --surface-2: #f7f8fc;
+      --surface-3: #edf0f7;
+      --border: #dfe3ed;
+      --text: #172033;
+      --muted: #687188;
+      --sidebar-bg: #07111f;
+      --sidebar-hover: rgba(255,255,255,.075);
+      --sidebar-muted: #8792a8;
+      --radius: 18px;
+      --radius-sm: 11px;
+      --shadow: 0 24px 55px -30px rgba(31,38,65,.35), 0 2px 8px rgba(31,38,65,.04);
+      --shadow-sm: 0 14px 30px -24px rgba(31,38,65,.28), 0 1px 3px rgba(31,38,65,.04);
+      --workspace-line: rgba(79,70,229,.055);
+    }
+    :root[data-theme="dark"] {
+      --primary: #818cf8;
+      --primary-strong: #6366f1;
+      --primary-glow: rgba(129,140,248,.25);
+      --accent: #a5b4fc;
+      --accent-bg: color-mix(in srgb, #818cf8 15%, #10131c);
+      --surface-0: #090b11;
+      --surface-1: rgba(18,21,31,.92);
+      --surface-2: #11141e;
+      --surface-3: #1a1e2b;
+      --border: #282d3d;
+      --text: #eef1fa;
+      --muted: #929bb1;
+      --sidebar-bg: #050914;
+      --row-hover: #181c28;
+      --workspace-line: rgba(129,140,248,.055);
+      --shadow: 0 28px 65px -28px rgba(0,0,0,.9), 0 2px 10px rgba(0,0,0,.35);
+      --shadow-sm: 0 16px 36px -24px rgba(0,0,0,.8);
+    }
+
+    body {
+      background:
+        radial-gradient(900px 520px at 82% -12%, color-mix(in srgb, var(--primary) 12%, transparent), transparent 64%),
+        var(--surface-0);
+    }
+    #main {
+      position: relative;
+      background:
+        linear-gradient(var(--workspace-line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--workspace-line) 1px, transparent 1px);
+      background-size: 32px 32px;
+      isolation: isolate;
+    }
+    #main::before {
+      content: ''; position: absolute; z-index: -1; pointer-events: none;
+      width: 560px; height: 560px; right: -220px; top: -250px; border-radius: 50%;
+      background: color-mix(in srgb, var(--primary) 9%, transparent); filter: blur(10px);
+    }
+    .app-module { position: relative; }
+
+    /* Product navigation: a true workspace rail, not a list of links. */
+    #sidebar {
+      width: 278px; padding: 18px 14px 16px; gap: 15px;
+      background:
+        radial-gradient(380px 300px at 10% -5%, rgba(45,212,191,.16), transparent 58%),
+        radial-gradient(340px 360px at 110% 22%, rgba(99,102,241,.18), transparent 65%),
+        linear-gradient(180deg, #0a1525 0%, var(--sidebar-bg) 100%);
+      border-right: 1px solid rgba(255,255,255,.07);
+      box-shadow: 18px 0 45px -35px rgba(5,9,20,.8);
+      backdrop-filter: none;
+      transition: width .3s var(--ease), padding .3s var(--ease);
+    }
+    .sidebar-brand-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      min-height: 48px; padding: 0 4px;
+    }
+    .sidebar-brand {
+      position: relative; padding: 0 0 0 48px; min-width: 0;
+      font-size: 10px; letter-spacing: 2.2px; line-height: 1.42;
+    }
+    .sidebar-brand::before {
+      content: 'CT'; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+      width: 36px; height: 36px; display: grid; place-items: center;
+      border: 1px solid rgba(255,255,255,.13); border-radius: 12px;
+      background: linear-gradient(145deg, rgba(45,212,191,.3), rgba(99,102,241,.34));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 10px 25px -14px #000;
+      color: #fff; font-size: 11px; font-weight: 900; letter-spacing: .8px;
+    }
+    .sidebar-brand .brand-full > span { color: #5eead4; font-size: 10px; letter-spacing: 2.3px; }
+    .brand-compact { font-size: 0; }
+    .sidebar-collapse {
+      width: 30px; height: 30px; flex: 0 0 30px; display: grid; place-items: center;
+      border: 1px solid rgba(255,255,255,.09); border-radius: 9px;
+      background: rgba(255,255,255,.035); color: var(--sidebar-muted); cursor: pointer;
+      transition: background var(--speed), color var(--speed), transform .3s var(--ease);
+    }
+    .sidebar-collapse:hover { background: rgba(255,255,255,.1); color: #fff; }
+    .sidebar-collapse .lic { width: 15px; height: 15px; }
+    .sidebar-quickfind {
+      min-height: 42px; padding: 9px 10px;
+      border-color: rgba(255,255,255,.1);
+      background: rgba(255,255,255,.055);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.035);
+    }
+    .sidebar-quickfind:hover {
+      border-color: rgba(94,234,212,.35);
+      background: linear-gradient(90deg, rgba(45,212,191,.11), rgba(99,102,241,.12));
+    }
+    .quickfind-key { border-color: rgba(255,255,255,.12); background: rgba(0,0,0,.18); }
+    .sidebar-create {
+      min-height: 42px; width: 100%; display: flex; align-items: center; gap: 10px;
+      padding: 9px 11px; border: 1px solid rgba(129,140,248,.32); border-radius: 11px;
+      background: linear-gradient(110deg, rgba(79,70,229,.78), rgba(45,212,191,.25));
+      color: #fff; cursor: pointer; font: 700 12.5px/1.2 inherit; text-align: left;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 12px 24px -17px rgba(79,70,229,.9);
+      transition: transform .15s var(--ease), filter var(--speed), box-shadow var(--speed);
+    }
+    .sidebar-create:hover { filter: brightness(1.12); transform: translateY(-1px); box-shadow: 0 15px 28px -17px rgba(79,70,229,.95); }
+    .sidebar-create:active { transform: translateY(0) scale(.98); }
+    .sidebar-create .lic { width: 17px; height: 17px; }
+    .sidebar-nav { gap: 3px; padding: 2px 0 8px; }
+    .nav-section {
+      padding: 16px 11px 6px; color: #657087; font-size: 9px; letter-spacing: 1.5px;
+    }
+    .nav-item {
+      min-height: 40px; padding: 9px 11px; border-radius: 11px;
+      color: #cbd3e2; font-size: 13px; font-weight: 550;
+    }
+    .nav-item:hover { background: rgba(255,255,255,.065); }
+    .nav-item.active,
+    .nav-item[aria-current="page"] {
+      background: linear-gradient(105deg, rgba(79,70,229,.72), rgba(45,212,191,.18));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 12px 28px -18px rgba(79,70,229,.85);
+    }
+    .nav-item.active::before {
+      left: -14px; width: 3px; height: 25px; border-radius: 0 5px 5px 0;
+      background: #5eead4; box-shadow: 0 0 16px rgba(94,234,212,.7);
+    }
+    .nav-icon {
+      width: 25px; height: 25px; border-radius: 8px;
+      background: rgba(255,255,255,.045);
+    }
+    .nav-item.active .nav-icon { background: rgba(255,255,255,.12); }
+    .nav-icon .lic { width: 16px; height: 16px; }
+    .sidebar-footer { gap: 5px; padding-top: 7px; border-top: 1px solid rgba(255,255,255,.07); }
+    .sidebar-user {
+      margin: 5px 0; border-color: rgba(255,255,255,.08); background: rgba(255,255,255,.035);
+    }
+    .sidebar-user-avatar {
+      border-radius: 50%; background: linear-gradient(145deg, #4f46e5, #0f766e);
+      border-color: rgba(255,255,255,.15); box-shadow: 0 8px 18px -12px #000;
+    }
+
+    /* User-controlled focus rail. The responsive breakpoint can still force
+       the same compact state for small windows. */
+    body.sidebar-collapsed #sidebar { width: 82px; padding-inline: 11px; }
+    body.sidebar-collapsed .brand-full,
+    body.sidebar-collapsed .nav-label,
+    body.sidebar-collapsed .nav-section,
+    body.sidebar-collapsed .sidebar-user,
+    body.sidebar-collapsed .app-version,
+    body.sidebar-collapsed .quickfind-key { display: none; }
+    body.sidebar-collapsed .sidebar-brand-row { justify-content: center; flex-direction: column; gap: 4px; }
+    body.sidebar-collapsed .sidebar-brand { width: 38px; height: 38px; padding: 0; }
+    body.sidebar-collapsed .sidebar-brand::before { left: 1px; }
+    body.sidebar-collapsed .brand-compact { display: none; }
+    body.sidebar-collapsed .sidebar-collapse { transform: rotate(180deg); }
+    body.sidebar-collapsed .sidebar-quickfind,
+    body.sidebar-collapsed .sidebar-create,
+    body.sidebar-collapsed .nav-item { justify-content: center; padding-inline: 8px; gap: 0; }
+    body.sidebar-collapsed .nav-item.active::before { left: -11px; }
+    body.sidebar-collapsed .nav-badge { position: absolute; right: 2px; top: 2px; }
+
+    /* Page chrome becomes a floating command surface. */
+    .page-header {
+      min-height: 66px; padding: 13px 26px; gap: 12px;
+      background: color-mix(in srgb, var(--surface-1) 88%, transparent);
+      border-bottom: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+      backdrop-filter: blur(18px) saturate(135%);
+      box-shadow: 0 8px 30px -28px rgba(23,32,51,.7);
+    }
+    .page-title {
+      margin-right: 9px; font-size: 17px; font-weight: 760; letter-spacing: -.35px;
+      position: relative; min-width: 162px; padding-bottom: 17px;
+    }
+    .page-title::after {
+      position: absolute; left: 34px; bottom: 0;
+      color: var(--muted); font-size: 10px; font-weight: 600; letter-spacing: .1px;
+      white-space: nowrap; text-transform: none;
+    }
+    #an-topbar .page-title::after { content: 'Signals, priorities, and performance'; }
+    #reports-topbar .page-title::after { content: 'Generate polished operational records'; }
+    #topbar .page-title::after { content: 'Capture today without breaking your flow'; }
+    #sub-topbar .page-title::after { content: 'Costs, renewals, and commitments'; }
+    #module-browse .page-title::after { content: 'Explore work across every dimension'; }
+    #module-projects .page-title::after { content: 'Delivery context, documents, and tasks'; }
+    #module-all-tasks .page-title::after,
+    #module-internal-tasks .page-title::after { content: 'Plan, connect, and continue work'; }
+    #module-knowledge .page-title::after { content: 'Your searchable operational memory'; }
+    #companydocs-topbar .page-title::after { content: 'Company records and renewal readiness'; }
+    #clients-topbar .page-title::after { content: 'Projects, access, infrastructure, and systems'; }
+    #settings-topbar .page-title::after { content: 'Workspace behavior and managed catalogs'; }
+    .page-title .lic,
+    .modal-title .lic {
+      width: 19px; height: 19px; padding: 3px; box-sizing: content-box;
+      border-radius: 8px; color: var(--primary);
+      background: color-mix(in srgb, var(--primary) 10%, transparent);
+    }
+    .topbar-right { gap: 7px; }
+
+    /* Controls: crisp, tactile, and visibly stateful. */
+    .btn {
+      min-height: 36px; padding: 8px 14px; border-color: color-mix(in srgb, var(--border) 90%, transparent);
+      background: color-mix(in srgb, var(--surface-1) 94%, transparent);
+      box-shadow: 0 1px 2px rgba(23,32,51,.03);
+    }
+    .btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+    .btn:active { transform: translateY(0) scale(.98); }
+    .btn.primary,
+    .auth-btn {
+      background: linear-gradient(135deg, #4f46e5, #4338ca 58%, #3730a3);
+      box-shadow: 0 12px 24px -13px rgba(79,70,229,.75), inset 0 1px 0 rgba(255,255,255,.2);
+    }
+    .btn.primary:hover,
+    .auth-btn:hover { background: linear-gradient(135deg, #6366f1, #4338ca 62%, #312e81); }
+    .seg-ctl { padding: 4px; border-radius: 12px; background: var(--surface-3); }
+    .seg-btn { min-height: 29px; border-radius: 8px; }
+    .seg-btn.active {
+      background: var(--surface-1); color: var(--primary);
+      box-shadow: 0 4px 13px -9px rgba(23,32,51,.45), inset 0 0 0 1px var(--border);
+    }
+    input, select, textarea, .mod-search {
+      transition: border-color var(--speed), box-shadow var(--speed), background var(--speed);
+    }
+    input:focus, select:focus, textarea:focus, .mod-search:focus {
+      border-color: color-mix(in srgb, var(--primary) 70%, var(--border));
+      box-shadow: 0 0 0 4px var(--primary-glow);
+    }
+
+    /* Core overview and daily-work canvases. */
+    .an-scroll { max-width: 1540px; width: 100%; margin: 0 auto; padding: 30px 34px 50px; }
+    .dash-greeting { margin-bottom: 25px; }
+    .dash-greeting h1 {
+      font-size: 34px; font-weight: 760; letter-spacing: -1.25px;
+      background: linear-gradient(100deg, var(--text), color-mix(in srgb, var(--primary) 75%, var(--text)));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .dash-greeting p { margin-top: 6px; font-size: 13px; }
+    .dash-launchpad {
+      display: flex; align-items: center; gap: 10px; margin: -8px 0 24px;
+      padding: 10px; border: 1px solid color-mix(in srgb, var(--primary) 14%, var(--border));
+      border-radius: 15px;
+      background: linear-gradient(100deg, color-mix(in srgb, var(--primary) 6%, var(--surface-1)), color-mix(in srgb, #2dd4bf 3%, var(--surface-1)));
+      box-shadow: var(--shadow-sm);
+    }
+    .dash-launchpad-label {
+      display: flex; align-items: center; gap: 8px; margin-right: auto; padding: 0 8px;
+      color: var(--muted); font-size: 11.5px; font-weight: 650;
+    }
+    .dash-launchpad-label .lic { width: 15px; height: 15px; color: var(--primary); }
+    .dash-launch {
+      min-height: 34px; display: inline-flex; align-items: center; gap: 7px;
+      padding: 7px 11px; border: 1px solid var(--border); border-radius: 10px;
+      background: var(--surface-1); color: var(--text); cursor: pointer;
+      font: 700 11.5px/1 inherit; box-shadow: 0 1px 2px rgba(23,32,51,.04);
+      transition: transform .15s var(--ease), border-color var(--speed), background var(--speed);
+    }
+    .dash-launch:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--primary) 38%, var(--border)); background: var(--accent-bg); color: var(--primary); }
+    .dash-launch .lic { width: 14px; height: 14px; }
+    .dash-launch.primary { color: #fff; border-color: transparent; background: linear-gradient(135deg, #4f46e5, #4338ca); }
+    .dash-launch.primary:hover { color: #fff; background: linear-gradient(135deg, #6366f1, #4338ca); }
+    .dash-stats { gap: 14px; }
+    .dash-stat,
+    .total-chip,
+    .an-card,
+    .rmod-card,
+    .pj-card,
+    .user-card,
+    .client-overview-card {
+      border-color: color-mix(in srgb, var(--border) 90%, transparent);
+      background: color-mix(in srgb, var(--surface-1) 95%, transparent);
+      box-shadow: var(--shadow-sm);
+      backdrop-filter: blur(10px);
+    }
+    .dash-stat {
+      position: relative; overflow: hidden; min-height: 122px; padding: 20px;
+    }
+    .dash-stat::after {
+      content: ''; position: absolute; width: 96px; height: 96px; right: -30px; bottom: -44px;
+      border-radius: 50%; background: color-mix(in srgb, var(--primary) 9%, transparent);
+    }
+    .dash-stat:hover, .an-card:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+    .an-card { border-radius: var(--radius); }
+    .an-section { margin-top: 38px; }
+    .an-section-title { color: var(--text); font-size: 10.5px; letter-spacing: 1.25px; }
+    .an-section-line { background: linear-gradient(90deg, var(--border), transparent); }
+
+    #totals-bar {
+      gap: 12px; padding: 18px 24px 4px; background: transparent;
+    }
+    .total-chip {
+      position: relative; min-height: 104px; padding: 16px 18px; overflow: hidden;
+    }
+    .total-chip::before {
+      content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+      background: linear-gradient(180deg, #6366f1, #4f46e5);
+    }
+    .total-chip:nth-child(2)::before { background: linear-gradient(180deg, #2dd4bf, #0f766e); }
+    .total-chip:nth-child(3)::before { background: linear-gradient(180deg, #fb7185, #e11d48); }
+    .total-chip .stat-value { font-size: 25px; letter-spacing: -1px; }
+    #filter-bar { margin: 12px 24px 0; border-radius: 14px; border: 1px solid var(--border); background: var(--surface-1); }
+    #table-wrap, #sub-table-wrap { padding: 16px 24px 38px; }
+    #ts-table, #sub-table { border-collapse: separate; border-spacing: 0 8px; }
+    #ts-table thead th, #sub-table thead th {
+      border: 0; background: transparent; padding-block: 9px;
+    }
+    #ts-table tbody, #sub-table tbody { box-shadow: none; }
+    #ts-table tbody td, #sub-table tbody td {
+      border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      background: color-mix(in srgb, var(--surface-1) 96%, transparent);
+    }
+    #ts-table tbody td:first-child, #sub-table tbody td:first-child {
+      border-left: 1px solid var(--border); border-radius: 12px 0 0 12px !important;
+    }
+    #ts-table tbody td:last-child, #sub-table tbody td:last-child {
+      border-right: 1px solid var(--border); border-radius: 0 12px 12px 0 !important;
+    }
+    #ts-table tbody tr:hover td, #sub-table tbody tr:hover td {
+      background: color-mix(in srgb, var(--primary) 5%, var(--surface-1));
+      border-color: color-mix(in srgb, var(--primary) 22%, var(--border));
+    }
+
+    /* Dialogs and the command center feel native to the new shell. */
+    .modal-overlay {
+      background: rgba(6,10,20,.64);
+      backdrop-filter: blur(12px) saturate(125%);
+    }
+    .modal-box {
+      border-color: color-mix(in srgb, var(--border) 85%, transparent);
+      border-radius: 22px; box-shadow: 0 40px 100px -42px rgba(0,0,0,.7);
+      overflow: hidden;
+    }
+    .modal-header {
+      min-height: 64px; background: color-mix(in srgb, var(--surface-2) 76%, transparent);
+      border-bottom-color: var(--border);
+    }
+    .modal-footer {
+      background: color-mix(in srgb, var(--surface-2) 76%, transparent);
+      border-top-color: var(--border);
+    }
+    #palette {
+      width: 650px; max-height: 68vh; border-radius: 21px;
+      border-color: color-mix(in srgb, var(--primary) 20%, var(--border));
+      box-shadow: 0 45px 110px -35px rgba(0,0,0,.78), 0 0 0 1px rgba(255,255,255,.04);
+    }
+    #palette-input-wrap { padding: 18px 20px; }
+    #palette-input { font-size: 17px; letter-spacing: -.2px; }
+    .pal-item { min-height: 43px; padding: 10px 13px; }
+    .pal-item.active {
+      background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 14%, transparent), color-mix(in srgb, #2dd4bf 5%, transparent));
+      box-shadow: inset 3px 0 var(--primary);
+    }
+
+    /* Universal creation hub: one reliable starting point for every major
+       workflow, backed entirely by the app's existing forms and safeguards. */
+    #create-hub { width: 760px; max-width: calc(100vw - 36px); }
+    .create-hub-intro {
+      margin: -2px 0 18px; color: var(--muted); font-size: 13px; line-height: 1.55;
+    }
+    .create-hub-grid {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;
+    }
+    .create-flow {
+      min-width: 0; min-height: 92px; display: grid; grid-template-columns: 42px minmax(0,1fr) auto;
+      align-items: center; gap: 13px; padding: 15px; border: 1px solid var(--border);
+      border-radius: 14px; background: var(--surface-1); color: var(--text);
+      text-align: left; cursor: pointer; font: inherit;
+      transition: border-color var(--speed), background var(--speed), transform .15s var(--ease), box-shadow var(--speed);
+    }
+    .create-flow:hover {
+      transform: translateY(-2px); border-color: color-mix(in srgb, var(--primary) 42%, var(--border));
+      background: color-mix(in srgb, var(--primary) 4%, var(--surface-1)); box-shadow: var(--shadow-sm);
+    }
+    .create-flow-icon {
+      width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px;
+      color: var(--primary); background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 14%, transparent), color-mix(in srgb, #2dd4bf 8%, transparent));
+      border: 1px solid color-mix(in srgb, var(--primary) 16%, transparent);
+    }
+    .create-flow-icon .lic { width: 19px; height: 19px; }
+    .create-flow-copy { min-width: 0; }
+    .create-flow-title { display: block; margin-bottom: 4px; font-size: 13.5px; font-weight: 760; }
+    .create-flow-desc { display: block; color: var(--muted); font-size: 11.5px; line-height: 1.4; }
+    .create-flow-arrow { color: var(--muted); }
+    .create-flow-arrow .lic { width: 15px; height: 15px; }
+
+    /* The remaining workspaces use the same inset-canvas composition so moving
+       between Clients, Knowledge, Documents, Tasks, and Settings feels like
+       one application rather than a collection of pages. */
+    .cp-body,
+    .kh-shell,
+    .settings-body {
+      min-height: 0; margin: 18px 22px 22px;
+      border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+      border-radius: 18px; overflow: hidden;
+      background: color-mix(in srgb, var(--surface-1) 94%, transparent);
+      box-shadow: var(--shadow-sm);
+    }
+    .cp-list-panel,
+    .kh-filters,
+    .settings-tabs {
+      background:
+        linear-gradient(180deg, color-mix(in srgb, var(--primary) 4%, var(--surface-1)), var(--surface-1));
+      border-color: var(--border);
+    }
+    .cp-list-panel { width: 300px; }
+    .cp-list { padding: 10px; gap: 4px; }
+    .cp-list-item { min-height: 40px; border-radius: 10px; }
+    .cp-list-item.active {
+      border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
+      background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 12%, transparent), transparent);
+      box-shadow: inset 3px 0 var(--primary);
+    }
+    .cp-records-panel, .kh-main { padding: 24px 28px 38px; }
+    .kh-shell { grid-template-columns: 258px minmax(0, 1fr); }
+    .kh-filters { padding: 20px 16px; }
+    .kh-row,
+    .cd-card,
+    .cl-item-card,
+    .pj-task-card,
+    .lookup-item {
+      background: color-mix(in srgb, var(--surface-1) 96%, transparent);
+      border-color: var(--border); box-shadow: var(--shadow-sm);
+    }
+    .kh-row { min-height: 84px; padding: 17px 18px; }
+    .kh-row:hover, .cd-card:hover, .cl-item-card:hover {
+      transform: translateY(-2px); box-shadow: var(--shadow);
+      border-color: color-mix(in srgb, var(--primary) 34%, var(--border));
+    }
+    .kh-row-icon {
+      border: 1px solid color-mix(in srgb, var(--primary) 18%, transparent);
+      background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 15%, transparent), color-mix(in srgb, #2dd4bf 8%, transparent));
+    }
+    .settings-body { background: var(--surface-1) !important; }
+    .settings-tabs { width: 210px; padding: 16px 10px; }
+    .settings-panels { padding: 26px 30px 40px; }
+    .stab { min-height: 38px; border-radius: 10px; }
+    .stab.active {
+      background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 13%, transparent), transparent);
+      box-shadow: inset 3px 0 var(--primary);
+    }
+    .pj-scroll {
+      width: 100%; max-width: 1540px; margin: 0 auto;
+      padding: 26px 30px 45px;
+    }
+    .cd-grid { gap: 16px; }
+    .cd-card { min-height: 190px; padding: 20px; }
+    .cd-card-icon { border-radius: 12px; }
+
+    /* Authentication becomes a confident product entrance. */
+    #auth-overlay {
+      background:
+        radial-gradient(900px 520px at 12% 8%, rgba(45,212,191,.18), transparent 62%),
+        radial-gradient(900px 600px at 92% 100%, rgba(79,70,229,.24), transparent 68%),
+        #07111f;
+    }
+    .auth-card {
+      width: 430px; padding: 42px 38px 34px; border-color: rgba(255,255,255,.11);
+      background: rgba(14,24,40,.78); box-shadow: 0 45px 100px -35px rgba(0,0,0,.75);
+      backdrop-filter: blur(22px); color: #f8fafc;
+    }
+    .auth-brand, .auth-heading { color: #f8fafc; }
+    .auth-brand { font-size: 23px; letter-spacing: 4px; }
+    .auth-brand span { color: #5eead4; }
+    .auth-sub, .auth-field label { color: #94a3b8; }
+    .auth-field input {
+      min-height: 44px; color: #f8fafc; background: rgba(255,255,255,.06);
+      border-color: rgba(255,255,255,.12);
+    }
+    .auth-field input:focus { background: rgba(255,255,255,.09); }
+
+    /* Calm Workspace: machine-local comfort controls that change presentation
+       only. They never write application records or call the main process. */
+    #workspace-view-modal { width: 610px; max-width: calc(100vw - 32px); }
+    .workspace-view-intro {
+      margin: 0 0 20px; color: var(--muted); font-size: 13px; line-height: 1.6;
+    }
+    .workspace-view-section {
+      display: grid; grid-template-columns: 148px minmax(0, 1fr); gap: 18px;
+      align-items: start; padding: 17px 0; border-top: 1px solid var(--border);
+    }
+    .workspace-view-label {
+      padding-top: 5px; color: var(--text); font-size: 12px; font-weight: 760;
+    }
+    .workspace-view-label small {
+      display: block; margin-top: 5px; color: var(--muted);
+      font-size: 10.5px; font-weight: 450; line-height: 1.35;
+    }
+    .workspace-choice-group {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px;
+    }
+    .workspace-choice-group.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .workspace-choice {
+      min-height: 58px; padding: 9px 10px; border: 1px solid var(--border);
+      border-radius: 11px; background: var(--surface-1); color: var(--text);
+      font: inherit; text-align: left; cursor: pointer;
+      transition: border-color var(--speed), background var(--speed), box-shadow var(--speed);
+    }
+    .workspace-choice strong { display: block; font-size: 11.5px; }
+    .workspace-choice span { display: block; margin-top: 3px; color: var(--muted); font-size: 9.5px; line-height: 1.3; }
+    .workspace-choice:hover { border-color: color-mix(in srgb, var(--primary) 35%, var(--border)); }
+    .workspace-choice[aria-pressed="true"] {
+      border-color: color-mix(in srgb, var(--primary) 52%, var(--border));
+      background: color-mix(in srgb, var(--primary) 9%, var(--surface-1));
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 14%, transparent);
+    }
+    .workspace-focus-card {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      padding: 15px 16px; border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--border));
+      border-radius: 13px; background: color-mix(in srgb, var(--primary) 5%, var(--surface-1));
+    }
+    .workspace-focus-card strong { display: block; margin-bottom: 4px; font-size: 12.5px; }
+    .workspace-focus-card span { display: block; color: var(--muted); font-size: 10.5px; line-height: 1.4; }
+    #focus-exit {
+      display: none; position: fixed; z-index: 1190; left: 18px; bottom: 18px;
+      align-items: center; gap: 8px; min-height: 38px; padding: 8px 13px;
+      border: 1px solid color-mix(in srgb, var(--primary) 36%, var(--border));
+      border-radius: 11px; background: var(--surface-1); color: var(--text);
+      box-shadow: var(--shadow); font: inherit; font-size: 11px; font-weight: 720; cursor: pointer;
+    }
+    #focus-exit .lic { width: 15px; height: 15px; color: var(--primary); }
+
+    body.workspace-calm #main { background-image: none; }
+    body.workspace-calm #main::before { opacity: .55; }
+
+    body[data-density="compact"] .page-header { min-height: 58px; padding-block: 10px; }
+    body[data-density="compact"] #totals-bar { padding-top: 11px; gap: 8px; }
+    body[data-density="compact"] .total-chip { min-height: 78px; padding: 11px 14px; }
+    body[data-density="compact"] #table-wrap,
+    body[data-density="compact"] #sub-table-wrap { padding-top: 9px; }
+    body[data-density="compact"] #ts-table,
+    body[data-density="compact"] #sub-table { border-spacing: 0 4px; }
+    body[data-density="compact"] #ts-table tbody td,
+    body[data-density="compact"] #sub-table tbody td { padding-block: 7px; }
+    body[data-density="compact"] .an-scroll { padding-top: 20px; }
+    body[data-density="compact"] .dash-stat { min-height: 94px; padding: 14px; }
+    body[data-density="compact"] .an-section { margin-top: 25px; }
+    body[data-density="compact"] .cp-body,
+    body[data-density="compact"] .kh-shell,
+    body[data-density="compact"] .settings-body { margin: 10px 14px 14px; }
+    body[data-density="compact"] .cp-records-panel,
+    body[data-density="compact"] .kh-main { padding: 16px 20px 28px; }
+    body[data-density="compact"] .kh-row { min-height: 68px; padding: 11px 14px; }
+    body[data-density="compact"] .pj-scroll { padding-top: 17px; }
+    body[data-density="compact"] .cd-card { min-height: 156px; padding: 15px; }
+
+    body[data-density="spacious"] .page-header { min-height: 78px; padding-block: 18px; }
+    body[data-density="spacious"] #totals-bar { gap: 16px; padding-top: 24px; }
+    body[data-density="spacious"] .total-chip { min-height: 120px; padding: 21px; }
+    body[data-density="spacious"] #ts-table,
+    body[data-density="spacious"] #sub-table { border-spacing: 0 11px; }
+    body[data-density="spacious"] #ts-table tbody td,
+    body[data-density="spacious"] #sub-table tbody td { padding-block: 14px; }
+    body[data-density="spacious"] .an-scroll { padding-top: 34px; }
+    body[data-density="spacious"] .dash-stat { min-height: 138px; padding: 24px; }
+    body[data-density="spacious"] .an-section { margin-top: 46px; }
+    body[data-density="spacious"] .cp-body,
+    body[data-density="spacious"] .kh-shell,
+    body[data-density="spacious"] .settings-body { margin: 24px 28px 28px; }
+    body[data-density="spacious"] .cp-records-panel,
+    body[data-density="spacious"] .kh-main { padding: 30px 34px 46px; }
+    body[data-density="spacious"] .kh-row { min-height: 98px; padding: 21px 22px; }
+    body[data-density="spacious"] .pj-scroll { padding-top: 34px; }
+    body[data-density="spacious"] .cd-card { min-height: 214px; padding: 24px; }
+
+    body.focus-mode #sidebar {
+      width: 0 !important; min-width: 0; padding: 0 !important;
+      border: 0; overflow: hidden; opacity: 0; pointer-events: none;
+    }
+    body.focus-mode #focus-exit { display: inline-flex; }
+    body.focus-mode #main { width: 100vw; }
+
+    body.workspace-reduced-motion *,
+    body.workspace-reduced-motion *::before,
+    body.workspace-reduced-motion *::after {
+      scroll-behavior: auto !important;
+      animation-duration: .01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: .01ms !important;
+    }
+    body.workspace-reduced-motion .modal-overlay,
+    body.workspace-reduced-motion .kh-row,
+    body.workspace-reduced-motion .cd-card,
+    body.workspace-reduced-motion .cl-item-card { backdrop-filter: none; }
+
+    @media (max-width: 1180px) {
+      #sidebar { width: 232px; padding-inline: 12px; }
+      .an-scroll { padding-inline: 24px; }
+      .page-title { min-width: auto; padding-bottom: 0; }
+      .page-title::after { display: none; }
+    }
+    @media (max-width: 1050px) {
+      #sidebar { width: 82px; padding: 16px 11px; gap: 13px; }
+      .sidebar-brand-row { justify-content: center; }
+      .sidebar-brand { width: 38px; height: 38px; padding: 0; }
+      .sidebar-brand::before { left: 1px; }
+      .sidebar-collapse { display: none; }
+      .sidebar-quickfind { min-height: 40px; }
+      .page-header { padding-inline: 18px; }
+    }
+    @media (max-width: 900px) {
+      .kh-shell { grid-template-columns: 1fr; }
+      .kh-filters {
+        border-right: 0; border-bottom: 1px solid var(--border);
+        display: flex; gap: 5px; overflow-x: auto; padding: 10px 14px;
+      }
+      .kh-filter-title { display: none; }
+      .kh-filter-btn { width: auto; white-space: nowrap; }
+    }
+    @media (max-width: 760px) {
+      .an-scroll { padding: 22px 15px 40px; }
+      .dash-greeting h1 { font-size: 28px; }
+      .dash-launchpad { align-items: stretch; flex-wrap: wrap; }
+      .dash-launchpad-label { width: 100%; padding: 3px 5px; }
+      .dash-launch { flex: 1; justify-content: center; }
+      #totals-bar { padding-inline: 14px; }
+      #filter-bar { margin-inline: 14px; }
+      #table-wrap, #sub-table-wrap { padding-inline: 14px; }
+      .cp-body, .kh-shell, .settings-body { margin: 10px; border-radius: 14px; }
+      .cp-records-panel, .kh-main, .settings-panels { padding-inline: 16px; }
+      .pj-scroll { padding-inline: 15px; }
+      #palette-foot { flex-wrap: wrap; }
+      #palette-status { width: 100%; min-width: 0; text-align: left; }
+      .create-hub-grid { grid-template-columns: 1fr; }
+      .workspace-view-section { grid-template-columns: 1fr; gap: 10px; }
+      .workspace-view-label { padding-top: 0; }
+      .workspace-focus-card { align-items: flex-start; flex-direction: column; }
+    }
+
   </style>
 </head>
 <body>
@@ -2291,7 +2969,18 @@
 
 <!-- ══ SIDEBAR ══ -->
 <div id="sidebar">
-  <div class="sidebar-brand"><span class="brand-full">MOS TA FA<br><span>COOPERATION TOOLS</span></span><span class="brand-compact">CT</span></div>
+  <div class="sidebar-brand-row">
+    <div class="sidebar-brand"><span class="brand-full">MOS TA FA<br><span>COOPERATION TOOLS</span></span><span class="brand-compact">CT</span></div>
+    <button id="sidebar-collapse" class="sidebar-collapse" type="button" onclick="toggleSidebar()" title="Collapse navigation" aria-pressed="false">
+      <span data-ic="panel-left-close"></span>
+    </button>
+  </div>
+  <button class="sidebar-quickfind" type="button" onclick="openPalette()" title="Quick Find (Ctrl+K)" aria-keyshortcuts="Control+K">
+    <span data-ic="search"></span><span class="nav-label">Quick Find</span><span class="quickfind-key" aria-hidden="true">Ctrl K</span>
+  </button>
+  <button class="sidebar-create" type="button" onclick="openCreateHub()" title="Create new (Ctrl+Shift+N)" aria-keyshortcuts="Control+Shift+N">
+    <span data-ic="plus"></span><span class="nav-label">Create New</span>
+  </button>
   <nav class="sidebar-nav" aria-label="Primary navigation">
     <div class="nav-section">Track</div>
     <button class="nav-item" data-module="timesheet" onclick="switchModule('timesheet')" title="Today — Timesheet">
@@ -2301,31 +2990,34 @@
       <span class="nav-icon" data-ic="list"></span><span class="nav-label">Tasks</span>
     </button>
     <div class="nav-section">Clients &amp; Assets</div>
-    <button class="nav-item" data-module="clients" onclick="switchModule('clients')">
+    <button class="nav-item" data-module="clients" onclick="switchModule('clients')" title="Clients">
       <span class="nav-icon" data-ic="layers"></span><span class="nav-label">Clients</span><span class="nav-badge" id="nav-badge-clients"></span>
     </button>
-    <button class="nav-item" data-module="subscriptions" onclick="switchModule('subscriptions')">
+    <button class="nav-item" data-module="subscriptions" onclick="switchModule('subscriptions')" title="Subscriptions">
       <span class="nav-icon" data-ic="credit-card"></span><span class="nav-label">Subscriptions</span><span class="nav-badge" id="nav-badge-subscriptions"></span>
     </button>
-    <button class="nav-item" data-module="companydocs" onclick="switchModule('companydocs')">
+    <button class="nav-item" data-module="companydocs" onclick="switchModule('companydocs')" title="Company Documents">
       <span class="nav-icon" data-ic="calendar-check"></span><span class="nav-label">Company Docs</span><span class="nav-badge" id="nav-badge-companydocs"></span>
     </button>
-    <button class="nav-item" data-module="knowledge" onclick="switchModule('knowledge')">
+    <button class="nav-item" data-module="knowledge" onclick="switchModule('knowledge')" title="Knowledge Hub">
       <span class="nav-icon" data-ic="book-open"></span><span class="nav-label">Knowledge Hub</span><span class="nav-badge" id="nav-badge-knowledge"></span>
     </button>
     <div class="nav-section">Review</div>
-    <button class="nav-item active" data-module="analytics" onclick="switchModule('analytics')">
+    <button class="nav-item active" data-module="analytics" onclick="switchModule('analytics')" title="Overview">
       <span class="nav-icon" data-ic="layout-dashboard"></span><span class="nav-label">Overview</span>
     </button>
-    <button class="nav-item" data-module="reports" onclick="switchModule('reports')">
+    <button class="nav-item" data-module="reports" onclick="switchModule('reports')" title="Reports">
       <span class="nav-icon" data-ic="file-text"></span><span class="nav-label">Reports</span>
     </button>
     <div class="nav-section">Administration</div>
-    <button class="nav-item" data-module="settings" onclick="switchModule('settings')">
+    <button class="nav-item" data-module="settings" onclick="switchModule('settings')" title="Settings">
       <span class="nav-icon" data-ic="settings"></span><span class="nav-label">Settings</span>
     </button>
   </nav>
   <div class="sidebar-footer">
+    <button id="workspace-view-btn" class="nav-item" onclick="openWorkspaceView()" title="Workspace view and eye comfort">
+      <span class="nav-icon" data-ic="eye"></span><span class="nav-label">View &amp; Comfort</span>
+    </button>
     <button id="theme-toggle" class="nav-item" onclick="toggleTheme()" title="Switch between light and dark mode">
       <span class="nav-icon" id="theme-icon" data-ic="moon"></span><span id="theme-label" class="nav-label">Dark Mode</span>
     </button>
@@ -2374,6 +3066,12 @@
     <div class="dash-greeting">
       <h1 id="dash-hello">Welcome back</h1>
       <p id="dash-date"></p>
+    </div>
+    <div class="dash-launchpad" aria-label="Start a workflow">
+      <span class="dash-launchpad-label"><span data-ic="zap"></span>What would you like to move forward?</span>
+      <button class="dash-launch primary" onclick="runCreateFlow('session')"><span data-ic="clock"></span>Log Work</button>
+      <button class="dash-launch" onclick="openCreateHub()"><span data-ic="plus"></span>Create New</button>
+      <button class="dash-launch" onclick="openPalette()"><span data-ic="search"></span>Find Anything</button>
     </div>
     <div class="dash-stats" id="dash-stats"></div>
 
@@ -3943,20 +4641,127 @@
   <button id="sub-undo-toast-btn" onclick="undoDeleteSub()">Undo</button>
 </div>
 
+<!-- WORKSPACE VIEW — renderer-only comfort controls; never touches app data. -->
+<div id="workspace-view-overlay" class="modal-overlay" onclick="workspaceViewOverlayClick(event)">
+  <div id="workspace-view-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title"><span data-ic="eye"></span>Workspace View</span>
+      <button class="modal-close" onclick="closeWorkspaceView()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <p class="workspace-view-intro">Tune the visual rhythm for your eyes and your task. These preferences stay on this device and never change your records.</p>
+      <div class="workspace-view-section">
+        <div class="workspace-view-label">Density<small>Choose how much information fits on screen.</small></div>
+        <div class="workspace-choice-group" role="group" aria-label="Workspace density">
+          <button class="workspace-choice" type="button" data-workspace-choice="density:compact" onclick="setWorkspaceView('density','compact')"><strong>Compact</strong><span>Scan more at once</span></button>
+          <button class="workspace-choice" type="button" data-workspace-choice="density:balanced" onclick="setWorkspaceView('density','balanced')"><strong>Balanced</strong><span>Everyday comfort</span></button>
+          <button class="workspace-choice" type="button" data-workspace-choice="density:spacious" onclick="setWorkspaceView('density','spacious')"><strong>Spacious</strong><span>More breathing room</span></button>
+        </div>
+      </div>
+      <div class="workspace-view-section">
+        <div class="workspace-view-label">Canvas<small>Control the amount of background structure.</small></div>
+        <div class="workspace-choice-group two" role="group" aria-label="Workspace canvas">
+          <button class="workspace-choice" type="button" data-workspace-choice="canvas:calm" onclick="setWorkspaceView('canvas','calm')"><strong>Calm</strong><span>Clean, quiet surfaces</span></button>
+          <button class="workspace-choice" type="button" data-workspace-choice="canvas:structured" onclick="setWorkspaceView('canvas','structured')"><strong>Structured</strong><span>Subtle alignment grid</span></button>
+        </div>
+      </div>
+      <div class="workspace-view-section">
+        <div class="workspace-view-label">Motion<small>Reduce movement when concentration matters.</small></div>
+        <div class="workspace-choice-group two" role="group" aria-label="Workspace motion">
+          <button class="workspace-choice" type="button" data-workspace-choice="motion:gentle" onclick="setWorkspaceView('motion','gentle')"><strong>Gentle</strong><span>Soft interface feedback</span></button>
+          <button class="workspace-choice" type="button" data-workspace-choice="motion:reduced" onclick="setWorkspaceView('motion','reduced')"><strong>Reduced</strong><span>Minimal movement</span></button>
+        </div>
+      </div>
+      <div class="workspace-focus-card">
+        <div><strong>Focus Mode</strong><span>Temporarily hide navigation and give the active workspace the full window.</span></div>
+        <button id="workspace-focus-toggle" class="btn primary" type="button" onclick="toggleFocusMode()">Enter Focus</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <span class="modal-hint" style="margin-right:auto">Focus shortcut: Ctrl + Shift + F</span>
+      <button class="btn" onclick="resetWorkspaceView()">Reset</button>
+      <button class="btn primary" onclick="closeWorkspaceView()">Done</button>
+    </div>
+  </div>
+</div>
+<button id="focus-exit" type="button" onclick="toggleFocusMode(false)" title="Exit Focus Mode (Ctrl+Shift+F)" aria-keyshortcuts="Control+Shift+F">
+  <span data-ic="eye"></span><span>Exit Focus</span>
+</button>
+
+<!-- ══ UNIVERSAL CREATE HUB ══ -->
+<div id="create-hub-overlay" class="modal-overlay" onclick="createHubOverlayClick(event)">
+  <div id="create-hub" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title"><span data-ic="zap"></span>Create something</span>
+      <button class="modal-close" onclick="closeCreateHub()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <p class="create-hub-intro">Start any core workflow from one place. Nothing is written until you complete and save the existing form.</p>
+      <div class="create-hub-grid">
+        <button class="create-flow" onclick="runCreateFlow('session')">
+          <span class="create-flow-icon" data-ic="clock"></span>
+          <span class="create-flow-copy"><span class="create-flow-title">Log work</span><span class="create-flow-desc">Add a session to today’s Timesheet</span></span>
+          <span class="create-flow-arrow" data-ic="arrow-right"></span>
+        </button>
+        <button class="create-flow" onclick="runCreateFlow('task')">
+          <span class="create-flow-icon" data-ic="list"></span>
+          <span class="create-flow-copy"><span class="create-flow-title">Create task</span><span class="create-flow-desc">Plan project, department, or unlinked work</span></span>
+          <span class="create-flow-arrow" data-ic="arrow-right"></span>
+        </button>
+        <button class="create-flow" onclick="runCreateFlow('project')">
+          <span class="create-flow-icon" data-ic="clipboard-list"></span>
+          <span class="create-flow-copy"><span class="create-flow-title">Create project</span><span class="create-flow-desc">Connect clients, systems, documents, and tasks</span></span>
+          <span class="create-flow-arrow" data-ic="arrow-right"></span>
+        </button>
+        <button class="create-flow" onclick="runCreateFlow('knowledge')">
+          <span class="create-flow-icon" data-ic="book-open"></span>
+          <span class="create-flow-copy"><span class="create-flow-title">Write knowledge</span><span class="create-flow-desc">Capture a manual, procedure, or technical note</span></span>
+          <span class="create-flow-arrow" data-ic="arrow-right"></span>
+        </button>
+        <button class="create-flow" onclick="runCreateFlow('knowledge-document')">
+          <span class="create-flow-icon" data-ic="upload"></span>
+          <span class="create-flow-copy"><span class="create-flow-title">Add knowledge document</span><span class="create-flow-desc">Start a versioned document library item</span></span>
+          <span class="create-flow-arrow" data-ic="arrow-right"></span>
+        </button>
+        <button class="create-flow" onclick="runCreateFlow('company-document')">
+          <span class="create-flow-icon" data-ic="calendar-check"></span>
+          <span class="create-flow-copy"><span class="create-flow-title">Add company document</span><span class="create-flow-desc">Track a company record and renewal date</span></span>
+          <span class="create-flow-arrow" data-ic="arrow-right"></span>
+        </button>
+        <button class="create-flow" onclick="runCreateFlow('subscription')">
+          <span class="create-flow-icon" data-ic="credit-card"></span>
+          <span class="create-flow-copy"><span class="create-flow-title">Add subscription</span><span class="create-flow-desc">Track recurring cost and renewal timing</span></span>
+          <span class="create-flow-arrow" data-ic="arrow-right"></span>
+        </button>
+        <button class="create-flow" onclick="runCreateFlow('quick-find')">
+          <span class="create-flow-icon" data-ic="search"></span>
+          <span class="create-flow-copy"><span class="create-flow-title">Find existing work</span><span class="create-flow-desc">Jump to a task, client, project, document, or date</span></span>
+          <span class="create-flow-arrow" data-ic="arrow-right"></span>
+        </button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <span class="modal-hint" style="margin-right:auto">Shortcut: Ctrl + Shift + N</span>
+      <button class="btn" onclick="closeCreateHub()">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ COMMAND PALETTE (Ctrl+K) ══ -->
-<div id="palette-overlay" onclick="paletteOverlayClick(event)">
+<div id="palette-overlay" class="modal-overlay" aria-label="Quick Find" onclick="paletteOverlayClick(event)">
   <div id="palette" onclick="event.stopPropagation()">
     <div id="palette-input-wrap">
       <span data-ic="search"></span>
       <input id="palette-input" type="text" placeholder="Jump to a page, task, project or date…"
+             aria-label="Search pages, actions, and workspace data"
              autocomplete="off" spellcheck="false" oninput="renderPalette()" />
     </div>
-    <div id="palette-list"></div>
+    <div id="palette-list" aria-busy="false"></div>
     <div id="palette-foot">
       <span><kbd>↑↓</kbd>navigate</span>
       <span><kbd>Enter</kbd>select</span>
       <span><kbd>Esc</kbd>close</span>
-      <span style="margin-left:auto">Tip: type a date like 2026-07-01</span>
+      <span id="palette-status" role="status" aria-live="polite">Type a date like 2026-07-01</span>
     </div>
   </div>
 </div>
@@ -3971,6 +4776,8 @@
     <div class="modal-body">
       <div class="shortcuts-list">
         <div class="shortcuts-row"><kbd>Ctrl</kbd> + <kbd>K</kbd><span>Open the command palette</span></div>
+        <div class="shortcuts-row"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>N</kbd><span>Open the universal Create Hub</span></div>
+        <div class="shortcuts-row"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd><span>Enter or exit Focus Mode</span></div>
         <div class="shortcuts-row"><kbd>?</kbd><span>Show this shortcuts list</span></div>
         <div class="shortcuts-row"><kbd>Esc</kbd><span>Close the open modal / palette / menu</span></div>
         <div class="shortcuts-row"><kbd>Ctrl</kbd> + <kbd>Enter</kbd><span>Save the open Add/Edit modal</span></div>
@@ -4056,6 +4863,7 @@
 // Each entry is the inner markup of a 24×24 Lucide icon; strokes use currentColor
 // so icons inherit the theme (--text / --muted / --primary / --bad) and hover states.
 const ICONS = {
+  "panel-left-close": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" /><path d=\"M9 3v18\" /><path d=\"m16 15-3-3 3-3\" />",
   "layout-dashboard": "<rect width=\"7\" height=\"9\" x=\"3\" y=\"3\" rx=\"1\" /><rect width=\"7\" height=\"5\" x=\"14\" y=\"3\" rx=\"1\" /><rect width=\"7\" height=\"9\" x=\"14\" y=\"12\" rx=\"1\" /><rect width=\"7\" height=\"5\" x=\"3\" y=\"16\" rx=\"1\" />",
   "clock": "<circle cx=\"12\" cy=\"12\" r=\"10\" /><path d=\"M12 6v6l4 2\" />",
   "pin": "<path d=\"M12 17v5\" /><path d=\"M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z\" />",
@@ -4219,7 +5027,7 @@ function watchAriaLabels() {
 // applied generically via a per-element class-attribute observer rather than
 // touching every individual open*/close* function.
 function trapFocusIn(overlayEl) {
-  const box = overlayEl.querySelector('.modal-box');
+  const box = overlayEl.querySelector('.modal-box, #palette');
   if (!box) return;
   overlayEl._returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   const focusable = () => [...box.querySelectorAll(
@@ -4269,7 +5077,7 @@ function watchModalFocusTraps() {
     if (heading) {
       if (!heading.id) heading.id = `modal-title-${index + 1}`;
       el.setAttribute('aria-labelledby', heading.id);
-    } else {
+    } else if (!el.hasAttribute('aria-label')) {
       el.setAttribute('aria-label', 'Dialog');
     }
     obs.observe(el, { attributes: true, attributeFilter: ['class'] });
@@ -6824,6 +7632,44 @@ function focusFirstError(scope) {
   document.querySelector(scope + ' .field-error')?.focus();
 }
 
+// ── Universal Create Hub ──
+// This is orchestration only: every choice routes into an existing creation
+// form, so validation, ownership scoping, confirmation, and undo behavior stay
+// exactly where the mature application already enforces them.
+function openCreateHub() {
+  document.getElementById('create-hub-overlay').classList.add('open');
+}
+function closeCreateHub() {
+  document.getElementById('create-hub-overlay').classList.remove('open');
+}
+function createHubOverlayClick(e) {
+  if (e.target === document.getElementById('create-hub-overlay')) closeCreateHub();
+}
+function runCreateFlow(kind) {
+  closeCreateHub();
+  if (kind === 'quick-find') { openPalette(); return; }
+  if (kind === 'session') {
+    switchModule('timesheet'); openModal(); return;
+  }
+  if (kind === 'task') {
+    switchModule('all-tasks'); openBacklogModal(); return;
+  }
+  if (kind === 'project') {
+    switchModule('clients'); openProjectModal(); return;
+  }
+  if (kind === 'knowledge' || kind === 'knowledge-document') {
+    switchModule('knowledge');
+    startKnowledgeCreation(kind === 'knowledge-document' ? 'DOCUMENT' : 'ARTICLE');
+    return;
+  }
+  if (kind === 'company-document') {
+    switchModule('companydocs'); openCompanyDocModal(); return;
+  }
+  if (kind === 'subscription') {
+    switchModule('subscriptions'); openSubModal();
+  }
+}
+
 // ── Keyboard shortcuts ──
 document.addEventListener('keydown', e => {
   const inputFocused = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
@@ -6842,6 +7688,12 @@ document.addEventListener('keydown', e => {
     return;
   }
 
+  if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'f') {
+    e.preventDefault();
+    toggleFocusMode();
+    return;
+  }
+
   if (e.key === 'Escape') {
     closeModal(); closePrint(); closeMonthView(); closeSubModal(); closeSubSettings(); closeBacklogModal();
     closeProjectModal(); closeLinkModal(); closePalette(); closeTaskDetail(); closeCompanyDocModal();
@@ -6849,6 +7701,7 @@ document.addEventListener('keydown', e => {
     closeClientRecordInfoModal(); cancelClientEditConfirm(); closeClientHistoryModal();
     closeSessionModal(); closeWlHistoryModal(); closeMergeModal(); closeShortcutsOverlay(); closeHowThinksOverlay();
     closeKnowledgeEditor(); closeKnowledgeGroupEditor(); closeKnowledgeDocumentModal(); toggleKnowledgeCreateMenu(false);
+    closeCreateHub(); closeWorkspaceView();
     document.querySelectorAll('.top-menu.open').forEach(m => m.classList.remove('open'));
   }
   // "?" opens the keyboard-shortcuts overlay — only when not typing in a field
@@ -6875,6 +7728,11 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('client-new-group-modal-overlay').classList.contains('open')) submitClientNewGroupModal();
   }
   if (!anyOpen && !inputFocused) {
+    if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'n') {
+      e.preventDefault();
+      openCreateHub();
+      return;
+    }
     if (e.ctrlKey && !e.shiftKey && e.key === 'n') {
       e.preventDefault();
       if      (activeModule === 'subscriptions') openSubModal();
@@ -6882,7 +7740,7 @@ document.addEventListener('keydown', e => {
       else if (activeModule === 'clients' || activeModule === 'projects') openProjectModal();
       else if (activeModule === 'companydocs')   openCompanyDocModal();
       else if (activeModule === 'knowledge')     openKnowledgeEditor();
-      // analytics / reports have no Add action — Ctrl+N is a no-op there
+      else openCreateHub();
     }
     // Day navigation: Ctrl+Left = earlier day, Ctrl+Right = later day
     if (e.ctrlKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
@@ -8129,6 +8987,84 @@ function toggleTheme() {
   else      document.documentElement.setAttribute('data-theme', 'dark');
   try { localStorage.setItem('ct-theme', dark ? 'light' : 'dark'); } catch (e) {}
   applyThemeLabel();
+}
+
+// ── Calm Workspace preferences ──
+// Presentation-only and deliberately local to this machine. Focus Mode is not
+// persisted, so navigation is always present again after a fresh launch.
+const WORKSPACE_VIEW_DEFAULTS = Object.freeze({ density: 'balanced', canvas: 'calm', motion: 'gentle' });
+let workspaceViewPrefs = Object.assign({}, WORKSPACE_VIEW_DEFAULTS);
+function loadWorkspaceViewPrefs() {
+  try {
+    const stored = JSON.parse(localStorage.getItem('ct-workspace-view') || '{}');
+    if (['compact','balanced','spacious'].includes(stored.density)) workspaceViewPrefs.density = stored.density;
+    if (['calm','structured'].includes(stored.canvas)) workspaceViewPrefs.canvas = stored.canvas;
+    if (['gentle','reduced'].includes(stored.motion)) workspaceViewPrefs.motion = stored.motion;
+  } catch (e) {
+    workspaceViewPrefs = Object.assign({}, WORKSPACE_VIEW_DEFAULTS);
+  }
+}
+function applyWorkspaceViewPreferences() {
+  document.body.dataset.density = workspaceViewPrefs.density;
+  document.body.classList.toggle('workspace-calm', workspaceViewPrefs.canvas === 'calm');
+  document.body.classList.toggle('workspace-structured', workspaceViewPrefs.canvas === 'structured');
+  document.body.classList.toggle('workspace-reduced-motion', workspaceViewPrefs.motion === 'reduced');
+  document.querySelectorAll('[data-workspace-choice]').forEach(btn => {
+    const [key, value] = btn.dataset.workspaceChoice.split(':');
+    btn.setAttribute('aria-pressed', String(workspaceViewPrefs[key] === value));
+  });
+}
+function setWorkspaceView(key, value) {
+  const allowed = {
+    density: ['compact','balanced','spacious'],
+    canvas: ['calm','structured'],
+    motion: ['gentle','reduced'],
+  };
+  if (!allowed[key]?.includes(value)) return;
+  workspaceViewPrefs[key] = value;
+  try { localStorage.setItem('ct-workspace-view', JSON.stringify(workspaceViewPrefs)); } catch (e) {}
+  applyWorkspaceViewPreferences();
+}
+function resetWorkspaceView() {
+  workspaceViewPrefs = Object.assign({}, WORKSPACE_VIEW_DEFAULTS);
+  try { localStorage.removeItem('ct-workspace-view'); } catch (e) {}
+  applyWorkspaceViewPreferences();
+}
+function openWorkspaceView() {
+  applyWorkspaceViewPreferences();
+  document.getElementById('workspace-view-overlay').classList.add('open');
+}
+function closeWorkspaceView() {
+  document.getElementById('workspace-view-overlay').classList.remove('open');
+}
+function workspaceViewOverlayClick(e) {
+  if (e.target === document.getElementById('workspace-view-overlay')) closeWorkspaceView();
+}
+function toggleFocusMode(force) {
+  const enter = typeof force === 'boolean' ? force : !document.body.classList.contains('focus-mode');
+  document.body.classList.toggle('focus-mode', enter);
+  const btn = document.getElementById('workspace-focus-toggle');
+  if (btn) btn.textContent = enter ? 'Exit Focus' : 'Enter Focus';
+  if (enter) closeWorkspaceView();
+}
+
+// ── Workspace rail ──
+// Manual collapse is intentionally machine-local like theme: it describes how
+// this device's window should use space, not user-owned application data.
+function applySidebarPreference() {
+  let compact = false;
+  try { compact = localStorage.getItem('ct-sidebar-compact') === '1'; } catch (e) {}
+  document.body.classList.toggle('sidebar-collapsed', compact);
+  const btn = document.getElementById('sidebar-collapse');
+  if (btn) {
+    btn.setAttribute('aria-pressed', String(compact));
+    btn.title = compact ? 'Expand navigation' : 'Collapse navigation';
+  }
+}
+function toggleSidebar() {
+  const compact = !document.body.classList.contains('sidebar-collapsed');
+  try { localStorage.setItem('ct-sidebar-compact', compact ? '1' : '0'); } catch (e) {}
+  applySidebarPreference();
 }
 
 // ── Home overview (merged into the Analytics view) ──
@@ -13299,6 +14235,7 @@ async function deleteClientInternalSystemEntry(id) {
 let _palItems = [];      // flattened, currently-rendered items
 let _palActive = 0;
 let _palTasks = [];      // Task[] fetched once per open
+let _palOpenSeq = 0;     // prevents an older search load from repainting a newer open
 
 const PAL_PAGES = [
   { icon: 'clock',            label: 'Today — Timesheet', go: 'timesheet' },
@@ -13334,32 +14271,45 @@ const PAL_SETTINGS_TABS = [
 ];
 
 async function openPalette() {
+  const openSeq = ++_palOpenSeq;
   document.getElementById('palette-overlay').classList.add('open');
   const inp = document.getElementById('palette-input');
+  const listHost = document.getElementById('palette-list');
+  const statusHost = document.getElementById('palette-status');
   inp.value = '';
   _palTasks = []; _palCompanyDocs = []; _palKnowledge = []; _palSubscriptions = [];
+  listHost.setAttribute('aria-busy', 'true');
+  statusHost.textContent = 'Searching your workspace…';
   renderPalette();
   setTimeout(() => inp.focus(), 40);
-  // Results load in the background; re-render once each arrives (if still open).
-  // Lightweight (Milestone 7) — the palette never renders a task's sessions.
-  try {
-    const list = await window.api.getTasksIndex();
-    if (Array.isArray(list)) { _palTasks = list; if (paletteIsOpen()) renderPalette(); }
-  } catch { /* tasks just won't appear in results */ }
-  try {
-    const docs = await window.api.listCompanyDocuments();
-    if (Array.isArray(docs)) { _palCompanyDocs = docs; if (paletteIsOpen()) renderPalette(); }
-  } catch { /* company docs just won't appear in results */ }
-  try {
-    const knowledge = await window.api.listKnowledgeItems();
-    if (Array.isArray(knowledge)) { _palKnowledge = knowledge; if (paletteIsOpen()) renderPalette(); }
-  } catch { /* knowledge just won't appear in results */ }
-  try {
-    const subData = await window.api.loadSubscriptions();
-    if (subData && Array.isArray(subData.subscriptions)) { _palSubscriptions = subData.subscriptions; if (paletteIsOpen()) renderPalette(); }
-  } catch { /* subscriptions just won't appear in results */ }
+  // Load independent local indexes concurrently. Each completed source becomes
+  // searchable immediately instead of waiting behind the other IPC calls.
+  const accept = (assign) => (value) => {
+    if (openSeq !== _palOpenSeq) return;
+    assign(value);
+    if (paletteIsOpen()) renderPalette();
+  };
+  const loads = [
+    window.api.getTasksIndex().then(accept(list => { if (Array.isArray(list)) _palTasks = list; })),
+    window.api.listCompanyDocuments().then(accept(docs => { if (Array.isArray(docs)) _palCompanyDocs = docs; })),
+    window.api.listKnowledgeItems().then(accept(items => { if (Array.isArray(items)) _palKnowledge = items; })),
+    window.api.loadSubscriptions().then(accept(data => {
+      if (data && Array.isArray(data.subscriptions)) _palSubscriptions = data.subscriptions;
+    })),
+  ];
+  await Promise.allSettled(loads);
+  if (openSeq !== _palOpenSeq || !paletteIsOpen()) return;
+  listHost.setAttribute('aria-busy', 'false');
+  const searchable = _palTasks.length + _palCompanyDocs.length + _palKnowledge.length + _palSubscriptions.length;
+  statusHost.textContent = searchable
+    ? searchable + ' workspace item' + (searchable === 1 ? '' : 's') + ' ready'
+    : 'Pages and actions ready';
 }
-function closePalette() { document.getElementById('palette-overlay').classList.remove('open'); }
+function closePalette() {
+  _palOpenSeq++;
+  document.getElementById('palette-overlay').classList.remove('open');
+  document.getElementById('palette-list').setAttribute('aria-busy', 'false');
+}
 function paletteIsOpen() { return document.getElementById('palette-overlay').classList.contains('open'); }
 function paletteOverlayClick(e) { if (e.target === document.getElementById('palette-overlay')) closePalette(); }
 
@@ -13404,6 +14354,8 @@ function renderPalette() {
 
   // Quick actions
   const acts = [
+    { icon: 'zap',           label: 'Create something…',            match: 'create new add start hub',              run: openCreateHub },
+    { icon: 'eye',           label: 'Workspace view & comfort',     match: 'view comfort density calm focus motion eye appearance', run: openWorkspaceView },
     { icon: 'plus',          label: 'Add record — log work',      match: 'add record log work session new', run: () => { switchModule('timesheet'); openModal(); } },
     { icon: 'clipboard-list',label: 'New project',                match: 'new project create',              run: () => { switchModule('clients'); openProjectModal(); } },
     { icon: 'book-open',     label: 'New knowledge item',         match: 'new knowledge manual guide article create', run: () => { switchModule('knowledge'); openKnowledgeEditor(); } },
@@ -13748,6 +14700,9 @@ async function doLogout() {
   location.reload();   // cleanest reset: re-runs the gate against the now-empty session
 }
 
+loadWorkspaceViewPrefs();
+applyWorkspaceViewPreferences(); // restore renderer-only comfort preferences before app boot
+applySidebarPreference(); // restore the user's navigation width before app boot
 hydrateIcons();   // swap all static [data-ic] placeholders for inline Lucide SVG
 watchAriaLabels(); // mirror every button's title onto aria-label, now and going forward
 watchModalFocusTraps(); // Tab-cycle + initial focus inside every .modal-overlay (Milestone 5)

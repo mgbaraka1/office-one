@@ -12,7 +12,10 @@ All operational data stays on the device in an embedded SQLite database. There i
 - A tabbed Client workspace with a summary, projects, authentication connections, servers, and internal systems.
 - Recurring subscriptions and renewal-tracked company documents.
 - An accessible Overview with attention items first, period comparisons, chart data tables, browse/report filters, and main-process-owned PDF printing.
-- A responsive, keyboard-friendly interface with compact navigation, connected form errors, focus management, reduced-motion support, and high-contrast light/dark themes.
+- A responsive, keyboard-friendly precision workspace with user-collapsible navigation,
+  universal Create Hub, Quick Find, contextual workflow guidance, connected form errors,
+  persistent density/canvas/motion comfort controls, reversible Focus Mode, focus
+  management, and coordinated high-contrast light/dark themes.
 - Multi-user accounts with a dedicated User Management page: administrators can create accounts, assign Administrator or Standard User permissions, rename/deactivate users, and reset passwords; every user can edit their own username and password.
 - Rotating database snapshots, validated restore, integrity checks, and full Desktop backups containing the DB and uploaded-file trees.
 
