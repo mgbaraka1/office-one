@@ -13,6 +13,9 @@ function gate(name, pass) { results.push({ name, pass: !!pass }); }
 function count(pattern) { return (html.match(pattern) || []).length; }
 
 const totals = html.match(/<div id="totals-bar">([\s\S]*?)<\/div>\s*\n\s*<!-- Filter bar -->/)?.[1] || '';
+const createHubCode = html.match(/\/\/ ── Universal Create Hub ──([\s\S]*?)\/\/ ── Keyboard shortcuts/)?.[1] || '';
+const createHubMarkup = html.match(/<!-- ══ UNIVERSAL CREATE HUB ══ -->([\s\S]*?)<!-- ══ COMMAND PALETTE/)?.[1] || '';
+const workspaceViewCode = html.match(/const WORKSPACE_VIEW_DEFAULTS([\s\S]*?)function applySidebarPreference/)?.[1] || '';
 gate('compact daily summary has exactly three visible stat cards', (totals.match(/class="total-chip/g) || []).length === 3);
 gate('responsive Timesheet forces grouped mode at narrow widths', html.includes('const tsNarrow = () => window.innerWidth <= 1100') && html.includes("const grouped = tsNarrow() || tsView === 'grouped'"));
 gate('session defaults are persisted in per-user UI state', html.includes('sessionDefaults: {}') && html.includes('rememberSessionDefaults(payload.time, payload.natural)'));
@@ -30,7 +33,7 @@ gate('Daily Work Report titles tasks as COMPANY - PROJECT/SYSTEM - TASK without 
   html.includes("const reportTaskTitle = [companyTitle, projectTitle, taskTitle].filter(Boolean).join(' - ')")
   && html.includes('taskTitle.slice(existingPrefix.length)'));
 
-gate('primary action teal meets the intended high-contrast token', html.includes('--primary: #0f766e;'));
+gate('primary action indigo meets the new high-contrast workspace token', html.includes('--primary: #4f46e5;'));
 gate('modal close buttons receive a generated accessible name', html.includes("el.classList.contains('modal-close') && !el.title") && html.includes("el.title = 'Close dialog'"));
 gate('segmented controls and navigation expose state', html.includes("setAttribute('aria-pressed'") && html.includes("setAttribute('aria-current', 'page')"));
 gate('field validation exposes aria-invalid and readable messages', html.includes("setAttribute('aria-invalid', 'true')") && html.includes('field-error-message'));
@@ -42,6 +45,67 @@ gate('sidebar shows the signed-in identity, explicit role, and runtime app versi
   && html.includes("user?.isAdmin ? 'Administrator' : 'Standard User'")
   && html.includes('await window.api.appVersion()')
   && html.includes('id="app-version"'));
+gate('Quick Find is visible, shortcut-labelled, and loads workspace indexes concurrently',
+  html.includes('class="sidebar-quickfind"')
+  && html.includes('aria-keyshortcuts="Control+K"')
+  && html.includes('id="palette-overlay" class="modal-overlay" aria-label="Quick Find"')
+  && html.includes('await Promise.allSettled(loads)')
+  && html.includes("listHost.setAttribute('aria-busy', 'true')")
+  && html.includes("overlayEl.querySelector('.modal-box, #palette')"));
+gate('precision workspace shell has a persistent user-controlled navigation rail',
+  html.includes('id="sidebar-collapse"')
+  && html.includes('function toggleSidebar()')
+  && html.includes("localStorage.setItem('ct-sidebar-compact'")
+  && html.includes('body.sidebar-collapsed #sidebar')
+  && html.includes('VISION 2026 — PRECISION WORKSPACE')
+  && html.includes(`data-module="clients" onclick="switchModule('clients')" title="Clients"`));
+gate('universal Create Hub exposes every core creation workflow safely',
+  html.includes('id="create-hub-overlay"')
+  && html.includes('onclick="openCreateHub()"')
+  && html.includes('aria-keyshortcuts="Control+Shift+N"')
+  && (createHubMarkup.match(/onclick="runCreateFlow\('/g) || []).length === 8
+  && html.includes("e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'n'")
+  && createHubCode.includes("switchModule('timesheet'); openModal()")
+  && createHubCode.includes("switchModule('all-tasks'); openBacklogModal()")
+  && !createHubCode.includes('window.api.'));
+gate('every primary workspace header now explains its workflow context',
+  html.includes("#topbar .page-title::after { content: 'Capture today without breaking your flow'; }")
+  && html.includes("#clients-topbar .page-title::after { content: 'Projects, access, infrastructure, and systems'; }")
+  && html.includes("#settings-topbar .page-title::after { content: 'Workspace behavior and managed catalogs'; }"));
+gate('Overview is an active workflow launchpad, not only a reporting surface',
+  html.includes('class="dash-launchpad" aria-label="Start a workflow"')
+  && html.includes(`class="dash-launch primary" onclick="runCreateFlow('session')"`)
+  && html.includes(`class="dash-launch" onclick="openCreateHub()"`)
+  && html.includes(`class="dash-launch" onclick="openPalette()"`));
+gate('Calm Workspace exposes persistent eye-comfort controls without data APIs',
+  html.includes('id="workspace-view-overlay"')
+  && html.includes('id="workspace-view-btn"')
+  && html.includes("localStorage.setItem('ct-workspace-view'")
+  && ['density:compact', 'density:balanced', 'density:spacious', 'canvas:calm', 'canvas:structured', 'motion:gentle', 'motion:reduced']
+    .every(choice => html.includes(`data-workspace-choice="${choice}"`))
+  && !workspaceViewCode.includes('window.api.'));
+gate('workspace preferences validate stored values and default to a calm balanced view',
+  html.includes("Object.freeze({ density: 'balanced', canvas: 'calm', motion: 'gentle' })")
+  && html.includes("['compact','balanced','spacious'].includes(stored.density)")
+  && html.includes("['calm','structured'].includes(stored.canvas)")
+  && html.includes("['gentle','reduced'].includes(stored.motion)"));
+gate('Focus Mode is reversible, session-only, and keyboard accessible',
+  html.includes('body.focus-mode #sidebar')
+  && html.includes('id="focus-exit"')
+  && html.includes('aria-keyshortcuts="Control+Shift+F"')
+  && html.includes("e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'f'")
+  && html.includes("document.body.classList.toggle('focus-mode', enter)")
+  && !workspaceViewCode.includes("localStorage.setItem('focus-mode'"));
+gate('density and motion modes cover major work surfaces',
+  html.includes('body[data-density="compact"] .page-header')
+  && html.includes('body[data-density="spacious"] .page-header')
+  && html.includes('body[data-density="compact"] .kh-row')
+  && html.includes('body[data-density="spacious"] .cd-card')
+  && html.includes('body.workspace-reduced-motion *'));
+gate('hover-revealed actions remain visible to keyboard and touch users',
+  html.includes('tbody tr:focus-within td .row-actions')
+  && html.includes('.pj-card:focus .pj-card-open')
+  && html.includes('@media (hover: none), (pointer: coarse)'));
 gate('advanced Browse destinations remain available in the command palette', html.includes("label: 'Browse — Companies'") && html.includes("label: 'Browse — Systems'"));
 gate('Client detail has Overview, Projects, Access, Servers, and Systems tabs', ['overview', 'projects', 'auth', 'servers', 'internal'].every(key => html.includes(`{ key: '${key}'`)) && html.includes('function renderClientOverview('));
 gate('Settings has search and context-specific save actions', html.includes('id="settings-search"') && html.includes('function syncSettingsSaveButton('));
