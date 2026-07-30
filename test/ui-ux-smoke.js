@@ -76,14 +76,14 @@ gate('universal Create Hub exposes every core creation workflow safely',
   && createHubCode.includes("switchModule('timesheet'); openModal()")
   && createHubCode.includes("switchModule('all-tasks'); openBacklogModal()")
   && !createHubCode.includes('window.api.'));
-gate('every primary workspace header now explains its workflow context',
-  html.includes("#topbar .page-title::after { content: 'Capture today without breaking your flow'; }")
-  && html.includes("#clients-topbar .page-title::after { content: 'Projects, access, infrastructure, and systems'; }")
-  && html.includes("#settings-topbar .page-title::after { content: 'Workspace behavior and managed catalogs'; }"));
-gate('desktop header titles reserve enough width for their workflow subtitles',
-  html.includes('position: relative; min-width: 230px; padding-bottom: 17px;')
-  && html.includes('.page-title { min-width: auto; padding-bottom: 0; }')
+gate('primary workspace headers use concise direct titles',
+  html.includes('<span class="page-title"><span class="ti-ic" data-ic="clock"></span>Timesheet</span>')
+  && html.includes('<span class="page-title"><span class="ti-ic" data-ic="layers"></span>Clients</span>')
   && html.includes('.page-title::after { display: none; }'));
+gate('desktop header titles no longer reserve empty subtitle space',
+  html.includes('.page-title {')
+  && html.includes('min-width: auto;')
+  && html.includes('padding-bottom: 0;'));
 gate('page headers keep dropdowns above backdrop-filtered workspace cards',
   html.includes('position: relative; z-index: 50;')
   && html.includes('#cal-dropdown')
@@ -104,11 +104,19 @@ gate('Calm Workspace exposes persistent eye-comfort controls without data APIs',
   && ['density:compact', 'density:balanced', 'density:spacious', 'canvas:calm', 'canvas:structured', 'motion:gentle', 'motion:reduced']
     .every(choice => html.includes(`data-workspace-choice="${choice}"`))
   && !workspaceViewCode.includes('window.api.'));
-gate('workspace preferences validate stored values and default to a calm balanced view',
-  html.includes("Object.freeze({ density: 'balanced', canvas: 'calm', motion: 'gentle' })")
+gate('workspace preferences validate stored values and default to a calm balanced static view',
+  html.includes("Object.freeze({ density: 'balanced', canvas: 'calm', motion: 'reduced' })")
   && html.includes("['compact','balanced','spacious'].includes(stored.density)")
   && html.includes("['calm','structured'].includes(stored.canvas)")
   && html.includes("['gentle','reduced'].includes(stored.motion)"));
+gate('direct workspace removes decorative depth and keeps record actions visible',
+  html.includes('DIRECT WORKSPACE')
+  && html.includes('#main::before { display: none; }')
+  && html.includes('.page-title::after { display: none; }')
+  && html.includes('.row-actions,')
+  && html.includes('No decorative movement')
+  && html.includes('Quick actions')
+  && html.includes('<span class="brand-full">Cooperation Tools</span>'));
 gate('Focus Mode is reversible, session-only, and keyboard accessible',
   html.includes('body.focus-mode #sidebar')
   && html.includes('id="focus-exit"')
@@ -128,6 +136,13 @@ gate('hover-revealed actions remain visible to keyboard and touch users',
   && html.includes('@media (hover: none), (pointer: coarse)'));
 gate('advanced Browse destinations remain available in the command palette', html.includes("label: 'Browse — Companies'") && html.includes("label: 'Browse — Systems'"));
 gate('Client detail has Overview, Projects, Access, Servers, and Systems tabs', ['overview', 'projects', 'auth', 'servers', 'internal'].every(key => html.includes(`{ key: '${key}'`)) && html.includes('function renderClientOverview('));
+gate('saving a new company invalidates the Clients roster so it appears automatically',
+  html.includes('invalidateClientsCatalog();')
+  && html.includes('function invalidateClientsCatalog()')
+  && html.includes('clientsLoaded = false;'));
+gate('a post-save catalog refresh failure does not falsely report that settings were not saved',
+  html.includes('Saved — reopen the app to refresh')
+  && html.includes('Settings saved; reopen the app to refresh catalogs'));
 gate('Settings has search and context-specific save actions', html.includes('id="settings-search"') && html.includes('function syncSettingsSaveButton('));
 gate('account controls live on a dedicated User Management page',
   html.includes('data-tab="users"')

@@ -2924,3 +2924,256 @@
       .workspace-view-label { padding-top: 0; }
       .workspace-focus-card { align-items: flex-start; flex-direction: column; }
     }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       DIRECT WORKSPACE
+       A flatter, static presentation that keeps attention on records and
+       actions. Existing selectors and workflows stay intact; this final layer
+       deliberately removes decorative depth, blur, and positional hover motion.
+       ═══════════════════════════════════════════════════════════════════════ */
+    :root {
+      --surface-0: #f5f6f8;
+      --surface-1: #ffffff;
+      --surface-2: #f8f9fb;
+      --surface-3: #eef1f5;
+      --border: #d9dee7;
+      --radius: 10px;
+      --radius-sm: 8px;
+      --shadow: 0 2px 8px rgba(23,32,51,.08);
+      --shadow-sm: 0 1px 3px rgba(23,32,51,.06);
+      --workspace-line: transparent;
+    }
+    :root[data-theme="dark"] {
+      --surface-0: #0d1017;
+      --surface-1: #151922;
+      --surface-2: #11151d;
+      --surface-3: #1d222e;
+      --border: #303746;
+      --shadow: 0 2px 8px rgba(0,0,0,.3);
+      --shadow-sm: 0 1px 3px rgba(0,0,0,.24);
+    }
+
+    body { background: var(--surface-0); }
+    #main { background: var(--surface-0); }
+    #main::before { display: none; }
+
+    #sidebar {
+      width: 252px;
+      padding: 14px 12px;
+      gap: 10px;
+      background: var(--sidebar-bg);
+      box-shadow: none;
+      transition: none;
+    }
+    .sidebar-brand::before,
+    .sidebar-user-avatar {
+      background: #24324a;
+      box-shadow: none;
+      border-radius: 8px;
+    }
+    .sidebar-brand {
+      font-size: 12px;
+      line-height: 1.2;
+      letter-spacing: .15px;
+      text-transform: none;
+    }
+    .sidebar-brand .brand-full { color: #f8fafc; }
+    .sidebar-collapse,
+    .sidebar-quickfind,
+    .sidebar-create,
+    .nav-item,
+    .nav-icon {
+      border-radius: 7px;
+      box-shadow: none;
+      transition: none;
+    }
+    .sidebar-create {
+      min-height: 40px;
+      background: var(--primary);
+      border-color: var(--primary);
+    }
+    .sidebar-create:hover { filter: none; transform: none; box-shadow: none; background: var(--primary-strong); }
+    .sidebar-create:active { transform: none; }
+    .sidebar-quickfind:hover { background: rgba(255,255,255,.085); }
+    .nav-section { padding-top: 12px; }
+    .nav-item.active,
+    .nav-item[aria-current="page"] {
+      background: rgba(255,255,255,.12);
+      box-shadow: inset 3px 0 var(--primary);
+    }
+    .nav-item.active::before { display: none; }
+
+    .page-header {
+      min-height: 58px;
+      padding: 10px 20px;
+      background: var(--surface-1);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: none;
+      box-shadow: none;
+    }
+    .page-title {
+      min-width: auto;
+      padding-bottom: 0;
+      font-size: 16px;
+    }
+    .page-title::after { display: none; }
+    .page-title .lic,
+    .modal-title .lic {
+      border-radius: 6px;
+      background: var(--surface-3);
+    }
+
+    .btn,
+    .dash-launch,
+    .create-flow,
+    .workspace-choice {
+      border-radius: 7px;
+      box-shadow: none;
+      transition: none;
+    }
+    .btn:hover,
+    .btn:active,
+    .dash-launch:hover,
+    .create-flow:hover {
+      transform: none;
+      box-shadow: none;
+    }
+    .btn.primary,
+    .auth-btn,
+    .dash-launch.primary,
+    .dash-launch.primary:hover {
+      background: var(--primary);
+      box-shadow: none;
+    }
+    .btn.primary:hover,
+    .auth-btn:hover { background: var(--primary-strong); }
+    .seg-ctl { border-radius: 8px; }
+    .seg-btn { border-radius: 5px; }
+    .seg-btn.active { box-shadow: inset 0 0 0 1px var(--border); }
+
+    .an-scroll { padding-top: 22px; }
+    .dash-greeting { margin-bottom: 16px; }
+    .dash-greeting h1 {
+      font-size: 28px;
+      letter-spacing: -.7px;
+      background: none;
+      color: var(--text);
+    }
+    .dash-launchpad {
+      margin: 0 0 18px;
+      padding: 8px;
+      border-radius: 9px;
+      background: var(--surface-1);
+      box-shadow: none;
+    }
+    .dash-stat,
+    .total-chip,
+    .an-card,
+    .rmod-card,
+    .pj-card,
+    .user-card,
+    .client-overview-card,
+    .kh-row,
+    .cd-card,
+    .cl-item-card,
+    .pj-task-card,
+    .lookup-item {
+      background: var(--surface-1);
+      border-color: var(--border);
+      box-shadow: none;
+      backdrop-filter: none;
+    }
+    .dash-stat { min-height: 104px; padding: 16px; }
+    .dash-stat::after { display: none; }
+    .dash-stat:hover,
+    .an-card:hover,
+    .kh-row:hover,
+    .cd-card:hover,
+    .cl-item-card:hover {
+      transform: none;
+      box-shadow: none;
+      border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+    }
+    .an-section { margin-top: 28px; }
+    .an-section-line { background: var(--border); }
+    .total-chip { min-height: 88px; }
+    .total-chip::before { background: var(--primary) !important; }
+
+    #filter-bar { border-radius: 8px; }
+    #ts-table,
+    #sub-table { border-collapse: collapse; border-spacing: 0; }
+    #ts-table thead th,
+    #sub-table thead th {
+      padding-block: 10px;
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+    }
+    #ts-table tbody td,
+    #sub-table tbody td {
+      background: var(--surface-1);
+      border: 0;
+      border-bottom: 1px solid var(--border);
+    }
+    #ts-table tbody td:first-child,
+    #sub-table tbody td:first-child,
+    #ts-table tbody td:last-child,
+    #sub-table tbody td:last-child {
+      border-radius: 0 !important;
+      border-inline: 0;
+    }
+
+    .cp-body,
+    .kh-shell,
+    .settings-body {
+      margin: 12px 16px 16px;
+      border-radius: 9px;
+      background: var(--surface-1);
+      box-shadow: none;
+    }
+    .cp-list-panel,
+    .kh-filters,
+    .settings-tabs { background: var(--surface-2); }
+    .cp-list-item,
+    .stab { border-radius: 6px; }
+    .cp-list-item.active,
+    .stab.active,
+    .pal-item.active {
+      background: var(--accent-bg);
+      box-shadow: inset 3px 0 var(--primary);
+    }
+    .kh-row-icon,
+    .create-flow-icon {
+      background: var(--surface-3);
+      border-radius: 7px;
+    }
+
+    .modal-overlay {
+      background: rgba(7,10,16,.58);
+      backdrop-filter: none;
+    }
+    .modal-box,
+    #palette {
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+    }
+    .modal-header,
+    .modal-footer { background: var(--surface-2); }
+
+    .row-actions,
+    .pj-card .pj-card-open,
+    .cl-info-copy-hint {
+      opacity: 1;
+      transform: none;
+    }
+
+    @media (max-width: 1180px) {
+      #sidebar { width: 220px; }
+    }
+    @media (max-width: 1050px) {
+      #sidebar { width: 76px; }
+    }
+    @media (max-width: 760px) {
+      .cp-body,
+      .kh-shell,
+      .settings-body { margin: 8px; border-radius: 8px; }
+    }
