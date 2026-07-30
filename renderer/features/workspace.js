@@ -307,7 +307,7 @@ function toggleTheme() {
 // ── Calm Workspace preferences ──
 // Presentation-only and deliberately local to this machine. Focus Mode is not
 // persisted, so navigation is always present again after a fresh launch.
-const WORKSPACE_VIEW_DEFAULTS = Object.freeze({ density: 'balanced', canvas: 'calm', motion: 'gentle' });
+const WORKSPACE_VIEW_DEFAULTS = Object.freeze({ density: 'balanced', canvas: 'calm', motion: 'reduced' });
 let workspaceViewPrefs = Object.assign({}, WORKSPACE_VIEW_DEFAULTS);
 function loadWorkspaceViewPrefs() {
   try {

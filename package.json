@@ -1,6 +1,6 @@
 {
   "name": "timesheet",
-  "version": "6.0.2",
+  "version": "6.0.3",
   "description": "Cooperation Tools — an offline, multi-user Electron desktop app for timesheets, projects, client infrastructure, company documents, and a searchable Knowledge Hub, with analytics and PDF reports. Each account's data is isolated in an embedded SQLite database.",
   "main": "main.js",
   "scripts": {

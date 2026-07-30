@@ -976,12 +976,24 @@ async function saveSettings() {
   if (_currentUser?.isAdmin) payload.categories = categories;
   try {
     await window.api.saveLookups(payload);
-    LK = await window.api.loadLookups();   // refresh — new entries now have stable codes
   } catch {
     if (statusEl) statusEl.textContent = 'Not saved';
     if (saveBtn) saveBtn.disabled = false;
     toast('Could not save settings'); return;
   }
+  try {
+    LK = await window.api.loadLookups();   // refresh — new entries now have stable codes
+  } catch {
+    // The write already committed. Do not falsely tell the user it failed just
+    // because the follow-up renderer refresh could not be loaded.
+    if (statusEl) statusEl.textContent = 'Saved — reopen the app to refresh';
+    if (saveBtn) saveBtn.disabled = false;
+    toast('Settings saved; reopen the app to refresh catalogs'); return;
+  }
+  // The Clients roster is the active COMPANY catalog. Its renderer keeps a
+  // lightweight cache, so catalog changes must invalidate that cache or a
+  // newly added company will not appear as a client until the app restarts.
+  invalidateClientsCatalog();
   initSettingsModule();                     // re-sync the draft with server-assigned codes
   renderTable();                            // reflect any relabeled values immediately
   renderFilterChips();
