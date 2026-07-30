@@ -28,6 +28,15 @@ const CLIENT_DETAIL_TYPES = [
 ];
 let clientDetailTab = 'overview';
 
+// Every active COMPANY lookup is automatically a Client. Settings can change
+// that catalog while this module is not visible, so discard the cached roster
+// after a catalog save and let the next Clients visit load the current list.
+function invalidateClientsCatalog() {
+  clientsList = [];
+  clientsLoaded = false;
+  currentClient = null;
+}
+
 function initClientsModule() {
   showClientsListView();
   // Projects are shown inside each client's detail (and counted on the list

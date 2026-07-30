@@ -113,6 +113,17 @@ try {
       && c.internalSystemCount === (intTally.get(c.id) || 0)),
     JSON.stringify(clientList));
 
+  // A company added through Settings becomes a zero-activity Client without a
+  // second create operation or a row in a separate clients table.
+  const autoClientLabel = 'Auto Client Smoke ' + Date.now();
+  db.saveLookups(userId, { categories: {
+    COMPANY: [{ id: null, code: null, label: autoClientLabel, sortOrder: companies.length, isActive: true }],
+  } });
+  const autoClient = db.listClients(userId).find(c => c.label === autoClientLabel);
+  record('new COMPANY lookup automatically becomes a Client',
+    !!autoClient && autoClient.vpnCount === 0 && autoClient.serverCount === 0 && autoClient.internalSystemCount === 0,
+    JSON.stringify(autoClient));
+
   const bogusClient = db.getClient(userId, 999999999);
   record('getClient: rejects a non-COMPANY id (no standalone clients table)', bogusClient === null, String(bogusClient));
 

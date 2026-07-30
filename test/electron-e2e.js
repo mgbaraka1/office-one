@@ -72,10 +72,15 @@ async function waitUntil(expression, message, timeout = 20_000) {
 
 async function run() {
   const port = await freePort();
+  const electronEnv = { ...process.env };
+  // Codex/CI hosts may run Node tooling through Electron and export this flag
+  // globally. Passing it to the child makes electron.exe behave like Node, so
+  // no BrowserWindow or DevTools target can ever appear.
+  delete electronEnv.ELECTRON_RUN_AS_NODE;
   child = spawn(electron, ['.'], {
     cwd: path.join(__dirname, '..'),
     env: {
-      ...process.env,
+      ...electronEnv,
       COOPERATION_TOOLS_DATA_DIR: root,
       COOPERATION_TOOLS_E2E_PORT: String(port),
       ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
@@ -155,6 +160,14 @@ async function run() {
   }
   if (!result.rendererModules) throw new Error('Extracted renderer modules did not load in classic-script order');
   if (!result.version) throw new Error('Application version IPC returned no value');
+
+  const screenshotPath = process.env.COOPERATION_TOOLS_E2E_SCREENSHOT;
+  if (screenshotPath) {
+    await evaluate(`closePalette(); true`);
+    await command('Page.enable');
+    const capture = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+    fs.writeFileSync(path.resolve(screenshotPath), Buffer.from(capture.data, 'base64'));
+  }
 
   console.log(`PASS  Electron launched with isolated data at ${root}`);
   console.log('PASS  First-run account setup completed through the real renderer');
