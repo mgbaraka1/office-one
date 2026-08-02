@@ -120,7 +120,7 @@ function renderKnowledgeFilters() {
   facetSearch.oninput = () => filterKnowledgeFacetButtons(facetSearch.value);
   browse.appendChild(facetSearch); host.appendChild(browse);
   const types = lkOptions('KNOWLEDGE_TYPE').map(type => ({
-    key: 'TYPE:' + type.code, label: type.label,
+    key: 'TYPE:' + type.code, label: lookupDisplayName(type),
     count: knowledgeItems.filter(x => x.type === type.code && x.status !== 'ARCHIVED').length,
   })).filter(type => type.count || knowledgeFilters.has(type.key));
   appendKnowledgeFilterSection(host, 'types', 'Types', types);
@@ -208,7 +208,7 @@ function renderKnowledgeActiveFilters() {
   const host = document.getElementById('kh-active-filters'); host.innerHTML = '';
   [...knowledgeFilters].forEach(key => {
     let label = key;
-    if (key.startsWith('TYPE:')) label = lkOptions('KNOWLEDGE_TYPE').find(x => x.code === key.slice(5))?.label || key.slice(5);
+    if (key.startsWith('TYPE:')) label = lookupDisplayName(lkOptions('KNOWLEDGE_TYPE').find(x => x.code === key.slice(5))) || key.slice(5);
     else if (key.startsWith('STATUS:')) label = knowledgeStatusLabel(key.slice(7));
     else if (key.startsWith('GROUP:')) label = knowledgeGroups.find(x => x.id === Number(key.slice(6)))?.name || 'Group';
     else if (key.startsWith('TAG:')) label = '#' + key.slice(4);
@@ -246,7 +246,7 @@ function renderKnowledgeList() {
     copy.append(title, summary);
     const meta = pjMk('div', 'kh-meta');
     meta.appendChild(pjMk('span', 'kh-pill ' + item.status.toLowerCase(), knowledgeStatusLabel(item.status)));
-    if (item.typeLabel) meta.appendChild(pjMk('span', 'kh-pill', item.typeLabel));
+    if (item.typeLabel || item.type) meta.appendChild(pjMk('span', 'kh-pill', lkLabel('KNOWLEDGE_TYPE', item.type) || item.typeLabel));
     (item.groups || []).slice(0, 2).forEach(group => meta.appendChild(pjMk('span', 'kh-pill', group.name)));
     if ((item.groups || []).length > 2) meta.appendChild(pjMk('span', 'kh-pill', '+' + (item.groups.length - 2) + ' groups'));
     (item.tags || []).slice(0, 3).forEach(tag => meta.appendChild(pjMk('span', 'kh-pill', '#' + tag)));
@@ -292,7 +292,7 @@ async function openKnowledgeDetail(id) {
   back.onclick = closeKnowledgeDetail; page.appendChild(back);
   const head = pjMk('div', 'kh-detail-head'), copy = pjMk('div'), badges = pjMk('div', 'kh-meta');
   badges.appendChild(pjMk('span', 'kh-pill ' + item.status.toLowerCase(), knowledgeStatusLabel(item.status)));
-  if (item.typeLabel) badges.appendChild(pjMk('span', 'kh-pill', item.typeLabel));
+  if (item.typeLabel || item.type) badges.appendChild(pjMk('span', 'kh-pill', lkLabel('KNOWLEDGE_TYPE', item.type) || item.typeLabel));
   copy.append(badges, pjMk('h1', '', item.title), pjMk('div', 'kh-detail-summary', item.summary || knowledgeRowSubtitle(item)), pjMk('div', 'kh-detail-updated', 'Updated ' + new Date(item.updatedAt).toLocaleString()));
   const actions = pjMk('div', 'kh-detail-actions');
   actions.append(khButton('Edit', 'primary', () => openKnowledgeEditor(item)), khButton('Add document', '', () => openKnowledgeDocumentModal(item.id)));
@@ -487,7 +487,7 @@ function openKnowledgeEditor(item) {
   document.getElementById('kh-modal-title').textContent = item ? 'Edit Knowledge Item' : knowledgeCreationMode === 'DOCUMENT' ? 'New Document Item' : 'New Knowledge Item';
   document.getElementById('kh-save-btn').textContent = item ? 'Save Changes' : knowledgeCreationMode === 'DOCUMENT' ? 'Create & Choose File' : 'Create Item';
   const type = document.getElementById('kh-type-input'); type.innerHTML = '<option value="">No type</option>';
-  lkOptions('KNOWLEDGE_TYPE').forEach(option => { const el = document.createElement('option'); el.dataset.userContent = ''; el.value = option.code; el.textContent = option.label; type.appendChild(el); });
+  lkOptions('KNOWLEDGE_TYPE').forEach(option => { const el = document.createElement('option'); el.dataset.userContent = ''; el.value = option.code; el.textContent = lookupDisplayName(option); type.appendChild(el); });
   document.getElementById('kh-editor-group-search').value = '';
   applyKnowledgeEditorData(item || { status: 'DRAFT', tags: [], groups: [] });
   const suggestions = document.getElementById('kh-tag-suggestions'); suggestions.innerHTML = '';

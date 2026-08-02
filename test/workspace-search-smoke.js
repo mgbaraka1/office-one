@@ -16,6 +16,9 @@ try {
   const userId = first ? first.id : db.createUser('search-owner', 'test-hash', true);
   const otherUserId = db.createUser('search-other', 'test-hash', false);
   const marker = 'NebulaQuasar';
+  db.saveLookups(userId, { categories: { COMPANY: [{
+    code: 'SEARCH_CLIENT', label: 'Search Client', nameEn: 'Search Client', nameAr: '', isActive: true,
+  }] } });
 
   const task = db.createTask(userId, { name: `${marker} task`, status: 'IN_PROGRESS' });
   db.createTaskSource(userId, task.id, { type: 'EMAIL', ref: `${marker} source subject` });
@@ -38,6 +41,14 @@ try {
     defaultCurrency: 'USD',
   });
   db.createKnowledgeItem(otherUserId, { title: `${marker} private other-user item` });
+  const company = db.getLookupsByCategory('COMPANY', true)[0];
+  const vpn = db.createClientVpn(userId, company.id, {
+    connectionName: `${marker} secure access`, vpnType: 'VPN', endpoint: 'vpn.nebula.invalid',
+    password: 'SecretNeverIndexedToken', notes: 'Indexed access metadata',
+  });
+  db.createClientVpn(otherUserId, company.id, {
+    connectionName: `${marker} other-user access`, vpnType: 'VPN', endpoint: 'private.invalid',
+  });
 
   const hits = db.searchWorkspace(userId, marker.toLowerCase(), 50);
   const keys = new Set(hits.map(hit => `${hit.kind}:${hit.id}`));
@@ -46,10 +57,13 @@ try {
       && keys.has(`project:${project.id}`)
       && keys.has(`knowledge:${knowledge.id}`)
       && keys.has(`company-document:${document.id}`)
-      && keys.has('subscription:workspace-search-subscription'),
+      && keys.has('subscription:workspace-search-subscription')
+      && keys.has(`client-auth:${company.id}:${vpn.id}`),
     JSON.stringify(hits));
   check('Search results are isolated to the authenticated owner',
     !hits.some(hit => hit.title.includes('other-user')), JSON.stringify(hits));
+  check('Client infrastructure search never indexes credentials',
+    db.searchWorkspace(userId, 'SecretNeverIndexedToken', 10).length === 0);
 
   db.updateKnowledgeItem(userId, knowledge.id, {
     title: 'Renamed searchable handbook',
@@ -77,7 +91,7 @@ try {
   const diagnostics = db.getSystemDiagnostics();
   check('Recovery diagnostics cover integrity, schema, files, search, and storage',
     diagnostics.integrity.ok
-      && diagnostics.schemaHead === 47
+      && diagnostics.schemaHead === 50
       && diagnostics.workspaceSearchRows >= 1
       && Array.isArray(diagnostics.missingFiles)
       && Object.hasOwn(diagnostics, 'freeBytes')

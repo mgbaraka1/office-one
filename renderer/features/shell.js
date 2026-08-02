@@ -175,6 +175,9 @@ function renderPalette() {
     knowledge: ['book-open', 'Open Knowledge Hub'],
     'company-document': ['calendar-check', 'Open Company Docs'],
     subscription: ['credit-card', 'Open Subscriptions'],
+    'client-auth': ['shield', 'Open client access'],
+    'client-server': ['server', 'Open client server'],
+    'client-system': ['monitor', 'Open client system'],
   };
   const workspaceItems = _palWorkspace.map(result => {
     const [icon, fallbackHint] = kindInfo[result.kind] || ['search', 'Open'];
@@ -197,6 +200,12 @@ function renderPalette() {
         } else if (result.kind === 'subscription') {
           switchModule('subscriptions');
           scrollToAndHighlight('[data-sub-id="' + result.id + '"]');
+        } else if (result.kind.startsWith('client-')) {
+          const companyId = Number(String(result.id).split(':', 1)[0]);
+          if (Number.isInteger(companyId) && companyId > 0) {
+            switchModule('clients');
+            openClientDetail(companyId);
+          }
         }
       },
     };
@@ -497,6 +506,8 @@ document.addEventListener('ct:languagechange', () => {
     renderAllTasksCards();
   } else if (activeModule === 'analytics') {
     renderAnalytics();
+  } else if (activeModule === 'settings') {
+    initSettingsModule();
   }
 });
 bootAuth();

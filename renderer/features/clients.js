@@ -682,7 +682,7 @@ function groupBySystemName(items) {
 function buildSystemGroupCard(group, cardBuilder, kind) {
   const card = pjMk('div', 'cl-system-group');
   const titleRow = pjMk('div', 'cl-system-group-title');
-  titleRow.appendChild(document.createTextNode(group.name));
+  titleRow.appendChild(document.createTextNode(kind === 'server' ? lkLabel('SYSTEM', group.name) : group.name));
   const renameBtn = pjMk('button', 'cd-icon-btn');
   renameBtn.innerHTML = ic('pencil');
   // Servers group by a SYSTEM lookup, so the action is "move to another system"
@@ -922,9 +922,11 @@ async function openClientHistoryModal(recordType, recordId, title) {
     head.appendChild(pjMk('span', 'cl-history-when', new Date(r.changedAt).toLocaleString()));
     row.appendChild(head);
     const diff = pjMk('div', 'cl-history-diff');
-    diff.appendChild(pjMk('span', 'cl-history-old', r.oldValue || '(empty)'));
+    const category = r.fieldName === 'System' ? 'SYSTEM' : r.fieldName === 'Role' ? 'SERVER_ROLE' : null;
+    const shown = value => category && value ? lkLabel(category, value) : value;
+    diff.appendChild(pjMk('span', 'cl-history-old', shown(r.oldValue) || '(empty)'));
     diff.appendChild(pjMk('span', 'cl-history-arrow', '→'));
-    diff.appendChild(pjMk('span', 'cl-history-new', r.newValue || '(empty)'));
+    diff.appendChild(pjMk('span', 'cl-history-new', shown(r.newValue) || '(empty)'));
     row.appendChild(diff);
     list.appendChild(row);
   });
@@ -934,6 +936,41 @@ function closeClientHistoryModal() {
 }
 function clientHistoryOverlayClick(e) {
   if (e.target === document.getElementById('client-history-overlay')) closeClientHistoryModal();
+}
+
+function buildClientSecretControl(label, value) {
+  const wrap = pjMk('span', 'cl-pw-wrap');
+  const text = pjMk('span', 'cl-pw-text', '••••••••');
+  let masked = true;
+  let revealTimer = null;
+  const reveal = pjMk('button', 'cd-icon-btn cl-pw-toggle');
+  reveal.innerHTML = ic('eye');
+  reveal.title = `Show ${label.toLowerCase()} for 15 seconds`;
+  reveal.addEventListener('click', () => {
+    clearTimeout(revealTimer);
+    masked = !masked;
+    text.textContent = masked ? '••••••••' : value;
+    reveal.setAttribute('aria-pressed', String(!masked));
+    if (!masked) revealTimer = setTimeout(() => {
+      masked = true;
+      text.textContent = '••••••••';
+      reveal.setAttribute('aria-pressed', 'false');
+    }, 15_000);
+  });
+  const copy = pjMk('button', 'cd-icon-btn cl-pw-copy');
+  copy.innerHTML = ic('copy');
+  copy.title = `Copy ${label.toLowerCase()} (clipboard clears in 30 seconds)`;
+  copy.addEventListener('click', async () => {
+    try {
+      const result = await window.api.copySecret(value);
+      toast(result?.ok ? `${label} copied — clipboard clears in 30 seconds` : `Could not copy ${label.toLowerCase()}`);
+    } catch { toast(`Could not copy ${label.toLowerCase()}`); }
+  });
+  wrap.appendChild(document.createTextNode(label + ': '));
+  wrap.appendChild(text);
+  wrap.appendChild(reveal);
+  wrap.appendChild(copy);
+  return wrap;
 }
 
 function buildClientVpnCard(v) {
@@ -946,24 +983,7 @@ function buildClientVpnCard(v) {
     const cred = pjMk('div', 'cl-item-meta cl-item-cred');
     if (v.username) cred.appendChild(pjMk('span', null, 'User: ' + v.username));
     if (v.password) {
-      const pwWrap = pjMk('span', 'cl-pw-wrap');
-      const pwText = pjMk('span', 'cl-pw-text', '••••••••');
-      // The real value is read only from the closed-over `v` record inside the
-      // click handler below — never written to a DOM attribute — so it isn't
-      // present in the DOM at all while masked (not even inspectable via
-      // document.querySelectorAll('.cl-pw-text').dataset).
-      let pwMasked = true;
-      const pwToggle = pjMk('button', 'cd-icon-btn cl-pw-toggle');
-      pwToggle.innerHTML = ic('eye');
-      pwToggle.title = 'Show/hide password';
-      pwToggle.addEventListener('click', () => {
-        pwMasked = !pwMasked;
-        pwText.textContent = pwMasked ? '••••••••' : v.password;
-      });
-      pwWrap.appendChild(document.createTextNode('Pass: '));
-      pwWrap.appendChild(pwText);
-      pwWrap.appendChild(pwToggle);
-      cred.appendChild(pwWrap);
+      cred.appendChild(buildClientSecretControl('Password', v.password));
     }
     main.appendChild(cred);
   }
@@ -1014,7 +1034,8 @@ function srvEnvIsKnown(env) { return env === 'PRODUCTION' || env === 'TEST'; }
 // the record (history modal title, group checklist, toasts). A server has no
 // name of its own anymore: the triple IS its name.
 function serverIdentityText(s) {
-  return [s.systemName || '(no system)', s.roleLabel || '(no role)', srvEnvLabel(s.environment) || '(no environment)'].join(' - ');
+  return [lkLabel('SYSTEM', s.systemName) || '(no system)', lkLabel('SERVER_ROLE', s.role) || s.roleLabel || '(no role)',
+    srvEnvLabel(s.environment) || '(no environment)'].join(' - ');
 }
 
 // The card's identity line — the server's title, and the same
@@ -1030,9 +1051,9 @@ function buildServerIdentityLine(s) {
   };
   // System/Role are lookup-backed: a soft-disabled code is one of migration
   // 038/039's nullN placeholders, which is exactly what needs calling out.
-  line.appendChild(part(s.systemName, !!s.systemId && !s.systemActive, '(no system)'));
+  line.appendChild(part(lkLabel('SYSTEM', s.systemName), !!s.systemId && !s.systemActive, '(no system)'));
   line.appendChild(document.createTextNode(' - '));
-  line.appendChild(part(s.roleLabel, !!s.role && !s.roleActive, '(no role)'));
+  line.appendChild(part(lkLabel('SERVER_ROLE', s.role) || s.roleLabel, !!s.role && !s.roleActive, '(no role)'));
   line.appendChild(document.createTextNode(' - '));
   const env = part(srvEnvLabel(s.environment), !srvEnvIsKnown(s.environment), '(no environment)');
   if (srvEnvIsKnown(s.environment)) env.classList.add('cl-srv-env-' + s.environment.toLowerCase());
@@ -1050,22 +1071,7 @@ function buildClientServerCard(s) {
     const cred = pjMk('div', 'cl-item-meta cl-item-cred');
     if (s.username) cred.appendChild(pjMk('span', null, 'User: ' + s.username));
     if (s.password) {
-      const pwWrap = pjMk('span', 'cl-pw-wrap');
-      const pwText = pjMk('span', 'cl-pw-text', '••••••••');
-      // See buildClientVpnCard's identical comment: value stays in the closed-
-      // over `s` record, never in a DOM attribute.
-      let pwMasked = true;
-      const pwToggle = pjMk('button', 'cd-icon-btn cl-pw-toggle');
-      pwToggle.innerHTML = ic('eye');
-      pwToggle.title = 'Show/hide password';
-      pwToggle.addEventListener('click', () => {
-        pwMasked = !pwMasked;
-        pwText.textContent = pwMasked ? '••••••••' : s.password;
-      });
-      pwWrap.appendChild(document.createTextNode('Pass: '));
-      pwWrap.appendChild(pwText);
-      pwWrap.appendChild(pwToggle);
-      cred.appendChild(pwWrap);
+      cred.appendChild(buildClientSecretControl('Password', s.password));
     }
     main.appendChild(cred);
   }
@@ -1187,7 +1193,7 @@ function fillIdentitySelect(selectId, category, valueKey, current, blankText, ki
   active.forEach(o => {
     const opt = document.createElement('option');
     opt.value = o[valueKey];
-    opt.dataset.userContent = ''; opt.textContent = o.label;
+    opt.dataset.userContent = ''; opt.textContent = lookupDisplayName(o);
     sel.appendChild(opt);
   });
   const cur = current || '';
@@ -1339,22 +1345,7 @@ function buildClientInternalSystemCard(s) {
     const cred = pjMk('div', 'cl-item-meta cl-item-cred');
     if (s.username) cred.appendChild(pjMk('span', null, 'User: ' + s.username));
     if (s.password) {
-      const pwWrap = pjMk('span', 'cl-pw-wrap');
-      const pwText = pjMk('span', 'cl-pw-text', '••••••••');
-      // See buildClientVpnCard's identical comment: value stays in the closed-
-      // over `s` record, never in a DOM attribute.
-      let pwMasked = true;
-      const pwToggle = pjMk('button', 'cd-icon-btn cl-pw-toggle');
-      pwToggle.innerHTML = ic('eye');
-      pwToggle.title = 'Show/hide password';
-      pwToggle.addEventListener('click', () => {
-        pwMasked = !pwMasked;
-        pwText.textContent = pwMasked ? '••••••••' : s.password;
-      });
-      pwWrap.appendChild(document.createTextNode('Pass: '));
-      pwWrap.appendChild(pwText);
-      pwWrap.appendChild(pwToggle);
-      cred.appendChild(pwWrap);
+      cred.appendChild(buildClientSecretControl('Password', s.password));
     }
     main.appendChild(cred);
   }
@@ -1362,22 +1353,7 @@ function buildClientInternalSystemCard(s) {
     const svcCred = pjMk('div', 'cl-item-meta cl-item-cred');
     if (s.companyCode) svcCred.appendChild(pjMk('span', null, 'Company Code: ' + s.companyCode));
     if (s.secretKey) {
-      const skWrap = pjMk('span', 'cl-pw-wrap');
-      const skText = pjMk('span', 'cl-pw-text', '••••••••');
-      // See buildClientVpnCard's identical comment: value stays in the closed-
-      // over `s` record, never in a DOM attribute.
-      let skMasked = true;
-      const skToggle = pjMk('button', 'cd-icon-btn cl-pw-toggle');
-      skToggle.innerHTML = ic('eye');
-      skToggle.title = 'Show/hide secret key';
-      skToggle.addEventListener('click', () => {
-        skMasked = !skMasked;
-        skText.textContent = skMasked ? '••••••••' : s.secretKey;
-      });
-      skWrap.appendChild(document.createTextNode('Secret Key: '));
-      skWrap.appendChild(skText);
-      skWrap.appendChild(skToggle);
-      svcCred.appendChild(skWrap);
+      svcCred.appendChild(buildClientSecretControl('Secret Key', s.secretKey));
     }
     main.appendChild(svcCred);
   }
