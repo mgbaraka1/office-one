@@ -77,7 +77,12 @@ function buildClientCard(c, projectCount) {
   card.addEventListener('click', () => openClientDetail(c.id));
 
   const head = pjMk('div', 'pj-card-head');
-  head.appendChild(pjMk('div', 'pj-card-name', c.label || 'Untitled'));
+  const identity = pjMk('div', 'client-card-identity');
+  identity.appendChild(pjMk('div', 'pj-card-name', companyDisplayName(c, false) || 'Untitled'));
+  const alternate = window.ctI18n?.getLanguage?.() === 'ar' ? c.nameEn : c.nameAr;
+  if (alternate) identity.appendChild(pjMk('div', 'client-card-alt', alternate));
+  head.appendChild(identity);
+  if (c.code) head.appendChild(pjMk('span', 'client-code-badge', c.code));
   card.appendChild(head);
 
   const foot = pjMk('div', 'pj-card-foot');
@@ -139,8 +144,11 @@ function renderClientsList() {
   grid.style.display = 'none';
   const matches = [];
   clientsList.forEach(c => {
+    if (textMatch([c.code, c.nameEn, c.nameAr, c.label], q)) {
+      matches.push({ companyId: c.id, companyLabel: companyDisplayName(c, false), type: 'profile', typeLabel: 'Client Profile', name: companyDisplayName(c), detail: [c.nameEn, c.nameAr].filter(Boolean).join(' · '), fields: [] });
+    }
     (c.records || []).forEach(r => {
-      if (textMatch(r.fields, q)) matches.push({ companyId: c.id, companyLabel: c.label, ...r });
+      if (textMatch(r.fields, q)) matches.push({ companyId: c.id, companyLabel: companyDisplayName(c, false), ...r });
     });
   });
 
@@ -173,7 +181,7 @@ function renderClientSearchResults(matches, q) {
 
   matches.forEach(m => {
     const tr = document.createElement('tr');
-    tr.addEventListener('click', () => openClientRecordInfoModal(m, q));
+    tr.addEventListener('click', () => m.type === 'profile' ? openClientDetail(m.companyId) : openClientRecordInfoModal(m, q));
 
     const tdClient = document.createElement('td');
     tdClient.innerHTML = '<div class="cell"><strong>' + esc(m.companyLabel) + '</strong></div>';
@@ -261,6 +269,7 @@ let _clientRecordInfoCurrent = null; // { companyId, presetSearch } — for the 
 // type, typeLabel, name, id, ...}); `presetSearch` is carried through to "Open Client".
 async function openClientRecordInfoModal(record, presetSearch) {
   _clientRecordInfoCurrent = { companyId: record.companyId, presetSearch: presetSearch || '' };
+  document.getElementById('client-record-info-title').dataset.userContent = '';
   document.getElementById('client-record-info-title').textContent = record.name || 'Record';
   document.getElementById('client-record-info-sub').textContent = record.companyLabel + ' · ' + record.typeLabel;
   const list = document.getElementById('client-record-info-list');
@@ -359,11 +368,15 @@ function renderClientDetail(c) {
   const sep = pjMk('span', 'pj-crumb-sep');
   sep.innerHTML = ic('chevron-right');
   crumbs.appendChild(sep);
-  crumbs.appendChild(pjMk('span', 'pj-crumb-here', c.label || 'Untitled'));
+  crumbs.appendChild(pjMk('span', 'pj-crumb-here', companyDisplayName(c, false) || 'Untitled'));
   host.appendChild(crumbs);
 
   const head = pjMk('div', 'pj-detail-head');
-  head.appendChild(pjMk('div', 'pj-detail-title', c.label || 'Untitled'));
+  const titleBlock = pjMk('div', 'client-detail-identity');
+  titleBlock.appendChild(pjMk('div', 'pj-detail-title', companyDisplayName(c, false) || 'Untitled'));
+  const identityBits = [c.code, window.ctI18n?.getLanguage?.() === 'ar' ? c.nameEn : c.nameAr].filter(Boolean);
+  if (identityBits.length) titleBlock.appendChild(pjMk('div', 'client-detail-alt', identityBits.join(' · ')));
+  head.appendChild(titleBlock);
   host.appendChild(head);
 
   // Search + workspace-tab toolbar. Kept out of the re-rendered section
@@ -555,6 +568,19 @@ function renderClientDetailSections(c) {
 }
 
 function renderClientOverview(host, c, servers, internalSystems, vpns) {
+  const profile = pjMk('div', 'client-profile-summary');
+  [
+    ['Company Code', c.code || '—'],
+    ['English Name', c.nameEn || c.label || '—'],
+    ['Arabic Name', c.nameAr || '—'],
+  ].forEach(([label, value]) => {
+    const field = pjMk('div', 'client-profile-summary-field');
+    field.appendChild(pjMk('span', '', label));
+    const val = pjMk('b', '', value); val.dataset.userContent = ''; field.appendChild(val);
+    profile.appendChild(field);
+  });
+  host.appendChild(profile);
+
   const projects = projectsList.filter(p => cpjPrimaryCompany(p)?.id === c.id);
   const grid = pjMk('div', 'client-overview-grid');
   [
@@ -1161,7 +1187,7 @@ function fillIdentitySelect(selectId, category, valueKey, current, blankText, ki
   active.forEach(o => {
     const opt = document.createElement('option');
     opt.value = o[valueKey];
-    opt.textContent = o.label;
+    opt.dataset.userContent = ''; opt.textContent = o.label;
     sel.appendChild(opt);
   });
   const cur = current || '';

@@ -522,7 +522,10 @@
  * servers, databases, external services, and internal systems.
  * @typedef {Object} Client
  * @property {number} id     The COMPANY lookup_codes id.
+ * @property {string} code   Editable, unique business code shown across linked records.
  * @property {string} label
+ * @property {string} nameEn English company name.
+ * @property {string} nameAr Arabic company name (may be empty for migrated records).
  * @property {ClientVpnConnection[]} vpnConnections
  * @property {ClientServer[]} servers
  * @property {ClientInternalSystem[]} internalSystems
@@ -534,6 +537,8 @@
  * @property {number} id
  * @property {string} code      Stable uppercase identifier (e.g. 'OVERTIME').
  * @property {string} label     Human-readable display name (e.g. 'Over Time').
+ * @property {string} [nameEn]  COMPANY only: explicit English profile name.
+ * @property {string} [nameAr]  COMPANY only: explicit Arabic profile name.
  * @property {number} sortOrder Dropdown ordering.
  * @property {boolean} isActive Soft-disable flag.
  */

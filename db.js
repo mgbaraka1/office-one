@@ -100,7 +100,7 @@ function userSet(userId, key, value) {
 let lkCache = null;
 function lkBuild() {
   const rows = db.prepare(
-    'SELECT id, category, code, label, sort_order, is_active FROM lookup_codes ORDER BY category, sort_order, id'
+    'SELECT id, category, code, label, name_en, name_ar, sort_order, is_active FROM lookup_codes ORDER BY category, sort_order, id'
   ).all();
   const byCat = {}, idTo = new Map(), valToId = new Map();
   for (const r of rows) {
@@ -109,6 +109,8 @@ function lkBuild() {
     valToId.set(r.category + '|' + r.code, r.id);
     // a display label resolves too (company/system rows round-trip by label)
     if (!valToId.has(r.category + '|' + r.label)) valToId.set(r.category + '|' + r.label, r.id);
+    if (r.name_en && !valToId.has(r.category + '|' + r.name_en)) valToId.set(r.category + '|' + r.name_en, r.id);
+    if (r.name_ar && !valToId.has(r.category + '|' + r.name_ar)) valToId.set(r.category + '|' + r.name_ar, r.id);
   }
   lkCache = { byCat, idTo, valToId };
 }
@@ -121,6 +123,11 @@ function lkId(category, value) {
 }
 function lkCode(id)  { const r = id == null ? null : lk().idTo.get(id); return r ? r.code  : ''; }
 function lkLabel(id) { const r = id == null ? null : lk().idTo.get(id); return r ? r.label : ''; }
+function companyProfileFields(id) {
+  const r = id == null ? null : lk().idTo.get(Number(id));
+  if (!r || r.category !== 'COMPANY') return { companyCode: '', companyNameEn: '', companyNameAr: '' };
+  return { companyCode: r.code || '', companyNameEn: r.name_en || r.label || '', companyNameAr: r.name_ar || '' };
+}
 // True if `id` is a real lookup row in the given category — used to validate FK ids
 // arriving from the renderer (companies multi-select, project system) before storing.
 function isLookupId(category, id) {
@@ -473,6 +480,7 @@ function dayEntryRowToApi(r) {
     status: lkCode(r.status_id) || 'IN_PROGRESS',
     minutes: (r.minutes === null || r.minutes === undefined) ? '' : r.minutes,
     projectId: r.project_id ?? null,   // linked Project (nullable); rendered as a pill
+    ...companyProfileFields(r.company_id),
     ...taskSourceSummaryFields(r),
   };
 }
@@ -724,7 +732,12 @@ function getRecentActivity(userId, requestedLimit = 16) {
 function getLookupsByCategory(category, includeInactive = false, userId = null) {
   return (lk().byCat[category] || [])
     .filter(r => (includeInactive || r.is_active) && (userId == null || canAccessLookup(userId, r.id)))
-    .map(r => ({ id: r.id, code: r.code, label: r.label, sortOrder: r.sort_order, isActive: !!r.is_active }));
+    .map(r => ({
+      id: r.id, code: r.code, label: r.label,
+      nameEn: category === 'COMPANY' ? (r.name_en || r.label) : undefined,
+      nameAr: category === 'COMPANY' ? (r.name_ar || '') : undefined,
+      sortOrder: r.sort_order, isActive: !!r.is_active,
+    }));
 }
 // Full catalog (every category, incl. inactive) + the default employee name —
 // what the renderer loads once at boot to build all dropdowns.
@@ -734,15 +747,17 @@ function loadLookups(userId) {
   return { categories, defaultName: userGet(userId, 'default_employee_name') || '' };
 }
 // Persist edits from the Settings catalog editor. Existing rows are updated in
-// place (label / order / active); new rows get a generated unique code. Entries
-// are NEVER hard-deleted — disable via isActive:false (soft-disable). Codes are
-// immutable once created (they are the stable identity historical rows point at).
+// place and entries are NEVER hard-deleted — disable via isActive:false. COMPANY
+// rows are richer client profiles: their user-facing business code and bilingual
+// names are editable, while lookup_codes.id remains the immutable FK identity so
+// linked tasks/projects/infrastructure cannot be detached by a profile rename.
 function saveLookups(userId, data) {
   tx(() => {
     if (data && data.categories) {
       const now = new Date().toISOString();
       const upd = db.prepare('UPDATE lookup_codes SET label = ?, sort_order = ?, is_active = ? WHERE id = ?');
-      const ins = db.prepare('INSERT INTO lookup_codes(category, code, label, sort_order, is_active, created_at) VALUES(?,?,?,?,?,?)');
+      const updCompany = db.prepare('UPDATE lookup_codes SET code = ?, label = ?, name_en = ?, name_ar = ?, sort_order = ?, is_active = ? WHERE id = ? AND category = \'COMPANY\'');
+      const ins = db.prepare('INSERT INTO lookup_codes(category, code, label, name_en, name_ar, sort_order, is_active, created_at) VALUES(?,?,?,?,?,?,?,?)');
       for (const [cat, list] of Object.entries(data.categories)) {
         if (!LOOKUP_CATEGORIES.includes(cat) || !Array.isArray(list)) continue;
         // Existing case-insensitive labels in this category, keyed by
@@ -757,7 +772,9 @@ function saveLookups(userId, data) {
             .map(r => [r.label.trim().toLowerCase(), r.id])
         );
         list.forEach((item, i) => {
-          const label = String(item.label ?? '').trim();
+          const nameEn = cat === 'COMPANY' ? String(item.nameEn ?? item.label ?? '').trim() : '';
+          const nameAr = cat === 'COMPANY' ? String(item.nameAr ?? '').trim() : '';
+          const label = cat === 'COMPANY' ? nameEn : String(item.label ?? '').trim();
           if (!label) return;
           // Coerce once so a stringified id (e.g. from a JSON round-trip) still
           // matches the numeric ids lk().idTo/usedLabels are keyed by, instead of
@@ -770,16 +787,26 @@ function saveLookups(userId, data) {
           const sort   = Number.isInteger(item.sortOrder) ? item.sortOrder : i;
           const active = item.isActive === false ? 0 : 1;
           if (itemId != null && lk().idTo.has(itemId)) {
-            upd.run(label, sort, active, itemId);
+            if (cat === 'COMPANY') {
+              const businessCode = String(item.code || '').trim().toUpperCase();
+              if (!/^[A-Z0-9][A-Z0-9_-]{0,63}$/.test(businessCode)) throw new Error('A client needs a valid unique company code');
+              const conflict = db.prepare('SELECT id FROM lookup_codes WHERE category = \'COMPANY\' AND code = ? COLLATE NOCASE AND id != ?').get(businessCode, itemId);
+              if (conflict) throw new Error(`Company code ${businessCode} is already in use`);
+              updCompany.run(businessCode, nameEn, nameEn, nameAr, sort, active, itemId);
+            } else upd.run(label, sort, active, itemId);
             usedLabels.set(key, itemId);
           } else {
             const requestedCode = String(item.code || '').trim().toUpperCase();
             const baseCode = requestedCode || slugCode(label);
-            if (!/^[A-Z][A-Z0-9_]{0,63}$/.test(baseCode)) {
+            const validCode = cat === 'COMPANY' ? /^[A-Z0-9][A-Z0-9_-]{0,63}$/ : /^[A-Z][A-Z0-9_]{0,63}$/;
+            if (!validCode.test(baseCode)) {
               throw new Error(`Invalid lookup code for ${cat}`);
             }
-            const code = uniqueCode(cat, baseCode);
-            const newId = Number(ins.run(cat, code, label, sort, active, now).lastInsertRowid);
+            if (cat === 'COMPANY' && db.prepare('SELECT 1 FROM lookup_codes WHERE category = \'COMPANY\' AND code = ? COLLATE NOCASE').get(baseCode)) {
+              throw new Error(`Company code ${baseCode} is already in use`);
+            }
+            const code = cat === 'COMPANY' ? baseCode : uniqueCode(cat, baseCode);
+            const newId = Number(ins.run(cat, code, label, nameEn, nameAr, sort, active, now).lastInsertRowid);
             usedLabels.set(key, newId);
           }
         });
@@ -975,10 +1002,12 @@ function setProjectCompanies(projectId, companyIds) {
   }
 }
 
-// The COMPANY lookups linked to a project, as { id, label } ordered for display.
+// The bilingual COMPANY profiles linked to a project.
 function projectCompanies(projectId) {
   return db.prepare(
-    `SELECT pc.company_id AS id, lc.label AS label
+    `SELECT pc.company_id AS id, lc.code, lc.label,
+            COALESCE(NULLIF(lc.name_en, ''), lc.label) AS nameEn,
+            COALESCE(lc.name_ar, '') AS nameAr
        FROM project_companies pc
        JOIN lookup_codes lc ON lc.id = pc.company_id
       WHERE pc.project_id = ?
@@ -2117,6 +2146,7 @@ function taskToApi(t, extra = {}) {
     supportYearId: t.support_year_id ?? null,
     sortOrder: t.sort_order ?? 0,
     createdAt: t.created_at,
+    ...companyProfileFields(t.company_id),
     ...extra,
   };
 }
@@ -3703,7 +3733,7 @@ function listClients(userId) {
     })
   );
   return companies.map(c => ({
-    id: c.id, label: c.label,
+    id: c.id, code: c.code, label: c.label, nameEn: c.nameEn || c.label, nameAr: c.nameAr || '',
     vpnCount: vpn.counts.get(c.id) || 0, serverCount: srv.counts.get(c.id) || 0,
     internalSystemCount: int_.counts.get(c.id) || 0,
     records: [
@@ -3727,7 +3757,12 @@ function getClient(userId, companyId) {
   const internalSystems = db.prepare(
     'SELECT * FROM client_internal_systems WHERE company_id = ? AND user_id = ? ORDER BY sort_order, id'
   ).all(companyId, userId).map(clientInternalSystemToApi);
-  return { id: Number(companyId), label: lkLabel(Number(companyId)), vpnConnections, servers, internalSystems };
+  const profile = companyProfileFields(companyId);
+  return {
+    id: Number(companyId), code: profile.companyCode, label: profile.companyNameEn,
+    nameEn: profile.companyNameEn, nameAr: profile.companyNameAr,
+    vpnConnections, servers, internalSystems,
+  };
 }
 
 function createClientVpn(userId, companyId, data) {

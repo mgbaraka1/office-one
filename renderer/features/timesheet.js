@@ -180,7 +180,7 @@ function buildTaskGroupCard(g, origIdxOf) {
 
   const title = document.createElement('span');
   title.className = 'tsg-title';
-  title.textContent = first.taskName || first.description || '(untitled task)';
+  title.dataset.userContent = ''; title.textContent = first.taskName || first.description || '(untitled task)';
   title.title = 'Click to rename this task';
   title.addEventListener('click', () => {
     const inp = document.createElement('input');
@@ -215,7 +215,7 @@ function buildTaskGroupCard(g, origIdxOf) {
     lkOptions('ENTRY_STATUS').forEach(o => {
       const opt = document.createElement('div');
       opt.className = 'sd-opt ' + statusSuffix(o.code);
-      opt.textContent = o.label;
+      opt.dataset.userContent = ''; opt.textContent = o.label;
       opt.addEventListener('click', (ev) => {
         ev.stopPropagation();
         first.status = o.code;
@@ -273,7 +273,7 @@ function buildTaskGroupCard(g, origIdxOf) {
     if (!text) return;
     if (kind) {
       const b = document.createElement('button');
-      b.className = 'tsg-pill cell-link'; b.textContent = text;
+      b.className = 'tsg-pill cell-link'; b.textContent = kind === 'companies' ? companyDisplayName(text) : text;
       b.title = 'Browse all work for ' + text;
       b.addEventListener('click', () => openBrowseSlice(kind, text));
       meta.appendChild(b);
@@ -340,7 +340,7 @@ function buildTaskGroupCard(g, origIdxOf) {
     const descTd = document.createElement('td');
     const descDiv = document.createElement('div'); descDiv.className = 'cell desc-cell';
     const descSpan = document.createElement('span');
-    descSpan.className = 'desc-text'; descSpan.textContent = row.description;
+    descSpan.className = 'desc-text'; descSpan.dataset.userContent = ''; descSpan.textContent = row.description;
     descDiv.appendChild(descSpan);
     descTd.appendChild(descDiv);
     tr.appendChild(descTd);
@@ -513,7 +513,7 @@ function renderTableFlat() {
     const taskCell = document.createElement('div'); taskCell.className = 'cell';
     const taskSpan = document.createElement('span');
     taskSpan.className = 'task-name-cell';
-    taskSpan.textContent = row.taskName || row.description || '—';
+    taskSpan.dataset.userContent = ''; taskSpan.textContent = row.taskName || row.description || '—';
     taskSpan.title = 'Click to rename this task';
     taskSpan.style.cursor = 'pointer'; taskSpan.style.fontWeight = '600';
     taskSpan.addEventListener('click', () => {
@@ -552,7 +552,7 @@ function renderTableFlat() {
     const descDiv = document.createElement('div');
     descDiv.className = 'cell desc-cell';
     const descSpan = document.createElement('span');
-    descSpan.className = 'desc-text'; descSpan.textContent = row.description;
+    descSpan.className = 'desc-text'; descSpan.dataset.userContent = ''; descSpan.textContent = row.description;
     descDiv.appendChild(descSpan);
     descTd.appendChild(descDiv);
     tr.appendChild(descTd);
@@ -728,7 +728,7 @@ function textCell(val) {
 function linkCell(val, kind) {
   if (!val) return textCell(val);
   const btn = document.createElement('button');
-  btn.className = 'cell-link'; btn.textContent = val;
+  btn.className = 'cell-link'; btn.textContent = kind === 'companies' ? companyDisplayName(val) : val;
   btn.title = 'Browse all work for ' + val;
   btn.addEventListener('click', () => openBrowseSlice(kind, val));
   return cellWrap(btn, 'cell');
@@ -1099,7 +1099,7 @@ function applyExistingTaskSelection(taskId) {
       projectFieldOptions(task.projectId ?? null), task.projectId ?? null, 'No project');
     // Read-only summary of what the session will be logged against. Natural is
     // not shown here — it's per-session, not part of the task being picked.
-    const bits = [task.company, task.system].filter(Boolean).join(' · ');
+    const bits = [companyDisplayName(task.company), task.system].filter(Boolean).join(' · ');
     const projName = projectNameById(task.projectId);
     summary.innerHTML = '<b>' + esc(task.name || '(untitled task)') + '</b>'
       + (bits ? ' — ' + esc(bits) : '')
@@ -1592,10 +1592,22 @@ document.getElementById('hName').addEventListener('input', () => {
 // Shared bordered stat-card summary row for the printed reports (the polished
 // look from the Daily report). `cards` = [{label, value, color?}]; `value` may
 // contain trusted HTML, labels are escaped.
+function rptLanguage() { return window.ctI18n?.getLanguage?.() === 'ar' ? 'ar' : 'en'; }
+function rptLocale() { return rptLanguage() === 'ar' ? 'ar-SA' : 'en-US'; }
+function rptText(key, vars) { return window.ctI18n?.t?.(key, vars) || key; }
+function rptDirection() { return rptLanguage() === 'ar' ? 'rtl' : 'ltr'; }
+function rptWrap(html) { return `<div class="rpt-report" lang="${rptLanguage()}" dir="${rptDirection()}">${html}</div>`; }
+function rptRenewLabel(days) {
+  if (rptLanguage() !== 'ar') return renewLabel(days);
+  if (days === 0) return rptText('Today');
+  if (days < 0) return rptText('Overdue by {days} days', { days: Math.abs(days) });
+  return rptText('in {days} days', { days });
+}
+
 function rptSummaryCards(cards) {
   const cells = cards.map((c, i) => `
         <td style="padding:10px 14px;${i === cards.length - 1 ? '' : 'border-right:1px solid #ccc;'}background:#f5f5f5 !important">
-          <div style="font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#888;margin-bottom:2px">${esc(c.label)}</div>
+          <div style="font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#888;margin-bottom:2px">${esc(rptText(c.label))}</div>
           <div style="font-size:18px;font-weight:800;color:${c.color || '#111'}">${c.value}</div>
         </td>`).join('');
   return `<table style="width:100%;margin-bottom:18px;font-size:11.5px;border-collapse:collapse;border:1.5px solid #111"><tr>${cells}</tr></table>`;
@@ -1604,8 +1616,8 @@ function rptSummaryCards(cards) {
 function buildDailyReportHTML(srcRows, date, name, sourcesByTaskId) {
   const [y,m,d] = date.split('-');
   const dt = new Date(+y, +m-1, +d);
-  const dayName   = dt.toLocaleDateString('en-US', { weekday:'long' });
-  const dateLabel = dt.toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+  const dayName   = dt.toLocaleDateString(rptLocale(), { weekday:'long' });
+  const dateLabel = dt.toLocaleDateString(rptLocale(), { year:'numeric', month:'long', day:'numeric' });
 
   const printRows  = srcRows;
   const totalMin   = totalMins(printRows);
@@ -1647,7 +1659,7 @@ function buildDailyReportHTML(srcRows, date, name, sourcesByTaskId) {
     // Daily report task titles use COMPANY - PROJECT/SYSTEM - TASK. Historical
     // task names often already begin with the System value (for example,
     // "Payment Gateway - Check..."); strip that prefix so it is not printed twice.
-    const companyTitle = String(g.company || '').trim().toUpperCase();
+    const companyTitle = companyDisplayName(g.company).trim();
     const projectTitle = String(g.system || '').trim().toUpperCase();
     let taskTitle = String(g.taskName || '(untitled task)').trim();
     const existingPrefix = String(g.system || '').trim();
@@ -1663,9 +1675,9 @@ function buildDailyReportHTML(srcRows, date, name, sourcesByTaskId) {
     const sourcesHTML = g.sources.length ? `
       <tr>
         <td colspan="4" style="padding:2px 8px 8px 8px;border-top:none">
-          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#999;margin-bottom:2px">Sources</div>
+          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#999;margin-bottom:2px">${esc(rptText('Sources'))}</div>
           ${g.sources.map(s => {
-            const typeLabel = lkLabel('TASK_SOURCE_TYPE', s.type) || s.type || 'Source';
+            const typeLabel = lkLabel('TASK_SOURCE_TYPE', s.type) || s.type || rptText('Source');
             const text = s.ref ? (typeLabel + ' · ' + s.ref) : typeLabel;
             return `<div style="font-size:10px;color:#666;line-height:1.5">&bull; ${esc(text)}${s.url ? ` — ${esc(s.url)}` : ''}</div>`;
           }).join('')}
@@ -1689,27 +1701,27 @@ function buildDailyReportHTML(srcRows, date, name, sourcesByTaskId) {
       <tr>
         <td colspan="4" style="background:#f0f0f0 !important;font-weight:700;color:#111;padding:8px 8px">
           ${gi + 1}. ${esc(reportTaskTitle)}
-          <span style="float:right;font-weight:800">${g.subtotal} min · ${(g.subtotal / 60).toFixed(2)} h</span>
+          <span style="float:${rptLanguage() === 'ar' ? 'left' : 'right'};font-weight:800">${g.subtotal} ${esc(rptText('Min'))} · ${(g.subtotal / 60).toFixed(2)} ${esc(rptText('Hrs'))}</span>
         </td>
       </tr>
       ${sourcesHTML}
       ${sessionsHTML}`;
-  }).join('') : '<tr><td colspan="4" style="text-align:center;color:#999;padding:18px">No work recorded on this day.</td></tr>';
+  }).join('') : `<tr><td colspan="4" style="text-align:center;color:#999;padding:18px">${esc(rptText('No work recorded on this day.'))}</td></tr>`;
 
-  const printedOn = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+  const printedOn = new Date().toLocaleDateString(rptLocale(), { year:'numeric', month:'long', day:'numeric' });
 
-  return `
+  return rptWrap(`
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px">
       <div>
         <div style="font-size:10px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#111;line-height:1.6">MOS TA FA</div>
-        <div style="font-size:10px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#111">COOPERATION TOOLS</div>
+        <div style="font-size:10px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#111">${esc(rptText('Cooperation Tools'))}</div>
       </div>
       <div style="text-align:right">
         <div style="font-size:14px;font-weight:700;color:#111">${esc(name)}</div>
         <div style="font-size:11px;color:#555;margin-top:2px">${dayName}, ${dateLabel}</div>
       </div>
     </div>
-    <div style="font-size:14px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:.5px;padding-bottom:8px;border-bottom:2px solid #111;margin-bottom:16px">Daily Work Report</div>
+    <div style="font-size:14px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:.5px;padding-bottom:8px;border-bottom:2px solid #111;margin-bottom:16px">${esc(rptText('Daily Work Report'))}</div>
     ${rptSummaryCards([
       { label: 'Total Hours',   value: `${totalHrs}h` },
       { label: 'Total Minutes', value: totalMin },
@@ -1720,10 +1732,10 @@ function buildDailyReportHTML(srcRows, date, name, sourcesByTaskId) {
     <table class="rpt-table">
       <thead>
         <tr>
-          <th style="width:90px">Time</th>
-          <th>Description / Source <span style="font-weight:500;text-transform:none;letter-spacing:0;color:#888">(sessions grouped by task)</span></th>
-          <th style="width:45px;text-align:right">Min</th>
-          <th style="width:45px;text-align:right">Hrs</th>
+          <th style="width:90px">${esc(rptText('Time'))}</th>
+          <th>${esc(rptText('Description / Source'))} <span style="font-weight:500;text-transform:none;letter-spacing:0;color:#888">(${esc(rptText('sessions grouped by task'))})</span></th>
+          <th style="width:45px;text-align:right">${esc(rptText('Min'))}</th>
+          <th style="width:45px;text-align:right">${esc(rptText('Hrs'))}</th>
         </tr>
       </thead>
       <tbody>
@@ -1731,16 +1743,16 @@ function buildDailyReportHTML(srcRows, date, name, sourcesByTaskId) {
       </tbody>
       <tfoot>
         <tr>
-          <td colspan="2" style="text-align:right;font-size:10px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:.5px;padding:8px;border:1px solid #bbb;border-top:2px solid #111;background:#f0f0f0 !important">Total</td>
+          <td colspan="2" style="text-align:right;font-size:10px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:.5px;padding:8px;border:1px solid #bbb;border-top:2px solid #111;background:#f0f0f0 !important">${esc(rptText('Total'))}</td>
           <td style="text-align:right;font-size:13px;font-weight:800;color:#111;padding:8px;border:1px solid #bbb;border-top:2px solid #111;background:#f0f0f0 !important">${totalMin}</td>
           <td style="text-align:right;font-size:13px;font-weight:800;color:#111;padding:8px;border:1px solid #bbb;border-top:2px solid #111;background:#f0f0f0 !important">${totalHrs}</td>
         </tr>
       </tfoot>
     </table>
     <div style="display:flex;justify-content:space-between;margin-top:14px;font-size:9px;color:#999;padding-top:8px;border-top:1px solid #ddd">
-      <span>MOS TA FA COOPERATION TOOLS</span>
-      <span>Printed ${printedOn}</span>
-    </div>`;
+      <span>MOS TA FA · ${esc(rptText('Cooperation Tools'))}</span>
+      <span>${esc(rptText('Printed {date}', { date: printedOn }))}</span>
+    </div>`);
 }
 
 function closePrint() {
@@ -1759,15 +1771,18 @@ function buildReportDoc(innerHTML, title) {
     r.includes('.rpt-') || r.includes('@media print') || r.includes('box-sizing') || r.includes('.det-')
   ).join('\n');
 
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  const lang = rptLanguage();
+  const dir = rptDirection();
+  return `<!DOCTYPE html><html lang="${lang}" dir="${dir}"><head><meta charset="UTF-8">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src data:">
-    <title>${esc(title || 'Report')}</title>
+    <title>${esc(rptText(title || 'Report'))}</title>
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #111; padding: 48px 52px; background: #fff; }
+      body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; font-size: 13px; color: #111; padding: 48px 52px; background: #fff; direction:${dir}; text-align:${dir === 'rtl' ? 'right' : 'left'}; }
       table, td, th, tr, tbody, thead, tfoot { background: #fff; color: #111; }
       .rpt-table { width:100%; border-collapse:collapse; font-size:11.5px; border:1.5px solid #111; }
       .rpt-table thead th { padding:7px 8px; text-align:left; font-size:9px; font-weight:700; color:#111; background:#f0f0f0; text-transform:uppercase; letter-spacing:.5px; border:1px solid #bbb; border-bottom:1.5px solid #111; }
+      html[dir="rtl"] .rpt-table thead th { text-align:right; }
       .rpt-table td { padding:6px 8px; vertical-align:top; font-size:11.5px; line-height:1.35; border:1px solid #ccc; }
       .rpt-totals td { padding:7px 8px; background:#f0f0f0; font-weight:700; border:1px solid #bbb; border-top:1.5px solid #111; }
       ${reportCSS}
@@ -1861,7 +1876,7 @@ async function genOvertimeReport() {
   const from = `${mv}-01`;
   const to   = `${mv}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
   const days = await window.api.loadDaysRange(from, to);
-  const monthLabel = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const monthLabel = new Date(y, m - 1, 1).toLocaleDateString(rptLocale(), { month: 'long', year: 'numeric' });
   const name = document.getElementById('hName').value || LK.defaultName || 'N/A';
 
   _reportFileBase = `overtime-request-${mv}`;
@@ -1886,12 +1901,12 @@ function buildOvertimeReportHTML(days, monthLabel, name) {
     totalMin += mins;
     daySet.add(o.date);
     const dt = new Date(o.date + 'T00:00:00');
-    const dLabel = dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    const dLabel = dt.toLocaleDateString(rptLocale(), { weekday: 'short', month: 'short', day: 'numeric' });
     return `
       <tr>
         <td style="text-align:center">${i + 1}</td>
         <td>${dLabel}</td>
-        <td>${esc(r.company)}</td>
+        <td>${esc(companyDisplayName(r.company))}</td>
         <td>${esc(r.system)}</td>
         <td>${esc(r.taskName || r.natural || '—')}</td>
         <td>${esc(r.description)}</td>
@@ -1902,36 +1917,37 @@ function buildOvertimeReportHTML(days, monthLabel, name) {
 
   const totalHrs = (totalMin / 60).toFixed(2);
   const dayCount = daySet.size;
-  const printedOn = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const printedOn = new Date().toLocaleDateString(rptLocale(), { year: 'numeric', month: 'long', day: 'numeric' });
+  const dayPhrase = rptLanguage() === 'ar' ? `${dayCount} يوم` : `${dayCount} day${dayCount === 1 ? '' : 's'}`;
 
   const body = otRows.length ? `
       ${rowsHTML}
       </tbody>
       <tfoot>
         <tr class="rpt-totals">
-          <td colspan="6" style="text-align:right;font-size:10px;color:#666;text-transform:uppercase;letter-spacing:.4px">Total Over-Time</td>
+          <td colspan="6" style="text-align:right;font-size:10px;color:#666;text-transform:uppercase;letter-spacing:.4px">${esc(rptText('Total Over-Time'))}</td>
           <td style="text-align:right;font-weight:700">${totalMin}</td>
           <td style="text-align:right;font-weight:700">${totalHrs}</td>
         </tr>
       </tfoot>` : `
-      <tr><td colspan="8" style="text-align:center;color:#999;padding:18px">No Over-Time recorded in ${esc(monthLabel)}.</td></tr>
+      <tr><td colspan="8" style="text-align:center;color:#999;padding:18px">${esc(rptText('No Over-Time recorded in {month}.', { month: monthLabel }))}</td></tr>
       </tbody>`;
 
-  return `
+  return rptWrap(`
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px">
       <div>
         <div style="font-size:10px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#111;line-height:1.6">MOS TA FA</div>
-        <div style="font-size:10px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#111">COOPERATION TOOLS</div>
+        <div style="font-size:10px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#111">${esc(rptText('Cooperation Tools'))}</div>
       </div>
       <div style="text-align:right">
         <div style="font-size:14px;font-weight:700;color:#111">${esc(name)}</div>
         <div style="font-size:11px;color:#555;margin-top:2px">${esc(monthLabel)}</div>
       </div>
     </div>
-    <div style="font-size:14px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:.5px;padding-bottom:8px;border-bottom:2px solid #111;margin-bottom:16px">Over-Time Request</div>
+    <div style="font-size:14px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:.5px;padding-bottom:8px;border-bottom:2px solid #111;margin-bottom:16px">${esc(rptText('Over-Time Request'))}</div>
     <p style="font-size:12px;color:#333;margin:0 0 14px;line-height:1.6">
-      Kindly find below the Over-Time hours logged during <b>${esc(monthLabel)}</b>, submitted for your review and approval.
-      The total Over-Time for the period is <b>${totalHrs} hours</b> across ${dayCount} day${dayCount === 1 ? '' : 's'}.
+      ${esc(rptText('Kindly find below the Over-Time hours logged during {month}, submitted for your review and approval.', { month: monthLabel }))}
+      ${esc(rptText('The total Over-Time for the period is {hours} hours across {dayPhrase}.', { hours: totalHrs, dayPhrase }))}
     </p>
     ${rptSummaryCards([
       { label: 'Total Over-Time', value: `${totalHrs}h`, color: totalMin > 0 ? '#b91c1c' : '#111' },
@@ -1944,13 +1960,13 @@ function buildOvertimeReportHTML(days, monthLabel, name) {
       <thead>
         <tr>
           <th style="width:28px;text-align:center">#</th>
-          <th>Date</th>
-          <th>Company</th>
-          <th>System</th>
-          <th>Task</th>
-          <th>Description</th>
-          <th style="text-align:right">Min</th>
-          <th style="text-align:right">Hrs</th>
+          <th>${esc(rptText('Date'))}</th>
+          <th>${esc(rptText('Company'))}</th>
+          <th>${esc(rptText('System'))}</th>
+          <th>${esc(rptText('Task'))}</th>
+          <th>${esc(rptText('Description'))}</th>
+          <th style="text-align:right">${esc(rptText('Min'))}</th>
+          <th style="text-align:right">${esc(rptText('Hrs'))}</th>
         </tr>
       </thead>
       <tbody>
@@ -1958,19 +1974,19 @@ function buildOvertimeReportHTML(days, monthLabel, name) {
     </table>
     <div style="display:flex;justify-content:space-between;margin-top:42px;gap:40px">
       <div style="flex:1">
-        <div style="border-top:1.5px solid #333;padding-top:6px;font-size:11px;color:#444">Employee: ${esc(name)}</div>
+        <div style="border-top:1.5px solid #333;padding-top:6px;font-size:11px;color:#444">${esc(rptText('Employee'))}: ${esc(name)}</div>
       </div>
       <div style="flex:1">
-        <div style="border-top:1.5px solid #333;padding-top:6px;font-size:11px;color:#444">Approved by:</div>
+        <div style="border-top:1.5px solid #333;padding-top:6px;font-size:11px;color:#444">${esc(rptText('Approved by'))}:</div>
       </div>
       <div style="flex:1">
-        <div style="border-top:1.5px solid #333;padding-top:6px;font-size:11px;color:#444">Date:</div>
+        <div style="border-top:1.5px solid #333;padding-top:6px;font-size:11px;color:#444">${esc(rptText('Date'))}:</div>
       </div>
     </div>
     <div style="display:flex;justify-content:space-between;margin-top:16px;font-size:9px;color:#aaa;padding-top:8px;border-top:1px solid #ddd">
-      <span>MOS TA FA COOPERATION TOOLS</span>
-      <span>Printed ${printedOn}</span>
-    </div>`;
+      <span>MOS TA FA · ${esc(rptText('Cooperation Tools'))}</span>
+      <span>${esc(rptText('Printed {date}', { date: printedOn }))}</span>
+    </div>`);
 }
 
 // Subscriptions PDF — the full list of recurring subscriptions, mirroring the
@@ -2016,7 +2032,7 @@ function buildSubscriptionsReportHTML(subs, defaultCurrency, name) {
     const d = daysUntil(dateStr);
     if (d === null) return '<span style="color:#999">—</span>';
     const color = (d < 0 || d <= 7) ? '#dc2626' : (d <= 30 ? '#a16207' : '#16a34a');
-    return `<span style="color:${color};font-weight:600">${esc(renewLabel(d))}</span>`;
+    return `<span style="color:${color};font-weight:600">${esc(rptRenewLabel(d))}</span>`;
   };
 
   const rowsHTML = sorted.length ? sorted.map((s, i) => {
@@ -2032,26 +2048,26 @@ function buildSubscriptionsReportHTML(subs, defaultCurrency, name) {
           <td>${esc(s.renewalDate || '—')}</td>
           <td>${renewCell(s.renewalDate)}</td>
         </tr>`;
-  }).join('') : `<tr><td colspan="7" style="text-align:center;color:#999;padding:18px">No subscriptions recorded.</td></tr>`;
+  }).join('') : `<tr><td colspan="7" style="text-align:center;color:#999;padding:18px">${esc(rptText('No subscriptions recorded.'))}</td></tr>`;
 
   const spendRows = Object.entries(cur).map(([c, v]) =>
     `<tr><td>${esc(c)}</td><td style="text-align:right;font-weight:700">${v.monthly.toFixed(0)}</td><td style="text-align:right;font-weight:700">${v.yearly.toFixed(0)}</td></tr>`
-  ).join('') || `<tr><td colspan="3" style="text-align:center;color:#999">No subscription costs recorded.</td></tr>`;
+  ).join('') || `<tr><td colspan="3" style="text-align:center;color:#999">${esc(rptText('No subscription costs recorded.'))}</td></tr>`;
 
-  const printedOn = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const printedOn = new Date().toLocaleDateString(rptLocale(), { year: 'numeric', month: 'long', day: 'numeric' });
 
-  return `
+  return rptWrap(`
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px">
       <div>
         <div style="font-size:10px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#111;line-height:1.6">MOS TA FA</div>
-        <div style="font-size:10px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#111">COOPERATION TOOLS</div>
+        <div style="font-size:10px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#111">${esc(rptText('Cooperation Tools'))}</div>
       </div>
       <div style="text-align:right">
         <div style="font-size:14px;font-weight:700;color:#111">${esc(name)}</div>
         <div style="font-size:11px;color:#555;margin-top:2px">${printedOn}</div>
       </div>
     </div>
-    <div style="font-size:14px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:.5px;padding-bottom:8px;border-bottom:2px solid #111;margin-bottom:16px">Subscriptions Report</div>
+    <div style="font-size:14px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:.5px;padding-bottom:8px;border-bottom:2px solid #111;margin-bottom:16px">${esc(rptText('Subscriptions Report'))}</div>
     ${rptSummaryCards([
       { label: 'Subscriptions', value: sorted.length },
       { label: 'Renewing ≤30d', value: dueSoon, color: dueSoon > 0 ? '#a16207' : '#111' },
@@ -2062,12 +2078,12 @@ function buildSubscriptionsReportHTML(subs, defaultCurrency, name) {
       <thead>
         <tr>
           <th style="width:28px;text-align:center">#</th>
-          <th>Name</th>
-          <th>Cost</th>
-          <th>Billing Cycle</th>
-          <th>End Date</th>
-          <th>Renewal Date</th>
-          <th>Renews In</th>
+          <th>${esc(rptText('Name'))}</th>
+          <th>${esc(rptText('Cost'))}</th>
+          <th>${esc(rptText('Billing Cycle'))}</th>
+          <th>${esc(rptText('End Date'))}</th>
+          <th>${esc(rptText('Renewal Date'))}</th>
+          <th>${esc(rptText('Renews In'))}</th>
         </tr>
       </thead>
       <tbody>
@@ -2075,16 +2091,16 @@ function buildSubscriptionsReportHTML(subs, defaultCurrency, name) {
       </tbody>
     </table>
 
-    <div style="margin-top:22px;font-size:12px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Recurring Spend by Currency</div>
+    <div style="margin-top:22px;font-size:12px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">${esc(rptText('Recurring Spend by Currency'))}</div>
     <table class="rpt-table">
-      <thead><tr><th>Currency</th><th style="text-align:right">Monthly</th><th style="text-align:right">Yearly</th></tr></thead>
+      <thead><tr><th>${esc(rptText('Currency'))}</th><th style="text-align:right">${esc(rptText('Monthly'))}</th><th style="text-align:right">${esc(rptText('Yearly'))}</th></tr></thead>
       <tbody>${spendRows}</tbody>
     </table>
 
     <div style="display:flex;justify-content:space-between;margin-top:16px;font-size:9px;color:#aaa;padding-top:8px;border-top:1px solid #ddd">
-      <span>MOS TA FA COOPERATION TOOLS</span>
-      <span>Printed ${printedOn}</span>
-    </div>`;
+      <span>MOS TA FA · ${esc(rptText('Cooperation Tools'))}</span>
+      <span>${esc(rptText('Printed {date}', { date: printedOn }))}</span>
+    </div>`);
 }
 
 // ── Today button ──
@@ -2324,7 +2340,7 @@ function renderFilterChips() {
     const btn = document.createElement('button');
     btn.className = 'filter-chip' + (filterStatuses.has(o.code) ? ' active' : '');
     btn.dataset.status = o.code;
-    btn.textContent = o.label;
+    btn.dataset.userContent = ''; btn.textContent = o.label;
     btn.addEventListener('click', () => toggleStatusFilter(btn));
     wrap.appendChild(btn);
   });
@@ -2334,7 +2350,8 @@ function rowMatchesFilter(row) {
   if (filterStatuses.size > 0 && !filterStatuses.has(row.status)) return false;
   if (!filterText) return true;
   // Search against the human labels of the code-valued fields (time / status).
-  return [row.company, row.system, row.natural, lkLabel('TIME_TYPE', row.time), row.description, row.source, lkLabel('ENTRY_STATUS', row.status)]
+  return [row.company, row.companyCode, row.companyNameEn, row.companyNameAr,
+    row.system, row.natural, lkLabel('TIME_TYPE', row.time), row.description, row.source, lkLabel('ENTRY_STATUS', row.status)]
     .some(v => (v || '').toLowerCase().includes(filterText));
 }
 

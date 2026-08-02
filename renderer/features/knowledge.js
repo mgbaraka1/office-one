@@ -487,7 +487,7 @@ function openKnowledgeEditor(item) {
   document.getElementById('kh-modal-title').textContent = item ? 'Edit Knowledge Item' : knowledgeCreationMode === 'DOCUMENT' ? 'New Document Item' : 'New Knowledge Item';
   document.getElementById('kh-save-btn').textContent = item ? 'Save Changes' : knowledgeCreationMode === 'DOCUMENT' ? 'Create & Choose File' : 'Create Item';
   const type = document.getElementById('kh-type-input'); type.innerHTML = '<option value="">No type</option>';
-  lkOptions('KNOWLEDGE_TYPE').forEach(option => { const el = document.createElement('option'); el.value = option.code; el.textContent = option.label; type.appendChild(el); });
+  lkOptions('KNOWLEDGE_TYPE').forEach(option => { const el = document.createElement('option'); el.dataset.userContent = ''; el.value = option.code; el.textContent = option.label; type.appendChild(el); });
   document.getElementById('kh-editor-group-search').value = '';
   applyKnowledgeEditorData(item || { status: 'DRAFT', tags: [], groups: [] });
   const suggestions = document.getElementById('kh-tag-suggestions'); suggestions.innerHTML = '';

@@ -262,7 +262,7 @@ const LK_CAT = {
   serverRole: 'SERVER_ROLE',
 };
 const LK_VALUE = {             // 'label' = stored as display label; 'code' = stored as code
-  companies: 'label', systems: 'label', natural: 'label',
+  companies: 'code', systems: 'label', natural: 'label',
   timeType: 'code', status: 'code', currency: 'code', billingCycle: 'code',
   projectStatus: 'code', projectDocument: 'code', companyDocCategory: 'code', knowledgeType: 'code',
   department: 'label', taskSourceType: 'code',
@@ -276,12 +276,33 @@ function lkOptions(category, includeInactive = false) {
 // Find the catalog option for a stored value (matches by code OR label).
 function lkFind(category, value) {
   if (value == null || value === '') return null;
-  return (LK.categories[category] || []).find(o => o.code === value || o.label === value) || null;
+  return (LK.categories[category] || []).find(o =>
+    o.code === value || o.label === value ||
+    (category === 'COMPANY' && (o.nameEn === value || o.nameAr === value))) || null;
 }
 // Stored value → human label (falls back to the raw value if unknown/legacy).
 function lkLabel(category, value) {
   const o = lkFind(category, value);
   return o ? o.label : (value || '');
+}
+function companyProfileOption(value) {
+  if (value == null || value === '') return null;
+  return (LK.categories.COMPANY || []).find(o =>
+    o.code === value || o.label === value || o.nameEn === value || o.nameAr === value) || null;
+}
+function companyDisplayName(company, includeCode = true) {
+  const direct = typeof company === 'object' && company ? {
+    ...company,
+    code: company.code || company.companyCode,
+    nameEn: company.nameEn || company.companyNameEn,
+    nameAr: company.nameAr || company.companyNameAr,
+    label: company.label || company.company,
+  } : null;
+  const o = direct || companyProfileOption(company);
+  if (!o) return typeof company === 'string' ? company : '';
+  const arabic = window.ctI18n?.getLanguage?.() === 'ar';
+  const name = (arabic ? o.nameAr : o.nameEn) || o.nameEn || o.label || o.nameAr || '';
+  return includeCode && o.code ? `${o.code} — ${name}` : name;
 }
 // Stored FK id (e.g. a task's departmentId) → human label, matched by the
 // catalog's own numeric id — unlike lkFind/lkLabel above, which match a
@@ -289,7 +310,7 @@ function lkLabel(category, value) {
 function lkLabelById(category, id) {
   if (id == null) return '';
   const o = (LK.categories[category] || []).find(x => Number(x.id) === Number(id));
-  return o ? o.label : '';
+  return o ? (category === 'COMPANY' ? companyDisplayName(o, false) : o.label) : '';
 }
 
 // ── Timer state ──
@@ -314,14 +335,20 @@ let activeModule = null;
 // whenever the active module or a tracked module's filters change. db.js
 // stores this as an opaque JSON blob (machine_prefs key ui_state) — only the
 // renderer interprets `filters`' per-module shape.
-let uiState = { startOnLastPage: true, lastModule: 'analytics', filters: {}, sessionDefaults: {} };
+let uiState = { startOnLastPage: true, lastModule: 'analytics', language: 'en', filters: {}, sessionDefaults: {} };
 async function loadUiStateFromMain() {
   try {
     const loaded = await window.api.getUiState();
-    uiState = Object.assign({ startOnLastPage: true, lastModule: 'analytics', filters: {}, sessionDefaults: {} }, loaded || {});
+    uiState = Object.assign({ startOnLastPage: true, lastModule: 'analytics', language: window.ctI18n?.getLanguage() || 'en', filters: {}, sessionDefaults: {} }, loaded || {});
   } catch { /* keep defaults */ }
+  const loginLanguage = window.ctI18n?.getLoginLanguageChoice?.();
+  if (loginLanguage === 'en' || loginLanguage === 'ar') uiState.language = loginLanguage;
   if (!uiState.filters || typeof uiState.filters !== 'object') uiState.filters = {};
   if (!uiState.sessionDefaults || typeof uiState.sessionDefaults !== 'object') uiState.sessionDefaults = {};
+  if (window.ctI18n && (uiState.language === 'en' || uiState.language === 'ar')) {
+    window.ctI18n.setLanguage(uiState.language);
+  }
+  if (loginLanguage) saveUiStateDebounced();
 }
 let _uiStateSaveTimer = null;
 function saveUiStateDebounced() {
@@ -533,7 +560,7 @@ function addTaskSourceRow(listId, source) {
   typeSelect.appendChild(blankOpt);
   lkOptions('TASK_SOURCE_TYPE').forEach(o => {
     const opt = document.createElement('option');
-    opt.value = o.code; opt.textContent = o.label;
+    opt.dataset.userContent = ''; opt.value = o.code; opt.textContent = o.label;
     if (o.code === (source && source.type)) opt.selected = true;
     typeSelect.appendChild(opt);
   });
@@ -671,18 +698,24 @@ function populateSelect(id, key, currentVal) {
   const valField = LK_VALUE[key] || 'label';
   const opts = lkOptions(category);
   const values = opts.map(o => o[valField]);
+  // API task shapes retain the English COMPANY label for compatibility, while
+  // new form writes use the business code. Normalize either shape to the option
+  // value so an unchanged edit never appears as a removed catalog entry.
+  const currentOption = lkFind(category, currentVal);
+  const selectedValue = currentOption ? currentOption[valField] : currentVal;
   // Preserve a value no longer in the catalog (e.g. soft-disabled), so editing a
   // row doesn't silently rewrite it to the first option when saved.
-  if (currentVal && !values.includes(currentVal)) {
+  if (selectedValue && !values.includes(selectedValue)) {
     const o = document.createElement('option');
-    o.value = currentVal; o.textContent = lkLabel(category, currentVal) + ' (removed)';
+    o.value = selectedValue; o.textContent = lkLabel(category, currentVal) + ' (removed)';
     o.selected = true;
     el.appendChild(o);
   }
   opts.forEach(opt => {
     const o = document.createElement('option');
-    o.value = opt[valField]; o.textContent = opt.label;
-    if (opt[valField] === currentVal) o.selected = true;
+    o.dataset.userContent = ''; o.value = opt[valField];
+    o.textContent = category === 'COMPANY' ? companyDisplayName(opt) : opt.label;
+    if (opt[valField] === selectedValue) o.selected = true;
     el.appendChild(o);
   });
 }
@@ -711,7 +744,7 @@ function buildTagPicker(host, options, initialIds, placeholder) {
     if (!selectedIds.length) selectedIds.push(Number(options[0].id));
     const pills = document.createElement('div'); pills.className = 'tp-pills';
     const pill = document.createElement('span'); pill.className = 'tp-pill tp-pill-static';
-    pill.textContent = optById.get(selectedIds[0]) ?? options[0].label;
+    pill.dataset.userContent = ''; pill.textContent = optById.get(selectedIds[0]) ?? options[0].label;
     pills.appendChild(pill);
     host.appendChild(pills);
     return handle;
@@ -754,7 +787,7 @@ function buildTagPicker(host, options, initialIds, placeholder) {
     filtered.forEach((o, i) => {
       const item = document.createElement('div');
       item.className = 'tp-opt' + (i === activeIdx ? ' active' : '');
-      item.textContent = o.label;
+      item.dataset.userContent = ''; item.textContent = o.label;
       item.addEventListener('mousedown', (e) => { e.preventDefault(); pick(Number(o.id)); });
       menu.appendChild(item);
     });
@@ -847,7 +880,7 @@ function buildSearchSelect(host, options, initialId, placeholder, onChange, rich
       item.className = 'ss-opt' + (rich.renderOption ? ' ss-opt-rich' : '') + (i === activeIdx ? ' active' : '') +
         ((o.id == null && selectedId == null) || Number(o.id) === selectedId ? ' selected' : '');
       if (rich.renderOption && o.id != null) item.innerHTML = rich.renderOption(o);
-      else item.textContent = o.label;
+      else { item.dataset.userContent = ''; item.textContent = o.label; }
       item.addEventListener('mousedown', (e) => { e.preventDefault(); pick(o.id == null ? null : Number(o.id)); });
       menu.appendChild(item);
     });
@@ -896,12 +929,13 @@ function buildTaskSearchSelect(host, tasks, initialId, placeholder, onChange) {
 
   const api = buildSearchSelect(host, visibleOptions(), initialId, placeholder || 'Search tasks…', onChange, {
     getOptions: visibleOptions,
-    matchFn: (o, q) => textMatch([o.task.name, o.task.company, o.task.system, o.task.source, o.task.firstSourceRef], q),
+    matchFn: (o, q) => textMatch([o.task.name, o.task.company, o.task.companyCode,
+      o.task.companyNameEn, o.task.companyNameAr, o.task.system, o.task.source, o.task.firstSourceRef], q),
     labelText: (o) => o.label,
     groupFn: (o) => (isRecent(o.task) ? 'Recent' : 'All tasks'),
     renderOption: (o) => {
       const t = o.task;
-      const meta = [t.company, t.system,
+      const meta = [companyDisplayName(t), t.system,
         t.projectId != null ? projectNameById(t.projectId) : (t.departmentId != null ? t.department : null),
         t.lastDate ? ('worked ' + t.lastDate) : null,
         t.logCount ? (t.logCount + ' session' + (t.logCount === 1 ? '' : 's')) : null,
@@ -969,7 +1003,13 @@ async function saveSettings() {
   for (const uiKey of SETTINGS_TABS) {
     const cat = LK_CAT[uiKey];
     categories[cat] = (lookupsDraft[cat] || [])
-      .map((o, i) => ({ id: o.id ?? null, code: o.code, label: String(o.label || '').trim(), sortOrder: i, isActive: o.isActive !== false }))
+      .map((o, i) => ({
+        id: o.id ?? null, code: o.code,
+        label: String(o.label || o.nameEn || '').trim(),
+        nameEn: String(o.nameEn || o.label || '').trim(),
+        nameAr: String(o.nameAr || '').trim(),
+        sortOrder: i, isActive: o.isActive !== false,
+      }))
       .filter(o => o.label);
   }
   const payload = {};
@@ -1249,7 +1289,7 @@ function openMaintenanceMergeConfirm(row, dupeGroup) {
   const label = pjMk('span', null, 'Keep:');
   const select = document.createElement('select');
   dupeGroup.codes.forEach(c => {
-    const opt = document.createElement('option'); opt.value = c.id; opt.textContent = c.label + ' (' + c.code + ')';
+    const opt = document.createElement('option'); opt.dataset.userContent = ''; opt.value = c.id; opt.textContent = c.label + ' (' + c.code + ')';
     select.appendChild(opt);
   });
   const mergeBtn = pjMk('button', 'btn primary', 'Merge Now');
@@ -1331,6 +1371,7 @@ function renderLookupPanel(uiKey) {
   const panel = document.getElementById('tab-' + uiKey);
   panel.innerHTML = '';
   const arr = lookupsDraft[category] || (lookupsDraft[category] = []);
+  if (category === 'COMPANY') { renderCompanyProfilePanel(panel, arr); return; }
 
   const list = document.createElement('div');
   list.className = 'lookup-list';
@@ -1384,4 +1425,45 @@ function renderLookupPanel(uiKey) {
 
   addRow.appendChild(addInp); addRow.appendChild(addBtn);
   panel.appendChild(addRow);
+}
+
+function renderCompanyProfilePanel(panel, arr) {
+  const intro = document.createElement('p');
+  intro.className = 'general-hint client-profile-intro';
+  intro.textContent = 'Each client profile has a unique business code plus English and Arabic names. Tasks, projects, and infrastructure stay linked when these values change.';
+  panel.appendChild(intro);
+
+  const list = document.createElement('div');
+  list.className = 'lookup-list client-profile-list';
+  const redraw = () => renderLookupPanel('companies');
+  arr.forEach((opt, i) => {
+    const item = document.createElement('div');
+    item.className = 'lookup-item client-profile-item' + (opt.isActive === false ? ' lookup-item-inactive' : '');
+    const field = (label, value, placeholder, onInput, className = '') => {
+      const wrap = document.createElement('label'); wrap.className = 'client-profile-field ' + className;
+      const caption = document.createElement('span'); caption.textContent = label; wrap.appendChild(caption);
+      const input = document.createElement('input'); input.type = 'text'; input.value = value || ''; input.placeholder = placeholder;
+      input.addEventListener('input', e => onInput(e.target.value)); wrap.appendChild(input); return wrap;
+    };
+    item.appendChild(field('Company Code', opt.code, 'e.g. ACME or 105', v => { opt.code = v.toUpperCase().replace(/\s+/g, '_'); }, 'client-code-field'));
+    item.appendChild(field('English Name', opt.nameEn || opt.label, 'English company name', v => { opt.nameEn = v; opt.label = v; }));
+    const arField = field('Arabic Name', opt.nameAr, 'اسم الشركة بالعربية', v => { opt.nameAr = v; });
+    arField.querySelector('input').dir = 'rtl'; item.appendChild(arField);
+
+    const del = document.createElement('button'); del.type = 'button'; del.className = 'lookup-item-del';
+    del.innerHTML = opt.isActive === false ? ic('rotate-ccw') : ic('x');
+    del.title = opt.id == null ? 'Remove' : (opt.isActive === false ? 'Re-enable' : 'Disable (hide from dropdowns)');
+    del.addEventListener('click', () => { if (opt.id == null) arr.splice(i, 1); else opt.isActive = opt.isActive === false; redraw(); });
+    item.appendChild(del); list.appendChild(item);
+  });
+  panel.appendChild(list);
+
+  const addBtn = document.createElement('button'); addBtn.type = 'button'; addBtn.className = 'btn';
+  addBtn.innerHTML = ic('plus') + ' Add Client Profile';
+  addBtn.addEventListener('click', () => {
+    arr.push({ id: null, code: '', label: '', nameEn: '', nameAr: '', sortOrder: arr.length, isActive: true });
+    redraw();
+    panel.querySelector('.client-profile-item:last-child input')?.focus();
+  });
+  panel.appendChild(addBtn);
 }

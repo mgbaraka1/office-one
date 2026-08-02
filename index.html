@@ -5,6 +5,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; connect-src 'none'; img-src 'self' data:">
   <title>Cooperation Tools</title>
   <script src="renderer/bootstrap.js"></script>
+  <script src="renderer/i18n.js"></script>
   <link rel="stylesheet" href="renderer/app.css">
 </head>
 <body>
@@ -13,6 +14,10 @@
 <div id="auth-overlay">
   <form class="auth-card" id="auth-form" onsubmit="submitAuth(event)" autocomplete="off">
     <div class="auth-brand">COOPERATION <span>TOOLS</span></div>
+    <div class="auth-language" role="group" aria-label="Choose language">
+      <button type="button" data-language="en" onclick="chooseLoginLanguage('en')">English</button>
+      <button type="button" data-language="ar" onclick="chooseLoginLanguage('ar')">العربية</button>
+    </div>
     <div class="auth-heading" id="auth-heading">Welcome back</div>
     <div class="auth-sub" id="auth-sub">Log in to continue</div>
     <div class="auth-field">
@@ -85,6 +90,9 @@
     </button>
     <button id="theme-toggle" class="nav-item" onclick="toggleTheme()" title="Switch between light and dark mode">
       <span class="nav-icon" id="theme-icon" data-ic="moon"></span><span id="theme-label" class="nav-label">Dark Mode</span>
+    </button>
+    <button id="language-toggle" class="nav-item" onclick="toggleAppLanguage()" title="Switch to Arabic">
+      <span class="nav-icon" data-ic="languages"></span><span id="language-toggle-label" class="nav-label" data-i18n-ignore>العربية</span>
     </button>
     <div class="backup-btn-wrap admin-only">
       <button id="backup-btn" class="nav-item" onclick="toggleTopMenu(event,'backup-choice-menu')" title="Back up your data — a full backup or just the database">
@@ -1438,6 +1446,15 @@
           <span>Secure credential storage (Windows DPAPI) is unavailable. Saving a client password or secret key is
             blocked until secure storage becomes available; existing encrypted credentials remain protected.</span>
         </div>
+        <div class="general-field">
+          <label>Language</label>
+          <div class="seg-ctl" id="setting-language-ctl" role="group" aria-label="Application language">
+            <button type="button" class="seg-btn" data-language="en" onclick="setAppLanguage('en')">English</button>
+            <button type="button" class="seg-btn" data-language="ar" onclick="setAppLanguage('ar')">العربية</button>
+          </div>
+        </div>
+        <p class="general-hint">Choose the interface language. Arabic uses a right-to-left layout; your records and catalog names are never translated or changed.</p>
+        <hr class="modal-tasksection-divider" style="margin:20px 0" />
         <div class="general-field">
           <label>Start on</label>
           <div class="seg-ctl" id="setting-startonlastpage-ctl">
