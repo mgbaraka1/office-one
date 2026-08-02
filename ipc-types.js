@@ -202,9 +202,9 @@
  */
 
 /**
- * One edit recorded against a tasks row (tasks:field-history →
+ * One edit recorded against a tasks row (tasks:history →
  * db.getTaskFieldHistory), newest first. Mirrors WorkLogHistoryEntry's shape;
- * see task_field_history in CLAUDE.md — name/status/company/system/project/
+ * see task_field_history in AGENTS.md — name/status/company/system/project/
  * department/source fields, each diffed by its human-facing value (lookup
  * code for status, lookup label for company/system/department, linked
  * project's name for project), not the raw FK id.

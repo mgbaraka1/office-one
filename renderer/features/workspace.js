@@ -53,7 +53,9 @@ function renderCatList(kind) {
   const q = (document.getElementById(kind + '-search').value || '').trim().toLowerCase();
   const wrap = document.getElementById(kind + '-list');
   wrap.innerHTML = '';
-  const items = q ? st.list.filter(x => x.name.toLowerCase().includes(q)) : st.list;
+  const displayName = value => kind === 'companies' ? companyDisplayName(value, false) : lkLabel('SYSTEM', value);
+  const items = q ? st.list.filter(x =>
+    [x.name, displayName(x.name)].some(value => String(value || '').toLowerCase().includes(q))) : st.list;
   if (!items.length) {
     const empty = document.createElement('div'); empty.className = 'cp-list-empty';
     empty.textContent = st.list.length ? 'No matches' : ('No ' + def.noun + ' data yet');
@@ -63,7 +65,7 @@ function renderCatList(kind) {
     const btn = document.createElement('button');
     btn.className = 'cp-list-item' + (x.name === st.selected ? ' active' : '');
     const nm = document.createElement('span'); nm.className = 'cp-list-name';
-    nm.dataset.userContent = ''; nm.textContent = x.name; nm.title = x.name;
+    nm.dataset.userContent = ''; nm.textContent = displayName(x.name); nm.title = displayName(x.name);
     const ct = document.createElement('span'); ct.className = 'cp-list-count';
     ct.textContent = x.count;
     btn.appendChild(nm); btn.appendChild(ct);
@@ -108,7 +110,7 @@ function renderCatRecords(kind) {
 
   const head = document.createElement('div'); head.className = 'cp-records-head';
   const title = document.createElement('h2'); title.className = 'cp-records-title';
-  title.textContent = st.selected;
+  title.textContent = kind === 'companies' ? companyDisplayName(st.selected, false) : lkLabel('SYSTEM', st.selected);
   head.appendChild(title);
   host.appendChild(head);
 
@@ -127,7 +129,7 @@ function renderCatRecords(kind) {
   const allOpt = document.createElement('option'); allOpt.value = ''; allOpt.textContent = 'All types';
   typeSel.appendChild(allOpt);
   lkOptions('TIME_TYPE').forEach(o => {
-    const opt = document.createElement('option'); opt.dataset.userContent = ''; opt.value = o.code; opt.textContent = o.label;
+    const opt = document.createElement('option'); opt.dataset.userContent = ''; opt.value = o.code; opt.textContent = lookupDisplayName(o);
     typeSel.appendChild(opt);
   });
   typeSel.value = st.type;
@@ -221,7 +223,7 @@ function buildReadonlyRow(r, i) {
 
   tr.appendChild(linkCell(r.company, 'companies'));
   tr.appendChild(linkCell(r.system, 'systems'));
-  tr.appendChild(textCell(r.natural));
+  tr.appendChild(textCell(lkLabel('ACTIVITY_TYPE', r.natural)));
 
   const timeTd = document.createElement('td');
   const timeDiv = document.createElement('div'); timeDiv.className = 'cell';
@@ -433,7 +435,7 @@ async function renderOverview() {
     { label: ic('calendar') + ' This Month', value: (monthMin / 60).toFixed(1), unit: 'h', foot: `${daysLogged} day${daysLogged === 1 ? '' : 's'} logged`, cls: '', go: 'timesheet' },
   ];
   document.getElementById('dash-stats').innerHTML = stats.map(s => `
-    <div class="dash-stat ${s.cls}" ${s.go ? `onclick="switchModule('${s.go}')"` : ''}>
+    <div class="dash-stat ${s.cls}" ${s.go ? `data-onclick="switchModule('${s.go}')"` : ''}>
       <span class="ds-label">${s.label}</span>
       <span class="ds-value">${esc(s.value)}${s.unit ? `<small> ${s.unit}</small>` : ''}</span>
       <span class="ds-foot">${esc(s.foot)}</span>
@@ -690,7 +692,7 @@ async function renderAnalytics() {
   const natSegs = Object.entries(byNatural)
     .filter(([, v]) => v > 0)
     .sort((a, b) => b[1] - a[1])
-    .map(([k, v], i) => ({ label: k, value: v, color: AN_FALLBACK[i % AN_FALLBACK.length] }));
+    .map(([k, v], i) => ({ label: lkLabel('ACTIVITY_TYPE', k), value: v, color: AN_FALLBACK[i % AN_FALLBACK.length] }));
   document.getElementById('an-activity').innerHTML = anDonut(natSegs, totalMin);
   document.getElementById('an-activity-sub').textContent = natSegs.length ? `${natSegs.length} types` : '';
 
@@ -711,7 +713,10 @@ async function renderAnalytics() {
 // which has no page to click into anymore) renders plain, non-clickable bars.
 function renderAnBars(elId, map, subId, linkKind) {
   const items = Object.entries(map).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
-  const visibleLabel = key => linkKind === 'companies' ? companyDisplayName(key) : key;
+  const visibleLabel = key => linkKind === 'companies' ? companyDisplayName(key)
+    : linkKind === 'systems' ? lkLabel('SYSTEM', key)
+    : linkKind === 'department' ? lkLabel('DEPARTMENT', key)
+    : key;
   const el = document.getElementById(elId);
   if (subId) document.getElementById(subId).textContent = items.length ? `${items.length}` : '';
   if (!items.length) { el.innerHTML = `<div class="an-empty">No tracked time in this period.</div>`; return; }
@@ -725,15 +730,15 @@ function renderAnBars(elId, map, subId, linkKind) {
 }
 
 const AN_BAR_LINK_ATTRS = {
-  companies:      (label) => ` data-kind="companies" data-name="${esc(label)}" title="Browse all work for ${esc(label)}" onclick="openBrowseSlice(this.dataset.kind, this.dataset.name)"`,
-  systems:        (label) => ` data-kind="systems" data-name="${esc(label)}" title="Browse all work for ${esc(label)}" onclick="openBrowseSlice(this.dataset.kind, this.dataset.name)"`,
-  department:     (label) => ` data-name="${esc(label)}" title="Open All Tasks filtered to ${esc(label)}" onclick="openAllTasksForDepartment(this.dataset.name)"`,
+  companies:      (label, visible) => ` data-kind="companies" data-name="${esc(label)}" title="Browse all work for ${esc(visible)}" data-onclick="openBrowseSlice(this.dataset.kind, this.dataset.name)"`,
+  systems:        (label, visible) => ` data-kind="systems" data-name="${esc(label)}" title="Browse all work for ${esc(visible)}" data-onclick="openBrowseSlice(this.dataset.kind, this.dataset.name)"`,
+  department:     (label, visible) => ` data-name="${esc(label)}" title="Open All Tasks filtered to ${esc(visible)}" data-onclick="openAllTasksForDepartment(this.dataset.name)"`,
 };
 function anBarRow(label, value, max, display, color, linkKind, visibleLabel = label) {
   const w = Math.max(2, Math.round((value / max) * 100));
   const style = `width:${w}%${color ? `;background:${color}` : ''}`;
   const linkFn = linkKind && AN_BAR_LINK_ATTRS[linkKind];
-  const linkAttrs = linkFn ? linkFn(label) : '';
+  const linkAttrs = linkFn ? linkFn(label, visibleLabel) : '';
   const tag = linkFn ? 'button' : 'div';
   const type = linkFn ? ' type="button"' : '';
   return `
@@ -886,7 +891,7 @@ function anHeatmap(start, weeks, dayMin, today) {
       else if (mins < 360) cls = 'h3';
       else cls = 'h4';
       const title = future ? '' : `${ds} · ${anFmtHrs(mins)}`;
-      const onclick = future ? '' : ` onclick="anJumpToDay('${ds}')"`;
+      const onclick = future ? '' : ` data-onclick="anJumpToDay('${ds}')"`;
       col += future
         ? `<span class="an-heat-cell ${cls}" aria-hidden="true"></span>`
         : `<button type="button" class="an-heat-cell ${cls}" title="${title}" aria-label="${title}"${onclick}></button>`;
@@ -928,7 +933,7 @@ async function renderAnSpend() {
   if (!entries.length) { el.innerHTML = `<div class="an-empty">No subscription costs recorded.</div>`; return; }
   el.innerHTML = entries.map(([c, v]) => `
     <div class="an-spend-row">
-      <span class="an-spend-cur">${esc(c)}</span>
+      <span class="an-spend-cur">${esc(lkLabel('CURRENCY', c) || c)}</span>
       <span class="an-spend-vals"><b>${v.monthly.toFixed(0)}</b> / mo &nbsp;·&nbsp; <b>${v.yearly.toFixed(0)}</b> / yr</span>
     </div>`).join('');
 }
@@ -1148,7 +1153,7 @@ function renderSubscriptions() {
     costSpan.className = 'sub-cost';
     const costNum = parseFloat(sub.cost);
     const costText = isNaN(costNum) ? sub.cost : costNum.toFixed(2);
-    costSpan.textContent = (sub.currency || 'USD') + ' ' + costText;
+    costSpan.textContent = (lkLabel('CURRENCY', sub.currency || 'USD') || sub.currency || 'USD') + ' ' + costText;
     tr.appendChild(cellWrap(costSpan, 'cell'));
 
     tr.appendChild(textCell(lkLabel('BILLING_CYCLE', sub.billingCycle)));

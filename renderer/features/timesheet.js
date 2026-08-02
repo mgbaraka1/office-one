@@ -215,7 +215,7 @@ function buildTaskGroupCard(g, origIdxOf) {
     lkOptions('ENTRY_STATUS').forEach(o => {
       const opt = document.createElement('div');
       opt.className = 'sd-opt ' + statusSuffix(o.code);
-      opt.dataset.userContent = ''; opt.textContent = o.label;
+      opt.dataset.userContent = ''; opt.textContent = lookupDisplayName(o);
       opt.addEventListener('click', (ev) => {
         ev.stopPropagation();
         first.status = o.code;
@@ -273,8 +273,9 @@ function buildTaskGroupCard(g, origIdxOf) {
     if (!text) return;
     if (kind) {
       const b = document.createElement('button');
-      b.className = 'tsg-pill cell-link'; b.textContent = kind === 'companies' ? companyDisplayName(text) : text;
-      b.title = 'Browse all work for ' + text;
+      b.className = 'tsg-pill cell-link';
+      b.textContent = kind === 'companies' ? companyDisplayName(text) : lkLabel('SYSTEM', text);
+      b.title = 'Browse all work for ' + b.textContent;
       b.addEventListener('click', () => openBrowseSlice(kind, text));
       meta.appendChild(b);
     } else {
@@ -334,7 +335,7 @@ function buildTaskGroupCard(g, origIdxOf) {
     tr.appendChild(cellWrap(timeSpan, 'cell'));
 
     // Natural — per-session, so sessions on the same task can genuinely differ.
-    tr.appendChild(textCell(row.natural || '—'));
+    tr.appendChild(textCell(lkLabel('ACTIVITY_TYPE', row.natural) || '—'));
 
     // Description
     const descTd = document.createElement('td');
@@ -538,7 +539,7 @@ function renderTableFlat() {
 
     tr.appendChild(linkCell(row.company, 'companies'));
     tr.appendChild(linkCell(row.system, 'systems'));
-    tr.appendChild(textCell(row.natural));
+    tr.appendChild(textCell(lkLabel('ACTIVITY_TYPE', row.natural)));
     const timeTd = document.createElement('td');
     const timeDiv = document.createElement('div'); timeDiv.className = 'cell';
     const timeSpan = document.createElement('span');
@@ -728,8 +729,9 @@ function textCell(val) {
 function linkCell(val, kind) {
   if (!val) return textCell(val);
   const btn = document.createElement('button');
-  btn.className = 'cell-link'; btn.textContent = kind === 'companies' ? companyDisplayName(val) : val;
-  btn.title = 'Browse all work for ' + val;
+  btn.className = 'cell-link';
+  btn.textContent = kind === 'companies' ? companyDisplayName(val) : lkLabel('SYSTEM', val);
+  btn.title = 'Browse all work for ' + btn.textContent;
   btn.addEventListener('click', () => openBrowseSlice(kind, val));
   return cellWrap(btn, 'cell');
 }
@@ -1099,7 +1101,7 @@ function applyExistingTaskSelection(taskId) {
       projectFieldOptions(task.projectId ?? null), task.projectId ?? null, 'No project');
     // Read-only summary of what the session will be logged against. Natural is
     // not shown here — it's per-session, not part of the task being picked.
-    const bits = [companyDisplayName(task.company), task.system].filter(Boolean).join(' · ');
+    const bits = [companyDisplayName(task.company), lkLabel('SYSTEM', task.system)].filter(Boolean).join(' · ');
     const projName = projectNameById(task.projectId);
     summary.innerHTML = '<b>' + esc(task.name || '(untitled task)') + '</b>'
       + (bits ? ' — ' + esc(bits) : '')
@@ -1660,7 +1662,7 @@ function buildDailyReportHTML(srcRows, date, name, sourcesByTaskId) {
     // task names often already begin with the System value (for example,
     // "Payment Gateway - Check..."); strip that prefix so it is not printed twice.
     const companyTitle = companyDisplayName(g.company).trim();
-    const projectTitle = String(g.system || '').trim().toUpperCase();
+    const projectTitle = String(lkLabel('SYSTEM', g.system) || '').trim().toUpperCase();
     let taskTitle = String(g.taskName || '(untitled task)').trim();
     const existingPrefix = String(g.system || '').trim();
     if (existingPrefix && taskTitle.toLocaleLowerCase().startsWith(existingPrefix.toLocaleLowerCase())) {
@@ -1691,7 +1693,7 @@ function buildDailyReportHTML(srcRows, date, name, sourcesByTaskId) {
       const legacySource = (!(r.sourceCount > 0) && r.source) ? r.source : '';
       return `
         <tr>
-          <td>${timeCell}${r.natural ? `<div style="font-size:9px;color:#888;margin-top:2px">${esc(r.natural)}</div>` : ''}</td>
+          <td>${timeCell}${r.natural ? `<div style="font-size:9px;color:#888;margin-top:2px">${esc(lkLabel('ACTIVITY_TYPE', r.natural))}</div>` : ''}</td>
           <td>${esc(r.description)}${legacySource ? `<div style="font-size:10px;color:#777;margin-top:3px">${esc(legacySource)}</div>` : ''}</td>
           <td style="text-align:right">${r.minutes || '—'}</td>
           <td style="text-align:right">${r.minutes ? (parseFloat(r.minutes) / 60).toFixed(2) : '—'}</td>
@@ -1808,6 +1810,26 @@ async function exportReportPDF() {
   else if (res && res.error) toast('PDF failed: ' + res.error);
 }
 
+function reportPreviewToCSV() {
+  const quote = value => {
+    const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+    return /[",\r\n]/.test(text) ? '"' + text.replaceAll('"', '""') + '"' : text;
+  };
+  return [...document.querySelectorAll('#print-frame .rpt-table')].map(table =>
+    [...table.rows].map(row => [...row.cells].map(cell => quote(cell.textContent)).join(',')).join('\r\n')
+  ).filter(Boolean).join('\r\n\r\n');
+}
+
+async function exportReportCSV() {
+  const csv = reportPreviewToCSV();
+  if (!csv) { toast('This report has no table data to export'); return; }
+  let res;
+  try { res = await window.api.exportCSV(csv, `${_reportFileBase || 'report'}.csv`); }
+  catch { res = { ok: false, error: 'failed' }; }
+  if (res?.ok) toast('CSV saved');
+  else if (res?.error) toast('CSV failed: ' + res.error);
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // REPORTS MODULE — landing page of one-click report actions.
 // ════════════════════════════════════════════════════════════════════════════
@@ -1907,8 +1929,8 @@ function buildOvertimeReportHTML(days, monthLabel, name) {
         <td style="text-align:center">${i + 1}</td>
         <td>${dLabel}</td>
         <td>${esc(companyDisplayName(r.company))}</td>
-        <td>${esc(r.system)}</td>
-        <td>${esc(r.taskName || r.natural || '—')}</td>
+        <td>${esc(lkLabel('SYSTEM', r.system))}</td>
+        <td>${esc(r.taskName || lkLabel('ACTIVITY_TYPE', r.natural) || '—')}</td>
         <td>${esc(r.description)}</td>
         <td style="text-align:right">${r.minutes || '—'}</td>
         <td style="text-align:right">${mins ? (mins / 60).toFixed(2) : '—'}</td>
@@ -2042,7 +2064,7 @@ function buildSubscriptionsReportHTML(subs, defaultCurrency, name) {
         <tr>
           <td style="text-align:center">${i + 1}</td>
           <td>${esc(s.name)}</td>
-          <td>${esc((s.currency || defaultCurrency || 'USD') + ' ' + costText)}</td>
+          <td>${esc((lkLabel('CURRENCY', s.currency || defaultCurrency || 'USD') || s.currency || defaultCurrency || 'USD') + ' ' + costText)}</td>
           <td>${esc(s.billingCycle ? lkLabel('BILLING_CYCLE', s.billingCycle) : '—')}</td>
           <td>${esc(s.endDate || '—')}</td>
           <td>${esc(s.renewalDate || '—')}</td>
@@ -2051,7 +2073,7 @@ function buildSubscriptionsReportHTML(subs, defaultCurrency, name) {
   }).join('') : `<tr><td colspan="7" style="text-align:center;color:#999;padding:18px">${esc(rptText('No subscriptions recorded.'))}</td></tr>`;
 
   const spendRows = Object.entries(cur).map(([c, v]) =>
-    `<tr><td>${esc(c)}</td><td style="text-align:right;font-weight:700">${v.monthly.toFixed(0)}</td><td style="text-align:right;font-weight:700">${v.yearly.toFixed(0)}</td></tr>`
+    `<tr><td>${esc(lkLabel('CURRENCY', c) || c)}</td><td style="text-align:right;font-weight:700">${v.monthly.toFixed(0)}</td><td style="text-align:right;font-weight:700">${v.yearly.toFixed(0)}</td></tr>`
   ).join('') || `<tr><td colspan="3" style="text-align:center;color:#999">${esc(rptText('No subscription costs recorded.'))}</td></tr>`;
 
   const printedOn = new Date().toLocaleDateString(rptLocale(), { year: 'numeric', month: 'long', day: 'numeric' });
@@ -2340,7 +2362,7 @@ function renderFilterChips() {
     const btn = document.createElement('button');
     btn.className = 'filter-chip' + (filterStatuses.has(o.code) ? ' active' : '');
     btn.dataset.status = o.code;
-    btn.dataset.userContent = ''; btn.textContent = o.label;
+    btn.dataset.userContent = ''; btn.textContent = lookupDisplayName(o);
     btn.addEventListener('click', () => toggleStatusFilter(btn));
     wrap.appendChild(btn);
   });

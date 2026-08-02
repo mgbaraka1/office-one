@@ -72,6 +72,7 @@ contextBridge.exposeInMainWorld('api', {
   searchWorkspace: (query, limit = 30) => ipcRenderer.invoke('search:workspace', query, limit),
   /** @returns {Promise<import('./ipc-types').Task|null>} */
   getTask:        (id)            => ipcRenderer.invoke('tasks:get', id),
+  getTaskHistory: (id)            => ipcRenderer.invoke('tasks:history', id),
   /** @returns {Promise<import('./ipc-types').Task>} */
   createTask:     (data)          => ipcRenderer.invoke('tasks:create', data),
   /** @returns {Promise<import('./ipc-types').Task|null>} */
@@ -238,6 +239,7 @@ contextBridge.exposeInMainWorld('api', {
   openBackupFolder:  (folderPath) => ipcRenderer.invoke('maintenance:openBackupFolder', folderPath),
   /** @returns {Promise<import('./ipc-types').FileResult>} */
   exportPDF:         (html, name) => ipcRenderer.invoke('report:exportPDF', html, name),
+  exportCSV:         (csv, name)  => ipcRenderer.invoke('report:exportCSV', csv, name),
   printReport:       (html)       => ipcRenderer.invoke('report:print', html),
   flushComplete:     ()           => ipcRenderer.invoke('app:flushComplete'),
   cancelClose:       ()           => ipcRenderer.invoke('app:cancelClose'),
@@ -247,4 +249,5 @@ contextBridge.exposeInMainWorld('api', {
   openExternal:   (url)           => ipcRenderer.invoke('shell:openExternal', url),
   /** @returns {Promise<{available: boolean}>} */
   getCredentialEncryptionStatus: () => ipcRenderer.invoke('security:credentialEncryptionStatus'),
+  copySecret: (value) => ipcRenderer.invoke('security:copySecret', value),
 });

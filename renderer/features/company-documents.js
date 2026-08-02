@@ -161,7 +161,7 @@ function populateCompanyDocCategorySelect(currentVal) {
   el.appendChild(none);
   lkOptions('COMPANY_DOCUMENT_CATEGORY').forEach(opt => {
     const o = document.createElement('option');
-    o.dataset.userContent = ''; o.value = opt.code; o.textContent = opt.label;
+    o.dataset.userContent = ''; o.value = opt.code; o.textContent = lookupDisplayName(opt);
     if (opt.code === currentVal) o.selected = true;
     el.appendChild(o);
   });

@@ -734,8 +734,8 @@ function getLookupsByCategory(category, includeInactive = false, userId = null) 
     .filter(r => (includeInactive || r.is_active) && (userId == null || canAccessLookup(userId, r.id)))
     .map(r => ({
       id: r.id, code: r.code, label: r.label,
-      nameEn: category === 'COMPANY' ? (r.name_en || r.label) : undefined,
-      nameAr: category === 'COMPANY' ? (r.name_ar || '') : undefined,
+      nameEn: r.name_en || r.label,
+      nameAr: r.name_ar || '',
       sortOrder: r.sort_order, isActive: !!r.is_active,
     }));
 }
@@ -755,7 +755,7 @@ function saveLookups(userId, data) {
   tx(() => {
     if (data && data.categories) {
       const now = new Date().toISOString();
-      const upd = db.prepare('UPDATE lookup_codes SET label = ?, sort_order = ?, is_active = ? WHERE id = ?');
+      const upd = db.prepare('UPDATE lookup_codes SET label = ?, name_en = ?, name_ar = ?, sort_order = ?, is_active = ? WHERE id = ?');
       const updCompany = db.prepare('UPDATE lookup_codes SET code = ?, label = ?, name_en = ?, name_ar = ?, sort_order = ?, is_active = ? WHERE id = ? AND category = \'COMPANY\'');
       const ins = db.prepare('INSERT INTO lookup_codes(category, code, label, name_en, name_ar, sort_order, is_active, created_at) VALUES(?,?,?,?,?,?,?,?)');
       for (const [cat, list] of Object.entries(data.categories)) {
@@ -772,9 +772,9 @@ function saveLookups(userId, data) {
             .map(r => [r.label.trim().toLowerCase(), r.id])
         );
         list.forEach((item, i) => {
-          const nameEn = cat === 'COMPANY' ? String(item.nameEn ?? item.label ?? '').trim() : '';
-          const nameAr = cat === 'COMPANY' ? String(item.nameAr ?? '').trim() : '';
-          const label = cat === 'COMPANY' ? nameEn : String(item.label ?? '').trim();
+          const nameEn = String(item.nameEn ?? item.label ?? '').trim();
+          const nameAr = String(item.nameAr ?? '').trim();
+          const label = nameEn;
           if (!label) return;
           // Coerce once so a stringified id (e.g. from a JSON round-trip) still
           // matches the numeric ids lk().idTo/usedLabels are keyed by, instead of
@@ -793,7 +793,7 @@ function saveLookups(userId, data) {
               const conflict = db.prepare('SELECT id FROM lookup_codes WHERE category = \'COMPANY\' AND code = ? COLLATE NOCASE AND id != ?').get(businessCode, itemId);
               if (conflict) throw new Error(`Company code ${businessCode} is already in use`);
               updCompany.run(businessCode, nameEn, nameEn, nameAr, sort, active, itemId);
-            } else upd.run(label, sort, active, itemId);
+            } else upd.run(label, nameEn, nameAr, sort, active, itemId);
             usedLabels.set(key, itemId);
           } else {
             const requestedCode = String(item.code || '').trim().toUpperCase();

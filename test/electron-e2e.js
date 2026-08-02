@@ -177,6 +177,19 @@ async function run() {
       paletteText: document.getElementById('palette-list').textContent,
       rendererModules: typeof openKnowledgeDetail === 'function' && typeof renderTable === 'function',
       version: await window.api.appVersion(),
+      accessibility: (() => {
+        const ids = [...document.querySelectorAll('[id]')].map(node => node.id);
+        const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
+        const unnamedButtons = [...document.querySelectorAll('button')].filter(button =>
+          !String(button.getAttribute('aria-label') || button.title || button.textContent || '').trim());
+        return {
+          duplicateIds: [...new Set(duplicates)],
+          unnamedButtons: unnamedButtons.map(button => button.id || button.className || '(anonymous)'),
+          language: document.documentElement.lang,
+          direction: document.documentElement.dir,
+          liveRegions: document.querySelectorAll('[aria-live], [role="status"]').length,
+        };
+      })(),
       clientProfile: {
         code: profile?.code, nameEn: profile?.nameEn, nameAr: profile?.nameAr,
         visible: companyDisplayName(profile), taskCode: linkedTask?.companyCode,
@@ -192,6 +205,13 @@ async function run() {
         switchModule('settings');
         await new Promise(resolve => setTimeout(resolve, 100));
         const companiesPanel = document.getElementById('tab-companies')?.textContent || '';
+        const statusPanel = document.getElementById('tab-status');
+        const openRow = [...(statusPanel?.querySelectorAll('.bilingual-lookup-item') || [])].find(row =>
+          row.querySelector('input[dir="ltr"]')?.value === 'Open');
+        const bilingualCatalog = !!openRow
+          && openRow.querySelector('input[dir="rtl"]')?.value === 'مفتوحة'
+          && statusPanel.textContent.includes('التسمية بالإنجليزية')
+          && statusPanel.textContent.includes('التسمية بالعربية');
         const settingsLocalized = document.getElementById('settings-search')?.placeholder === 'البحث عن إعداد…'
           && companiesPanel.includes('رمز الشركة')
           && companiesPanel.includes('الاسم بالإنجليزية')
@@ -202,13 +222,17 @@ async function run() {
           direction: document.documentElement.dir,
           overview: document.querySelector('[data-module="analytics"] .nav-label')?.textContent,
           userContentPreserved: document.getElementById('palette-list').textContent.includes('Electron E2E searchable handbook'),
-          persisted: saved.language,
+          legacyPreferenceRemoved: saved.language == null,
           reportsLocalized: dailyReport.includes('تقرير العمل اليومي') &&
             overtimeReport.includes('طلب وقت إضافي') && subscriptionsReport.includes('تقرير الاشتراكات'),
           reportDocumentRtl: reportDocument.includes('<html lang="ar" dir="rtl">'),
-          settingsLocalized
+          settingsLocalized,
+          bilingualCatalog
         };
-        setAppLanguage('en');
+        chooseLoginLanguage('en');
+        arabic.loginLanguageLocked = document.documentElement.lang === 'ar';
+        arabic.noAuthenticatedLanguageControls = !document.getElementById('language-toggle')
+          && !document.getElementById('setting-language-ctl');
         return arabic;
       })()
     };
@@ -220,15 +244,20 @@ async function run() {
   }
   if (!result.rendererModules) throw new Error('Extracted renderer modules did not load in classic-script order');
   if (!result.version) throw new Error('Application version IPC returned no value');
+  if (result.accessibility.duplicateIds.length || result.accessibility.unnamedButtons.length ||
+      !result.accessibility.language || !result.accessibility.direction || result.accessibility.liveRegions < 1) {
+    throw new Error(`Runtime accessibility invariants failed: ${JSON.stringify(result.accessibility)}`);
+  }
   if (result.clientProfile.code !== 'E2E_CLIENT' || result.clientProfile.nameEn !== 'E2E Client' ||
       result.clientProfile.nameAr !== 'عميل الاختبار' || !result.clientProfile.visible.includes('عميل الاختبار') ||
       result.clientProfile.taskCode !== 'E2E_CLIENT' || result.clientProfile.taskNameAr !== 'عميل الاختبار') {
     throw new Error(`Bilingual client profile failed: ${JSON.stringify(result.clientProfile)}`);
   }
   if (result.localization.language !== 'ar' || result.localization.direction !== 'rtl' ||
-      result.localization.overview !== 'نظرة عامة' || result.localization.persisted !== 'ar' ||
+      result.localization.overview !== 'نظرة عامة' || !result.localization.legacyPreferenceRemoved ||
       !result.localization.userContentPreserved || !result.localization.reportsLocalized ||
-      !result.localization.reportDocumentRtl || !result.localization.settingsLocalized) {
+      !result.localization.reportDocumentRtl || !result.localization.settingsLocalized || !result.localization.bilingualCatalog ||
+      !result.localization.loginLanguageLocked || !result.localization.noAuthenticatedLanguageControls) {
     throw new Error(`Arabic localization failed: ${JSON.stringify(result.localization)}`);
   }
 
@@ -243,11 +272,14 @@ async function run() {
   console.log(`PASS  Electron launched with isolated data at ${root}`);
   console.log('PASS  First-run account setup completed through the real renderer');
   console.log('PASS  Login language selector controls the setup and authenticated session language');
+  console.log('PASS  Authenticated pages expose no language switch and cannot override the login choice');
   console.log('PASS  Context-isolated preload IPC created and searched a knowledge item');
   console.log('PASS  Quick Find rendered the FTS result');
   console.log('PASS  Client profile code and English/Arabic names flow into a linked task');
-  console.log('PASS  Arabic switches to RTL, persists per user, preserves user content, and localizes report/PDF output');
+  console.log('PASS  Arabic login choice drives RTL, preserves user content, and localizes report/PDF output');
   console.log('PASS  Settings, including dynamic client-profile controls, are localized');
+  console.log('PASS  Managed Settings catalogs expose and render English/Arabic labels');
+  console.log('PASS  Runtime accessibility invariants cover names, unique ids, language/direction, and live regions');
   console.log(`PASS  Extracted renderer modules loaded (app v${result.version})`);
 }
 

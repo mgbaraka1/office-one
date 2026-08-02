@@ -30,6 +30,7 @@ const SIGNATURES = {
   'lookups:save': ['object'],
   'subscriptions:save': ['object'],
   'tasks:get': ['id'],
+  'tasks:history': ['id'],
   'search:workspace': ['string', 'id?'],
   'tasks:create': ['object'],
   'tasks:update': ['id', 'object'],
@@ -110,10 +111,12 @@ const SIGNATURES = {
   'maintenance:mergeLookups': ['string', 'id', 'id'],
   'maintenance:openBackupFolder': ['string'],
   'report:exportPDF': ['report', 'string'],
+  'report:exportCSV': ['report', 'string'],
   'report:print': ['report'],
   'app:confirmSaveFailure': ['string', 'string?'],
   'window:setTitle': ['string'],
   'shell:openExternal': ['string'],
+  'security:copySecret': ['string'],
 };
 
 function isPlainObject(value) {
@@ -182,7 +185,7 @@ function validateIpcArgs(channel, args) {
   signature.forEach((type, index) => {
     if (!matches(type, args[index])) throw new Error(`Invalid IPC argument ${index + 1} for ${channel}`);
   });
-  if (channel === 'report:exportPDF' || channel === 'report:print') {
+  if (channel === 'report:exportPDF' || channel === 'report:exportCSV' || channel === 'report:print') {
     if (Buffer.byteLength(args[0], 'utf8') > 10 * 1024 * 1024) throw new Error('Report content is too large');
   } else {
     for (const arg of args) {

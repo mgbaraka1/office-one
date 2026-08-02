@@ -16,7 +16,7 @@ All operational data stays on the device in an embedded SQLite database. There i
   universal Create Hub, Quick Find, contextual workflow guidance, connected form errors,
   persistent density/canvas/motion comfort controls, reversible Focus Mode, focus
   management, coordinated high-contrast light/dark themes, and a switchable
-  English/Arabic interface with login-page language selection, localized PDF
+  English/Arabic interface with login-page-only language selection, localized PDF
   reports, and a full right-to-left Arabic layout.
 - Multi-user accounts with a dedicated User Management page: administrators can create accounts, assign Administrator or Standard User permissions, rename/deactivate users, and reset passwords; every user can edit their own username and password.
 - Rotating database snapshots, validated restore, integrity checks, and checksum-verified full backup/restore bundles containing the DB and every uploaded-file tree.
@@ -82,7 +82,7 @@ Full backups are written outside the live data directory to a timestamped Deskto
 - `main.js` — Electron lifecycle, trusted/authenticated/admin IPC boundaries, dialogs, printing, and OS integration.
 - `auth.js` — bcrypt validation, login throttling, account administration, and the in-memory session.
 - `db.js` — SQLite connection, migrations, maintenance/backups, ownership-scoped CRUD, validation, and analytics.
-- `migrations/` — append-only migrations `000` through `047`; migration `047` promotes COMPANY lookups into bilingual client profiles without changing their linked IDs.
+- `migrations/` — append-only migrations `000` through `050`; migration `050` extends English/Arabic labels to every managed Settings catalog without changing lookup ids or relationships.
 - `ipc-contracts.js` — executable, fail-closed validation contracts for every renderer-to-main channel.
 - `preload.js` — the context-isolated `window.api` bridge.
 - `index.html` — renderer markup and module containers.

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; connect-src 'none'; img-src 'self' data:">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; connect-src 'none'; img-src 'self' data:">
   <title>Cooperation Tools</title>
   <script src="renderer/bootstrap.js"></script>
   <script src="renderer/i18n.js"></script>
@@ -12,11 +12,11 @@
 
 <!-- ══ AUTH GATE (setup on first run / login each session) ══ -->
 <div id="auth-overlay">
-  <form class="auth-card" id="auth-form" onsubmit="submitAuth(event)" autocomplete="off">
+  <form class="auth-card" id="auth-form" data-onsubmit="submitAuth(event)" autocomplete="off">
     <div class="auth-brand">COOPERATION <span>TOOLS</span></div>
     <div class="auth-language" role="group" aria-label="Choose language">
-      <button type="button" data-language="en" onclick="chooseLoginLanguage('en')">English</button>
-      <button type="button" data-language="ar" onclick="chooseLoginLanguage('ar')">العربية</button>
+      <button type="button" data-language="en" data-onclick="chooseLoginLanguage('en')">English</button>
+      <button type="button" data-language="ar" data-onclick="chooseLoginLanguage('ar')">العربية</button>
     </div>
     <div class="auth-heading" id="auth-heading">Welcome back</div>
     <div class="auth-sub" id="auth-sub">Log in to continue</div>
@@ -41,61 +41,58 @@
 <div id="sidebar">
   <div class="sidebar-brand-row">
     <div class="sidebar-brand"><span class="brand-full">Cooperation Tools</span><span class="brand-compact">CT</span></div>
-    <button id="sidebar-collapse" class="sidebar-collapse" type="button" onclick="toggleSidebar()" title="Collapse navigation" aria-pressed="false">
+    <button id="sidebar-collapse" class="sidebar-collapse" type="button" data-onclick="toggleSidebar()" title="Collapse navigation" aria-pressed="false">
       <span data-ic="panel-left-close"></span>
     </button>
   </div>
-  <button class="sidebar-quickfind" type="button" onclick="openPalette()" title="Quick Find (Ctrl+K)" aria-keyshortcuts="Control+K">
+  <button class="sidebar-quickfind" type="button" data-onclick="openPalette()" title="Quick Find (Ctrl+K)" aria-keyshortcuts="Control+K">
     <span data-ic="search"></span><span class="nav-label">Quick Find</span><span class="quickfind-key" aria-hidden="true">Ctrl K</span>
   </button>
-  <button class="sidebar-create" type="button" onclick="openCreateHub()" title="Create new (Ctrl+Shift+N)" aria-keyshortcuts="Control+Shift+N">
+  <button class="sidebar-create" type="button" data-onclick="openCreateHub()" title="Create new (Ctrl+Shift+N)" aria-keyshortcuts="Control+Shift+N">
     <span data-ic="plus"></span><span class="nav-label">Create New</span>
   </button>
   <nav class="sidebar-nav" aria-label="Primary navigation">
     <div class="nav-section">Track</div>
-    <button class="nav-item" data-module="timesheet" onclick="switchModule('timesheet')" title="Today — Timesheet">
+    <button class="nav-item" data-module="timesheet" data-onclick="switchModule('timesheet')" title="Today — Timesheet">
       <span class="nav-icon" data-ic="clock"></span><span class="nav-label">Today</span>
     </button>
-    <button class="nav-item" data-module="all-tasks" data-modules="all-tasks internal-tasks" onclick="switchModule('all-tasks')" title="Tasks">
+    <button class="nav-item" data-module="all-tasks" data-modules="all-tasks internal-tasks" data-onclick="switchModule('all-tasks')" title="Tasks">
       <span class="nav-icon" data-ic="list"></span><span class="nav-label">Tasks</span>
     </button>
     <div class="nav-section">Clients &amp; Assets</div>
-    <button class="nav-item" data-module="clients" onclick="switchModule('clients')" title="Clients">
+    <button class="nav-item" data-module="clients" data-onclick="switchModule('clients')" title="Clients">
       <span class="nav-icon" data-ic="layers"></span><span class="nav-label">Clients</span><span class="nav-badge" id="nav-badge-clients"></span>
     </button>
-    <button class="nav-item" data-module="subscriptions" onclick="switchModule('subscriptions')" title="Subscriptions">
+    <button class="nav-item" data-module="subscriptions" data-onclick="switchModule('subscriptions')" title="Subscriptions">
       <span class="nav-icon" data-ic="credit-card"></span><span class="nav-label">Subscriptions</span><span class="nav-badge" id="nav-badge-subscriptions"></span>
     </button>
-    <button class="nav-item" data-module="companydocs" onclick="switchModule('companydocs')" title="Company Documents">
+    <button class="nav-item" data-module="companydocs" data-onclick="switchModule('companydocs')" title="Company Documents">
       <span class="nav-icon" data-ic="calendar-check"></span><span class="nav-label">Company Docs</span><span class="nav-badge" id="nav-badge-companydocs"></span>
     </button>
-    <button class="nav-item" data-module="knowledge" onclick="switchModule('knowledge')" title="Knowledge Hub">
+    <button class="nav-item" data-module="knowledge" data-onclick="switchModule('knowledge')" title="Knowledge Hub">
       <span class="nav-icon" data-ic="book-open"></span><span class="nav-label">Knowledge Hub</span><span class="nav-badge" id="nav-badge-knowledge"></span>
     </button>
     <div class="nav-section">Review</div>
-    <button class="nav-item active" data-module="analytics" onclick="switchModule('analytics')" title="Overview">
+    <button class="nav-item active" data-module="analytics" data-onclick="switchModule('analytics')" title="Overview">
       <span class="nav-icon" data-ic="layout-dashboard"></span><span class="nav-label">Overview</span>
     </button>
-    <button class="nav-item" data-module="reports" onclick="switchModule('reports')" title="Reports">
+    <button class="nav-item" data-module="reports" data-onclick="switchModule('reports')" title="Reports">
       <span class="nav-icon" data-ic="file-text"></span><span class="nav-label">Reports</span>
     </button>
     <div class="nav-section">Administration</div>
-    <button class="nav-item" data-module="settings" onclick="switchModule('settings')" title="Settings">
+    <button class="nav-item" data-module="settings" data-onclick="switchModule('settings')" title="Settings">
       <span class="nav-icon" data-ic="settings"></span><span class="nav-label">Settings</span>
     </button>
   </nav>
   <div class="sidebar-footer">
-    <button id="workspace-view-btn" class="nav-item" onclick="openWorkspaceView()" title="Workspace view and eye comfort">
+    <button id="workspace-view-btn" class="nav-item" data-onclick="openWorkspaceView()" title="Workspace view and eye comfort">
       <span class="nav-icon" data-ic="eye"></span><span class="nav-label">View &amp; Comfort</span>
     </button>
-    <button id="theme-toggle" class="nav-item" onclick="toggleTheme()" title="Switch between light and dark mode">
+    <button id="theme-toggle" class="nav-item" data-onclick="toggleTheme()" title="Switch between light and dark mode">
       <span class="nav-icon" id="theme-icon" data-ic="moon"></span><span id="theme-label" class="nav-label">Dark Mode</span>
     </button>
-    <button id="language-toggle" class="nav-item" onclick="toggleAppLanguage()" title="Switch to Arabic">
-      <span class="nav-icon" data-ic="languages"></span><span id="language-toggle-label" class="nav-label" data-i18n-ignore>العربية</span>
-    </button>
     <div class="backup-btn-wrap admin-only">
-      <button id="backup-btn" class="nav-item" onclick="toggleTopMenu(event,'backup-choice-menu')" title="Back up your data — a full backup or just the database">
+      <button id="backup-btn" class="nav-item" data-onclick="toggleTopMenu(event,'backup-choice-menu')" title="Back up your data — a full backup or just the database">
         <span class="nav-icon" data-ic="save"></span><span class="nav-label">Backup Data</span>
       </button>
       <div class="top-menu" id="backup-choice-menu"></div>
@@ -107,7 +104,7 @@
         <div class="sidebar-role" id="sidebar-role"></div>
       </div>
     </div>
-    <button id="logout-btn" class="nav-item" onclick="doLogout()" title="Log out of this session">
+    <button id="logout-btn" class="nav-item" data-onclick="doLogout()" title="Log out of this session">
       <span class="nav-icon" data-ic="log-out"></span><span class="nav-label">Log Out</span>
     </button>
     <div class="app-version" id="app-version" aria-label="Application version"></div>
@@ -119,19 +116,19 @@
   <div id="an-topbar" class="page-header">
     <span class="page-title"><span class="ti-ic" data-ic="layout-dashboard"></span>Overview</span>
     <div class="seg-ctl" id="an-period">
-      <button class="seg-btn" data-period="week"  onclick="setAnPeriod('week')">This Week</button>
-      <button class="seg-btn active" data-period="month" onclick="setAnPeriod('month')">This Month</button>
-      <button class="seg-btn" data-period="year"  onclick="setAnPeriod('year')">This Year</button>
-      <button class="seg-btn" data-period="custom" onclick="setAnPeriod('custom')">Custom</button>
+      <button class="seg-btn" data-period="week"  data-onclick="setAnPeriod('week')">This Week</button>
+      <button class="seg-btn active" data-period="month" data-onclick="setAnPeriod('month')">This Month</button>
+      <button class="seg-btn" data-period="year"  data-onclick="setAnPeriod('year')">This Year</button>
+      <button class="seg-btn" data-period="custom" data-onclick="setAnPeriod('custom')">Custom</button>
     </div>
     <div class="an-range" id="an-range">
-      <input type="month" id="an-from" onchange="renderAnalytics()" />
+      <input type="month" id="an-from" data-onchange="renderAnalytics()" />
       <span>→</span>
-      <input type="month" id="an-to" onchange="renderAnalytics()" />
+      <input type="month" id="an-to" data-onchange="renderAnalytics()" />
     </div>
     <div class="topbar-right">
-      <button class="btn" onclick="exportAnalyticsPDF()" title="Save this analytics view as PDF"><span data-ic="download"></span>PDF</button>
-      <button class="btn" onclick="renderAnalytics()" title="Refresh"><span data-ic="rotate-ccw"></span>Refresh</button>
+      <button class="btn" data-onclick="exportAnalyticsPDF()" title="Save this analytics view as PDF"><span data-ic="download"></span>PDF</button>
+      <button class="btn" data-onclick="renderAnalytics()" title="Refresh"><span data-ic="rotate-ccw"></span>Refresh</button>
     </div>
   </div>
   <div class="an-scroll" id="an-scroll">
@@ -142,9 +139,9 @@
     </div>
     <div class="dash-launchpad" aria-label="Start a workflow">
       <span class="dash-launchpad-label"><span data-ic="zap"></span>Quick actions</span>
-      <button class="dash-launch primary" onclick="runCreateFlow('session')"><span data-ic="clock"></span>Log Work</button>
-      <button class="dash-launch" onclick="openCreateHub()"><span data-ic="plus"></span>Create New</button>
-      <button class="dash-launch" onclick="openPalette()"><span data-ic="search"></span>Find Anything</button>
+      <button class="dash-launch primary" data-onclick="runCreateFlow('session')"><span data-ic="clock"></span>Log Work</button>
+      <button class="dash-launch" data-onclick="openCreateHub()"><span data-ic="plus"></span>Create New</button>
+      <button class="dash-launch" data-onclick="openPalette()"><span data-ic="search"></span>Find Anything</button>
     </div>
     <div class="dash-stats" id="dash-stats"></div>
 
@@ -267,7 +264,7 @@
             <label for="rmod-daily-date">Day</label>
             <input type="date" id="rmod-daily-date" />
           </div>
-          <button class="btn primary" onclick="genDailyReport()">Generate →</button>
+          <button class="btn primary" data-onclick="genDailyReport()">Generate →</button>
         </div>
       </div>
 
@@ -282,7 +279,7 @@
             <label for="rmod-ot-month">Month</label>
             <input type="month" id="rmod-ot-month" />
           </div>
-          <button class="btn primary" onclick="genOvertimeReport()">Generate →</button>
+          <button class="btn primary" data-onclick="genOvertimeReport()">Generate →</button>
         </div>
       </div>
 
@@ -293,7 +290,7 @@
         </div>
         <div class="rmod-card-desc">The full list of recurring subscriptions — cost, billing cycle, end &amp; renewal dates and how soon each renews, with monthly / yearly spend totals per currency.</div>
         <div class="rmod-card-controls">
-          <button class="btn primary" onclick="genSubscriptionsReport()">Generate →</button>
+          <button class="btn primary" data-onclick="genSubscriptionsReport()">Generate →</button>
         </div>
       </div>
 
@@ -308,11 +305,11 @@
   <div id="topbar" class="page-header">
     <span class="page-title"><span class="ti-ic" data-ic="clock"></span>Timesheet</span>
     <!-- Calendar trigger -->
-    <div id="cal-trigger" onclick="toggleCalendar(event)">
+    <div id="cal-trigger" data-onclick="toggleCalendar(event)">
       <span class="cal-icon" data-ic="calendar"></span>
       <span id="cal-trigger-label">June 2026</span>
       <span class="cal-caret" data-ic="chevron-down"></span>
-      <div id="cal-dropdown" onclick="event.stopPropagation()">
+      <div id="cal-dropdown" data-onclick="event.stopPropagation()">
         <div id="cal-header">
           <button id="cal-prev">‹</button>
           <span id="cal-month-label"></span>
@@ -326,16 +323,16 @@
     <div id="timer-chip">
       <span id="timer-icon" data-ic="timer"></span>
       <span id="timer-display">00:00</span>
-      <button id="timer-pause-btn" onclick="togglePauseTimer()" title="Pause / resume" data-ic="pause"></button>
-      <button id="timer-stop-btn" onclick="stopTimer()"><span data-ic="square"></span>Stop</button>
+      <button id="timer-pause-btn" data-onclick="togglePauseTimer()" title="Pause / resume" data-ic="pause"></button>
+      <button id="timer-stop-btn" data-onclick="stopTimer()"><span data-ic="square"></span>Stop</button>
     </div>
 
     <div class="topbar-right">
       <span id="save-status"></span>
-      <button class="btn today-btn" id="btn-today" onclick="goToday()"><span data-ic="calendar-check"></span>Today</button>
-      <button class="btn" onclick="openMonthView()" title="Month overview"><span data-ic="calendar-days"></span>Month</button>
-      <button class="btn" id="btn-repeat-last" onclick="repeatLastSession()" title="Prefill a new session from the latest session shown"><span data-ic="copy"></span>Repeat Last</button>
-      <button class="btn primary" onclick="openModal()"><span data-ic="plus"></span>Add Record <kbd>⌃N</kbd></button>
+      <button class="btn today-btn" id="btn-today" data-onclick="goToday()"><span data-ic="calendar-check"></span>Today</button>
+      <button class="btn" data-onclick="openMonthView()" title="Month overview"><span data-ic="calendar-days"></span>Month</button>
+      <button class="btn" id="btn-repeat-last" data-onclick="repeatLastSession()" title="Prefill a new session from the latest session shown"><span data-ic="copy"></span>Repeat Last</button>
+      <button class="btn primary" data-onclick="openModal()"><span data-ic="plus"></span>Add Record <kbd>⌃N</kbd></button>
     </div>
   </div>
 
@@ -369,13 +366,13 @@
   <div id="filter-bar">
     <div class="filter-wrap">
       <span class="filter-icon" data-ic="search"></span>
-      <input id="filter-input" type="text" placeholder="Filter rows…" oninput="applyFilter()" />
-      <button id="filter-clear" onclick="clearFilter()" title="Clear filter" data-ic="x"></button>
+      <input id="filter-input" type="text" placeholder="Filter rows…" data-oninput="applyFilter()" />
+      <button id="filter-clear" data-onclick="clearFilter()" title="Clear filter" data-ic="x"></button>
     </div>
     <div class="filter-chips" id="filter-chips"></div>
     <div class="seg-ctl" id="ts-view-ctl" title="How the day's sessions are laid out">
-      <button class="seg-btn" data-view="grouped" onclick="setTsView('grouped')"><span data-ic="layers"></span>By Task</button>
-      <button class="seg-btn" data-view="flat" onclick="setTsView('flat')"><span data-ic="rows-3"></span>Flat</button>
+      <button class="seg-btn" data-view="grouped" data-onclick="setTsView('grouped')"><span data-ic="layers"></span>By Task</button>
+      <button class="seg-btn" data-view="flat" data-onclick="setTsView('flat')"><span data-ic="rows-3"></span>Flat</button>
     </div>
     <span id="filter-count"></span>
   </div>
@@ -409,21 +406,22 @@
 </div>
 
 <!-- ══ PRINT PREVIEW ══ -->
-<div id="print-overlay" onclick="printOverlayClick(event)">
+<div id="print-overlay" data-onclick="printOverlayClick(event)">
   <div id="print-frame"></div>
   <div class="pf-toolbar">
-    <button class="btn" onclick="closePrint()"><span data-ic="x"></span>Close</button>
-    <button class="btn" onclick="exportReportPDF()"><span data-ic="download"></span>Save PDF</button>
-    <button class="btn primary" onclick="triggerPrint()"><span data-ic="printer"></span>Print</button>
+    <button class="btn" data-onclick="closePrint()"><span data-ic="x"></span>Close</button>
+    <button class="btn" data-onclick="exportReportCSV()"><span data-ic="table"></span>Save CSV</button>
+    <button class="btn" data-onclick="exportReportPDF()"><span data-ic="download"></span>Save PDF</button>
+    <button class="btn primary" data-onclick="triggerPrint()"><span data-ic="printer"></span>Print</button>
   </div>
 </div>
 
 <!-- ══ ADD / EDIT RECORD MODAL ══ -->
-<div id="modal-overlay" class="modal-overlay" onclick="overlayClick(event)">
+<div id="modal-overlay" class="modal-overlay" data-onclick="overlayClick(event)">
   <div id="modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title" id="modal-title">Add Record</span>
-      <button class="modal-close" onclick="closeModal()" data-ic="x"></button>
+      <button class="modal-close" data-onclick="closeModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <!-- Add mode only (hidden for Edit and for "Add Session", where the task is
@@ -431,8 +429,8 @@
            task or create a brand new one right here. -->
       <div class="form-row" id="f-mode-toggle-row" style="display:none">
         <div class="seg-ctl" id="f-mode-toggle">
-          <button type="button" class="seg-btn active" data-mode="existing" onclick="setRecordMode('existing')">Existing Task</button>
-          <button type="button" class="seg-btn" data-mode="new" onclick="setRecordMode('new')">New Task</button>
+          <button type="button" class="seg-btn active" data-mode="existing" data-onclick="setRecordMode('existing')">Existing Task</button>
+          <button type="button" class="seg-btn" data-mode="new" data-onclick="setRecordMode('new')">New Task</button>
         </div>
       </div>
       <div class="form-row" id="f-existing-task-row">
@@ -486,7 +484,7 @@
           <div class="form-row">
             <div class="form-group full">
               <div id="f-sources-list"></div>
-              <button type="button" class="btn" onclick="addTaskSourceRow('f-sources-list')">+ Add Source</button>
+              <button type="button" class="btn" data-onclick="addTaskSourceRow('f-sources-list')">+ Add Source</button>
             </div>
           </div>
         </details>
@@ -503,11 +501,11 @@
             <label>Minutes</label>
             <input id="f-minutes" type="number" min="1" max="1440" placeholder="e.g. 45" />
             <div class="duration-presets" data-duration-for="f-minutes" aria-label="Quick duration">
-              <button type="button" class="duration-preset" onclick="setDurationPreset('f-minutes',15,this)">15m</button>
-              <button type="button" class="duration-preset" onclick="setDurationPreset('f-minutes',30,this)">30m</button>
-              <button type="button" class="duration-preset" onclick="setDurationPreset('f-minutes',45,this)">45m</button>
-              <button type="button" class="duration-preset" onclick="setDurationPreset('f-minutes',60,this)">1h</button>
-              <button type="button" class="duration-preset" onclick="setDurationPreset('f-minutes',90,this)">1.5h</button>
+              <button type="button" class="duration-preset" data-onclick="setDurationPreset('f-minutes',15,this)">15m</button>
+              <button type="button" class="duration-preset" data-onclick="setDurationPreset('f-minutes',30,this)">30m</button>
+              <button type="button" class="duration-preset" data-onclick="setDurationPreset('f-minutes',45,this)">45m</button>
+              <button type="button" class="duration-preset" data-onclick="setDurationPreset('f-minutes',60,this)">1h</button>
+              <button type="button" class="duration-preset" data-onclick="setDurationPreset('f-minutes',90,this)">1.5h</button>
             </div>
           </div>
         </div>
@@ -530,23 +528,23 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeModal()">Cancel</button>
-      <button class="btn primary" onclick="submitModal()">Add Record</button>
+      <button class="btn" data-onclick="closeModal()">Cancel</button>
+      <button class="btn primary" data-onclick="submitModal()">Add Record</button>
     </div>
   </div>
 </div>
 
 <!-- ══ MONTH OVERVIEW MODAL ══ -->
-<div id="month-overlay" class="modal-overlay" onclick="monthOverlayClick(event)">
+<div id="month-overlay" class="modal-overlay" data-onclick="monthOverlayClick(event)">
   <div id="month-modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title"><span class="ti-ic" data-ic="calendar-days"></span><span id="month-title">Month</span></span>
-      <button class="modal-close" onclick="closeMonthView()" data-ic="x"></button>
+      <button class="modal-close" data-onclick="closeMonthView()" data-ic="x"></button>
     </div>
     <div class="month-nav">
-      <button class="btn" onclick="monthViewStep(-1)">‹ Prev</button>
+      <button class="btn" data-onclick="monthViewStep(-1)">‹ Prev</button>
       <div class="month-summary" id="month-summary"></div>
-      <button class="btn" onclick="monthViewStep(1)">Next ›</button>
+      <button class="btn" data-onclick="monthViewStep(1)">Next ›</button>
     </div>
     <div class="month-body">
       <div class="month-dow">
@@ -560,7 +558,7 @@
 <!-- ══ UNDO TOAST ══ -->
 <div id="undo-toast" role="status" aria-live="polite">
   <span id="undo-toast-label">Row deleted</span>
-  <button id="undo-toast-btn" onclick="undoDelete()">Undo</button>
+  <button id="undo-toast-btn" data-onclick="undoDelete()">Undo</button>
 </div>
 
 </div><!-- /module-timesheet -->
@@ -570,9 +568,9 @@
   <div id="sub-topbar" class="page-header">
     <span class="page-title"><span class="ti-ic" data-ic="credit-card"></span>Subscriptions</span>
     <div class="topbar-right">
-      <input type="text" id="sub-filter" class="mod-search" placeholder="Search subscriptions…" oninput="applySubFilter()">
-      <button class="btn" onclick="openSubSettings()" title="Settings"><span data-ic="settings"></span>Settings</button>
-      <button class="btn primary" onclick="openSubModal()"><span data-ic="plus"></span>Add Subscription</button>
+      <input type="text" id="sub-filter" class="mod-search" placeholder="Search subscriptions…" data-oninput="applySubFilter()">
+      <button class="btn" data-onclick="openSubSettings()" title="Settings"><span data-ic="settings"></span>Settings</button>
+      <button class="btn primary" data-onclick="openSubModal()"><span data-ic="plus"></span>Add Subscription</button>
     </div>
   </div>
 
@@ -603,8 +601,8 @@
   <div class="page-header">
     <span class="page-title"><span class="ti-ic" data-ic="compass"></span>Browse</span>
     <div class="seg-ctl" id="browse-kind-ctl">
-      <button class="seg-btn active" data-kind="companies" onclick="setBrowseKind('companies')"><span data-ic="building-2"></span>Companies</button>
-      <button class="seg-btn" data-kind="systems" onclick="setBrowseKind('systems')"><span data-ic="folder"></span>Systems</button>
+      <button class="seg-btn active" data-kind="companies" data-onclick="setBrowseKind('companies')"><span data-ic="building-2"></span>Companies</button>
+      <button class="seg-btn" data-kind="systems" data-onclick="setBrowseKind('systems')"><span data-ic="folder"></span>Systems</button>
     </div>
   </div>
   <!-- Two dimension panels; the toggle above shows one at a time. Inner ids are
@@ -612,7 +610,7 @@
   <div class="cp-body" id="browse-body-companies">
     <div class="cp-list-panel">
       <div class="cp-list-search">
-        <input type="text" id="companies-search" class="cp-search" placeholder="Search companies…" oninput="renderCatList('companies')">
+        <input type="text" id="companies-search" class="cp-search" placeholder="Search companies…" data-oninput="renderCatList('companies')">
       </div>
       <div class="cp-list" id="companies-list"></div>
     </div>
@@ -621,7 +619,7 @@
   <div class="cp-body" id="browse-body-systems" style="display:none">
     <div class="cp-list-panel">
       <div class="cp-list-search">
-        <input type="text" id="systems-search" class="cp-search" placeholder="Search systems…" oninput="renderCatList('systems')">
+        <input type="text" id="systems-search" class="cp-search" placeholder="Search systems…" data-oninput="renderCatList('systems')">
       </div>
       <div class="cp-list" id="systems-list"></div>
     </div>
@@ -658,8 +656,8 @@
   <div class="page-header">
     <span class="page-title"><span class="ti-ic" data-ic="list"></span>Tasks</span>
     <div class="seg-ctl workspace-tabs" aria-label="Task workspace">
-      <button class="seg-btn active" type="button" onclick="switchModule('all-tasks')">All Tasks</button>
-      <button class="seg-btn" type="button" onclick="switchModule('internal-tasks')">Departments</button>
+      <button class="seg-btn active" type="button" data-onclick="switchModule('all-tasks')">All Tasks</button>
+      <button class="seg-btn" type="button" data-onclick="switchModule('internal-tasks')">Departments</button>
     </div>
   </div>
   <div class="cp-records-panel" id="at-panel" style="width:100%"></div>
@@ -673,14 +671,14 @@
   <div class="page-header">
     <span class="page-title"><span class="ti-ic" data-ic="list"></span>Tasks</span>
     <div class="seg-ctl workspace-tabs" aria-label="Task workspace">
-      <button class="seg-btn" type="button" onclick="switchModule('all-tasks')">All Tasks</button>
-      <button class="seg-btn active" type="button" onclick="switchModule('internal-tasks')">Departments</button>
+      <button class="seg-btn" type="button" data-onclick="switchModule('all-tasks')">All Tasks</button>
+      <button class="seg-btn active" type="button" data-onclick="switchModule('internal-tasks')">Departments</button>
     </div>
   </div>
   <div class="cp-body">
     <div class="cp-list-panel">
       <div class="cp-list-search">
-        <input type="text" id="dept-search" class="cp-search" placeholder="Search departments…" oninput="renderDeptList()">
+        <input type="text" id="dept-search" class="cp-search" placeholder="Search departments…" data-oninput="renderDeptList()">
       </div>
       <div class="cp-list" id="dept-list"></div>
     </div>
@@ -694,13 +692,13 @@
     <span class="page-title"><span class="ti-ic" data-ic="book-open"></span>Knowledge Hub</span>
     <div class="topbar-right">
       <label class="sr-only" for="kh-search">Search Knowledge Hub</label>
-      <input type="search" id="kh-search" class="mod-search" placeholder="Search titles, content, documents, or tags…" oninput="renderKnowledgeList()">
-      <button class="btn" onclick="openKnowledgeGroupEditor()"><span data-ic="folder-plus"></span>New Group</button>
+      <input type="search" id="kh-search" class="mod-search" placeholder="Search titles, content, documents, or tags…" data-oninput="renderKnowledgeList()">
+      <button class="btn" data-onclick="openKnowledgeGroupEditor()"><span data-ic="folder-plus"></span>New Group</button>
       <div class="kh-create-menu">
-        <button class="btn primary" id="kh-create-btn" aria-haspopup="menu" aria-expanded="false" onclick="toggleKnowledgeCreateMenu()"><span data-ic="plus"></span>New Knowledge Item</button>
+        <button class="btn primary" id="kh-create-btn" aria-haspopup="menu" aria-expanded="false" data-onclick="toggleKnowledgeCreateMenu()"><span data-ic="plus"></span>New Knowledge Item</button>
         <div class="kh-create-options" id="kh-create-options" role="menu" hidden>
-          <button role="menuitem" onclick="startKnowledgeCreation('ARTICLE')"><strong>Write an article</strong><br><span class="modal-hint">Create guidance, steps, or troubleshooting notes</span></button>
-          <button role="menuitem" onclick="startKnowledgeCreation('DOCUMENT')"><strong>Upload a document</strong><br><span class="modal-hint">Create an item and attach its first version</span></button>
+          <button role="menuitem" data-onclick="startKnowledgeCreation('ARTICLE')"><strong>Write an article</strong><br><span class="modal-hint">Create guidance, steps, or troubleshooting notes</span></button>
+          <button role="menuitem" data-onclick="startKnowledgeCreation('DOCUMENT')"><strong>Upload a document</strong><br><span class="modal-hint">Create an item and attach its first version</span></button>
         </div>
       </div>
     </div>
@@ -708,78 +706,78 @@
   <div id="kh-list-view" class="kh-shell">
     <aside class="kh-filters" id="kh-filters"></aside>
     <main class="kh-main">
-      <div class="kh-summary"><span id="kh-result-count" role="status"></span><label><span class="sr-only">Sort knowledge items</span><select id="kh-sort" class="kh-sort" aria-label="Sort knowledge items" onchange="renderKnowledgeList()"><option value="updated">Recently updated</option><option value="title">Title</option><option value="documents">Most documents</option><option value="created">Recently created</option></select></label></div>
+      <div class="kh-summary"><span id="kh-result-count" role="status"></span><label><span class="sr-only">Sort knowledge items</span><select id="kh-sort" class="kh-sort" aria-label="Sort knowledge items" data-onchange="renderKnowledgeList()"><option value="updated">Recently updated</option><option value="title">Title</option><option value="documents">Most documents</option><option value="created">Recently created</option></select></label></div>
       <div id="kh-active-filters" class="kh-active-filters" aria-label="Active filters"></div>
       <div id="kh-list" class="kh-list"></div>
-      <div id="kh-empty" class="kh-empty" hidden><div class="kh-empty-inner"><span data-ic="book-open"></span><h3 id="kh-empty-title">No knowledge found</h3><p id="kh-empty-copy">Create a manual, integration guide, procedure, or troubleshooting note.</p><button id="kh-empty-clear" class="btn" onclick="resetKnowledgeFilters()" hidden>Clear filters</button></div></div>
+      <div id="kh-empty" class="kh-empty" hidden><div class="kh-empty-inner"><span data-ic="book-open"></span><h3 id="kh-empty-title">No knowledge found</h3><p id="kh-empty-copy">Create a manual, integration guide, procedure, or troubleshooting note.</p><button id="kh-empty-clear" class="btn" data-onclick="resetKnowledgeFilters()" hidden>Clear filters</button></div></div>
     </main>
   </div>
   <div id="kh-detail-view" class="kh-main" hidden></div>
 </div>
 
-<div id="knowledge-modal-overlay" class="modal-overlay" onclick="knowledgeEditorOverlayClick(event)">
+<div id="knowledge-modal-overlay" class="modal-overlay" data-onclick="knowledgeEditorOverlayClick(event)">
   <div id="knowledge-modal" class="modal-box">
-    <div class="modal-header"><span class="modal-title" id="kh-modal-title">New Knowledge Item</span><button class="modal-close" onclick="closeKnowledgeEditor()" data-ic="x"></button></div>
+    <div class="modal-header"><span class="modal-title" id="kh-modal-title">New Knowledge Item</span><button class="modal-close" data-onclick="closeKnowledgeEditor()" data-ic="x"></button></div>
     <div class="modal-body">
-      <div id="kh-recovery" class="kh-recovery" hidden><span>An unsaved draft is available for this item.</span><button class="btn small" onclick="recoverKnowledgeDraft()">Recover</button><button class="btn small" onclick="discardKnowledgeDraft()">Discard</button></div>
+      <div id="kh-recovery" class="kh-recovery" hidden><span>An unsaved draft is available for this item.</span><button class="btn small" data-onclick="recoverKnowledgeDraft()">Recover</button><button class="btn small" data-onclick="discardKnowledgeDraft()">Discard</button></div>
       <div class="form-row"><div class="form-group full"><label>Title</label><input id="kh-title-input" maxlength="300" placeholder="A clear, searchable title"></div></div>
       <div class="form-row"><div class="form-group"><label>Type</label><select id="kh-type-input"></select></div><div class="form-group"><label>Status</label><select id="kh-status-input"><option value="DRAFT">Draft</option><option value="PUBLISHED">Ready</option><option value="ARCHIVED">Archived</option></select><div class="modal-hint">Ready means finalized for your personal library; it is not shared with other accounts.</div></div></div>
       <div class="form-row"><div class="form-group full"><label>Summary</label><textarea id="kh-summary-input" maxlength="2000" placeholder="What this item helps someone understand or do"></textarea></div></div>
       <div class="form-group full"><label for="kh-content-input">Contents</label><div class="kh-editor-grid">
         <div class="kh-editor-pane">
           <div class="kh-editor-toolbar" aria-label="Formatting tools">
-            <button type="button" title="Heading" onclick="formatKnowledgeText('heading')">H2</button>
-            <button type="button" title="Bulleted list" onclick="formatKnowledgeText('bullet')">• List</button>
-            <button type="button" title="Numbered list" onclick="formatKnowledgeText('number')">1. List</button>
-            <button type="button" title="Code block" onclick="formatKnowledgeText('code')">&lt;/&gt;</button>
-            <button type="button" title="Link" onclick="formatKnowledgeText('link')">Link</button>
+            <button type="button" title="Heading" data-onclick="formatKnowledgeText('heading')">H2</button>
+            <button type="button" title="Bulleted list" data-onclick="formatKnowledgeText('bullet')">• List</button>
+            <button type="button" title="Numbered list" data-onclick="formatKnowledgeText('number')">1. List</button>
+            <button type="button" title="Code block" data-onclick="formatKnowledgeText('code')">&lt;/&gt;</button>
+            <button type="button" title="Link" data-onclick="formatKnowledgeText('link')">Link</button>
           </div>
-          <textarea id="kh-content-input" placeholder="Write prerequisites, steps, notes, and troubleshooting guidance…" oninput="previewKnowledgeContent()"></textarea>
+          <textarea id="kh-content-input" placeholder="Write prerequisites, steps, notes, and troubleshooting guidance…" data-oninput="previewKnowledgeContent()"></textarea>
         </div>
         <div class="kh-editor-pane preview"><div class="kh-preview-head">Preview</div><div id="kh-content-preview" class="kh-content"></div></div>
       </div><div class="modal-hint">Formatting uses safe Markdown-style headings, lists, code blocks, and links. Do not store passwords or secret keys here.</div></div>
       <div class="form-row">
-        <div class="form-group"><label for="kh-tags-input">Tags</label><div id="kh-tag-field" class="kh-token-field" onclick="document.getElementById('kh-tags-input').focus()"><div id="kh-tag-tokens"></div><input id="kh-tags-input" list="kh-tag-suggestions" placeholder="Add a tag and press Enter"><datalist id="kh-tag-suggestions"></datalist></div><div class="modal-hint"><span id="kh-tag-count">0</span>/30 tags. Existing tags are suggested automatically.</div></div>
-        <div class="form-group"><label>Groups</label><input id="kh-editor-group-search" type="search" placeholder="Filter groups…" oninput="renderKnowledgeEditorGroups()"><div id="kh-editor-groups" class="kh-editor-groups"></div></div>
+        <div class="form-group"><label for="kh-tags-input">Tags</label><div id="kh-tag-field" class="kh-token-field" data-onclick="document.getElementById('kh-tags-input').focus()"><div id="kh-tag-tokens"></div><input id="kh-tags-input" list="kh-tag-suggestions" placeholder="Add a tag and press Enter"><datalist id="kh-tag-suggestions"></datalist></div><div class="modal-hint"><span id="kh-tag-count">0</span>/30 tags. Existing tags are suggested automatically.</div></div>
+        <div class="form-group"><label>Groups</label><input id="kh-editor-group-search" type="search" placeholder="Filter groups…" data-oninput="renderKnowledgeEditorGroups()"><div id="kh-editor-groups" class="kh-editor-groups"></div></div>
       </div>
     </div>
-    <div class="modal-footer"><button class="btn" onclick="closeKnowledgeEditor()">Cancel</button><button class="btn primary" id="kh-save-btn" onclick="saveKnowledgeEditor()">Create Item</button></div>
+    <div class="modal-footer"><button class="btn" data-onclick="closeKnowledgeEditor()">Cancel</button><button class="btn primary" id="kh-save-btn" data-onclick="saveKnowledgeEditor()">Create Item</button></div>
   </div>
 </div>
 
-<div id="knowledge-group-modal-overlay" class="modal-overlay" onclick="knowledgeGroupOverlayClick(event)">
+<div id="knowledge-group-modal-overlay" class="modal-overlay" data-onclick="knowledgeGroupOverlayClick(event)">
   <div id="knowledge-group-modal" class="modal-box">
-    <div class="modal-header"><span class="modal-title" id="kh-group-modal-title">New Group</span><button class="modal-close" onclick="closeKnowledgeGroupEditor()" data-ic="x"></button></div>
+    <div class="modal-header"><span class="modal-title" id="kh-group-modal-title">New Group</span><button class="modal-close" data-onclick="closeKnowledgeGroupEditor()" data-ic="x"></button></div>
     <div class="modal-body">
       <div class="form-row"><div class="form-group full"><label>Group Name</label><input id="kh-group-name" maxlength="120" placeholder="e.g. Employee Onboarding"></div></div>
       <div class="form-row"><div class="form-group full"><label>Description</label><textarea id="kh-group-description" maxlength="1000" placeholder="What belongs in this group"></textarea></div></div>
-      <div class="form-row"><div class="form-group full"><label>Include Knowledge Items</label><input id="kh-group-item-search" type="search" placeholder="Filter knowledge items…" oninput="filterKnowledgeGroupItems()"><div id="kh-group-items" class="kh-group-picker"></div></div></div>
+      <div class="form-row"><div class="form-group full"><label>Include Knowledge Items</label><input id="kh-group-item-search" type="search" placeholder="Filter knowledge items…" data-oninput="filterKnowledgeGroupItems()"><div id="kh-group-items" class="kh-group-picker"></div></div></div>
     </div>
-    <div class="modal-footer"><div id="kh-group-delete-host"></div><span style="flex:1"></span><button class="btn" onclick="closeKnowledgeGroupEditor()">Cancel</button><button class="btn primary" id="kh-group-save" onclick="saveKnowledgeGroup()">Create Group</button></div>
+    <div class="modal-footer"><div id="kh-group-delete-host"></div><span style="flex:1"></span><button class="btn" data-onclick="closeKnowledgeGroupEditor()">Cancel</button><button class="btn primary" id="kh-group-save" data-onclick="saveKnowledgeGroup()">Create Group</button></div>
   </div>
 </div>
 
-<div id="knowledge-document-modal-overlay" class="modal-overlay" onclick="knowledgeDocumentOverlayClick(event)">
+<div id="knowledge-document-modal-overlay" class="modal-overlay" data-onclick="knowledgeDocumentOverlayClick(event)">
   <div id="knowledge-document-modal" class="modal-box">
-    <div class="modal-header"><span class="modal-title" id="kh-document-modal-title">Add Document</span><button class="modal-close" onclick="closeKnowledgeDocumentModal()" data-ic="x"></button></div>
+    <div class="modal-header"><span class="modal-title" id="kh-document-modal-title">Add Document</span><button class="modal-close" data-onclick="closeKnowledgeDocumentModal()" data-ic="x"></button></div>
     <div class="modal-body">
       <div class="form-row"><div class="form-group full"><label>Document Name</label><input id="kh-document-name" list="kh-document-names" maxlength="200" placeholder="e.g. Installation Manual"><datalist id="kh-document-names"></datalist><div class="modal-hint">Reuse an existing document name when uploading a newer version.</div></div></div>
       <div class="form-row"><div class="form-group full"><label>Version</label><input id="kh-document-version" maxlength="60" placeholder="e.g. 1.0, 2026.07, Rev B"></div></div>
       <div class="modal-hint">After continuing, choose the document file from your computer.</div>
     </div>
-    <div class="modal-footer"><button class="btn" onclick="closeKnowledgeDocumentModal()">Cancel</button><button class="btn primary" onclick="submitKnowledgeDocument()">Choose File</button></div>
+    <div class="modal-footer"><button class="btn" data-onclick="closeKnowledgeDocumentModal()">Cancel</button><button class="btn primary" data-onclick="submitKnowledgeDocument()">Choose File</button></div>
   </div>
 </div>
 
-<div id="knowledge-undo-toast" role="status" aria-live="polite"><span>Knowledge item deleted</span><button id="knowledge-undo-toast-btn" onclick="undoDeleteKnowledgeItem()">Undo</button></div>
+<div id="knowledge-undo-toast" role="status" aria-live="polite"><span>Knowledge item deleted</span><button id="knowledge-undo-toast-btn" data-onclick="undoDeleteKnowledgeItem()">Undo</button></div>
 
 <!-- ══ COMPANY DOCUMENTS MODULE ══ -->
 <div id="module-companydocs" class="app-module">
   <div id="companydocs-topbar" class="page-header">
     <span class="page-title"><span class="ti-ic" data-ic="calendar-check"></span>Company Documents</span>
     <div class="topbar-right">
-      <input type="text" id="companydocs-filter" class="mod-search" placeholder="Search documents…" oninput="applyCompanyDocFilter()">
-      <button class="btn primary" onclick="openCompanyDocModal()"><span data-ic="plus"></span>New Document</button>
+      <input type="text" id="companydocs-filter" class="mod-search" placeholder="Search documents…" data-oninput="applyCompanyDocFilter()">
+      <button class="btn primary" data-onclick="openCompanyDocModal()"><span data-ic="plus"></span>New Document</button>
     </div>
   </div>
   <div class="pj-scroll">
@@ -792,11 +790,11 @@
 </div>
 
 <!-- ══ COMPANY DOCUMENT ADD/EDIT MODAL ══ -->
-<div id="companydoc-modal-overlay" class="modal-overlay" onclick="companyDocOverlayClick(event)">
+<div id="companydoc-modal-overlay" class="modal-overlay" data-onclick="companyDocOverlayClick(event)">
   <div id="companydoc-modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title" id="companydoc-modal-title">New Document</span>
-      <button class="modal-close" onclick="closeCompanyDocModal()" data-ic="x"></button>
+      <button class="modal-close" data-onclick="closeCompanyDocModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <div class="form-row">
@@ -825,8 +823,8 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeCompanyDocModal()">Cancel</button>
-      <button class="btn primary" id="companydoc-modal-submit" onclick="submitCompanyDocModal()">Add Document</button>
+      <button class="btn" data-onclick="closeCompanyDocModal()">Cancel</button>
+      <button class="btn primary" id="companydoc-modal-submit" data-onclick="submitCompanyDocModal()">Add Document</button>
     </div>
   </div>
 </div>
@@ -834,7 +832,7 @@
 <!-- ══ COMPANY DOCUMENT DELETE UNDO TOAST ══ -->
 <div id="companydoc-undo-toast" role="status" aria-live="polite">
   <span>Document deleted</span>
-  <button id="companydoc-undo-toast-btn" onclick="undoDeleteCompanyDoc()">Undo</button>
+  <button id="companydoc-undo-toast-btn" data-onclick="undoDeleteCompanyDoc()">Undo</button>
 </div>
 
 <!-- ══ CLIENTS MODULE ══ -->
@@ -852,7 +850,7 @@
     <div class="cl-records-search-wrap">
       <span class="cl-records-search-icon" data-ic="search"></span>
       <input type="text" id="clients-records-filter" class="cl-records-search-input"
-             placeholder="Search all client records… e.g. “VPN” or “Amana Visa”" oninput="applyClientRecordFilter()">
+             placeholder="Search all client records… e.g. “VPN” or “Amana Visa”" data-oninput="applyClientRecordFilter()">
     </div>
     <div class="pj-grid" id="clients-grid"></div>
     <div id="clients-search-results" style="display:none"></div>
@@ -867,11 +865,11 @@
 </div>
 
 <!-- ══ CLIENT AUTH CONNECTION ADD/EDIT MODAL (VPN, PAM, etc.) ══ -->
-<div id="client-vpn-modal-overlay" class="modal-overlay" onclick="clientVpnOverlayClick(event)">
+<div id="client-vpn-modal-overlay" class="modal-overlay" data-onclick="clientVpnOverlayClick(event)">
   <div id="client-vpn-modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title" id="client-vpn-modal-title">Add Auth Connection</span>
-      <button class="modal-close" onclick="closeClientVpnModal()" data-ic="x"></button>
+      <button class="modal-close" data-onclick="closeClientVpnModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <div class="form-row">
@@ -927,18 +925,18 @@
       </details>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeClientVpnModal()">Cancel</button>
-      <button class="btn primary" id="client-vpn-modal-submit" onclick="submitClientVpnModal()">Add Connection</button>
+      <button class="btn" data-onclick="closeClientVpnModal()">Cancel</button>
+      <button class="btn primary" id="client-vpn-modal-submit" data-onclick="submitClientVpnModal()">Add Connection</button>
     </div>
   </div>
 </div>
 
 <!-- ══ CLIENT SERVER ADD/EDIT MODAL ══ -->
-<div id="client-server-modal-overlay" class="modal-overlay" onclick="clientServerOverlayClick(event)">
+<div id="client-server-modal-overlay" class="modal-overlay" data-onclick="clientServerOverlayClick(event)">
   <div id="client-server-modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title" id="client-server-modal-title">Add Server</span>
-      <button class="modal-close" onclick="closeClientServerModal()" data-ic="x"></button>
+      <button class="modal-close" data-onclick="closeClientServerModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <!-- The identity triple comes first and reads as one line: a server IS its
@@ -947,17 +945,17 @@
       <div class="form-row cs-identity-row">
         <div class="form-group">
           <label>System</label>
-          <select id="cs-system" onchange="renderServerIdentityPreview()"></select>
+          <select id="cs-system" data-onchange="renderServerIdentityPreview()"></select>
         </div>
         <span class="cs-identity-dash" aria-hidden="true">-</span>
         <div class="form-group">
           <label>Role</label>
-          <select id="cs-role" onchange="renderServerIdentityPreview()"></select>
+          <select id="cs-role" data-onchange="renderServerIdentityPreview()"></select>
         </div>
         <span class="cs-identity-dash" aria-hidden="true">-</span>
         <div class="form-group">
           <label>Environment</label>
-          <select id="cs-environment" onchange="renderServerIdentityPreview()">
+          <select id="cs-environment" data-onchange="renderServerIdentityPreview()">
             <option value="PRODUCTION">Production</option>
             <option value="TEST">UAT</option>
           </select>
@@ -998,18 +996,18 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeClientServerModal()">Cancel</button>
-      <button class="btn primary" id="client-server-modal-submit" onclick="submitClientServerModal()">Add Server</button>
+      <button class="btn" data-onclick="closeClientServerModal()">Cancel</button>
+      <button class="btn primary" id="client-server-modal-submit" data-onclick="submitClientServerModal()">Add Server</button>
     </div>
   </div>
 </div>
 
 <!-- ══ CLIENT INTERNAL SYSTEM ADD/EDIT MODAL ══ -->
-<div id="client-internal-modal-overlay" class="modal-overlay" onclick="clientInternalOverlayClick(event)">
+<div id="client-internal-modal-overlay" class="modal-overlay" data-onclick="clientInternalOverlayClick(event)">
   <div id="client-internal-modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title" id="client-internal-modal-title">Add Internal System</span>
-      <button class="modal-close" onclick="closeClientInternalModal()" data-ic="x"></button>
+      <button class="modal-close" data-onclick="closeClientInternalModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <div class="form-row">
@@ -1074,7 +1072,7 @@
         <div class="form-group full">
           <label>Sub-Services (optional) — sibling endpoints of this one service</label>
           <div id="cint-subservices-list"></div>
-          <button type="button" class="btn" id="cint-add-subservice" onclick="addClientInternalSubServiceRow()">+ Add Sub-Service</button>
+          <button type="button" class="btn" id="cint-add-subservice" data-onclick="addClientInternalSubServiceRow()">+ Add Sub-Service</button>
         </div>
       </div>
       <div class="form-row">
@@ -1086,18 +1084,18 @@
       </details>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeClientInternalModal()">Cancel</button>
-      <button class="btn primary" id="client-internal-modal-submit" onclick="submitClientInternalModal()">Add System</button>
+      <button class="btn" data-onclick="closeClientInternalModal()">Cancel</button>
+      <button class="btn primary" id="client-internal-modal-submit" data-onclick="submitClientInternalModal()">Add System</button>
     </div>
   </div>
 </div>
 
 <!-- ══ CLIENT SYSTEM GROUP RENAME MODAL ══ -->
-<div id="client-group-rename-modal-overlay" class="modal-overlay" onclick="clientGroupRenameOverlayClick(event)">
+<div id="client-group-rename-modal-overlay" class="modal-overlay" data-onclick="clientGroupRenameOverlayClick(event)">
   <div id="client-group-rename-modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title" id="cgr-title">Rename System Group</span>
-      <button class="modal-close" onclick="closeClientGroupRenameModal()" data-ic="x"></button>
+      <button class="modal-close" data-onclick="closeClientGroupRenameModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <!-- Servers: a group IS a SYSTEM lookup (migration 039), so this MOVES the
@@ -1119,18 +1117,18 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeClientGroupRenameModal()">Cancel</button>
-      <button class="btn primary" onclick="submitClientGroupRename()">Save Changes</button>
+      <button class="btn" data-onclick="closeClientGroupRenameModal()">Cancel</button>
+      <button class="btn primary" data-onclick="submitClientGroupRename()">Save Changes</button>
     </div>
   </div>
 </div>
 
 <!-- ══ CLIENT NEW SYSTEM GROUP MODAL — folds existing servers/internal systems into a (new or existing) group ══ -->
-<div id="client-new-group-modal-overlay" class="modal-overlay" onclick="clientNewGroupModalOverlayClick(event)">
+<div id="client-new-group-modal-overlay" class="modal-overlay" data-onclick="clientNewGroupModalOverlayClick(event)">
   <div id="client-new-group-modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title" id="client-new-group-modal-title">New Group</span>
-      <button class="modal-close" onclick="closeClientNewGroupModal()" data-ic="x"></button>
+      <button class="modal-close" data-onclick="closeClientNewGroupModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <!-- Servers group BY their SYSTEM lookup (migration 039), so the group is
@@ -1156,72 +1154,72 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeClientNewGroupModal()">Cancel</button>
-      <button class="btn primary" id="client-new-group-modal-submit" onclick="submitClientNewGroupModal()">Create Group</button>
+      <button class="btn" data-onclick="closeClientNewGroupModal()">Cancel</button>
+      <button class="btn primary" id="client-new-group-modal-submit" data-onclick="submitClientNewGroupModal()">Create Group</button>
     </div>
   </div>
 </div>
 
 <!-- ══ CLIENT EDIT CONFIRMATION MODAL (old value → new value, before an edit commits) ══ -->
-<div id="client-edit-confirm-overlay" class="modal-overlay" onclick="clientEditConfirmOverlayClick(event)">
+<div id="client-edit-confirm-overlay" class="modal-overlay" data-onclick="clientEditConfirmOverlayClick(event)">
   <div id="client-edit-confirm-modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title">Confirm Changes</span>
-      <button class="modal-close" onclick="cancelClientEditConfirm()" data-ic="x"></button>
+      <button class="modal-close" data-onclick="cancelClientEditConfirm()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <p style="color:var(--muted);font-size:13px;margin-bottom:12px">You're changing the following field(s) on this existing record:</p>
       <div id="client-edit-confirm-list"></div>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="cancelClientEditConfirm()">Cancel</button>
-      <button class="btn primary" onclick="acceptClientEditConfirm()">Confirm & Save</button>
+      <button class="btn" data-onclick="cancelClientEditConfirm()">Cancel</button>
+      <button class="btn primary" data-onclick="acceptClientEditConfirm()">Confirm & Save</button>
     </div>
   </div>
 </div>
 
 <!-- ══ CLIENT RECORD HISTORY MODAL (read-only) ══ -->
-<div id="client-history-overlay" class="modal-overlay" onclick="clientHistoryOverlayClick(event)">
+<div id="client-history-overlay" class="modal-overlay" data-onclick="clientHistoryOverlayClick(event)">
   <div id="client-history-modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title" id="client-history-modal-title">History</span>
-      <button class="modal-close" onclick="closeClientHistoryModal()" data-ic="x"></button>
+      <button class="modal-close" data-onclick="closeClientHistoryModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <div id="client-history-list"></div>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeClientHistoryModal()">Close</button>
+      <button class="btn" data-onclick="closeClientHistoryModal()">Close</button>
     </div>
   </div>
 </div>
 
 <!-- ══ CLIENT RECORD INFO MODAL (read-only; click any field to copy it) ══ -->
-<div id="client-record-info-overlay" class="modal-overlay" onclick="clientRecordInfoOverlayClick(event)">
+<div id="client-record-info-overlay" class="modal-overlay" data-onclick="clientRecordInfoOverlayClick(event)">
   <div id="client-record-info-modal" class="modal-box">
     <div class="modal-header">
       <div>
         <span class="modal-title" id="client-record-info-title">Record</span>
         <div class="cl-info-subtitle" id="client-record-info-sub"></div>
       </div>
-      <button class="modal-close" onclick="closeClientRecordInfoModal()" data-ic="x"></button>
+      <button class="modal-close" data-onclick="closeClientRecordInfoModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <div id="client-record-info-list"></div>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeClientRecordInfoModal()">Close</button>
-      <button class="btn primary" onclick="openClientFromRecordInfo()">Open Client</button>
+      <button class="btn" data-onclick="closeClientRecordInfoModal()">Close</button>
+      <button class="btn primary" data-onclick="openClientFromRecordInfo()">Open Client</button>
     </div>
   </div>
 </div>
 
 <!-- ══ PROJECT ADD/EDIT MODAL ══ -->
-<div id="project-modal-overlay" class="modal-overlay" onclick="projectOverlayClick(event)">
+<div id="project-modal-overlay" class="modal-overlay" data-onclick="projectOverlayClick(event)">
   <div id="project-modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title" id="project-modal-title">New Project</span>
-      <button class="modal-close" onclick="closeProjectModal()" data-ic="x"></button>
+      <button class="modal-close" data-onclick="closeProjectModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <div class="form-row">
@@ -1256,35 +1254,35 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeProjectModal()">Cancel</button>
-      <button class="btn primary" onclick="submitProjectModal()">Create Project</button>
+      <button class="btn" data-onclick="closeProjectModal()">Cancel</button>
+      <button class="btn primary" data-onclick="submitProjectModal()">Create Project</button>
     </div>
   </div>
 </div>
 
 <!-- ══ LINK EXISTING TASK MODAL ══ -->
-<div id="link-task-overlay" class="modal-overlay" onclick="linkTaskOverlayClick(event)">
+<div id="link-task-overlay" class="modal-overlay" data-onclick="linkTaskOverlayClick(event)">
   <div id="link-task-modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title">Link an Existing Task</span>
-      <button class="modal-close" onclick="closeLinkModal()" data-ic="x"></button>
+      <button class="modal-close" data-onclick="closeLinkModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
-      <input type="text" id="link-task-filter" class="mod-search" style="width:100%;margin-bottom:12px" placeholder="Search tasks…" oninput="renderLinkList()">
+      <input type="text" id="link-task-filter" class="mod-search" style="width:100%;margin-bottom:12px" placeholder="Search tasks…" data-oninput="renderLinkList()">
       <div class="pj-link-list" id="link-task-list"></div>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeLinkModal()">Done</button>
+      <button class="btn" data-onclick="closeLinkModal()">Done</button>
     </div>
   </div>
 </div>
 
 <!-- ══ TASK DETAIL MODAL ══ -->
-<div id="task-detail-overlay" class="modal-overlay" onclick="taskDetailOverlayClick(event)">
+<div id="task-detail-overlay" class="modal-overlay" data-onclick="taskDetailOverlayClick(event)">
   <div id="task-detail-modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title" id="td-title">Task</span>
-      <button class="modal-close" onclick="closeTaskDetail()" data-ic="x"></button>
+      <button class="modal-close" data-onclick="closeTaskDetail()" data-ic="x"></button>
     </div>
     <div class="modal-body" id="td-body"></div>
   </div>
@@ -1294,11 +1292,11 @@
      Tasks task cards, which otherwise show sessions read-only. Distinct from
      Timesheet's #modal: this persists immediately via worklogs:update instead
      of the debounced rows/tasks:* reconciler. ══ -->
-<div id="session-modal-overlay" class="modal-overlay" onclick="sessionOverlayClick(event)">
+<div id="session-modal-overlay" class="modal-overlay" data-onclick="sessionOverlayClick(event)">
   <div id="session-modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title" id="session-modal-title">Edit Session</span>
-      <button class="modal-close" onclick="closeSessionModal()" data-ic="x"></button>
+      <button class="modal-close" data-onclick="closeSessionModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <div class="form-row">
@@ -1319,11 +1317,11 @@
             <label>Minutes</label>
             <input id="sm-minutes" type="number" min="1" max="1440" placeholder="e.g. 45" />
             <div class="duration-presets" data-duration-for="sm-minutes" aria-label="Quick duration">
-              <button type="button" class="duration-preset" onclick="setDurationPreset('sm-minutes',15,this)">15m</button>
-              <button type="button" class="duration-preset" onclick="setDurationPreset('sm-minutes',30,this)">30m</button>
-              <button type="button" class="duration-preset" onclick="setDurationPreset('sm-minutes',45,this)">45m</button>
-              <button type="button" class="duration-preset" onclick="setDurationPreset('sm-minutes',60,this)">1h</button>
-              <button type="button" class="duration-preset" onclick="setDurationPreset('sm-minutes',90,this)">1.5h</button>
+              <button type="button" class="duration-preset" data-onclick="setDurationPreset('sm-minutes',15,this)">15m</button>
+              <button type="button" class="duration-preset" data-onclick="setDurationPreset('sm-minutes',30,this)">30m</button>
+              <button type="button" class="duration-preset" data-onclick="setDurationPreset('sm-minutes',45,this)">45m</button>
+              <button type="button" class="duration-preset" data-onclick="setDurationPreset('sm-minutes',60,this)">1h</button>
+              <button type="button" class="duration-preset" data-onclick="setDurationPreset('sm-minutes',90,this)">1.5h</button>
             </div>
           </div>
         </div>
@@ -1346,25 +1344,25 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeSessionModal()">Cancel</button>
-      <button class="btn primary" id="session-modal-submit" onclick="submitSessionModal()">Save Changes</button>
+      <button class="btn" data-onclick="closeSessionModal()">Cancel</button>
+      <button class="btn primary" id="session-modal-submit" data-onclick="submitSessionModal()">Save Changes</button>
     </div>
   </div>
 </div>
 
 <!-- ══ WORK-LOG (SESSION) HISTORY MODAL — read-only, mirrors the Clients page's
      History modal (openClientHistoryModal), scoped to one work_log's edits. ══ -->
-<div id="wl-history-overlay" class="modal-overlay" onclick="wlHistoryOverlayClick(event)">
+<div id="wl-history-overlay" class="modal-overlay" data-onclick="wlHistoryOverlayClick(event)">
   <div id="wl-history-modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title" id="wl-history-modal-title">History</span>
-      <button class="modal-close" onclick="closeWlHistoryModal()" data-ic="x"></button>
+      <button class="modal-close" data-onclick="closeWlHistoryModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <div id="wl-history-list"></div>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeWlHistoryModal()">Close</button>
+      <button class="btn" data-onclick="closeWlHistoryModal()">Close</button>
     </div>
   </div>
 </div>
@@ -1372,11 +1370,11 @@
 <!-- ══ MERGE TASK MODAL — Task Detail's "Merge into another task…" (tasks:merge).
      Moves every session off the current (source) task onto a picked target,
      then deletes the emptied source; the target's own fields are untouched. ══ -->
-<div id="merge-modal-overlay" class="modal-overlay" onclick="mergeOverlayClick(event)">
+<div id="merge-modal-overlay" class="modal-overlay" data-onclick="mergeOverlayClick(event)">
   <div id="merge-modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title">Merge Task</span>
-      <button class="modal-close" onclick="closeMergeModal()" data-ic="x"></button>
+      <button class="modal-close" data-onclick="closeMergeModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <p class="merge-intro">Move every session from <b id="merge-source-name"></b> onto another task, then
@@ -1391,8 +1389,8 @@
       <div id="merge-preview" class="merge-preview" style="display:none"></div>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeMergeModal()">Cancel</button>
-      <button class="btn primary" id="merge-modal-submit" onclick="submitMergeModal()" disabled>Merge</button>
+      <button class="btn" data-onclick="closeMergeModal()">Cancel</button>
+      <button class="btn primary" id="merge-modal-submit" data-onclick="submitMergeModal()" disabled>Merge</button>
     </div>
   </div>
 </div>
@@ -1400,7 +1398,7 @@
 <!-- ══ PROJECT DELETE UNDO TOAST ══ -->
 <div id="project-undo-toast" role="status" aria-live="polite">
   <span>Project deleted</span>
-  <button id="project-undo-toast-btn" onclick="undoDeleteProject()">Undo</button>
+  <button id="project-undo-toast-btn" data-onclick="undoDeleteProject()">Undo</button>
 </div>
 
 <!-- ══ SETTINGS MODULE (General + Lookups) ══ -->
@@ -1409,7 +1407,7 @@
     <span class="page-title"><span class="ti-ic" data-ic="settings"></span>Settings</span>
     <div class="topbar-right">
       <span class="settings-save-status" id="settings-save-status" role="status" aria-live="polite"></span>
-      <button class="btn primary" id="settings-save-btn" onclick="saveSettings()" hidden>Save Catalog Changes</button>
+      <button class="btn primary" id="settings-save-btn" data-onclick="saveSettings()" hidden>Save Catalog Changes</button>
     </div>
   </div>
   <div class="settings-body">
@@ -1417,26 +1415,26 @@
     <div class="settings-tabs">
       <div class="settings-search-wrap">
         <label class="sr-only" for="settings-search">Find a setting</label>
-        <input class="settings-search" id="settings-search" type="search" placeholder="Find a setting…" oninput="filterSettingsTabs()" />
+        <input class="settings-search" id="settings-search" type="search" placeholder="Find a setting…" data-oninput="filterSettingsTabs()" />
       </div>
       <div class="settings-group-label">Account &amp; Preferences</div>
-      <button class="stab active" data-tab="general" onclick="switchTab(this)"><span class="stab-icon" data-ic="sliders-horizontal"></span> General</button>
-      <button class="stab" data-tab="users" onclick="switchTab(this)"><span class="stab-icon" data-ic="users"></span> User Management</button>
+      <button class="stab active" data-tab="general" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="sliders-horizontal"></span> General</button>
+      <button class="stab" data-tab="users" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="users"></span> User Management</button>
       <div class="settings-group-label admin-only">Catalogs</div>
-      <button class="stab" data-tab="companies"     onclick="switchTab(this)"><span class="stab-icon" data-ic="building-2"></span> Companies</button>
-      <button class="stab" data-tab="systems"       onclick="switchTab(this)"><span class="stab-icon" data-ic="folder"></span> Systems</button>
-      <button class="stab" data-tab="natural"       onclick="switchTab(this)"><span class="stab-icon" data-ic="tag"></span> Natural</button>
-      <button class="stab" data-tab="timeType"      onclick="switchTab(this)"><span class="stab-icon" data-ic="alarm-clock"></span> Time Type</button>
-      <button class="stab" data-tab="status"        onclick="switchTab(this)"><span class="stab-icon" data-ic="flag"></span> Status</button>
-      <button class="stab" data-tab="projectStatus" onclick="switchTab(this)"><span class="stab-icon" data-ic="clipboard-list"></span> Project Status</button>
-      <button class="stab" data-tab="projectDocument" onclick="switchTab(this)"><span class="stab-icon" data-ic="file-text"></span> Project Documents</button>
-      <button class="stab" data-tab="companyDocCategory" onclick="switchTab(this)"><span class="stab-icon" data-ic="calendar-check"></span> Company Doc Categories</button>
-      <button class="stab" data-tab="knowledgeType" onclick="switchTab(this)"><span class="stab-icon" data-ic="book-open"></span> Knowledge Types</button>
-      <button class="stab" data-tab="department"    onclick="switchTab(this)"><span class="stab-icon" data-ic="building"></span> Department</button>
-      <button class="stab" data-tab="taskSourceType" onclick="switchTab(this)"><span class="stab-icon" data-ic="external-link"></span> Task Source Types</button>
-      <button class="stab" data-tab="serverRole"    onclick="switchTab(this)"><span class="stab-icon" data-ic="server"></span> Server Roles</button>
+      <button class="stab" data-tab="companies"     data-onclick="switchTab(this)"><span class="stab-icon" data-ic="building-2"></span> Companies</button>
+      <button class="stab" data-tab="systems"       data-onclick="switchTab(this)"><span class="stab-icon" data-ic="folder"></span> Systems</button>
+      <button class="stab" data-tab="natural"       data-onclick="switchTab(this)"><span class="stab-icon" data-ic="tag"></span> Natural</button>
+      <button class="stab" data-tab="timeType"      data-onclick="switchTab(this)"><span class="stab-icon" data-ic="alarm-clock"></span> Time Type</button>
+      <button class="stab" data-tab="status"        data-onclick="switchTab(this)"><span class="stab-icon" data-ic="flag"></span> Status</button>
+      <button class="stab" data-tab="projectStatus" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="clipboard-list"></span> Project Status</button>
+      <button class="stab" data-tab="projectDocument" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="file-text"></span> Project Documents</button>
+      <button class="stab" data-tab="companyDocCategory" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="calendar-check"></span> Company Doc Categories</button>
+      <button class="stab" data-tab="knowledgeType" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="book-open"></span> Knowledge Types</button>
+      <button class="stab" data-tab="department"    data-onclick="switchTab(this)"><span class="stab-icon" data-ic="building"></span> Department</button>
+      <button class="stab" data-tab="taskSourceType" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="external-link"></span> Task Source Types</button>
+      <button class="stab" data-tab="serverRole"    data-onclick="switchTab(this)"><span class="stab-icon" data-ic="server"></span> Server Roles</button>
       <div class="settings-group-label admin-only">Data &amp; Recovery</div>
-      <button class="stab admin-only" data-tab="maintenance" onclick="switchTab(this)"><span class="stab-icon" data-ic="wrench"></span> Maintenance</button>
+      <button class="stab admin-only" data-tab="maintenance" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="wrench"></span> Maintenance</button>
     </div>
     <!-- Panels -->
     <div class="settings-panels">
@@ -1447,25 +1445,16 @@
             blocked until secure storage becomes available; existing encrypted credentials remain protected.</span>
         </div>
         <div class="general-field">
-          <label>Language</label>
-          <div class="seg-ctl" id="setting-language-ctl" role="group" aria-label="Application language">
-            <button type="button" class="seg-btn" data-language="en" onclick="setAppLanguage('en')">English</button>
-            <button type="button" class="seg-btn" data-language="ar" onclick="setAppLanguage('ar')">العربية</button>
-          </div>
-        </div>
-        <p class="general-hint">Choose the interface language. Arabic uses a right-to-left layout; your records and catalog names are never translated or changed.</p>
-        <hr class="modal-tasksection-divider" style="margin:20px 0" />
-        <div class="general-field">
           <label>Start on</label>
           <div class="seg-ctl" id="setting-startonlastpage-ctl">
-            <button type="button" class="seg-btn" data-val="last" onclick="setStartOnLastPage(true)">Last page</button>
-            <button type="button" class="seg-btn" data-val="analytics" onclick="setStartOnLastPage(false)">Analytics</button>
+            <button type="button" class="seg-btn" data-val="last" data-onclick="setStartOnLastPage(true)">Last page</button>
+            <button type="button" class="seg-btn" data-val="analytics" data-onclick="setStartOnLastPage(false)">Analytics</button>
           </div>
         </div>
         <p class="general-hint">Which page the app opens on next launch. "Last page" also restores that
           page's filters and — for Clients/Internal Tasks — the last-open record.</p>
         <hr class="modal-tasksection-divider" style="margin:20px 0" />
-        <button class="btn" onclick="openHowThinksOverlay()"><span data-ic="compass"></span>How This App Thinks</button>
+        <button class="btn" data-onclick="openHowThinksOverlay()"><span data-ic="compass"></span>How This App Thinks</button>
         <p class="general-hint">A one-page explainer of the Task → Sessions → optional Project/Department model,
           plus the quickest path for each everyday journey.</p>
       </div>
@@ -1475,7 +1464,7 @@
             <div class="user-page-title">User Management</div>
             <p class="general-hint">Manage account details and access. Administrators can manage every account; standard users can edit only their own profile and password.</p>
           </div>
-          <button class="btn primary admin-only" id="user-add-btn" onclick="openUserEditor()"><span data-ic="user-plus"></span>Add User</button>
+          <button class="btn primary admin-only" id="user-add-btn" data-onclick="openUserEditor()"><span data-ic="user-plus"></span>Add User</button>
         </div>
         <div class="user-list" id="user-list"></div>
         <div class="user-editor" id="user-editor" hidden>
@@ -1512,8 +1501,8 @@
           </div>
           <div class="user-form-status" id="user-form-status" role="status" aria-live="polite"></div>
           <div class="user-editor-actions">
-            <button class="btn" onclick="closeUserEditor()">Cancel</button>
-            <button class="btn primary" id="user-save-btn" onclick="saveManagedUser()">Save User</button>
+            <button class="btn" data-onclick="closeUserEditor()">Cancel</button>
+            <button class="btn primary" id="user-save-btn" data-onclick="saveManagedUser()">Save User</button>
           </div>
         </div>
       </div>
@@ -1533,8 +1522,8 @@
         <div class="maint-section">
           <div class="maint-section-head">
             <span data-ic="database"></span><span>Full Backup</span>
-            <button class="btn" id="maint-fullbackup-btn" style="margin-left:auto" onclick="runFullBackup('maint-fullbackup-btn')">Back Up Everything to Desktop</button>
-            <button class="btn" id="maint-fullrestore-btn" onclick="chooseFullBackupForRestore('maint-fullrestore-btn')">Restore Everything…</button>
+            <button class="btn" id="maint-fullbackup-btn" style="margin-left:auto" data-onclick="runFullBackup('maint-fullbackup-btn')">Back Up Everything to Desktop</button>
+            <button class="btn" id="maint-fullrestore-btn" data-onclick="chooseFullBackupForRestore('maint-fullrestore-btn')">Restore Everything…</button>
           </div>
           <p class="general-hint">Captures the database, uploaded project files, company document files, Knowledge Hub documents, and the
             rotating backup snapshots into one new timestamped folder on your Desktop — the most complete
@@ -1552,7 +1541,7 @@
         <div class="maint-section">
           <div class="maint-section-head">
             <span data-ic="activity"></span><span>Recovery Readiness</span>
-            <button class="btn" style="margin-left:auto" onclick="runSystemDiagnostics()">Run Audit</button>
+            <button class="btn" style="margin-left:auto" data-onclick="runSystemDiagnostics()">Run Audit</button>
           </div>
           <p class="general-hint">Checks the live database, every rotating snapshot, referenced document files,
             search index, disk headroom, schema version, and credential portability. Read-only and safe to run.</p>
@@ -1562,7 +1551,7 @@
         <div class="maint-section">
           <div class="maint-section-head">
             <span data-ic="save"></span><span>Backups</span>
-            <button class="btn" style="margin-left:auto" onclick="refreshMaintenanceBackups()">Refresh</button>
+            <button class="btn" style="margin-left:auto" data-onclick="refreshMaintenanceBackups()">Refresh</button>
           </div>
           <p class="general-hint">Auto-rotated snapshots taken on launch (newest 5 kept). Restoring replaces the
             live database and restarts the app — a safety copy of the current data is always taken first.</p>
@@ -1572,7 +1561,7 @@
         <div class="maint-section">
           <div class="maint-section-head">
             <span data-ic="shield-alert"></span><span>Integrity Check</span>
-            <button class="btn" style="margin-left:auto" onclick="runMaintenanceIntegrityCheck()">Run Check</button>
+            <button class="btn" style="margin-left:auto" data-onclick="runMaintenanceIntegrityCheck()">Run Check</button>
           </div>
           <p class="general-hint">Read-only — checks the database file for structural corruption and dangling
             foreign keys. Safe to run any time.</p>
@@ -1582,7 +1571,7 @@
         <div class="maint-section">
           <div class="maint-section-head">
             <span data-ic="tag"></span><span>Lookup Duplicates</span>
-            <button class="btn" style="margin-left:auto" onclick="runMaintenanceLookupScan()">Scan</button>
+            <button class="btn" style="margin-left:auto" data-onclick="runMaintenanceLookupScan()">Scan</button>
           </div>
           <p class="general-hint">Case-insensitive label collisions (e.g. "Acme" / "ACME") within Companies,
             Systems, or Natural — the same class of duplicate a past migration cleaned up once already. Merging
@@ -1602,11 +1591,11 @@
 </div>
 
 <!-- ══ PROJECT TASK ADD/EDIT MODAL ══ -->
-<div id="backlog-modal-overlay" class="modal-overlay" onclick="backlogOverlayClick(event)">
+<div id="backlog-modal-overlay" class="modal-overlay" data-onclick="backlogOverlayClick(event)">
   <div id="backlog-modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title" id="backlog-modal-title">Add Task</span>
-      <button class="modal-close" onclick="closeBacklogModal()" data-ic="x"></button>
+      <button class="modal-close" data-onclick="closeBacklogModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <div class="modal-tasksection">
@@ -1634,8 +1623,8 @@
           <div class="form-group full">
             <label>Task Type</label>
             <div class="seg-ctl" id="b-tasktype-ctl">
-              <button type="button" class="seg-btn" data-type="project" onclick="setBacklogTaskType('project')">Client / Project work</button>
-              <button type="button" class="seg-btn" data-type="department" onclick="setBacklogTaskType('department')">Internal</button>
+              <button type="button" class="seg-btn" data-type="project" data-onclick="setBacklogTaskType('project')">Client / Project work</button>
+              <button type="button" class="seg-btn" data-type="department" data-onclick="setBacklogTaskType('department')">Internal</button>
             </div>
           </div>
         </div>
@@ -1662,24 +1651,24 @@
         <div class="form-row">
           <div class="form-group full">
             <div id="b-sources-list"></div>
-            <button type="button" class="btn" onclick="addTaskSourceRow('b-sources-list')">+ Add Source</button>
+            <button type="button" class="btn" data-onclick="addTaskSourceRow('b-sources-list')">+ Add Source</button>
           </div>
         </div>
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeBacklogModal()">Cancel</button>
-      <button class="btn primary" onclick="submitBacklogModal()">Add Task</button>
+      <button class="btn" data-onclick="closeBacklogModal()">Cancel</button>
+      <button class="btn primary" data-onclick="submitBacklogModal()">Add Task</button>
     </div>
   </div>
 </div>
 
 <!-- ══ SUBSCRIPTION ADD/EDIT MODAL ══ -->
-<div id="sub-modal-overlay" class="modal-overlay" onclick="subOverlayClick(event)">
+<div id="sub-modal-overlay" class="modal-overlay" data-onclick="subOverlayClick(event)">
   <div id="sub-modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title" id="sub-modal-title">Add Subscription</span>
-      <button class="modal-close" onclick="closeSubModal()" data-ic="x"></button>
+      <button class="modal-close" data-onclick="closeSubModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <div class="form-row">
@@ -1701,11 +1690,11 @@
       <div class="form-row">
         <div class="form-group">
           <label>Billing Cycle</label>
-          <select id="s-cycle" onchange="onCycleChange()"></select>
+          <select id="s-cycle" data-onchange="onCycleChange()"></select>
         </div>
         <div class="form-group">
           <label>End Date</label>
-          <input id="s-end" type="date" onchange="onEndDateChange()" />
+          <input id="s-end" type="date" data-onchange="onEndDateChange()" />
         </div>
       </div>
       <div class="form-row">
@@ -1716,18 +1705,18 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeSubModal()">Cancel</button>
-      <button class="btn primary" onclick="submitSubModal()">Add Subscription</button>
+      <button class="btn" data-onclick="closeSubModal()">Cancel</button>
+      <button class="btn primary" data-onclick="submitSubModal()">Add Subscription</button>
     </div>
   </div>
 </div>
 
 <!-- ══ SUBSCRIPTIONS SETTINGS MODAL ══ -->
-<div id="sub-settings-overlay" class="modal-overlay" onclick="subSettingsOverlayClick(event)">
+<div id="sub-settings-overlay" class="modal-overlay" data-onclick="subSettingsOverlayClick(event)">
   <div id="sub-settings-modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title"><span class="ti-ic" data-ic="settings"></span>Subscriptions Settings</span>
-      <button class="modal-close" onclick="closeSubSettings()" data-ic="x"></button>
+      <button class="modal-close" data-onclick="closeSubSettings()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <div class="form-row">
@@ -1738,8 +1727,8 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeSubSettings()">Cancel</button>
-      <button class="btn primary" onclick="saveSubSettings()">Save Changes</button>
+      <button class="btn" data-onclick="closeSubSettings()">Cancel</button>
+      <button class="btn primary" data-onclick="saveSubSettings()">Save Changes</button>
     </div>
   </div>
 </div>
@@ -1747,102 +1736,102 @@
 <!-- ══ SUBSCRIPTION UNDO TOAST ══ -->
 <div id="sub-undo-toast" role="status" aria-live="polite">
   <span>Subscription deleted</span>
-  <button id="sub-undo-toast-btn" onclick="undoDeleteSub()">Undo</button>
+  <button id="sub-undo-toast-btn" data-onclick="undoDeleteSub()">Undo</button>
 </div>
 
 <!-- WORKSPACE VIEW — renderer-only comfort controls; never touches app data. -->
-<div id="workspace-view-overlay" class="modal-overlay" onclick="workspaceViewOverlayClick(event)">
+<div id="workspace-view-overlay" class="modal-overlay" data-onclick="workspaceViewOverlayClick(event)">
   <div id="workspace-view-modal" class="modal-box">
     <div class="modal-header">
       <span class="modal-title"><span data-ic="eye"></span>Workspace View</span>
-      <button class="modal-close" onclick="closeWorkspaceView()" data-ic="x"></button>
+      <button class="modal-close" data-onclick="closeWorkspaceView()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <p class="workspace-view-intro">Tune the visual rhythm for your eyes and your task. These preferences stay on this device and never change your records.</p>
       <div class="workspace-view-section">
         <div class="workspace-view-label">Density<small>Choose how much information fits on screen.</small></div>
         <div class="workspace-choice-group" role="group" aria-label="Workspace density">
-          <button class="workspace-choice" type="button" data-workspace-choice="density:compact" onclick="setWorkspaceView('density','compact')"><strong>Compact</strong><span>Scan more at once</span></button>
-          <button class="workspace-choice" type="button" data-workspace-choice="density:balanced" onclick="setWorkspaceView('density','balanced')"><strong>Balanced</strong><span>Everyday comfort</span></button>
-          <button class="workspace-choice" type="button" data-workspace-choice="density:spacious" onclick="setWorkspaceView('density','spacious')"><strong>Spacious</strong><span>More breathing room</span></button>
+          <button class="workspace-choice" type="button" data-workspace-choice="density:compact" data-onclick="setWorkspaceView('density','compact')"><strong>Compact</strong><span>Scan more at once</span></button>
+          <button class="workspace-choice" type="button" data-workspace-choice="density:balanced" data-onclick="setWorkspaceView('density','balanced')"><strong>Balanced</strong><span>Everyday comfort</span></button>
+          <button class="workspace-choice" type="button" data-workspace-choice="density:spacious" data-onclick="setWorkspaceView('density','spacious')"><strong>Spacious</strong><span>More breathing room</span></button>
         </div>
       </div>
       <div class="workspace-view-section">
         <div class="workspace-view-label">Canvas<small>Control the amount of background structure.</small></div>
         <div class="workspace-choice-group two" role="group" aria-label="Workspace canvas">
-          <button class="workspace-choice" type="button" data-workspace-choice="canvas:calm" onclick="setWorkspaceView('canvas','calm')"><strong>Calm</strong><span>Clean, quiet surfaces</span></button>
-          <button class="workspace-choice" type="button" data-workspace-choice="canvas:structured" onclick="setWorkspaceView('canvas','structured')"><strong>Structured</strong><span>Subtle alignment grid</span></button>
+          <button class="workspace-choice" type="button" data-workspace-choice="canvas:calm" data-onclick="setWorkspaceView('canvas','calm')"><strong>Calm</strong><span>Clean, quiet surfaces</span></button>
+          <button class="workspace-choice" type="button" data-workspace-choice="canvas:structured" data-onclick="setWorkspaceView('canvas','structured')"><strong>Structured</strong><span>Subtle alignment grid</span></button>
         </div>
       </div>
       <div class="workspace-view-section">
         <div class="workspace-view-label">Motion<small>Reduce movement when concentration matters.</small></div>
         <div class="workspace-choice-group two" role="group" aria-label="Workspace motion">
-          <button class="workspace-choice" type="button" data-workspace-choice="motion:gentle" onclick="setWorkspaceView('motion','gentle')"><strong>Gentle</strong><span>Soft interface feedback</span></button>
-          <button class="workspace-choice" type="button" data-workspace-choice="motion:reduced" onclick="setWorkspaceView('motion','reduced')"><strong>Static</strong><span>No decorative movement</span></button>
+          <button class="workspace-choice" type="button" data-workspace-choice="motion:gentle" data-onclick="setWorkspaceView('motion','gentle')"><strong>Gentle</strong><span>Soft interface feedback</span></button>
+          <button class="workspace-choice" type="button" data-workspace-choice="motion:reduced" data-onclick="setWorkspaceView('motion','reduced')"><strong>Static</strong><span>No decorative movement</span></button>
         </div>
       </div>
       <div class="workspace-focus-card">
         <div><strong>Focus Mode</strong><span>Temporarily hide navigation and give the active workspace the full window.</span></div>
-        <button id="workspace-focus-toggle" class="btn primary" type="button" onclick="toggleFocusMode()">Enter Focus</button>
+        <button id="workspace-focus-toggle" class="btn primary" type="button" data-onclick="toggleFocusMode()">Enter Focus</button>
       </div>
     </div>
     <div class="modal-footer">
       <span class="modal-hint" style="margin-right:auto">Focus shortcut: Ctrl + Shift + F</span>
-      <button class="btn" onclick="resetWorkspaceView()">Reset</button>
-      <button class="btn primary" onclick="closeWorkspaceView()">Done</button>
+      <button class="btn" data-onclick="resetWorkspaceView()">Reset</button>
+      <button class="btn primary" data-onclick="closeWorkspaceView()">Done</button>
     </div>
   </div>
 </div>
-<button id="focus-exit" type="button" onclick="toggleFocusMode(false)" title="Exit Focus Mode (Ctrl+Shift+F)" aria-keyshortcuts="Control+Shift+F">
+<button id="focus-exit" type="button" data-onclick="toggleFocusMode(false)" title="Exit Focus Mode (Ctrl+Shift+F)" aria-keyshortcuts="Control+Shift+F">
   <span data-ic="eye"></span><span>Exit Focus</span>
 </button>
 
 <!-- ══ UNIVERSAL CREATE HUB ══ -->
-<div id="create-hub-overlay" class="modal-overlay" onclick="createHubOverlayClick(event)">
+<div id="create-hub-overlay" class="modal-overlay" data-onclick="createHubOverlayClick(event)">
   <div id="create-hub" class="modal-box">
     <div class="modal-header">
       <span class="modal-title"><span data-ic="zap"></span>Create something</span>
-      <button class="modal-close" onclick="closeCreateHub()" data-ic="x"></button>
+      <button class="modal-close" data-onclick="closeCreateHub()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <p class="create-hub-intro">Start any core workflow from one place. Nothing is written until you complete and save the existing form.</p>
       <div class="create-hub-grid">
-        <button class="create-flow" onclick="runCreateFlow('session')">
+        <button class="create-flow" data-onclick="runCreateFlow('session')">
           <span class="create-flow-icon" data-ic="clock"></span>
           <span class="create-flow-copy"><span class="create-flow-title">Log work</span><span class="create-flow-desc">Add a session to today’s Timesheet</span></span>
           <span class="create-flow-arrow" data-ic="arrow-right"></span>
         </button>
-        <button class="create-flow" onclick="runCreateFlow('task')">
+        <button class="create-flow" data-onclick="runCreateFlow('task')">
           <span class="create-flow-icon" data-ic="list"></span>
           <span class="create-flow-copy"><span class="create-flow-title">Create task</span><span class="create-flow-desc">Plan project, department, or unlinked work</span></span>
           <span class="create-flow-arrow" data-ic="arrow-right"></span>
         </button>
-        <button class="create-flow" onclick="runCreateFlow('project')">
+        <button class="create-flow" data-onclick="runCreateFlow('project')">
           <span class="create-flow-icon" data-ic="clipboard-list"></span>
           <span class="create-flow-copy"><span class="create-flow-title">Create project</span><span class="create-flow-desc">Connect clients, systems, documents, and tasks</span></span>
           <span class="create-flow-arrow" data-ic="arrow-right"></span>
         </button>
-        <button class="create-flow" onclick="runCreateFlow('knowledge')">
+        <button class="create-flow" data-onclick="runCreateFlow('knowledge')">
           <span class="create-flow-icon" data-ic="book-open"></span>
           <span class="create-flow-copy"><span class="create-flow-title">Write knowledge</span><span class="create-flow-desc">Capture a manual, procedure, or technical note</span></span>
           <span class="create-flow-arrow" data-ic="arrow-right"></span>
         </button>
-        <button class="create-flow" onclick="runCreateFlow('knowledge-document')">
+        <button class="create-flow" data-onclick="runCreateFlow('knowledge-document')">
           <span class="create-flow-icon" data-ic="upload"></span>
           <span class="create-flow-copy"><span class="create-flow-title">Add knowledge document</span><span class="create-flow-desc">Start a versioned document library item</span></span>
           <span class="create-flow-arrow" data-ic="arrow-right"></span>
         </button>
-        <button class="create-flow" onclick="runCreateFlow('company-document')">
+        <button class="create-flow" data-onclick="runCreateFlow('company-document')">
           <span class="create-flow-icon" data-ic="calendar-check"></span>
           <span class="create-flow-copy"><span class="create-flow-title">Add company document</span><span class="create-flow-desc">Track a company record and renewal date</span></span>
           <span class="create-flow-arrow" data-ic="arrow-right"></span>
         </button>
-        <button class="create-flow" onclick="runCreateFlow('subscription')">
+        <button class="create-flow" data-onclick="runCreateFlow('subscription')">
           <span class="create-flow-icon" data-ic="credit-card"></span>
           <span class="create-flow-copy"><span class="create-flow-title">Add subscription</span><span class="create-flow-desc">Track recurring cost and renewal timing</span></span>
           <span class="create-flow-arrow" data-ic="arrow-right"></span>
         </button>
-        <button class="create-flow" onclick="runCreateFlow('quick-find')">
+        <button class="create-flow" data-onclick="runCreateFlow('quick-find')">
           <span class="create-flow-icon" data-ic="search"></span>
           <span class="create-flow-copy"><span class="create-flow-title">Find existing work</span><span class="create-flow-desc">Jump to a task, client, project, document, or date</span></span>
           <span class="create-flow-arrow" data-ic="arrow-right"></span>
@@ -1851,19 +1840,19 @@
     </div>
     <div class="modal-footer">
       <span class="modal-hint" style="margin-right:auto">Shortcut: Ctrl + Shift + N</span>
-      <button class="btn" onclick="closeCreateHub()">Close</button>
+      <button class="btn" data-onclick="closeCreateHub()">Close</button>
     </div>
   </div>
 </div>
 
 <!-- ══ COMMAND PALETTE (Ctrl+K) ══ -->
-<div id="palette-overlay" class="modal-overlay" aria-label="Quick Find" onclick="paletteOverlayClick(event)">
-  <div id="palette" onclick="event.stopPropagation()">
+<div id="palette-overlay" class="modal-overlay" aria-label="Quick Find" data-onclick="paletteOverlayClick(event)">
+  <div id="palette" data-onclick="event.stopPropagation()">
     <div id="palette-input-wrap">
       <span data-ic="search"></span>
       <input id="palette-input" type="text" placeholder="Jump to a page, task, project or date…"
              aria-label="Search pages, actions, and workspace data"
-             autocomplete="off" spellcheck="false" oninput="paletteInputChanged()" />
+             autocomplete="off" spellcheck="false" data-oninput="paletteInputChanged()" />
     </div>
     <div id="palette-list" aria-busy="false"></div>
     <div id="palette-foot">
@@ -1876,11 +1865,11 @@
 </div>
 
 <!-- ══ KEYBOARD SHORTCUTS OVERLAY ("?") — read-only, Milestone 5 ══ -->
-<div id="shortcuts-overlay" class="modal-overlay" onclick="shortcutsOverlayClick(event)">
+<div id="shortcuts-overlay" class="modal-overlay" data-onclick="shortcutsOverlayClick(event)">
   <div class="modal-box">
     <div class="modal-header">
       <span class="modal-title">Keyboard Shortcuts</span>
-      <button class="modal-close" onclick="closeShortcutsOverlay()" data-ic="x"></button>
+      <button class="modal-close" data-onclick="closeShortcutsOverlay()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <div class="shortcuts-list">
@@ -1896,8 +1885,8 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeShortcutsOverlay(); openHowThinksOverlay()" style="margin-right:auto">How This App Thinks</button>
-      <button class="btn" onclick="closeShortcutsOverlay()">Close</button>
+      <button class="btn" data-onclick="closeShortcutsOverlay(); openHowThinksOverlay()" style="margin-right:auto">How This App Thinks</button>
+      <button class="btn" data-onclick="closeShortcutsOverlay()">Close</button>
     </div>
   </div>
 </div>
@@ -1906,11 +1895,11 @@
      Renderer-only, no IPC — a static explainer of the Task -> Sessions ->
      optional Container model, plus the golden path for each core journey.
      Reachable from the "?" shortcuts overlay and Settings -> General. -->
-<div id="howthinks-overlay" class="modal-overlay" onclick="howThinksOverlayClick(event)">
+<div id="howthinks-overlay" class="modal-overlay" data-onclick="howThinksOverlayClick(event)">
   <div class="modal-box" style="width:640px;max-width:94vw">
     <div class="modal-header">
       <span class="modal-title">How This App Thinks</span>
-      <button class="modal-close" onclick="closeHowThinksOverlay()" data-ic="x"></button>
+      <button class="modal-close" data-onclick="closeHowThinksOverlay()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <p class="general-hint" style="margin-top:0">Three ideas explain almost everything else in this app.</p>
@@ -1962,11 +1951,12 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeHowThinksOverlay()">Close</button>
+      <button class="btn" data-onclick="closeHowThinksOverlay()">Close</button>
     </div>
   </div>
 </div>
 
+<script src="renderer/event-delegation.js"></script>
 <script src="renderer/core.js"></script>
 <script src="renderer/features/timesheet.js"></script>
 <script src="renderer/features/workspace.js"></script>
