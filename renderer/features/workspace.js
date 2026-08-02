@@ -63,7 +63,7 @@ function renderCatList(kind) {
     const btn = document.createElement('button');
     btn.className = 'cp-list-item' + (x.name === st.selected ? ' active' : '');
     const nm = document.createElement('span'); nm.className = 'cp-list-name';
-    nm.textContent = x.name; nm.title = x.name;
+    nm.dataset.userContent = ''; nm.textContent = x.name; nm.title = x.name;
     const ct = document.createElement('span'); ct.className = 'cp-list-count';
     ct.textContent = x.count;
     btn.appendChild(nm); btn.appendChild(ct);
@@ -127,7 +127,7 @@ function renderCatRecords(kind) {
   const allOpt = document.createElement('option'); allOpt.value = ''; allOpt.textContent = 'All types';
   typeSel.appendChild(allOpt);
   lkOptions('TIME_TYPE').forEach(o => {
-    const opt = document.createElement('option'); opt.value = o.code; opt.textContent = o.label;
+    const opt = document.createElement('option'); opt.dataset.userContent = ''; opt.value = o.code; opt.textContent = o.label;
     typeSel.appendChild(opt);
   });
   typeSel.value = st.type;
@@ -231,7 +231,7 @@ function buildReadonlyRow(r, i) {
 
   const descTd = document.createElement('td');
   const descDiv = document.createElement('div'); descDiv.className = 'cell desc-cell';
-  const descSpan = document.createElement('span'); descSpan.className = 'desc-text'; descSpan.textContent = r.description;
+  const descSpan = document.createElement('span'); descSpan.className = 'desc-text'; descSpan.dataset.userContent = ''; descSpan.textContent = r.description;
   descDiv.appendChild(descSpan);
   descTd.appendChild(descDiv); tr.appendChild(descTd);
 
@@ -711,13 +711,14 @@ async function renderAnalytics() {
 // which has no page to click into anymore) renders plain, non-clickable bars.
 function renderAnBars(elId, map, subId, linkKind) {
   const items = Object.entries(map).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+  const visibleLabel = key => linkKind === 'companies' ? companyDisplayName(key) : key;
   const el = document.getElementById(elId);
   if (subId) document.getElementById(subId).textContent = items.length ? `${items.length}` : '';
   if (!items.length) { el.innerHTML = `<div class="an-empty">No tracked time in this period.</div>`; return; }
   const top = items.slice(0, 8);
   const max = top[0][1];
-  const rows = items.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(anFmtHrs(v))}</td></tr>`).join('');
-  el.innerHTML = `<div class="an-bars">${top.map(([k, v]) => anBarRow(k, v, max, anFmtHrs(v), null, linkKind)).join('')}</div>
+  const rows = items.map(([k, v]) => `<tr><td>${esc(visibleLabel(k))}</td><td>${esc(anFmtHrs(v))}</td></tr>`).join('');
+  el.innerHTML = `<div class="an-bars">${top.map(([k, v]) => anBarRow(k, v, max, anFmtHrs(v), null, linkKind, visibleLabel(k))).join('')}</div>
     <details class="an-data-details"><summary>View data table</summary>
       <table class="an-data-table"><thead><tr><th>Category</th><th>Hours</th></tr></thead><tbody>${rows}</tbody></table>
     </details>`;
@@ -728,7 +729,7 @@ const AN_BAR_LINK_ATTRS = {
   systems:        (label) => ` data-kind="systems" data-name="${esc(label)}" title="Browse all work for ${esc(label)}" onclick="openBrowseSlice(this.dataset.kind, this.dataset.name)"`,
   department:     (label) => ` data-name="${esc(label)}" title="Open All Tasks filtered to ${esc(label)}" onclick="openAllTasksForDepartment(this.dataset.name)"`,
 };
-function anBarRow(label, value, max, display, color, linkKind) {
+function anBarRow(label, value, max, display, color, linkKind, visibleLabel = label) {
   const w = Math.max(2, Math.round((value / max) * 100));
   const style = `width:${w}%${color ? `;background:${color}` : ''}`;
   const linkFn = linkKind && AN_BAR_LINK_ATTRS[linkKind];
@@ -737,7 +738,7 @@ function anBarRow(label, value, max, display, color, linkKind) {
   const type = linkFn ? ' type="button"' : '';
   return `
     <${tag}${type} class="an-bar-row${linkFn ? ' clickable' : ''}"${linkAttrs}>
-      <span class="an-bar-label" title="${esc(label)}">${esc(label)}</span>
+      <span class="an-bar-label" title="${esc(visibleLabel)}">${esc(visibleLabel)}</span>
       <span class="an-bar-track"><span class="an-bar-fill" style="${style}"></span></span>
       <span class="an-bar-val">${esc(display)}</span>
     </${tag}>`;
@@ -939,16 +940,20 @@ async function exportAnalyticsPDF() {
   }).join('\n');
   const { label } = anRange();
   const body = document.getElementById('an-scroll').innerHTML;
-  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+  const lang = window.ctI18n?.getLanguage?.() === 'ar' ? 'ar' : 'en';
+  const dir = lang === 'ar' ? 'rtl' : 'ltr';
+  const locale = lang === 'ar' ? 'ar-SA' : 'en-US';
+  const tr = (key, vars) => window.ctI18n?.t?.(key, vars) || key;
+  const html = `<!DOCTYPE html><html lang="${lang}" dir="${dir}"><head><meta charset="UTF-8">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src data:">
     <style>${css}
-      body { font-family:'Segoe UI',Arial,sans-serif; background:#fff; padding:28px 32px; display:block; }
+      body { font-family:'Segoe UI',Tahoma,Arial,sans-serif; background:#fff; padding:28px 32px; display:block; direction:${dir}; text-align:${dir === 'rtl' ? 'right' : 'left'}; }
       .an-report-title { font-size:20px; font-weight:700; color:#2a2722; margin-bottom:4px; }
       .an-report-sub { font-size:12px; color:#8a857c; margin-bottom:20px; }
     </style></head>
     <body>
-      <div class="an-report-title">Analytics — ${esc(label)}</div>
-      <div class="an-report-sub">Cooperation Tools · generated ${new Date().toLocaleString('en-US')}</div>
+      <div class="an-report-title">${esc(tr('Analytics — {label}', { label }))}</div>
+      <div class="an-report-sub">${esc(tr('Cooperation Tools'))} · ${esc(tr('generated {date}', { date: new Date().toLocaleString(locale) }))}</div>
       ${body}
     </body></html>`;
   const res = await window.api.exportPDF(html, `analytics-${fmt(new Date())}.pdf`);

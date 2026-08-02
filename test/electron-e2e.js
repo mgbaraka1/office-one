@@ -121,6 +121,22 @@ async function run() {
   const mode = await evaluate(`_authMode`);
   if (mode !== 'setup') throw new Error(`Expected first-run setup, got ${mode}`);
 
+  const loginLanguage = await evaluate(`(() => {
+    chooseLoginLanguage('ar');
+    return {
+      language: document.documentElement.lang,
+      direction: document.documentElement.dir,
+      heading: document.getElementById('auth-heading').textContent,
+      usernameLabel: document.querySelector('label[for="auth-username"]').textContent,
+      selected: document.querySelector('.auth-language [data-language="ar"]').classList.contains('active')
+    };
+  })()`);
+  if (loginLanguage.language !== 'ar' || loginLanguage.direction !== 'rtl' ||
+      loginLanguage.heading !== 'أنشئ حسابك' || loginLanguage.usernameLabel !== 'اسم المستخدم' ||
+      !loginLanguage.selected) {
+    throw new Error(`Login language selector failed: ${JSON.stringify(loginLanguage)}`);
+  }
+
   await evaluate(`(() => {
     document.getElementById('auth-username').value = 'e2e-admin';
     document.getElementById('auth-password').value = 'StrongPass123!';
@@ -134,6 +150,16 @@ async function run() {
   );
 
   const result = await evaluate(`(async () => {
+    const catalog = await window.api.loadLookups();
+    await window.api.saveLookups({ categories: { COMPANY: [
+      ...(catalog.categories.COMPANY || []),
+      { code: 'E2E_CLIENT', label: 'E2E Client', nameEn: 'E2E Client', nameAr: 'عميل الاختبار', isActive: true }
+    ] } });
+    LK = await window.api.loadLookups();
+    const profile = LK.categories.COMPANY.find(item => item.code === 'E2E_CLIENT');
+    const linkedTask = await window.api.createTask({
+      name: 'E2E bilingual client task', status: 'IN_PROGRESS', company: 'E2E_CLIENT', system: '', source: ''
+    });
     const created = await window.api.createKnowledgeItem({
       title: 'Electron E2E searchable handbook',
       status: 'PUBLISHED',
@@ -150,7 +176,41 @@ async function run() {
       paletteVisible: document.getElementById('palette-overlay').classList.contains('open'),
       paletteText: document.getElementById('palette-list').textContent,
       rendererModules: typeof openKnowledgeDetail === 'function' && typeof renderTable === 'function',
-      version: await window.api.appVersion()
+      version: await window.api.appVersion(),
+      clientProfile: {
+        code: profile?.code, nameEn: profile?.nameEn, nameAr: profile?.nameAr,
+        visible: companyDisplayName(profile), taskCode: linkedTask?.companyCode,
+        taskNameAr: linkedTask?.companyNameAr
+      },
+      localization: await (async () => {
+        await window.api.saveUiState(uiState);
+        const saved = await window.api.getUiState();
+        const dailyReport = buildDailyReportHTML([], '2026-08-02', 'e2e-admin', new Map());
+        const overtimeReport = buildOvertimeReportHTML([], 'أغسطس ٢٠٢٦', 'e2e-admin');
+        const subscriptionsReport = buildSubscriptionsReportHTML([], 'SAR', 'e2e-admin');
+        const reportDocument = buildReportDoc(dailyReport, 'Report');
+        switchModule('settings');
+        await new Promise(resolve => setTimeout(resolve, 100));
+        const companiesPanel = document.getElementById('tab-companies')?.textContent || '';
+        const settingsLocalized = document.getElementById('settings-search')?.placeholder === 'البحث عن إعداد…'
+          && companiesPanel.includes('رمز الشركة')
+          && companiesPanel.includes('الاسم بالإنجليزية')
+          && companiesPanel.includes('الاسم بالعربية')
+          && document.getElementById('settings-save-btn')?.textContent === 'حفظ تغييرات الكتالوج';
+        const arabic = {
+          language: document.documentElement.lang,
+          direction: document.documentElement.dir,
+          overview: document.querySelector('[data-module="analytics"] .nav-label')?.textContent,
+          userContentPreserved: document.getElementById('palette-list').textContent.includes('Electron E2E searchable handbook'),
+          persisted: saved.language,
+          reportsLocalized: dailyReport.includes('تقرير العمل اليومي') &&
+            overtimeReport.includes('طلب وقت إضافي') && subscriptionsReport.includes('تقرير الاشتراكات'),
+          reportDocumentRtl: reportDocument.includes('<html lang="ar" dir="rtl">'),
+          settingsLocalized
+        };
+        setAppLanguage('en');
+        return arabic;
+      })()
     };
   })()`);
 
@@ -160,6 +220,17 @@ async function run() {
   }
   if (!result.rendererModules) throw new Error('Extracted renderer modules did not load in classic-script order');
   if (!result.version) throw new Error('Application version IPC returned no value');
+  if (result.clientProfile.code !== 'E2E_CLIENT' || result.clientProfile.nameEn !== 'E2E Client' ||
+      result.clientProfile.nameAr !== 'عميل الاختبار' || !result.clientProfile.visible.includes('عميل الاختبار') ||
+      result.clientProfile.taskCode !== 'E2E_CLIENT' || result.clientProfile.taskNameAr !== 'عميل الاختبار') {
+    throw new Error(`Bilingual client profile failed: ${JSON.stringify(result.clientProfile)}`);
+  }
+  if (result.localization.language !== 'ar' || result.localization.direction !== 'rtl' ||
+      result.localization.overview !== 'نظرة عامة' || result.localization.persisted !== 'ar' ||
+      !result.localization.userContentPreserved || !result.localization.reportsLocalized ||
+      !result.localization.reportDocumentRtl || !result.localization.settingsLocalized) {
+    throw new Error(`Arabic localization failed: ${JSON.stringify(result.localization)}`);
+  }
 
   const screenshotPath = process.env.COOPERATION_TOOLS_E2E_SCREENSHOT;
   if (screenshotPath) {
@@ -171,8 +242,12 @@ async function run() {
 
   console.log(`PASS  Electron launched with isolated data at ${root}`);
   console.log('PASS  First-run account setup completed through the real renderer');
+  console.log('PASS  Login language selector controls the setup and authenticated session language');
   console.log('PASS  Context-isolated preload IPC created and searched a knowledge item');
   console.log('PASS  Quick Find rendered the FTS result');
+  console.log('PASS  Client profile code and English/Arabic names flow into a linked task');
+  console.log('PASS  Arabic switches to RTL, persists per user, preserves user content, and localizes report/PDF output');
+  console.log('PASS  Settings, including dynamic client-profile controls, are localized');
   console.log(`PASS  Extracted renderer modules loaded (app v${result.version})`);
 }
 

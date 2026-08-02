@@ -96,6 +96,30 @@
       -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
     }
 
+    /* Arabic localization — the document direction handles flex/grid order;
+       these overrides cover the few physical-direction rules in the shell. */
+    html[dir="rtl"] body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; }
+    html[dir="rtl"] #sidebar { border-right: 0; border-left: 1px solid var(--border); }
+    html[dir="rtl"] .nav-item,
+    html[dir="rtl"] .sidebar-quickfind,
+    html[dir="rtl"] input,
+    html[dir="rtl"] textarea,
+    html[dir="rtl"] select { text-align: right; }
+    html[dir="rtl"] input[type="number"],
+    html[dir="rtl"] input[type="date"],
+    html[dir="rtl"] input[type="time"],
+    html[dir="rtl"] input[type="month"] { direction: ltr; text-align: right; }
+    html[dir="rtl"] .quickfind-key,
+    html[dir="rtl"] .nav-badge { margin-left: 0; margin-right: auto; }
+    html[dir="rtl"] .nav-item.active::before {
+      left: auto; right: -16px; border-radius: 4px 0 0 4px;
+    }
+    html[dir="rtl"] body.sidebar-collapsed .nav-item.active::before { left: auto; right: -11px; }
+    html[dir="rtl"] .lic-chevron-right,
+    html[dir="rtl"] .lic-chevron-left,
+    html[dir="rtl"] [data-ic="arrow-right"],
+    html[dir="rtl"] [data-ic="arrow-left"] { transform: scaleX(-1); }
+
     ::-webkit-scrollbar { width: 10px; height: 10px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 20px; border: 3px solid transparent; background-clip: content-box; }
@@ -1623,6 +1647,39 @@
       transition: color .12s;
     }
     .lookup-item-del:hover { color: var(--bad); }
+    .client-profile-intro { margin-bottom: 14px; }
+    .client-profile-list { gap: 10px; }
+    .lookup-item.client-profile-item {
+      display: grid; grid-template-columns: minmax(120px,.65fr) minmax(180px,1fr) minmax(180px,1fr) auto;
+      gap: 10px; align-items: end; padding: 12px;
+    }
+    .client-profile-field { min-width: 0; }
+    .client-profile-field > span {
+      display: block; margin-bottom: 5px; color: var(--muted);
+      font-size: 10px; font-weight: 700; letter-spacing: .45px; text-transform: uppercase;
+    }
+    .client-profile-item .client-profile-field input { width: 100%; }
+    .client-code-field input { font-family: 'Cascadia Mono', Consolas, monospace; letter-spacing: .4px; }
+    @media (max-width: 900px) {
+      .lookup-item.client-profile-item { grid-template-columns: 1fr 1fr auto; }
+      .client-profile-item .client-code-field { grid-column: 1 / -2; }
+    }
+    .client-card-identity, .client-detail-identity { min-width: 0; }
+    .client-card-alt, .client-detail-alt { margin-top: 3px; color: var(--muted); font-size: 11px; }
+    .client-code-badge {
+      flex: 0 0 auto; padding: 4px 7px; border: 1px solid var(--border); border-radius: 7px;
+      background: var(--surface2); color: var(--accent); font: 700 10px/1.1 'Cascadia Mono', Consolas, monospace;
+    }
+    .client-profile-summary {
+      display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-bottom: 14px;
+    }
+    .client-profile-summary-field {
+      min-width: 0; padding: 13px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface);
+    }
+    .client-profile-summary-field span { display: block; margin-bottom: 5px; color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+    .client-profile-summary-field b { display: block; overflow-wrap: anywhere; font-size: 14px; }
+    html[dir="rtl"] .client-profile-summary-field:last-child b { direction: rtl; }
+    @media (max-width: 720px) { .client-profile-summary { grid-template-columns: 1fr; } }
 
     .lookup-add-row {
       display: flex; gap: 8px;
@@ -2236,6 +2293,17 @@
     }
     .auth-brand { text-align: center; color: var(--text); font-weight: 700; letter-spacing: 3px; font-size: 20px; }
     .auth-brand span { display: block; font-size: 11px; letter-spacing: 4px; color: var(--primary); margin-top: 4px; }
+    .auth-language {
+      display: flex; justify-content: center; gap: 4px; margin: 14px auto 0;
+      padding: 3px; width: max-content; border: 1px solid var(--border);
+      border-radius: 9px; background: var(--surface2);
+    }
+    .auth-language button {
+      min-width: 78px; padding: 6px 11px; border: 0; border-radius: 6px;
+      background: transparent; color: var(--muted); cursor: pointer;
+      font: 600 12px/1.2 inherit;
+    }
+    .auth-language button.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
     .auth-heading { text-align: center; margin: 20px 0 4px; font-size: 19px; font-weight: 700; color: var(--text); }
     .auth-sub { text-align: center; margin: 0 0 20px; font-size: 12.5px; color: var(--muted); }
     .auth-field { margin-bottom: 15px; }
@@ -2255,6 +2323,9 @@
     .auth-btn:hover { background: var(--primary-strong); }
     .auth-btn:disabled { opacity: .6; cursor: default; }
     .auth-error { min-height: 16px; margin: 10px 2px 0; font-size: 12px; color: var(--bad); text-align: center; }
+
+    .rpt-report[dir="rtl"] { direction: rtl; text-align: right; }
+    .rpt-report[dir="rtl"] .rpt-table thead th { text-align: right; }
     .sidebar-user {
       display: flex; align-items: center; gap: 10px; min-width: 0;
       padding: 10px 11px; border: 1px solid color-mix(in srgb, var(--sidebar-fg) 10%, transparent);

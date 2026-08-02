@@ -163,9 +163,10 @@ function renderPalette() {
 
   // Client names are lookup catalog entries rather than standalone records, so
   // they remain a tiny in-memory facet alongside the SQLite FTS results.
-  const clientHits = q ? lkOptions('COMPANY').filter(c => c.label.toLowerCase().includes(q))
+  const clientHits = q ? lkOptions('COMPANY').filter(c =>
+    [c.code, c.nameEn, c.nameAr, c.label].some(v => String(v || '').toLowerCase().includes(q)))
     .slice(0, 5)
-    .map(c => ({ icon: 'layers', label: c.label, hint: 'Open client', run: () => { switchModule('clients'); openClientDetail(c.id); } })) : [];
+    .map(c => ({ icon: 'layers', label: companyDisplayName(c), hint: 'Open client', run: () => { switchModule('clients'); openClientDetail(c.id); } })) : [];
   if (clientHits.length) groups.push({ label: 'Clients', items: clientHits });
 
   const kindInfo = {
@@ -439,7 +440,7 @@ async function startApp(user) {
   const role = user?.isAdmin ? 'Administrator' : 'Standard User';
   const userCard = document.getElementById('sidebar-user');
   const usernameEl = document.getElementById('sidebar-username');
-  if (usernameEl) { usernameEl.textContent = username; usernameEl.title = username; }
+  if (usernameEl) { usernameEl.dataset.userContent = ''; usernameEl.textContent = username; usernameEl.title = username; }
   const avatarEl = document.getElementById('sidebar-user-avatar');
   if (avatarEl) avatarEl.textContent = Array.from(username.trim())[0]?.toUpperCase() || '?';
   const roleEl = document.getElementById('sidebar-role');
@@ -484,4 +485,18 @@ hydrateIcons();   // swap all static [data-ic] placeholders for inline Lucide SV
 watchAriaLabels(); // mirror every button's title onto aria-label, now and going forward
 watchModalFocusTraps(); // Tab-cycle + initial focus inside every .modal-overlay (Milestone 5)
 connectFormLabels(); // associate visible labels with their form controls
+document.addEventListener('ct:languagechange', () => {
+  if (!_appBooted) return;
+  if (activeModule === 'clients') {
+    if (currentClient) renderClientDetail(currentClient);
+    else if (clientsLoaded) renderClientsList();
+  } else if (activeModule === 'timesheet') {
+    renderTable();
+  } else if (activeModule === 'all-tasks') {
+    renderAllTasksStatusChips();
+    renderAllTasksCards();
+  } else if (activeModule === 'analytics') {
+    renderAnalytics();
+  }
+});
 bootAuth();
