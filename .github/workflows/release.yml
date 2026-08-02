@@ -21,10 +21,36 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - name: Require Windows signing credentials
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:CSC_LINK) -or [string]::IsNullOrWhiteSpace($env:CSC_KEY_PASSWORD)) {
+            throw 'Signed releases are mandatory. Configure WINDOWS_CSC_LINK and WINDOWS_CSC_KEY_PASSWORD.'
+          }
       - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm test
       - run: npm run test:e2e
       - run: npm run build:win -- --publish never
+      - name: Generate software bill of materials
+        shell: pwsh
+        run: npm sbom --sbom-format cyclonedx | Set-Content -LiteralPath dist/sbom.cdx.json -Encoding utf8
+      - name: Verify signatures and create checksums
+        shell: pwsh
+        run: |
+          $installers = Get-ChildItem -LiteralPath dist -Filter *.exe
+          if (-not $installers) { throw 'No Windows executables were produced.' }
+          foreach ($installer in $installers) {
+            $signature = Get-AuthenticodeSignature -LiteralPath $installer.FullName
+            if ($signature.Status -ne 'Valid') {
+              throw "Invalid Authenticode signature on $($installer.Name): $($signature.Status)"
+            }
+          }
+          $lines = $installers | Sort-Object Name | ForEach-Object {
+            $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant()
+            "$hash  $($_.Name)"
+          }
+          $lines | Set-Content -LiteralPath dist/SHA256SUMS.txt -Encoding ascii
       - uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
@@ -32,3 +58,5 @@ jobs:
             dist/*.exe
             dist/*.blockmap
             dist/latest*.yml
+            dist/SHA256SUMS.txt
+            dist/sbom.cdx.json

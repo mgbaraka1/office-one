@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, dialog, safeStorage } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog, safeStorage, clipboard } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const db     = require('./db');
@@ -8,6 +8,15 @@ const { validateIpcArgs } = require('./ipc-contracts');
 const e2ePort = !app.isPackaged ? Number(process.env.COOPERATION_TOOLS_E2E_PORT) : 0;
 const isE2ERun = Number.isInteger(e2ePort) && e2ePort > 0 && e2ePort <= 65535;
 if (isE2ERun) app.commandLine.appendSwitch('remote-debugging-port', String(e2ePort));
+
+let copiedSecret = '';
+let copiedSecretTimer = null;
+function clearCopiedSecret() {
+  clearTimeout(copiedSecretTimer);
+  copiedSecretTimer = null;
+  if (copiedSecret && clipboard.readText() === copiedSecret) clipboard.clear();
+  copiedSecret = '';
+}
 
 // Every invoke crosses this one executable contract boundary before its
 // authentication/authorization wrapper or handler runs. Adding a channel
@@ -112,7 +121,10 @@ function createWindow() {
 ipcMain.handle('auth:status',      trusted(()                     => auth.status()));
 ipcMain.handle('auth:setup',       trusted((_e, username, pass)   => auth.setup(username, pass)));
 ipcMain.handle('auth:login',       trusted((_e, username, pass)   => auth.login(username, pass)));
-ipcMain.handle('auth:logout',      trusted(()                     => auth.logout()));
+ipcMain.handle('auth:logout', trusted(() => {
+  clearCopiedSecret();
+  return auth.logout();
+}));
 ipcMain.handle('auth:listUsers',   authed(()                            => auth.listUsers()));
 ipcMain.handle('auth:addUser',     admin((_e, username, pass, isAdmin) => auth.addUser(username, pass, isAdmin)));
 ipcMain.handle('auth:updateUser',  authed((_e, id, data)               => auth.updateUser(id, data)));
@@ -161,6 +173,7 @@ ipcMain.handle('tasks:list',   authed(()             => db.listTasks(auth.requir
 ipcMain.handle('tasks:index',  authed(()             => db.getTasksIndex(auth.requireUserId())));
 ipcMain.handle('search:workspace', authed((_e, query, limit) => db.searchWorkspace(auth.requireUserId(), query, limit)));
 ipcMain.handle('tasks:get',    authed((_e, id)       => db.getTask(auth.requireUserId(), id)));
+ipcMain.handle('tasks:history', authed((_e, id)      => db.getTaskFieldHistory(auth.requireUserId(), id)));
 ipcMain.handle('tasks:create', authed((_e, data)     => db.createTask(auth.requireUserId(), data)));
 ipcMain.handle('tasks:update', authed((_e, id, data) => db.updateTask(auth.requireUserId(), id, data)));
 // Metadata-only update (name/status/company/system/source) — never touches
@@ -489,6 +502,26 @@ ipcMain.handle('report:exportPDF', authed(async (_e, html, defaultName) => {
   }
 }));
 
+ipcMain.handle('report:exportCSV', authed(async (_e, csv, defaultName) => {
+  try {
+    const content = String(csv || '');
+    if (!content || Buffer.byteLength(content, 'utf8') > 10 * 1024 * 1024) {
+      return { ok: false, error: 'CSV content is empty or too large' };
+    }
+    const safeDefaultName = path.basename(String(defaultName || 'report.csv')).slice(0, 180) || 'report.csv';
+    const { canceled, filePath } = await dialog.showSaveDialog(win, {
+      title: 'Save report data as CSV',
+      defaultPath: safeDefaultName,
+      filters: [{ name: 'CSV spreadsheet', extensions: ['csv'] }],
+    });
+    if (canceled || !filePath) return { ok: false };
+    fs.writeFileSync(filePath, '\uFEFF' + content, 'utf8');
+    return { ok: true, path: filePath };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err) };
+  }
+}));
+
 ipcMain.handle('report:print', authed(async (_e, html) => {
   let printWin;
   try {
@@ -542,6 +575,15 @@ ipcMain.handle('app:confirmSaveFailure', trusted(async (_e, error, action = 'clo
 // rest this run — surfaced as a Settings banner when false (safeStorage
 // unavailable, e.g. a locked-down environment with no OS keychain).
 ipcMain.handle('security:credentialEncryptionStatus', trusted(() => ({ available: db.isCredentialEncryptionAvailable() })));
+ipcMain.handle('security:copySecret', authed((_e, value) => {
+  const secret = String(value || '');
+  if (!secret || Buffer.byteLength(secret, 'utf8') > 16 * 1024) throw new Error('Invalid secret value');
+  clearCopiedSecret();
+  clipboard.writeText(secret);
+  copiedSecret = secret;
+  copiedSecretTimer = setTimeout(clearCopiedSecret, 30_000);
+  return { ok: true, clearsInSeconds: 30 };
+}));
 
 // ── Window controls ──
 ipcMain.handle('window:setTitle', trusted((_e, title) => { if (win) win.setTitle(String(title || '').slice(0, 200)); }));
@@ -624,6 +666,7 @@ app.whenReady().then(() => {
   }
 });
 app.on('window-all-closed', () => {
+  clearCopiedSecret();
   db.close();   // checkpoint WAL + close handle cleanly
   if (process.platform !== 'darwin') app.quit();
 });

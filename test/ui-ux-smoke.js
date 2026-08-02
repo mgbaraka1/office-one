@@ -15,6 +15,9 @@ const html = [
   ...['timesheet', 'workspace', 'tasks', 'knowledge', 'company-documents', 'clients', 'shell']
     .map(name => fs.readFileSync(path.join(__dirname, '..', 'renderer', 'features', name + '.js'), 'utf8')),
 ].join('\n');
+const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+const preload = fs.readFileSync(path.join(__dirname, '..', 'preload.js'), 'utf8');
+const i18n = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'i18n.js'), 'utf8');
 const results = [];
 function gate(name, pass) { results.push({ name, pass: !!pass }); }
 function count(pattern) { return (html.match(pattern) || []).length; }
@@ -32,6 +35,15 @@ gate('Task Detail can add, edit, and remove structured sources inline',
   html.includes('function renderTaskDetailSourcesEditor(task, host)')
   && html.includes("addTaskSourceRow('td-sources-list')")
   && html.includes("saveTaskSources(task.id, readTaskSourceRows('td-sources-list'), originalIds)"));
+gate('Task Detail surfaces its metadata audit history',
+  html.includes('function openTaskHistoryModal(taskId, title)')
+  && html.includes('getTaskHistory(taskId)')
+  && html.includes('View task history'));
+gate('client credentials use timed reveal and clipboard auto-clear',
+  html.includes('function buildClientSecretControl(label, value)')
+  && html.includes('clipboard clears in 30 seconds')
+  && main.includes("ipcMain.handle('security:copySecret'")
+  && preload.includes('copySecret: (value)'));
 gate('Edit Record is session-only and writes the work log directly',
   html.includes('#modal.mode-edit .modal-taskfields { display: none !important; }')
   && html.includes("modal.classList.add('mode-edit')")
@@ -39,6 +51,11 @@ gate('Edit Record is session-only and writes the work log directly',
 gate('Daily Work Report titles tasks as COMPANY - PROJECT/SYSTEM - TASK without a duplicate prefix',
   html.includes("const reportTaskTitle = [companyTitle, projectTitle, taskTitle].filter(Boolean).join(' - ')")
   && html.includes('taskTitle.slice(existingPrefix.length)'));
+gate('report previews export accessible CSV data as well as PDF',
+  html.includes('function reportPreviewToCSV()')
+  && html.includes('function exportReportCSV()')
+  && main.includes("ipcMain.handle('report:exportCSV'")
+  && preload.includes('exportCSV:'));
 
 gate('primary action indigo meets the new high-contrast workspace token', html.includes('--primary: #4f46e5;'));
 gate('modal close buttons receive a generated accessible name', html.includes("el.classList.contains('modal-close') && !el.title") && html.includes("el.title = 'Close dialog'"));
@@ -66,12 +83,12 @@ gate('precision workspace shell has a persistent user-controlled navigation rail
   && html.includes("localStorage.setItem('ct-sidebar-compact'")
   && html.includes('body.sidebar-collapsed #sidebar')
   && html.includes('VISION 2026 — PRECISION WORKSPACE')
-  && html.includes(`data-module="clients" onclick="switchModule('clients')" title="Clients"`));
+  && html.includes(`data-module="clients" data-onclick="switchModule('clients')" title="Clients"`));
 gate('universal Create Hub exposes every core creation workflow safely',
   html.includes('id="create-hub-overlay"')
-  && html.includes('onclick="openCreateHub()"')
+  && html.includes('data-onclick="openCreateHub()"')
   && html.includes('aria-keyshortcuts="Control+Shift+N"')
-  && (createHubMarkup.match(/onclick="runCreateFlow\('/g) || []).length === 8
+  && (createHubMarkup.match(/data-onclick="runCreateFlow\('/g) || []).length === 8
   && html.includes("e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'n'")
   && createHubCode.includes("switchModule('timesheet'); openModal()")
   && createHubCode.includes("switchModule('all-tasks'); openBacklogModal()")
@@ -90,9 +107,9 @@ gate('page headers keep dropdowns above backdrop-filtered workspace cards',
   && html.includes('z-index: 500;'));
 gate('Overview is an active workflow launchpad, not only a reporting surface',
   html.includes('class="dash-launchpad" aria-label="Start a workflow"')
-  && html.includes(`class="dash-launch primary" onclick="runCreateFlow('session')"`)
-  && html.includes(`class="dash-launch" onclick="openCreateHub()"`)
-  && html.includes(`class="dash-launch" onclick="openPalette()"`));
+  && html.includes(`class="dash-launch primary" data-onclick="runCreateFlow('session')"`)
+  && html.includes(`class="dash-launch" data-onclick="openCreateHub()"`)
+  && html.includes(`class="dash-launch" data-onclick="openPalette()"`));
 gate('Overview exposes an account-scoped Recent Changes workflow',
   html.includes('id="dash-activity"')
   && html.includes('window.api.getRecentActivity()')
@@ -144,6 +161,12 @@ gate('a post-save catalog refresh failure does not falsely report that settings 
   html.includes('Saved — reopen the app to refresh')
   && html.includes('Settings saved; reopen the app to refresh catalogs'));
 gate('Settings has search and context-specific save actions', html.includes('id="settings-search"') && html.includes('function syncSettingsSaveButton('));
+gate('language can only be selected on the login page',
+  count(/class="auth-language"/g) === 1
+  && !html.includes('id="language-toggle"')
+  && !html.includes('id="setting-language-ctl"')
+  && !i18n.includes('window.setAppLanguage')
+  && i18n.includes("if (typeof _appBooted !== 'undefined' && _appBooted) return;"));
 gate('account controls live on a dedicated User Management page',
   html.includes('data-tab="users"')
   && html.includes('id="user-list"')

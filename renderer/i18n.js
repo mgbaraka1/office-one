@@ -2,8 +2,9 @@
  *
  * English remains the source language used by the existing renderer. This
  * small runtime translates UI-only strings and observes feature renderers so
- * newly opened modals/cards are localized too. Records, input values and
- * catalog labels are not modified.
+ * newly opened modals/cards are localized too. Records and input values are
+ * not modified; managed catalog labels are selected from their stored English
+ * and Arabic names by the renderer's lookup helpers.
  */
 (function () {
   'use strict';
@@ -43,13 +44,16 @@
     'Work Time': 'وقت العمل', 'Over Time': 'وقت إضافي', 'Done': 'مكتمل', 'Open': 'مفتوح', 'Blocked': 'متوقف',
     'Add Task': 'إضافة مهمة', 'New Task': 'مهمة جديدة', 'Existing Task': 'مهمة موجودة',
     'Task Details': 'تفاصيل المهمة', 'New Task Details': 'تفاصيل المهمة الجديدة', 'Task Name': 'اسم المهمة',
+    'Task History': 'سجل المهمة', 'View task history': 'عرض سجل المهمة',
     'Task Type': 'نوع المهمة', 'All Tasks': 'كل المهام', 'Internal': 'داخلي', 'Sources': 'المصادر',
     '+ Add Source': '+ إضافة مصدر', 'More options': 'خيارات إضافية', 'Advanced details': 'تفاصيل متقدمة',
     'Session Details': 'تفاصيل الجلسة', 'New Session Details': 'تفاصيل الجلسة الجديدة', 'Edit Session': 'تعديل الجلسة',
     'Sessions': 'الجلسات', 'Log Work': 'تسجيل عمل', 'Log work': 'تسجيل عمل', 'Save': 'حفظ',
     'Save Changes': 'حفظ التغييرات', 'Cancel': 'إلغاء', 'Close': 'إغلاق', 'Delete': 'حذف',
     'Edit': 'تعديل', 'Undo': 'تراجع', 'Discard': 'تجاهل', 'Reset': 'إعادة ضبط', 'Preview': 'معاينة',
-    'Print': 'طباعة', 'Save PDF': 'حفظ PDF', 'Generate →': 'إنشاء ←', 'Clear filters': 'مسح عوامل التصفية',
+    'Print': 'طباعة', 'Save PDF': 'حفظ PDF', 'Save CSV': 'حفظ CSV', 'CSV saved': 'تم حفظ ملف CSV',
+    'CSV failed: ': 'فشل حفظ CSV: ', 'This report has no table data to export': 'لا يحتوي هذا التقرير على بيانات جدول للتصدير',
+    'Generate →': 'إنشاء ←', 'Clear filters': 'مسح عوامل التصفية',
     'Search': 'بحث', 'Browse': 'تصفح', 'Name': 'الاسم', 'Title': 'العنوان', 'Summary': 'الملخص',
     'Notes': 'ملاحظات', 'Type': 'النوع', 'Category': 'الفئة', 'Activity': 'النشاط', 'Hours': 'الساعات',
     'Cost': 'التكلفة', 'Currency': 'العملة', 'Billing Cycle': 'دورة الفوترة', 'End Date': 'تاريخ الانتهاء',
@@ -60,6 +64,8 @@
     'Companies': 'الشركات', 'Systems': 'الأنظمة', 'Departments': 'الأقسام', 'Project Status': 'حالة المشروع',
     'Client Profile': 'ملف العميل', 'Add Client Profile': 'إضافة ملف عميل',
     'Company Code': 'رمز الشركة', 'English Name': 'الاسم بالإنجليزية', 'Arabic Name': 'الاسم بالعربية',
+    'English Label': 'التسمية بالإنجليزية', 'Arabic Label': 'التسمية بالعربية', 'Add Entry': 'إضافة قيمة',
+    'Enter both English and Arabic labels. The app displays the matching label for the selected interface language.': 'أدخل التسمية بالإنجليزية والعربية. يعرض التطبيق التسمية المطابقة للغة الواجهة المحددة.',
     'English company name': 'اسم الشركة بالإنجليزية', 'اسم الشركة بالعربية': 'اسم الشركة بالعربية',
     'Each client profile has a unique business code plus English and Arabic names. Tasks, projects, and infrastructure stay linked when these values change.': 'لكل ملف عميل رمز عمل فريد واسم بالإنجليزية واسم بالعربية. تظل المهام والمشاريع والبنية التحتية مرتبطة عند تغيير هذه القيم.',
     'Project Documents': 'مستندات المشروع', 'Project Name': 'اسم المشروع', 'Create Project': 'إنشاء مشروع',
@@ -82,7 +88,7 @@
     'New Document': 'مستند جديد', '+ New Document': '+ مستند جديد', 'Document deleted': 'تم حذف المستند',
     'Account & Preferences': 'الحساب والتفضيلات', 'Catalogs': 'الكتالوجات', 'Data & Recovery': 'البيانات والاستعادة',
     'General': 'عام', 'Language': 'اللغة', 'English': 'الإنجليزية', 'Application language': 'لغة التطبيق',
-    'Choose the interface language. Arabic uses a right-to-left layout; your records and catalog names are never translated or changed.': 'اختر لغة الواجهة. تستخدم العربية تخطيطاً من اليمين إلى اليسار؛ ولن تتم ترجمة سجلاتك أو أسماء الكتالوجات أو تغييرها.',
+    'Choose the interface language. Arabic uses a right-to-left layout; your records stay unchanged and managed catalogs use their saved English or Arabic labels.': 'اختر لغة الواجهة. تستخدم العربية تخطيطاً من اليمين إلى اليسار؛ وتبقى سجلاتك دون تغيير بينما تستخدم الكتالوجات التسمية الإنجليزية أو العربية المحفوظة.',
     'Start on': 'البدء عند', 'Last page': 'آخر صفحة', 'Analytics': 'التحليلات',
     'User Management': 'إدارة المستخدمين', 'Add User': 'إضافة مستخدم', 'Edit User': 'تعديل المستخدم',
     'Permissions': 'الصلاحيات', 'Account status': 'حالة الحساب', 'Active — can sign in': 'نشط — يمكنه تسجيل الدخول',
@@ -370,7 +376,9 @@
   ];
 
   let language = readLanguage();
-  let loginLanguageChoice = null;
+  // The login selector is the sole language authority. It starts with the last
+  // login-page choice and is fixed for the authenticated session.
+  let loginLanguageChoice = language;
   const translatedTextNodes = new Set();
   const translatedElements = new Set();
   const originals = new WeakMap();
@@ -479,10 +487,6 @@
       btn.classList.toggle('active', active);
       btn.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
-    const toggle = document.getElementById('language-toggle');
-    const label = document.getElementById('language-toggle-label');
-    if (toggle) toggle.title = language === 'ar' ? 'التبديل إلى الإنجليزية' : 'Switch to Arabic';
-    if (label) label.textContent = language === 'ar' ? 'English' : 'العربية';
   }
 
   function applyDocumentLanguage() {
@@ -527,21 +531,12 @@
   }
 
   window.ctI18n = {
-    t, setLanguage, getLanguage: () => language,
+    t, getLanguage: () => language,
     getLoginLanguageChoice: () => loginLanguageChoice,
     translateTree
   };
-  window.setAppLanguage = function (next) {
-    setLanguage(next);
-    if (typeof uiState !== 'undefined') {
-      uiState.language = next;
-      if (typeof saveUiStateDebounced === 'function') saveUiStateDebounced();
-    }
-  };
-  window.toggleAppLanguage = function () {
-    window.setAppLanguage(language === 'ar' ? 'en' : 'ar');
-  };
   window.chooseLoginLanguage = function (next) {
+    if (typeof _appBooted !== 'undefined' && _appBooted) return;
     loginLanguageChoice = next;
     setLanguage(next);
   };

@@ -77,7 +77,7 @@ try {
   const cols = raw.prepare('PRAGMA table_info(lookup_codes)').all().map(c => c.name);
   const linked = raw.prepare('SELECT company_id FROM tasks WHERE id = ?').get(task.id);
   const version = raw.prepare('SELECT MAX(version) AS version FROM schema_migrations').get().version;
-  check('migration 047 adds both profile columns', version === 47 && cols.includes('name_en') && cols.includes('name_ar'));
+  check('migration 047 adds both profile columns', version >= 47 && cols.includes('name_en') && cols.includes('name_ar'));
   check('the stored task FK remains the immutable company row id', Number(linked.company_id) === Number(originalId));
   raw.close();
 

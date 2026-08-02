@@ -266,15 +266,49 @@ async function openWlHistoryModal(workLogId, title) {
     head.appendChild(pjMk('span', 'cl-history-when', new Date(r.changedAt).toLocaleString()));
     row.appendChild(head);
     const diff = pjMk('div', 'cl-history-diff');
-    diff.appendChild(pjMk('span', 'cl-history-old', r.oldValue || '(empty)'));
+    const category = r.fieldName === 'Time Type' ? 'TIME_TYPE' : r.fieldName === 'Natural' ? 'ACTIVITY_TYPE' : null;
+    const shown = value => category && value ? lkLabel(category, value) : value;
+    diff.appendChild(pjMk('span', 'cl-history-old', shown(r.oldValue) || '(empty)'));
     diff.appendChild(pjMk('span', 'cl-history-arrow', '→'));
-    diff.appendChild(pjMk('span', 'cl-history-new', r.newValue || '(empty)'));
+    diff.appendChild(pjMk('span', 'cl-history-new', shown(r.newValue) || '(empty)'));
     row.appendChild(diff);
     list.appendChild(row);
   });
 }
 function closeWlHistoryModal() { document.getElementById('wl-history-overlay').classList.remove('open'); }
 function wlHistoryOverlayClick(e) { if (e.target === document.getElementById('wl-history-overlay')) closeWlHistoryModal(); }
+
+async function openTaskHistoryModal(taskId, title) {
+  const historyLabel = window.ctI18n?.t?.('Task History') || 'Task History';
+  document.getElementById('wl-history-modal-title').textContent = historyLabel + ' — ' + (title || 'task');
+  const list = document.getElementById('wl-history-list');
+  list.innerHTML = '<div class="cp-records-empty">Loading…</div>';
+  document.getElementById('wl-history-overlay').classList.add('open');
+  let rows;
+  try { rows = await window.api.getTaskHistory(taskId); }
+  catch { list.innerHTML = '<div class="cp-records-empty">Could not load history.</div>'; return; }
+  if (!Array.isArray(rows) || rows.length === 0) {
+    list.innerHTML = '<div class="cp-records-empty">No task changes recorded yet.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  rows.forEach(r => {
+    const row = pjMk('div', 'cl-history-row');
+    const head = pjMk('div', 'cl-history-head');
+    head.appendChild(pjMk('span', 'cl-history-field', r.fieldName));
+    head.appendChild(pjMk('span', 'cl-history-when', new Date(r.changedAt).toLocaleString()));
+    row.appendChild(head);
+    const diff = pjMk('div', 'cl-history-diff');
+    const category = { Status: 'ENTRY_STATUS', System: 'SYSTEM', Department: 'DEPARTMENT' }[r.fieldName];
+    const shown = value => r.fieldName === 'Company' && value ? companyDisplayName(value, false)
+      : category && value ? lkLabel(category, value) : value;
+    diff.appendChild(pjMk('span', 'cl-history-old', shown(r.oldValue) || '(empty)'));
+    diff.appendChild(pjMk('span', 'cl-history-arrow', '→'));
+    diff.appendChild(pjMk('span', 'cl-history-new', shown(r.newValue) || '(empty)'));
+    row.appendChild(diff);
+    list.appendChild(row);
+  });
+}
 
 function renderTaskDetail(t) {
   document.getElementById('td-title').dataset.userContent = '';
@@ -290,9 +324,14 @@ function renderTaskDetail(t) {
   statusWrap.style.cssText = 'margin-bottom:4px;display:flex;align-items:center;justify-content:space-between;gap:10px';
   const badge = pjMk('span', 'status-badge', lkLabel('ENTRY_STATUS', t.status));
   statusWrap.appendChild(badge);
+  const taskActions = pjMk('div', 'row-actions');
+  const historyLink = pjMk('button', 'td-merge-link', 'View task history');
+  historyLink.addEventListener('click', () => openTaskHistoryModal(t.id, t.name));
+  taskActions.appendChild(historyLink);
   const mergeLink = pjMk('button', 'td-merge-link', 'Merge into another task…');
   mergeLink.addEventListener('click', () => openMergeModal(t));
-  statusWrap.appendChild(mergeLink);
+  taskActions.appendChild(mergeLink);
+  statusWrap.appendChild(taskActions);
   body.appendChild(statusWrap);
 
   // ── Metadata grid ──
@@ -334,7 +373,7 @@ function renderTaskDetail(t) {
   sourcesField.appendChild(sourcesVal);
   grid.appendChild(sourcesField);
   grid.appendChild(field('Company', companyDisplayName(t.company)));
-  grid.appendChild(field('System', t.system));
+  grid.appendChild(field('System', lkLabel('SYSTEM', t.system)));
   if (t.projectId != null) {
     const tag = projectRowTag(t.projectId);
     grid.appendChild(field('Project', tag || projectNameById(t.projectId)));
@@ -416,7 +455,7 @@ function renderTaskDetail(t) {
       const timeSpan = pjMk('span', null, lkLabel('TIME_TYPE', w.time) || '—');
       if (w.time === 'OVERTIME') timeSpan.style.color = 'var(--bad)';
       tr.appendChild(cellWrap(timeSpan, 'cell'));
-      tr.appendChild(textCell(w.natural || '—'));
+      tr.appendChild(textCell(lkLabel('ACTIVITY_TYPE', w.natural) || '—'));
       const minCell = cellWrap(pjMk('span', null, (w.minutes === '' || w.minutes == null) ? '—' : String(w.minutes)), 'cell cell-right');
       minCell.style.textAlign = 'right';
       tr.appendChild(minCell);
@@ -638,7 +677,7 @@ function buildProjectCard(p, onOpen) {
 
   // Meta — companies and systems as pill rows (capped, with a +N overflow)
   const companyNames = (p.companies || []).map(c => companyDisplayName(c)).filter(Boolean);
-  const systemNames  = (p.systems || []).map(s => s.label).filter(Boolean);
+  const systemNames  = (p.systems || []).map(s => lkLabelById('SYSTEM', s.id) || lkLabel('SYSTEM', s.label)).filter(Boolean);
   if (companyNames.length) card.appendChild(pjCardMetaRow('building-2', companyNames));
   if (systemNames.length)  card.appendChild(pjCardMetaRow('folder', systemNames));
 
@@ -731,7 +770,7 @@ function renderProjectDetail(p) {
     const clientSep = pjMk('span', 'pj-crumb-sep');
     clientSep.innerHTML = ic('chevron-right');
     crumbs.appendChild(clientSep);
-    const crumbClient = pjMk('button', 'pj-crumb-link', primaryCompany.label);
+    const crumbClient = pjMk('button', 'pj-crumb-link', companyDisplayName(primaryCompany, false));
     crumbClient.addEventListener('click', () => {
       switchModule('clients');
       openClientDetail(primaryCompany.id);
@@ -781,8 +820,10 @@ function renderProjectDetail(p) {
     if ((items || []).length) {
       const pills = pjMk('div', 'pj-pills');
       items.forEach(it => {
-        const b = pjMk('button', 'pj-pill cell-link', it.label);
-        b.title = 'Browse all work for ' + it.label;
+        const visible = kind === 'companies' ? companyDisplayName(it, false)
+          : (lkLabelById('SYSTEM', it.id) || lkLabel('SYSTEM', it.label));
+        const b = pjMk('button', 'pj-pill cell-link', visible);
+        b.title = 'Browse all work for ' + visible;
         b.addEventListener('click', () => openBrowseSlice(kind, it.label));
         pills.appendChild(b);
       });
@@ -999,7 +1040,7 @@ function buildLinkedTaskCard(t, handlers) {
   head.appendChild(actsWrap);
   card.appendChild(head);
 
-  const metaBits = [companyDisplayName(t.company), t.system].filter(Boolean).join(' · ');
+  const metaBits = [companyDisplayName(t.company), lkLabel('SYSTEM', t.system)].filter(Boolean).join(' · ');
   const mins = t.totalMinutes || 0;
   const logCount = t.logCount || 0;
   const summary = pjMk('div', 'pj-task-meta',
@@ -1032,7 +1073,7 @@ function buildLinkedTaskCard(t, handlers) {
       const timeSpan = pjMk('span', null, lkLabel('TIME_TYPE', w.time) || '—');
       if (w.time === 'OVERTIME') timeSpan.style.color = 'var(--bad)';
       tr.appendChild(cellWrap(timeSpan, 'cell'));
-      tr.appendChild(textCell(w.natural || '—'));
+      tr.appendChild(textCell(lkLabel('ACTIVITY_TYPE', w.natural) || '—'));
       const minTd = document.createElement('td'); minTd.style.textAlign = 'right';
       const minDiv = pjMk('div', 'cell cell-right');
       minDiv.appendChild(document.createTextNode((w.minutes === '' || w.minutes == null) ? '—' : String(w.minutes)));
@@ -1086,7 +1127,7 @@ function buildDocCard(doc) {
   const icon = pjMk('div', 'pj-doc-icon');
   icon.innerHTML = ic(present ? 'circle-check' : (missing ? 'triangle-alert' : 'file-text'));
   card.appendChild(icon);
-  card.appendChild(pjMk('div', 'pj-doc-name', doc.label || doc.documentType));
+  card.appendChild(pjMk('div', 'pj-doc-name', lkLabel('PROJECT_DOCUMENT', doc.documentType) || doc.label || doc.documentType));
 
   if (!f) {
     card.appendChild(pjMk('div', 'pj-doc-state', 'Not uploaded'));
@@ -1191,7 +1232,7 @@ function openProjectModal(id = null) {
     lkOptions('COMPANY').map(o => ({ id: o.id, label: companyDisplayName(o) })),
     (src?.companies || []).map(c => c.id), 'Search companies…');
   pSystemsPicker = buildTagPicker(document.getElementById('p-systems'),
-    lkOptions('SYSTEM').map(o => ({ id: o.id, label: o.label })),
+    lkOptions('SYSTEM').map(o => ({ id: o.id, label: lookupDisplayName(o) })),
     (src?.systems || []).map(s => s.id), 'Search systems…');
   populateSelect('p-status', 'projectStatus', src?.status || 'ACTIVE');
   document.getElementById('p-description').value  = src?.description || '';
@@ -1346,7 +1387,7 @@ function renderLinkList() {
     const info = pjMk('div', 'pj-link-info');
     const main = pjMk('div', 'pj-link-main', t.name || '(untitled task)');
     info.appendChild(main);
-    const metaBits = [companyDisplayName(t.company), t.system].filter(Boolean).join(' · ');
+    const metaBits = [companyDisplayName(t.company), lkLabel('SYSTEM', t.system)].filter(Boolean).join(' · ');
     const logCount = t.logCount || 0;
     const sess = logCount + ' session' + (logCount === 1 ? '' : 's');
     const meta = pjMk('div', 'pj-link-meta', sess + (metaBits ? ' · ' + metaBits : ''));
@@ -1522,11 +1563,13 @@ function renderAllTasksPanel() {
   bar.appendChild(mkField('Company', mkSelect('at-company', 'All companies',
     lkOptions('COMPANY').map(o => ({ value: o.label, label: companyDisplayName(o) })))));
   bar.appendChild(mkField('System', mkSelect('at-system', 'All systems',
-    lkOptions('SYSTEM').map(o => ({ value: o.label, label: o.label })))));
+    lkOptions('SYSTEM').map(o => ({ value: o.label, label: lookupDisplayName(o) })))));
   bar.appendChild(mkField('Project', mkSelect('at-project', 'All projects',
     [{ value: 'none', label: 'Unlinked' }, ...atProjectsIdx.map(p => ({ value: String(p.id), label: p.name }))])));
   bar.appendChild(mkField('Department', mkSelect('at-department', 'All departments',
-    [{ value: 'none', label: 'No department' }, ...atDepartmentsIdx.map(d => ({ value: String(d.id), label: d.label }))])));
+    [{ value: 'none', label: 'No department' }, ...atDepartmentsIdx.map(d => ({
+      value: String(d.id), label: lkLabelById('DEPARTMENT', d.id) || d.label,
+    }))])));
 
   const clearBtn = document.createElement('button'); clearBtn.className = 'cp-filter-clear';
   clearBtn.innerHTML = ic('x') + ' Clear filters';
@@ -1585,7 +1628,7 @@ function renderAllTasksStatusChips() {
   lkOptions('ENTRY_STATUS').forEach(o => {
     const btn = document.createElement('button');
     btn.className = 'filter-chip' + (atStatuses.has(o.code) ? ' active' : '');
-    btn.dataset.userContent = ''; btn.textContent = o.label;
+    btn.dataset.userContent = ''; btn.textContent = lookupDisplayName(o);
     btn.addEventListener('click', () => {
       if (atStatuses.has(o.code)) atStatuses.delete(o.code); else atStatuses.add(o.code);
       btn.classList.toggle('active');
@@ -1738,7 +1781,8 @@ function renderDeptList() {
   const q = (document.getElementById('dept-search').value || '').trim().toLowerCase();
   const wrap = document.getElementById('dept-list');
   wrap.innerHTML = '';
-  const items = q ? deptList.filter(d => d.label.toLowerCase().includes(q)) : deptList;
+  const items = q ? deptList.filter(d =>
+    [d.label, lkLabelById('DEPARTMENT', d.id)].some(value => String(value || '').toLowerCase().includes(q))) : deptList;
   if (!items.length) {
     const empty = document.createElement('div'); empty.className = 'cp-list-empty';
     empty.textContent = deptList.length ? 'No matches' : 'No departments yet — add one from Settings';
@@ -1749,7 +1793,8 @@ function renderDeptList() {
     const btn = document.createElement('button');
     btn.className = 'cp-list-item' + (currentDept && currentDept.id === d.id ? ' active' : '');
     const nm = document.createElement('span'); nm.className = 'cp-list-name';
-    nm.dataset.userContent = ''; nm.textContent = d.label; nm.title = d.label;
+    const visible = lkLabelById('DEPARTMENT', d.id) || d.label;
+    nm.dataset.userContent = ''; nm.textContent = visible; nm.title = visible;
     const ct = document.createElement('span'); ct.className = 'cp-list-count';
     ct.textContent = d.taskCount;
     btn.appendChild(nm); btn.appendChild(ct);
@@ -1791,7 +1836,7 @@ function renderDeptTasksPanel(dept) {
 
   const head = document.createElement('div'); head.className = 'cp-records-head';
   const title = document.createElement('h2'); title.className = 'cp-records-title';
-  title.dataset.userContent = ''; title.textContent = dept.label;
+  title.dataset.userContent = ''; title.textContent = lkLabelById('DEPARTMENT', dept.id) || dept.label;
   head.appendChild(title);
   host.appendChild(head);
 

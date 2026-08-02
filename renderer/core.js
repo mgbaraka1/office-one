@@ -277,13 +277,17 @@ function lkOptions(category, includeInactive = false) {
 function lkFind(category, value) {
   if (value == null || value === '') return null;
   return (LK.categories[category] || []).find(o =>
-    o.code === value || o.label === value ||
-    (category === 'COMPANY' && (o.nameEn === value || o.nameAr === value))) || null;
+    o.code === value || o.label === value || o.nameEn === value || o.nameAr === value) || null;
+}
+function lookupDisplayName(option) {
+  if (!option) return '';
+  const arabic = window.ctI18n?.getLanguage?.() === 'ar';
+  return (arabic ? option.nameAr : option.nameEn) || option.nameEn || option.label || option.nameAr || '';
 }
 // Stored value → human label (falls back to the raw value if unknown/legacy).
 function lkLabel(category, value) {
   const o = lkFind(category, value);
-  return o ? o.label : (value || '');
+  return o ? lookupDisplayName(o) : (value || '');
 }
 function companyProfileOption(value) {
   if (value == null || value === '') return null;
@@ -310,7 +314,7 @@ function companyDisplayName(company, includeCode = true) {
 function lkLabelById(category, id) {
   if (id == null) return '';
   const o = (LK.categories[category] || []).find(x => Number(x.id) === Number(id));
-  return o ? (category === 'COMPANY' ? companyDisplayName(o, false) : o.label) : '';
+  return o ? (category === 'COMPANY' ? companyDisplayName(o, false) : lookupDisplayName(o)) : '';
 }
 
 // ── Timer state ──
@@ -335,19 +339,18 @@ let activeModule = null;
 // whenever the active module or a tracked module's filters change. db.js
 // stores this as an opaque JSON blob (machine_prefs key ui_state) — only the
 // renderer interprets `filters`' per-module shape.
-let uiState = { startOnLastPage: true, lastModule: 'analytics', language: 'en', filters: {}, sessionDefaults: {} };
+let uiState = { startOnLastPage: true, lastModule: 'analytics', filters: {}, sessionDefaults: {} };
 async function loadUiStateFromMain() {
   try {
     const loaded = await window.api.getUiState();
-    uiState = Object.assign({ startOnLastPage: true, lastModule: 'analytics', language: window.ctI18n?.getLanguage() || 'en', filters: {}, sessionDefaults: {} }, loaded || {});
+    uiState = Object.assign({ startOnLastPage: true, lastModule: 'analytics', filters: {}, sessionDefaults: {} }, loaded || {});
   } catch { /* keep defaults */ }
   const loginLanguage = window.ctI18n?.getLoginLanguageChoice?.();
-  if (loginLanguage === 'en' || loginLanguage === 'ar') uiState.language = loginLanguage;
   if (!uiState.filters || typeof uiState.filters !== 'object') uiState.filters = {};
   if (!uiState.sessionDefaults || typeof uiState.sessionDefaults !== 'object') uiState.sessionDefaults = {};
-  if (window.ctI18n && (uiState.language === 'en' || uiState.language === 'ar')) {
-    window.ctI18n.setLanguage(uiState.language);
-  }
+  // Ignore/remove legacy per-user language state. The selected login-page
+  // language already owns the document and cannot be changed after login.
+  delete uiState.language;
   if (loginLanguage) saveUiStateDebounced();
 }
 let _uiStateSaveTimer = null;
@@ -560,7 +563,7 @@ function addTaskSourceRow(listId, source) {
   typeSelect.appendChild(blankOpt);
   lkOptions('TASK_SOURCE_TYPE').forEach(o => {
     const opt = document.createElement('option');
-    opt.dataset.userContent = ''; opt.value = o.code; opt.textContent = o.label;
+    opt.dataset.userContent = ''; opt.value = o.code; opt.textContent = lookupDisplayName(o);
     if (o.code === (source && source.type)) opt.selected = true;
     typeSelect.appendChild(opt);
   });
@@ -714,7 +717,7 @@ function populateSelect(id, key, currentVal) {
   opts.forEach(opt => {
     const o = document.createElement('option');
     o.dataset.userContent = ''; o.value = opt[valField];
-    o.textContent = category === 'COMPANY' ? companyDisplayName(opt) : opt.label;
+    o.textContent = category === 'COMPANY' ? companyDisplayName(opt) : lookupDisplayName(opt);
     if (opt[valField] === selectedValue) o.selected = true;
     el.appendChild(o);
   });
@@ -935,8 +938,8 @@ function buildTaskSearchSelect(host, tasks, initialId, placeholder, onChange) {
     groupFn: (o) => (isRecent(o.task) ? 'Recent' : 'All tasks'),
     renderOption: (o) => {
       const t = o.task;
-      const meta = [companyDisplayName(t), t.system,
-        t.projectId != null ? projectNameById(t.projectId) : (t.departmentId != null ? t.department : null),
+      const meta = [companyDisplayName(t), lkLabel('SYSTEM', t.system),
+        t.projectId != null ? projectNameById(t.projectId) : (t.departmentId != null ? lkLabelById('DEPARTMENT', t.departmentId) : null),
         t.lastDate ? ('worked ' + t.lastDate) : null,
         t.logCount ? (t.logCount + ' session' + (t.logCount === 1 ? '' : 's')) : null,
         t.totalMinutes ? (Math.round(t.totalMinutes / 60 * 10) / 10 + 'h') : null]
@@ -1264,7 +1267,8 @@ async function runMaintenanceLookupScan() {
   dupes.forEach(d => {
     const row = pjMk('div', 'maint-row');
     const main = pjMk('div', 'maint-row-main');
-    main.appendChild(pjMk('div', 'maint-row-title', d.category + ': ' + d.codes.map(c => c.label).join(' / ')));
+    main.appendChild(pjMk('div', 'maint-row-title', d.category + ': ' + d.codes.map(c =>
+      lkLabelById(d.category, c.id) || c.label).join(' / ')));
     main.appendChild(pjMk('div', 'maint-row-meta', d.codes.length + ' colliding codes'));
     row.appendChild(main);
     const mergeable = !!LOOKUP_MERGE_CATEGORIES[d.category];
@@ -1289,7 +1293,8 @@ function openMaintenanceMergeConfirm(row, dupeGroup) {
   const label = pjMk('span', null, 'Keep:');
   const select = document.createElement('select');
   dupeGroup.codes.forEach(c => {
-    const opt = document.createElement('option'); opt.dataset.userContent = ''; opt.value = c.id; opt.textContent = c.label + ' (' + c.code + ')';
+    const opt = document.createElement('option'); opt.dataset.userContent = ''; opt.value = c.id;
+    opt.textContent = (lkLabelById(dupeGroup.category, c.id) || c.label) + ' (' + c.code + ')';
     select.appendChild(opt);
   });
   const mergeBtn = pjMk('button', 'btn primary', 'Merge Now');
@@ -1373,18 +1378,32 @@ function renderLookupPanel(uiKey) {
   const arr = lookupsDraft[category] || (lookupsDraft[category] = []);
   if (category === 'COMPANY') { renderCompanyProfilePanel(panel, arr); return; }
 
+  const intro = document.createElement('p');
+  intro.className = 'general-hint lookup-bilingual-intro';
+  intro.textContent = 'Enter both English and Arabic labels. The app displays the matching label for the selected interface language.';
+  panel.appendChild(intro);
+
   const list = document.createElement('div');
-  list.className = 'lookup-list';
+  list.className = 'lookup-list bilingual-lookup-list';
   const redraw = () => renderLookupPanel(uiKey);
 
   arr.forEach((opt, i) => {
     const item = document.createElement('div');
-    item.className = 'lookup-item' + (opt.isActive === false ? ' lookup-item-inactive' : '');
+    item.className = 'lookup-item bilingual-lookup-item' + (opt.isActive === false ? ' lookup-item-inactive' : '');
 
-    const inp = document.createElement('input');
-    inp.type = 'text'; inp.value = opt.label;
-    inp.title = opt.code ? 'code: ' + opt.code : 'new entry';
-    inp.addEventListener('input', e => { opt.label = e.target.value; });
+    const field = (label, value, placeholder, onInput, dir) => {
+      const wrap = document.createElement('label'); wrap.className = 'client-profile-field';
+      const caption = document.createElement('span'); caption.textContent = label; wrap.appendChild(caption);
+      const input = document.createElement('input'); input.type = 'text'; input.value = value || ''; input.placeholder = placeholder;
+      input.title = opt.code ? 'code: ' + opt.code : 'new entry';
+      input.dir = dir;
+      input.addEventListener('input', e => onInput(e.target.value)); wrap.appendChild(input);
+      return wrap;
+    };
+    item.appendChild(field('English Label', opt.nameEn || opt.label, 'English label', value => {
+      opt.nameEn = value; opt.label = value;
+    }, 'ltr'));
+    item.appendChild(field('Arabic Label', opt.nameAr, 'التسمية بالعربية', value => { opt.nameAr = value; }, 'rtl'));
 
     // Existing entries soft-disable (codes are immutable — historical rows point at
     // them); never-saved new entries are simply dropped.
@@ -1398,33 +1417,21 @@ function renderLookupPanel(uiKey) {
       redraw();
     });
 
-    item.appendChild(inp); item.appendChild(del);
+    item.appendChild(del);
     list.appendChild(item);
   });
 
   panel.appendChild(list);
 
-  const addRow = document.createElement('div');
-  addRow.className = 'lookup-add-row';
-
-  const addInp = document.createElement('input');
-  addInp.type = 'text'; addInp.placeholder = 'Add new…';
-
   const addBtn = document.createElement('button');
-  addBtn.textContent = '+ Add';
+  addBtn.type = 'button'; addBtn.className = 'btn';
+  addBtn.innerHTML = ic('plus') + ' Add Entry';
   addBtn.addEventListener('click', () => {
-    const v = addInp.value.trim();
-    if (!v) return;
-    arr.push({ id: null, code: null, label: v, sortOrder: arr.length, isActive: true });
-    addInp.value = '';
+    arr.push({ id: null, code: null, label: '', nameEn: '', nameAr: '', sortOrder: arr.length, isActive: true });
     redraw();
-    const items = panel.querySelectorAll('.lookup-item input');
-    if (items.length) items[items.length-1].focus();
+    panel.querySelector('.bilingual-lookup-item:last-child input')?.focus();
   });
-  addInp.addEventListener('keydown', e => { if (e.key === 'Enter') addBtn.click(); });
-
-  addRow.appendChild(addInp); addRow.appendChild(addBtn);
-  panel.appendChild(addRow);
+  panel.appendChild(addBtn);
 }
 
 function renderCompanyProfilePanel(panel, arr) {
