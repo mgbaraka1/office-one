@@ -77,7 +77,7 @@ try {
   const diagnostics = db.getSystemDiagnostics();
   check('Recovery diagnostics cover integrity, schema, files, search, and storage',
     diagnostics.integrity.ok
-      && diagnostics.schemaHead === 46
+      && diagnostics.schemaHead === 47
       && diagnostics.workspaceSearchRows >= 1
       && Array.isArray(diagnostics.missingFiles)
       && Object.hasOwn(diagnostics, 'freeBytes')

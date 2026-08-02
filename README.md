@@ -9,13 +9,15 @@ All operational data stays on the device in an embedded SQLite database. There i
 - Fast daily logging with grouped task sessions, Repeat Last, remembered session defaults, duration presets, a live timer, and per-session activity/time type.
 - Client projects with linked tasks and tracked uploaded documents.
 - Internal tasks organized by department, plus an all-tasks view and task detail/history data.
-- A tabbed Client workspace with a summary, projects, authentication connections, servers, and internal systems.
+- Bilingual client profiles with a unique company code, English/Arabic names, linked projects/tasks, authentication connections, servers, and internal systems.
 - Recurring subscriptions and renewal-tracked company documents.
 - An accessible Overview with attention items first, period comparisons, chart data tables, browse/report filters, and main-process-owned PDF printing.
 - A responsive, keyboard-friendly precision workspace with user-collapsible navigation,
   universal Create Hub, Quick Find, contextual workflow guidance, connected form errors,
   persistent density/canvas/motion comfort controls, reversible Focus Mode, focus
-  management, and coordinated high-contrast light/dark themes.
+  management, coordinated high-contrast light/dark themes, and a switchable
+  English/Arabic interface with login-page language selection, localized PDF
+  reports, and a full right-to-left Arabic layout.
 - Multi-user accounts with a dedicated User Management page: administrators can create accounts, assign Administrator or Standard User permissions, rename/deactivate users, and reset passwords; every user can edit their own username and password.
 - Rotating database snapshots, validated restore, integrity checks, and checksum-verified full backup/restore bundles containing the DB and every uploaded-file tree.
 - SQLite full-text Quick Find across tasks, projects, Knowledge Hub, company documents, and subscriptions, plus an account-scoped Recent Changes feed.
@@ -80,7 +82,7 @@ Full backups are written outside the live data directory to a timestamped Deskto
 - `main.js` — Electron lifecycle, trusted/authenticated/admin IPC boundaries, dialogs, printing, and OS integration.
 - `auth.js` — bcrypt validation, login throttling, account administration, and the in-memory session.
 - `db.js` — SQLite connection, migrations, maintenance/backups, ownership-scoped CRUD, validation, and analytics.
-- `migrations/` — append-only migrations `000` through `046`; migration `046` adds the trigger-maintained, user-scoped FTS5 workspace index.
+- `migrations/` — append-only migrations `000` through `047`; migration `047` promotes COMPANY lookups into bilingual client profiles without changing their linked IDs.
 - `ipc-contracts.js` — executable, fail-closed validation contracts for every renderer-to-main channel.
 - `preload.js` — the context-isolated `window.api` bridge.
 - `index.html` — renderer markup and module containers.

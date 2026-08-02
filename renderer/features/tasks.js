@@ -277,6 +277,7 @@ function closeWlHistoryModal() { document.getElementById('wl-history-overlay').c
 function wlHistoryOverlayClick(e) { if (e.target === document.getElementById('wl-history-overlay')) closeWlHistoryModal(); }
 
 function renderTaskDetail(t) {
+  document.getElementById('td-title').dataset.userContent = '';
   document.getElementById('td-title').textContent = t.name || '(untitled task)';
 
   const body = document.getElementById('td-body');
@@ -332,7 +333,7 @@ function renderTaskDetail(t) {
   else sourcesVal.appendChild(pjMk('span', 'ts-empty-hint', 'No sources added yet.'));
   sourcesField.appendChild(sourcesVal);
   grid.appendChild(sourcesField);
-  grid.appendChild(field('Company', t.company));
+  grid.appendChild(field('Company', companyDisplayName(t.company)));
   grid.appendChild(field('System', t.system));
   if (t.projectId != null) {
     const tag = projectRowTag(t.projectId);
@@ -545,6 +546,7 @@ let _mergeCtx = { sourceTask: null, target: null };
 let mergeTargetPicker = null;
 async function openMergeModal(sourceTask) {
   _mergeCtx = { sourceTask, target: null };
+  document.getElementById('merge-source-name').dataset.userContent = '';
   document.getElementById('merge-source-name').textContent = sourceTask.name || '(untitled task)';
   const preview = document.getElementById('merge-preview');
   preview.style.display = 'none'; preview.innerHTML = '';
@@ -635,7 +637,7 @@ function buildProjectCard(p, onOpen) {
   card.appendChild(head);
 
   // Meta — companies and systems as pill rows (capped, with a +N overflow)
-  const companyNames = (p.companies || []).map(c => c.label).filter(Boolean);
+  const companyNames = (p.companies || []).map(c => companyDisplayName(c)).filter(Boolean);
   const systemNames  = (p.systems || []).map(s => s.label).filter(Boolean);
   if (companyNames.length) card.appendChild(pjCardMetaRow('building-2', companyNames));
   if (systemNames.length)  card.appendChild(pjCardMetaRow('folder', systemNames));
@@ -997,7 +999,7 @@ function buildLinkedTaskCard(t, handlers) {
   head.appendChild(actsWrap);
   card.appendChild(head);
 
-  const metaBits = [t.company, t.system].filter(Boolean).join(' · ');
+  const metaBits = [companyDisplayName(t.company), t.system].filter(Boolean).join(' · ');
   const mins = t.totalMinutes || 0;
   const logCount = t.logCount || 0;
   const summary = pjMk('div', 'pj-task-meta',
@@ -1186,7 +1188,7 @@ function openProjectModal(id = null) {
 
   document.getElementById('p-name').value        = src?.name || '';
   pCompaniesPicker = buildTagPicker(document.getElementById('p-companies'),
-    lkOptions('COMPANY').map(o => ({ id: o.id, label: o.label })),
+    lkOptions('COMPANY').map(o => ({ id: o.id, label: companyDisplayName(o) })),
     (src?.companies || []).map(c => c.id), 'Search companies…');
   pSystemsPicker = buildTagPicker(document.getElementById('p-systems'),
     lkOptions('SYSTEM').map(o => ({ id: o.id, label: o.label })),
@@ -1331,7 +1333,8 @@ function renderLinkList() {
   host.innerHTML = '';
 
   const all = (linkableTasks || []).filter(t => textMatch(
-    [t.name, t.company, t.system, t.source, t.firstSourceRef], q));
+    [t.name, t.company, t.companyCode, t.companyNameEn, t.companyNameAr,
+      t.system, t.source, t.firstSourceRef], q));
 
   if (all.length === 0) {
     host.appendChild(pjMk('div', 'cp-records-empty', 'No unlinked tasks available.'));
@@ -1343,7 +1346,7 @@ function renderLinkList() {
     const info = pjMk('div', 'pj-link-info');
     const main = pjMk('div', 'pj-link-main', t.name || '(untitled task)');
     info.appendChild(main);
-    const metaBits = [t.company, t.system].filter(Boolean).join(' · ');
+    const metaBits = [companyDisplayName(t.company), t.system].filter(Boolean).join(' · ');
     const logCount = t.logCount || 0;
     const sess = logCount + ' session' + (logCount === 1 ? '' : 's');
     const meta = pjMk('div', 'pj-link-meta', sess + (metaBits ? ' · ' + metaBits : ''));
@@ -1509,7 +1512,7 @@ function renderAllTasksPanel() {
     const allOpt = document.createElement('option'); allOpt.value = ''; allOpt.textContent = allLabel;
     sel.appendChild(allOpt);
     extraOpts.forEach(o => {
-      const opt = document.createElement('option'); opt.value = o.value; opt.textContent = o.label;
+      const opt = document.createElement('option'); opt.dataset.userContent = ''; opt.value = o.value; opt.textContent = o.label;
       sel.appendChild(opt);
     });
     sel.addEventListener('change', () => { (onChange || renderAllTasksCards)(); persistAllTasksFilters(); });
@@ -1517,7 +1520,7 @@ function renderAllTasksPanel() {
   };
 
   bar.appendChild(mkField('Company', mkSelect('at-company', 'All companies',
-    lkOptions('COMPANY').map(o => ({ value: o.label, label: o.label })))));
+    lkOptions('COMPANY').map(o => ({ value: o.label, label: companyDisplayName(o) })))));
   bar.appendChild(mkField('System', mkSelect('at-system', 'All systems',
     lkOptions('SYSTEM').map(o => ({ value: o.label, label: o.label })))));
   bar.appendChild(mkField('Project', mkSelect('at-project', 'All projects',
@@ -1582,7 +1585,7 @@ function renderAllTasksStatusChips() {
   lkOptions('ENTRY_STATUS').forEach(o => {
     const btn = document.createElement('button');
     btn.className = 'filter-chip' + (atStatuses.has(o.code) ? ' active' : '');
-    btn.textContent = o.label;
+    btn.dataset.userContent = ''; btn.textContent = o.label;
     btn.addEventListener('click', () => {
       if (atStatuses.has(o.code)) atStatuses.delete(o.code); else atStatuses.add(o.code);
       btn.classList.toggle('active');
@@ -1605,7 +1608,8 @@ function atTaskMatchesFilters(t, q, company, system, projectSel, deptSel) {
   if (deptSel === 'none') { if (t.departmentId != null) return false; }
   else if (deptSel && String(t.departmentId) !== deptSel) return false;
   if (q) {
-    const hay = [t.name, t.company, t.system, t.department, t.source, t.firstSourceRef].filter(Boolean).join(' ').toLowerCase();
+    const hay = [t.name, t.company, t.companyCode, t.companyNameEn, t.companyNameAr,
+      t.system, t.department, t.source, t.firstSourceRef].filter(Boolean).join(' ').toLowerCase();
     if (!hay.includes(q)) return false;
   }
   return true;
@@ -1745,7 +1749,7 @@ function renderDeptList() {
     const btn = document.createElement('button');
     btn.className = 'cp-list-item' + (currentDept && currentDept.id === d.id ? ' active' : '');
     const nm = document.createElement('span'); nm.className = 'cp-list-name';
-    nm.textContent = d.label; nm.title = d.label;
+    nm.dataset.userContent = ''; nm.textContent = d.label; nm.title = d.label;
     const ct = document.createElement('span'); ct.className = 'cp-list-count';
     ct.textContent = d.taskCount;
     btn.appendChild(nm); btn.appendChild(ct);
@@ -1787,7 +1791,7 @@ function renderDeptTasksPanel(dept) {
 
   const head = document.createElement('div'); head.className = 'cp-records-head';
   const title = document.createElement('h2'); title.className = 'cp-records-title';
-  title.textContent = dept.label;
+  title.dataset.userContent = ''; title.textContent = dept.label;
   head.appendChild(title);
   host.appendChild(head);
 
