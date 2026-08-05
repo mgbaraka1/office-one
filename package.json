@@ -1,7 +1,7 @@
 {
   "name": "timesheet",
-  "version": "7.0.0",
-  "description": "Cooperation Tools — an offline, multi-user Electron desktop app for timesheets, projects, client infrastructure, company documents, and a searchable Knowledge Hub, with analytics and PDF reports. Each account's data is isolated in an embedded SQLite database.",
+  "version": "8.0.0",
+  "description": "Office ONE — an offline, multi-user Electron desktop app for timesheets, projects, client infrastructure, company documents, and a searchable Knowledge Hub, with analytics and PDF reports. Each account's data is isolated in an embedded SQLite database.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -34,8 +34,8 @@
     "electron-builder": "^25.1.8"
   },
   "build": {
-    "appId": "com.mostafa.cooperationtools",
-    "productName": "Cooperation Tools",
+    "appId": "com.mostafa.officeone",
+    "productName": "Office ONE",
     "files": [
       "main.js",
       "db.js",
@@ -62,7 +62,7 @@
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "Cooperation Tools"
+      "shortcutName": "Office ONE"
     },
     "directories": {
       "output": "dist"

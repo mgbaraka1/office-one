@@ -84,7 +84,7 @@ async function switchDay(dateStr) {
   document.getElementById('hName').value = (await window.api.getDayName(dateStr)) || LK.defaultName || '';
   document.getElementById('hDate').value = dateStr;
 
-  window.api.setTitle('Cooperation Tools — Timesheet — ' + dateStr);
+  window.api.setTitle('Office ONE — Timesheet — ' + dateStr);
 
   renderTable();
   renderCalendar();
@@ -1661,7 +1661,7 @@ function buildDailyReportHTML(srcRows, date, name, sourcesByTaskId) {
     // Daily report task titles use COMPANY - PROJECT/SYSTEM - TASK. Historical
     // task names often already begin with the System value (for example,
     // "Payment Gateway - Check..."); strip that prefix so it is not printed twice.
-    const companyTitle = companyDisplayName(g.company).trim();
+    const companyTitle = companyDisplayName(g.company, false).trim();
     const projectTitle = String(lkLabel('SYSTEM', g.system) || '').trim().toUpperCase();
     let taskTitle = String(g.taskName || '(untitled task)').trim();
     const existingPrefix = String(g.system || '').trim();
@@ -1716,7 +1716,7 @@ function buildDailyReportHTML(srcRows, date, name, sourcesByTaskId) {
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px">
       <div>
         <div style="font-size:10px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#111;line-height:1.6">MOS TA FA</div>
-        <div style="font-size:10px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#111">${esc(rptText('Cooperation Tools'))}</div>
+        <div style="font-size:10px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#111">${esc(rptText('Office ONE'))}</div>
       </div>
       <div style="text-align:right">
         <div style="font-size:14px;font-weight:700;color:#111">${esc(name)}</div>
@@ -1752,7 +1752,7 @@ function buildDailyReportHTML(srcRows, date, name, sourcesByTaskId) {
       </tfoot>
     </table>
     <div style="display:flex;justify-content:space-between;margin-top:14px;font-size:9px;color:#999;padding-top:8px;border-top:1px solid #ddd">
-      <span>MOS TA FA · ${esc(rptText('Cooperation Tools'))}</span>
+      <span>MOS TA FA · ${esc(rptText('Office ONE'))}</span>
       <span>${esc(rptText('Printed {date}', { date: printedOn }))}</span>
     </div>`);
 }
@@ -1928,7 +1928,7 @@ function buildOvertimeReportHTML(days, monthLabel, name) {
       <tr>
         <td style="text-align:center">${i + 1}</td>
         <td>${dLabel}</td>
-        <td>${esc(companyDisplayName(r.company))}</td>
+        <td>${esc(companyDisplayName(r.company, false))}</td>
         <td>${esc(lkLabel('SYSTEM', r.system))}</td>
         <td>${esc(r.taskName || lkLabel('ACTIVITY_TYPE', r.natural) || '—')}</td>
         <td>${esc(r.description)}</td>
@@ -1959,7 +1959,7 @@ function buildOvertimeReportHTML(days, monthLabel, name) {
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px">
       <div>
         <div style="font-size:10px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#111;line-height:1.6">MOS TA FA</div>
-        <div style="font-size:10px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#111">${esc(rptText('Cooperation Tools'))}</div>
+        <div style="font-size:10px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#111">${esc(rptText('Office ONE'))}</div>
       </div>
       <div style="text-align:right">
         <div style="font-size:14px;font-weight:700;color:#111">${esc(name)}</div>
@@ -2006,7 +2006,7 @@ function buildOvertimeReportHTML(days, monthLabel, name) {
       </div>
     </div>
     <div style="display:flex;justify-content:space-between;margin-top:16px;font-size:9px;color:#aaa;padding-top:8px;border-top:1px solid #ddd">
-      <span>MOS TA FA · ${esc(rptText('Cooperation Tools'))}</span>
+      <span>MOS TA FA · ${esc(rptText('Office ONE'))}</span>
       <span>${esc(rptText('Printed {date}', { date: printedOn }))}</span>
     </div>`);
 }
@@ -2082,7 +2082,7 @@ function buildSubscriptionsReportHTML(subs, defaultCurrency, name) {
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px">
       <div>
         <div style="font-size:10px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#111;line-height:1.6">MOS TA FA</div>
-        <div style="font-size:10px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#111">${esc(rptText('Cooperation Tools'))}</div>
+        <div style="font-size:10px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#111">${esc(rptText('Office ONE'))}</div>
       </div>
       <div style="text-align:right">
         <div style="font-size:14px;font-weight:700;color:#111">${esc(name)}</div>
@@ -2120,7 +2120,7 @@ function buildSubscriptionsReportHTML(subs, defaultCurrency, name) {
     </table>
 
     <div style="display:flex;justify-content:space-between;margin-top:16px;font-size:9px;color:#aaa;padding-top:8px;border-top:1px solid #ddd">
-      <span>MOS TA FA · ${esc(rptText('Cooperation Tools'))}</span>
+      <span>MOS TA FA · ${esc(rptText('Office ONE'))}</span>
       <span>${esc(rptText('Printed {date}', { date: printedOn }))}</span>
     </div>`);
 }
@@ -2493,37 +2493,37 @@ function switchModule(name) {
   syncControlSemantics(document.getElementById('sidebar'));
 
   if (name === 'timesheet') {
-    window.api.setTitle('Cooperation Tools — Timesheet — ' + activeDate);
+    window.api.setTitle('Office ONE — Timesheet — ' + activeDate);
   } else if (name === 'subscriptions') {
-    window.api.setTitle('Cooperation Tools — Subscriptions');
+    window.api.setTitle('Office ONE — Subscriptions');
     if (!subsLoaded) loadSubscriptionsData();
     else renderSubscriptions();
   } else if (name === 'analytics') {
-    window.api.setTitle('Cooperation Tools — Overview');
+    window.api.setTitle('Office ONE — Overview');
     analyticsLoaded = true;
     renderAnalytics();
   } else if (name === 'reports') {
-    window.api.setTitle('Cooperation Tools — Reports');
+    window.api.setTitle('Office ONE — Reports');
     initReportsModule();
   } else if (name === 'settings') {
-    window.api.setTitle('Cooperation Tools — Settings');
+    window.api.setTitle('Office ONE — Settings');
     initSettingsModule();
   } else if (name === 'browse') {
     setBrowseKind(browseKind);
   } else if (name === 'all-tasks') {
-    window.api.setTitle('Cooperation Tools — Tasks');
+    window.api.setTitle('Office ONE — Tasks');
     initAllTasksModule();
   } else if (name === 'internal-tasks') {
-    window.api.setTitle('Cooperation Tools — Internal Tasks');
+    window.api.setTitle('Office ONE — Internal Tasks');
     initInternalTasksModule();
   } else if (name === 'companydocs') {
-    window.api.setTitle('Cooperation Tools — Company Documents');
+    window.api.setTitle('Office ONE — Company Documents');
     initCompanyDocsModule();
   } else if (name === 'knowledge') {
-    window.api.setTitle('Cooperation Tools — Knowledge Hub');
+    window.api.setTitle('Office ONE — Knowledge Hub');
     initKnowledgeModule();
   } else if (name === 'clients') {
-    window.api.setTitle('Cooperation Tools — Clients');
+    window.api.setTitle('Office ONE — Clients');
     initClientsModule();
   }
 }
