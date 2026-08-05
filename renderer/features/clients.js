@@ -79,8 +79,6 @@ function buildClientCard(c, projectCount) {
   const head = pjMk('div', 'pj-card-head');
   const identity = pjMk('div', 'client-card-identity');
   identity.appendChild(pjMk('div', 'pj-card-name', companyDisplayName(c, false) || 'Untitled'));
-  const alternate = window.ctI18n?.getLanguage?.() === 'ar' ? c.nameEn : c.nameAr;
-  if (alternate) identity.appendChild(pjMk('div', 'client-card-alt', alternate));
   head.appendChild(identity);
   if (c.code) head.appendChild(pjMk('span', 'client-code-badge', c.code));
   card.appendChild(head);
@@ -145,7 +143,9 @@ function renderClientsList() {
   const matches = [];
   clientsList.forEach(c => {
     if (textMatch([c.code, c.nameEn, c.nameAr, c.label], q)) {
-      matches.push({ companyId: c.id, companyLabel: companyDisplayName(c, false), type: 'profile', typeLabel: 'Client Profile', name: companyDisplayName(c), detail: [c.nameEn, c.nameAr].filter(Boolean).join(' · '), fields: [] });
+      // Search still matches across both languages above, but the result shows
+      // only the current-language name (via companyDisplayName) plus the code.
+      matches.push({ companyId: c.id, companyLabel: companyDisplayName(c, false), type: 'profile', typeLabel: 'Client Profile', name: companyDisplayName(c), detail: c.code || '', fields: [] });
     }
     (c.records || []).forEach(r => {
       if (textMatch(r.fields, q)) matches.push({ companyId: c.id, companyLabel: companyDisplayName(c, false), ...r });
@@ -374,8 +374,9 @@ function renderClientDetail(c) {
   const head = pjMk('div', 'pj-detail-head');
   const titleBlock = pjMk('div', 'client-detail-identity');
   titleBlock.appendChild(pjMk('div', 'pj-detail-title', companyDisplayName(c, false) || 'Untitled'));
-  const identityBits = [c.code, window.ctI18n?.getLanguage?.() === 'ar' ? c.nameEn : c.nameAr].filter(Boolean);
-  if (identityBits.length) titleBlock.appendChild(pjMk('div', 'client-detail-alt', identityBits.join(' · ')));
+  // Show only the language-neutral code as the secondary line — never the
+  // other language's name (Arabic mode shows Arabic only, English shows English).
+  if (c.code) titleBlock.appendChild(pjMk('div', 'client-detail-alt', c.code));
   head.appendChild(titleBlock);
   host.appendChild(head);
 
@@ -568,11 +569,13 @@ function renderClientDetailSections(c) {
 }
 
 function renderClientOverview(host, c, servers, internalSystems, vpns) {
+  // Show only the active interface language's name (plus the language-neutral
+  // code) — never both languages at once. Both stored names remain editable in
+  // the Client Profile form under Settings.
   const profile = pjMk('div', 'client-profile-summary');
   [
     ['Company Code', c.code || '—'],
-    ['English Name', c.nameEn || c.label || '—'],
-    ['Arabic Name', c.nameAr || '—'],
+    ['Name', companyDisplayName(c, false) || c.label || '—'],
   ].forEach(([label, value]) => {
     const field = pjMk('div', 'client-profile-summary-field');
     field.appendChild(pjMk('span', '', label));

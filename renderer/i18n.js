@@ -344,6 +344,36 @@
     '— No category —': '— بلا فئة —', '← Knowledge Hub': 'مركز المعرفة →'
   });
 
+  // Dashboard, analytics, and dropdown labels generated at runtime by the
+  // feature renderers. The observer translates the resulting text nodes and
+  // <option> elements against these keys.
+  Object.assign(ar, {
+    'Avg / Day': 'المعدل / يوم', 'Completion': 'نسبة الإنجاز', 'Total Hours': 'إجمالي الساعات',
+    'All clear — nothing due in the next 30 days.': 'كل شيء على ما يرام — لا يوجد استحقاق خلال 30 يوماً.',
+    'Your recent changes will appear here.': 'ستظهر تغييراتك الأخيرة هنا.',
+    'no previous activity': 'لا يوجد نشاط سابق', 'No active days': 'لا توجد أيام نشطة',
+    'No over-time hours in this period.': 'لا توجد ساعات إضافية في هذه الفترة.',
+    'No tracked time in this period.': 'لا يوجد وقت مُسجَّل في هذه الفترة.',
+    'View active-day data': 'عرض بيانات الأيام النشطة', 'No tasks yet.': 'لا توجد مهام بعد.',
+    'All': 'الكل', 'Project tasks': 'مهام المشاريع', 'Unassigned': 'غير مُعيَّنة',
+    'All companies': 'كل الشركات', 'All systems': 'كل الأنظمة', 'All projects': 'كل المشاريع',
+    'All departments': 'كل الأقسام', 'All knowledge': 'كل المعرفة',
+    'Unlinked': 'غير مرتبط', 'No department': 'بلا قسم', 'No type': 'بلا نوع',
+    'Full backup to Desktop': 'نسخة احتياطية كاملة إلى سطح المكتب', 'Database only…': 'قاعدة البيانات فقط…',
+    'Jan': 'يناير', 'Feb': 'فبراير', 'Mar': 'مارس', 'Apr': 'أبريل', 'May': 'مايو', 'Jun': 'يونيو',
+    'Jul': 'يوليو', 'Aug': 'أغسطس', 'Sep': 'سبتمبر', 'Oct': 'أكتوبر', 'Nov': 'نوفمبر', 'Dec': 'ديسمبر',
+    'No knowledge yet': 'لا توجد معرفة بعد', 'No search results': 'لا توجد نتائج بحث',
+    'Nothing in this view': 'لا يوجد شيء في هذا العرض',
+    'Try fewer words, a document version, or a different tag.': 'جرّب كلمات أقل، أو إصدار مستند، أو وسماً مختلفاً.',
+    'Remove a filter to broaden this view.': 'أزل عامل تصفية لتوسيع هذا العرض.',
+    'Create an item, then add written guidance or versioned documents.': 'أنشئ عنصراً، ثم أضف إرشادات مكتوبة أو مستندات مُصدَّرة.',
+    // Client detail view.
+    'Servers': 'الخوادم', 'Projects': 'المشاريع', 'Access': 'الوصول',
+    'Access records': 'سجلات الوصول', 'Internal systems': 'الأنظمة الداخلية',
+    'Add Access': 'إضافة وصول', 'Workspace summary': 'ملخص مساحة العمل',
+    "Search this client's records…": 'ابحث في سجلات هذا العميل…'
+  });
+
   const uiNounsAr = {
     clients: 'العملاء', 'company documents': 'مستندات الشركة', department: 'القسم', departments: 'الأقسام',
     'Knowledge Hub': 'مركز المعرفة', 'knowledge item': 'عنصر المعرفة', projects: 'المشاريع', records: 'السجلات',
@@ -352,7 +382,57 @@
     session: 'الجلسة', settings: 'الإعدادات', sources: 'المصادر', subscriptions: 'الاشتراكات',
     'the record': 'السجل', 'the session': 'الجلسة', 'the task': 'المهمة', 'VPN connection': 'اتصال VPN'
   };
+  const arGreet = { morning: 'صباح الخير', afternoon: 'مساء الخير', evening: 'مساء الخير' };
+  const arWeekdays = {
+    Sunday: 'الأحد', Monday: 'الاثنين', Tuesday: 'الثلاثاء', Wednesday: 'الأربعاء',
+    Thursday: 'الخميس', Friday: 'الجمعة', Saturday: 'السبت'
+  };
+  const arMonths = {
+    January: 'يناير', February: 'فبراير', March: 'مارس', April: 'أبريل', May: 'مايو', June: 'يونيو',
+    July: 'يوليو', August: 'أغسطس', September: 'سبتمبر', October: 'أكتوبر', November: 'نوفمبر', December: 'ديسمبر'
+  };
+  const arMonthsShort = {
+    Jan: 'يناير', Feb: 'فبراير', Mar: 'مارس', Apr: 'أبريل', May: 'مايو', Jun: 'يونيو',
+    Jul: 'يوليو', Aug: 'أغسطس', Sep: 'سبتمبر', Oct: 'أكتوبر', Nov: 'نوفمبر', Dec: 'ديسمبر'
+  };
+  const MONTH = 'January|February|March|April|May|June|July|August|September|October|November|December';
+  const MON = 'Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec';
   const dynamicArabicRules = [
+    // Time-of-day greeting — translate the salutation, keep the person's name.
+    [/^Good (morning|afternoon|evening), (.+)$/s, m => `${arGreet[m[1]]}، ${m[2]}`],
+    // Full weekday date: "Wednesday, August 5, 2026"
+    [new RegExp(`^(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday), (${MONTH}) (\\d+), (\\d{4})$`, 's'),
+      m => `${arWeekdays[m[1]]}، ${m[3]} ${arMonths[m[2]]} ${m[4]}`],
+    // Month + year: "August 2026"
+    [new RegExp(`^(${MONTH}) (\\d{4})$`, 's'), m => `${arMonths[m[1]]} ${m[2]}`],
+    // Short month range: "Jan – Dec 2026"
+    [new RegExp(`^(${MON}) – (${MON}) (\\d{4})$`, 's'), m => `${arMonthsShort[m[1]]} – ${arMonthsShort[m[2]]} ${m[3]}`],
+    // Short month + day chart label: "Aug 1"
+    [new RegExp(`^(${MON}) (\\d{1,2})$`, 's'), m => `${arMonthsShort[m[1]]} ${m[2]}`],
+    // Dashboard / analytics count footers.
+    [/^(\d+) records? · no previous activity$/s, m => `${m[1]} سجل · لا يوجد نشاط سابق`],
+    [/^(\d+) records? · ([+-]?\d+)% vs previous period$/s, m => `${m[1]} سجل · ${m[2]}٪ مقارنة بالفترة السابقة`],
+    [/^(\d+) records?$/s, m => `${m[1]} سجل`],
+    [/^(\d+) days? logged$/s, m => `${m[1]} يوم مُسجَّل`],
+    [/^(\d+) subscriptions?$/s, m => `${m[1]} اشتراك`],
+    [/^(\d+) items? · (\d+) documents?$/s, m => `${m[1]} عنصر · ${m[2]} مستند`],
+    [/^(\d+) items?$/s, m => `${m[1]} عنصر`],
+    [/^(-?\d+)% of total$/s, m => `${m[1]}٪ من الإجمالي`],
+    [/^(\d+) active days?$/s, m => `${m[1]} يوم نشط`],
+    [/^(\d+) of (\d+) done$/s, m => `${m[1]} من ${m[2]} مكتمل`],
+    [/^Daily hours trend from (.+) to (.+)$/s, m => `اتجاه الساعات اليومية من ${m[1]} إلى ${m[2]}`],
+    [/^Cooperation Tools v(.+)$/s, m => `أدوات التعاون الإصدار ${m[1]}`],
+    // Client-detail tab labels and section headers ("<name> (N)").
+    [/^Projects \((\d+)\)$/s, m => `المشاريع (${m[1]})`],
+    [/^Access \((\d+)\)$/s, m => `الوصول (${m[1]})`],
+    [/^Servers \((\d+)\)$/s, m => `الخوادم (${m[1]})`],
+    [/^Systems \((\d+)\)$/s, m => `الأنظمة (${m[1]})`],
+    [/^Auth \((\d+)\)$/s, m => `المصادقة (${m[1]})`],
+    [/^Server Information \((\d+)\)$/s, m => `معلومات الخوادم (${m[1]})`],
+    [/^Internal Systems \((\d+)\)$/s, m => `الأنظمة الداخلية (${m[1]})`],
+    // Client card footer: "N auth · N servers · N internal · N projects".
+    [/^(\d+) auth · (\d+) servers? · (\d+) internal · (\d+) projects?$/s,
+      m => `${m[1]} وصول · ${m[2]} خادم · ${m[3]} نظام داخلي · ${m[4]} مشروع`],
     [/^Could not (load|save|delete|restore|open|remove|download|upload|create|add|update|link|unlink|merge|copy|mark|undo|duplicate) (.+)$/s, m => {
       const verbs = { load: 'تحميل', save: 'حفظ', delete: 'حذف', restore: 'استعادة', open: 'فتح', remove: 'إزالة', download: 'تنزيل', upload: 'رفع', create: 'إنشاء', add: 'إضافة', update: 'تحديث', link: 'ربط', unlink: 'إلغاء ربط', merge: 'دمج', copy: 'نسخ', mark: 'تحديد', undo: 'التراجع عن', duplicate: 'تكرار' };
       return `تعذر ${verbs[m[1]]} ${uiNounsAr[m[2]] || m[2]}`;
@@ -384,7 +464,6 @@
   const originals = new WeakMap();
   const attrOriginals = new WeakMap();
   let observer;
-  let initialScan = false;
 
   function readLanguage() {
     try {
@@ -413,9 +492,11 @@
     const el = node.parentElement;
     if (!el || el.closest('script,style,[data-i18n-ignore]')) return false;
     if (el.closest('input,textarea,[contenteditable="true"]')) return false;
-    // Fixed options present in index.html are captured during the initial scan;
-    // options created later are lookup/catalog values owned by the user.
-    if (!initialScan && el.closest('option')) return false;
+    // <option> values owned by the user (company/system/catalog names) carry a
+    // [data-user-content] marker and are excluded below; fixed UI options built
+    // at runtime (All companies, sort orders, month names…) fall through so the
+    // dictionary can translate them. Unknown strings are returned unchanged, so
+    // an unmarked user value that isn't a dictionary key is still left intact.
     // Values inside these containers are records or user-managed lookup names.
     if (el.closest([
       '[data-user-content]', '.knowledge-content-rendered', '.md-preview', '.task-source-ref',
@@ -427,17 +508,26 @@
     return true;
   }
 
+  // Static markup often wraps a sentence across lines, so a text node's inner
+  // whitespace (newlines + indentation) differs from the single-spaced
+  // dictionary key. Collapse runs of whitespace for the lookup while keeping
+  // the node's leading/trailing whitespace for a faithful English restore.
+  function lookupKey(value) {
+    return String(value).trim().replace(/\s+/g, ' ');
+  }
+
   function translatedValue(value) {
-    const match = String(value).match(/^(\s*)(.*?)(\s*)$/s);
+    const match = String(value).match(/^(\s*)([\s\S]*?)(\s*)$/);
     if (!match || !match[2]) return value;
-    const result = t(match[2]);
-    return result === match[2] ? value : match[1] + result + match[3];
+    const key = lookupKey(match[2]);
+    const result = t(key);
+    return result === key ? value : match[1] + result + match[3];
   }
 
   function translateTextNode(node) {
     if (!isUiTextNode(node)) return;
     if (!originals.has(node)) {
-      const source = String(node.nodeValue).trim();
+      const source = lookupKey(node.nodeValue);
       if (arabicTranslation(source) === source) return;
       originals.set(node, node.nodeValue);
       translatedTextNodes.add(node);
@@ -512,9 +602,7 @@
 
   function init() {
     applyDocumentLanguage();
-    initialScan = true;
     translateTree(document.body);
-    initialScan = false;
     refreshLanguageControls();
     observer = new MutationObserver(records => {
       observer.disconnect();
