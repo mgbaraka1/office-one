@@ -1,4 +1,4 @@
-/* Cooperation Tools localization.
+/* Office ONE localization.
  *
  * English remains the source language used by the existing renderer. This
  * small runtime translates UI-only strings and observes feature renderers so
@@ -12,7 +12,9 @@
   const STORAGE_KEY = 'ct-language';
   const SUPPORTED = new Set(['en', 'ar']);
   const ar = {
-    'Cooperation Tools': 'أدوات التعاون', 'Choose language': 'اختر اللغة',
+    // The product name is a Latin brand shown identically in both languages;
+    // the self-mapping keeps it out of the untranslated-string coverage gate.
+    'Office ONE': 'Office ONE', 'Choose language': 'اختر اللغة',
     'Welcome back': 'مرحباً بعودتك', 'Log in to continue': 'سجّل الدخول للمتابعة',
     'Create your account': 'أنشئ حسابك', 'This is the first account on this device': 'هذا أول حساب على هذا الجهاز',
     'Username': 'اسم المستخدم', 'Password': 'كلمة المرور', 'Confirm password': 'تأكيد كلمة المرور',
@@ -230,7 +232,7 @@
   // Secondary UI copy: tooltips, placeholders, empty states, validation and
   // operation feedback. Record and catalog values remain excluded below.
   Object.assign(ar, {
-    'COOPERATION': 'التعاون', 'TOOLS': 'أدوات', 'PDF': 'PDF', 'June 2026': 'يونيو ٢٠٢٦',
+    'OFFICE': 'OFFICE', 'ONE': 'ONE', 'PDF': 'PDF', 'June 2026': 'يونيو ٢٠٢٦',
     '• List': '• قائمة', '1. List': '1. قائمة',
     'Collapse navigation': 'طي شريط التنقل', 'Quick Find (Ctrl+K)': 'البحث السريع (Ctrl+K)',
     'Create new (Ctrl+Shift+N)': 'إنشاء جديد (Ctrl+Shift+N)', 'Today — Timesheet': 'اليوم — سجل الدوام',
@@ -421,7 +423,7 @@
     [/^(\d+) active days?$/s, m => `${m[1]} يوم نشط`],
     [/^(\d+) of (\d+) done$/s, m => `${m[1]} من ${m[2]} مكتمل`],
     [/^Daily hours trend from (.+) to (.+)$/s, m => `اتجاه الساعات اليومية من ${m[1]} إلى ${m[2]}`],
-    [/^Cooperation Tools v(.+)$/s, m => `أدوات التعاون الإصدار ${m[1]}`],
+    [/^Office ONE v(.+)$/s, m => `Office ONE الإصدار ${m[1]}`],
     // Client-detail tab labels and section headers ("<name> (N)").
     [/^Projects \((\d+)\)$/s, m => `المشاريع (${m[1]})`],
     [/^Access \((\d+)\)$/s, m => `الوصول (${m[1]})`],

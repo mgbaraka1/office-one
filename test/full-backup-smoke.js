@@ -15,7 +15,7 @@
 // Gates exercised:
 //   1. fullBackup() creates the expected folder structure (db file, projects/,
 //      company_documents/, backups/, manifest.json) under a new
-//      CooperationTools-Backup-{stamp}/ folder.
+//      OfficeONE-Backup-{stamp}/ folder.
 //   2. The copied DB file opens standalone and passes PRAGMA integrity_check.
 //   3. Seeded files under projects/ and company_documents/ are copied
 //      recursively (nested subfolders included) with correct file counts.
@@ -149,7 +149,7 @@ try {
     unexpectedNewEntries.length === 0, 'unexpectedNewEntries=' + JSON.stringify(unexpectedNewEntries));
 
   // ── Gate 7 — validation rejects a bundle whose file no longer matches its checksum
-  const tamperedRoot = path.join(fakeDesktopDir, 'CooperationTools-Backup-TAMPERED');
+  const tamperedRoot = path.join(fakeDesktopDir, 'OfficeONE-Backup-TAMPERED');
   fs.cpSync(destRoot, tamperedRoot, { recursive: true });
   fs.writeFileSync(path.join(tamperedRoot, 'projects', '999999', 'documents', 'quote.pdf'), 'tampered bytes');
   const tamperedInspection = db.inspectFullBackup(tamperedRoot);

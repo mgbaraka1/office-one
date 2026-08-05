@@ -80,7 +80,7 @@ function createWindow() {
       sandbox: true,
       nodeIntegration: false,
     },
-    title: 'Cooperation Tools',
+    title: 'Office ONE',
   });
   if (prefs.maximized) win.maximize();
   win.loadFile('index.html');
@@ -437,7 +437,7 @@ ipcMain.handle('maintenance:fullBackup', admin(() => {
 }));
 ipcMain.handle('maintenance:selectFullBackup', admin(async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog(win, {
-    title: 'Choose a Cooperation Tools full backup folder',
+    title: 'Choose a Office ONE full backup folder',
     properties: ['openDirectory'],
   });
   if (canceled || !filePaths[0]) return { ok: false, canceled: true };
@@ -656,7 +656,7 @@ app.whenReady().then(() => {
     // A failed DB open (locked, corrupt, permissions) must not leave the user
     // with an invisible, windowless process — surface it and exit.
     dialog.showErrorBox(
-      'Cooperation Tools — database error',
+      'Office ONE — database error',
       'The data store could not be opened, so the app cannot start.\n\n' +
       String(err?.message || err) +
       '\n\nYour data folder:\n' + app.getPath('userData')

@@ -6,7 +6,7 @@ function setBrowseKind(kind) {
     b.classList.toggle('active', b.dataset.kind === kind));
   document.getElementById('browse-body-companies').style.display = kind === 'companies' ? '' : 'none';
   document.getElementById('browse-body-systems').style.display  = kind === 'systems'  ? '' : 'none';
-  window.api.setTitle('Cooperation Tools — Browse — ' + (kind === 'companies' ? 'Companies' : 'Systems'));
+  window.api.setTitle('Office ONE — Browse — ' + (kind === 'companies' ? 'Companies' : 'Systems'));
   openCatPage(kind);
   uiState.filters.browse = { kind, selected: cpState[kind].selected };
   saveUiStateDebounced();
@@ -498,7 +498,7 @@ async function renderOverview() {
         <span class="dash-att-icon">${ic(item.kind === 'knowledge' ? 'book-open' : item.kind === 'project' ? 'clipboard-list' : item.kind === 'company-document' ? 'file-text' : 'history')}</span>
         <div class="dash-att-body">
           <div class="dash-att-title">${esc(item.title)}</div>
-          <div class="dash-att-meta">${esc(item.detail)} · ${esc(new Date(item.changedAt).toLocaleString())}</div>
+          <div class="dash-att-meta">${esc(new Date(item.changedAt).toLocaleString())}</div>
         </div>
       </div>`).join('');
     activityHost.querySelectorAll('.dash-att-item').forEach(element => {
@@ -966,7 +966,7 @@ async function exportAnalyticsPDF() {
     </style></head>
     <body>
       <div class="an-report-title">${esc(tr('Analytics — {label}', { label }))}</div>
-      <div class="an-report-sub">${esc(tr('Cooperation Tools'))} · ${esc(tr('generated {date}', { date: new Date().toLocaleString(locale) }))}</div>
+      <div class="an-report-sub">${esc(tr('Office ONE'))} · ${esc(tr('generated {date}', { date: new Date().toLocaleString(locale) }))}</div>
       ${body}
     </body></html>`;
   const res = await window.api.exportPDF(html, `analytics-${fmt(new Date())}.pdf`);

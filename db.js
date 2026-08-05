@@ -3097,7 +3097,7 @@ function getAppVersion() {
 function fullBackup(desktopDir) {
   if (!db) throw new Error('database not open');
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '');
-  const destRoot = path.join(desktopDir, `CooperationTools-Backup-${stamp}`);
+  const destRoot = path.join(desktopDir, `OfficeONE-Backup-${stamp}`);
   fs.mkdirSync(destRoot, { recursive: true });
 
   // Checkpointed DB copy — self-contained, no -wal/-shm needed (mirrors db:backup).
@@ -3153,8 +3153,11 @@ function inspectFullBackup(bundleDir) {
   } catch {
     return { ok: false, error: 'Selected backup folder does not exist' };
   }
-  if (!path.basename(root).startsWith('CooperationTools-Backup-')) {
-    return { ok: false, error: 'Selected folder is not a Cooperation Tools full backup' };
+  // Accept the current OfficeONE-Backup- prefix and the legacy
+  // CooperationTools-Backup- prefix so pre-rebrand backups still restore.
+  const base = path.basename(root);
+  if (!base.startsWith('OfficeONE-Backup-') && !base.startsWith('CooperationTools-Backup-')) {
+    return { ok: false, error: 'Selected folder is not an Office ONE full backup' };
   }
 
   const manifestFile = path.join(root, 'manifest.json');

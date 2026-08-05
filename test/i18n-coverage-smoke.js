@@ -11,7 +11,7 @@ const i18n = fs.readFileSync(path.join(root, 'renderer', 'i18n.js'), 'utf8');
 const keys = new Set([...i18n.matchAll(/(?:^|[,\n]\s*)'((?:\\'|[^'])+)'\s*:/g)]
   .map(match => match[1].replace(/\\'/g, "'")));
 const failures = [];
-const neutral = /^(?:CT|Ctrl K|[⌃^]N|\d+(?:\.\d+)?[mh]|H2|URL|Esc|Ctrl|K|Shift|N|F|Tab)$/;
+const neutral = /^(?:O1|Ctrl K|[⌃^]N|\d+(?:\.\d+)?[mh]|H2|URL|Esc|Ctrl|K|Shift|N|F|Tab)$/;
 const decode = value => value.replaceAll('&amp;', '&').replaceAll('&lt;', '<').replaceAll('&gt;', '>')
   .replaceAll('&quot;', '"').replaceAll('&#39;', "'").replace(/\s+/g, ' ').trim();
 

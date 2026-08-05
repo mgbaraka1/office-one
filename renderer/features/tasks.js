@@ -758,7 +758,7 @@ async function reloadCurrentProject() {
 function renderProjectDetail(p) {
   const host = document.getElementById('projects-detail-view');
   host.innerHTML = '';
-  window.api.setTitle('Cooperation Tools — ' + (p.name || 'Project'));
+  window.api.setTitle('Office ONE — ' + (p.name || 'Project'));
 
   // Breadcrumb trail: Clients / <client, if any> / <name>
   const crumbs = pjMk('div', 'pj-crumbs');
