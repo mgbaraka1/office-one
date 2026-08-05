@@ -392,6 +392,14 @@ function greetWord() {
   return 'Good evening';
 }
 
+// A seeded TIME_TYPE label when the lookup exists, otherwise the English
+// fallback (which i18n localizes) — never the raw SCREAMING_CASE code, which
+// lkLabel returns verbatim when the catalog row is missing.
+function timeTypeLabel(code, fallback) {
+  const label = lkLabel('TIME_TYPE', code);
+  return label && label !== code ? label : fallback;
+}
+
 async function renderOverview() {
   const name = LK.defaultName ? LK.defaultName.split(' ')[0] : 'Moustafa';
   document.getElementById('dash-hello').textContent = `${greetWord()}, ${name}`;
@@ -651,8 +659,8 @@ async function renderAnalytics() {
   // ── KPIs ──
   const kpis = [
     { label: 'Total Hours', val: (totalMin / 60).toFixed(1), unit: 'h', foot: `${recordCount} record${recordCount === 1 ? '' : 's'} · ${comparison}`, cls: 'accent' },
-    { label: lkLabel('TIME_TYPE', 'WORK_TIME') || 'Work Time', val: (workMin / 60).toFixed(1),  unit: 'h', foot: `${pct(workMin)}% of total`, cls: '' },
-    { label: lkLabel('TIME_TYPE', 'OVERTIME')  || 'Over Time', val: (otMin / 60).toFixed(1),    unit: 'h', foot: `${pct(otMin)}% of total`, cls: '' },
+    { label: timeTypeLabel('WORK_TIME', 'Work Time'), val: (workMin / 60).toFixed(1),  unit: 'h', foot: `${pct(workMin)}% of total`, cls: '' },
+    { label: timeTypeLabel('OVERTIME', 'Over Time'),  val: (otMin / 60).toFixed(1),    unit: 'h', foot: `${pct(otMin)}% of total`, cls: '' },
     { label: 'Avg / Day',   val: activeDays ? (totalMin / 60 / activeDays).toFixed(1) : '0', unit: 'h', foot: `${activeDays} active day${activeDays === 1 ? '' : 's'}`, cls: '' },
     { label: 'Completion',  val: String(completionRate), unit: '%', foot: `${doneCount} of ${recordCount} done`, cls: '' },
   ];
