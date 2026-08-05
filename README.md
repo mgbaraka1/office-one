@@ -1,4 +1,4 @@
-# Cooperation Tools
+# Office ONE
 
 An offline, multi-user Electron desktop app for timesheets, tasks, client projects, internal work, subscriptions, company documents, analytics, and PDF reports.
 

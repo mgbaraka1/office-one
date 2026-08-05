@@ -133,7 +133,7 @@ gate('direct workspace removes decorative depth and keeps record actions visible
   && html.includes('.row-actions,')
   && html.includes('No decorative movement')
   && html.includes('Quick actions')
-  && html.includes('<span class="brand-full">Cooperation Tools</span>'));
+  && html.includes('<span class="brand-full">Office ONE</span>'));
 gate('Focus Mode is reversible, session-only, and keyboard accessible',
   html.includes('body.focus-mode #sidebar')
   && html.includes('id="focus-exit"')
