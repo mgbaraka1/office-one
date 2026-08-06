@@ -149,15 +149,22 @@ function renderTableGrouped() {
   document.getElementById('filter-count').textContent = isFiltered ? `${shown.length} of ${rows.length} shown` : '';
 
   // Group sessions by task; a not-yet-saved row (no taskId) is its own group.
+  // lastIdx tracks each group's most recently touched row (its highest position
+  // in `rows`), so a task moves to the bottom of its status bucket the moment a
+  // new or edited session lands on it — the card you just worked on stays in view.
   const groups = new Map();
-  shown.forEach(r => {
+  shown.forEach((r, i) => {
     const key = r.taskId != null ? 't' + r.taskId : r;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(r);
+    if (!groups.has(key)) groups.set(key, { rows: [], lastIdx: i });
+    const g = groups.get(key);
+    g.rows.push(r);
+    g.lastIdx = i;
   });
-  // Done tasks first, then in-progress — same ordering as the flat view.
+  // Done tasks first, then in-progress — same ordering as the flat view. Within
+  // a status bucket, most-recently-touched task last.
   const list = [...groups.values()].sort((a, b) =>
-    (a[0].status === 'DONE' ? 0 : 1) - (b[0].status === 'DONE' ? 0 : 1));
+    (a.rows[0].status === 'DONE' ? 0 : 1) - (b.rows[0].status === 'DONE' ? 0 : 1) || a.lastIdx - b.lastIdx
+  ).map(g => g.rows);
 
   const origIdxOf = new Map(rows.map((r, i) => [r, i]));
   list.forEach(g => host.appendChild(buildTaskGroupCard(g, origIdxOf)));
