@@ -487,41 +487,6 @@ async function renderOverview() {
   setNavBadge('companydocs', urgent('companydocs'));
   setNavBadge('clients', urgent('clients'));
 
-  const activityHost = document.getElementById('dash-activity');
-  let activity = [];
-  try { activity = await window.api.getRecentActivity(); } catch { activity = []; }
-  if (!activity.length) {
-    activityHost.innerHTML = '<div class="dash-empty"><span class="de-icon">' + ic('history') + '</span>Your recent changes will appear here.</div>';
-  } else {
-    activityHost.innerHTML = activity.slice(0, 12).map((item, index) => `
-      <div class="dash-att-item" data-activity-idx="${index}">
-        <span class="dash-att-icon">${ic(item.kind === 'knowledge' ? 'book-open' : item.kind === 'project' ? 'clipboard-list' : item.kind === 'company-document' ? 'file-text' : 'history')}</span>
-        <div class="dash-att-body">
-          <div class="dash-att-title">${esc(item.title)}</div>
-          <div class="dash-att-meta">${esc(new Date(item.changedAt).toLocaleString())}</div>
-        </div>
-      </div>`).join('');
-    activityHost.querySelectorAll('.dash-att-item').forEach(element => {
-      const item = activity[Number(element.dataset.activityIdx)];
-      element.addEventListener('click', async () => {
-        if (item.kind === 'task') {
-          switchModule('all-tasks');
-          await openTaskDetail(item.id);
-        } else if (item.kind === 'session' && item.parentId) {
-          switchModule('all-tasks');
-          await openTaskDetail(item.parentId);
-        } else if (item.kind === 'project') {
-          openProjectById(item.id);
-        } else if (item.kind === 'knowledge') {
-          switchModule('knowledge');
-          openKnowledgeDetail(item.id);
-        } else if (item.kind === 'company-document') {
-          switchModule('companydocs');
-          scrollToAndHighlight('[data-doc-id="' + item.id + '"]');
-        }
-      });
-    });
-  }
 }
 
 function setNavBadge(module, count) {

@@ -33,8 +33,7 @@
     'Upcoming Renewals': 'التجديدات القادمة', 'Needs Attention': 'تحتاج إلى انتباه',
     'Time Breakdown': 'توزيع الوقت', 'Hours by Company': 'الساعات حسب الشركة',
     'Hours by System': 'الساعات حسب النظام', 'Hours by Department': 'الساعات حسب القسم',
-    'By Task': 'حسب المهمة', 'By Activity': 'حسب النشاط', 'More breakdowns and yearly activity': 'تفاصيل إضافية والنشاط السنوي',
-    'Recent Changes': 'التغييرات الأخيرة', 'Your offline audit trail': 'سجل التغييرات دون اتصال',
+    'By Task': 'حسب المهمة', 'By Activity': 'حسب النشاط', 'More Breakdowns': 'تفاصيل إضافية',
     'No records yet — click': 'لا توجد سجلات بعد — انقر', 'to start': 'للبدء',
     'Timesheet': 'سجل الدوام', '+ Add Record': '+ إضافة سجل', 'Add Record': 'إضافة سجل',
     'Add a session to today’s Timesheet': 'أضف جلسة إلى سجل دوام اليوم', 'Continue': 'متابعة',
@@ -352,7 +351,6 @@
   Object.assign(ar, {
     'Avg / Day': 'المعدل / يوم', 'Completion': 'نسبة الإنجاز', 'Total Hours': 'إجمالي الساعات',
     'All clear — nothing due in the next 30 days.': 'كل شيء على ما يرام — لا يوجد استحقاق خلال 30 يوماً.',
-    'Your recent changes will appear here.': 'ستظهر تغييراتك الأخيرة هنا.',
     'no previous activity': 'لا يوجد نشاط سابق', 'No active days': 'لا توجد أيام نشطة',
     'No over-time hours in this period.': 'لا توجد ساعات إضافية في هذه الفترة.',
     'No tracked time in this period.': 'لا يوجد وقت مُسجَّل في هذه الفترة.',
