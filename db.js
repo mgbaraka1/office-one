@@ -540,7 +540,7 @@ function categoryEntries(userId, fkCol, name) {
        ${LOG_JOIN}
        JOIN lookup_codes lc ON lc.id = t.${fkCol}
       WHERE wl.user_id = ? AND lc.label = ?
-      ORDER BY wl.date DESC, wl.sort_order, wl.id`
+      ORDER BY wl.date ASC, wl.sort_order, wl.id`
   ).all(userId, name).map(r => ({ date: r.date, ...dayEntryRowToApi(r) }));
 }
 function listCompanies(userId)        { return distinctCategory(userId, 'company_id'); }
@@ -1130,13 +1130,13 @@ function getProject(userId, id) {
 
 // A project's linked tasks (ProjectTasksV2), each as a full Task with its ordered
 // work sessions + rollups. Includes zero-log tasks (Not-Yet items linked to the
-// project). Owner-scoped; ordered newest-first.
+// project). Owner-scoped; ordered oldest-first.
 function projectTasks(userId, projectId) {
   return db.prepare(
-    `SELECT t.* ${TASK_SOURCE_SUMMARY_COLS} FROM tasks t WHERE t.project_id = ? AND t.user_id = ? ORDER BY t.created_at DESC, t.id DESC`
+    `SELECT t.* ${TASK_SOURCE_SUMMARY_COLS} FROM tasks t WHERE t.project_id = ? AND t.user_id = ? ORDER BY t.created_at ASC, t.id ASC`
   ).all(projectId, userId).map(t => {
     const workLogs = db.prepare(
-      `SELECT ${WORK_LOG_COLS} FROM work_logs WHERE task_id = ? AND user_id = ? ORDER BY date DESC, sort_order, id`
+      `SELECT ${WORK_LOG_COLS} FROM work_logs WHERE task_id = ? AND user_id = ? ORDER BY date ASC, sort_order, id`
     ).all(t.id, userId).map(workLogToApi);
     const roll = db.prepare(
       `SELECT COUNT(*) AS logCount, COALESCE(SUM(minutes),0) AS totalMinutes, MIN(date) AS firstDate, MAX(date) AS lastDate
@@ -2036,14 +2036,14 @@ function unlinkDepartmentTask(userId, taskId) {
 }
 
 // Tasks not linked to ANY project, for the "link an existing task" picker — every
-// unlinked task (with-sessions and zero-log alike), owner-scoped, newest first,
+// unlinked task (with-sessions and zero-log alike), owner-scoped, oldest first,
 // each with its rollups. Read-only; the UI links via linkTask. Milestone 9: also
 // excludes department-linked tasks (Project/Department are mutually exclusive),
 // so this picker never offers an Internal task as something to fold into a Project.
 // Migration 035: also excludes Support-Year-linked tasks, for the same reason.
 function listLinkableTasks(userId) {
   return db.prepare(
-    `SELECT * FROM tasks WHERE user_id = ? AND project_id IS NULL AND department_id IS NULL AND support_year_id IS NULL ORDER BY created_at DESC, id DESC`
+    `SELECT * FROM tasks WHERE user_id = ? AND project_id IS NULL AND department_id IS NULL AND support_year_id IS NULL ORDER BY created_at ASC, id ASC`
   ).all(userId).map(t => {
     const roll = db.prepare(
       `SELECT COUNT(*) AS logCount, COALESCE(SUM(minutes),0) AS totalMinutes, MIN(date) AS firstDate, MAX(date) AS lastDate
@@ -2061,7 +2061,7 @@ function listLinkableTasks(userId) {
 // 035: also excludes Support-Year-linked tasks.
 function listLinkableTasksForDepartment(userId) {
   return db.prepare(
-    `SELECT * FROM tasks WHERE user_id = ? AND department_id IS NULL AND project_id IS NULL AND support_year_id IS NULL ORDER BY created_at DESC, id DESC`
+    `SELECT * FROM tasks WHERE user_id = ? AND department_id IS NULL AND project_id IS NULL AND support_year_id IS NULL ORDER BY created_at ASC, id ASC`
   ).all(userId).map(t => {
     const roll = db.prepare(
       `SELECT COUNT(*) AS logCount, COALESCE(SUM(minutes),0) AS totalMinutes, MIN(date) AS firstDate, MAX(date) AS lastDate
@@ -2090,13 +2090,13 @@ function listDepartments(userId) {
 }
 
 // A department's linked tasks, each as a full Task with its ordered work sessions
-// + rollups. Includes zero-log tasks. Owner-scoped; ordered newest-first.
+// + rollups. Includes zero-log tasks. Owner-scoped; ordered oldest-first.
 function departmentTasks(userId, departmentId) {
   return db.prepare(
-    `SELECT t.* ${TASK_SOURCE_SUMMARY_COLS} FROM tasks t WHERE t.department_id = ? AND t.user_id = ? ORDER BY t.created_at DESC, t.id DESC`
+    `SELECT t.* ${TASK_SOURCE_SUMMARY_COLS} FROM tasks t WHERE t.department_id = ? AND t.user_id = ? ORDER BY t.created_at ASC, t.id ASC`
   ).all(departmentId, userId).map(t => {
     const workLogs = db.prepare(
-      `SELECT ${WORK_LOG_COLS} FROM work_logs WHERE task_id = ? AND user_id = ? ORDER BY date DESC, sort_order, id`
+      `SELECT ${WORK_LOG_COLS} FROM work_logs WHERE task_id = ? AND user_id = ? ORDER BY date ASC, sort_order, id`
     ).all(t.id, userId).map(workLogToApi);
     const roll = db.prepare(
       `SELECT COUNT(*) AS logCount, COALESCE(SUM(minutes),0) AS totalMinutes, MIN(date) AS firstDate, MAX(date) AS lastDate
@@ -2299,7 +2299,7 @@ function nextWorkLogSort(taskId) {
 }
 
 // All of a user's tasks with rollups (log count / total minutes / first+last log
-// date) plus each task's own nested work logs, newest-task-first — the All Tasks
+// date) plus each task's own nested work logs, oldest-task-first — the All Tasks
 // page's payload (and the Tasks-picker/palette payload elsewhere, which simply
 // ignores the extra field). Two queries total (not N+1): one for the tasks, one
 // for every one of the user's work logs, grouped in JS by task_id.
@@ -2340,7 +2340,7 @@ function getTasksIndex(userId) {
        LEFT JOIN log_rollup l ON l.task_id = t.id
        LEFT JOIN source_rollup s ON s.task_id = t.id
       WHERE t.user_id = ?
-      ORDER BY t.created_at DESC, t.id DESC`
+      ORDER BY t.created_at ASC, t.id ASC`
   ).all(userId, userId, userId);
   return tasks.map(t => taskToApi(t, {
     logCount: t.logCount, totalMinutes: t.totalMinutes, firstDate: t.firstDate, lastDate: t.lastDate,
@@ -2351,7 +2351,7 @@ function getTasksIndex(userId) {
 function listTasks(userId) {
   const index = getTasksIndex(userId);
   const logsByTask = new Map();
-  db.prepare(`SELECT ${WORK_LOG_COLS} FROM work_logs WHERE user_id = ? ORDER BY date DESC, sort_order, id`)
+  db.prepare(`SELECT ${WORK_LOG_COLS} FROM work_logs WHERE user_id = ? ORDER BY date ASC, sort_order, id`)
     .all(userId).forEach(w => {
       const list = logsByTask.get(w.task_id) || [];
       list.push(workLogToApi(w));
@@ -2366,7 +2366,7 @@ function getTask(userId, id) {
   const t = db.prepare('SELECT * FROM tasks WHERE id = ? AND user_id = ?').get(id, userId);
   if (!t) return null;
   const workLogs = db.prepare(
-    `SELECT ${WORK_LOG_COLS} FROM work_logs WHERE task_id = ? AND user_id = ? ORDER BY date DESC, sort_order, id`
+    `SELECT ${WORK_LOG_COLS} FROM work_logs WHERE task_id = ? AND user_id = ? ORDER BY date ASC, sort_order, id`
   ).all(id, userId).map(workLogToApi);
   const roll = db.prepare(
     `SELECT COUNT(*) AS logCount, COALESCE(SUM(minutes),0) AS totalMinutes, MIN(date) AS firstDate, MAX(date) AS lastDate
@@ -2553,7 +2553,7 @@ function deleteTask(userId, id) {
 function listWorkLogs(userId, taskId) {
   if (!ownsTask(userId, taskId)) return [];
   return db.prepare(
-    `SELECT ${WORK_LOG_COLS} FROM work_logs WHERE task_id = ? AND user_id = ? ORDER BY date DESC, sort_order, id`
+    `SELECT ${WORK_LOG_COLS} FROM work_logs WHERE task_id = ? AND user_id = ? ORDER BY date ASC, sort_order, id`
   ).all(taskId, userId).map(workLogToApi);
 }
 

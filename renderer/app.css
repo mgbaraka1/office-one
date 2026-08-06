@@ -1,10 +1,15 @@
     :root {
       color-scheme: light;
-      /* Brand colors — from sayedtimesheet design system */
-      /* Darker action teal keeps white button text above AA contrast. */
-      --primary: #0f766e;
-      --primary-strong: #115e59;
-      --primary-glow: rgba(13,148,136,.28);
+      /* Base design tokens. Two later layers patch specific tokens on top of
+         this one — "VISION 2026" (color identity: --primary/--primary-strong/
+         --primary-glow/--accent/--accent-bg/--text/--muted/--sidebar-bg/
+         --sidebar-hover/--sidebar-muted) and, after that, "DIRECT WORKSPACE"
+         (surface depth: --surface-0..3/--border/--radius/--radius-sm/--shadow/
+         --shadow-sm/--workspace-line). Edit those tokens in their own block, not
+         here — a same-specificity `:root` declared later in the file always wins,
+         so a value set here for any of them is dead on arrival. What's left below
+         is what neither later layer touches: badges, spacing, type scale, chart
+         palette, and the few chrome/status tokens that are genuinely shared. */
       --good: #34d399;
       --warn: #f5b544;
       --bad: #f25e6b;
@@ -18,26 +23,14 @@
       --fs-sm:      12.5px;                      /* secondary text */
       --fs-caption: 11px;  --ls-caption: .7px;   /* uppercase labels */
       /* Chrome (dark sidebar + topbar) — shared across themes */
-      --sidebar-bg: #050506;
-      --sidebar-fg: #f3f4f7;
-      --sidebar-muted: #9095a3;
-      --sidebar-hover: #161619;
+      --sidebar-fg: #f2ece0;
       /* Surface ramp — 0 = page, 1 = card, 2 = nested/inputs, 3 = raised/hover.
          The legacy names (--bg/--surface/--surface2/--elevate) alias into it. */
-      --surface-0:  #f4f6fb;
-      --surface-1:  #ffffff;
-      --surface-2:  #f6f8fc;
-      --surface-3:  #eef1f8;
       --bg:         var(--surface-0);
       --surface:    var(--surface-1);
       --surface2:   var(--surface-2);
       --elevate:    var(--surface-3);
-      --border:     #e2e7f0;
-      --text:       #1a1f2e;
-      --muted:      #646c84;
-      --accent:     #0f766e;
-      --accent-bg:  color-mix(in srgb, #0f766e 12%, #f4f6fb);
-      --row-hover:  #f1f3f9;
+      --row-hover:  #f1ece1;
       --input-focus-bg: #ffffff;
       --error-bg:   #fff5f5;
       --done:       #dcfce7; --done-text: #166534;
@@ -47,16 +40,11 @@
       --renew-ok:   #dcfce7; --renew-ok-text: #166534;
       --renew-soon: #fef9c3; --renew-soon-text: #a16207;
       --renew-urgent: #fee2e2; --renew-urgent-text: #b91c1c;
-      --radius:     14px;
-      --radius-sm:  10px;
       /* Spacing scale — use these instead of ad-hoc literals */
       --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
       --space-5: 20px; --space-6: 24px; --space-7: 32px; --space-8: 40px;
-      /* Shadows — quiet by default; borders carry the separation */
-      --shadow:     0 10px 30px -18px rgba(40,50,90,.30);
-      --shadow-sm:  0 2px 10px -6px rgba(40,50,90,.16);
-      --chip-bg:    #f1f4fa;
-      --track:      #e6eaf2;
+      --chip-bg:    #f1ece0;
+      --track:      #e6dfd0;
       /* Analytics chart series palette (Time Type breakdown) — six named slots
          so the chart's colors are a themeable system, not a mix of token
          references and one-off hex literals. Not redefined per-theme, same
@@ -71,29 +59,21 @@
     /* ══ DARK THEME (content area; chrome stays dark) ══ */
     :root[data-theme="dark"] {
       color-scheme: dark;
-      --surface-0:  #000000;
-      --surface-1:  #0c0c0f;
-      --surface-2:  #070708;
-      --surface-3:  #161619;
-      --border:     #242428;
-      --text:       #f3f4f7;
-      --muted:      #9095a3;
-      --accent:     #2dd4bf;
-      --accent-bg:  color-mix(in srgb, #14b8a6 14%, #0c0c0f);
-      --row-hover:  #161619;
-      --input-focus-bg: #070708;
-      --error-bg:   color-mix(in srgb, #f25e6b 12%, #0c0c0f);
-      --done:       color-mix(in srgb, #34d399 15%, #0c0c0f); --done-text: #34d399;
-      --prog:       color-mix(in srgb, #f5b544 15%, #0c0c0f); --prog-text: #f5b544;
-      --open:       color-mix(in srgb, #60a5fa 15%, #0c0c0f); --open-text: #60a5fa;
-      --blocked:    color-mix(in srgb, #f25e6b 15%, #0c0c0f); --blocked-text: #f25e6b;
-      --renew-ok:   color-mix(in srgb, #34d399 15%, #0c0c0f); --renew-ok-text: #34d399;
-      --renew-soon: color-mix(in srgb, #f5b544 15%, #0c0c0f); --renew-soon-text: #f5b544;
-      --renew-urgent: color-mix(in srgb, #f25e6b 15%, #0c0c0f); --renew-urgent-text: #f25e6b;
-      --shadow:     0 10px 36px -12px rgba(0,0,0,.85);
-      --shadow-sm:  0 3px 12px -5px rgba(0,0,0,.7);
-      --chip-bg:    #141417;
-      --track:      #1c1c20;
+      /* Same split as the light :root above: --surface-0..3/--border/--shadow/
+         --shadow-sm come from DIRECT WORKSPACE's dark block; --text/--muted/
+         --accent/--accent-bg/--row-hover come from VISION 2026's dark block.
+         What's left here is what neither touches in dark mode. */
+      --input-focus-bg: #1a1712;
+      --error-bg:   color-mix(in srgb, #f25e6b 12%, #17140f);
+      --done:       color-mix(in srgb, #34d399 15%, #17140f); --done-text: #34d399;
+      --prog:       color-mix(in srgb, #f5b544 15%, #17140f); --prog-text: #f5b544;
+      --open:       color-mix(in srgb, #60a5fa 15%, #17140f); --open-text: #60a5fa;
+      --blocked:    color-mix(in srgb, #f25e6b 15%, #17140f); --blocked-text: #f25e6b;
+      --renew-ok:   color-mix(in srgb, #34d399 15%, #17140f); --renew-ok-text: #34d399;
+      --renew-soon: color-mix(in srgb, #f5b544 15%, #17140f); --renew-soon-text: #f5b544;
+      --renew-urgent: color-mix(in srgb, #f25e6b 15%, #17140f); --renew-urgent-text: #f25e6b;
+      --chip-bg:    #191510;
+      --track:      #211c15;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
     [hidden] { display: none !important; }
@@ -166,7 +146,7 @@
       padding: 0 6px;
     }
     .brand-compact { display: none; font-size: 18px; letter-spacing: 1px; color: var(--primary); }
-    .sidebar-brand .brand-full > span { color: #2dd4bf; font-size: 12px; letter-spacing: 3px; }
+    .sidebar-brand .brand-full > span { color: #E0855D; font-size: 12px; letter-spacing: 3px; }
     .sidebar-quickfind {
       display: flex; align-items: center; gap: 10px; width: 100%;
       padding: 9px 11px; border: 1px solid color-mix(in srgb, var(--sidebar-fg) 13%, transparent);
@@ -179,7 +159,7 @@
       border-color: color-mix(in srgb, var(--primary) 55%, transparent);
       color: #fff;
     }
-    .sidebar-quickfind .lic { width: 16px; height: 16px; color: #2dd4bf; }
+    .sidebar-quickfind .lic { width: 16px; height: 16px; color: #E0855D; }
     .quickfind-key {
       margin-left: auto; padding: 2px 6px; border: 1px solid color-mix(in srgb, var(--sidebar-fg) 16%, transparent);
       border-radius: 5px; color: var(--sidebar-muted); background: color-mix(in srgb, var(--sidebar-bg) 60%, transparent);
@@ -757,6 +737,14 @@
     .ss-menu {
       position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 40;
       box-shadow: var(--shadow);
+    }
+    /* Add Record's existing-task picker breaks the "sits last" assumption above —
+       Task Summary, then the full Session Details section, follow it — so its menu
+       auto-opening (the field is autofocused when the modal opens) would float over
+       the Duration/Time Type/Description fields beneath it. Flow inline instead,
+       same treatment as .tp-menu, so it pushes those fields down. */
+    #f-existing-task-row .ss-menu {
+      position: static; margin-top: 6px; box-shadow: var(--shadow-sm);
     }
     /* Multi-select tag picker: expands INLINE (in normal flow) so it pushes the
        fields below it down instead of covering them; the modal scrolls if needed. */
@@ -2416,45 +2404,50 @@
        A deliberate product-level visual system layered over the mature app.
        Keeps every existing workflow and selector intact while transforming
        hierarchy, navigation, surfaces, density, and interaction feedback.
+       Note: --surface-0..3/--border/--radius/--radius-sm/--shadow/--shadow-sm/
+       --workspace-line set below are themselves superseded by DIRECT WORKSPACE
+       further down this file (it's later, so it wins) — that block is the live
+       source for those specific tokens now; --primary/--accent/--text/--muted/
+       --sidebar-* here are still the final word for those.
        ═══════════════════════════════════════════════════════════════════════ */
     :root {
-      --primary: #4f46e5;
-      --primary-strong: #3730a3;
-      --primary-glow: rgba(79,70,229,.24);
-      --accent: #4f46e5;
-      --accent-bg: color-mix(in srgb, #4f46e5 10%, #f5f7fb);
-      --surface-0: #f3f5fa;
+      --primary: #C96442;
+      --primary-strong: #A8502F;
+      --primary-glow: rgba(201,100,66,.24);
+      --accent: #C96442;
+      --accent-bg: color-mix(in srgb, #C96442 10%, #f7f4ee);
+      --surface-0: #f6f3ec;
       --surface-1: rgba(255,255,255,.92);
-      --surface-2: #f7f8fc;
-      --surface-3: #edf0f7;
-      --border: #dfe3ed;
-      --text: #172033;
-      --muted: #687188;
-      --sidebar-bg: #07111f;
+      --surface-2: #f8f6ef;
+      --surface-3: #efe9dc;
+      --border: #e2dbca;
+      --text: #262019;
+      --muted: #7a7264;
+      --sidebar-bg: #1c1712;
       --sidebar-hover: rgba(255,255,255,.075);
-      --sidebar-muted: #8792a8;
+      --sidebar-muted: #a89c8a;
       --radius: 18px;
       --radius-sm: 11px;
-      --shadow: 0 24px 55px -30px rgba(31,38,65,.35), 0 2px 8px rgba(31,38,65,.04);
-      --shadow-sm: 0 14px 30px -24px rgba(31,38,65,.28), 0 1px 3px rgba(31,38,65,.04);
-      --workspace-line: rgba(79,70,229,.055);
+      --shadow: 0 24px 55px -30px rgba(38,32,25,.35), 0 2px 8px rgba(38,32,25,.04);
+      --shadow-sm: 0 14px 30px -24px rgba(38,32,25,.28), 0 1px 3px rgba(38,32,25,.04);
+      --workspace-line: rgba(201,100,66,.055);
     }
     :root[data-theme="dark"] {
-      --primary: #818cf8;
-      --primary-strong: #6366f1;
-      --primary-glow: rgba(129,140,248,.25);
-      --accent: #a5b4fc;
-      --accent-bg: color-mix(in srgb, #818cf8 15%, #10131c);
-      --surface-0: #090b11;
-      --surface-1: rgba(18,21,31,.92);
-      --surface-2: #11141e;
-      --surface-3: #1a1e2b;
-      --border: #282d3d;
-      --text: #eef1fa;
-      --muted: #929bb1;
-      --sidebar-bg: #050914;
-      --row-hover: #181c28;
-      --workspace-line: rgba(129,140,248,.055);
+      --primary: #E0855D;
+      --primary-strong: #D9724A;
+      --primary-glow: rgba(224,133,93,.25);
+      --accent: #EDA37D;
+      --accent-bg: color-mix(in srgb, #E0855D 15%, #17130f);
+      --surface-0: #0f0c09;
+      --surface-1: rgba(28,23,18,.92);
+      --surface-2: #191510;
+      --surface-3: #262019;
+      --border: #362e24;
+      --text: #f2e9db;
+      --muted: #a89c8a;
+      --sidebar-bg: #0a0806;
+      --row-hover: #221c15;
+      --workspace-line: rgba(224,133,93,.055);
       --shadow: 0 28px 65px -28px rgba(0,0,0,.9), 0 2px 10px rgba(0,0,0,.35);
       --shadow-sm: 0 16px 36px -24px rgba(0,0,0,.8);
     }
@@ -2483,9 +2476,9 @@
     #sidebar {
       width: 278px; padding: 18px 14px 16px; gap: 15px;
       background:
-        radial-gradient(380px 300px at 10% -5%, rgba(45,212,191,.16), transparent 58%),
-        radial-gradient(340px 360px at 110% 22%, rgba(99,102,241,.18), transparent 65%),
-        linear-gradient(180deg, #0a1525 0%, var(--sidebar-bg) 100%);
+        radial-gradient(380px 300px at 10% -5%, rgba(224,133,93,.14), transparent 58%),
+        radial-gradient(340px 360px at 110% 22%, rgba(201,100,66,.16), transparent 65%),
+        linear-gradient(180deg, #241d15 0%, var(--sidebar-bg) 100%);
       border-right: 1px solid rgba(255,255,255,.07);
       box-shadow: 18px 0 45px -35px rgba(5,9,20,.8);
       backdrop-filter: none;
@@ -2503,11 +2496,11 @@
       content: 'O1'; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
       width: 36px; height: 36px; display: grid; place-items: center;
       border: 1px solid rgba(255,255,255,.13); border-radius: 12px;
-      background: linear-gradient(145deg, rgba(45,212,191,.3), rgba(99,102,241,.34));
+      background: linear-gradient(145deg, rgba(224,133,93,.4), rgba(168,80,47,.42));
       box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 10px 25px -14px #000;
       color: #fff; font-size: 11px; font-weight: 900; letter-spacing: .8px;
     }
-    .sidebar-brand .brand-full > span { color: #5eead4; font-size: 10px; letter-spacing: 2.3px; }
+    .sidebar-brand .brand-full > span { color: #E0855D; font-size: 10px; letter-spacing: 2.3px; }
     .brand-compact { font-size: 0; }
     .sidebar-collapse {
       width: 30px; height: 30px; flex: 0 0 30px; display: grid; place-items: center;
@@ -2524,38 +2517,38 @@
       box-shadow: inset 0 1px 0 rgba(255,255,255,.035);
     }
     .sidebar-quickfind:hover {
-      border-color: rgba(94,234,212,.35);
-      background: linear-gradient(90deg, rgba(45,212,191,.11), rgba(99,102,241,.12));
+      border-color: rgba(224,133,93,.35);
+      background: linear-gradient(90deg, rgba(201,100,66,.14), rgba(168,80,47,.12));
     }
     .quickfind-key { border-color: rgba(255,255,255,.12); background: rgba(0,0,0,.18); }
     .sidebar-create {
       min-height: 42px; width: 100%; display: flex; align-items: center; gap: 10px;
-      padding: 9px 11px; border: 1px solid rgba(129,140,248,.32); border-radius: 11px;
-      background: linear-gradient(110deg, rgba(79,70,229,.78), rgba(45,212,191,.25));
+      padding: 9px 11px; border: 1px solid rgba(224,133,93,.34); border-radius: 11px;
+      background: linear-gradient(110deg, rgba(201,100,66,.82), rgba(168,80,47,.55));
       color: #fff; cursor: pointer; font: 700 12.5px/1.2 inherit; text-align: left;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 12px 24px -17px rgba(79,70,229,.9);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 12px 24px -17px rgba(201,100,66,.9);
       transition: transform .15s var(--ease), filter var(--speed), box-shadow var(--speed);
     }
-    .sidebar-create:hover { filter: brightness(1.12); transform: translateY(-1px); box-shadow: 0 15px 28px -17px rgba(79,70,229,.95); }
+    .sidebar-create:hover { filter: brightness(1.12); transform: translateY(-1px); box-shadow: 0 15px 28px -17px rgba(201,100,66,.95); }
     .sidebar-create:active { transform: translateY(0) scale(.98); }
     .sidebar-create .lic { width: 17px; height: 17px; }
     .sidebar-nav { gap: 3px; padding: 2px 0 8px; }
     .nav-section {
-      padding: 16px 11px 6px; color: #657087; font-size: 9px; letter-spacing: 1.5px;
+      padding: 16px 11px 6px; color: #8a8070; font-size: 9px; letter-spacing: 1.5px;
     }
     .nav-item {
       min-height: 40px; padding: 9px 11px; border-radius: 11px;
-      color: #cbd3e2; font-size: 13px; font-weight: 550;
+      color: #d9d0c1; font-size: 13px; font-weight: 550;
     }
     .nav-item:hover { background: rgba(255,255,255,.065); }
     .nav-item.active,
     .nav-item[aria-current="page"] {
-      background: linear-gradient(105deg, rgba(79,70,229,.72), rgba(45,212,191,.18));
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 12px 28px -18px rgba(79,70,229,.85);
+      background: linear-gradient(105deg, rgba(201,100,66,.75), rgba(168,80,47,.3));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 12px 28px -18px rgba(201,100,66,.85);
     }
     .nav-item.active::before {
       left: -14px; width: 3px; height: 25px; border-radius: 0 5px 5px 0;
-      background: #5eead4; box-shadow: 0 0 16px rgba(94,234,212,.7);
+      background: #E0855D; box-shadow: 0 0 16px rgba(224,133,93,.7);
     }
     .nav-icon {
       width: 25px; height: 25px; border-radius: 8px;
@@ -2568,7 +2561,7 @@
       margin: 5px 0; border-color: rgba(255,255,255,.08); background: rgba(255,255,255,.035);
     }
     .sidebar-user-avatar {
-      border-radius: 50%; background: linear-gradient(145deg, #4f46e5, #0f766e);
+      border-radius: 50%; background: linear-gradient(145deg, #C96442, #A8502F);
       border-color: rgba(255,255,255,.15); box-shadow: 0 8px 18px -12px #000;
     }
 
@@ -2640,11 +2633,11 @@
     .btn:active { transform: translateY(0) scale(.98); }
     .btn.primary,
     .auth-btn {
-      background: linear-gradient(135deg, #4f46e5, #4338ca 58%, #3730a3);
-      box-shadow: 0 12px 24px -13px rgba(79,70,229,.75), inset 0 1px 0 rgba(255,255,255,.2);
+      background: linear-gradient(135deg, #D9724A, #C05C39 58%, #A8502F);
+      box-shadow: 0 12px 24px -13px rgba(201,100,66,.75), inset 0 1px 0 rgba(255,255,255,.2);
     }
     .btn.primary:hover,
-    .auth-btn:hover { background: linear-gradient(135deg, #6366f1, #4338ca 62%, #312e81); }
+    .auth-btn:hover { background: linear-gradient(135deg, #E0855D, #C05C39 62%, #8F4327); }
     .seg-ctl { padding: 4px; border-radius: 12px; background: var(--surface-3); }
     .seg-btn { min-height: 29px; border-radius: 8px; }
     .seg-btn.active {
@@ -2672,7 +2665,7 @@
       display: flex; align-items: center; gap: 10px; margin: -8px 0 24px;
       padding: 10px; border: 1px solid color-mix(in srgb, var(--primary) 14%, var(--border));
       border-radius: 15px;
-      background: linear-gradient(100deg, color-mix(in srgb, var(--primary) 6%, var(--surface-1)), color-mix(in srgb, #2dd4bf 3%, var(--surface-1)));
+      background: linear-gradient(100deg, color-mix(in srgb, var(--primary) 6%, var(--surface-1)), color-mix(in srgb, var(--primary-strong) 3%, var(--surface-1)));
       box-shadow: var(--shadow-sm);
     }
     .dash-launchpad-label {
@@ -2689,8 +2682,8 @@
     }
     .dash-launch:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--primary) 38%, var(--border)); background: var(--accent-bg); color: var(--primary); }
     .dash-launch .lic { width: 14px; height: 14px; }
-    .dash-launch.primary { color: #fff; border-color: transparent; background: linear-gradient(135deg, #4f46e5, #4338ca); }
-    .dash-launch.primary:hover { color: #fff; background: linear-gradient(135deg, #6366f1, #4338ca); }
+    .dash-launch.primary { color: #fff; border-color: transparent; background: linear-gradient(135deg, #D9724A, #A8502F); }
+    .dash-launch.primary:hover { color: #fff; background: linear-gradient(135deg, #E0855D, #A8502F); }
     .dash-stats { gap: 14px; }
     .dash-stat,
     .total-chip,
@@ -2725,9 +2718,9 @@
     }
     .total-chip::before {
       content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
-      background: linear-gradient(180deg, #6366f1, #4f46e5);
+      background: linear-gradient(180deg, #E0855D, #C96442);
     }
-    .total-chip:nth-child(2)::before { background: linear-gradient(180deg, #2dd4bf, #0f766e); }
+    .total-chip:nth-child(2)::before { background: linear-gradient(180deg, #E8A34D, #B8823C); }
     .total-chip:nth-child(3)::before { background: linear-gradient(180deg, #fb7185, #e11d48); }
     .total-chip .stat-value { font-size: 25px; letter-spacing: -1px; }
     #filter-bar { margin: 12px 24px 0; border-radius: 14px; border: 1px solid var(--border); background: var(--surface-1); }
@@ -2754,7 +2747,7 @@
 
     /* Dialogs and the command center feel native to the new shell. */
     .modal-overlay {
-      background: rgba(6,10,20,.64);
+      background: rgba(20,15,10,.64);
       backdrop-filter: blur(12px) saturate(125%);
     }
     .modal-box {
@@ -2779,7 +2772,7 @@
     #palette-input { font-size: 17px; letter-spacing: -.2px; }
     .pal-item { min-height: 43px; padding: 10px 13px; }
     .pal-item.active {
-      background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 14%, transparent), color-mix(in srgb, #2dd4bf 5%, transparent));
+      background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 14%, transparent), color-mix(in srgb, var(--primary-strong) 5%, transparent));
       box-shadow: inset 3px 0 var(--primary);
     }
 
@@ -2805,7 +2798,7 @@
     }
     .create-flow-icon {
       width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px;
-      color: var(--primary); background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 14%, transparent), color-mix(in srgb, #2dd4bf 8%, transparent));
+      color: var(--primary); background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 14%, transparent), color-mix(in srgb, var(--primary-strong) 8%, transparent));
       border: 1px solid color-mix(in srgb, var(--primary) 16%, transparent);
     }
     .create-flow-icon .lic { width: 19px; height: 19px; }
@@ -2860,7 +2853,7 @@
     }
     .kh-row-icon {
       border: 1px solid color-mix(in srgb, var(--primary) 18%, transparent);
-      background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 15%, transparent), color-mix(in srgb, #2dd4bf 8%, transparent));
+      background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 15%, transparent), color-mix(in srgb, var(--primary-strong) 8%, transparent));
     }
     .settings-body { background: var(--surface-1) !important; }
     .settings-tabs { width: 210px; padding: 16px 10px; }
@@ -2878,27 +2871,35 @@
     .cd-card { min-height: 190px; padding: 20px; }
     .cd-card-icon { border-radius: 12px; }
 
-    /* Authentication becomes a confident product entrance. */
-    #auth-overlay {
+    /* Authentication becomes a confident product entrance — dark mode only.
+       This used to apply unconditionally, so the login/setup screen was always
+       dark regardless of the user's saved light/dark preference (read from
+       localStorage and applied to <html data-theme> before this stylesheet's
+       first paint, in bootstrap.js). Scoping it here lets light mode fall
+       through to the token-based `.auth-card` etc. rules above instead, which
+       already track --surface/--text/--border and so on. */
+    :root[data-theme="dark"] #auth-overlay {
       background:
-        radial-gradient(900px 520px at 12% 8%, rgba(45,212,191,.18), transparent 62%),
-        radial-gradient(900px 600px at 92% 100%, rgba(79,70,229,.24), transparent 68%),
-        #07111f;
+        radial-gradient(900px 520px at 12% 8%, rgba(224,133,93,.16), transparent 62%),
+        radial-gradient(900px 600px at 92% 100%, rgba(201,100,66,.22), transparent 68%),
+        #0f0c09;
     }
-    .auth-card {
+    :root[data-theme="dark"] .auth-card {
       width: 430px; padding: 42px 38px 34px; border-color: rgba(255,255,255,.11);
-      background: rgba(14,24,40,.78); box-shadow: 0 45px 100px -35px rgba(0,0,0,.75);
-      backdrop-filter: blur(22px); color: #f8fafc;
+      background: rgba(30,24,18,.78); box-shadow: 0 45px 100px -35px rgba(0,0,0,.75);
+      backdrop-filter: blur(22px); color: #f8f4ec;
     }
-    .auth-brand, .auth-heading { color: #f8fafc; }
-    .auth-brand { font-size: 23px; letter-spacing: 4px; }
-    .auth-brand span { color: #5eead4; }
-    .auth-sub, .auth-field label { color: #94a3b8; }
-    .auth-field input {
-      min-height: 44px; color: #f8fafc; background: rgba(255,255,255,.06);
+    :root[data-theme="dark"] .auth-brand,
+    :root[data-theme="dark"] .auth-heading { color: #f8f4ec; }
+    :root[data-theme="dark"] .auth-brand { font-size: 23px; letter-spacing: 4px; }
+    :root[data-theme="dark"] .auth-brand span { color: #E0855D; }
+    :root[data-theme="dark"] .auth-sub,
+    :root[data-theme="dark"] .auth-field label { color: #a89c8a; }
+    :root[data-theme="dark"] .auth-field input {
+      min-height: 44px; color: #f8f4ec; background: rgba(255,255,255,.06);
       border-color: rgba(255,255,255,.12);
     }
-    .auth-field input:focus { background: rgba(255,255,255,.09); }
+    :root[data-theme="dark"] .auth-field input:focus { background: rgba(255,255,255,.09); }
 
     /* Calm Workspace: machine-local comfort controls that change presentation
        only. They never write application records or call the main process. */
@@ -3065,23 +3066,23 @@
        deliberately removes decorative depth, blur, and positional hover motion.
        ═══════════════════════════════════════════════════════════════════════ */
     :root {
-      --surface-0: #f5f6f8;
+      --surface-0: #f7f4ed;
       --surface-1: #ffffff;
-      --surface-2: #f8f9fb;
-      --surface-3: #eef1f5;
-      --border: #d9dee7;
+      --surface-2: #f9f7f0;
+      --surface-3: #efe9dc;
+      --border: #ddd5c3;
       --radius: 10px;
       --radius-sm: 8px;
-      --shadow: 0 2px 8px rgba(23,32,51,.08);
-      --shadow-sm: 0 1px 3px rgba(23,32,51,.06);
+      --shadow: 0 2px 8px rgba(38,32,25,.08);
+      --shadow-sm: 0 1px 3px rgba(38,32,25,.06);
       --workspace-line: transparent;
     }
     :root[data-theme="dark"] {
-      --surface-0: #0d1017;
-      --surface-1: #151922;
-      --surface-2: #11151d;
-      --surface-3: #1d222e;
-      --border: #303746;
+      --surface-0: #14100c;
+      --surface-1: #1d1712;
+      --surface-2: #17130f;
+      --surface-3: #241d16;
+      --border: #362d23;
       --shadow: 0 2px 8px rgba(0,0,0,.3);
       --shadow-sm: 0 1px 3px rgba(0,0,0,.24);
     }
@@ -3100,7 +3101,7 @@
     }
     .sidebar-brand::before,
     .sidebar-user-avatar {
-      background: #24324a;
+      background: #4a3826;
       box-shadow: none;
       border-radius: 8px;
     }
@@ -3110,7 +3111,7 @@
       letter-spacing: .15px;
       text-transform: none;
     }
-    .sidebar-brand .brand-full { color: #f8fafc; }
+    .sidebar-brand .brand-full { color: #f8f4ec; }
     .sidebar-collapse,
     .sidebar-quickfind,
     .sidebar-create,
@@ -3281,7 +3282,7 @@
     }
 
     .modal-overlay {
-      background: rgba(7,10,16,.58);
+      background: rgba(18,14,10,.58);
       backdrop-filter: none;
     }
     .modal-box,
