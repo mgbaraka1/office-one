@@ -30,6 +30,7 @@ All operational data stays on the device in an embedded SQLite database. There i
 - Renderer isolation uses `contextIsolation`, Chromium sandboxing, disabled Node integration, a narrow preload bridge, trusted-sender IPC checks, denied permission requests, and denied renderer-created windows.
 - Uploaded files are ownership-checked, path-contained, limited to 100 MB, and validated by extension and file signature.
 - Database restore accepts only a listed snapshot and validates SQLite integrity, foreign keys, required tables, and schema compatibility. Full Restore validates its manifest, SHA-256 checksums, and every database-referenced attachment before changing live data.
+- Login failures are rate-limited (locked out after 5 wrong attempts) and the lockout persists across app restarts. If the sole administrator forgets their password, see [PASSWORD_RECOVERY.md](PASSWORD_RECOVERY.md) for the manual local-recovery procedure — there is no email/network reset flow, by design.
 
 ## Tech stack
 
@@ -62,7 +63,7 @@ npm run build:win
 npm run pack
 ```
 
-`npm run test:e2e` launches a hidden real Electron instance against a disposable profile. Windows CI runs the complete smoke suite, Electron E2E, and packaging. Tagged releases build NSIS and portable artifacts; configure `WINDOWS_CSC_LINK` and `WINDOWS_CSC_KEY_PASSWORD` repository secrets for signed releases.
+`npm run test:e2e` launches a hidden real Electron instance against a disposable profile. Windows CI runs `npm audit --omit=dev --audit-level=high`, the complete smoke suite, Electron E2E, and packaging on every push/PR. Before tagging a release, also check the current Electron version against [Electron's published security advisories](https://github.com/electron/electron/security/advisories) — `npm audit` covers the dependency tree generally, but a fresh Electron-specific advisory can land between npm's own audit-database updates. Tagged releases build NSIS and portable artifacts; configure `WINDOWS_CSC_LINK` and `WINDOWS_CSC_KEY_PASSWORD` repository secrets for signed releases.
 
 ## Data and backups
 

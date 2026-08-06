@@ -10,6 +10,11 @@ const { performance } = require('node:perf_hooks');
 const { DatabaseSync } = require('node:sqlite');
 const db = require('../db');
 
+// Guards against reading/copying the REAL production DB when this file is
+// run directly (node test/<this file>) instead of via run-all.js — see
+// test-bootstrap.js.
+require('./test-bootstrap');
+
 const source = path.join(os.homedir(), 'AppData', 'Roaming', 'timesheet', 'cooperation-tools.db');
 const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'performance-smoke-'));
 const target = path.join(workDir, 'cooperation-tools.db');
@@ -51,6 +56,13 @@ try {
   const hits = db.searchWorkspace(userId, 'Scale task 4999', 30);
   const searchMs = performance.now() - searchStart;
   const bytes = Buffer.byteLength(JSON.stringify(tasks));
+  // ── Revisit trigger (Finding 19, full-app audit) ──
+  // listTasks()/getTasksIndex() (db.js) load every task/work-log row with no
+  // LIMIT — fine at today's real-world scale and only tested up to the
+  // 5,000-task/10,000-log ceiling below, but a genuine latent ceiling, not a
+  // current bug. Don't build pagination speculatively; revisit only once a
+  // real account's data approaches these numbers or the budgets below start
+  // failing in CI.
   const checks = [
     ['task index returns the scaled workspace', tasks.length >= 5_000, `rows=${tasks.length}`],
     ['task index stays within the CI response budget', indexMs < 5_000, `${indexMs.toFixed(1)}ms`],

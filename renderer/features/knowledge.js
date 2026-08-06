@@ -100,7 +100,10 @@ function appendKnowledgeFilterSection(host, id, title, entries, limit = 8) {
     items.appendChild(b);
   });
   if (entries.length > limit) {
-    const more = pjMk('button', 'kh-filter-more', knowledgeFilterShowAll[id] ? 'Show fewer' : `Show all ${entries.length}`);
+    const moreLabel = knowledgeFilterShowAll[id]
+      ? (window.ctI18n?.t?.('Show fewer') || 'Show fewer')
+      : (window.ctI18n?.t?.('Show all {n}', { n: entries.length }) || `Show all ${entries.length}`);
+    const more = pjMk('button', 'kh-filter-more', moreLabel);
     more.onclick = () => { knowledgeFilterShowAll[id] = !knowledgeFilterShowAll[id]; renderKnowledgeList(); };
     items.appendChild(more);
   }

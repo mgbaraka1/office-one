@@ -9,6 +9,11 @@ const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 const db = require('../db');
 
+// Guards against reading/copying the REAL production DB when this file is
+// run directly (node test/<this file>) instead of via run-all.js — see
+// test-bootstrap.js.
+require('./test-bootstrap');
+
 const source = path.join(os.homedir(), 'AppData', 'Roaming', 'timesheet', 'cooperation-tools.db');
 const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bilingual-lookups-smoke-'));
 fs.copyFileSync(source, path.join(workDir, 'cooperation-tools.db'));

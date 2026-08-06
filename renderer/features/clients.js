@@ -124,7 +124,7 @@ function renderClientsList() {
   if (clientsList.length === 0) {
     grid.style.display = 'none';
     results.style.display = 'none';
-    empty.style.display = 'flex';
+    empty.hidden = false;
     empty.querySelector('p').innerHTML = 'No companies yet — add one in <strong>Settings → Companies</strong>';
     return;
   }
@@ -133,7 +133,7 @@ function renderClientsList() {
   if (!q) {
     results.style.display = 'none';
     grid.style.display = '';
-    empty.style.display = 'none';
+    empty.hidden = true;
     const projCounts = clientProjectCounts();
     clientsList.forEach(c => grid.appendChild(buildClientCard(c, projCounts.get(c.id) || 0)));
     return;
@@ -154,11 +154,11 @@ function renderClientsList() {
 
   if (matches.length === 0) {
     results.style.display = 'none';
-    empty.style.display = 'flex';
+    empty.hidden = false;
     empty.querySelector('p').textContent = 'No records match your search';
     return;
   }
-  empty.style.display = 'none';
+  empty.hidden = true;
   results.style.display = '';
   renderClientSearchResults(matches, q);
 }

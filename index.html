@@ -10,6 +10,8 @@
 </head>
 <body>
 
+<a href="#main-content" class="skip-link">Skip to main content</a>
+
 <!-- ══ AUTH GATE (setup on first run / login each session) ══ -->
 <div id="auth-overlay">
   <form class="auth-card" id="auth-form" data-onsubmit="submitAuth(event)" autocomplete="off">
@@ -110,6 +112,8 @@
     <div class="app-version" id="app-version" aria-label="Application version"></div>
   </div>
 </div>
+
+<main id="main-content">
 
 <!-- ══ ANALYTICS MODULE (home / overview) ══ -->
 <div id="module-analytics" class="app-module">
@@ -391,9 +395,11 @@
       <tbody id="tbody"></tbody>
     </table>
     <div id="ts-groups"></div>
-    <div id="empty-state">
-      <div class="icon" data-ic="clipboard-list"></div>
-      <p>No records yet — click <strong>+ Add Record</strong> to start</p>
+    <div id="empty-state" class="empty-state" hidden>
+      <div class="empty-state-inner">
+        <span data-ic="clipboard-list"></span>
+        <p>No records yet — click <strong>+ Add Record</strong> to start</p>
+      </div>
     </div>
   </div>
 </div>
@@ -582,9 +588,11 @@
       </thead>
       <tbody id="sub-tbody"></tbody>
     </table>
-    <div id="sub-empty-state">
-      <div class="icon" data-ic="credit-card"></div>
-      <p>No subscriptions yet — click <strong>+ Add Subscription</strong> to start tracking</p>
+    <div id="sub-empty-state" class="empty-state" hidden>
+      <div class="empty-state-inner">
+        <span data-ic="credit-card"></span>
+        <p>No subscriptions yet — click <strong>+ Add Subscription</strong> to start tracking</p>
+      </div>
     </div>
   </div>
 </div>
@@ -603,7 +611,7 @@
   <div class="cp-body" id="browse-body-companies">
     <div class="cp-list-panel">
       <div class="cp-list-search">
-        <input type="text" id="companies-search" class="cp-search" placeholder="Search companies…" data-oninput="renderCatList('companies')">
+        <input type="text" id="companies-search" class="mod-search" placeholder="Search companies…" data-oninput="renderCatList('companies')">
       </div>
       <div class="cp-list" id="companies-list"></div>
     </div>
@@ -612,7 +620,7 @@
   <div class="cp-body" id="browse-body-systems" style="display:none">
     <div class="cp-list-panel">
       <div class="cp-list-search">
-        <input type="text" id="systems-search" class="cp-search" placeholder="Search systems…" data-oninput="renderCatList('systems')">
+        <input type="text" id="systems-search" class="mod-search" placeholder="Search systems…" data-oninput="renderCatList('systems')">
       </div>
       <div class="cp-list" id="systems-list"></div>
     </div>
@@ -671,7 +679,7 @@
   <div class="cp-body">
     <div class="cp-list-panel">
       <div class="cp-list-search">
-        <input type="text" id="dept-search" class="cp-search" placeholder="Search departments…" data-oninput="renderDeptList()">
+        <input type="text" id="dept-search" class="mod-search" placeholder="Search departments…" data-oninput="renderDeptList()">
       </div>
       <div class="cp-list" id="dept-list"></div>
     </div>
@@ -698,12 +706,12 @@
   </div>
   <div id="kh-list-view" class="kh-shell">
     <aside class="kh-filters" id="kh-filters"></aside>
-    <main class="kh-main">
+    <div class="kh-main">
       <div class="kh-summary"><span id="kh-result-count" role="status"></span><label><span class="sr-only">Sort knowledge items</span><select id="kh-sort" class="kh-sort" aria-label="Sort knowledge items" data-onchange="renderKnowledgeList()"><option value="updated">Recently updated</option><option value="title">Title</option><option value="documents">Most documents</option><option value="created">Recently created</option></select></label></div>
       <div id="kh-active-filters" class="kh-active-filters" aria-label="Active filters"></div>
       <div id="kh-list" class="kh-list"></div>
       <div id="kh-empty" class="kh-empty" hidden><div class="kh-empty-inner"><span data-ic="book-open"></span><h3 id="kh-empty-title">No knowledge found</h3><p id="kh-empty-copy">Create a manual, integration guide, procedure, or troubleshooting note.</p><button id="kh-empty-clear" class="btn" data-onclick="resetKnowledgeFilters()" hidden>Clear filters</button></div></div>
-    </main>
+    </div>
   </div>
   <div id="kh-detail-view" class="kh-main" hidden></div>
 </div>
@@ -775,9 +783,11 @@
   </div>
   <div class="pj-scroll">
     <div class="cd-grid" id="companydocs-grid"></div>
-    <div id="companydocs-empty-state" style="display:none">
-      <div class="icon" data-ic="calendar-check"></div>
-      <p>No company documents yet — click <strong>+ New Document</strong> to add one</p>
+    <div id="companydocs-empty-state" class="empty-state" hidden>
+      <div class="empty-state-inner">
+        <span data-ic="calendar-check"></span>
+        <p>No company documents yet — click <strong>+ New Document</strong> to add one</p>
+      </div>
     </div>
   </div>
 </div>
@@ -847,9 +857,11 @@
     </div>
     <div class="pj-grid" id="clients-grid"></div>
     <div id="clients-search-results" style="display:none"></div>
-    <div id="clients-empty-state" style="display:none">
-      <div class="icon" data-ic="layers"></div>
-      <p>No companies yet — add one in <strong>Settings → Companies</strong></p>
+    <div id="clients-empty-state" class="empty-state" hidden>
+      <div class="empty-state-inner">
+        <span data-ic="layers"></span>
+        <p>No companies yet — add one in <strong>Settings → Companies</strong></p>
+      </div>
     </div>
   </div>
 
@@ -1948,6 +1960,8 @@
     </div>
   </div>
 </div>
+
+</main>
 
 <script src="renderer/event-delegation.js"></script>
 <script src="renderer/core.js"></script>
