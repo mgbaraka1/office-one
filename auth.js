@@ -32,8 +32,24 @@ const PASSWORD_MIN = 8;
 const PASSWORD_MAX_BYTES = 72;
 const MAX_LOGIN_FAILURES = 5;
 const LOGIN_LOCK_MS = 30_000;
-const loginFailures = new Map();
 const DUMMY_PASSWORD_HASH = bcrypt.hashSync('invalid-login-placeholder', SALT_ROUNDS);
+
+// Persisted in machine_prefs (this-machine-only, like window_prefs) so a
+// lockout survives an app restart — restarting used to silently reset it.
+function getLoginFailure(key) {
+  return db.loadLoginFailures()[key];
+}
+function setLoginFailure(key, data) {
+  const failures = db.loadLoginFailures();
+  failures[key] = data;
+  db.saveLoginFailures(failures);
+}
+function clearLoginFailure(key) {
+  const failures = db.loadLoginFailures();
+  if (!(key in failures)) return;
+  delete failures[key];
+  db.saveLoginFailures(failures);
+}
 
 // The single in-memory session for this process. null === not authenticated.
 let session = null;   // { userId: number, username: string } | null
@@ -102,7 +118,7 @@ function setup(username, password) {
 function login(username, password) {
   const uname = String(username || '').trim();
   const failureKey = uname.toLowerCase();
-  const failure = loginFailures.get(failureKey);
+  const failure = getLoginFailure(failureKey);
   if (failure?.blockedUntil > Date.now()) {
     const seconds = Math.ceil((failure.blockedUntil - Date.now()) / 1000);
     return { ok: false, error: `Too many attempts. Try again in ${seconds} seconds.` };
@@ -117,14 +133,14 @@ function login(username, password) {
   const ok = !!(user?.is_active && passwordWithinBcryptLimit && passwordMatches);
   if (!ok) {
     const count = (failure?.count || 0) + 1;
-    loginFailures.set(failureKey, {
+    setLoginFailure(failureKey, {
       count,
       blockedUntil: count >= MAX_LOGIN_FAILURES ? Date.now() + LOGIN_LOCK_MS : 0,
     });
     return { ok: false, error: 'Incorrect username or password.' };
   }
 
-  loginFailures.delete(failureKey);
+  clearLoginFailure(failureKey);
   session = { userId: user.id, username: user.username, isAdmin: !!user.is_admin };
   return { ok: true, user: { id: user.id, username: user.username, isAdmin: !!user.is_admin } };
 }
@@ -216,18 +232,6 @@ function updateUser(id, data) {
   return { ok: true, user: userToApi(db.getUserById(targetId)), currentUser: currentUser() };
 }
 
-function changePassword(currentPassword, newPassword) {
-  const userId = requireUserId();
-  const pErr = validatePassword(newPassword);
-  if (pErr) return { ok: false, error: pErr };
-  const user = db.getUserById(userId);
-  if (!user || !bcrypt.compareSync(String(currentPassword || ''), user.password_hash)) {
-    return { ok: false, error: 'Current password is incorrect.' };
-  }
-  db.updateUserPassword(userId, bcrypt.hashSync(String(newPassword), SALT_ROUNDS));
-  return { ok: true };
-}
-
 // The id every data query must be scoped to. Throws when no one is logged in, so
 // data IPC handlers fail closed rather than leaking/cross-writing data.
 function requireUserId() {
@@ -240,6 +244,6 @@ function isAuthenticated() {
 }
 
 module.exports = {
-  status, setup, login, logout, currentUser, listUsers, addUser, updateUser, changePassword,
+  status, setup, login, logout, currentUser, listUsers, addUser, updateUser,
   requireUserId, requireAdmin, isAuthenticated,
 };

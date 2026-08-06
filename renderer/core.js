@@ -461,6 +461,19 @@ function toast(msg, opts) {
   }, (opts && opts.duration) || 2600);
 }
 
+// ── Crash safety net ──
+// A programming error that reaches here would otherwise fail completely
+// silently — no console the user can see, no indication their last action
+// didn't save. Surface a toast; still log to console for diagnosis.
+window.addEventListener('error', (event) => {
+  console.error('[unhandled error]', event.error || event.message);
+  toast('Something went wrong — your last action may not have saved.');
+});
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('[unhandled rejection]', event.reason);
+  toast('Something went wrong — your last action may not have saved.');
+});
+
 // ── Loading skeletons ──
 // Fill `host` with shimmer placeholders while its async data loads; the next
 // real render replaces them. `kind`: 'cards' (grid tiles) or 'text' (lines).
@@ -940,8 +953,9 @@ function buildTaskSearchSelect(host, tasks, initialId, placeholder, onChange) {
       const t = o.task;
       const meta = [companyDisplayName(t), lkLabel('SYSTEM', t.system),
         t.projectId != null ? projectNameById(t.projectId) : (t.departmentId != null ? lkLabelById('DEPARTMENT', t.departmentId) : null),
-        t.lastDate ? ('worked ' + t.lastDate) : null,
-        t.logCount ? (t.logCount + ' session' + (t.logCount === 1 ? '' : 's')) : null,
+        t.lastDate ? (window.ctI18n?.t?.('worked {date}', { date: t.lastDate }) || ('worked ' + t.lastDate)) : null,
+        t.logCount ? (window.ctI18n?.t?.(t.logCount === 1 ? '{n} session' : '{n} sessions', { n: t.logCount })
+          || (t.logCount + ' session' + (t.logCount === 1 ? '' : 's'))) : null,
         t.totalMinutes ? (Math.round(t.totalMinutes / 60 * 10) / 10 + 'h') : null]
         .filter(Boolean).join(' · ');
       return '<div class="ss-opt-title-row"><span>' + esc(t.name || '(untitled task)') + '</span>' +
@@ -1065,7 +1079,11 @@ async function renderUserManagement() {
     const meta = pjMk('div', 'user-card-meta');
     meta.appendChild(pjMk('span', 'user-role-badge', user.isAdmin ? 'Administrator' : 'Standard User'));
     meta.appendChild(pjMk('span', 'user-status-badge' + (user.isActive ? '' : ' inactive'), user.isActive ? 'Active' : 'Inactive'));
-    if (user.createdAt) meta.appendChild(document.createTextNode('Created ' + new Date(user.createdAt).toLocaleDateString()));
+    if (user.createdAt) {
+      const createdDate = new Date(user.createdAt).toLocaleDateString();
+      meta.appendChild(document.createTextNode(
+        window.ctI18n?.t?.('Created {date}', { date: createdDate }) || ('Created ' + createdDate)));
+    }
     main.appendChild(meta);
     card.appendChild(main);
     const edit = pjMk('button', 'btn', 'Edit');

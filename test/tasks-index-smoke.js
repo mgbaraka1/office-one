@@ -37,6 +37,11 @@ const db = require('../db');
 const results = [];
 function record(flow, pass, details) { results.push({ flow, pass, details }); }
 
+// Guards against reading/copying the REAL production DB when this file is
+// run directly (node test/<this file>) instead of via run-all.js — see
+// test-bootstrap.js.
+require('./test-bootstrap');
+
 const prodDir = path.join(os.homedir(), 'AppData', 'Roaming', 'timesheet');
 const prodDb  = path.join(prodDir, 'cooperation-tools.db');
 if (!fs.existsSync(prodDb)) {

@@ -57,6 +57,16 @@
       --shadow-sm:  0 2px 10px -6px rgba(40,50,90,.16);
       --chip-bg:    #f1f4fa;
       --track:      #e6eaf2;
+      /* Analytics chart series palette (Time Type breakdown) — six named slots
+         so the chart's colors are a themeable system, not a mix of token
+         references and one-off hex literals. Not redefined per-theme, same
+         convention as --good/--warn/--bad above. */
+      --chart-1: var(--primary);
+      --chart-2: var(--bad);
+      --chart-3: #22d3ee;
+      --chart-4: #f59e0b;
+      --chart-5: #22c55e;
+      --chart-6: #94a3b8;
     }
     /* ══ DARK THEME (content area; chrome stays dark) ══ */
     :root[data-theme="dark"] {
@@ -127,6 +137,20 @@
     /* ══ LAYOUT ══ */
     body { flex-direction: row; }
     #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    /* The main landmark element wrapping every module (#main is an unrelated
+       Timesheet-internal layout id, already taken — see its own rule above). */
+    #main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+    /* Visually hidden until keyboard-focused; first focusable element in the
+       page so keyboard/screen-reader users can bypass the sidebar nav. */
+    .skip-link {
+      position: fixed; top: -48px; left: 12px; z-index: 2000;
+      background: var(--primary); color: #fff; padding: 10px 18px;
+      border-radius: var(--radius-sm); font-weight: 600; text-decoration: none;
+      transition: top var(--speed);
+    }
+    .skip-link:focus { top: 12px; }
+    html[dir="rtl"] .skip-link { left: auto; right: 12px; }
 
     /* ══ SIDEBAR ══ */
     #sidebar {
@@ -188,7 +212,10 @@
     .nav-icon { font-size: 15px; width: 19px; text-align: center; flex-shrink: 0; }
     .nav-badge {
       margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px;
-      border-radius: 9px; background: var(--bad); color: #fff;
+      /* Darkened relative to --bad: white-on-#f25e6b measures ~3.2:1, below the
+         4.5:1 WCAG AA threshold for this badge's 10px bold text. This mix
+         measures ~5:1 in both themes (the token isn't redefined per-theme). */
+      border-radius: 9px; background: color-mix(in srgb, var(--bad) 75%, black); color: #fff;
       font-size: 10px; font-weight: 700; display: none;
       align-items: center; justify-content: center; line-height: 1;
     }
@@ -280,8 +307,8 @@
     /* Save / status pills + in-progress divider */
     .saved .lic, .save-error .lic { width: 13px; height: 13px; vertical-align: -0.15em; }
     .inprogress-divider-label .lic { width: 13px; height: 13px; vertical-align: -0.12em; }
-    /* Decorative empty-state icons — larger, lighter stroke */
-    #empty-state .icon .lic, #sub-empty-state .icon .lic,
+    /* Decorative empty-state icon — larger, lighter stroke (.empty-state's
+       own icon size/color comes from .empty-state .lic, see EMPTY STATES) */
     .cp-placeholder .icon .lic { width: 46px; height: 46px; stroke-width: 1.5; }
     .dash-empty .de-icon .lic { width: 30px; height: 30px; stroke-width: 1.75; }
     /* Filter clear, timer chip, calendar caret, lookup toggle, cp filter clear */
@@ -524,13 +551,18 @@
     tbody tr.timer-running td { background: color-mix(in srgb, var(--good) 8%, var(--surface)) !important; }
     tbody tr.timer-running:hover td { background: color-mix(in srgb, var(--good) 14%, var(--surface)) !important; }
 
-    /* ══ EMPTY STATES (one shared family) ══ */
-    #empty-state, #sub-empty-state, .cp-placeholder {
+    /* ══ EMPTY STATES ══
+       .empty-state is the shared rich pattern (full-opacity colored icon,
+       centered layout) — see its full rule alongside .kh-empty below, the
+       pattern it was promoted from. .cp-placeholder is the separate lighter
+       legacy pattern (small low-opacity icon, one line), still used by
+       Browse and the Internal Tasks "select a department" panel — not part
+       of the .empty-state family. */
+    .cp-placeholder {
       display: flex; flex-direction: column; align-items: center; text-align: center;
       justify-content: center; gap: var(--space-3); padding: var(--space-8) var(--space-5); color: var(--muted);
     }
-    #empty-state .icon, #sub-empty-state .icon, .cp-placeholder .icon { font-size: 44px; opacity: .4; margin: 0; }
-    #empty-state p, #sub-empty-state p { font-size: 15px; }
+    .cp-placeholder .icon { font-size: 44px; opacity: .4; margin: 0; }
     /* In-card empties (analytics cards, read-only lists/records) */
     .an-empty, .dash-empty, .cp-records-empty, .cp-list-empty {
       text-align: center; color: var(--muted); font-size: 13px; padding: var(--space-7) var(--space-3);
@@ -612,6 +644,9 @@
     .pj-card.pj-accent-active::before    { background: var(--good); }
     .pj-card.pj-accent-on-hold::before   { background: var(--warn); }
     .pj-card.pj-accent-completed::before { background: var(--muted); }
+    /* RTL: the accent rail moves to the trailing (right) edge with it */
+    html[dir="rtl"] .pj-card { padding-left: var(--space-5); padding-right: calc(var(--space-5) + 4px); }
+    html[dir="rtl"] .pj-card::before { left: auto; right: 0; }
     .pj-card:hover { transform: translateY(-3px); border-color: var(--primary); box-shadow: var(--shadow); }
     .pj-card:hover::before { opacity: 1; }
     .pj-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
@@ -984,6 +1019,8 @@
     }
     .cl-records-search-input::placeholder { color: var(--muted); }
     .cl-records-search-input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-glow); }
+    html[dir="rtl"] .cl-records-search-icon { left: auto; right: 18px; }
+    html[dir="rtl"] .cl-records-search-input { padding-left: 20px; padding-right: 50px; }
     /* Record-info popup (opened from a records-search result row) — every field is its
        own click-to-copy row; sensitive fields (password/secretKey) stay masked. */
     .cl-info-subtitle { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
@@ -1313,7 +1350,11 @@
     .rtl-text { unicode-bidi: plaintext; text-align: start; }
     .cell-muted { color: var(--muted); opacity: .55; }
 
-    /* Search input for module top bars */
+    /* Search input for module top bars — the one shared search-field
+       component (Subscriptions, Knowledge Hub, Company Docs, Link Task, and
+       Browse's list-panel searches below all use this; Clients' larger
+       icon-prefixed records search is a deliberately distinct, more
+       prominent pattern — see .cl-records-search-input). */
     .mod-search {
       width: 200px; border: 1px solid var(--border); border-radius: var(--radius-sm);
       padding: 6px 12px; font-size: 14px; font-family: inherit;
@@ -1495,9 +1536,13 @@
     button.kh-pill { cursor: pointer; font-family: inherit; }
     button.kh-pill:hover { border-color: var(--primary); color: var(--primary); }
     .kh-row-date { color: var(--muted); font-size: 11px; white-space: nowrap; }
-    .kh-empty { min-height: 330px; display: grid; place-items: center; text-align: center; color: var(--muted); }
-    .kh-empty-inner { max-width: 390px; }
-    .kh-empty .lic { width: 42px; height: 42px; color: var(--primary); margin-bottom: 10px; }
+    /* Shared with .empty-state (app-wide promotion of this pattern — see the
+       EMPTY STATES comment near .cp-placeholder above) — Knowledge Hub's own
+       markup keeps using its #kh-empty id (read by knowledge.js), unchanged. */
+    .kh-empty, .empty-state { min-height: 330px; display: grid; place-items: center; text-align: center; color: var(--muted); }
+    .kh-empty-inner, .empty-state-inner { max-width: 390px; }
+    .kh-empty .lic, .empty-state .lic { width: 42px; height: 42px; color: var(--primary); margin-bottom: 10px; }
+    .empty-state-inner p { font-size: 15px; }
     .kh-detail { max-width: 1050px; margin: 0 auto; }
     .kh-breadcrumb { border: 0; background: none; color: var(--primary); cursor: pointer; padding: 0; margin-bottom: 18px; font: 700 12px/1 inherit; }
     .kh-detail-head { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; margin-bottom: 22px; }
@@ -1817,14 +1862,10 @@
       display: flex; flex-direction: column; background: var(--surface);
     }
     .cp-list-search { padding: 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-    .cp-search {
-      width: 100%; box-sizing: border-box;
-      border: 1px solid var(--border); border-radius: var(--radius-sm);
-      padding: 8px 12px; font-size: 13px; font-family: inherit;
-      background: var(--surface2); color: var(--text); outline: none;
-      transition: border-color var(--speed), box-shadow var(--speed);
-    }
-    .cp-search:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); background: var(--input-focus-bg); }
+    /* Same .mod-search component every module search uses (see its shared
+       rule); only the sizing differs here, to fill this narrower list panel. */
+    .cp-list-search .mod-search { width: 100%; padding: 8px 12px; font-size: 13px; }
+    .cp-list-search .mod-search:focus { background: var(--input-focus-bg); }
     .cp-list { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
     .cp-list-item {
       display: flex; align-items: center; justify-content: space-between; gap: 8px;
@@ -2035,6 +2076,8 @@
       font-size: 13px; pointer-events: none; color: var(--muted);
     }
     .filter-wrap { position: relative; display: flex; align-items: center; }
+    html[dir="rtl"] #filter-input { padding-left: 12px; padding-right: 30px; }
+    html[dir="rtl"] .filter-icon { left: auto; right: 8px; }
     #filter-clear {
       background: none; border: none; cursor: pointer; color: var(--muted);
       font-size: 14px; padding: 0 4px; display: none;

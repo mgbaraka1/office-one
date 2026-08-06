@@ -7,6 +7,11 @@ const bcrypt = require('bcryptjs');
 const db = require('../db');
 const auth = require('../auth');
 
+// Guards against reading/copying the REAL production DB when this file is
+// run directly (node test/<this file>) instead of via run-all.js — see
+// test-bootstrap.js.
+require('./test-bootstrap');
+
 const sourceDir = path.join(os.homedir(), 'AppData', 'Roaming', 'timesheet');
 const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'security-hardening-smoke-'));
 for (const suffix of ['', '-wal', '-shm']) {
@@ -60,11 +65,11 @@ try {
 
   const login = auth.login('fixture-user', 'fixture-password');
   const add = auth.addUser('created-by-admin', 'secure-password');
-  const changed = auth.changePassword('fixture-password', 'new-fixture-password');
+  const changed = auth.updateUser(login.user.id, { password: 'new-fixture-password', currentPassword: 'fixture-password' });
   auth.logout();
   const relogin = auth.login('fixture-user', 'new-fixture-password');
   record('Admin can add an isolated account', login.ok && add.ok && add.user.isAdmin === false);
-  record('A user can change and reuse their own password', changed.ok && relogin.ok);
+  record('A user can change and reuse their own password (via auth:updateUser, the real IPC path)', changed.ok && relogin.ok);
 } catch (error) {
   console.error(error.stack || error);
   exitCode = 2;
