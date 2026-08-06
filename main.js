@@ -9,6 +9,17 @@ const e2ePort = !app.isPackaged ? Number(process.env.COOPERATION_TOOLS_E2E_PORT)
 const isE2ERun = Number.isInteger(e2ePort) && e2ePort > 0 && e2ePort <= 65535;
 if (isE2ERun) app.commandLine.appendSwitch('remote-debugging-port', String(e2ePort));
 
+// Chromium's native <input type="date/month"> pickers render their calendar
+// and digits from the OS's regional format (Windows "use native digits"),
+// not from the page's <html lang> or even a per-element lang attribute —
+// neither is enough to stop Arabic-Indic numerals leaking into the English
+// UI on an Arabic-region Windows install. This is the one override Chromium
+// does honor, and it has to be a startup switch (can't change mid-session),
+// so it can't track the in-app EN/AR toggle — 'en-US' matches the app's own
+// default language and keeps dates/numbers in a consistent Latin/Gregorian
+// format even for Arabic-mode users, rather than following the OS silently.
+app.commandLine.appendSwitch('lang', 'en-US');
+
 // Resolve any dev/portable data-directory override (see .env.example) BEFORE
 // requesting the single-instance lock below, so the lock is scoped to the
 // actual data directory this process will use rather than always the OS

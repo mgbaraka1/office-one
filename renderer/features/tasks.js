@@ -412,7 +412,7 @@ function renderTaskDetail(t) {
   });
   body.appendChild(stats);
 
-  // ── Sessions (newest first) ──
+  // ── Sessions (oldest first) ──
   const sessHead = pjMk('div', 'pj-section-head');
   sessHead.style.marginTop = '18px';
   const sessTitle = pjMk('div', 'pj-section-title', 'Sessions (' + logs.length + ')');
@@ -428,7 +428,7 @@ function renderTaskDetail(t) {
   sessHead.appendChild(sessActions);
   body.appendChild(sessHead);
 
-  const sorted = [...logs].sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id - a.id));
+  const sorted = [...logs].sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.id - b.id));
 
   if (sorted.length === 0) {
     body.appendChild(pjMk('div', 'td-sessions-empty', 'No sessions yet — this task hasn\'t been worked on.'));
