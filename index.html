@@ -145,29 +145,6 @@
     </div>
     <div class="dash-stats" id="dash-stats"></div>
 
-    <div class="an-section">
-      <span class="an-section-title"><span data-ic="bell"></span>Needs Attention</span>
-      <span class="an-section-line"></span>
-    </div>
-    <div class="an-grid">
-      <div class="an-card">
-        <div class="an-card-head"><span class="an-card-title">Upcoming Renewals</span><span class="an-card-sub" id="dash-attention-sub"></span></div>
-        <div class="dash-attention" id="dash-attention"></div>
-      </div>
-      <div class="an-card">
-        <div class="an-card-head"><span class="an-card-title">Recurring Spend</span><span class="an-card-sub" id="an-spend-sub">Subscriptions</span></div>
-        <div id="an-spend"></div>
-      </div>
-    </div>
-
-    <div class="an-card" style="margin-bottom:16px">
-      <div class="an-card-head">
-        <span class="an-card-title">Recent Changes</span>
-        <span class="an-card-sub">Your offline audit trail</span>
-      </div>
-      <div class="dash-attention" id="dash-activity"></div>
-    </div>
-
     <!-- ── Time Tracking: everything driven by the selected period ── -->
     <div class="an-section">
       <span class="an-section-title"><span data-ic="trending-up"></span>Time Tracking</span>
@@ -198,9 +175,11 @@
       </div>
     </div>
 
-    <details class="an-more-insights">
-      <summary>More breakdowns and yearly activity</summary>
-    <div class="an-grid" style="margin-top:16px">
+    <div class="an-section">
+      <span class="an-section-title"><span data-ic="layers"></span>More Breakdowns</span>
+      <span class="an-section-line"></span>
+    </div>
+    <div class="an-grid">
       <div class="an-card">
         <div class="an-card-head"><span class="an-card-title">Hours by Department</span><span class="an-card-sub" id="an-department-sub"></span></div>
         <div id="an-department"></div>
@@ -239,7 +218,21 @@
       </div>
     </div>
 
-    </details>
+    <!-- ── Needs Attention: upcoming renewals + recurring spend ── -->
+    <div class="an-section">
+      <span class="an-section-title"><span data-ic="bell"></span>Needs Attention</span>
+      <span class="an-section-line"></span>
+    </div>
+    <div class="an-grid" style="margin-bottom:16px">
+      <div class="an-card">
+        <div class="an-card-head"><span class="an-card-title">Upcoming Renewals</span><span class="an-card-sub" id="dash-attention-sub"></span></div>
+        <div class="dash-attention" id="dash-attention"></div>
+      </div>
+      <div class="an-card">
+        <div class="an-card-head"><span class="an-card-title">Recurring Spend</span><span class="an-card-sub" id="an-spend-sub">Subscriptions</span></div>
+        <div id="an-spend"></div>
+      </div>
+    </div>
   </div>
 </div>
 

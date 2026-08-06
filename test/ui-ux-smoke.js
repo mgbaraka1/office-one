@@ -110,10 +110,6 @@ gate('Overview is an active workflow launchpad, not only a reporting surface',
   && html.includes(`class="dash-launch primary" data-onclick="runCreateFlow('session')"`)
   && html.includes(`class="dash-launch" data-onclick="openCreateHub()"`)
   && html.includes(`class="dash-launch" data-onclick="openPalette()"`));
-gate('Overview exposes an account-scoped Recent Changes workflow',
-  html.includes('id="dash-activity"')
-  && html.includes('window.api.getRecentActivity()')
-  && html.includes("item.kind === 'knowledge'"));
 gate('Calm Workspace exposes persistent eye-comfort controls without data APIs',
   html.includes('id="workspace-view-overlay"')
   && html.includes('id="workspace-view-btn"')

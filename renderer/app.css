@@ -1455,14 +1455,6 @@
     .an-data-table { width: 100%; margin-top: 8px; border-collapse: collapse; font-size: 12px; }
     .an-data-table th, .an-data-table td { padding: 7px 8px; border-bottom: 1px solid var(--border); text-align: left; }
     .an-data-table td:last-child, .an-data-table th:last-child { text-align: right; }
-    .an-more-insights { margin-top: 20px; }
-    .an-more-insights > summary {
-      cursor: pointer; list-style: none; border: 1px solid var(--border); background: var(--surface);
-      border-radius: var(--radius); padding: 12px 14px; color: var(--text); font-weight: 700;
-    }
-    .an-more-insights > summary::before { content: '＋'; margin-right: 8px; color: var(--accent); }
-    .an-more-insights[open] > summary::before { content: '−'; }
-
     .sr-only {
       position: absolute !important; width: 1px !important; height: 1px !important;
       padding: 0 !important; margin: -1px !important; overflow: hidden !important;
