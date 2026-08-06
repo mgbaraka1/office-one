@@ -39,7 +39,7 @@ function renderCompanyDocsList() {
 
   if (companyDocs.length === 0) {
     grid.style.display = 'none';
-    empty.style.display = 'flex';
+    empty.hidden = false;
     empty.querySelector('p').innerHTML = 'No company documents yet — click <strong>+ New Document</strong> to add one';
     return;
   }
@@ -50,12 +50,12 @@ function renderCompanyDocsList() {
 
   if (shown.length === 0) {
     grid.style.display = 'none';
-    empty.style.display = 'flex';
+    empty.hidden = false;
     empty.querySelector('p').textContent = 'No documents match your search';
     return;
   }
   grid.style.display = '';
-  empty.style.display = 'none';
+  empty.hidden = true;
   shown.forEach(d => grid.appendChild(buildCompanyDocCard(d)));
 }
 

@@ -196,7 +196,9 @@ function applyCatFilter(kind) {
   if (!rows.length) {
     const tr = document.createElement('tr');
     const td = document.createElement('td'); td.colSpan = 11; td.className = 'cp-records-empty';
-    td.textContent = st.entries.length ? 'No records match the current filters' : ('No records for this ' + CP_DEF[kind].noun);
+    td.textContent = st.entries.length
+      ? (window.ctI18n?.t?.('No records match the current filters') || 'No records match the current filters')
+      : (window.ctI18n?.t?.('No records for this {noun}', { noun: CP_DEF[kind].noun }) || ('No records for this ' + CP_DEF[kind].noun));
     tr.appendChild(td); tbody.appendChild(tr); return;
   }
   rows.forEach((r, i) => tbody.appendChild(buildReadonlyRow(r, i)));
@@ -499,10 +501,11 @@ function setNavBadge(module, count) {
 // ════════════════════════════════════════════════════════════════════════════
 // ANALYTICS MODULE — read-only insights derived from existing data (one query).
 // ════════════════════════════════════════════════════════════════════════════
-// Keyed by TIME_TYPE lookup code (+ 'OTHER' for unset).
+// Keyed by TIME_TYPE lookup code (+ 'OTHER' for unset). Colors come from the
+// --chart-1…--chart-6 design tokens (app.css), not one-off hex literals.
 const AN_TYPE_COLORS = {
-  'WORK_TIME': 'var(--primary)', 'OVERTIME': 'var(--bad)', 'TRAINING': '#22d3ee',
-  'LEAVE': '#f59e0b', 'HOLIDAY': '#22c55e', 'OTHER': '#94a3b8',
+  'WORK_TIME': 'var(--chart-1)', 'OVERTIME': 'var(--chart-2)', 'TRAINING': 'var(--chart-3)',
+  'LEAVE': 'var(--chart-4)', 'HOLIDAY': 'var(--chart-5)', 'OTHER': 'var(--chart-6)',
 };
 const AN_FALLBACK = ['#a855f7', '#84cc16', '#14b8a6', '#f97316', '#0ea5e9', '#d946ef'];
 let _anTrendSeq = 0;   // monotonic id source for per-trend SVG gradients
@@ -970,7 +973,7 @@ async function runFullBackup(btnId) {
   catch { res = { ok: false, error: 'failed' }; }
   if (btn) { btn.disabled = false; btn.textContent = orig; }
   if (res && res.ok) {
-    toast(`Full backup saved to ${res.path}`, {
+    toast(window.ctI18n?.t?.('Full backup saved to {path}', { path: res.path }) || `Full backup saved to ${res.path}`, {
       actionLabel: 'Open folder',
       onAction: () => window.api.openBackupFolder(res.path),
       duration: 6000,
@@ -1098,11 +1101,11 @@ function renderSubscriptions() {
 
   if (subscriptions.length === 0) {
     table.style.display = 'none';
-    empty.style.display = 'flex';
+    empty.hidden = false;
     return;
   }
   table.style.display = '';
-  empty.style.display = 'none';
+  empty.hidden = true;
 
   const sorted = subscriptions.slice().sort((a, b) => {
     const da = daysUntil(a.renewalDate), db = daysUntil(b.renewalDate);

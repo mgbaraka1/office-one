@@ -163,7 +163,7 @@ function renderTableGrouped() {
   list.forEach(g => host.appendChild(buildTaskGroupCard(g, origIdxOf)));
 
   updateTotals();
-  document.getElementById('empty-state').style.display = rows.length ? 'none' : 'flex';
+  document.getElementById('empty-state').hidden = rows.length > 0;
   document.getElementById('row-count').textContent = rows.length || '0';
 }
 
@@ -712,7 +712,7 @@ function renderTableFlat() {
   });
 
   updateTotals();
-  document.getElementById('empty-state').style.display = rows.length ? 'none' : 'flex';
+  document.getElementById('empty-state').hidden = rows.length > 0;
   document.getElementById('row-count').textContent = rows.length || '0';
 }
 

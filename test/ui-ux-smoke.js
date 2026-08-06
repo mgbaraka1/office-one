@@ -273,6 +273,9 @@ gate('Maintenance exposes recovery readiness and Windows credential portability 
 
 const ids = ['dash-attention', 'an-spend', 'total-min', 'total-ot-min', 'settings-save-btn', 'settings-search'];
 gate('key UI hosts remain unique', ids.every(id => count(new RegExp(`id="${id}"`, 'g')) === 1));
+gate('exactly one <main> landmark wraps every module, and a skip link targets it',
+  count(/<main[ >]/g) === 1 && html.includes('<main id="main-content">')
+  && html.includes('<a href="#main-content" class="skip-link">'));
 
 let failed = 0;
 for (const r of results) {

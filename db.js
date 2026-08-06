@@ -396,11 +396,6 @@ function createUser(username, passwordHash, isAdmin = false) {
   return Number(info.lastInsertRowid);
 }
 
-function updateUserPassword(id, passwordHash) {
-  return db.prepare('UPDATE users SET password_hash = ? WHERE id = ? AND is_active = 1')
-    .run(passwordHash, id).changes > 0;
-}
-
 function updateUserAccount(id, data) {
   const current = getUserById(id);
   if (!current || current.username === '__unclaimed__') return false;
@@ -2792,6 +2787,19 @@ function savePrefs(prefs) {
   try { machineSet('window_prefs', JSON.stringify(prefs)); } catch { /* non-critical */ }
 }
 
+// ── Login rate-limit failures (this machine only, same convention as window
+// prefs above) — persists auth.js's per-username failure count + lockout
+// expiry across app restarts, keyed by lowercased username, so restarting the
+// app can no longer be used to clear a lockout. auth.js is the only caller;
+// this never reaches the renderer or main.js.
+function loadLoginFailures() {
+  const v = machineGet('login_failures');
+  return v ? safeParse(v, {}) : {};
+}
+function saveLoginFailures(failures) {
+  try { machineSet('login_failures', JSON.stringify(failures)); } catch { /* non-critical */ }
+}
+
 // ── UI state (Milestone 11 — this machine only, same convention as window
 // prefs above): last active module + per-module filter state, so the renderer
 // can land back where the user left off instead of always Analytics. Exposed
@@ -3094,10 +3102,16 @@ function getAppVersion() {
   catch { return null; }
 }
 
+// The current folder-name prefix db.fullBackup() writes, plus every prefix a
+// full-backup folder may legitimately carry (including pre-rebrand backups).
+// main.js's maintenance:openBackupFolder handler imports this exact list so
+// the two can never drift apart again.
+const FULL_BACKUP_PREFIXES = ['OfficeONE-Backup-', 'CooperationTools-Backup-'];
+
 function fullBackup(desktopDir) {
   if (!db) throw new Error('database not open');
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '');
-  const destRoot = path.join(desktopDir, `OfficeONE-Backup-${stamp}`);
+  const destRoot = path.join(desktopDir, `${FULL_BACKUP_PREFIXES[0]}${stamp}`);
   fs.mkdirSync(destRoot, { recursive: true });
 
   // Checkpointed DB copy — self-contained, no -wal/-shm needed (mirrors db:backup).
@@ -3153,10 +3167,10 @@ function inspectFullBackup(bundleDir) {
   } catch {
     return { ok: false, error: 'Selected backup folder does not exist' };
   }
-  // Accept the current OfficeONE-Backup- prefix and the legacy
-  // CooperationTools-Backup- prefix so pre-rebrand backups still restore.
+  // Accept any known full-backup prefix (current + legacy pre-rebrand) so
+  // older backups still restore.
   const base = path.basename(root);
-  if (!base.startsWith('OfficeONE-Backup-') && !base.startsWith('CooperationTools-Backup-')) {
+  if (!FULL_BACKUP_PREFIXES.some(prefix => base.startsWith(prefix))) {
     return { ok: false, error: 'Selected folder is not an Office ONE full backup' };
   }
 
@@ -4021,7 +4035,7 @@ module.exports = {
   close, backup, dbPath,
   projectsRootDir, knowledgeRootDir,
   countUsers, getUserByUsername, getUserById, listUsers, countActiveAdmins,
-  createUser, updateUserPassword, updateUserAccount, getUnclaimedUser, claimUser,
+  createUser, updateUserAccount, getUnclaimedUser, claimUser,
   listDays, loadDaysRange,
   listCompanies, listSystems, companyEntries, systemEntries, getFilteredWorkLogs,
   getAnalytics, getOverviewStats, getAttentionItems, getRecentActivity,
@@ -4053,7 +4067,9 @@ module.exports = {
   loadLookups, saveLookups, getLookupsByCategory,
   loadSubscriptions, saveSubscriptions,
   loadPrefs, savePrefs,
+  loadLoginFailures, saveLoginFailures,
   loadUiState, saveUiState,
   listBackups, restoreBackup, checkIntegrity, getSystemDiagnostics, findLookupDuplicates, mergeLookupDuplicate, getOrphanSweepReport,
   fullBackup, inspectFullBackup, restoreFullBackup,
+  FULL_BACKUP_PREFIXES,
 };

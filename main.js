@@ -9,6 +9,50 @@ const e2ePort = !app.isPackaged ? Number(process.env.COOPERATION_TOOLS_E2E_PORT)
 const isE2ERun = Number.isInteger(e2ePort) && e2ePort > 0 && e2ePort <= 65535;
 if (isE2ERun) app.commandLine.appendSwitch('remote-debugging-port', String(e2ePort));
 
+// Resolve any dev/portable data-directory override (see .env.example) BEFORE
+// requesting the single-instance lock below, so the lock is scoped to the
+// actual data directory this process will use rather than always the OS
+// default — a deliberately isolated run (the E2E harness, a dev override)
+// doesn't collide with a real production instance's lock, while two
+// processes aimed at the SAME data directory (including two production
+// launches) still correctly collide. Moved here from inside
+// app.whenReady() for exactly this reason; nothing reads app.getPath()
+// before this runs.
+loadDotEnv();
+if (process.env.COOPERATION_TOOLS_DATA_DIR) {
+  app.setPath('userData', process.env.COOPERATION_TOOLS_DATA_DIR);
+}
+
+// Stop a second process from ever opening the same live cooperation-tools.db
+// concurrently. The first instance to reach this line keeps running and gets
+// focused on a second launch attempt; every later instance quits immediately,
+// before it ever touches the database.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+  });
+}
+
+// Neither Node nor Electron surfaces a crash to the user by default — an
+// uncaught main-process error otherwise dies silently (no window, no message,
+// just a vanished process). Log it and tell the user instead of disappearing.
+function reportFatalMainProcessError(title, err) {
+  console.error('[' + title + ']', err);
+  try {
+    dialog.showErrorBox(
+      'Office ONE — unexpected error',
+      'An unexpected error occurred.\n\n' + String(err?.stack || err?.message || err)
+    );
+  } catch { /* dialog itself unavailable (e.g. before app.whenReady) — logging above is the fallback */ }
+}
+process.on('uncaughtException', (err) => reportFatalMainProcessError('uncaughtException', err));
+process.on('unhandledRejection', (reason) => reportFatalMainProcessError('unhandledRejection', reason));
+
 let copiedSecret = '';
 let copiedSecretTimer = null;
 function clearCopiedSecret() {
@@ -100,6 +144,35 @@ function createWindow() {
   // reload fires will-navigate with the current URL as its target.
   win.webContents.on('will-navigate', (e, url) => {
     if (url !== win.webContents.getURL()) e.preventDefault();
+  });
+
+  // A crashed or hung renderer would otherwise leave a blank/frozen window with
+  // no way back in short of force-quitting the whole app from Task Manager.
+  win.webContents.on('render-process-gone', (_e, details) => {
+    console.error('[render-process-gone]', details);
+    const choice = dialog.showMessageBoxSync(win, {
+      type: 'error',
+      title: 'Office ONE — window crashed',
+      message: 'The app\'s window stopped working and needs to reload.',
+      detail: 'Reason: ' + details.reason,
+      buttons: ['Reload', 'Quit'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (choice === 0) win.reload(); else app.quit();
+  });
+  win.on('unresponsive', () => {
+    console.error('[renderer unresponsive]');
+    const choice = dialog.showMessageBoxSync(win, {
+      type: 'warning',
+      title: 'Office ONE — not responding',
+      message: 'The app is not responding.',
+      detail: 'You can keep waiting for it to recover, or reload the window.',
+      buttons: ['Wait', 'Reload'],
+      defaultId: 0,
+      cancelId: 0,
+    });
+    if (choice === 1) win.reload();
   });
 
   win.on('close', (e) => {
@@ -455,12 +528,14 @@ ipcMain.handle('maintenance:restoreSelectedFullBackup', admin(() => {
 }));
 // Opens the folder a just-completed full backup was written to. Never trusts
 // an arbitrary path from the renderer: only a direct child of the Desktop
-// whose name matches the fixed prefix db.fullBackup() itself generates is
-// allowed through to shell.openPath.
+// whose name matches one of the prefixes db.fullBackup()/db.inspectFullBackup()
+// themselves recognize (db.FULL_BACKUP_PREFIXES) is allowed through to
+// shell.openPath.
 ipcMain.handle('maintenance:openBackupFolder', admin((_e, folderPath) => {
   const desktop = app.getPath('desktop');
   const resolved = path.resolve(String(folderPath || ''));
-  if (path.dirname(resolved) !== desktop || !path.basename(resolved).startsWith('CooperationTools-Backup-')) {
+  const base = path.basename(resolved);
+  if (path.dirname(resolved) !== desktop || !db.FULL_BACKUP_PREFIXES.some(prefix => base.startsWith(prefix))) {
     return { ok: false, error: 'invalid path' };
   }
   shell.openPath(resolved);
@@ -478,11 +553,17 @@ ipcMain.handle('report:exportPDF', authed(async (_e, html, defaultName) => {
       return { ok: false, error: 'Report content is empty or too large' };
     }
     const safeDefaultName = path.basename(String(defaultName || 'report.pdf')).slice(0, 180) || 'report.pdf';
-    const { canceled, filePath } = await dialog.showSaveDialog(win, {
-      title: 'Save report as PDF',
-      defaultPath: safeDefaultName,
-      filters: [{ name: 'PDF document', extensions: ['pdf'] }],
-    });
+    // E2E-only: the native save dialog can't be driven over CDP, so the
+    // Electron E2E harness (isE2ERun, never true in a packaged build) may
+    // point this at a disposable path instead of showing a real dialog.
+    const e2ePdfPath = isE2ERun ? process.env.COOPERATION_TOOLS_E2E_PDF_PATH : null;
+    const { canceled, filePath } = e2ePdfPath
+      ? { canceled: false, filePath: e2ePdfPath }
+      : await dialog.showSaveDialog(win, {
+          title: 'Save report as PDF',
+          defaultPath: safeDefaultName,
+          filters: [{ name: 'PDF document', extensions: ['pdf'] }],
+        });
     if (canceled || !filePath) return { ok: false };
 
     pdfWin = new BrowserWindow({
@@ -612,13 +693,9 @@ function loadDotEnv() {
 }
 
 app.whenReady().then(() => {
-  // Optional data-directory override (see .env.example). Lets the store live
-  // somewhere other than the default userData folder — handy for testing or a
-  // portable install. Must be set before any path is read.
-  loadDotEnv();
-  if (process.env.COOPERATION_TOOLS_DATA_DIR) {
-    app.setPath('userData', process.env.COOPERATION_TOOLS_DATA_DIR);
-  }
+  // The optional data-directory override (see .env.example) is resolved
+  // earlier now, before the single-instance lock request above — see that
+  // block's comment for why.
 
   // Boot the data layer in three explicit, sequential steps: open the embedded
   // SQLite connection, bring the schema to the latest version via the versioned

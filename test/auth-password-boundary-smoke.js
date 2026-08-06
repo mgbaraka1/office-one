@@ -42,14 +42,30 @@ try {
   record('Legacy overlong bcrypt hashes no longer accept the original or an alias suffix',
     exactLegacy.ok === false && aliasLegacy.ok === false);
 
-  auth.login('boundary-admin', valid72);
+  const reLogin = auth.login('boundary-admin', valid72);
   const addLong = auth.addUser('too-long-user', overlongAscii);
-  const changeLong = auth.changePassword(valid72, overlongUtf8);
+  const changeLong = auth.updateUser(reLogin.user.id, { password: overlongUtf8, currentPassword: valid72 });
   auth.logout();
   const unchanged = auth.login('boundary-admin', valid72);
   record('Admin add-user rejects an overlong password', addLong.ok === false);
-  record('Password change rejects an overlong password and preserves the old credential',
+  record('Password change (via auth:updateUser, the real IPC path) rejects an overlong password and preserves the old credential',
     changeLong.ok === false && unchanged.ok === true);
+
+  // Login lockout must survive an app restart (Finding 5) instead of resetting
+  // the moment the process relaunches. Simulate a restart by dropping auth.js
+  // from Node's module cache and re-requiring it — a fresh copy of its
+  // module-level state, same underlying DB, exactly like a real relaunch.
+  db.createUser('lockout-user', bcrypt.hashSync('correct-password-1', 4), false);
+  for (let i = 0; i < 5; i++) auth.login('lockout-user', 'wrong-password');
+  const lockedBeforeRestart = auth.login('lockout-user', 'correct-password-1');
+  record('5 failed attempts lock out even the correct password',
+    lockedBeforeRestart.ok === false && /Too many attempts/.test(lockedBeforeRestart.error || ''), lockedBeforeRestart.error);
+
+  delete require.cache[require.resolve('../auth')];
+  const authRestarted = require('../auth');
+  const lockedAfterRestart = authRestarted.login('lockout-user', 'correct-password-1');
+  record('The lockout persists across a simulated app restart instead of resetting',
+    lockedAfterRestart.ok === false && /Too many attempts/.test(lockedAfterRestart.error || ''), lockedAfterRestart.error);
 } catch (error) {
   console.error(error.stack || error);
   exitCode = 2;

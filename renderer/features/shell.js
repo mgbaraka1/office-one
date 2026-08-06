@@ -455,8 +455,11 @@ async function startApp(user) {
   const roleEl = document.getElementById('sidebar-role');
   if (roleEl) roleEl.textContent = role;
   if (userCard) {
-    userCard.title = username + ' — ' + role;
-    userCard.setAttribute('aria-label', 'Signed in as ' + username + ', ' + role);
+    const localizedRole = window.ctI18n?.t?.(role) || role;
+    userCard.title = username + ' — ' + localizedRole;
+    userCard.setAttribute('aria-label',
+      window.ctI18n?.t?.('Signed in as {username}, {role}', { username, role: localizedRole })
+      || ('Signed in as ' + username + ', ' + role));
   }
   const versionEl = document.getElementById('app-version');
   if (versionEl) {

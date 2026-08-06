@@ -41,6 +41,11 @@ const db = require('../db');
 const results = [];
 function record(flow, pass, details) { results.push({ flow, pass, details }); }
 
+// Guards against reading/copying the REAL production DB when this file is
+// run directly (node test/<this file>) instead of via run-all.js — see
+// test-bootstrap.js.
+require('./test-bootstrap');
+
 const prodDir = path.join(os.homedir(), 'AppData', 'Roaming', 'timesheet');
 const prodDb  = path.join(prodDir, 'cooperation-tools.db');
 if (!fs.existsSync(prodDb)) {
@@ -90,6 +95,18 @@ try {
   const actualEntries = fs.existsSync(destRoot) ? fs.readdirSync(destRoot) : [];
   record('Gate 1b: backup folder contains db file, all data-tree copies, and manifest.json',
     expectedEntries.every(e => actualEntries.includes(e)), JSON.stringify(actualEntries));
+
+  // ── Gate 1c — db.fullBackup()'s own folder-name prefix is the current
+  // entry of db.FULL_BACKUP_PREFIXES, and main.js's openBackupFolder handler
+  // reads that same shared list (never a hardcoded literal) so the two can
+  // never silently drift apart again the way they once did after the
+  // Cooperation Tools → Office ONE rebrand.
+  record('Gate 1c: fullBackup() names the folder with db.FULL_BACKUP_PREFIXES[0]',
+    path.basename(destRoot).startsWith(db.FULL_BACKUP_PREFIXES[0]), path.basename(destRoot));
+  const mainJsSrc = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  record('Gate 1d: main.js\'s openBackupFolder handler reads db.FULL_BACKUP_PREFIXES, not a hardcoded prefix literal',
+    /db\.FULL_BACKUP_PREFIXES/.test(mainJsSrc) && !/startsWith\(['"]CooperationTools-Backup-['"]\)/.test(mainJsSrc),
+    'references db.FULL_BACKUP_PREFIXES=' + /db\.FULL_BACKUP_PREFIXES/.test(mainJsSrc));
 
   // ── Gate 2 — the copied DB opens standalone and passes integrity_check ──
   const copiedDbPath = path.join(destRoot, 'cooperation-tools.db');

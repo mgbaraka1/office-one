@@ -77,12 +77,14 @@ async function run() {
   // globally. Passing it to the child makes electron.exe behave like Node, so
   // no BrowserWindow or DevTools target can ever appear.
   delete electronEnv.ELECTRON_RUN_AS_NODE;
+  const pdfPath = path.join(root, 'e2e-exported-report.pdf');
   child = spawn(electron, ['.'], {
     cwd: path.join(__dirname, '..'),
     env: {
       ...electronEnv,
       COOPERATION_TOOLS_DATA_DIR: root,
       COOPERATION_TOOLS_E2E_PORT: String(port),
+      COOPERATION_TOOLS_E2E_PDF_PATH: pdfPath,
       ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -261,6 +263,21 @@ async function run() {
     throw new Error(`Arabic localization failed: ${JSON.stringify(result.localization)}`);
   }
 
+  // PDF export (Finding 20, full-app audit) — report:exportPDF is otherwise
+  // only checked by string-presence tests; this drives the real IPC path
+  // (offscreen BrowserWindow -> Chromium printToPDF -> fs.writeFileSync) and
+  // verifies actual output bytes, not just that the handler was called.
+  const pdfExport = await evaluate(`(async () => {
+    const html = buildReportDoc(buildDailyReportHTML([], '2026-08-02', 'e2e-admin', new Map()), 'Report');
+    return await window.api.exportPDF(html, 'e2e-test.pdf');
+  })()`);
+  if (!pdfExport?.ok) throw new Error(`report:exportPDF did not report success: ${JSON.stringify(pdfExport)}`);
+  const pdfBytes = fs.readFileSync(pdfPath);
+  if (pdfBytes.length < 1000) throw new Error(`Exported PDF is suspiciously small (${pdfBytes.length} bytes)`);
+  if (pdfBytes.subarray(0, 5).toString('latin1') !== '%PDF-') {
+    throw new Error(`Exported file does not start with the %PDF- magic bytes: ${pdfBytes.subarray(0, 8)}`);
+  }
+
   const screenshotPath = process.env.COOPERATION_TOOLS_E2E_SCREENSHOT;
   if (screenshotPath) {
     await evaluate(`closePalette(); true`);
@@ -280,6 +297,7 @@ async function run() {
   console.log('PASS  Settings, including dynamic client-profile controls, are localized');
   console.log('PASS  Managed Settings catalogs expose and render English/Arabic labels');
   console.log('PASS  Runtime accessibility invariants cover names, unique ids, language/direction, and live regions');
+  console.log(`PASS  report:exportPDF produces a real PDF file (${pdfBytes.length} bytes)`);
   console.log(`PASS  Extracted renderer modules loaded (app v${result.version})`);
 }
 
