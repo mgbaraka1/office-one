@@ -177,7 +177,7 @@
     'Only a session (date, time, natural, description, minutes) is added — the task itself is never changed.': 'تُضاف جلسة فقط (التاريخ والوقت وطبيعة العمل والوصف والدقائق)، ولا تتغير المهمة نفسها.',
     'Create a manual, integration guide, procedure, or troubleshooting note.': 'أنشئ دليلاً أو دليل تكامل أو إجراءً أو ملاحظة لاستكشاف الأخطاء.',
     'Ready means finalized for your personal library; it is not shared with other accounts.': 'تعني «جاهز» أن العنصر مكتمل في مكتبتك الشخصية؛ ولا تتم مشاركته مع الحسابات الأخرى.',
-    'Formatting uses safe Markdown-style headings, lists, code blocks, and links. Do not store passwords or secret keys here.': 'يدعم التنسيق عناوين وقوائم وكتلاً برمجية وروابط آمنة بأسلوب Markdown. لا تخزّن كلمات المرور أو المفاتيح السرية هنا.',
+    'Do not store passwords or secret keys here.': 'لا تخزّن كلمات المرور أو المفاتيح السرية هنا.',
     'To rename the system itself, edit it in Settings → Systems — that relabels it everywhere at once.': 'لإعادة تسمية النظام، عدّله من الإعدادات ← الأنظمة، وسيتغير اسمه في كل الأماكن.',
     'Which page the app opens on next launch. "Last page" also restores that page\'s filters and — for Clients/Internal Tasks — the last-open record.': 'حدد الصفحة التي يفتحها التطبيق في التشغيل التالي. يعيد خيار «آخر صفحة» أيضاً عوامل التصفية وآخر سجل مفتوح للعملاء / المهام الداخلية.',
     'A one-page explainer of the Task → Sessions → optional Project/Department model, plus the quickest path for each everyday journey.': 'شرح من صفحة واحدة لنموذج المهمة ← الجلسات ← المشروع / القسم الاختياري، مع أسرع مسار لكل إجراء يومي.',
@@ -380,7 +380,16 @@
     'Servers': 'الخوادم', 'Projects': 'المشاريع', 'Access': 'الوصول',
     'Access records': 'سجلات الوصول', 'Internal systems': 'الأنظمة الداخلية',
     'Add Access': 'إضافة وصول', 'Workspace summary': 'ملخص مساحة العمل',
-    "Search this client's records…": 'ابحث في سجلات هذا العميل…'
+    "Search this client's records…": 'ابحث في سجلات هذا العميل…',
+    // Knowledge Hub article editor (Quill) toolbar — screen-reader aria-labels.
+    // Quill sets these as lowercase format-name aria-label values, not title
+    // tooltips (the toolbar shows icons only), so this only affects assistive
+    // tech, not visible text. The picker's visible "Heading 1"/"Normal" labels
+    // and the link-tooltip text are CSS ::before content, not DOM text/attrs —
+    // those are translated via [lang="ar"] overrides in app.css instead.
+    'bold': 'غامق', 'italic': 'مائل', 'underline': 'تسطير', 'strike': 'يتوسطه خط',
+    'blockquote': 'اقتباس', 'code-block': 'كتلة برمجية', 'link': 'رابط',
+    'list: ordered': 'قائمة مرقمة', 'list: bullet': 'قائمة نقطية',
   });
 
   const uiNounsAr = {
