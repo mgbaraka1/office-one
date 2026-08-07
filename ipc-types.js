@@ -628,6 +628,7 @@
  * @property {'DRAFT'|'PUBLISHED'|'ARCHIVED'} status
  * @property {string} summary
  * @property {string} content
+ * @property {'text'|'html'} contentFormat  'text' = legacy Markdown-lite plain text; 'html' = sanitized Quill-authored HTML.
  * @property {string[]} tags
  * @property {Array<{id:number,name:string}>} groups
  * @property {Array<{id:number,path:string,name:string,version:string,originalName:string,size:number,mimeType:string,uploadedAt:string,exists:boolean}>} documents
@@ -647,6 +648,7 @@
  * @property {'DRAFT'|'PUBLISHED'|'ARCHIVED'} status
  * @property {string} summary
  * @property {string} content
+ * @property {'text'|'html'} contentFormat
  * @property {string[]} tags
  * @property {Array<{id:number,name:string}>} groups
  * @property {Array<{name:string,version:string,originalName:string}>} documents

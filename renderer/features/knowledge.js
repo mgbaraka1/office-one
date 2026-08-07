@@ -163,9 +163,16 @@ function filterKnowledgeFacetButtons(value) {
     section.classList.toggle('collapsed', !q && !!knowledgeFilterSections[section.dataset.filterId]);
   });
 }
+function knowledgeContentPlainText(item) {
+  const raw = String(item?.content || '');
+  if (item?.contentFormat !== 'html' || !raw) return raw;
+  const scratch = document.createElement('div');
+  scratch.innerHTML = sanitizeKnowledgeHtml(raw);
+  return scratch.textContent.replace(/\s+/g, ' ').trim();
+}
 function knowledgeMatches(item, q) {
   const tagQuery = String(q || '').replace(/^#/, '');
-  return textMatch([item.title, item.summary, item.content, item.typeLabel, ...(item.tags || []),
+  return textMatch([item.title, item.summary, knowledgeContentPlainText(item), item.typeLabel, ...(item.tags || []),
     ...(item.groups || []).map(x => x.name), ...(item.documents || []).flatMap(x => [x.name, x.version, x.originalName])], q)
     || (!!tagQuery && (item.tags || []).some(tag => tag.toLowerCase().includes(tagQuery)));
 }
@@ -182,7 +189,7 @@ function knowledgePassesFilters(item) {
   return true;
 }
 function knowledgeRowSubtitle(item, q = '') {
-  const content = String(item.content || ''), words = String(q || '').split(/\s+/).filter(Boolean);
+  const content = knowledgeContentPlainText(item), words = String(q || '').split(/\s+/).filter(Boolean);
   const hit = words.map(word => content.toLowerCase().indexOf(word.toLowerCase())).find(index => index >= 0);
   if (hit != null) {
     const start = Math.max(0, hit - 55), snippet = content.slice(start, start + 170).replace(/\s+/g, ' ').trim();
@@ -320,7 +327,7 @@ async function openKnowledgeDetail(id) {
   page.appendChild(files);
   if (item.content) {
     const content = pjMk('section', 'kh-section'), rendered = pjMk('div', 'kh-content');
-    content.append(pjMk('h3', '', 'Written guidance'), rendered); renderKnowledgeContent(rendered, item.content); page.appendChild(content);
+    content.append(pjMk('h3', '', 'Written guidance'), rendered); renderKnowledgeContent(rendered, item.content, item.contentFormat); page.appendChild(content);
   }
   const organization = pjMk('section', 'kh-section'), orgTitle = pjMk('div');
   orgTitle.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px';
@@ -384,7 +391,31 @@ function appendKnowledgeInline(parent, text) {
   }
   parent.appendChild(document.createTextNode(text.slice(last)));
 }
-function renderKnowledgeContent(host, value) {
+function renderKnowledgeContent(host, value, format) {
+  if (format === 'html') renderKnowledgeContentHtml(host, value);
+  else renderKnowledgeContentText(host, value);
+}
+function renderKnowledgeContentHtml(host, value) {
+  host.classList.remove('kh-content-text'); host.classList.add('kh-content-html');
+  host.innerHTML = sanitizeKnowledgeHtml(value) || '';
+  if (!host.childElementCount) host.appendChild(pjMk('p', 'kh-detail-summary', 'Your formatted preview will appear here.'));
+  host.querySelectorAll('a[href]').forEach(link => {
+    const url = link.getAttribute('href') || '';
+    link.title = url;
+    link.addEventListener('click', event => {
+      event.preventDefault();
+      if (/^https?:\/\//i.test(url)) window.api.openExternal(url);
+    });
+  });
+}
+function knowledgeLegacyTextToHtml(value) {
+  if (!String(value || '').trim()) return '';
+  const scratch = document.createElement('div');
+  renderKnowledgeContentText(scratch, value);
+  return scratch.innerHTML;
+}
+function renderKnowledgeContentText(host, value) {
+  host.classList.remove('kh-content-html'); host.classList.add('kh-content-text');
   host.innerHTML = ''; const lines = String(value || '').split(/\r?\n/); let code = null, list = null, listType = '';
   const closeList = () => { list = null; listType = ''; };
   lines.forEach(line => {
@@ -410,15 +441,39 @@ function renderKnowledgeContent(host, value) {
   });
   if (!host.childElementCount) host.appendChild(pjMk('p', 'kh-detail-summary', 'Your formatted preview will appear here.'));
 }
-function previewKnowledgeContent() { renderKnowledgeContent(document.getElementById('kh-content-preview'), document.getElementById('kh-content-input').value); }
-function formatKnowledgeText(kind) {
-  const input = document.getElementById('kh-content-input'), start = input.selectionStart, end = input.selectionEnd, selected = input.value.slice(start, end);
-  const formats = {
-    heading: ['## ', selected || 'Heading'], bullet: ['- ', selected || 'List item'], number: ['1. ', selected || 'List item'],
-    code: ['```\n', (selected || 'code') + '\n```'], link: ['[', (selected || 'Link text') + '](https://example.com)'],
-  };
-  const [prefix, body] = formats[kind] || ['', selected]; input.setRangeText(prefix + body, start, end, 'end');
-  input.dispatchEvent(new Event('input', { bubbles: true })); input.focus();
+let knowledgeQuill = null;
+function knowledgeQuillPlaceholder() {
+  const source = 'Write prerequisites, steps, notes, and troubleshooting guidance…';
+  return window.ctI18n ? window.ctI18n.t(source) : source;
+}
+function ensureKnowledgeQuill() {
+  if (knowledgeQuill) return knowledgeQuill;
+  knowledgeQuill = new Quill('#kh-content-editor', {
+    theme: 'snow',
+    placeholder: knowledgeQuillPlaceholder(),
+    modules: {
+      toolbar: [
+        [{ header: [1, 2, 3, false] }],
+        ['bold', 'italic', 'underline', 'strike'],
+        [{ list: 'ordered' }, { list: 'bullet' }],
+        ['blockquote', 'code-block'],
+        ['link'],
+      ],
+    },
+  });
+  knowledgeQuill.on('text-change', (delta, oldDelta, source) => { if (source === 'user') markKnowledgeEditorDirty(); });
+  // Quill bakes its placeholder into a data-placeholder attribute the shared
+  // i18n MutationObserver doesn't watch, so it needs its own language-change hook.
+  document.addEventListener('ct:languagechange', () => knowledgeQuill.root.setAttribute('data-placeholder', knowledgeQuillPlaceholder()));
+  return knowledgeQuill;
+}
+function getKnowledgeEditorContent() {
+  const quill = ensureKnowledgeQuill();
+  return quill.getText().trim() ? sanitizeKnowledgeHtml(quill.getSemanticHTML()) : '';
+}
+function setKnowledgeEditorContent(html) {
+  const quill = ensureKnowledgeQuill();
+  quill.setContents(quill.clipboard.convert({ html: sanitizeKnowledgeHtml(html || '') }), 'silent');
 }
 function normalizeKnowledgeTag(value) { return String(value || '').trim().replace(/^#/, '').replace(/\s+/g, ' ').slice(0, 60); }
 function addKnowledgeTag(value) {
@@ -459,7 +514,7 @@ function knowledgeEditorSnapshot() {
   return {
     itemId: knowledgeEditId, mode: knowledgeCreationMode, title: document.getElementById('kh-title-input').value,
     type: document.getElementById('kh-type-input').value, status: document.getElementById('kh-status-input').value,
-    summary: document.getElementById('kh-summary-input').value, content: document.getElementById('kh-content-input').value,
+    summary: document.getElementById('kh-summary-input').value, content: getKnowledgeEditorContent(), contentFormat: 'html',
     tags: [...knowledgeEditorTags], groupIds: [...knowledgeEditorGroupIds], savedAt: new Date().toISOString(),
   };
 }
@@ -469,12 +524,13 @@ function markKnowledgeEditorDirty() {
 function applyKnowledgeEditorData(data) {
   document.getElementById('kh-title-input').value = data?.title || '';
   document.getElementById('kh-summary-input').value = data?.summary || '';
-  document.getElementById('kh-content-input').value = data?.content || '';
   document.getElementById('kh-status-input').value = data?.status || 'DRAFT';
   document.getElementById('kh-type-input').value = data?.type || '';
+  const rawContent = data?.content || '';
+  setKnowledgeEditorContent(data?.contentFormat === 'text' ? knowledgeLegacyTextToHtml(rawContent) : rawContent);
   knowledgeEditorTags = [...(data?.tags || [])];
   knowledgeEditorGroupIds = new Set(data?.groupIds || data?.groups?.map(group => group.id) || []);
-  renderKnowledgeEditorTags(); renderKnowledgeEditorGroups(); previewKnowledgeContent();
+  renderKnowledgeEditorTags(); renderKnowledgeEditorGroups();
 }
 function recoverKnowledgeDraft() {
   if (!knowledgePendingDraft) return;
@@ -500,7 +556,10 @@ function openKnowledgeEditor(item) {
   knowledgePendingDraft = draft && Number(draft.itemId || 0) === Number(knowledgeEditId || 0) ? draft : null;
   document.getElementById('kh-recovery').hidden = !knowledgePendingDraft;
   const overlay = document.getElementById('knowledge-modal-overlay'); overlay.classList.add('open');
-  overlay.oninput = event => { if (event.target.id !== 'kh-editor-group-search' && event.target.id !== 'kh-tags-input') markKnowledgeEditorDirty(); };
+  overlay.oninput = event => {
+    if (event.target.id === 'kh-editor-group-search' || event.target.id === 'kh-tags-input' || event.target.closest('#kh-content-editor')) return;
+    markKnowledgeEditorDirty();
+  };
   overlay.onchange = event => { if (!event.target.closest('#kh-editor-groups')) markKnowledgeEditorDirty(); };
   setTimeout(() => document.getElementById('kh-title-input').focus(), 60);
 }
@@ -517,7 +576,7 @@ async function saveKnowledgeEditor() {
   const editing = knowledgeEditId, mode = knowledgeCreationMode;
   const data = {
     title, type: document.getElementById('kh-type-input').value, status: document.getElementById('kh-status-input').value,
-    summary: document.getElementById('kh-summary-input').value.trim(), content: document.getElementById('kh-content-input').value.trim(),
+    summary: document.getElementById('kh-summary-input').value.trim(), content: getKnowledgeEditorContent(), contentFormat: 'html',
     tags: knowledgeEditorTags, groupIds: [...knowledgeEditorGroupIds],
   };
   try {
@@ -535,13 +594,13 @@ function nextKnowledgeCopyTitle(title) {
 }
 async function duplicateKnowledgeItem(item) {
   try {
-    const copy = await window.api.createKnowledgeItem({ title: nextKnowledgeCopyTitle(item.title), type: item.type, status: 'DRAFT', summary: item.summary, content: item.content, tags: item.tags, groupIds: item.groups.map(group => group.id) });
+    const copy = await window.api.createKnowledgeItem({ title: nextKnowledgeCopyTitle(item.title), type: item.type, status: 'DRAFT', summary: item.summary, content: item.content, contentFormat: item.contentFormat, tags: item.tags, groupIds: item.groups.map(group => group.id) });
     toast('Draft copy created with the same tags and groups'); await loadKnowledgeItems(copy.id);
   } catch { toast('Could not duplicate item'); }
 }
 async function setKnowledgeStatus(item, status) {
   try {
-    const saved = await window.api.updateKnowledgeItem(item.id, { title: item.title, type: item.type, status, summary: item.summary, content: item.content, tags: item.tags });
+    const saved = await window.api.updateKnowledgeItem(item.id, { title: item.title, type: item.type, status, summary: item.summary, content: item.content, contentFormat: item.contentFormat, tags: item.tags });
     toast(status === 'ARCHIVED' ? 'Knowledge item archived' : status === 'PUBLISHED' ? 'Knowledge item marked ready' : 'Knowledge item moved to draft'); await loadKnowledgeItems(saved.id);
   } catch { toast('Could not update knowledge status'); }
 }

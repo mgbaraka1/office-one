@@ -6,6 +6,7 @@
   <title>Office ONE</title>
   <script src="renderer/bootstrap.js"></script>
   <script src="renderer/i18n.js"></script>
+  <link rel="stylesheet" href="renderer/vendor/quill/quill.snow.css">
   <link rel="stylesheet" href="renderer/app.css">
 </head>
 <body>
@@ -724,19 +725,10 @@
       <div class="form-row"><div class="form-group full"><label>Title</label><input id="kh-title-input" maxlength="300" placeholder="A clear, searchable title"></div></div>
       <div class="form-row"><div class="form-group"><label>Type</label><select id="kh-type-input"></select></div><div class="form-group"><label>Status</label><select id="kh-status-input"><option value="DRAFT">Draft</option><option value="PUBLISHED">Ready</option><option value="ARCHIVED">Archived</option></select><div class="modal-hint">Ready means finalized for your personal library; it is not shared with other accounts.</div></div></div>
       <div class="form-row"><div class="form-group full"><label>Summary</label><textarea id="kh-summary-input" maxlength="2000" placeholder="What this item helps someone understand or do"></textarea></div></div>
-      <div class="form-group full"><label for="kh-content-input">Contents</label><div class="kh-editor-grid">
-        <div class="kh-editor-pane">
-          <div class="kh-editor-toolbar" aria-label="Formatting tools">
-            <button type="button" title="Heading" data-onclick="formatKnowledgeText('heading')">H2</button>
-            <button type="button" title="Bulleted list" data-onclick="formatKnowledgeText('bullet')">• List</button>
-            <button type="button" title="Numbered list" data-onclick="formatKnowledgeText('number')">1. List</button>
-            <button type="button" title="Code block" data-onclick="formatKnowledgeText('code')">&lt;/&gt;</button>
-            <button type="button" title="Link" data-onclick="formatKnowledgeText('link')">Link</button>
-          </div>
-          <textarea id="kh-content-input" placeholder="Write prerequisites, steps, notes, and troubleshooting guidance…" data-oninput="previewKnowledgeContent()"></textarea>
-        </div>
-        <div class="kh-editor-pane preview"><div class="kh-preview-head">Preview</div><div id="kh-content-preview" class="kh-content"></div></div>
-      </div><div class="modal-hint">Formatting uses safe Markdown-style headings, lists, code blocks, and links. Do not store passwords or secret keys here.</div></div>
+      <div class="form-group full"><label>Contents</label>
+        <div class="kh-editor-pane"><div id="kh-content-editor"></div></div>
+        <div class="modal-hint">Do not store passwords or secret keys here.</div>
+      </div>
       <div class="form-row">
         <div class="form-group"><label for="kh-tags-input">Tags</label><div id="kh-tag-field" class="kh-token-field" data-onclick="document.getElementById('kh-tags-input').focus()"><div id="kh-tag-tokens"></div><input id="kh-tags-input" list="kh-tag-suggestions" placeholder="Add a tag and press Enter"><datalist id="kh-tag-suggestions"></datalist></div><div class="modal-hint"><span id="kh-tag-count">0</span>/30 tags. Existing tags are suggested automatically.</div></div>
         <div class="form-group"><label>Groups</label><input id="kh-editor-group-search" type="search" placeholder="Filter groups…" data-oninput="renderKnowledgeEditorGroups()"><div id="kh-editor-groups" class="kh-editor-groups"></div></div>
@@ -1968,6 +1960,9 @@
 <script src="renderer/features/timesheet.js"></script>
 <script src="renderer/features/workspace.js"></script>
 <script src="renderer/features/tasks.js"></script>
+<script src="renderer/vendor/dompurify/purify.min.js"></script>
+<script src="renderer/vendor/quill/quill.min.js"></script>
+<script src="renderer/features/knowledge-sanitize.js"></script>
 <script src="renderer/features/knowledge.js"></script>
 <script src="renderer/features/company-documents.js"></script>
 <script src="renderer/features/clients.js"></script>

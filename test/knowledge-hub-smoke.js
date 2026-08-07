@@ -32,6 +32,7 @@ try {
   const attachmentColumns = raw.prepare('PRAGMA table_info(knowledge_attachments)').all().map(x => x.name);
   raw.close();
   record('Knowledge Hub groups/documents migration 045 is applied', head >= 45, `head=${head}`);
+  record('Knowledge Hub content_format migration 051 is applied', head >= 51 && itemColumns.includes('content_format'), `head=${head}`);
   record('Retired domain/link tables are absent', retiredTables.length === 0, JSON.stringify(retiredTables));
   record('Review date is retired and document version columns exist',
     !itemColumns.includes('review_date') && attachmentColumns.includes('document_name') && attachmentColumns.includes('version_label'));
@@ -47,9 +48,20 @@ try {
     !Object.hasOwn(created, 'companies') && !Object.hasOwn(created, 'systems') && !Object.hasOwn(created, 'projects'));
   record('Reference links and review dates are absent from the API',
     !Object.hasOwn(created, 'links') && !Object.hasOwn(created, 'reviewDate'));
+  record('Create without contentFormat defaults to legacy text', created.contentFormat === 'text');
+
+  const htmlItem = db.createKnowledgeItem(user.id, {
+    title:'Rich Text Article', status:'DRAFT', content:'<p>Hello <strong>world</strong></p>', contentFormat:'html',
+  });
+  record('Create with contentFormat html round-trips', htmlItem.contentFormat === 'html' && htmlItem.content.includes('<strong>world</strong>'));
+  record('List index also reports contentFormat', db.listKnowledgeItems(user.id).find(item => item.id === htmlItem.id)?.contentFormat === 'html');
+  const htmlItemStatusOnly = db.updateKnowledgeItem(user.id, htmlItem.id, { title: htmlItem.title, status: 'PUBLISHED', content: htmlItem.content, contentFormat: htmlItem.contentFormat });
+  record('A status-only update that still passes contentFormat does not silently downgrade it to text', htmlItemStatusOnly.contentFormat === 'html');
+  db.deleteKnowledgeItem(user.id, htmlItem.id);
 
   const updated = db.updateKnowledgeItem(user.id, created.id, { ...created, title:'Claims API Integration v2', status:'DRAFT', tags:['Deployment'] });
   record('Update replaces profile and tag collection', updated.title.endsWith('v2') && updated.status === 'DRAFT' && updated.tags.join() === 'Deployment');
+  record('Update without contentFormat defaults to text (matches legacy plain-text save path)', updated.contentFormat === 'text');
 
   const group = db.createKnowledgeGroup(user.id, { name:'API Playbooks', description:'Reusable integration material', itemIds:[created.id] });
   record('Group creation includes selected items', group.name === 'API Playbooks' && group.itemIds.join() === String(created.id));
