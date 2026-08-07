@@ -51,7 +51,7 @@ try {
     .get('ENTRY_STATUS', 'OPEN');
   raw.close();
   check('migration 050 is applied without replacing the lookup id',
-    head === 50 && stored.id === ticket.id && stored.name_en === 'Available' && stored.name_ar === 'متاحة',
+    head >= 50 && stored.id === ticket.id && stored.name_en === 'Available' && stored.name_ar === 'متاحة',
     `head=${head}, id=${stored.id}`);
 } catch (error) {
   console.error(error);

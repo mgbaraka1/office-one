@@ -231,9 +231,9 @@ gate('Knowledge item duplication creates stable numbered copy titles',
 gate('Knowledge item delete replaces an older undo safely',
   html.includes('const previous = knowledgeUndo')
   && html.includes('purgeKnowledgeFiles(previous.oldId)'));
-gate('Knowledge Hub offers authoring preview, safe links, and recoverable drafts',
-  html.includes('id="kh-content-preview"')
-  && html.includes('function renderKnowledgeContent(host, value)')
+gate('Knowledge Hub offers rich-text authoring, safe links, and recoverable drafts',
+  html.includes('id="kh-content-editor"')
+  && html.includes('function renderKnowledgeContent(host, value, format)')
   && html.includes('uiState.knowledgeDraft = knowledgeEditorSnapshot()')
   && html.includes('function recoverKnowledgeDraft()'));
 gate('Knowledge Hub supports combined accessible filters and highlighted search snippets',

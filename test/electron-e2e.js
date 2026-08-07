@@ -178,6 +178,23 @@ async function run() {
       paletteVisible: document.getElementById('palette-overlay').classList.contains('open'),
       paletteText: document.getElementById('palette-list').textContent,
       rendererModules: typeof openKnowledgeDetail === 'function' && typeof renderTable === 'function',
+      knowledgeSanitize: (() => {
+        const dangerous = sanitizeKnowledgeHtml(
+          '<script>alert(1)</script><p onclick="alert(2)">hi</p><img src="x" onerror="alert(3)">' +
+          '<a href="javascript:alert(4)">bad link</a><span style="color:red">styled</span>'
+        );
+        const safe = sanitizeKnowledgeHtml('<h1>Title</h1><p>Hello <strong>world</strong></p><a href="https://example.com">link</a><ul><li>item</li></ul>');
+        return {
+          stripsScript: !dangerous.includes('<script'),
+          stripsEventHandlers: !dangerous.includes('onclick') && !dangerous.includes('onerror'),
+          stripsImg: !dangerous.includes('<img'),
+          stripsJsUrl: !dangerous.includes('javascript:'),
+          stripsStyleAttr: !dangerous.includes('style='),
+          keepsPlainText: dangerous.includes('hi') && dangerous.includes('styled'),
+          allowsSafeMarkup: safe.includes('<h1>Title</h1>') && safe.includes('<strong>world</strong>')
+            && safe.includes('<a href="https://example.com">link</a>') && safe.includes('<li>item</li>'),
+        };
+      })(),
       version: await window.api.appVersion(),
       accessibility: (() => {
         const ids = [...document.querySelectorAll('[id]')].map(node => node.id);
@@ -245,6 +262,11 @@ async function run() {
     throw new Error('Quick Find did not render the indexed result');
   }
   if (!result.rendererModules) throw new Error('Extracted renderer modules did not load in classic-script order');
+  const sanitize = result.knowledgeSanitize;
+  if (!sanitize.stripsScript || !sanitize.stripsEventHandlers || !sanitize.stripsImg || !sanitize.stripsJsUrl ||
+      !sanitize.stripsStyleAttr || !sanitize.keepsPlainText || !sanitize.allowsSafeMarkup) {
+    throw new Error(`Knowledge Hub HTML sanitizer failed: ${JSON.stringify(sanitize)}`);
+  }
   if (!result.version) throw new Error('Application version IPC returned no value');
   if (result.accessibility.duplicateIds.length || result.accessibility.unnamedButtons.length ||
       !result.accessibility.language || !result.accessibility.direction || result.accessibility.liveRegions < 1) {
@@ -291,6 +313,7 @@ async function run() {
   console.log('PASS  Login language selector controls the setup and authenticated session language');
   console.log('PASS  Authenticated pages expose no language switch and cannot override the login choice');
   console.log('PASS  Context-isolated preload IPC created and searched a knowledge item');
+  console.log('PASS  Knowledge Hub HTML sanitizer strips scripts/handlers/img/js-urls/style while keeping the safe subset');
   console.log('PASS  Quick Find rendered the FTS result');
   console.log('PASS  Client profile code and English/Arabic names flow into a linked task');
   console.log('PASS  Arabic login choice drives RTL, preserves user content, and localizes report/PDF output');

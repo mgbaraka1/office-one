@@ -48,7 +48,7 @@ try {
   raw.close();
 
   const checks = [
-    ['migration 050 is the active schema head', head === 50, `head=${head}`],
+    ['migration 050 is applied', head >= 50, `head=${head}`],
     ['SQLite rejects cross-linked tasks', exclusive],
     ['SQLite rejects lookup-category confusion', category],
     ['rejected writes leave the task unchanged', JSON.stringify(unchanged) === JSON.stringify(before)],

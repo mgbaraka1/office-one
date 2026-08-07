@@ -1674,10 +1674,11 @@ function knowledgeItemToApi(r) {
   ).all(itemId, r.user_id).map(x => ({ id: x.id, name: x.name }));
   return {
     id: itemId, title: r.title || '', type: lkCode(r.type_id), typeLabel: lkLabel(r.type_id),
-    status: r.status, summary: r.summary || '', content: r.content || '',
+    status: r.status, summary: r.summary || '', content: r.content || '', contentFormat: r.content_format || 'text',
     createdAt: r.created_at, updatedAt: r.updated_at, documents, tags, groups,
   };
 }
+function knowledgeContentFormat(value) { return value === 'html' ? 'html' : 'text'; }
 function listKnowledgeItems(userId) {
   const rows = db.prepare('SELECT * FROM knowledge_items WHERE user_id = ? ORDER BY updated_at DESC, id DESC').all(userId);
   if (!rows.length) return [];
@@ -1720,7 +1721,7 @@ function listKnowledgeItems(userId) {
     const documents = documentsByItem.get(row.id) || [];
     return {
       id: row.id, title: row.title || '', type: lkCode(row.type_id), typeLabel: lkLabel(row.type_id),
-      status: row.status, summary: row.summary || '', content: row.content || '',
+      status: row.status, summary: row.summary || '', content: row.content || '', contentFormat: row.content_format || 'text',
       createdAt: row.created_at, updatedAt: row.updated_at,
       tags: tagsByItem.get(row.id) || [], groups: groupsByItem.get(row.id) || [],
       documents, documentCount: documents.length,
@@ -1769,10 +1770,10 @@ function createKnowledgeItem(userId, data) {
   let id;
   tx(() => {
     id = Number(db.prepare(
-      `INSERT INTO knowledge_items(user_id, title, type_id, status, summary, content, created_at, updated_at)
-       VALUES(?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO knowledge_items(user_id, title, type_id, status, summary, content, content_format, created_at, updated_at)
+       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(userId, title.slice(0, 300), typeId, knowledgeStatus(data?.status), String(data?.summary || '').slice(0, 2000),
-      String(data?.content || ''), now, now).lastInsertRowid);
+      String(data?.content || ''), knowledgeContentFormat(data?.contentFormat), now, now).lastInsertRowid);
     setKnowledgeChildren(userId, id, data);
   });
   return getKnowledgeItem(userId, id);
@@ -1784,10 +1785,10 @@ function updateKnowledgeItem(userId, id, data) {
   const typeId = lkIdForUser(userId, 'KNOWLEDGE_TYPE', data?.type);
   tx(() => {
     db.prepare(
-      `UPDATE knowledge_items SET title = ?, type_id = ?, status = ?, summary = ?, content = ?, updated_at = ?
+      `UPDATE knowledge_items SET title = ?, type_id = ?, status = ?, summary = ?, content = ?, content_format = ?, updated_at = ?
         WHERE id = ? AND user_id = ?`
     ).run(title.slice(0, 300), typeId, knowledgeStatus(data?.status), String(data?.summary || '').slice(0, 2000),
-      String(data?.content || ''), new Date().toISOString(), id, userId);
+      String(data?.content || ''), knowledgeContentFormat(data?.contentFormat), new Date().toISOString(), id, userId);
     setKnowledgeChildren(userId, id, data);
   });
   return getKnowledgeItem(userId, id);
@@ -1803,7 +1804,7 @@ function restoreKnowledgeItem(userId, oldId, snapshot) {
   if (pendingKnowledgeDeletes.get(Number(oldId)) !== userId) return { ok: false, error: 'Not authorized to restore this item' };
   const restored = createKnowledgeItem(userId, {
     title: snapshot?.title, type: snapshot?.type, status: snapshot?.status, summary: snapshot?.summary,
-    content: snapshot?.content, tags: snapshot?.tags,
+    content: snapshot?.content, contentFormat: snapshot?.contentFormat, tags: snapshot?.tags,
   });
   pendingKnowledgeDeletes.delete(Number(oldId));
   const oldDir = knowledgeItemDir(Number(oldId));
