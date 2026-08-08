@@ -1071,9 +1071,10 @@ async function renderUserManagement() {
   host.innerHTML = '';
   managedUsers.forEach(user => {
     const card = pjMk('div', 'user-card' + (user.isActive ? '' : ' inactive'));
-    card.appendChild(pjMk('div', 'user-card-avatar', Array.from(user.username || '?')[0]?.toUpperCase() || '?'));
+    const displayName = (window.ctI18n?.getLanguage?.() === 'ar' ? (user.nameAr || user.nameEn) : user.nameEn) || user.username;
+    card.appendChild(pjMk('div', 'user-card-avatar', Array.from(displayName || '?')[0]?.toUpperCase() || '?'));
     const main = pjMk('div', 'user-card-main');
-    const name = pjMk('div', 'user-card-name', user.username + (user.isCurrent ? ' (you)' : ''));
+    const name = pjMk('div', 'user-card-name', displayName + (user.isCurrent ? ' (you)' : ''));
     name.title = user.username;
     main.appendChild(name);
     const meta = pjMk('div', 'user-card-meta');
@@ -1104,6 +1105,8 @@ function openUserEditor(id = null) {
   const isSelf = !!user?.isCurrent;
   document.getElementById('user-editor-title').textContent = creating ? 'Add User' : 'Edit User';
   document.getElementById('user-edit-username').value = user?.username || '';
+  document.getElementById('user-edit-name-en').value = user?.nameEn || '';
+  document.getElementById('user-edit-name-ar').value = user?.nameAr || '';
   document.getElementById('user-edit-role').value = user?.isAdmin ? 'admin' : 'standard';
   const active = document.getElementById('user-edit-active');
   active.checked = creating || !!user?.isActive;
@@ -1128,6 +1131,8 @@ async function saveManagedUser() {
   const status = document.getElementById('user-form-status');
   const saveBtn = document.getElementById('user-save-btn');
   const username = document.getElementById('user-edit-username').value.trim();
+  const nameEn = document.getElementById('user-edit-name-en').value.trim();
+  const nameAr = document.getElementById('user-edit-name-ar').value.trim();
   const password = document.getElementById('user-edit-password').value;
   const confirm = document.getElementById('user-edit-confirm').value;
   const creating = managedUserId == null;
@@ -1140,9 +1145,14 @@ async function saveManagedUser() {
   try {
     if (creating) {
       result = await window.api.authAddUser(username, password, document.getElementById('user-edit-role').value === 'admin');
+      if (result?.ok && (nameEn || nameAr)) {
+        result = await window.api.authUpdateUser(result.user.id, { nameEn, nameAr });
+      }
     } else {
       result = await window.api.authUpdateUser(managedUserId, {
         username,
+        nameEn,
+        nameAr,
         isAdmin: document.getElementById('user-edit-role').value === 'admin',
         isActive: document.getElementById('user-edit-active').checked,
         currentPassword: document.getElementById('user-edit-current-password').value,

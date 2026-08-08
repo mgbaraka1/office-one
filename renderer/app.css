@@ -2425,7 +2425,7 @@
       content: ''; width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%;
       background: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
     }
-    .app-version { color: var(--sidebar-muted); font-size: 10px; letter-spacing: .35px; text-align: center; }
+    .app-version { color: var(--sidebar-muted); font-size: 10px; letter-spacing: .35px; text-align: center; white-space: pre-line; line-height: 1.5; }
 
     /* ═══════════════════════════════════════════════════════════════════════
        VISION 2026 — PRECISION WORKSPACE

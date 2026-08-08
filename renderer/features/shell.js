@@ -465,7 +465,7 @@ async function startApp(user) {
   if (versionEl) {
     try {
       const version = await window.api.appVersion();
-      versionEl.textContent = version ? 'Office ONE v' + version : '';
+      versionEl.textContent = version ? 'Office ONE\nversion ' + version : '';
     } catch { versionEl.textContent = ''; }
   }
   document.querySelectorAll('.admin-only').forEach(el => { el.hidden = !user?.isAdmin; });

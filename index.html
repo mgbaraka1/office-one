@@ -59,8 +59,11 @@
     <button class="nav-item" data-module="timesheet" data-onclick="switchModule('timesheet')" title="Today — Timesheet">
       <span class="nav-icon" data-ic="clock"></span><span class="nav-label">Today</span>
     </button>
-    <button class="nav-item" data-module="all-tasks" data-modules="all-tasks internal-tasks" data-onclick="switchModule('all-tasks')" title="Tasks">
+    <button class="nav-item" data-module="all-tasks" data-onclick="switchModule('all-tasks')" title="Tasks">
       <span class="nav-icon" data-ic="list"></span><span class="nav-label">Tasks</span>
+    </button>
+    <button class="nav-item" data-module="internal-tasks" data-onclick="switchModule('internal-tasks')" title="Departments">
+      <span class="nav-icon" data-ic="building"></span><span class="nav-label">Departments</span>
     </button>
     <div class="nav-section">Clients &amp; Assets</div>
     <button class="nav-item" data-module="clients" data-onclick="switchModule('clients')" title="Clients">
@@ -657,10 +660,6 @@
 <div id="module-all-tasks" class="app-module">
   <div class="page-header">
     <span class="page-title"><span class="ti-ic" data-ic="list"></span>Tasks</span>
-    <div class="seg-ctl workspace-tabs" aria-label="Task workspace">
-      <button class="seg-btn active" type="button" data-onclick="switchModule('all-tasks')">All Tasks</button>
-      <button class="seg-btn" type="button" data-onclick="switchModule('internal-tasks')">Departments</button>
-    </div>
   </div>
   <div class="cp-records-panel" id="at-panel" style="width:100%"></div>
 </div>
@@ -671,11 +670,7 @@
      no "create department" flow here, only picking one and managing its tasks. -->
 <div id="module-internal-tasks" class="app-module">
   <div class="page-header">
-    <span class="page-title"><span class="ti-ic" data-ic="list"></span>Tasks</span>
-    <div class="seg-ctl workspace-tabs" aria-label="Task workspace">
-      <button class="seg-btn" type="button" data-onclick="switchModule('all-tasks')">All Tasks</button>
-      <button class="seg-btn active" type="button" data-onclick="switchModule('internal-tasks')">Departments</button>
-    </div>
+    <span class="page-title"><span class="ti-ic" data-ic="building"></span>Departments</span>
   </div>
   <div class="cp-body">
     <div class="cp-list-panel">
@@ -1416,7 +1411,7 @@
       </div>
       <div class="settings-group-label">Account &amp; Preferences</div>
       <button class="stab active" data-tab="general" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="sliders-horizontal"></span> General</button>
-      <button class="stab" data-tab="users" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="users"></span> User Management</button>
+      <button class="stab" data-tab="users" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="building"></span> User Management</button>
       <div class="settings-group-label admin-only">Catalogs</div>
       <button class="stab" data-tab="companies"     data-onclick="switchTab(this)"><span class="stab-icon" data-ic="building-2"></span> Companies</button>
       <button class="stab" data-tab="systems"       data-onclick="switchTab(this)"><span class="stab-icon" data-ic="folder"></span> Systems</button>
@@ -1471,6 +1466,15 @@
               <label for="user-edit-username">Username</label>
               <input id="user-edit-username" type="text" autocomplete="off" minlength="3" maxlength="32" />
             </div>
+            <div class="general-field">
+              <label for="user-edit-name-en">Display name (English)</label>
+              <input id="user-edit-name-en" type="text" autocomplete="off" dir="ltr" placeholder="e.g. Moustafa Baraka" />
+            </div>
+            <div class="general-field">
+              <label for="user-edit-name-ar">Display name (Arabic)</label>
+              <input id="user-edit-name-ar" type="text" autocomplete="off" dir="rtl" lang="ar" placeholder="مثال: مصطفى بركة" />
+            </div>
+            <p class="general-hint full">Shown as your greeting name in the app, in whichever language is active — falls back to your username if left blank.</p>
             <div class="general-field user-admin-control">
               <label for="user-edit-role">Permissions</label>
               <select id="user-edit-role">
