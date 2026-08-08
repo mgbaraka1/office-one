@@ -564,7 +564,8 @@ function openKnowledgeEditor(item) {
   setTimeout(() => document.getElementById('kh-title-input').focus(), 60);
 }
 function closeKnowledgeEditor(force) {
-  if (!force && knowledgeEditorDirty && !confirm('Close the editor? Your changes are saved as a recoverable draft.')) return;
+  const closeConfirmMsg = 'Close the editor? Your changes are saved as a recoverable draft.';
+  if (!force && knowledgeEditorDirty && !confirm(window.ctI18n ? window.ctI18n.t(closeConfirmMsg) : closeConfirmMsg)) return;
   knowledgeEditorDirty = false; knowledgeEditId = null; knowledgePendingDraft = null;
   document.getElementById('knowledge-modal-overlay').classList.remove('open');
 }

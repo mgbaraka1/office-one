@@ -403,7 +403,11 @@ function timeTypeLabel(code, fallback) {
 }
 
 async function renderOverview() {
-  const name = LK.defaultName ? LK.defaultName.split(' ')[0] : 'Moustafa';
+  const isAr = window.ctI18n?.getLanguage?.() === 'ar';
+  const displayName = isAr
+    ? (_currentUser?.nameAr || _currentUser?.nameEn || _currentUser?.username)
+    : (_currentUser?.nameEn || _currentUser?.username);
+  const name = (displayName || '').split(' ')[0] || (_currentUser?.username || '');
   document.getElementById('dash-hello').textContent = `${greetWord()}, ${name}`;
   document.getElementById('dash-date').textContent =
     new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });

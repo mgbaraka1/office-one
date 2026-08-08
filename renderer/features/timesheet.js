@@ -2521,7 +2521,7 @@ function switchModule(name) {
     window.api.setTitle('Office ONE — Tasks');
     initAllTasksModule();
   } else if (name === 'internal-tasks') {
-    window.api.setTitle('Office ONE — Internal Tasks');
+    window.api.setTitle('Office ONE — Departments');
     initInternalTasksModule();
   } else if (name === 'companydocs') {
     window.api.setTitle('Office ONE — Company Documents');

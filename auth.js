@@ -110,7 +110,7 @@ function setup(username, password) {
   } catch { return { ok: false, error: 'That username is already taken.' }; }
 
   session = { userId: id, username: uname, isAdmin: true };
-  return { ok: true, user: { id, username: uname, isAdmin: true } };
+  return { ok: true, user: { id, username: uname, isAdmin: true, nameEn: '', nameAr: '' } };
 }
 
 // Verify credentials and start a session. Generic error on any failure so we
@@ -142,7 +142,8 @@ function login(username, password) {
 
   clearLoginFailure(failureKey);
   session = { userId: user.id, username: user.username, isAdmin: !!user.is_admin };
-  return { ok: true, user: { id: user.id, username: user.username, isAdmin: !!user.is_admin } };
+  const names = db.getUserDisplayName(user.id);
+  return { ok: true, user: { id: user.id, username: user.username, isAdmin: !!user.is_admin, nameEn: names.nameEn, nameAr: names.nameAr } };
 }
 
 function logout() {
@@ -151,7 +152,9 @@ function logout() {
 }
 
 function currentUser() {
-  return session ? { id: session.userId, username: session.username, isAdmin: !!session.isAdmin } : null;
+  if (!session) return null;
+  const names = db.getUserDisplayName(session.userId);
+  return { id: session.userId, username: session.username, isAdmin: !!session.isAdmin, nameEn: names.nameEn, nameAr: names.nameAr };
 }
 
 function requireAdmin() {
@@ -161,12 +164,15 @@ function requireAdmin() {
 }
 
 function userToApi(user) {
-  return user ? {
+  if (!user) return null;
+  const names = db.getUserDisplayName(Number(user.id));
+  return {
     id: Number(user.id), username: user.username,
+    nameEn: names.nameEn, nameAr: names.nameAr,
     isAdmin: !!(user.isAdmin ?? user.is_admin),
     isActive: !!(user.isActive ?? user.is_active),
     createdAt: user.createdAt ?? user.created_at ?? '',
-  } : null;
+  };
 }
 
 function listUsers() {
@@ -227,6 +233,14 @@ function updateUser(id, data) {
     db.updateUserAccount(targetId, { username, isAdmin, isActive, passwordHash });
   } catch {
     return { ok: false, error: 'That username is already taken.' };
+  }
+  if (typeof data?.nameEn === 'string' || typeof data?.nameAr === 'string') {
+    const current = db.getUserDisplayName(targetId);
+    db.setUserDisplayName(
+      targetId,
+      typeof data.nameEn === 'string' ? data.nameEn : current.nameEn,
+      typeof data.nameAr === 'string' ? data.nameAr : current.nameAr
+    );
   }
   if (isSelf) session = { userId: actorId, username, isAdmin };
   return { ok: true, user: userToApi(db.getUserById(targetId)), currentUser: currentUser() };

@@ -94,6 +94,10 @@
     'User Management': 'إدارة المستخدمين', 'Add User': 'إضافة مستخدم', 'Edit User': 'تعديل المستخدم',
     'Permissions': 'الصلاحيات', 'Account status': 'حالة الحساب', 'Active — can sign in': 'نشط — يمكنه تسجيل الدخول',
     'Current password': 'كلمة المرور الحالية', 'New password': 'كلمة المرور الجديدة', 'Save User': 'حفظ المستخدم',
+    'Display name (English)': 'الاسم المعروض (إنجليزي)', 'Display name (Arabic)': 'الاسم المعروض (عربي)',
+    'Shown as your greeting name in the app, in whichever language is active — falls back to your username if left blank.':
+      'يُعرض كاسم الترحيب بك في التطبيق، بأي لغة كانت نشطة — ويعود إلى اسم المستخدم إذا تُرك فارغاً.',
+    'e.g. Moustafa Baraka': 'مثال: Moustafa Baraka',
     'Standard User': 'مستخدم عادي', 'Administrator': 'مسؤول',
     'Standard User — own data and preferences': 'مستخدم عادي — بياناته وتفضيلاته فقط',
     'Administrator — full settings, backup and user access': 'مسؤول — وصول كامل إلى الإعدادات والنسخ الاحتياطي والمستخدمين',
@@ -392,13 +396,81 @@
     'list: ordered': 'قائمة مرقمة', 'list: bullet': 'قائمة نقطية',
   });
 
+  // Knowledge Hub detail-view overflow menu, command palette (Ctrl+K), and
+  // Settings → Maintenance diagnostics — found untranslated 2026-08-08
+  // because their labels/hints are built with wording or casing that didn't
+  // exactly match any existing dictionary key (dictionary lookup is exact,
+  // case-sensitive text after whitespace-collapse).
+  Object.assign(ar, {
+    'Dialog': 'حوار', '— None —': '— بلا —', 'Keep:': 'الاحتفاظ بـ:',
+    'Client workspace': 'مساحة عمل العميل', 'Go to': 'الانتقال إلى', 'Action': 'إجراء',
+    'Create something…': 'إنشاء شيء…', 'Workspace view & comfort': 'عرض مساحة العمل والراحة',
+    'Add record — log work': 'إضافة سجل — تسجيل عمل', 'New project': 'مشروع جديد',
+    'New knowledge item': 'عنصر معرفة جديد', 'Go to today': 'الانتقال إلى اليوم',
+    'Toggle dark / light theme': 'التبديل بين الوضع الداكن والفاتح',
+    'Back up the database': 'نسخ قاعدة البيانات احتياطياً', 'Actions': 'الإجراءات',
+    'Browse — Companies': 'تصفح — الشركات', 'Browse — Systems': 'تصفح — الأنظمة',
+    'Tasks — All': 'المهام — الكل', 'Tasks — Departments': 'المهام — الأقسام',
+    'Jump to date': 'الانتقال إلى تاريخ', 'Log a session': 'تسجيل جلسة',
+    'Open project': 'فتح المشروع', 'Open Knowledge Hub': 'فتح مركز المعرفة',
+    'Open Company Docs': 'فتح مستندات الشركة', 'Open Subscriptions': 'فتح الاشتراكات',
+    'Open client access': 'فتح وصول العميل', 'Open client server': 'فتح خادم العميل',
+    'Open client system': 'فتح نظام العميل', '(untitled)': '(بلا عنوان)', 'Workspace': 'مساحة العمل',
+    'No matches — try a page name, task, project, or a date like 2026-07-01':
+      'لا توجد نتائج — جرّب اسم صفحة أو مهمة أو مشروع أو تاريخاً مثل 2026-07-01',
+    'Add document': 'إضافة مستند', 'Duplicate as draft': 'تكرار كمسودة',
+    'Mark as ready': 'التحديد كجاهز', 'Move back to draft': 'الإعادة إلى مسودة',
+    'Archive': 'أرشفة', 'Restore as draft': 'استعادة كمسودة', 'Delete item': 'حذف العنصر',
+    'Edit organization': 'تعديل التنظيم', 'New version': 'إصدار جديد',
+    'Download latest': 'تنزيل الأحدث', 'Remove latest version': 'إزالة أحدث إصدار',
+    'Download': 'تنزيل', 'Remove version': 'إزالة الإصدار', 'Delete Group': 'حذف المجموعة',
+    'Filter Knowledge Hub groups and tags': 'تصفية مجموعات ووسوم مركز المعرفة',
+    'Could not undo': 'تعذر التراجع', 'This week': 'هذا الأسبوع',
+    'No task changes recorded yet.': 'لم تُسجَّل تغييرات على المهمة بعد.',
+    'Close the editor? Your changes are saved as a recoverable draft.':
+      'إغلاق المحرر؟ حُفظت تغييراتك كمسودة قابلة للاستعادة.',
+    'Loading users…': 'جارٍ تحميل المستخدمين…', 'No users found.': 'لم يُعثر على مستخدمين.',
+    'Auditing recovery readiness…': 'جارٍ تدقيق جاهزية الاستعادة…',
+    'Could not run diagnostics.': 'تعذر تشغيل التشخيص.', 'Invalid backups:': 'نسخ احتياطية غير صالحة:',
+    'Missing files:': 'ملفات مفقودة:', 'Loading…': 'جارٍ التحميل…', 'Checking…': 'جارٍ الفحص…',
+    'Could not run the check.': 'تعذر تشغيل الفحص.', 'Scanning…': 'جارٍ الفحص…',
+    'Could not scan.': 'تعذر الفحص.', 'No duplicates found.': 'لم يُعثر على تكرارات.',
+    'No sweep has run yet this session.': 'لم يتم تشغيل أي تنظيف في هذه الجلسة بعد.',
+    'Client': 'العميل', 'Details': 'التفاصيل', 'This record no longer exists.': 'لم يعد هذا السجل موجوداً.',
+    'What was done': 'ما تم إنجازه', 'Select a department to view its tasks': 'اختر قسماً لعرض مهامه',
+    'View data table': 'عرض جدول البيانات', 'TOTAL': 'الإجمالي', 'No data.': 'لا توجد بيانات.',
+    'Status:': 'الحالة:', 'Application / schema:': 'التطبيق / المخطط:', 'SQLite:': 'SQLite:',
+    'Database:': 'قاعدة البيانات:', 'Disk free:': 'المساحة الحرة:',
+    'Accounts / search rows:': 'الحسابات / صفوف البحث:', 'Referenced files:': 'الملفات المُشار إليها:',
+    'Rotating backups:': 'النسخ الاحتياطية الدورية:', 'Credential encryption:': 'تشفير بيانات الدخول:',
+    'Data folder:': 'مجلد البيانات:', 'Needs attention': 'يحتاج إلى انتباه', 'Unavailable': 'غير متاح',
+    'Available on this Windows account': 'متاح على حساب Windows هذا',
+    'Recovery checks passed.': 'اجتازت فحوصات الاستعادة.',
+    'One or more recovery checks need attention.': 'يحتاج فحص واحد أو أكثر من فحوصات الاستعادة إلى انتباه.',
+    'No backups yet — one is taken automatically on the next launch of an existing database.':
+      'لا توجد نسخ احتياطية بعد — تُؤخذ نسخة تلقائياً عند التشغيل التالي لقاعدة بيانات موجودة.',
+    'OK — no corruption or dangling references found.': 'سليم — لم يُعثر على تلف أو مراجع معلّقة.',
+    'Problems found:': 'مشكلات تم العثور عليها:', 'Pages and actions ready': 'الصفحات والإجراءات جاهزة',
+    'new entry': 'قيد جديد', 'English label': 'التسمية بالإنجليزية', 'Re-enable': 'إعادة التفعيل',
+    'Disable (hide from dropdowns)': 'تعطيل (إخفاء من القوائم المنسدلة)', 'e.g. ACME or 105': 'مثال: ACME أو 105',
+    'No documents or written content yet': 'لا توجد مستندات أو محتوى مكتوب بعد',
+    'Written knowledge item': 'عنصر معرفة مكتوب', 'Session': 'جلسة', 'Types': 'الأنواع',
+    'Delete?': 'حذف؟', 'Delete group?': 'حذف المجموعة؟',
+    'Delete last session? This also deletes the task.': 'حذف الجلسة الأخيرة؟ سيؤدي هذا أيضاً إلى حذف المهمة.',
+  });
+
   const uiNounsAr = {
     clients: 'العملاء', 'company documents': 'مستندات الشركة', department: 'القسم', departments: 'الأقسام',
     'Knowledge Hub': 'مركز المعرفة', 'knowledge item': 'عنصر المعرفة', projects: 'المشاريع', records: 'السجلات',
     task: 'المهمة', tasks: 'المهام', document: 'المستند', file: 'الملف', group: 'المجموعة',
     'internal system': 'النظام الداخلي', item: 'العنصر', project: 'المشروع', server: 'الخادم',
     session: 'الجلسة', settings: 'الإعدادات', sources: 'المصادر', subscriptions: 'الاشتراكات',
-    'the record': 'السجل', 'the session': 'الجلسة', 'the task': 'المهمة', 'VPN connection': 'اتصال VPN'
+    'the record': 'السجل', 'the session': 'الجلسة', 'the task': 'المهمة', 'VPN connection': 'اتصال VPN',
+    merge: 'الدمج'
+  };
+  const orphanFolderNounAr = {
+    'project folder': 'مجلد مشروع', 'company document folder': 'مجلد مستند شركة',
+    'Knowledge Hub folder': 'مجلد مركز معرفة'
   };
   const arGreet = { morning: 'صباح الخير', afternoon: 'مساء الخير', evening: 'مساء الخير' };
   const arWeekdays = {
@@ -438,8 +510,13 @@
     [/^(-?\d+)% of total$/s, m => `${m[1]}٪ من الإجمالي`],
     [/^(\d+) active days?$/s, m => `${m[1]} يوم نشط`],
     [/^(\d+) of (\d+) done$/s, m => `${m[1]} من ${m[2]} مكتمل`],
+    // Analytics trend-chart aria-label carries a "; peak N hours, average N
+    // hours" suffix the greedy plain-title rule below would otherwise leave
+    // untranslated inside its own captured group — must be tried first.
+    [/^Daily hours trend from (.+) to (.+); peak (.+) hours, average (.+) hours$/s,
+      m => `اتجاه الساعات اليومية من ${m[1]} إلى ${m[2]}؛ الذروة ${m[3]} ساعة، المتوسط ${m[4]} ساعة`],
     [/^Daily hours trend from (.+) to (.+)$/s, m => `اتجاه الساعات اليومية من ${m[1]} إلى ${m[2]}`],
-    [/^Office ONE v(.+)$/s, m => `Office ONE الإصدار ${m[1]}`],
+    [/^Office ONE version (.+)$/s, m => `Office ONE\nالإصدار ${m[1]}`],
     // Client-detail tab labels and section headers ("<name> (N)").
     [/^Projects \((\d+)\)$/s, m => `المشاريع (${m[1]})`],
     [/^Access \((\d+)\)$/s, m => `الوصول (${m[1]})`],
@@ -463,14 +540,35 @@
     [/^Credential location: (.+)$/s, m => `موقع بيانات الدخول: ${m[1]}`], [/^Type "(.+)" to confirm$/s, m => `اكتب "${m[1]}" للتأكيد`],
     [/^Tasks \((.+)\)$/s, m => `المهام (${m[1].replace(' of ', ' من ')})`], [/^Sessions \((.+)\)$/s, m => `الجلسات (${m[1]})`],
     [/^Documents \((.+)\)$/s, m => `المستندات (${m[1]})`], [/^PDF failed: (.+)$/s, m => `فشل PDF: ${m[1]}`],
-    [/^(\d+) documents?$/s, m => `${m[1]} مستند`], [/^Updated today$/s, () => 'تم التحديث اليوم'],
+    [/^(\d+) documents?( · .+)?$/s, m => `${m[1]} مستند${m[2] || ''}`], [/^Updated today$/s, () => 'تم التحديث اليوم'],
     [/^Updated yesterday$/s, () => 'تم التحديث أمس'], [/^Updated (\d+) days? ago$/s, m => `تم التحديث منذ ${m[1]} يوم`],
     [/^Updated (\d+) weeks? ago$/s, m => `تم التحديث منذ ${m[1]} أسبوع`], [/^Updated (.+)$/s, m => `تم التحديث ${m[1]}`],
     [/^Overdue — (.+)$/s, m => `متأخر — ${m[1]}`], [/^Renews soon — (.+)$/s, m => `يتجدد قريباً — ${m[1]}`],
     [/^Renews (.+)$/s, m => `يتجدد ${m[1]}`], [/^Expires soon — (.+)$/s, m => `تنتهي الصلاحية قريباً — ${m[1]}`],
     [/^Expires (.+)$/s, m => `تنتهي الصلاحية ${m[1]}`], [/^in “(.+)”$/s, m => `ضمن «${m[1]}»`],
     [/^Full backup failed: (.+)$/s, m => `فشل النسخ الاحتياطي الكامل: ${m[1]}`],
-    [/^Full restore stopped: (.+)$/s, m => `توقفت الاستعادة الكاملة: ${m[1]}`]
+    [/^Full restore stopped: (.+)$/s, m => `توقفت الاستعادة الكاملة: ${m[1]}`],
+    // Settings → Maintenance panel: merge-picker label, palette settings-tab
+    // items, and the orphan-file-sweep footer (Milestone 6 tooling).
+    [/^User: (.+)$/s, m => `المستخدم: ${m[1]}`], [/^Company Code: (.+)$/s, m => `رمز الشركة: ${m[1]}`],
+    [/^code: (.+)$/s, m => `رمز: ${m[1]}`],
+    [/^(\d+) min · ([\d.]+) h$/s, m => `${m[1]} دقيقة · ${m[2]} ساعة`],
+    // Knowledge Hub facet-section and task-sessions collapse/expand toggles.
+    [/^(Expand|Collapse) (Types|Status|Groups|Tags|sessions)$/s, m => {
+      const nounAr = { Types: 'الأنواع', Status: 'الحالة', Groups: 'المجموعات', Tags: 'الوسوم', sessions: 'الجلسات' }[m[2]];
+      return `${m[1] === 'Expand' ? 'توسيع' : 'طي'} ${nounAr}`;
+    }],
+    [/^Settings — (.+)$/s, m => `الإعدادات — ${m[1]}`],
+    [/^(\d+) colliding codes$/s, m => `${m[1]} رمز متعارض`],
+    [/^Nothing to clean up as of the last launch \((.+)\)\.$/s, m => `لا يوجد ما يُنظَّف حتى آخر تشغيل (${m[1]}).`],
+    [/^(\d+) workspace results?$/s, m => `${m[1]} نتيجة من مساحة العمل`],
+    [/^Last launch \((.+)\) removed (.+)\.$/s, m => {
+      const parts = m[2].split(' and ').map(seg => {
+        const mm = seg.match(/^(\d+) orphaned (project folder|company document folder|Knowledge Hub folder)s?$/);
+        return mm ? `${mm[1]} ${orphanFolderNounAr[mm[2]]} غير مرتبط` : seg;
+      });
+      return `آخر تشغيل (${m[1]}) أزال ${parts.join(' و')}.`;
+    }]
   ];
 
   let language = readLanguage();
