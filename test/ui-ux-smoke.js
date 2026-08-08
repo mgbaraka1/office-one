@@ -63,7 +63,9 @@ gate('segmented controls and navigation expose state', html.includes("setAttribu
 gate('field validation exposes aria-invalid and readable messages', html.includes("setAttribute('aria-invalid', 'true')") && html.includes('field-error-message'));
 gate('shortcut suppression covers all current modal overlays', html.includes("'.modal-overlay.open, #print-overlay.open, #palette-overlay.open, #shortcuts-overlay.open, #howthinks-overlay.open'"));
 
-gate('sidebar consolidates All and Department tasks under one destination', html.includes('data-modules="all-tasks internal-tasks"'));
+gate('sidebar exposes Tasks and Departments as separate destinations',
+  html.includes('data-module="all-tasks" data-onclick="switchModule(\'all-tasks\')"')
+  && html.includes('data-module="internal-tasks" data-onclick="switchModule(\'internal-tasks\')"'));
 gate('sidebar shows the signed-in identity, explicit role, and runtime app version',
   html.includes('id="sidebar-user-avatar"')
   && html.includes("user?.isAdmin ? 'Administrator' : 'Standard User'")

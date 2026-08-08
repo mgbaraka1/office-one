@@ -734,6 +734,20 @@ function getLookupsByCategory(category, includeInactive = false, userId = null) 
       sortOrder: r.sort_order, isActive: !!r.is_active,
     }));
 }
+// Bilingual display name (Settings → Users) — decoupled from the login
+// username so it can be shown untranslated-key-free in either UI language
+// (e.g. the Overview greeting). Stored in user_settings, no schema change.
+function getUserDisplayName(userId) {
+  return {
+    nameEn: userGet(userId, 'display_name_en') || '',
+    nameAr: userGet(userId, 'display_name_ar') || '',
+  };
+}
+function setUserDisplayName(userId, nameEn, nameAr) {
+  userSet(userId, 'display_name_en', String(nameEn || '').trim());
+  userSet(userId, 'display_name_ar', String(nameAr || '').trim());
+}
+
 // Full catalog (every category, incl. inactive) + the default employee name —
 // what the renderer loads once at boot to build all dropdowns.
 function loadLookups(userId) {
@@ -4066,6 +4080,7 @@ module.exports = {
   createClientServer, updateClientServer, deleteClientServer, renameClientServerSystemGroup, assignClientServerGroup,
   createClientInternalSystem, updateClientInternalSystem, deleteClientInternalSystem, renameClientInternalSystemGroup, assignClientInternalGroup,
   loadLookups, saveLookups, getLookupsByCategory,
+  getUserDisplayName, setUserDisplayName,
   loadSubscriptions, saveSubscriptions,
   loadPrefs, savePrefs,
   loadLoginFailures, saveLoginFailures,
