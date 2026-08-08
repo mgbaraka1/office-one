@@ -57,7 +57,7 @@ gate('report previews export accessible CSV data as well as PDF',
   && main.includes("ipcMain.handle('report:exportCSV'")
   && preload.includes('exportCSV:'));
 
-gate('primary action indigo meets the new high-contrast workspace token', html.includes('--primary: #4f46e5;'));
+gate('primary action color meets the high-contrast workspace token', html.includes('--primary: #C96442;'));
 gate('modal close buttons receive a generated accessible name', html.includes("el.classList.contains('modal-close') && !el.title") && html.includes("el.title = 'Close dialog'"));
 gate('segmented controls and navigation expose state', html.includes("setAttribute('aria-pressed'") && html.includes("setAttribute('aria-current', 'page')"));
 gate('field validation exposes aria-invalid and readable messages', html.includes("setAttribute('aria-invalid', 'true')") && html.includes('field-error-message'));
