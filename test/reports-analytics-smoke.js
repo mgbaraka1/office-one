@@ -75,7 +75,10 @@ try {
 
   // ── Gate 1/2 — Analytics department dimension ──────────────────────────────
   const project = db.createProject(userId, { name: 'RA test project', description: '', companyIds: [], systemIds: [], status: 'ACTIVE' });
-  const deptTask = db.createTask(userId, { name: 'RA dept task', status: 'OPEN', company: '', system: '', source: '', department: deptOpt.label });
+  // Internal tasks are now their own domain —
+  // department-linked tasks are created via createInternalTask, not by
+  // passing `department` to the client-only createTask.
+  const deptTask = db.createInternalTask(userId, { name: 'RA dept task', status: 'OPEN', source: '', department: deptOpt.label });
   db.addWorkLog(userId, deptTask.id, { date: DAY_A, description: 'dept session', minutes: 45, time: 'WORK_TIME' });
   const projTask = db.createTask(userId, { name: 'RA project task', status: 'OPEN', company: '', system: '', source: '', projectId: project.id });
   db.addWorkLog(userId, projTask.id, { date: DAY_A, description: 'proj session', minutes: 30, time: 'WORK_TIME' });
@@ -89,6 +92,14 @@ try {
   const plainInDept = Object.values(an.byDepartment).length && an.byDepartment['undefined'];
   record('Gate 2: a task without a department contributes no undefined bucket',
     !plainInDept, `plainInDept=${!!plainInDept}`);
+
+  // getAnalytics also splits total minutes into clientMin/internalMin
+  // The combined KPI-header split means the 45-minute
+  // internal session must land in internalMin, and the 30+15 client sessions
+  // in clientMin, and the two must sum to the day's total.
+  record('Gate 1b: clientMin/internalMin split correctly and sum to the total',
+    an.internalMin === 45 && an.clientMin === 45 && (an.clientMin + an.internalMin) === an.totalMin,
+    `clientMin=${an.clientMin} internalMin=${an.internalMin} totalMin=${an.totalMin}`);
 
   // ── Gates 3/4 — getFilteredWorkLogs (Custom Date-Range report) ──────────────
   const fCompany = db.createTask(userId, { name: 'RA filter company task', status: 'OPEN', company: companyLabel, system: '', source: '' });

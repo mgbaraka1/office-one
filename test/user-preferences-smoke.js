@@ -1,6 +1,6 @@
 'use strict';
 
-// Phase 3 of SETTINGS_REFACTOR_PLAN.md (S4): theme/density/canvas/motion/
+// Per-user preferences: theme/density/canvas/motion/
 // sidebar/timesheet view used to live only in localStorage, which is
 // machine-wide — on a shared PC, a second account inherited whatever the
 // first account last chose. db.getUserPreferences/setUserPreference store

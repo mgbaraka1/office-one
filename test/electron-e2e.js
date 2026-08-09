@@ -305,7 +305,7 @@ async function run() {
         return arabic;
       })(),
       passwordRotation: await (async () => {
-        // Forced password rotation (SETTINGS_REFACTOR_PLAN.md Phase 5): an
+        // Forced password rotation: an
         // admin-created account carries an admin-assigned password, so login
         // must force its owner to replace it before the app becomes usable.
         // Drives the real IPC bridge AND the actual login-overlay DOM/function

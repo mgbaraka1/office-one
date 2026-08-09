@@ -1,7 +1,7 @@
 'use strict';
 
 // ── Settings catalog registry — single source of truth ──
-// SETTINGS_REFACTOR_PLAN.md §1b (S1): before this file existed, the set of
+// Before this registry existed, the set of
 // catalog tabs was hand-maintained independently in FIVE places (db.js's
 // LOOKUP_CATEGORIES, core.js's LK_CAT/LK_VALUE/SETTINGS_TABS, index.html's
 // tab buttons + panels, and shell.js's PAL_SETTINGS_TABS) and had already

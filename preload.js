@@ -124,15 +124,26 @@ contextBridge.exposeInMainWorld('api', {
   /** @returns {Promise<import('./ipc-types').Task[]>} */
   listLinkableTasks: ()           => ipcRenderer.invoke('projects:linkable-tasks'),
 
-  // ── Departments (Internal Tasks) — DEPARTMENT lookup category, no profile/CRUD ──
+  // ── Departments — DEPARTMENT lookup category, no profile/CRUD ──
   /** @returns {Promise<import('./ipc-types').DepartmentListItem[]>} */
   listDepartments:  ()               => ipcRenderer.invoke('departments:list'),
   /** @returns {Promise<import('./ipc-types').Department|null>} */
   getDepartment:    (id)             => ipcRenderer.invoke('departments:get', id),
-  linkDepartmentTask:   (taskId, deptId) => ipcRenderer.invoke('departments:link-task', taskId, deptId),
-  unlinkDepartmentTask: (taskId)         => ipcRenderer.invoke('departments:unlink-task', taskId),
+
+  // ── Internal tasks (separate INTERNAL domain) ──
+  // The internal-domain counterpart of the Tasks block above; a task moves
+  // between domains only via the convert-* calls, never a link/unlink pair.
   /** @returns {Promise<import('./ipc-types').Task[]>} */
-  listLinkableTasksForDept: ()       => ipcRenderer.invoke('departments:linkable-tasks'),
+  listInternalTasks: ()              => ipcRenderer.invoke('internal:list'),
+  /** @returns {Promise<import('./ipc-types').Task>} */
+  createInternalTask: (data)         => ipcRenderer.invoke('internal:create', data),
+  /** @returns {Promise<import('./ipc-types').Task|null>} */
+  updateInternalTask: (id, data)     => ipcRenderer.invoke('internal:update', id, data),
+  deleteInternalTask: (id)           => ipcRenderer.invoke('internal:delete', id),
+  /** @returns {Promise<{ok: boolean, error?: string, task?: import('./ipc-types').Task}>} */
+  convertTaskToInternal: (id, data)  => ipcRenderer.invoke('tasks:convert-to-internal', id, data),
+  /** @returns {Promise<{ok: boolean, error?: string, task?: import('./ipc-types').Task}>} */
+  convertTaskToClient:   (id, data)  => ipcRenderer.invoke('internal:convert-to-client', id, data),
 
   // ── Project document files (bytes on disk under userData) ──
   /** @returns {Promise<import('./ipc-types').DocFileResult>} */
