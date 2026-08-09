@@ -110,6 +110,7 @@ const tsNarrow = () => window.innerWidth <= 1100;
 function setTsView(v) {
   tsView = v === 'flat' ? 'flat' : 'grouped';
   try { localStorage.setItem('ct-ts-view', tsView); } catch (e) { /* private mode */ }
+  saveUserPreference('timesheetView', tsView);
   renderTable();
 }
 function syncTsViewCtl() {
@@ -1541,6 +1542,10 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('client-internal-modal-overlay').classList.contains('open')) submitClientInternalModal();
     if (document.getElementById('client-group-rename-modal-overlay').classList.contains('open')) submitClientGroupRename();
     if (document.getElementById('client-new-group-modal-overlay').classList.contains('open')) submitClientNewGroupModal();
+    // Settings is a page, not a modal — same Ctrl+Enter save convention as
+    // every modal above, but only fires when there's actually an unsaved
+    // catalog edit to save.
+    if (activeModule === 'settings' && settingsDirty) saveSettings();
   }
   if (!anyOpen && !inputFocused) {
     if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'n') {

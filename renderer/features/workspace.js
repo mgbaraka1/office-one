@@ -293,6 +293,10 @@ function autoSaveSubscriptions() {
 function applySubFilter() { subFilter = document.getElementById('sub-filter').value.toLowerCase().trim(); renderSubscriptions(); }
 
 // ── Theme toggle ──
+// Per-account (see loadUserPreferencesFromMain in core.js): localStorage
+// remains a mirror so renderer/bootstrap.js can paint the right theme
+// synchronously before login (when no account is known yet), but once a user
+// is signed in their own DB-stored value is authoritative and overrides it.
 function applyThemeLabel() {
   const dark = document.documentElement.getAttribute('data-theme') === 'dark';
   const icon = document.getElementById('theme-icon');
@@ -300,17 +304,22 @@ function applyThemeLabel() {
   if (icon)  { icon.innerHTML = dark ? ic('sun') : ic('moon'); icon.dataset.iced = '1'; }
   if (label) label.textContent = dark ? 'Light Mode' : 'Dark Mode';
 }
+function applyLoadedTheme(theme) {
+  if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+  else document.documentElement.removeAttribute('data-theme');
+  try { localStorage.setItem('ct-theme', theme === 'dark' ? 'dark' : 'light'); } catch (e) {}
+  applyThemeLabel();
+}
 function toggleTheme() {
   const dark = document.documentElement.getAttribute('data-theme') === 'dark';
-  if (dark) document.documentElement.removeAttribute('data-theme');
-  else      document.documentElement.setAttribute('data-theme', 'dark');
-  try { localStorage.setItem('ct-theme', dark ? 'light' : 'dark'); } catch (e) {}
-  applyThemeLabel();
+  applyLoadedTheme(dark ? 'light' : 'dark');
+  saveUserPreference('theme', dark ? 'light' : 'dark');
 }
 
 // ── Calm Workspace preferences ──
-// Presentation-only and deliberately local to this machine. Focus Mode is not
-// persisted, so navigation is always present again after a fresh launch.
+// Per-account, same convention as theme above. Focus Mode is not persisted at
+// all (neither per-account nor per-machine), so navigation is always present
+// again after a fresh launch.
 const WORKSPACE_VIEW_DEFAULTS = Object.freeze({ density: 'balanced', canvas: 'calm', motion: 'reduced' });
 let workspaceViewPrefs = Object.assign({}, WORKSPACE_VIEW_DEFAULTS);
 function loadWorkspaceViewPrefs() {
@@ -343,11 +352,13 @@ function setWorkspaceView(key, value) {
   workspaceViewPrefs[key] = value;
   try { localStorage.setItem('ct-workspace-view', JSON.stringify(workspaceViewPrefs)); } catch (e) {}
   applyWorkspaceViewPreferences();
+  saveUserPreference(key, value);
 }
 function resetWorkspaceView() {
   workspaceViewPrefs = Object.assign({}, WORKSPACE_VIEW_DEFAULTS);
   try { localStorage.removeItem('ct-workspace-view'); } catch (e) {}
   applyWorkspaceViewPreferences();
+  Object.entries(WORKSPACE_VIEW_DEFAULTS).forEach(([key, value]) => saveUserPreference(key, value));
 }
 function openWorkspaceView() {
   applyWorkspaceViewPreferences();
@@ -368,11 +379,17 @@ function toggleFocusMode(force) {
 }
 
 // ── Workspace rail ──
-// Manual collapse is intentionally machine-local like theme: it describes how
-// this device's window should use space, not user-owned application data.
-function applySidebarPreference() {
+// Per-account, same convention as theme above: localStorage is only the
+// pre-login guess; forceCompact (passed by loadUserPreferencesFromMain once
+// the account is known) overrides it with that account's own DB-stored value.
+function applySidebarPreference(forceCompact) {
   let compact = false;
-  try { compact = localStorage.getItem('ct-sidebar-compact') === '1'; } catch (e) {}
+  if (typeof forceCompact === 'boolean') {
+    compact = forceCompact;
+    try { localStorage.setItem('ct-sidebar-compact', compact ? '1' : '0'); } catch (e) {}
+  } else {
+    try { compact = localStorage.getItem('ct-sidebar-compact') === '1'; } catch (e) {}
+  }
   document.body.classList.toggle('sidebar-collapsed', compact);
   const btn = document.getElementById('sidebar-collapse');
   if (btn) {
@@ -382,8 +399,8 @@ function applySidebarPreference() {
 }
 function toggleSidebar() {
   const compact = !document.body.classList.contains('sidebar-collapsed');
-  try { localStorage.setItem('ct-sidebar-compact', compact ? '1' : '0'); } catch (e) {}
-  applySidebarPreference();
+  applySidebarPreference(compact);
+  saveUserPreference('sidebar', compact ? 'compact' : 'expanded');
 }
 
 // ── Home overview (merged into the Analytics view) ──

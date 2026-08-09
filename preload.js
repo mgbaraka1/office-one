@@ -15,7 +15,7 @@ contextBridge.exposeInMainWorld('api', {
   authLogout:      ()                 => ipcRenderer.invoke('auth:logout'),
   /** @returns {Promise<import('./ipc-types').ManagedUser[]>} */
   authListUsers:   ()                 => ipcRenderer.invoke('auth:listUsers'),
-  authAddUser:     (username, pass, isAdmin = false) => ipcRenderer.invoke('auth:addUser', username, pass, isAdmin),
+  authAddUser:     (username, pass, isAdmin = false, nameEn = '', nameAr = '') => ipcRenderer.invoke('auth:addUser', username, pass, isAdmin, nameEn, nameAr),
   /** @returns {Promise<import('./ipc-types').AuthResult>} */
   authUpdateUser:  (id, data)         => ipcRenderer.invoke('auth:updateUser', id, data),
 
@@ -212,6 +212,15 @@ contextBridge.exposeInMainWorld('api', {
   getUiState:        ()           => ipcRenderer.invoke('ui:getState'),
   /** @returns {Promise<{ok: boolean}>} */
   saveUiState:       (state)      => ipcRenderer.invoke('ui:setState', state),
+
+  // ── Knowledge Hub editor recovery draft (kept out of ui_state — see db.js) ──
+  getKnowledgeDraft:   ()      => ipcRenderer.invoke('ui:getKnowledgeDraft'),
+  saveKnowledgeDraft:  (draft) => ipcRenderer.invoke('ui:saveKnowledgeDraft', draft),
+  clearKnowledgeDraft: ()      => ipcRenderer.invoke('ui:clearKnowledgeDraft'),
+
+  // ── Per-account UI preferences (theme/density/canvas/motion/sidebar/timesheet view) ──
+  getPreferences:  ()          => ipcRenderer.invoke('preferences:get'),
+  setPreference:   (key, val)  => ipcRenderer.invoke('preferences:set', key, val),
 
   // ── Backup / reports / window / shell ──
   /** @returns {Promise<import('./ipc-types').FileResult>} */

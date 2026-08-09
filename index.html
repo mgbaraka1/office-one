@@ -23,12 +23,12 @@
     </div>
     <div class="auth-heading" id="auth-heading">Welcome back</div>
     <div class="auth-sub" id="auth-sub">Log in to continue</div>
-    <div class="auth-field">
+    <div class="auth-field" id="auth-username-field">
       <label for="auth-username">Username</label>
       <input id="auth-username" type="text" autocomplete="username" spellcheck="false" />
     </div>
     <div class="auth-field">
-      <label for="auth-password">Password</label>
+      <label for="auth-password" id="auth-password-label">Password</label>
       <input id="auth-password" type="password" autocomplete="current-password" />
     </div>
     <div class="auth-field" id="auth-confirm-field" style="display:none">
@@ -1399,6 +1399,7 @@
     <span class="page-title"><span class="ti-ic" data-ic="settings"></span>Settings</span>
     <div class="topbar-right">
       <span class="settings-save-status" id="settings-save-status" role="status" aria-live="polite"></span>
+      <button class="btn" id="settings-discard-btn" data-onclick="discardSettingsChanges()" hidden>Discard Changes</button>
       <button class="btn primary" id="settings-save-btn" data-onclick="saveSettings()" hidden>Save Catalog Changes</button>
     </div>
   </div>
@@ -1418,6 +1419,8 @@
       <button class="stab" data-tab="natural"       data-onclick="switchTab(this)"><span class="stab-icon" data-ic="tag"></span> Natural</button>
       <button class="stab" data-tab="timeType"      data-onclick="switchTab(this)"><span class="stab-icon" data-ic="alarm-clock"></span> Time Type</button>
       <button class="stab" data-tab="status"        data-onclick="switchTab(this)"><span class="stab-icon" data-ic="flag"></span> Status</button>
+      <button class="stab" data-tab="currency"      data-onclick="switchTab(this)"><span class="stab-icon" data-ic="credit-card"></span> Currency</button>
+      <button class="stab" data-tab="billingCycle"  data-onclick="switchTab(this)"><span class="stab-icon" data-ic="calendar-clock"></span> Billing Cycle</button>
       <button class="stab" data-tab="projectStatus" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="clipboard-list"></span> Project Status</button>
       <button class="stab" data-tab="projectDocument" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="file-text"></span> Project Documents</button>
       <button class="stab" data-tab="companyDocCategory" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="calendar-check"></span> Company Doc Categories</button>
@@ -1487,9 +1490,9 @@
               <label class="user-check"><input id="user-edit-active" type="checkbox" /> Active — can sign in</label>
             </div>
             <div class="general-field full" id="user-current-password-field">
-              <label for="user-edit-current-password">Current password</label>
+              <label for="user-edit-current-password" id="user-current-password-label">Current password</label>
               <input id="user-edit-current-password" type="password" autocomplete="current-password" />
-              <span class="general-hint">Required only when changing your own password.</span>
+              <span class="general-hint" id="user-current-password-hint">Required only when changing your own password.</span>
             </div>
             <div class="general-field">
               <label for="user-edit-password" id="user-edit-password-label">New password</label>
@@ -1512,6 +1515,8 @@
       <div class="settings-panel" id="tab-natural"></div>
       <div class="settings-panel" id="tab-timeType"></div>
       <div class="settings-panel" id="tab-status"></div>
+      <div class="settings-panel" id="tab-currency"></div>
+      <div class="settings-panel" id="tab-billingCycle"></div>
       <div class="settings-panel" id="tab-projectStatus"></div>
       <div class="settings-panel" id="tab-projectDocument"></div>
       <div class="settings-panel" id="tab-companyDocCategory"></div>
@@ -1960,6 +1965,7 @@
 </main>
 
 <script src="renderer/event-delegation.js"></script>
+<script src="renderer/settings-registry.js"></script>
 <script src="renderer/core.js"></script>
 <script src="renderer/features/timesheet.js"></script>
 <script src="renderer/features/workspace.js"></script>

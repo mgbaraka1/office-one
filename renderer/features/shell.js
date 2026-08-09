@@ -24,18 +24,17 @@ const PAL_PAGES = [
   { icon: 'settings',         label: 'Settings',      go: 'settings' },
 ];
 
-// Settings tabs (Milestone 5 palette expansion) — mirrors SETTINGS_TABS' keys
-// with the human label each tab button already shows; jumping calls the
-// existing switchTab(btn) with that tab's real button element (not a fake one).
+// Settings tabs (Milestone 5 palette expansion) — the catalog entries are
+// derived from settings-registry.js's SETTINGS_CATALOG_TABS (loaded before
+// this file) so this list can't drift from the actual tab set the way it
+// once did (it used to omit Maintenance, so the palette could not reach it —
+// see SETTINGS_REFACTOR_PLAN.md §1b, S1). Jumping calls the existing
+// switchTab(btn) with that tab's real button element (not a fake one).
 const PAL_SETTINGS_TABS = [
-  { key: 'general', label: 'General' }, { key: 'users', label: 'User Management' }, { key: 'companies', label: 'Companies' },
-  { key: 'systems', label: 'Systems' }, { key: 'natural', label: 'Natural' },
-  { key: 'timeType', label: 'Time Type' }, { key: 'status', label: 'Status' },
-  { key: 'projectStatus', label: 'Project Status' },
-  { key: 'projectDocument', label: 'Project Documents' }, { key: 'companyDocCategory', label: 'Company Doc Categories' },
-  { key: 'knowledgeType', label: 'Knowledge Types' },
-  { key: 'department', label: 'Department' }, { key: 'taskSourceType', label: 'Task Source Types' },
-  { key: 'serverRole', label: 'Server Roles' },
+  { key: 'general', label: 'General' },
+  { key: 'users', label: 'User Management' },
+  ...SETTINGS_CATALOG_TABS.map(t => ({ key: t.key, label: t.label })),
+  { key: 'maintenance', label: 'Maintenance' },
 ];
 
 async function openPalette() {
@@ -264,8 +263,10 @@ async function flushPending() {
   clearTimeout(_dayNameTimer);
   clearTimeout(_subSaveTimer);
   clearTimeout(_uiStateSaveTimer);
+  clearTimeout(_knowledgeDraftSaveTimer);
   const tasks = [];
   tasks.push(window.api.saveUiState(uiState));
+  if (knowledgeDraftCache) tasks.push(window.api.saveKnowledgeDraft(knowledgeDraftCache));
   if (activeDate) {
     tasks.push(persistTimesheet());   // flush any pending granular work-log saves
     tasks.push(window.api.setDayName(activeDate, document.getElementById('hName').value));
@@ -294,10 +295,20 @@ async function flushPendingWithRecovery(action, cancelMessage) {
   }
 }
 
+// The Settings catalog draft is edited in memory and only persisted on an
+// explicit Save — unlike the debounced saves flushPending() covers, so
+// logout (location.reload()) and app close would otherwise silently drop it.
+function confirmDiscardSettingsDraft() {
+  if (!settingsDirty) return true;
+  const msg = 'You have unsaved Settings catalog changes that will be lost. Continue anyway?';
+  return confirm(window.ctI18n ? window.ctI18n.t(msg) : msg);
+}
+
 let _closeFlowRunning = false;
 window.api.onBeforeClose(async () => {
   if (_closeFlowRunning) return;
   _closeFlowRunning = true;
+  if (!confirmDiscardSettingsDraft()) { _closeFlowRunning = false; return; }
   const proceed = await flushPendingWithRecovery('close', 'Close cancelled — your unsaved changes are still open.');
   if (proceed) {
     await window.api.flushComplete();
@@ -315,6 +326,8 @@ async function init() {
 
   renderBackupChoiceMenu();
   await loadUiStateFromMain();
+  await loadKnowledgeDraftFromMain();
+  await loadUserPreferencesFromMain();
   // Restore per-module filter state that's read directly off module-scoped
   // variables (Browse kind/slice) BEFORE anything renders them; All Tasks/
   // Clients/Internal Tasks restore inside their own init functions instead,
@@ -383,9 +396,14 @@ async function init() {
 // authenticates. On first run (no accounts yet) the overlay is a one-time setup
 // form; otherwise it's a login form. init() (the real app boot, which talks to
 // the now-gated data layer) only runs after a successful login/setup.
-let _authMode  = 'login';   // 'login' | 'setup'
+let _authMode  = 'login';   // 'login' | 'setup' | 'force-change'
 let _appBooted = false;
 let _currentUser = null;
+// Held only long enough to satisfy the "confirm your current password" check
+// when finishing a forced password change — never persisted, cleared as soon
+// as the change succeeds or the field is reset.
+let _pendingForceChangeUser = null;
+let _pendingForceChangePassword = '';
 
 async function bootAuth() {
   let status;
@@ -399,13 +417,18 @@ async function bootAuth() {
 function setAuthMode(mode) {
   _authMode = mode;
   const setup = mode === 'setup';
-  document.getElementById('auth-heading').textContent = setup ? 'Create your account' : 'Welcome back';
+  const forceChange = mode === 'force-change';
+  document.getElementById('auth-heading').textContent = setup ? 'Create your account'
+    : forceChange ? 'Choose a new password' : 'Welcome back';
   document.getElementById('auth-sub').textContent = setup
     ? 'This is the first account on this device'
+    : forceChange ? 'Your password was set by an administrator. Choose a new one to continue.'
     : 'Log in to continue';
-  document.getElementById('auth-submit').textContent = setup ? 'Create account' : 'Log in';
-  document.getElementById('auth-confirm-field').style.display = setup ? '' : 'none';
-  document.getElementById('auth-password').setAttribute('autocomplete', setup ? 'new-password' : 'current-password');
+  document.getElementById('auth-submit').textContent = setup ? 'Create account' : forceChange ? 'Change password' : 'Log in';
+  document.getElementById('auth-username-field').style.display = forceChange ? 'none' : '';
+  document.getElementById('auth-confirm-field').style.display = (setup || forceChange) ? '' : 'none';
+  document.getElementById('auth-password-label').textContent = forceChange ? 'New password' : 'Password';
+  document.getElementById('auth-password').setAttribute('autocomplete', (setup || forceChange) ? 'new-password' : 'current-password');
   document.getElementById('auth-error').textContent = '';
 }
 
@@ -419,27 +442,50 @@ async function submitAuth(e) {
   [userEl, passEl, confEl].forEach(el => el.classList.remove('input-error'));
   showErr('');
 
-  const username = userEl.value.trim();
+  const forceChange = _authMode === 'force-change';
+  const username = forceChange ? _pendingForceChangeUser.username : userEl.value.trim();
   const password = passEl.value;
-  if (!username) { userEl.classList.add('input-error'); userEl.focus(); return; }
+  if (!forceChange && !username) { userEl.classList.add('input-error'); userEl.focus(); return; }
   if (!password) { passEl.classList.add('input-error'); passEl.focus(); return; }
-  if (_authMode === 'setup' && password !== confEl.value) {
+  if ((_authMode === 'setup' || forceChange) && password !== confEl.value) {
     confEl.classList.add('input-error'); confEl.focus(); showErr('Passwords do not match.'); return;
   }
 
   errEl.disabled = true;
   let res;
   try {
-    res = _authMode === 'setup'
-      ? await window.api.authSetup(username, password)
-      : await window.api.authLogin(username, password);
+    if (forceChange) {
+      res = await window.api.authUpdateUser(_pendingForceChangeUser.id, {
+        username: _pendingForceChangeUser.username,
+        password,
+        currentPassword: _pendingForceChangePassword,
+      });
+    } else {
+      res = _authMode === 'setup'
+        ? await window.api.authSetup(username, password)
+        : await window.api.authLogin(username, password);
+    }
   } catch { res = { ok: false, error: 'Something went wrong. Please try again.' }; }
   errEl.disabled = false;
 
-  if (!res || !res.ok) { showErr(res && res.error || 'Login failed.'); passEl.select(); return; }
+  if (!res || !res.ok) {
+    showErr(res && res.error || (forceChange ? 'Could not change password.' : 'Login failed.'));
+    passEl.select();
+    return;
+  }
+
+  if (!forceChange && res.user?.mustChangePassword) {
+    _pendingForceChangeUser = res.user;
+    _pendingForceChangePassword = password;
+    passEl.value = ''; if (confEl) confEl.value = '';
+    setAuthMode('force-change');
+    setTimeout(() => document.getElementById('auth-password').focus(), 50);
+    return;
+  }
 
   document.getElementById('auth-overlay').classList.remove('active');
   passEl.value = ''; if (confEl) confEl.value = '';
+  _pendingForceChangeUser = null; _pendingForceChangePassword = '';
   await startApp(res.user);
 }
 
@@ -478,6 +524,7 @@ async function startApp(user) {
 }
 
 async function doLogout() {
+  if (!confirmDiscardSettingsDraft()) return;
   const proceed = await flushPendingWithRecovery('logout', 'Logout cancelled — your unsaved changes are still open.');
   if (!proceed) return;
   try {
@@ -495,6 +542,7 @@ applyWorkspaceViewPreferences(); // restore renderer-only comfort preferences be
 applySidebarPreference(); // restore the user's navigation width before app boot
 hydrateIcons();   // swap all static [data-ic] placeholders for inline Lucide SVG
 watchAriaLabels(); // mirror every button's title onto aria-label, now and going forward
+initSettingsTablistKeyboardNav(); // Arrow/Home/End navigation across the Settings tab strip
 watchModalFocusTraps(); // Tab-cycle + initial focus inside every .modal-overlay (Milestone 5)
 connectFormLabels(); // associate visible labels with their form controls
 document.addEventListener('ct:languagechange', () => {

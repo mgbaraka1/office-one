@@ -210,7 +210,7 @@ ipcMain.handle('auth:logout', trusted(() => {
   return auth.logout();
 }));
 ipcMain.handle('auth:listUsers',   authed(()                            => auth.listUsers()));
-ipcMain.handle('auth:addUser',     admin((_e, username, pass, isAdmin) => auth.addUser(username, pass, isAdmin)));
+ipcMain.handle('auth:addUser',     admin((_e, username, pass, isAdmin, nameEn, nameAr) => auth.addUser(username, pass, isAdmin, nameEn, nameAr)));
 ipcMain.handle('auth:updateUser',  authed((_e, id, data)               => auth.updateUser(id, data)));
 
 // ── App metadata (read-only) ──
@@ -477,6 +477,14 @@ ipcMain.handle('clients:field-history', authed((_e, recordType, recordId) => db.
 // UI is active) ──
 ipcMain.handle('ui:getState', authed(() => db.loadUiState(auth.requireUserId())));
 ipcMain.handle('ui:setState', authed((_e, state) => { db.saveUiState(auth.requireUserId(), state); return { ok: true }; }));
+ipcMain.handle('ui:getKnowledgeDraft', authed(() => db.loadKnowledgeDraft(auth.requireUserId())));
+ipcMain.handle('ui:saveKnowledgeDraft', authed((_e, draft) => { db.saveKnowledgeDraft(auth.requireUserId(), draft); return { ok: true }; }));
+ipcMain.handle('ui:clearKnowledgeDraft', authed(() => { db.saveKnowledgeDraft(auth.requireUserId(), null); return { ok: true }; }));
+
+// ── Per-account UI preferences (theme/density/canvas/motion/sidebar/timesheet
+// view) — see db.js's USER_PREFERENCES for the allowlisted keys/values. ──
+ipcMain.handle('preferences:get', authed(() => db.getUserPreferences(auth.requireUserId())));
+ipcMain.handle('preferences:set', authed((_e, key, value) => db.setUserPreference(auth.requireUserId(), key, value)));
 
 // ── Backup ──
 ipcMain.handle('db:backup', admin(async () => {
