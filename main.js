@@ -4,6 +4,7 @@ const path = require('node:path');
 const db     = require('./db');
 const auth   = require('./auth');
 const { validateIpcArgs } = require('./ipc-contracts');
+const { createTimesheetWorkbook } = require('./xlsx');
 
 const e2ePort = !app.isPackaged ? Number(process.env.COOPERATION_TOOLS_E2E_PORT) : 0;
 const isE2ERun = Number.isInteger(e2ePort) && e2ePort > 0 && e2ePort <= 65535;
@@ -626,6 +627,29 @@ ipcMain.handle('report:exportCSV', authed(async (_e, csv, defaultName) => {
     });
     if (canceled || !filePath) return { ok: false };
     fs.writeFileSync(filePath, '\uFEFF' + content, 'utf8');
+    return { ok: true, path: filePath };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err) };
+  }
+}));
+
+ipcMain.handle('report:exportExcel', authed(async (_e, reportData, defaultName) => {
+  try {
+    const serializedBytes = Buffer.byteLength(JSON.stringify(reportData || {}), 'utf8');
+    if (!reportData || serializedBytes > 10 * 1024 * 1024) {
+      return { ok: false, error: 'Excel report content is empty or too large' };
+    }
+    const safeDefaultName = path.basename(String(defaultName || 'timesheet.xlsx')).slice(0, 180) || 'timesheet.xlsx';
+    const e2eXlsxPath = isE2ERun ? process.env.COOPERATION_TOOLS_E2E_XLSX_PATH : null;
+    const { canceled, filePath } = e2eXlsxPath
+      ? { canceled: false, filePath: e2eXlsxPath }
+      : await dialog.showSaveDialog(win, {
+          title: 'Save timesheet as Excel',
+          defaultPath: safeDefaultName,
+          filters: [{ name: 'Excel workbook', extensions: ['xlsx'] }],
+        });
+    if (canceled || !filePath) return { ok: false };
+    fs.writeFileSync(filePath, createTimesheetWorkbook(reportData));
     return { ok: true, path: filePath };
   } catch (err) {
     return { ok: false, error: String(err?.message || err) };
