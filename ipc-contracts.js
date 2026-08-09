@@ -118,6 +118,7 @@ const SIGNATURES = {
   'maintenance:openBackupFolder': ['string'],
   'report:exportPDF': ['report', 'string'],
   'report:exportCSV': ['report', 'string'],
+  'report:exportExcel': ['object', 'string'],
   'report:print': ['report'],
   'app:confirmSaveFailure': ['string', 'string?'],
   'window:setTitle': ['string'],
@@ -193,6 +194,8 @@ function validateIpcArgs(channel, args) {
   });
   if (channel === 'report:exportPDF' || channel === 'report:exportCSV' || channel === 'report:print') {
     if (Buffer.byteLength(args[0], 'utf8') > 10 * 1024 * 1024) throw new Error('Report content is too large');
+  } else if (channel === 'report:exportExcel') {
+    if (Buffer.byteLength(JSON.stringify(args[0]), 'utf8') > 10 * 1024 * 1024) throw new Error('Report content is too large');
   } else {
     for (const arg of args) {
       if (typeof arg === 'string' && Buffer.byteLength(arg, 'utf8') > 1024 * 1024) {

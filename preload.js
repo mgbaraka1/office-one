@@ -260,6 +260,7 @@ contextBridge.exposeInMainWorld('api', {
   /** @returns {Promise<import('./ipc-types').FileResult>} */
   exportPDF:         (html, name) => ipcRenderer.invoke('report:exportPDF', html, name),
   exportCSV:         (csv, name)  => ipcRenderer.invoke('report:exportCSV', csv, name),
+  exportExcel:       (data, name) => ipcRenderer.invoke('report:exportExcel', data, name),
   printReport:       (html)       => ipcRenderer.invoke('report:print', html),
   flushComplete:     ()           => ipcRenderer.invoke('app:flushComplete'),
   cancelClose:       ()           => ipcRenderer.invoke('app:cancelClose'),
