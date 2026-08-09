@@ -12,6 +12,7 @@ const html = [
   fs.readFileSync(path.join(__dirname, '..', 'renderer', 'bootstrap.js'), 'utf8'),
   fs.readFileSync(path.join(__dirname, '..', 'renderer', 'app.css'), 'utf8'),
   fs.readFileSync(path.join(__dirname, '..', 'renderer', 'core.js'), 'utf8'),
+  fs.readFileSync(path.join(__dirname, '..', 'renderer', 'settings-registry.js'), 'utf8'),
   ...['timesheet', 'workspace', 'tasks', 'knowledge', 'company-documents', 'clients', 'shell']
     .map(name => fs.readFileSync(path.join(__dirname, '..', 'renderer', 'features', name + '.js'), 'utf8')),
 ].join('\n');
@@ -236,7 +237,7 @@ gate('Knowledge item delete replaces an older undo safely',
 gate('Knowledge Hub offers rich-text authoring, safe links, and recoverable drafts',
   html.includes('id="kh-content-editor"')
   && html.includes('function renderKnowledgeContent(host, value, format)')
-  && html.includes('uiState.knowledgeDraft = knowledgeEditorSnapshot()')
+  && html.includes('knowledgeDraftCache = knowledgeEditorSnapshot()')
   && html.includes('function recoverKnowledgeDraft()'));
 gate('Knowledge Hub supports combined accessible filters and highlighted search snippets',
   html.includes('let knowledgeFilters = new Set()')
@@ -257,7 +258,7 @@ gate('Knowledge Hub has no reference URL or review-date UI',
   && !html.includes('Reference links')
   && !html.includes('NEEDS_REVIEW'));
 gate('Knowledge types are administrator-managed in Settings',
-  html.includes('data-tab="knowledgeType"') && html.includes("knowledgeType: 'KNOWLEDGE_TYPE'"));
+  html.includes('data-tab="knowledgeType"') && html.includes("category: 'KNOWLEDGE_TYPE'"));
 gate('logout uses the same explicit save-failure recovery flow as window closing',
   html.includes("flushPendingWithRecovery('logout'")
   && html.includes("confirmSaveFailure(String(error?.message || error), action)")

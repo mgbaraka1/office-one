@@ -22,6 +22,7 @@ const ICONS = {
   "bell": "<path d=\"M10.268 21a2 2 0 0 0 3.464 0\" /><path d=\"M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326\" />",
   "calendar": "<path d=\"M8 2v4\" /><path d=\"M16 2v4\" /><rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\" /><path d=\"M3 10h18\" />",
   "chevron-down": "<path d=\"m6 9 6 6 6-6\" />",
+  "chevron-up": "<path d=\"m18 15-6-6-6 6\" />",
   "chevron-right": "<path d=\"m9 18 6-6-6-6\" />",
   "timer": "<line x1=\"10\" x2=\"14\" y1=\"2\" y2=\"2\" /><line x1=\"12\" x2=\"15\" y1=\"14\" y2=\"11\" /><circle cx=\"12\" cy=\"14\" r=\"8\" />",
   "play": "<path d=\"M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z\" />",
@@ -135,13 +136,24 @@ function syncControlSemantics(root = document) {
     if (btn.classList.contains('active')) btn.setAttribute('aria-current', 'page');
     else btn.removeAttribute('aria-current');
   });
-  root.querySelectorAll?.('#module-settings .settings-tabs').forEach(el => el.setAttribute('role', 'tablist'));
+  root.querySelectorAll?.('#module-settings .settings-tabs').forEach(el => {
+    el.setAttribute('role', 'tablist');
+    el.setAttribute('aria-orientation', 'vertical');
+  });
   root.querySelectorAll?.('#module-settings .stab').forEach(btn => {
     btn.setAttribute('role', 'tab');
     btn.setAttribute('aria-selected', String(btn.classList.contains('active')));
     btn.setAttribute('aria-controls', 'tab-' + btn.dataset.tab);
+    if (!btn.id) btn.id = 'stab-' + btn.dataset.tab;
+    // Roving tabindex: only the active tab sits in the normal Tab order —
+    // Arrow keys (wired once in initSettingsTablistKeyboardNav) move focus
+    // between the rest, the standard tablist keyboard pattern.
+    btn.tabIndex = btn.classList.contains('active') ? 0 : -1;
   });
-  root.querySelectorAll?.('#module-settings .settings-panel').forEach(panel => panel.setAttribute('role', 'tabpanel'));
+  root.querySelectorAll?.('#module-settings .settings-panel').forEach(panel => {
+    panel.setAttribute('role', 'tabpanel');
+    panel.setAttribute('aria-labelledby', 'stab-' + panel.id.replace(/^tab-/, ''));
+  });
   syncAriaLabelsFromTitle(root);
 }
 
@@ -157,6 +169,30 @@ function watchAriaLabels() {
       });
     }
   }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['title', 'class'] });
+}
+
+// Standard tablist keyboard pattern (WAI-ARIA APG) for the Settings tab
+// strip: Up/Down move focus among VISIBLE tabs (search can hide some — see
+// filterSettingsTabs), Home/End jump to the first/last visible one. Wired
+// once — syncControlSemantics() keeps aria-selected/tabIndex in sync as the
+// active tab changes, this only needs to handle the keypress itself.
+function initSettingsTablistKeyboardNav() {
+  document.getElementById('module-settings')?.addEventListener('keydown', e => {
+    const tab = e.target.closest('#module-settings .settings-tabs .stab');
+    if (!tab) return;
+    const visible = [...document.querySelectorAll('#module-settings .settings-tabs .stab')].filter(b => !b.hidden);
+    const i = visible.indexOf(tab);
+    if (i === -1) return;
+    let next = null;
+    if (e.key === 'ArrowDown') next = visible[(i + 1) % visible.length];
+    else if (e.key === 'ArrowUp') next = visible[(i - 1 + visible.length) % visible.length];
+    else if (e.key === 'Home') next = visible[0];
+    else if (e.key === 'End') next = visible[visible.length - 1];
+    if (!next) return;
+    e.preventDefault();
+    switchTab(next);
+    next.focus();
+  });
 }
 
 // ── Modal focus-trap + initial focus (Milestone 5) ──────────────────────────
@@ -250,24 +286,17 @@ let calYear, calMonth;
 // compares codes, never hardcoded display strings.
 let LK = { categories: {}, defaultName: '' };
 let lookupsDraft = {};          // working copy edited by the Settings catalog editor
+// True while lookupsDraft holds edits not yet saved. While dirty,
+// initSettingsModule() must NOT re-clone from LK — otherwise switching away
+// from Settings and back (or a language change) silently wipes the draft.
+let settingsDirty = false;
 
-// UI dropdown key → catalog category, and which option field is the stored value.
-const LK_CAT = {
-  companies: 'COMPANY', systems: 'SYSTEM', natural: 'ACTIVITY_TYPE',
-  timeType: 'TIME_TYPE', status: 'ENTRY_STATUS',
-  currency: 'CURRENCY', billingCycle: 'BILLING_CYCLE',
-  projectStatus: 'PROJECT_STATUS', projectDocument: 'PROJECT_DOCUMENT',
-  companyDocCategory: 'COMPANY_DOCUMENT_CATEGORY', knowledgeType: 'KNOWLEDGE_TYPE', department: 'DEPARTMENT',
-  taskSourceType: 'TASK_SOURCE_TYPE',
-  serverRole: 'SERVER_ROLE',
-};
-const LK_VALUE = {             // 'label' = stored as display label; 'code' = stored as code
-  companies: 'code', systems: 'label', natural: 'label',
-  timeType: 'code', status: 'code', currency: 'code', billingCycle: 'code',
-  projectStatus: 'code', projectDocument: 'code', companyDocCategory: 'code', knowledgeType: 'code',
-  department: 'label', taskSourceType: 'code',
-  serverRole: 'code',
-};
+// UI dropdown key → catalog category, and which option field is the stored
+// value ('label' = stored as display label; 'code' = stored as code). Derived
+// from settings-registry.js (loaded before this file) so there is exactly one
+// place that maps a UI key to its category — see that file's header comment.
+const LK_CAT = Object.fromEntries(SETTINGS_CATALOG_TABS.map(t => [t.key, t.category]));
+const LK_VALUE = Object.fromEntries(SETTINGS_CATALOG_TABS.map(t => [t.key, t.valueField]));
 
 // Active options for a category, ordered for dropdowns.
 function lkOptions(category, includeInactive = false) {
@@ -357,6 +386,44 @@ let _uiStateSaveTimer = null;
 function saveUiStateDebounced() {
   clearTimeout(_uiStateSaveTimer);
   _uiStateSaveTimer = setTimeout(() => { window.api.saveUiState(uiState).catch(() => {}); }, 300);
+}
+
+// Knowledge Hub editor recovery draft — its own row (see db.js), loaded once
+// at boot alongside uiState. Deliberately NOT part of uiState: the editor
+// snapshots on every keystroke (including the Quill HTML content), and that
+// used to mean a large document rewrote the whole ui_state blob — filters,
+// lastModule, everything — on every 300ms debounce tick.
+let knowledgeDraftCache = null;
+async function loadKnowledgeDraftFromMain() {
+  try { knowledgeDraftCache = await window.api.getKnowledgeDraft(); } catch { knowledgeDraftCache = null; }
+}
+let _knowledgeDraftSaveTimer = null;
+function saveKnowledgeDraftDebounced() {
+  clearTimeout(_knowledgeDraftSaveTimer);
+  _knowledgeDraftSaveTimer = setTimeout(() => { window.api.saveKnowledgeDraft(knowledgeDraftCache).catch(() => {}); }, 300);
+}
+
+// ── Per-account UI preferences (SETTINGS_REFACTOR_PLAN.md Phase 3, S4) ──
+// theme/density/canvas/motion/sidebar/timesheet view used to live only in
+// localStorage, which is machine-wide: a second account on the same Windows
+// login inherited whatever the first account last chose. Pre-login (theme
+// only, to avoid a flash of the wrong theme — see renderer/bootstrap.js) and
+// as an offline fallback, localStorage stays a mirror; once a user is known,
+// their own DB-stored preferences are authoritative and override that guess.
+async function loadUserPreferencesFromMain() {
+  try {
+    const prefs = await window.api.getPreferences();
+    applyLoadedTheme(prefs.theme);
+    workspaceViewPrefs.density = prefs.density;
+    workspaceViewPrefs.canvas = prefs.canvas;
+    workspaceViewPrefs.motion = prefs.motion;
+    applyWorkspaceViewPreferences();
+    applySidebarPreference(prefs.sidebar === 'compact');
+    tsView = prefs.timesheetView === 'flat' ? 'flat' : 'grouped';
+  } catch { /* keep the localStorage-derived pre-login guess */ }
+}
+function saveUserPreference(key, value) {
+  window.api.setPreference(key, value).catch(() => {});
 }
 
 function rememberSessionDefaults(time, natural) {
@@ -983,12 +1050,29 @@ function buildTaskSearchSelect(host, tasks, initialId, placeholder, onChange) {
 // The tabs edit a working copy of the catalog (lookupsDraft, keyed by category).
 // Existing entries are relabeled / reordered / soft-disabled in place; new entries
 // get a server-generated stable code on save. Codes are never edited or deleted.
-const SETTINGS_TABS = ['companies', 'systems', 'natural', 'timeType', 'status', 'projectStatus', 'projectDocument', 'companyDocCategory', 'knowledgeType', 'department', 'taskSourceType', 'serverRole'];
+const SETTINGS_TABS = SETTINGS_CATALOG_TABS.map(t => t.key);
 
 // Settings is a nav page (not a modal): switchModule('settings') calls this to
 // (re)load a working copy of the catalog and render the editors fresh each visit.
+// While an edit is uncommitted (settingsDirty), the draft is NOT re-cloned —
+// otherwise navigating away and back, or a language change, silently discards
+// unsaved catalog edits (see markSettingsDirty / discardSettingsChanges).
 async function initSettingsModule() {
-  lookupsDraft = JSON.parse(JSON.stringify(LK.categories || {}));
+  if (!settingsDirty) lookupsDraft = JSON.parse(JSON.stringify(LK.categories || {}));
+  // Restore the last-used Settings tab for this account (S10 in
+  // SETTINGS_REFACTOR_PLAN.md) — uiState is already per-account (see
+  // loadUiStateFromMain), so this just needed a place to remember which tab.
+  // Only applies when it actually differs from what's currently active, so
+  // it never fights an explicit deep link (palette/search jump) that calls
+  // its own switchTab() right after this function returns. Skips a tab
+  // that's hidden for this account (e.g. a saved catalog tab for a standard
+  // user, or a tab a permission/language change has since removed).
+  const savedTab = uiState.filters.settings?.tab;
+  const currentTab = document.querySelector('#module-settings .stab.active')?.dataset.tab;
+  if (savedTab && savedTab !== currentTab) {
+    const savedBtn = document.querySelector('#module-settings .stab[data-tab="' + savedTab + '"]');
+    if (savedBtn && !savedBtn.hidden) switchTab(savedBtn);
+  }
   if (_currentUser?.isAdmin) SETTINGS_TABS.forEach(renderLookupPanel);
   document.querySelectorAll('#setting-startonlastpage-ctl .seg-btn').forEach(b =>
     b.classList.toggle('active', (b.dataset.val === 'last') === !!uiState.startOnLastPage));
@@ -1010,12 +1094,31 @@ function setStartOnLastPage(startOnLast) {
   saveUiStateDebounced();
 }
 
+// Electron's IPC layer wraps a thrown main-process error message in a
+// generic "Error invoking remote method '...': Error: <message>" envelope —
+// strip that so the user sees db.js's actual reason (e.g. a company code
+// collision) instead of a useless boilerplate string.
+function unwrapIpcErrorMessage(err) {
+  const raw = String(err?.message || err || '');
+  const m = raw.match(/Error invoking remote method '[^']*':\s*(?:Error:\s*)?([\s\S]+)/);
+  return (m ? m[1] : raw).trim();
+}
+
+const SKIP_REASON_LABEL = {
+  'blank-label': 'missing an English label',
+  'duplicate-label': 'duplicates another entry’s label',
+  'no-access': 'could not be saved (not accessible)',
+};
+
 async function saveSettings() {
   const statusEl = document.getElementById('settings-save-status');
   const saveBtn = document.getElementById('settings-save-btn');
   if (statusEl) statusEl.textContent = 'Saving…';
   if (saveBtn) saveBtn.disabled = true;
-  // Build the catalog payload (sort_order = position), keeping only labelled rows.
+  // Build the catalog payload (sort_order = position). Only a genuinely blank,
+  // never-saved new row is dropped here — anything else (including a row
+  // missing only its English label) is sent through so the server can report
+  // it as skipped, rather than silently vanishing before the user finds out.
   const categories = {};
   for (const uiKey of SETTINGS_TABS) {
     const cat = LK_CAT[uiKey];
@@ -1027,17 +1130,20 @@ async function saveSettings() {
         nameAr: String(o.nameAr || '').trim(),
         sortOrder: i, isActive: o.isActive !== false,
       }))
-      .filter(o => o.label);
+      .filter(o => o.label || o.nameAr || o.id != null);
   }
   const payload = {};
   if (_currentUser?.isAdmin) payload.categories = categories;
+  let result;
   try {
-    await window.api.saveLookups(payload);
-  } catch {
+    result = await window.api.saveLookups(payload);
+  } catch (err) {
+    const message = unwrapIpcErrorMessage(err) || 'Could not save settings';
     if (statusEl) statusEl.textContent = 'Not saved';
     if (saveBtn) saveBtn.disabled = false;
-    toast('Could not save settings'); return;
+    toast(message); return;
   }
+  const skipped = result?.skipped || [];
   try {
     LK = await window.api.loadLookups();   // refresh — new entries now have stable codes
   } catch {
@@ -1051,12 +1157,19 @@ async function saveSettings() {
   // lightweight cache, so catalog changes must invalidate that cache or a
   // newly added company will not appear as a client until the app restarts.
   invalidateClientsCatalog();
+  settingsDirty = false;
   initSettingsModule();                     // re-sync the draft with server-assigned codes
   renderTable();                            // reflect any relabeled values immediately
   renderFilterChips();
-  if (statusEl) statusEl.textContent = 'Saved';
+  if (skipped.length) {
+    const detail = skipped.map(s => `${s.label} (${SKIP_REASON_LABEL[s.reason] || s.reason})`).join('; ');
+    if (statusEl) statusEl.textContent = `Saved — ${skipped.length} not saved`;
+    toast(`Settings saved — ${skipped.length} entr${skipped.length === 1 ? 'y was' : 'ies were'} not saved: ${detail}`);
+  } else {
+    if (statusEl) statusEl.textContent = 'Saved';
+    toast('Settings saved');
+  }
   if (saveBtn) saveBtn.disabled = false;
-  toast('Settings saved');
 }
 
 let managedUsers = [];
@@ -1080,6 +1193,9 @@ async function renderUserManagement() {
     const meta = pjMk('div', 'user-card-meta');
     meta.appendChild(pjMk('span', 'user-role-badge', user.isAdmin ? 'Administrator' : 'Standard User'));
     meta.appendChild(pjMk('span', 'user-status-badge' + (user.isActive ? '' : ' inactive'), user.isActive ? 'Active' : 'Inactive'));
+    if (user.mustChangePassword) {
+      meta.appendChild(pjMk('span', 'user-status-badge pending', 'Must change password'));
+    }
     if (user.createdAt) {
       const createdDate = new Date(user.createdAt).toLocaleDateString();
       meta.appendChild(document.createTextNode(
@@ -1112,7 +1228,15 @@ function openUserEditor(id = null) {
   active.checked = creating || !!user?.isActive;
   active.disabled = isSelf;
   document.querySelectorAll('#user-editor .user-admin-control').forEach(el => { el.hidden = !_currentUser?.isAdmin; });
-  document.getElementById('user-current-password-field').hidden = !isSelf;
+  // An admin resetting someone ELSE's password or changing their role/status
+  // must re-prove it's really them at the keyboard, not just that an admin
+  // session happens to still be open — reuses this same field, relabeled.
+  const showCurrentPassword = isSelf || (!creating && _currentUser?.isAdmin && !isSelf);
+  document.getElementById('user-current-password-field').hidden = !showCurrentPassword;
+  document.getElementById('user-current-password-label').textContent = isSelf ? 'Current password' : 'Your admin password';
+  document.getElementById('user-current-password-hint').textContent = isSelf
+    ? 'Required only when changing your own password.'
+    : 'Required to reset this user’s password or change their role or status.';
   document.getElementById('user-edit-password-label').textContent = creating ? 'Temporary password' : 'New password (optional)';
   ['user-edit-current-password', 'user-edit-password', 'user-edit-confirm'].forEach(key => { document.getElementById(key).value = ''; });
   document.getElementById('user-form-status').textContent = '';
@@ -1127,6 +1251,27 @@ function closeUserEditor() {
   document.getElementById('user-form-status').textContent = '';
 }
 
+// Mirrors auth.js's validateUsername/validatePassword exactly (that module
+// runs main-process-only and cannot be required from the renderer) so the
+// user finds out about an invalid value before a round trip, not after one.
+const USER_USERNAME_MIN = 3, USER_USERNAME_MAX = 32;
+const USER_USERNAME_RE = /^[A-Za-z0-9._-]+$/;
+const USER_PASSWORD_MIN = 8, USER_PASSWORD_MAX_BYTES = 72;
+function validateUsernameClientSide(username) {
+  if (username.length < USER_USERNAME_MIN || username.length > USER_USERNAME_MAX) {
+    return `Username must be ${USER_USERNAME_MIN}–${USER_USERNAME_MAX} characters.`;
+  }
+  if (!USER_USERNAME_RE.test(username)) return 'Username may only contain letters, numbers, and . _ -';
+  return null;
+}
+function validatePasswordClientSide(password) {
+  if (password.length < USER_PASSWORD_MIN) return `Password must be at least ${USER_PASSWORD_MIN} characters.`;
+  if (new TextEncoder().encode(password).length > USER_PASSWORD_MAX_BYTES) {
+    return `Password must be at most ${USER_PASSWORD_MAX_BYTES} UTF-8 bytes.`;
+  }
+  return null;
+}
+
 async function saveManagedUser() {
   const status = document.getElementById('user-form-status');
   const saveBtn = document.getElementById('user-save-btn');
@@ -1138,16 +1283,19 @@ async function saveManagedUser() {
   const creating = managedUserId == null;
   status.textContent = '';
   if (!username) { status.textContent = 'Username is required.'; document.getElementById('user-edit-username').focus(); return; }
+  const usernameErr = validateUsernameClientSide(username);
+  if (usernameErr) { status.textContent = usernameErr; document.getElementById('user-edit-username').focus(); return; }
   if (creating && !password) { status.textContent = 'A temporary password is required.'; document.getElementById('user-edit-password').focus(); return; }
+  if (password) {
+    const passwordErr = validatePasswordClientSide(password);
+    if (passwordErr) { status.textContent = passwordErr; document.getElementById('user-edit-password').focus(); return; }
+  }
   if (password !== confirm) { status.textContent = 'Passwords do not match.'; document.getElementById('user-edit-confirm').focus(); return; }
   saveBtn.disabled = true;
   let result;
   try {
     if (creating) {
-      result = await window.api.authAddUser(username, password, document.getElementById('user-edit-role').value === 'admin');
-      if (result?.ok && (nameEn || nameAr)) {
-        result = await window.api.authUpdateUser(result.user.id, { nameEn, nameAr });
-      }
+      result = await window.api.authAddUser(username, password, document.getElementById('user-edit-role').value === 'admin', nameEn, nameAr);
     } else {
       result = await window.api.authUpdateUser(managedUserId, {
         username,
@@ -1155,7 +1303,11 @@ async function saveManagedUser() {
         nameAr,
         isAdmin: document.getElementById('user-edit-role').value === 'admin',
         isActive: document.getElementById('user-edit-active').checked,
+        // Same field, two meanings depending on who's being edited: the
+        // acting user's own current password, whether confirming their own
+        // change or re-proving their identity to change someone else's.
         currentPassword: document.getElementById('user-edit-current-password').value,
+        actorPassword: document.getElementById('user-edit-current-password').value,
         password,
       });
     }
@@ -1310,9 +1462,12 @@ async function runMaintenanceLookupScan() {
     host.appendChild(row);
   });
 }
-// Categories mergeLookupDuplicate() actually supports — mirrors db.js's own
-// LOOKUP_MERGE_TARGETS scoping (kept in sync manually; small, stable list).
-const LOOKUP_MERGE_CATEGORIES = { COMPANY: true, SYSTEM: true, ACTIVITY_TYPE: true };
+// Categories mergeLookupDuplicate() actually supports — derived from the
+// registry's `mergeable` flag, which mirrors db.js's own LOOKUP_MERGE_TARGETS
+// scoping (test/settings-registry-smoke.js checks the two stay in sync).
+const LOOKUP_MERGE_CATEGORIES = Object.fromEntries(
+  SETTINGS_CATALOG_TABS.filter(t => t.mergeable).map(t => [t.category, true])
+);
 
 function openMaintenanceMergeConfirm(row, dupeGroup) {
   if (row.querySelector('.maint-confirm')) return;
@@ -1374,6 +1529,8 @@ function switchTab(btn) {
   syncControlSemantics(document.getElementById('module-settings'));
   if (btn.dataset.tab === 'maintenance') renderMaintenanceTab();
   if (btn.dataset.tab === 'users') renderUserManagement();
+  uiState.filters.settings = { tab: btn.dataset.tab };
+  saveUiStateDebounced();
 }
 
 function syncSettingsSaveButton(tab) {
@@ -1382,21 +1539,104 @@ function syncSettingsSaveButton(tab) {
   btn.hidden = tab === 'maintenance' || tab === 'general' || tab === 'users';
   btn.textContent = 'Save Catalog Changes';
   document.getElementById('settings-save-status').textContent = '';
+  const discardBtn = document.getElementById('settings-discard-btn');
+  if (discardBtn) discardBtn.hidden = !settingsDirty;
 }
+
+// Marks the catalog draft as having unsaved edits so navigating away and back
+// (or a language change) preserves it instead of silently discarding it —
+// called by every catalog field/add/disable/delete handler.
+function markSettingsDirty() {
+  settingsDirty = true;
+  const discardBtn = document.getElementById('settings-discard-btn');
+  if (discardBtn) discardBtn.hidden = false;
+}
+
+// Reverts lookupsDraft to the last-loaded server state. Mirrors the
+// native-confirm convention the Knowledge Hub editor already uses for the
+// same "discard this dirty form" situation (closeKnowledgeEditor).
+function discardSettingsChanges() {
+  const msg = 'Discard your unsaved catalog changes?';
+  if (!confirm(window.ctI18n ? window.ctI18n.t(msg) : msg)) return;
+  settingsDirty = false;
+  initSettingsModule();
+  toast('Changes discarded');
+}
+
+// Settings search used to only match a tab's own name (S9 in
+// SETTINGS_REFACTOR_PLAN.md) — typing "backup", "password", or "integrity"
+// found nothing even though all three exist inside a panel. Each entry names
+// the tab it lives on, a selector to scroll to and highlight, and the search
+// terms that should find it (in addition to whatever the tab's own label
+// already matches via textContent).
+const SETTINGS_SEARCH_INDEX = [
+  { tab: 'general', selector: '#setting-startonlastpage-ctl', terms: 'start on last page landing analytics launch open' },
+  { tab: 'general', selector: '#tab-general button[data-onclick="openHowThinksOverlay()"]', terms: 'how this app thinks help guide explainer onboarding' },
+  { tab: 'users', selector: '#user-add-btn', terms: 'add user new user create account invite' },
+  { tab: 'users', selector: '#user-list', terms: 'users accounts password permissions role administrator standard' },
+  { tab: 'maintenance', selector: '#maint-fullbackup-btn', terms: 'backup full backup desktop everything export' },
+  { tab: 'maintenance', selector: '#maint-fullrestore-btn', terms: 'restore recovery full restore import' },
+  { tab: 'maintenance', selector: 'button[data-onclick="runSystemDiagnostics()"]', terms: 'diagnostics audit readiness recovery checks health' },
+  { tab: 'maintenance', selector: 'button[data-onclick="refreshMaintenanceBackups()"]', terms: 'backups rotating snapshots refresh' },
+  { tab: 'maintenance', selector: 'button[data-onclick="runMaintenanceIntegrityCheck()"]', terms: 'integrity check corruption database' },
+  { tab: 'maintenance', selector: 'button[data-onclick="runMaintenanceLookupScan()"]', terms: 'duplicates merge lookup scan dedupe' },
+  { tab: 'maintenance', selector: '#maint-orphan-report', terms: 'orphan file sweep cleanup leftover' },
+];
 
 function filterSettingsTabs() {
   const q = (document.getElementById('settings-search')?.value || '').trim().toLowerCase();
   const tabs = [...document.querySelectorAll('#module-settings .stab')];
+  const controlMatches = q ? SETTINGS_SEARCH_INDEX.filter(entry => entry.terms.includes(q)) : [];
+  const controlMatchTabs = new Set(controlMatches.map(entry => entry.tab));
   tabs.forEach(btn => {
     const permitted = _currentUser?.isAdmin || btn.dataset.tab === 'general' || btn.dataset.tab === 'users';
-    btn.hidden = !permitted || (!!q && !btn.textContent.toLowerCase().includes(q));
+    const labelMatches = !q || btn.textContent.toLowerCase().includes(q);
+    btn.hidden = !permitted || (!!q && !labelMatches && !controlMatchTabs.has(btn.dataset.tab));
   });
-  document.querySelectorAll('#module-settings .settings-group-label').forEach(label => { label.hidden = !!q; });
+  // A group header hides while searching, but an admin-only header must stay
+  // hidden for a standard user even once the search box is cleared — it must
+  // never reappear over a section whose tabs are all permission-hidden.
+  document.querySelectorAll('#module-settings .settings-group-label').forEach(label => {
+    label.hidden = !!q || (label.classList.contains('admin-only') && !_currentUser?.isAdmin);
+  });
   const active = document.querySelector('#module-settings .stab.active');
   if (active?.hidden) {
     const first = tabs.find(btn => !btn.hidden);
     if (first) switchTab(first);
   }
+  // A query that only matched a control (not the active tab's own label)
+  // means the user is hunting for something specific inside a panel — jump
+  // there and flash it, the same deep-link convention palette hits use.
+  if (controlMatches.length) {
+    const target = controlMatches[0];
+    const targetBtn = tabs.find(btn => btn.dataset.tab === target.tab);
+    if (targetBtn && !targetBtn.classList.contains('active')) switchTab(targetBtn);
+    scrollToAndHighlight(target.selector);
+  }
+}
+
+// Swaps a draft entry with its neighbor — the only way to change sortOrder
+// (S6 in SETTINGS_REFACTOR_PLAN.md: it was written on save but had no UI).
+function moveDraftEntry(arr, index, delta, redraw) {
+  const target = index + delta;
+  if (target < 0 || target >= arr.length) return;
+  [arr[index], arr[target]] = [arr[target], arr[index]];
+  markSettingsDirty();
+  redraw();
+}
+function buildReorderControls(arr, i, redraw) {
+  const wrap = document.createElement('div');
+  wrap.className = 'lookup-item-reorder';
+  const up = document.createElement('button');
+  up.type = 'button'; up.className = 'lookup-item-reorder-btn'; up.innerHTML = ic('chevron-up');
+  up.title = 'Move up'; up.disabled = i === 0;
+  up.addEventListener('click', () => moveDraftEntry(arr, i, -1, redraw));
+  const down = document.createElement('button');
+  down.type = 'button'; down.className = 'lookup-item-reorder-btn'; down.innerHTML = ic('chevron-down');
+  down.title = 'Move down'; down.disabled = i === arr.length - 1;
+  down.addEventListener('click', () => moveDraftEntry(arr, i, 1, redraw));
+  wrap.appendChild(up); wrap.appendChild(down);
+  return wrap;
 }
 
 function renderLookupPanel(uiKey) {
@@ -1425,13 +1665,15 @@ function renderLookupPanel(uiKey) {
       const input = document.createElement('input'); input.type = 'text'; input.value = value || ''; input.placeholder = placeholder;
       input.title = opt.code ? 'code: ' + opt.code : 'new entry';
       input.dir = dir;
-      input.addEventListener('input', e => onInput(e.target.value)); wrap.appendChild(input);
+      input.addEventListener('input', e => { onInput(e.target.value); markSettingsDirty(); }); wrap.appendChild(input);
       return wrap;
     };
     item.appendChild(field('English Label', opt.nameEn || opt.label, 'English label', value => {
       opt.nameEn = value; opt.label = value;
     }, 'ltr'));
     item.appendChild(field('Arabic Label', opt.nameAr, 'التسمية بالعربية', value => { opt.nameAr = value; }, 'rtl'));
+
+    item.appendChild(buildReorderControls(arr, i, redraw));
 
     // Existing entries soft-disable (codes are immutable — historical rows point at
     // them); never-saved new entries are simply dropped.
@@ -1442,6 +1684,7 @@ function renderLookupPanel(uiKey) {
     del.addEventListener('click', () => {
       if (opt.id == null) arr.splice(i, 1);
       else opt.isActive = opt.isActive === false;
+      markSettingsDirty();
       redraw();
     });
 
@@ -1456,6 +1699,7 @@ function renderLookupPanel(uiKey) {
   addBtn.innerHTML = ic('plus') + ' Add Entry';
   addBtn.addEventListener('click', () => {
     arr.push({ id: null, code: null, label: '', nameEn: '', nameAr: '', sortOrder: arr.length, isActive: true });
+    markSettingsDirty();
     redraw();
     panel.querySelector('.bilingual-lookup-item:last-child input')?.focus();
   });
@@ -1478,17 +1722,19 @@ function renderCompanyProfilePanel(panel, arr) {
       const wrap = document.createElement('label'); wrap.className = 'client-profile-field ' + className;
       const caption = document.createElement('span'); caption.textContent = label; wrap.appendChild(caption);
       const input = document.createElement('input'); input.type = 'text'; input.value = value || ''; input.placeholder = placeholder;
-      input.addEventListener('input', e => onInput(e.target.value)); wrap.appendChild(input); return wrap;
+      input.addEventListener('input', e => { onInput(e.target.value); markSettingsDirty(); }); wrap.appendChild(input); return wrap;
     };
     item.appendChild(field('Company Code', opt.code, 'e.g. ACME or 105', v => { opt.code = v.toUpperCase().replace(/\s+/g, '_'); }, 'client-code-field'));
     item.appendChild(field('English Name', opt.nameEn || opt.label, 'English company name', v => { opt.nameEn = v; opt.label = v; }));
     const arField = field('Arabic Name', opt.nameAr, 'اسم الشركة بالعربية', v => { opt.nameAr = v; });
     arField.querySelector('input').dir = 'rtl'; item.appendChild(arField);
 
+    item.appendChild(buildReorderControls(arr, i, redraw));
+
     const del = document.createElement('button'); del.type = 'button'; del.className = 'lookup-item-del';
     del.innerHTML = opt.isActive === false ? ic('rotate-ccw') : ic('x');
     del.title = opt.id == null ? 'Remove' : (opt.isActive === false ? 'Re-enable' : 'Disable (hide from dropdowns)');
-    del.addEventListener('click', () => { if (opt.id == null) arr.splice(i, 1); else opt.isActive = opt.isActive === false; redraw(); });
+    del.addEventListener('click', () => { if (opt.id == null) arr.splice(i, 1); else opt.isActive = opt.isActive === false; markSettingsDirty(); redraw(); });
     item.appendChild(del); list.appendChild(item);
   });
   panel.appendChild(list);
@@ -1497,6 +1743,7 @@ function renderCompanyProfilePanel(panel, arr) {
   addBtn.innerHTML = ic('plus') + ' Add Client Profile';
   addBtn.addEventListener('click', () => {
     arr.push({ id: null, code: '', label: '', nameEn: '', nameAr: '', sortOrder: arr.length, isActive: true });
+    markSettingsDirty();
     redraw();
     panel.querySelector('.client-profile-item:last-child input')?.focus();
   });

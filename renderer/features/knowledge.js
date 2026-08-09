@@ -519,7 +519,7 @@ function knowledgeEditorSnapshot() {
   };
 }
 function markKnowledgeEditorDirty() {
-  knowledgeEditorDirty = true; uiState.knowledgeDraft = knowledgeEditorSnapshot(); saveUiStateDebounced();
+  knowledgeEditorDirty = true; knowledgeDraftCache = knowledgeEditorSnapshot(); saveKnowledgeDraftDebounced();
 }
 function applyKnowledgeEditorData(data) {
   document.getElementById('kh-title-input').value = data?.title || '';
@@ -538,7 +538,9 @@ function recoverKnowledgeDraft() {
   knowledgePendingDraft = null; document.getElementById('kh-recovery').hidden = true; knowledgeEditorDirty = true; toast('Unsaved draft recovered');
 }
 function discardKnowledgeDraft() {
-  knowledgePendingDraft = null; delete uiState.knowledgeDraft; saveUiStateDebounced();
+  knowledgePendingDraft = null; knowledgeDraftCache = null;
+  clearTimeout(_knowledgeDraftSaveTimer);
+  window.api.clearKnowledgeDraft().catch(() => {});
   document.getElementById('kh-recovery').hidden = true;
 }
 function openKnowledgeEditor(item) {
@@ -552,7 +554,7 @@ function openKnowledgeEditor(item) {
   const suggestions = document.getElementById('kh-tag-suggestions'); suggestions.innerHTML = '';
   [...new Set(knowledgeItems.flatMap(entry => entry.tags || []))].sort((a, b) => a.localeCompare(b)).forEach(tag => { const option = document.createElement('option'); option.value = tag; suggestions.appendChild(option); });
   setupKnowledgeTagInput(); clearErrorsIn('#knowledge-modal');
-  const draft = uiState.knowledgeDraft;
+  const draft = knowledgeDraftCache;
   knowledgePendingDraft = draft && Number(draft.itemId || 0) === Number(knowledgeEditId || 0) ? draft : null;
   document.getElementById('kh-recovery').hidden = !knowledgePendingDraft;
   const overlay = document.getElementById('knowledge-modal-overlay'); overlay.classList.add('open');
@@ -582,7 +584,8 @@ async function saveKnowledgeEditor() {
   };
   try {
     const saved = editing ? await window.api.updateKnowledgeItem(editing, data) : await window.api.createKnowledgeItem(data);
-    delete uiState.knowledgeDraft; saveUiStateDebounced(); knowledgeEditorDirty = false; closeKnowledgeEditor(true);
+    knowledgeDraftCache = null; clearTimeout(_knowledgeDraftSaveTimer); window.api.clearKnowledgeDraft().catch(() => {});
+    knowledgeEditorDirty = false; closeKnowledgeEditor(true);
     toast(editing ? 'Knowledge item saved' : 'Knowledge item created'); await loadKnowledgeItems(saved.id);
     if (!editing && mode === 'DOCUMENT') openKnowledgeDocumentModal(saved.id);
     knowledgeCreationMode = 'ARTICLE';
