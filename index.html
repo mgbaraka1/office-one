@@ -272,6 +272,32 @@
 
       <div class="rmod-card">
         <div class="rmod-card-head">
+          <div class="rmod-card-icon" data-ic="calendar-range"></div>
+          <div class="rmod-card-title">Weekly / Monthly Timesheet PDF</div>
+        </div>
+        <div class="rmod-card-desc">The same detailed task and session report across a full week or month, grouped by day with period-wide Work / Over-Time totals.</div>
+        <div class="rmod-card-controls">
+          <div class="rmod-field">
+            <label for="rmod-period-kind">Period</label>
+            <select id="rmod-period-kind" data-onchange="periodReportModeChanged()">
+              <option value="week">Week</option>
+              <option value="month">Month</option>
+            </select>
+          </div>
+          <div class="rmod-field" id="rmod-period-week-field">
+            <label for="rmod-period-week">Week</label>
+            <input type="week" id="rmod-period-week" />
+          </div>
+          <div class="rmod-field" id="rmod-period-month-field" hidden>
+            <label for="rmod-period-month">Month</label>
+            <input type="month" id="rmod-period-month" />
+          </div>
+          <button class="btn primary" data-onclick="genPeriodReport()">Generate →</button>
+        </div>
+      </div>
+
+      <div class="rmod-card">
+        <div class="rmod-card-head">
           <div class="rmod-card-icon" data-ic="timer"></div>
           <div class="rmod-card-title">Monthly Over-Time PDF</div>
         </div>
