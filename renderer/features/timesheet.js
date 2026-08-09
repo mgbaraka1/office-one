@@ -1866,6 +1866,7 @@ function buildDailyReportHTML(srcRows, date, name, sourcesByTaskId) {
 
 function closePrint() {
   document.getElementById('print-overlay').classList.remove('open');
+  setReportExcelData(null);
 }
 
 function printOverlayClick(e) {
@@ -1935,6 +1936,21 @@ async function exportReportCSV() {
   catch { res = { ok: false, error: 'failed' }; }
   if (res?.ok) toast('CSV saved');
   else if (res?.error) toast('CSV failed: ' + res.error);
+}
+
+function setReportExcelData(data) {
+  _reportExcelData = data || null;
+  const button = document.getElementById('report-excel-btn');
+  if (button) button.hidden = !_reportExcelData;
+}
+
+async function exportReportExcel() {
+  if (!_reportExcelData) return;
+  let res;
+  try { res = await window.api.exportExcel(_reportExcelData, `${_reportFileBase || 'timesheet'}.xlsx`); }
+  catch { res = { ok: false, error: 'failed' }; }
+  if (res?.ok) toast('Excel saved');
+  else if (res?.error) toast('Excel failed: ' + res.error);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -2013,6 +2029,7 @@ async function genDailyReport() {
   const sourcesByTaskId = await fetchTaskSourcesMap(dayRows.map(r => r.taskId));
   const name = document.getElementById('hName').value || LK.defaultName || 'N/A';
   _reportFileBase = `timesheet-${date}`;
+  setReportExcelData(null);
   document.getElementById('print-frame').innerHTML = buildDailyReportHTML(dayRows, date, name, sourcesByTaskId);
   document.getElementById('print-overlay').classList.add('open');
 }
@@ -2055,8 +2072,71 @@ async function genPeriodReport() {
     : `${fromDate.toLocaleDateString(rptLocale(), { month: 'short', day: 'numeric', year: 'numeric' })} – ${toDate.toLocaleDateString(rptLocale(), { month: 'short', day: 'numeric', year: 'numeric' })}`;
 
   _reportFileBase = `timesheet-${kind}-${value}`;
+  setReportExcelData(buildPeriodExcelData(days, kind, label, name, sourcesByTaskId));
   document.getElementById('print-frame').innerHTML = buildPeriodReportHTML(days, kind, label, name, sourcesByTaskId);
   document.getElementById('print-overlay').classList.add('open');
+}
+
+function buildPeriodExcelData(days, kind, periodLabel, name, sourcesByTaskId) {
+  const reportRows = [];
+  days.forEach(day => (day.rows || []).forEach(row => {
+    const internal = row.departmentId != null;
+    const company = internal
+      ? (LK.orgName || rptText('INTERNAL'))
+      : companyDisplayName(row.company, false).trim();
+    const container = internal
+      ? String(lkLabelById('DEPARTMENT', row.departmentId) || '').trim()
+      : String(lkLabel('SYSTEM', row.system) || '').trim();
+    let task = String(row.taskName || row.description || '(untitled task)').trim();
+    const systemPrefix = String(row.system || '').trim();
+    if (systemPrefix && task.toLocaleLowerCase().startsWith(systemPrefix.toLocaleLowerCase())) {
+      const remainder = task.slice(systemPrefix.length).replace(/^\s*[-–—:]\s*/, '').trim();
+      if (remainder) task = remainder;
+    }
+    const structuredSources = (row.taskId != null && sourcesByTaskId.get(row.taskId)) || [];
+    const sources = structuredSources.length
+      ? structuredSources.map(source => {
+          const type = lkLabel('TASK_SOURCE_TYPE', source.type) || source.type || rptText('Source');
+          return [source.ref ? `${type} · ${source.ref}` : type, source.url].filter(Boolean).join(' — ');
+        }).join('; ')
+      : (row.source || '');
+    const minutes = parseFloat(row.minutes) || 0;
+    reportRows.push({
+      date: day.date,
+      company,
+      container,
+      task,
+      time: lkLabel('TIME_TYPE', row.time) || row.time || '',
+      timeCode: row.time || '',
+      activity: lkLabel('ACTIVITY_TYPE', row.natural) || row.natural || '',
+      description: row.description || '',
+      minutes,
+      hours: minutes / 60,
+      sources,
+    });
+  }));
+  const title = kind === 'month' ? 'Monthly Work Report' : 'Weekly Work Report';
+  return {
+    title: rptText(title),
+    sheetName: rptText('Timesheet'),
+    employeeLabel: rptText('Employee'),
+    employee: name,
+    periodLabel: rptText('Period'),
+    period: periodLabel,
+    totalHoursLabel: rptText('Total Hours'),
+    workTimeLabel: rptText('Work Time'),
+    overtimeLabel: rptText('Over Time'),
+    activeDaysLabel: rptText('Active Days'),
+    totalLabel: rptText('Total'),
+    activeDays: days.length,
+    rtl: rptDirection() === 'rtl',
+    headers: [
+      rptText('Date'), rptText('Client / Organisation'), rptText('System / Department'),
+      rptText('Task'), rptText('Time Type'), rptText('Activity Type'),
+      rptText('Description'), rptText('Minutes'), rptText('Hours'), rptText('Sources'),
+    ],
+    rows: reportRows,
+  };
 }
 
 function buildPeriodReportHTML(days, kind, periodLabel, name, sourcesByTaskId) {
@@ -2137,6 +2217,7 @@ async function genOvertimeReport() {
   const name = document.getElementById('hName').value || LK.defaultName || 'N/A';
 
   _reportFileBase = `overtime-request-${mv}`;
+  setReportExcelData(null);
   document.getElementById('print-frame').innerHTML = buildOvertimeReportHTML(days, monthLabel, name);
   document.getElementById('print-overlay').classList.add('open');
 }
@@ -2256,6 +2337,7 @@ async function genSubscriptionsReport() {
   const name = document.getElementById('hName').value || LK.defaultName || 'N/A';
   if (!subs.length) toast('No subscriptions yet — showing an empty report');
   _reportFileBase = `subscriptions-${fmt(new Date())}`;
+  setReportExcelData(null);
   document.getElementById('print-frame').innerHTML = buildSubscriptionsReportHTML(subs, (data && data.defaultCurrency) || 'USD', name);
   document.getElementById('print-overlay').classList.add('open');
 }
@@ -2637,6 +2719,7 @@ function rowMatchesFilter(row) {
 // Base filename for the Reports-module PDF / print preview (set by the report
 // generators, read by exportReportPDF / exportReportCSV).
 let _reportFileBase = 'report';
+let _reportExcelData = null;
 
 // ════════════════════════════════════════════════════════════════════════════
 // TIMESHEET DEPTH — templates, month overview.

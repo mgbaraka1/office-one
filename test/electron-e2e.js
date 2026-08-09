@@ -78,6 +78,7 @@ async function run() {
   // no BrowserWindow or DevTools target can ever appear.
   delete electronEnv.ELECTRON_RUN_AS_NODE;
   const pdfPath = path.join(root, 'e2e-exported-report.pdf');
+  const xlsxPath = path.join(root, 'e2e-exported-timesheet.xlsx');
   child = spawn(electron, ['.'], {
     cwd: path.join(__dirname, '..'),
     env: {
@@ -85,6 +86,7 @@ async function run() {
       COOPERATION_TOOLS_DATA_DIR: root,
       COOPERATION_TOOLS_E2E_PORT: String(port),
       COOPERATION_TOOLS_E2E_PDF_PATH: pdfPath,
+      COOPERATION_TOOLS_E2E_XLSX_PATH: xlsxPath,
       ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -404,6 +406,18 @@ async function run() {
     throw new Error(`Exported file does not start with the %PDF- magic bytes: ${pdfBytes.subarray(0, 8)}`);
   }
 
+  const excelExport = await evaluate(`window.api.exportExcel({
+    title: 'Weekly Work Report', employee: 'e2e-admin', period: '3–9 August 2026', activeDays: 1,
+    rows: [{ date: '2026-08-03', company: 'E2E Client', container: 'E2E System', task: 'E2E Task',
+      time: 'Work Time', timeCode: 'WORK_TIME', activity: 'Task', description: 'E2E session',
+      minutes: 60, hours: 1, sources: '' }]
+  }, 'e2e-test.xlsx')`);
+  if (!excelExport?.ok) throw new Error(`report:exportExcel did not report success: ${JSON.stringify(excelExport)}`);
+  const xlsxBytes = fs.readFileSync(xlsxPath);
+  if (xlsxBytes.length < 5000 || xlsxBytes.readUInt32LE(0) !== 0x04034B50) {
+    throw new Error(`Exported Excel workbook is invalid or suspiciously small (${xlsxBytes.length} bytes)`);
+  }
+
   const screenshotPath = process.env.COOPERATION_TOOLS_E2E_SCREENSHOT;
   if (screenshotPath) {
     await evaluate(`closePalette(); true`);
@@ -430,6 +444,7 @@ async function run() {
   console.log('PASS  An admin-created account is forced to replace its admin-assigned password on next login');
   console.log('PASS  Runtime accessibility invariants cover names, unique ids, language/direction, and live regions');
   console.log(`PASS  report:exportPDF produces a real PDF file (${pdfBytes.length} bytes)`);
+  console.log(`PASS  report:exportExcel produces a real XLSX workbook (${xlsxBytes.length} bytes)`);
   console.log(`PASS  Extracted renderer modules loaded (app v${result.version})`);
 }
 
