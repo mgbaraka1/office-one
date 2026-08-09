@@ -1946,8 +1946,31 @@ async function initReportsModule() {
   const t = fmt(new Date());
   const dEl = document.getElementById('rmod-daily-date');
   const mEl = document.getElementById('rmod-ot-month');
+  const pmEl = document.getElementById('rmod-period-month');
+  const pwEl = document.getElementById('rmod-period-week');
   if (dEl && !dEl.value) dEl.value = activeDate || t;
   if (mEl && !mEl.value) mEl.value = t.slice(0, 7);
+  if (pmEl && !pmEl.value) pmEl.value = t.slice(0, 7);
+  if (pwEl && !pwEl.value) pwEl.value = isoWeekValue(activeDate || t);
+  periodReportModeChanged();
+}
+
+function isoWeekValue(date) {
+  const d = new Date(date + 'T00:00:00');
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+  const weekYear = d.getFullYear();
+  const weekOne = new Date(weekYear, 0, 4);
+  const week = 1 + Math.round(((d - weekOne) / 86400000 - 3 + ((weekOne.getDay() + 6) % 7)) / 7);
+  return `${weekYear}-W${String(week).padStart(2, '0')}`;
+}
+
+function periodReportModeChanged() {
+  const kind = document.getElementById('rmod-period-kind')?.value || 'week';
+  const weekField = document.getElementById('rmod-period-week-field');
+  const monthField = document.getElementById('rmod-period-month-field');
+  if (weekField) weekField.hidden = kind !== 'week';
+  if (monthField) monthField.hidden = kind !== 'month';
 }
 
 function flashFieldError(el) {
@@ -1992,6 +2015,111 @@ async function genDailyReport() {
   _reportFileBase = `timesheet-${date}`;
   document.getElementById('print-frame').innerHTML = buildDailyReportHTML(dayRows, date, name, sourcesByTaskId);
   document.getElementById('print-overlay').classList.add('open');
+}
+
+function periodReportDates(kind, value) {
+  if (kind === 'month') {
+    const [year, month] = value.split('-').map(Number);
+    const last = new Date(year, month, 0).getDate();
+    return { from: `${value}-01`, to: `${value}-${String(last).padStart(2, '0')}` };
+  }
+  const match = /^(\d{4})-W(\d{2})$/.exec(value);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const week = Number(match[2]);
+  const jan4 = new Date(year, 0, 4);
+  const monday = new Date(year, 0, 4 - ((jan4.getDay() + 6) % 7) + ((week - 1) * 7));
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  return { from: fmt(monday), to: fmt(sunday) };
+}
+
+// Weekly / Monthly Timesheet PDF — the Daily report's task/session detail over
+// a selected period, with each date kept as a distinct section.
+async function genPeriodReport() {
+  const kind = document.getElementById('rmod-period-kind').value;
+  const input = document.getElementById(kind === 'month' ? 'rmod-period-month' : 'rmod-period-week');
+  const value = input.value;
+  const range = value && periodReportDates(kind, value);
+  if (!range) { flashFieldError(input); return; }
+
+  const days = await window.api.loadDaysRange(range.from, range.to);
+  if (!days.length) toast('No records in that period — showing an empty report');
+  const taskIds = days.flatMap(day => (day.rows || []).map(row => row.taskId));
+  const sourcesByTaskId = await fetchTaskSourcesMap(taskIds);
+  const name = document.getElementById('hName').value || LK.defaultName || 'N/A';
+  const fromDate = new Date(range.from + 'T00:00:00');
+  const toDate = new Date(range.to + 'T00:00:00');
+  const label = kind === 'month'
+    ? fromDate.toLocaleDateString(rptLocale(), { month: 'long', year: 'numeric' })
+    : `${fromDate.toLocaleDateString(rptLocale(), { month: 'short', day: 'numeric', year: 'numeric' })} – ${toDate.toLocaleDateString(rptLocale(), { month: 'short', day: 'numeric', year: 'numeric' })}`;
+
+  _reportFileBase = `timesheet-${kind}-${value}`;
+  document.getElementById('print-frame').innerHTML = buildPeriodReportHTML(days, kind, label, name, sourcesByTaskId);
+  document.getElementById('print-overlay').classList.add('open');
+}
+
+function buildPeriodReportHTML(days, kind, periodLabel, name, sourcesByTaskId) {
+  const allRows = days.flatMap(day => day.rows || []);
+  const totalMin = totalMins(allRows);
+  const workMin = allRows.reduce((sum, row) => sum + (row.time === 'WORK_TIME' ? (parseFloat(row.minutes) || 0) : 0), 0);
+  const otMin = allRows.reduce((sum, row) => sum + (row.time === 'OVERTIME' ? (parseFloat(row.minutes) || 0) : 0), 0);
+  let taskNo = 0;
+
+  const body = days.length ? days.map(day => {
+    const dt = new Date(day.date + 'T00:00:00');
+    const dateLabel = dt.toLocaleDateString(rptLocale(), { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const groups = [];
+    const byTask = new Map();
+    (day.rows || []).forEach(row => {
+      const key = row.taskId != null ? `id:${row.taskId}` : `nm:${row.taskName || row.description || ''}`;
+      let group = byTask.get(key);
+      if (!group) {
+        group = { row, sessions: [], subtotal: 0, sources: (row.taskId != null && sourcesByTaskId.get(row.taskId)) || [] };
+        byTask.set(key, group);
+        groups.push(group);
+      }
+      group.sessions.push(row);
+      group.subtotal += parseFloat(row.minutes) || 0;
+    });
+    const dayMin = totalMins(day.rows || []);
+    return `
+      <tr><td colspan="5" style="background:#222 !important;color:#fff;font-weight:800;padding:8px">${esc(dateLabel)}<span style="float:${rptLanguage() === 'ar' ? 'left' : 'right'}">${dayMin} ${esc(rptText('Min'))} · ${(dayMin / 60).toFixed(2)} ${esc(rptText('Hrs'))}</span></td></tr>
+      ${groups.map(group => {
+        taskNo++;
+        const r = group.row;
+        const internal = r.departmentId != null;
+        const company = internal ? (LK.orgName ? LK.orgName.toUpperCase() : rptText('INTERNAL')) : companyDisplayName(r.company, false).trim();
+        const container = internal ? String(lkLabelById('DEPARTMENT', r.departmentId) || '').trim().toUpperCase() : String(lkLabel('SYSTEM', r.system) || '').trim().toUpperCase();
+        let task = String(r.taskName || r.description || '(untitled task)').trim();
+        const systemPrefix = String(r.system || '').trim();
+        if (systemPrefix && task.toLocaleLowerCase().startsWith(systemPrefix.toLocaleLowerCase())) {
+          const remainder = task.slice(systemPrefix.length).replace(/^\s*[-–—:]\s*/, '').trim();
+          if (remainder) task = remainder;
+        }
+        const title = [company, container, task].filter(Boolean).join(' - ');
+        const sourceRows = group.sources.length ? `<tr><td colspan="5" style="padding:3px 8px 7px;color:#666;font-size:10px">${group.sources.map(source => {
+          const type = lkLabel('TASK_SOURCE_TYPE', source.type) || source.type || rptText('Source');
+          return `&bull; ${esc(source.ref ? `${type} · ${source.ref}` : type)}${source.url ? ` — ${esc(source.url)}` : ''}`;
+        }).join('<br>')}</td></tr>` : '';
+        const sessions = group.sessions.map(session => {
+          const showTime = session.time === 'WORK_TIME' || session.time === 'OVERTIME';
+          const time = showTime ? `<span${session.time === 'OVERTIME' ? ' style="color:#b91c1c;font-weight:700"' : ''}>${esc(lkLabel('TIME_TYPE', session.time))}</span>` : '—';
+          const legacySource = (!(session.sourceCount > 0) && session.source) ? session.source : '';
+          return `<tr><td style="white-space:nowrap">${esc(day.date)}</td><td>${time}${session.natural ? `<div style="font-size:9px;color:#888;margin-top:2px">${esc(lkLabel('ACTIVITY_TYPE', session.natural))}</div>` : ''}</td><td>${esc(session.description)}${legacySource ? `<div style="font-size:10px;color:#777;margin-top:3px">${esc(legacySource)}</div>` : ''}</td><td style="text-align:right">${session.minutes || '—'}</td><td style="text-align:right">${session.minutes ? (parseFloat(session.minutes) / 60).toFixed(2) : '—'}</td></tr>`;
+        }).join('');
+        return `<tr><td colspan="5" style="background:#f0f0f0 !important;font-weight:700;padding:7px 8px">${taskNo}. ${esc(title)}<span style="float:${rptLanguage() === 'ar' ? 'left' : 'right'}">${group.subtotal} ${esc(rptText('Min'))} · ${(group.subtotal / 60).toFixed(2)} ${esc(rptText('Hrs'))}</span></td></tr>${sourceRows}${sessions}`;
+      }).join('')}`;
+  }).join('') : `<tr><td colspan="5" style="text-align:center;color:#999;padding:18px">${esc(rptText('No work recorded in this period.'))}</td></tr>`;
+
+  const printedOn = new Date().toLocaleDateString(rptLocale(), { year: 'numeric', month: 'long', day: 'numeric' });
+  const title = kind === 'month' ? 'Monthly Work Report' : 'Weekly Work Report';
+  return rptWrap(`
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px"><div><div style="font-size:10px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#111;line-height:1.6">MOS TA FA</div><div style="font-size:10px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#111">${esc(rptText('Office ONE'))}</div></div><div style="text-align:right"><div style="font-size:14px;font-weight:700;color:#111">${esc(name)}</div><div style="font-size:11px;color:#555;margin-top:2px">${esc(periodLabel)}</div></div></div>
+    <div style="font-size:14px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:.5px;padding-bottom:8px;border-bottom:2px solid #111;margin-bottom:16px">${esc(rptText(title))}</div>
+    ${rptSummaryCards([{ label: 'Total Hours', value: `${(totalMin / 60).toFixed(2)}h` }, { label: 'Active Days', value: days.length }, { label: 'Work Time', value: `${(workMin / 60).toFixed(2)}h` }, { label: 'Over Time', value: `${(otMin / 60).toFixed(2)}h`, color: otMin > 0 ? '#b91c1c' : '#111' }])}
+    <table class="rpt-table"><thead><tr><th style="width:78px">${esc(rptText('Date'))}</th><th style="width:90px">${esc(rptText('Time'))}</th><th>${esc(rptText('Description / Source'))} <span style="font-weight:500;text-transform:none;letter-spacing:0;color:#888">(${esc(rptText('sessions grouped by task'))})</span></th><th style="width:45px;text-align:right">${esc(rptText('Min'))}</th><th style="width:45px;text-align:right">${esc(rptText('Hrs'))}</th></tr></thead><tbody>${body}</tbody><tfoot><tr><td colspan="3" style="text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;padding:8px;border:1px solid #bbb;border-top:2px solid #111;background:#f0f0f0 !important">${esc(rptText('Total'))}</td><td style="text-align:right;font-size:13px;font-weight:800;padding:8px;border:1px solid #bbb;border-top:2px solid #111;background:#f0f0f0 !important">${totalMin}</td><td style="text-align:right;font-size:13px;font-weight:800;padding:8px;border:1px solid #bbb;border-top:2px solid #111;background:#f0f0f0 !important">${(totalMin / 60).toFixed(2)}</td></tr></tfoot></table>
+    <div style="display:flex;justify-content:space-between;margin-top:14px;font-size:9px;color:#999;padding-top:8px;border-top:1px solid #ddd"><span>MOS TA FA · ${esc(rptText('Office ONE'))}</span><span>${esc(rptText('Printed {date}', { date: printedOn }))}</span></div>`);
 }
 
 // Monthly Over-Time PDF — lists every Over-Time entry in a month + total hours,
@@ -2506,8 +2634,8 @@ function rowMatchesFilter(row) {
     .some(v => (v || '').toLowerCase().includes(filterText));
 }
 
-// Base filename for the Reports-module PDF / print preview (set by genDailyReport
-// / genOvertimeReport / genSubscriptionsReport, read by exportReportPDF).
+// Base filename for the Reports-module PDF / print preview (set by the report
+// generators, read by exportReportPDF / exportReportCSV).
 let _reportFileBase = 'report';
 
 // ════════════════════════════════════════════════════════════════════════════
