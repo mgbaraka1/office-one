@@ -236,6 +236,52 @@ async function run() {
           && companiesPanel.includes('الاسم بالإنجليزية')
           && companiesPanel.includes('الاسم بالعربية')
           && document.getElementById('settings-save-btn')?.textContent === 'حفظ تغييرات الكتالوج';
+        // Reordering (Phase 4, S6): the up/down buttons swap two catalog rows'
+        // positions in the draft, which is otherwise invisible until a full
+        // save+reload — read the ordered English-label inputs before/after
+        // clicking "Open"'s move-down button.
+        const reorderBefore = [...statusPanel.querySelectorAll('.bilingual-lookup-item input[dir="ltr"]')].map(i => i.value);
+        // buildReorderControls() always appends [up, down] in that order —
+        // not selected by title, which the i18n observer translates at
+        // runtime (this whole block runs while the UI language is Arabic).
+        const openRowDown = openRow?.querySelectorAll('.lookup-item-reorder-btn')[1];
+        openRowDown?.click();
+        const reorderAfter = [...statusPanel.querySelectorAll('.bilingual-lookup-item input[dir="ltr"]')].map(i => i.value);
+        const openIndexBefore = reorderBefore.indexOf('Open');
+        const reorderWorks = openIndexBefore >= 0 && openIndexBefore < reorderBefore.length - 1
+          && reorderAfter[openIndexBefore] === reorderBefore[openIndexBefore + 1]
+          && reorderAfter[openIndexBefore + 1] === 'Open';
+        // Settings search (Phase 4, S9): a term that only matches a control
+        // inside Maintenance (not any tab's own name) should jump there and
+        // flash the matched button — not just silently filter the tab list.
+        const searchInput = document.getElementById('settings-search');
+        searchInput.value = 'backup';
+        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+        const searchJumpWorks = document.querySelector('.stab[data-tab="maintenance"]')?.classList.contains('active')
+          && document.getElementById('maint-fullbackup-btn')?.classList.contains('deep-link-highlight');
+        searchInput.value = ''; searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+        // Tablist keyboard navigation (Phase 5, S8): ArrowDown from a focused
+        // tab moves focus to AND activates the next visible tab — the
+        // standard WAI-ARIA tablist pattern.
+        const generalTab = document.querySelector('.stab[data-tab="general"]');
+        switchTab(generalTab);
+        generalTab.focus();
+        generalTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        const usersTab = document.querySelector('.stab[data-tab="users"]');
+        const arrowNavWorks = document.activeElement === usersTab
+          && usersTab.classList.contains('active')
+          && usersTab.getAttribute('aria-selected') === 'true'
+          && generalTab.getAttribute('aria-selected') === 'false'
+          && generalTab.tabIndex === -1 && usersTab.tabIndex === 0;
+        // Remembering the last-used Settings tab (Phase 5, S10): switching
+        // tabs persists through the same per-account uiState save/load path
+        // other module filters already use — no new IPC surface, so this
+        // proves the round trip actually reaches the DB and back.
+        const companiesTab = document.querySelector('.stab[data-tab="companies"]');
+        switchTab(companiesTab);
+        await new Promise(resolve => setTimeout(resolve, 400)); // clear saveUiStateDebounced()'s 300ms timer
+        const reloadedUiState = await window.api.getUiState();
+        const rememberedTabWorks = reloadedUiState?.filters?.settings?.tab === 'companies';
         const arabic = {
           language: document.documentElement.lang,
           direction: document.documentElement.dir,
@@ -246,13 +292,56 @@ async function run() {
             overtimeReport.includes('طلب وقت إضافي') && subscriptionsReport.includes('تقرير الاشتراكات'),
           reportDocumentRtl: reportDocument.includes('<html lang="ar" dir="rtl">'),
           settingsLocalized,
-          bilingualCatalog
+          bilingualCatalog,
+          reorderWorks,
+          searchJumpWorks,
+          arrowNavWorks,
+          rememberedTabWorks
         };
         chooseLoginLanguage('en');
         arabic.loginLanguageLocked = document.documentElement.lang === 'ar';
         arabic.noAuthenticatedLanguageControls = !document.getElementById('language-toggle')
           && !document.getElementById('setting-language-ctl');
         return arabic;
+      })(),
+      passwordRotation: await (async () => {
+        // Forced password rotation (SETTINGS_REFACTOR_PLAN.md Phase 5): an
+        // admin-created account carries an admin-assigned password, so login
+        // must force its owner to replace it before the app becomes usable.
+        // Drives the real IPC bridge AND the actual login-overlay DOM/function
+        // the real form uses (not a re-implementation of it), then restores
+        // the e2e-admin session the rest of this script assumes.
+        const created = await window.api.authAddUser('e2e-rotate', 'TempPass123!', false);
+        const ipcFlagsCreation = created.ok && created.user.mustChangePassword === true;
+        const loginResult = await window.api.authLogin('e2e-rotate', 'TempPass123!');
+        const ipcFlagsLogin = loginResult.ok && loginResult.user.mustChangePassword === true;
+
+        _pendingForceChangeUser = loginResult.user;
+        _pendingForceChangePassword = 'TempPass123!';
+        setAuthMode('force-change');
+        const domState = {
+          usernameFieldHidden: document.getElementById('auth-username-field').style.display === 'none',
+          confirmFieldVisible: document.getElementById('auth-confirm-field').style.display !== 'none',
+          passwordLabel: document.getElementById('auth-password-label').textContent,
+          submitLabel: document.getElementById('auth-submit').textContent,
+        };
+        document.getElementById('auth-password').value = 'MyOwnChoice456!';
+        document.getElementById('auth-confirm').value = 'MyOwnChoice456!';
+        await submitAuth({ preventDefault() {} });
+        const clearedAfterChange = _pendingForceChangeUser === null;
+
+        await window.api.authLogout();
+        const reLogin = await window.api.authLogin('e2e-rotate', 'MyOwnChoice456!');
+        const flagClearedServerSide = reLogin.ok && reLogin.user.mustChangePassword === false;
+
+        await window.api.authLogout();
+        const restored = await window.api.authLogin('e2e-admin', 'StrongPass123!');
+        setAuthMode('login');
+        await startApp(restored.user); // re-sync sidebar/admin-only DOM back to e2e-admin
+        return {
+          ipcFlagsCreation, ipcFlagsLogin, domState, clearedAfterChange,
+          flagClearedServerSide, restoredAdminSession: restored.ok && _currentUser?.username === 'e2e-admin',
+        };
       })()
     };
   })()`);
@@ -284,6 +373,21 @@ async function run() {
       !result.localization.loginLanguageLocked || !result.localization.noAuthenticatedLanguageControls) {
     throw new Error(`Arabic localization failed: ${JSON.stringify(result.localization)}`);
   }
+  if (!result.localization.reorderWorks) throw new Error('Settings catalog reorder (move down) did not swap rows');
+  if (!result.localization.searchJumpWorks) throw new Error('Settings search did not jump to and highlight a matched control');
+  if (!result.localization.arrowNavWorks) throw new Error('Settings tablist ArrowDown did not move focus and activate the next tab');
+  if (!result.localization.rememberedTabWorks) throw new Error('The last-used Settings tab was not persisted to the per-account ui_state');
+
+  const rotation = result.passwordRotation;
+  if (!rotation.ipcFlagsCreation) throw new Error('An admin-created account was not flagged to change its password on next login');
+  if (!rotation.ipcFlagsLogin) throw new Error('Login did not surface the must-change-password flag over the real IPC bridge');
+  if (!rotation.domState.usernameFieldHidden || !rotation.domState.confirmFieldVisible ||
+      rotation.domState.passwordLabel !== 'New password' || rotation.domState.submitLabel !== 'Change password') {
+    throw new Error(`Forced password-change screen did not render correctly: ${JSON.stringify(rotation.domState)}`);
+  }
+  if (!rotation.clearedAfterChange) throw new Error('The forced-change screen did not clear its pending state after a successful change');
+  if (!rotation.flagClearedServerSide) throw new Error('Choosing a new password did not clear must_change_password server-side');
+  if (!rotation.restoredAdminSession) throw new Error('Could not restore the e2e-admin session after the rotation check');
 
   // PDF export (Finding 20, full-app audit) — report:exportPDF is otherwise
   // only checked by string-presence tests; this drives the real IPC path
@@ -319,6 +423,11 @@ async function run() {
   console.log('PASS  Arabic login choice drives RTL, preserves user content, and localizes report/PDF output');
   console.log('PASS  Settings, including dynamic client-profile controls, are localized');
   console.log('PASS  Managed Settings catalogs expose and render English/Arabic labels');
+  console.log('PASS  Settings catalog rows can be reordered with the move up/down controls');
+  console.log('PASS  Settings search jumps to and highlights a matched control outside the active tab');
+  console.log('PASS  Settings tab strip supports standard tablist arrow-key navigation');
+  console.log('PASS  The last-used Settings tab is remembered per account across a reload');
+  console.log('PASS  An admin-created account is forced to replace its admin-assigned password on next login');
   console.log('PASS  Runtime accessibility invariants cover names, unique ids, language/direction, and live regions');
   console.log(`PASS  report:exportPDF produces a real PDF file (${pdfBytes.length} bytes)`);
   console.log(`PASS  Extracted renderer modules loaded (app v${result.version})`);

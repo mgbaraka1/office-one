@@ -24,14 +24,58 @@ try {
   record('Administrator sees every managed account without password hashes',
     adminList.length === 3 && adminList.every(user => !('password_hash' in user) && !('passwordHash' in user)));
 
-  const disabledAdmin = auth.updateUser(secondAdmin.user.id, { username: 'second-admin', isAdmin: true, isActive: false });
+  const disabledAdmin = auth.updateUser(secondAdmin.user.id, { username: 'second-admin', isAdmin: true, isActive: false, actorPassword: 'primary-password' });
   const lastAdminGuard = auth.updateUser(setup.user.id, { username: 'primary-admin', isAdmin: false, isActive: true });
   const selfDisableGuard = auth.updateUser(setup.user.id, { username: 'primary-admin', isAdmin: true, isActive: false });
   record('The final active administrator cannot be demoted', disabledAdmin.ok && !lastAdminGuard.ok && /one active administrator/i.test(lastAdminGuard.error));
   record('The signed-in account cannot deactivate itself', !selfDisableGuard.ok && /cannot deactivate/i.test(selfDisableGuard.error));
 
-  auth.updateUser(secondAdmin.user.id, { username: 'second-admin', isAdmin: true, isActive: true });
+  auth.updateUser(secondAdmin.user.id, { username: 'second-admin', isAdmin: true, isActive: true, actorPassword: 'primary-password' });
+
+  // Re-auth for privileged actions on ANOTHER account (SETTINGS_REFACTOR_PLAN.md
+  // Phase 5): resetting someone else's password or changing their role/active
+  // status must re-prove it's really the acting admin, not just that an admin
+  // session happens to still be open. Uses a throwaway account so it doesn't
+  // disturb `standard`'s password for the assertions further down.
+  const resetTarget = auth.addUser('reset-target', 'reset-target-password', false);
+  const missingActorPassword = auth.updateUser(resetTarget.user.id, { username: 'reset-target', password: 'admin-reset-password' });
+  const wrongActorPassword = auth.updateUser(resetTarget.user.id, { username: 'reset-target', password: 'admin-reset-password', actorPassword: 'not-the-real-password' });
+  const correctActorPassword = auth.updateUser(resetTarget.user.id, { username: 'reset-target', password: 'admin-reset-password', actorPassword: 'primary-password' });
+  record('An admin resetting someone else\'s password without their own password is refused',
+    !missingActorPassword.ok && /current password is required/i.test(missingActorPassword.error));
+  record('An admin resetting someone else\'s password with the WRONG own password is refused',
+    !wrongActorPassword.ok && /current password is required/i.test(wrongActorPassword.error));
+  record('An admin resetting someone else\'s password with their OWN correct password succeeds', correctActorPassword.ok);
+  const nonPrivilegedEdit = auth.updateUser(resetTarget.user.id, { username: 'reset-target', nameEn: 'Renamed By Admin' });
+  record('An admin editing someone else\'s non-privileged fields (e.g. display name) does not require re-auth', nonPrivilegedEdit.ok);
+  record('the password reset actually took effect (re-auth guard did not just no-op)',
+    auth.login('reset-target', 'admin-reset-password').ok === true);
+
+  // Forced password rotation (SETTINGS_REFACTOR_PLAN.md Phase 5): an
+  // admin-assigned password — at account creation or at reset — is not one the
+  // new owner chose, so login must flag it and a self-chosen change must clear
+  // the flag again. (The prior step's login-as-reset-target call switched the
+  // active session, so re-establish the admin session first.)
+  auth.login('primary-admin', 'primary-password');
+  const freshAccount = auth.addUser('rotation-target', 'admin-issued-password', false);
+  record('An admin-created account is flagged to change its password on next login', freshAccount.user.mustChangePassword === true);
+  const freshLogin = auth.login('rotation-target', 'admin-issued-password');
+  record('Login surfaces the must-change-password flag for an admin-created account', freshLogin.ok && freshLogin.user.mustChangePassword === true);
+  const selfChange = auth.updateUser(freshAccount.user.id, {
+    username: 'rotation-target', password: 'self-chosen-password', currentPassword: 'admin-issued-password',
+  });
+  record('Choosing your own password clears the must-change-password flag', selfChange.ok && selfChange.user.mustChangePassword === false);
   auth.logout();
+  const clearedLogin = auth.login('rotation-target', 'self-chosen-password');
+  record('A subsequent login no longer carries the flag', clearedLogin.ok && clearedLogin.user.mustChangePassword === false);
+
+  auth.login('primary-admin', 'primary-password');
+  const adminReset = auth.updateUser(freshAccount.user.id, {
+    username: 'rotation-target', password: 'admin-reissued-password', actorPassword: 'primary-password',
+  });
+  record('An admin resetting someone else\'s password re-flags it for rotation', adminReset.ok && adminReset.user.mustChangePassword === true);
+  auth.logout();
+
   auth.login('standard-user', 'standard-password');
   const standardList = auth.listUsers();
   const crossEdit = auth.updateUser(secondAdmin.user.id, { username: 'hijacked' });

@@ -360,19 +360,20 @@ function claimUser(id, username, passwordHash) {
 
 function getUserByUsername(username) {
   return db.prepare(
-    'SELECT id, username, password_hash, created_at, is_active, is_admin FROM users WHERE username = ?'
+    'SELECT id, username, password_hash, created_at, is_active, is_admin, must_change_password FROM users WHERE username = ?'
   ).get(username) || null;
 }
 
 function getUserById(id) {
   return db.prepare(
-    'SELECT id, username, password_hash, created_at, is_active, is_admin FROM users WHERE id = ?'
+    'SELECT id, username, password_hash, created_at, is_active, is_admin, must_change_password FROM users WHERE id = ?'
   ).get(id) || null;
 }
 
 function listUsers() {
   return db.prepare(
-    `SELECT id, username, created_at AS createdAt, is_active AS isActive, is_admin AS isAdmin
+    `SELECT id, username, created_at AS createdAt, is_active AS isActive, is_admin AS isAdmin,
+            must_change_password AS mustChangePassword
        FROM users
       WHERE username != '__unclaimed__'
       ORDER BY is_active DESC, LOWER(username), id`
@@ -380,6 +381,7 @@ function listUsers() {
     ...row,
     isActive: !!row.isActive,
     isAdmin: !!row.isAdmin,
+    mustChangePassword: !!row.mustChangePassword,
   }));
 }
 
@@ -389,24 +391,35 @@ function countActiveAdmins() {
 
 // Insert a new account and return its generated id. Caller supplies an already
 // hashed password. Throws on a duplicate username (UNIQUE constraint).
-function createUser(username, passwordHash, isAdmin = false) {
-  const info = db.prepare(
-    'INSERT INTO users(username, password_hash, created_at, is_active, is_admin) VALUES(?, ?, ?, 1, ?)'
-  ).run(username, passwordHash, new Date().toISOString(), isAdmin ? 1 : 0);
-  return Number(info.lastInsertRowid);
+function createUser(username, passwordHash, isAdmin = false, nameEn = '', nameAr = '', mustChangePassword = false) {
+  let id;
+  tx(() => {
+    const info = db.prepare(
+      'INSERT INTO users(username, password_hash, created_at, is_active, is_admin, must_change_password) VALUES(?, ?, ?, 1, ?, ?)'
+    ).run(username, passwordHash, new Date().toISOString(), isAdmin ? 1 : 0, mustChangePassword ? 1 : 0);
+    id = Number(info.lastInsertRowid);
+    // Set inside the same transaction as the insert so the UI never has to
+    // handle "the account exists but its display name failed to save" as a
+    // separate, half-succeeded outcome from a second IPC round-trip.
+    if (nameEn || nameAr) setUserDisplayName(id, nameEn, nameAr);
+  });
+  return id;
 }
 
 function updateUserAccount(id, data) {
   const current = getUserById(id);
   if (!current || current.username === '__unclaimed__') return false;
   const passwordHash = data?.passwordHash || current.password_hash;
+  const mustChangePassword = data?.mustChangePassword == null
+    ? current.must_change_password : (data.mustChangePassword ? 1 : 0);
   return db.prepare(
-    'UPDATE users SET username = ?, is_admin = ?, is_active = ?, password_hash = ? WHERE id = ?'
+    'UPDATE users SET username = ?, is_admin = ?, is_active = ?, password_hash = ?, must_change_password = ? WHERE id = ?'
   ).run(
     data?.username ?? current.username,
     data?.isAdmin == null ? current.is_admin : (data.isAdmin ? 1 : 0),
     data?.isActive == null ? current.is_active : (data.isActive ? 1 : 0),
     passwordHash,
+    mustChangePassword,
     id
   ).changes > 0;
 }
@@ -761,6 +774,7 @@ function loadLookups(userId) {
 // names are editable, while lookup_codes.id remains the immutable FK identity so
 // linked tasks/projects/infrastructure cannot be detached by a profile rename.
 function saveLookups(userId, data) {
+  const skipped = [];
   tx(() => {
     if (data && data.categories) {
       const now = new Date().toISOString();
@@ -784,15 +798,15 @@ function saveLookups(userId, data) {
           const nameEn = String(item.nameEn ?? item.label ?? '').trim();
           const nameAr = String(item.nameAr ?? '').trim();
           const label = nameEn;
-          if (!label) return;
+          if (!label) { skipped.push({ category: cat, label: nameAr || `row ${i + 1}`, reason: 'blank-label' }); return; }
           // Coerce once so a stringified id (e.g. from a JSON round-trip) still
           // matches the numeric ids lk().idTo/usedLabels are keyed by, instead of
           // silently falling through to the insert branch and creating a duplicate row.
           const itemId = (item.id != null && Number.isFinite(Number(item.id))) ? Number(item.id) : null;
           const key = label.toLowerCase();
           const owner = usedLabels.get(key);
-          if (owner != null && owner !== itemId) return; // another code already owns this label — skip
-          if (itemId != null && !canAccessLookup(userId, itemId)) return; // guessed private id
+          if (owner != null && owner !== itemId) { skipped.push({ category: cat, label, reason: 'duplicate-label' }); return; }
+          if (itemId != null && !canAccessLookup(userId, itemId)) { skipped.push({ category: cat, label, reason: 'no-access' }); return; }
           const sort   = Number.isInteger(item.sortOrder) ? item.sortOrder : i;
           const active = item.isActive === false ? 0 : 1;
           if (itemId != null && lk().idTo.has(itemId)) {
@@ -824,7 +838,7 @@ function saveLookups(userId, data) {
     if (data && typeof data.defaultName === 'string') userSet(userId, 'default_employee_name', data.defaultName.trim());
   });
   lkInvalidate();
-  return { ok: true };
+  return { ok: true, skipped };
 }
 
 // ── Subscriptions ───────────────────────────────────────────────────────────────
@@ -2858,12 +2872,73 @@ function searchWorkspace(userId, text, requestedLimit = 30) {
     updatedAt: row.updatedAt || '',
   }));
 }
+// Machine-local preference/draft blobs are capped so a runaway payload (e.g. a
+// very large pasted document) can't balloon a row that gets rewritten whole on
+// every debounce tick. The caller already has the pre-save value in memory, so
+// silently refusing an oversized write just means "the last change before the
+// limit was hit didn't persist" rather than corrupting anything.
+const UI_BLOB_MAX_BYTES = 256 * 1024;
+
 function saveUiState(userId, state) {
   try {
+    const json = JSON.stringify(state || {});
+    if (Buffer.byteLength(json, 'utf8') > UI_BLOB_MAX_BYTES) {
+      console.error(`saveUiState: payload exceeds ${UI_BLOB_MAX_BYTES} bytes, not saved`);
+      return;
+    }
     db.prepare(`INSERT INTO user_ui_state(user_id, value) VALUES(?, ?)
                 ON CONFLICT(user_id) DO UPDATE SET value = excluded.value`)
-      .run(userId, JSON.stringify(state || {}));
+      .run(userId, json);
   } catch { /* non-critical */ }
+}
+
+// Knowledge Hub editor recovery draft — deliberately NOT part of ui_state
+// (loadUiState/saveUiState above). The editor snapshots on every keystroke
+// (including Quill content), and folding that into the shared ui_state blob
+// meant a large document rewrote filters/lastModule/etc. on every debounce
+// tick too. One row, its own key, same size cap.
+function loadKnowledgeDraft(userId) {
+  const raw = userGet(userId, 'knowledge_draft');
+  return raw ? safeParse(raw, null) : null;
+}
+function saveKnowledgeDraft(userId, draft) {
+  if (draft == null) { db.prepare('DELETE FROM user_settings WHERE user_id = ? AND key = ?').run(userId, 'knowledge_draft'); return; }
+  const json = JSON.stringify(draft);
+  if (Buffer.byteLength(json, 'utf8') > UI_BLOB_MAX_BYTES) {
+    console.error(`saveKnowledgeDraft: payload exceeds ${UI_BLOB_MAX_BYTES} bytes, not saved`);
+    return;
+  }
+  userSet(userId, 'knowledge_draft', json);
+}
+
+// ── Per-account UI preferences (SETTINGS_REFACTOR_PLAN.md Phase 3, S4) ──
+// theme/density/canvas/motion/sidebar/timesheet view used to live only in
+// localStorage, which is machine-wide, not per-account: a second person
+// logging into the same Windows account's copy of the app inherited whatever
+// the first person last chose. Stored in the existing user_settings key/value
+// table (no migration needed) under a 'pref_' prefix, one row per preference.
+const USER_PREFERENCES = {
+  theme: { default: 'light', allowed: ['light', 'dark'] },
+  density: { default: 'balanced', allowed: ['compact', 'balanced', 'spacious'] },
+  canvas: { default: 'calm', allowed: ['calm', 'structured'] },
+  motion: { default: 'reduced', allowed: ['gentle', 'reduced'] },
+  sidebar: { default: 'expanded', allowed: ['expanded', 'compact'] },
+  timesheetView: { default: 'grouped', allowed: ['grouped', 'flat'] },
+};
+function getUserPreferences(userId) {
+  const out = {};
+  for (const [key, cfg] of Object.entries(USER_PREFERENCES)) {
+    const raw = userGet(userId, 'pref_' + key);
+    out[key] = cfg.allowed.includes(raw) ? raw : cfg.default;
+  }
+  return out;
+}
+function setUserPreference(userId, key, value) {
+  const cfg = USER_PREFERENCES[key];
+  if (!cfg) throw new Error(`Unknown preference: ${key}`);
+  if (!cfg.allowed.includes(value)) throw new Error(`Invalid value for ${key}: ${value}`);
+  userSet(userId, 'pref_' + key, value);
+  return { ok: true };
 }
 
 // ── Lifecycle / backup ──────────────────────────────────────────────────────
@@ -4046,6 +4121,7 @@ function assignClientInternalGroup(userId, companyId, recordIds, groupName) {
 }
 
 module.exports = {
+  LOOKUP_CATEGORIES, LOOKUP_MERGE_TARGETS,
   openConnection, applyMigrations, runMaintenance,
   close, backup, dbPath,
   projectsRootDir, knowledgeRootDir,
@@ -4084,7 +4160,8 @@ module.exports = {
   loadSubscriptions, saveSubscriptions,
   loadPrefs, savePrefs,
   loadLoginFailures, saveLoginFailures,
-  loadUiState, saveUiState,
+  loadUiState, saveUiState, loadKnowledgeDraft, saveKnowledgeDraft,
+  getUserPreferences, setUserPreference,
   listBackups, restoreBackup, checkIntegrity, getSystemDiagnostics, findLookupDuplicates, mergeLookupDuplicate, getOrphanSweepReport,
   fullBackup, inspectFullBackup, restoreFullBackup,
   FULL_BACKUP_PREFIXES,

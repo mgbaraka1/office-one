@@ -143,7 +143,14 @@ function login(username, password) {
   clearLoginFailure(failureKey);
   session = { userId: user.id, username: user.username, isAdmin: !!user.is_admin };
   const names = db.getUserDisplayName(user.id);
-  return { ok: true, user: { id: user.id, username: user.username, isAdmin: !!user.is_admin, nameEn: names.nameEn, nameAr: names.nameAr } };
+  return {
+    ok: true,
+    user: {
+      id: user.id, username: user.username, isAdmin: !!user.is_admin,
+      nameEn: names.nameEn, nameAr: names.nameAr,
+      mustChangePassword: !!user.must_change_password,
+    },
+  };
 }
 
 function logout() {
@@ -172,6 +179,7 @@ function userToApi(user) {
     isAdmin: !!(user.isAdmin ?? user.is_admin),
     isActive: !!(user.isActive ?? user.is_active),
     createdAt: user.createdAt ?? user.created_at ?? '',
+    mustChangePassword: !!(user.mustChangePassword ?? user.must_change_password),
   };
 }
 
@@ -181,7 +189,7 @@ function listUsers() {
   return rows.map(user => ({ ...userToApi(user), isCurrent: Number(user.id) === userId }));
 }
 
-function addUser(username, password, isAdmin = false) {
+function addUser(username, password, isAdmin = false, nameEn = '', nameAr = '') {
   requireAdmin();
   const uErr = validateUsername(username);
   if (uErr) return { ok: false, error: uErr };
@@ -190,8 +198,11 @@ function addUser(username, password, isAdmin = false) {
   const uname = String(username).trim();
   try {
     const adminRole = !!isAdmin;
-    const id = db.createUser(uname, bcrypt.hashSync(String(password), SALT_ROUNDS), adminRole);
-    return { ok: true, user: { id, username: uname, isAdmin: adminRole, isActive: true } };
+    // An admin-created account starts with a password only the admin knows —
+    // require the new owner to choose their own on first login.
+    const id = db.createUser(uname, bcrypt.hashSync(String(password), SALT_ROUNDS), adminRole,
+      String(nameEn || '').trim(), String(nameAr || '').trim(), true);
+    return { ok: true, user: userToApi({ id, username: uname, isAdmin: adminRole, isActive: true, mustChangePassword: true }) };
   } catch { return { ok: false, error: 'That username is already taken.' }; }
 }
 
@@ -214,8 +225,20 @@ function updateUser(id, data) {
     return { ok: false, error: 'At least one active administrator is required.' };
   }
 
-  let passwordHash;
   const password = String(data?.password || '');
+  const rolePrivilegeChanged = isAdmin !== !!target.is_admin || isActive !== !!target.is_active;
+  // An admin acting on someone ELSE's account, to reset their password or
+  // change their role/active status, must re-prove it's really them at the
+  // keyboard — not just that an admin session happens to still be open.
+  if (!isSelf && session.isAdmin && (password || rolePrivilegeChanged)) {
+    const actor = db.getUserById(actorId);
+    if (!actor || !bcrypt.compareSync(String(data?.actorPassword || ''), actor.password_hash)) {
+      return { ok: false, error: 'Your current password is required to make this change.' };
+    }
+  }
+
+  let passwordHash;
+  let mustChangePassword;
   if (password) {
     const pErr = validatePassword(password);
     if (pErr) return { ok: false, error: pErr };
@@ -223,14 +246,20 @@ function updateUser(id, data) {
       if (!bcrypt.compareSync(String(data?.currentPassword || ''), target.password_hash)) {
         return { ok: false, error: 'Current password is incorrect.' };
       }
+      // Chosen by its own owner — no further rotation required.
+      mustChangePassword = false;
     } else if (!session.isAdmin) {
       return { ok: false, error: 'Administrator access required.' };
+    } else {
+      // An admin-assigned password on someone else's account — same as at
+      // account creation, its new owner must replace it on next login.
+      mustChangePassword = true;
     }
     passwordHash = bcrypt.hashSync(password, SALT_ROUNDS);
   }
 
   try {
-    db.updateUserAccount(targetId, { username, isAdmin, isActive, passwordHash });
+    db.updateUserAccount(targetId, { username, isAdmin, isActive, passwordHash, mustChangePassword });
   } catch {
     return { ok: false, error: 'That username is already taken.' };
   }
