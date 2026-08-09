@@ -104,7 +104,8 @@ function lkBuild() {
   ).all();
   const byCat = {}, idTo = new Map(), valToId = new Map();
   for (const r of rows) {
-    (byCat[r.category] ||= []).push(r);
+    if (!byCat[r.category]) byCat[r.category] = [];
+    byCat[r.category].push(r);
     idTo.set(r.id, r);
     valToId.set(r.category + '|' + r.code, r.id);
     // a display label resolves too (company/system rows round-trip by label)
@@ -114,7 +115,10 @@ function lkBuild() {
   }
   lkCache = { byCat, idTo, valToId };
 }
-function lk() { if (!lkCache) lkBuild(); return lkCache; }
+function lk() {
+  if (!lkCache) lkBuild();
+  return lkCache;
+}
 function lkInvalidate() { lkCache = null; }
 // value may be a stable code OR a display label; '' / null → null (unset).
 function lkId(category, value) {
@@ -125,7 +129,7 @@ function lkCode(id)  { const r = id == null ? null : lk().idTo.get(id); return r
 function lkLabel(id) { const r = id == null ? null : lk().idTo.get(id); return r ? r.label : ''; }
 function companyProfileFields(id) {
   const r = id == null ? null : lk().idTo.get(Number(id));
-  if (!r || r.category !== 'COMPANY') return { companyCode: '', companyNameEn: '', companyNameAr: '' };
+  if (r?.category !== 'COMPANY') return { companyCode: '', companyNameEn: '', companyNameAr: '' };
   return { companyCode: r.code || '', companyNameEn: r.name_en || r.label || '', companyNameAr: r.name_ar || '' };
 }
 // True if `id` is a real lookup row in the given category — used to validate FK ids
@@ -141,9 +145,12 @@ function isLookupId(category, id) {
 function isLookupActive(id) {
   if (id == null || id === '') return false;
   const r = lk().idTo.get(Number(id));
-  return !!(r && r.is_active);
+  return !!r?.is_active;
 }
-function slugCode(s) { return String(s).toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'NA'; }
+function slugCode(s) {
+  const normalized = String(s).toUpperCase().replace(/[^A-Z0-9]+/g, '_');
+  return normalized.replace(/^_/, '').replace(/_$/, '') || 'NA';
+}
 function uniqueCode(category, base) {
   const exists = db.prepare('SELECT 1 FROM lookup_codes WHERE category = ? AND code = ?');
   let code = base, i = 2;
@@ -410,14 +417,20 @@ function updateUserAccount(id, data) {
   const current = getUserById(id);
   if (!current || current.username === '__unclaimed__') return false;
   const passwordHash = data?.passwordHash || current.password_hash;
-  const mustChangePassword = data?.mustChangePassword == null
-    ? current.must_change_password : (data.mustChangePassword ? 1 : 0);
+  let mustChangePassword = current.must_change_password;
+  if (data?.mustChangePassword != null) {
+    mustChangePassword = data.mustChangePassword ? 1 : 0;
+  }
+  let isAdmin = current.is_admin;
+  if (data?.isAdmin != null) isAdmin = data.isAdmin ? 1 : 0;
+  let isActive = current.is_active;
+  if (data?.isActive != null) isActive = data.isActive ? 1 : 0;
   return db.prepare(
     'UPDATE users SET username = ?, is_admin = ?, is_active = ?, password_hash = ?, must_change_password = ? WHERE id = ?'
   ).run(
     data?.username ?? current.username,
-    data?.isAdmin == null ? current.is_admin : (data.isAdmin ? 1 : 0),
-    data?.isActive == null ? current.is_active : (data.isActive ? 1 : 0),
+    isAdmin,
+    isActive,
     passwordHash,
     mustChangePassword,
     id
@@ -799,7 +812,7 @@ function loadLookups(userId) {
 function saveLookups(userId, data) {
   const skipped = [];
   tx(() => {
-    if (data && data.categories) {
+    if (data?.categories) {
       const now = new Date().toISOString();
       const upd = db.prepare('UPDATE lookup_codes SET label = ?, name_en = ?, name_ar = ?, sort_order = ?, is_active = ? WHERE id = ?');
       const updCompany = db.prepare('UPDATE lookup_codes SET code = ?, label = ?, name_en = ?, name_ar = ?, sort_order = ?, is_active = ? WHERE id = ? AND category = \'COMPANY\'');
@@ -1800,7 +1813,7 @@ function setKnowledgeChildren(userId, itemId, data) {
     const row = ensureTag.get(userId, name, new Date().toISOString());
     addTag.run(itemId, row.id);
   });
-  if (Object.prototype.hasOwnProperty.call(data || {}, 'groupIds')) {
+  if (Object.hasOwn(data || {}, 'groupIds')) {
     db.prepare('DELETE FROM knowledge_group_items WHERE item_id = ?').run(itemId);
     const ownsGroup = db.prepare('SELECT 1 FROM knowledge_groups WHERE id = ? AND user_id = ?');
     const nextSort = db.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM knowledge_group_items WHERE group_id = ?');
@@ -2056,8 +2069,8 @@ function deleteKnowledgeGroup(userId, id) {
 // change instead of a sweep through every call site.
 function internalTaskWhere(alias = 't') { return `${alias ? alias + '.' : ''}department_id IS NOT NULL`; }
 function clientTaskWhere(alias = 't')   { return `${alias ? alias + '.' : ''}department_id IS NULL`; }
-function isInternalTaskRow(row) { return !!(row && row.department_id != null); }
-function isInternalTaskApi(t)   { return !!(t && t.departmentId != null); }
+function isInternalTaskRow(row) { return row?.department_id != null; }
+function isInternalTaskApi(t)   { return t?.departmentId != null; }
 
 // Link / unlink a task to a project, addressed directly by its task id (the
 // two-level model — everything is a task now). Linking verifies project ownership;
