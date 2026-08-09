@@ -297,14 +297,24 @@ ipcMain.handle('projects:link-task',   authed((_e, projectId, taskId) => db.link
 ipcMain.handle('projects:unlink-task', authed((_e, taskId)            => db.unlinkTask(auth.requireUserId(), taskId)));
 ipcMain.handle('projects:linkable-tasks', authed(()                   => db.listLinkableTasks(auth.requireUserId())));
 
-// ── Departments (Internal Tasks) — DEPARTMENT is a plain lookup category, not a
-// table; there is no departments:create/update/delete, only listing + linking
-// tasks to one, mirroring the projects:link-task/unlink-task/linkable-tasks shape.
-ipcMain.handle('departments:list',           authed(()                  => db.listDepartments(auth.requireUserId())));
-ipcMain.handle('departments:get',            authed((_e, id)            => db.getDepartment(auth.requireUserId(), id)));
-ipcMain.handle('departments:link-task',      authed((_e, taskId, deptId) => db.linkDepartmentTask(auth.requireUserId(), taskId, deptId)));
-ipcMain.handle('departments:unlink-task',    authed((_e, taskId)        => db.unlinkDepartmentTask(auth.requireUserId(), taskId)));
-ipcMain.handle('departments:linkable-tasks', authed(()                  => db.listLinkableTasksForDepartment(auth.requireUserId())));
+// ── Departments (Internal Work) — DEPARTMENT is a plain lookup category, not a
+// table; there is no departments:create/update/delete, only listing. Task CRUD
+// for the internal domain lives under internal:* below, not here — see
+// Client and Internal are separate domains: a
+// task cannot be cross-linked between them, only explicitly converted").
+ipcMain.handle('departments:list', authed(() => db.listDepartments(auth.requireUserId())));
+ipcMain.handle('departments:get',  authed((_e, id) => db.getDepartment(auth.requireUserId(), id)));
+
+// ── Internal tasks (INTERNAL domain — department-classified, never a client) ──
+// The internal-domain counterpart of the tasks:* channels above, which are now
+// CLIENT-domain only. A task moves between the two domains only through the
+// explicit convert-* channels, never through a link/unlink pair.
+ipcMain.handle('internal:list',   authed(()             => db.listInternalTasks(auth.requireUserId())));
+ipcMain.handle('internal:create', authed((_e, data)     => db.createInternalTask(auth.requireUserId(), data)));
+ipcMain.handle('internal:update', authed((_e, id, data) => db.updateInternalTask(auth.requireUserId(), id, data)));
+ipcMain.handle('internal:delete', authed((_e, id)       => db.deleteTask(auth.requireUserId(), id)));
+ipcMain.handle('internal:convert-to-client',   authed((_e, id, data) => db.convertTaskToClient(auth.requireUserId(), id, data)));
+ipcMain.handle('tasks:convert-to-internal',    authed((_e, id, data) => db.convertTaskToInternal(auth.requireUserId(), id, data)));
 
 // ── Project document files (Option A: bytes on disk under userData) ──
 // Allowlist mirrors db.PROJECT_DOC_TYPES; the native dialog also filters by it so

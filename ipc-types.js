@@ -27,6 +27,8 @@
  * @property {'Done'|'In Progress'} status
  * @property {number|''} minutes  Logged minutes, or '' when unset.
  * @property {number|null} [projectId]  Linked Project id, or null when unlinked.
+ * @property {number|null} [departmentId]  Linked DEPARTMENT lookup id, or null when this row's task is CLIENT work.
+ * @property {'CLIENT'|'INTERNAL'} kind  Which domain this row's task belongs to.
  * @property {number} sourceCount      Number of structured task_sources entries on this row's task (migration 033).
  * @property {string} firstSourceRef   The first (by sort_order) entry's ref, or '' if sourceCount is 0.
  * @property {string} firstSourceUrl   The first entry's url, or ''.
@@ -90,9 +92,10 @@
  * @property {number} id
  * @property {string} name
  * @property {'IN_PROGRESS'|'DONE'|string} status  ENTRY_STATUS lookup code.
- * @property {string} company
- * @property {string} system
- * @property {string} department    DEPARTMENT lookup label, or '' when unset (Internal Tasks).
+ * @property {'CLIENT'|'INTERNAL'} kind  Which domain this task belongs to — derived from departmentId. CLIENT tasks carry company/system/optionally a project; INTERNAL tasks carry only a department, never company/system/project.
+ * @property {string} company       '' for an INTERNAL task.
+ * @property {string} system        '' for an INTERNAL task.
+ * @property {string} department    DEPARTMENT lookup label, or '' for a CLIENT task.
  * @property {string} source        Legacy free-text source column — kept for backward compat, no longer written to by the UI (superseded by the structured `sources` list below, migration 033). A task edited before migration 033 that was never re-saved may still have a non-empty value here with an empty `sources` list.
  * @property {number|null} projectId Linked Project id, or null when unlinked.
  * @property {number|null} departmentId Linked DEPARTMENT lookup id, or null when unlinked.
@@ -146,11 +149,12 @@
 
 /**
  * A work log flattened with its parent task's context — the `worklogs:byDate`
- * ("day view") row shape. `projectId`/`departmentId` are mutually exclusive
- * since Milestone 9 (a task is Project work, Internal work, or neither).
+ * ("day view") row shape. `kind` says which domain the parent task belongs to
+ * A CLIENT row's `departmentId` is always null
+ * and an INTERNAL row's `company`/`system`/`projectId` are always ''/null.
  * @typedef {WorkLog & {
  *   taskName: string, status: string, company: string, system: string,
- *   projectId: number|null, departmentId: number|null
+ *   projectId: number|null, departmentId: number|null, kind: 'CLIENT'|'INTERNAL'
  * }} WorkLogOnDate
  */
 
@@ -551,6 +555,7 @@
  * @typedef {Object} Lookups
  * @property {Object<string, LookupOption[]>} categories
  * @property {string} [defaultName]
+ * @property {string} [orgName] The employer's display name — never a COMPANY lookup row.
  */
 
 /**

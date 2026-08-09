@@ -5,10 +5,12 @@ async function refreshDayList() {
   // Days loaded lazily — only fetch data when a day is actually opened
 }
 
-// Persist just the default employee name (auto-saved when the Name field changes)
-// without blocking the UI, surfacing a toast if the write fails.
+// Persist the default employee name and/or the organisation name (each
+// auto-saved independently when its own field changes) without blocking the
+// UI, surfacing a toast if the write fails.
 function persistLookups() {
-  Promise.resolve(window.api.saveLookups({ defaultName: LK.defaultName })).catch(() => toast('Could not save settings'));
+  Promise.resolve(window.api.saveLookups({ defaultName: LK.defaultName, orgName: LK.orgName }))
+    .catch(() => toast('Could not save settings'));
 }
 
 // ── Calendar toggle ──
@@ -16,8 +18,13 @@ function toggleCalendar(e) {
   e.stopPropagation();
   document.getElementById('cal-trigger').classList.toggle('open');
 }
-document.addEventListener('click', () => {
-  document.getElementById('cal-trigger')?.classList.remove('open');
+// Delegated markup events (event-delegation.js) run on a single document-level
+// listener, so toggleCalendar's stopPropagation() no longer keeps this handler
+// from firing on the same click that opened the dropdown — it must check
+// whether the click actually landed outside the trigger instead.
+document.addEventListener('click', (e) => {
+  const trigger = document.getElementById('cal-trigger');
+  if (trigger && !trigger.contains(e.target)) trigger.classList.remove('open');
 });
 
 // ── Calendar ──
@@ -146,7 +153,7 @@ function renderTableGrouped() {
   host.innerHTML = '';
 
   const shown = rows.filter(rowMatchesFilter);
-  const isFiltered = filterText || filterStatuses.size > 0;
+  const isFiltered = filterText || filterStatuses.size > 0 || filterDomain !== 'all';
   document.getElementById('filter-count').textContent = isFiltered ? `${shown.length} of ${rows.length} shown` : '';
 
   // Group sessions by task; a not-yet-saved row (no taskId) is its own group.
@@ -282,7 +289,7 @@ function buildTaskGroupCard(g, origIdxOf) {
     if (kind) {
       const b = document.createElement('button');
       b.className = 'tsg-pill cell-link';
-      b.textContent = kind === 'companies' ? companyDisplayName(text) : lkLabel('SYSTEM', text);
+      b.textContent = kind === 'companies' ? companyDisplayName(text, false) : lkLabel('SYSTEM', text);
       b.title = 'Browse all work for ' + b.textContent;
       b.addEventListener('click', () => openBrowseSlice(kind, text));
       meta.appendChild(b);
@@ -292,7 +299,19 @@ function buildTaskGroupCard(g, origIdxOf) {
       meta.appendChild(s);
     }
   };
-  pill(first.company, 'companies');
+  // Internal rows never carry a company — pill()
+  // would silently no-op on the empty string, so show an explicit chip
+  // instead of letting the card read as missing data.
+  if (first.departmentId != null) {
+    const b = document.createElement('button');
+    b.className = 'tsg-pill cell-link row-department-tag';
+    b.textContent = 'Internal';
+    b.title = 'Open Internal Work';
+    b.addEventListener('click', () => openDepartmentById(Number(first.departmentId)));
+    meta.appendChild(b);
+  } else {
+    pill(first.company, 'companies');
+  }
   pill(first.system, 'systems');
   const projTag = projectRowTag(first.projectId);
   if (projTag) meta.appendChild(projTag);
@@ -472,7 +491,7 @@ function renderTableFlat() {
   const unknownRows = rows.filter(r => !known.has(r.status) && rowMatchesFilter(r));
   const ordered = [...doneRows, ...buckets.flatMap(b => b.rows), ...unknownRows];
 
-  const isFiltered = filterText || filterStatuses.size > 0;
+  const isFiltered = filterText || filterStatuses.size > 0 || filterDomain !== 'all';
   const countEl    = document.getElementById('filter-count');
   countEl.textContent = isFiltered ? `${ordered.length} of ${rows.length} shown` : '';
 
@@ -545,7 +564,7 @@ function renderTableFlat() {
     taskCell.appendChild(taskSpan); taskTd.appendChild(taskCell);
     tr.appendChild(taskTd);
 
-    tr.appendChild(linkCell(row.company, 'companies'));
+    tr.appendChild(row.departmentId != null ? internalCompanyCell(row.departmentId) : linkCell(row.company, 'companies'));
     tr.appendChild(linkCell(row.system, 'systems'));
     tr.appendChild(textCell(lkLabel('ACTIVITY_TYPE', row.natural)));
     const timeTd = document.createElement('td');
@@ -738,9 +757,22 @@ function linkCell(val, kind) {
   if (!val) return textCell(val);
   const btn = document.createElement('button');
   btn.className = 'cell-link';
-  btn.textContent = kind === 'companies' ? companyDisplayName(val) : lkLabel('SYSTEM', val);
+  btn.textContent = kind === 'companies' ? companyDisplayName(val, false) : lkLabel('SYSTEM', val);
   btn.title = 'Browse all work for ' + btn.textContent;
   btn.addEventListener('click', () => openBrowseSlice(kind, val));
+  return cellWrap(btn, 'cell');
+}
+// The flat table's Company cell for an internal row — company is always ''
+// there, so a plain linkCell would render empty
+// and read as a bug rather than a different domain. Shows an explicit
+// "Internal" chip instead, cross-linking into Internal Work like the
+// Department pill in the Project/Department column does.
+function internalCompanyCell(departmentId) {
+  const btn = document.createElement('button');
+  btn.className = 'cell-link row-department-tag';
+  btn.textContent = 'Internal';
+  btn.title = 'Open Internal Work';
+  btn.addEventListener('click', () => openDepartmentById(Number(departmentId)));
   return cellWrap(btn, 'cell');
 }
 // A task's linked-container cell — the same cross-linking pill used elsewhere
@@ -904,10 +936,11 @@ function undoDelete() {
 
 // Task-level fields of a row (shared across all of a task's sessions). Used
 // both to update an existing task's metadata (via updateTaskMeta, which
-// ignores projectId/department entirely) and to create a brand-new task (via
-// createTask, e.g. from Duplicate/Undo-delete on a Department-linked row) —
-// forwarding department here is the same "initial link on a genuinely new
-// task is legitimate" reasoning projectId already followed, not a clobber.
+// ignores project/department links entirely — see the domain guard in
+// db.js's updateTaskMeta) and to create a brand-new task (via createRowTask
+// below, e.g. from Duplicate/Undo-delete on an internal row) — forwarding
+// department here is the same "initial link on a genuinely new task is
+// legitimate" reasoning projectId already followed, not a clobber.
 function tsTaskPayload(row) {
   return {
     name: (row.taskName && row.taskName.trim()) || row.description || '',
@@ -916,6 +949,14 @@ function tsTaskPayload(row) {
     projectId: row.projectId ?? null,
     department: row.departmentId != null ? lkLabelById('DEPARTMENT', row.departmentId) : '',
   };
+}
+// Create a brand-new row's task through the right domain channel
+// tasks:create is client-only now, so a row
+// carrying a departmentId (an internal New Task created right here on the
+// Timesheet, see setModalTaskType/submitModal) must go through
+// internal:create instead, or the department would be silently dropped.
+function createRowTask(row) {
+  return row.departmentId != null ? window.api.createInternalTask(tsTaskPayload(row)) : window.api.createTask(tsTaskPayload(row));
 }
 // Work-log-level fields of a row (this session only). Natural is per-session,
 // same as time type — it does not propagate to sibling sessions.
@@ -992,7 +1033,7 @@ async function persistTimesheet() {
         await window.api.updateWorkLog(row.eid, tsLogPayload(row));
       } else {
         let taskId = row.taskId;
-        if (!taskId) { const c = await window.api.createTask(tsTaskPayload(row)); taskId = c.id; }
+        if (!taskId) { const c = await createRowTask(row); taskId = c.id; }
         const r = await window.api.addWorkLog(taskId, tsLogPayload(row));
         if (r && r.id) {
           row.eid = r.id; row.taskId = taskId; seen.add(r.id);
@@ -1085,6 +1126,24 @@ function setRecordMode(mode) {
   }
 }
 
+// New Task branch's Client/Internal toggle —
+// the fix that makes internal work loggable from the daily Timesheet surface
+// at all. Only meaningful within .mode-new (the whole .modal-taskfields block
+// is hidden entirely in .mode-existing/.mode-edit, toggle included).
+let modalTaskType = 'client';
+function setModalTaskType(type) {
+  modalTaskType = type;
+  document.querySelectorAll('#f-tasktype-ctl .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.type === type));
+  document.getElementById('f-clientfields-row').style.display = type === 'client' ? '' : 'none';
+  document.getElementById('f-department-row').style.display = type === 'internal' ? '' : 'none';
+  // Project link only applies to client work.
+  document.getElementById('f-project-row').style.display = type === 'client' ? '' : 'none';
+  if (type === 'internal') {
+    populateSelect('f-department', 'department', '');
+    blankSelect('f-department');
+  }
+}
+
 // Blank a select and prepend a "— select —" placeholder (the empty-new-task state).
 function blankSelect(id) {
   const sel = document.getElementById(id);
@@ -1174,6 +1233,7 @@ async function openModal(idx = null, opts = {}) {
     document.getElementById('f-mode-toggle-row').style.display = '';
     document.querySelector('#modal .modal-more').open = false;   // reset closed for a fresh Add
     document.querySelectorAll('#f-mode-toggle .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === 'existing'));
+    setModalTaskType('client');   // reset to client work for a fresh Add
     if (!defaults.time) blankSelect('f-time');
     if (!defaults.natural) blankSelect('f-natural');
     // Lightweight (Milestone 7) — this picker never renders sessions, just the
@@ -1229,11 +1289,15 @@ async function submitModal() {
     { id: 'f-description', val: document.getElementById('f-description').value.trim() },
   ];
   if (!isEdit && !loggingExisting) {
-    required.push(
-      { id: 'f-company', val: document.getElementById('f-company').value },
-      { id: 'f-system',  val: document.getElementById('f-system').value },
-      { id: 'f-status',  val: document.getElementById('f-status').value },
-    );
+    required.push({ id: 'f-status', val: document.getElementById('f-status').value });
+    if (modalTaskType === 'internal') {
+      required.push({ id: 'f-department', val: document.getElementById('f-department').value });
+    } else {
+      required.push(
+        { id: 'f-company', val: document.getElementById('f-company').value },
+        { id: 'f-system',  val: document.getElementById('f-system').value },
+      );
+    }
   }
 
   let valid = true;
@@ -1285,16 +1349,23 @@ async function submitModal() {
   const descVal   = document.getElementById('f-description').value.trim();
   const taskName  = document.getElementById('f-taskname').value.trim() || descVal;
   const dateVal   = document.getElementById('f-date').value;
+  // A brand-new task is either client work or internal work (modalTaskType,
+  // set by the Task Type toggle) — never both. onExistingPath (logging
+  // against a picked task) never reaches here with modalTaskType meaningful,
+  // since the whole task-fields block including the toggle stays hidden then;
+  // its own task's kind is preserved server-side regardless.
+  const newTaskIsInternal = !isEdit && !loggingExisting && modalTaskType === 'internal';
   const record = {
     taskName:    taskName,
-    company:     document.getElementById('f-company').value,
-    system:      document.getElementById('f-system').value,
+    company:     newTaskIsInternal ? '' : document.getElementById('f-company').value,
+    system:      newTaskIsInternal ? '' : document.getElementById('f-system').value,
     natural:     document.getElementById('f-natural').value,
     time:        document.getElementById('f-time').value,
     description: descVal,
     status:      document.getElementById('f-status').value,
     minutes:     minRaw === '' ? '' : parseInt(minRaw, 10),   // Number when set, '' when blank
-    projectId:   fProjectPicker ? fProjectPicker.getSelectedId() : null,
+    projectId:   newTaskIsInternal ? null : (fProjectPicker ? fProjectPicker.getSelectedId() : null),
+    departmentId: newTaskIsInternal ? (Number(document.getElementById('f-department').value) || null) : null,
     date:        dateVal,
   };
   rememberSessionDefaults(record.time, record.natural);
@@ -1367,7 +1438,7 @@ async function submitModal() {
   // actually a source to attach, so the common no-sources path is unaffected.
   if (!loggingExisting && sourceRows.length > 0) {
     try {
-      const created = await window.api.createTask(tsTaskPayload(record));
+      const created = await createRowTask(record);
       record.taskId = created.id;
       await saveTaskSources(record.taskId, sourceRows, []);
     } catch { toast('Could not save the task'); return; }
@@ -1383,7 +1454,7 @@ async function submitModal() {
     // the new session is visible (the current day's view is unaffected).
     closeModal();
     try {
-      const taskId = record.taskId ?? (await window.api.createTask(tsTaskPayload(record))).id;
+      const taskId = record.taskId ?? (await createRowTask(record)).id;
       await window.api.addWorkLog(taskId, tsLogPayload(record));
       await refreshSavedDays();
       await switchDay(targetDate);
@@ -1469,6 +1540,9 @@ function runCreateFlow(kind) {
   }
   if (kind === 'task') {
     switchModule('all-tasks'); openBacklogModal(); return;
+  }
+  if (kind === 'internal-task') {
+    switchModule('internal-tasks'); openInternalTaskModal(); return;
   }
   if (kind === 'project') {
     switchModule('clients'); openProjectModal(); return;
@@ -1600,6 +1674,21 @@ document.getElementById('hName').addEventListener('input', () => {
   }, 300);
 });
 
+// Settings -> General's Organisation name field —
+// same debounced-auto-save convention as hName above, but allowed to save an
+// empty value (clearing it back to the "Internal" fallback is a valid edit).
+let _orgNameSaveTimer = null;
+document.getElementById('s-org-name').addEventListener('input', () => {
+  clearTimeout(_orgNameSaveTimer);
+  _orgNameSaveTimer = setTimeout(() => {
+    const name = document.getElementById('s-org-name').value.trim();
+    if (name !== LK.orgName) {
+      LK.orgName = name;
+      persistLookups();
+    }
+  }, 300);
+});
+
 // ── Print ──
 // Build the daily work report inner HTML for a given day's rows (shared by the
 // Timesheet "Daily report" action and the Reports module's Daily Timesheet PDF).
@@ -1661,7 +1750,8 @@ function buildDailyReportHTML(srcRows, date, name, sourcesByTaskId) {
     let g = byTask.get(key);
     if (!g) {
       g = { taskName: r.taskName || r.description || '(untitled task)',
-            company: r.company, system: r.system, sessions: [], subtotal: 0,
+            company: r.company, system: r.system, departmentId: r.departmentId ?? null,
+            sessions: [], subtotal: 0,
             sources: (sourcesByTaskId && r.taskId != null && sourcesByTaskId.get(r.taskId)) || [] };
       byTask.set(key, g); groups.push(g);
     }
@@ -1673,8 +1763,13 @@ function buildDailyReportHTML(srcRows, date, name, sourcesByTaskId) {
     // Daily report task titles use COMPANY - PROJECT/SYSTEM - TASK. Historical
     // task names often already begin with the System value (for example,
     // "Payment Gateway - Check..."); strip that prefix so it is not printed twice.
-    const companyTitle = companyDisplayName(g.company, false).trim();
-    const projectTitle = String(lkLabel('SYSTEM', g.system) || '').trim().toUpperCase();
+    // An internal group has no company/system —
+    // print INTERNAL - DEPARTMENT - TASK instead, rather than a blank company.
+    const isInternalGroup = g.departmentId != null;
+    const companyTitle = isInternalGroup ? (LK.orgName ? LK.orgName.toUpperCase() : rptText('INTERNAL')) : companyDisplayName(g.company, false).trim();
+    const projectTitle = isInternalGroup
+      ? String(lkLabelById('DEPARTMENT', g.departmentId) || '').trim().toUpperCase()
+      : String(lkLabel('SYSTEM', g.system) || '').trim().toUpperCase();
     let taskTitle = String(g.taskName || '(untitled task)').trim();
     const existingPrefix = String(g.system || '').trim();
     if (existingPrefix && taskTitle.toLocaleLowerCase().startsWith(existingPrefix.toLocaleLowerCase())) {
@@ -1940,8 +2035,8 @@ function buildOvertimeReportHTML(days, monthLabel, name) {
       <tr>
         <td style="text-align:center">${i + 1}</td>
         <td>${dLabel}</td>
-        <td>${esc(companyDisplayName(r.company, false))}</td>
-        <td>${esc(lkLabel('SYSTEM', r.system))}</td>
+        <td>${esc(r.departmentId != null ? (LK.orgName || rptText('INTERNAL')) : companyDisplayName(r.company, false))}</td>
+        <td>${esc(r.departmentId != null ? lkLabelById('DEPARTMENT', r.departmentId) : lkLabel('SYSTEM', r.system))}</td>
         <td>${esc(r.taskName || lkLabel('ACTIVITY_TYPE', r.natural) || '—')}</td>
         <td>${esc(r.description)}</td>
         <td style="text-align:right">${r.minutes || '—'}</td>
@@ -2151,54 +2246,27 @@ function updateTodayBtn() {
 // PROJECT TASK MODAL — add a zero-log task to a project, or edit any project
 // task's profile fields. Persists immediately (no debounced whole-list save).
 // ════════════════════════════════════════════════════════════════════════════
-// ── Project task modal (add a zero-log task, or edit any project task's profile) ──
-// Used by Projects detail "New Task"/"Edit" and Internal Tasks' equivalents. opts:
-//   task         → the task being edited (its own shape, from currentProject.tasks/currentDept.tasks) — omit to create
+// ── Client task modal (add a zero-log CLIENT task, or edit any client task's
+//    profile): this modal is now client-only,
+//    never carries a Department. See openInternalTaskModal below for the
+//    internal-domain counterpart. Used by Projects detail "New Task"/"Edit"
+//    and Client Tasks. opts:
+//   task         → the task being edited (its own shape) — omit to create
 //   projectId    → preset + lock the Project field to that project
-//   departmentId → preset + lock the Department field to that department
 //   onSaved      → called after a successful save to refresh the caller's view
-let _backlogCtx = { projectId: null, departmentId: null, onSaved: null };
+let _backlogCtx = { projectId: null, onSaved: null };
 // Ids of the currently-open New/Edit Task modal's task's existing task_sources
 // rows (fetched via getTask when editing a task with any), for reconciliation.
 let _bSourceOriginalIds = [];
 
-// Milestone 9 — which container field is currently shown when neither is
-// locked by context ('project' | 'department'). Only meaningful in that case;
-// ignored (rows driven directly by lockedProject/lockedDept) otherwise.
-let _backlogTaskType = 'project';
-// Visual-only: shows the matching row + toggle state. Never touches field
-// values — used both for the initial render (reflecting the task's existing
-// link, so nothing is lost) and as the shared base for the click handler below.
-function applyBacklogTaskTypeUI(type) {
-  _backlogTaskType = type;
-  document.querySelectorAll('#b-tasktype-ctl .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.type === type));
-  document.getElementById('b-project-row').style.display = type === 'project' ? '' : 'none';
-  document.getElementById('b-department-row').style.display = type === 'department' ? '' : 'none';
-}
-// Click handler for the Task Type toggle. Purely visual (just calls
-// applyBacklogTaskTypeUI) — deliberately does NOT clear the now-hidden
-// field's value. An earlier version cleared it here, which meant toggling
-// project -> department -> project back again left the project picker
-// silently emptied (the first toggle cleared it; the second toggle had
-// nothing to restore), so saving without re-picking the project would
-// silently unlink it. Project/Department exclusivity is instead enforced
-// once, at submit time, in submitBacklogModal() — it reads only whichever
-// field _backlogTaskType currently says is active and ignores the other
-// entirely, so toggling back and forth is always non-destructive.
-function setBacklogTaskType(type) {
-  if (type === _backlogTaskType) return;
-  applyBacklogTaskTypeUI(type);
-}
-
 async function openBacklogModal(id = null, opts = {}) {
   backlogEditId = id;
-  _backlogCtx = { projectId: opts.projectId ?? null, departmentId: opts.departmentId ?? null, onSaved: opts.onSaved || null };
+  _backlogCtx = { projectId: opts.projectId ?? null, onSaved: opts.onSaved || null };
   const lockedProject = _backlogCtx.projectId != null;
-  const lockedDept = _backlogCtx.departmentId != null;
   const task = opts.task || null;
   const isEdit = !!task;
   document.getElementById('backlog-modal-title').textContent =
-    isEdit ? 'Edit Task' : (lockedProject ? 'New Project Task' : (lockedDept ? 'New Department Task' : 'Add Task'));
+    isEdit ? 'Edit Task' : (lockedProject ? 'New Project Task' : 'Add Task');
   document.querySelector('#backlog-modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : 'Add Task';
 
   populateSelect('b-company', 'companies', task?.company || '');
@@ -2222,40 +2290,6 @@ async function openBacklogModal(id = null, opts = {}) {
   const bpInput = document.querySelector('#b-project .ss-input');
   if (bpInput) bpInput.disabled = lockedProject;
 
-  // Department is optional, same convention as Project — a plain lookup-driven
-  // select (like Company/System) rather than a search-select, since there are
-  // only a handful of departments.
-  const initialDeptLabel = lockedDept
-    ? (deptList.find(d => d.id === _backlogCtx.departmentId)?.label || currentDept?.label || '')
-    : (task?.department || '');
-  populateSelect('b-department', 'department', initialDeptLabel);
-  const bDeptSel = document.getElementById('b-department');
-  const blankDept = document.createElement('option');
-  blankDept.value = ''; blankDept.textContent = 'No department';
-  if (!initialDeptLabel) blankDept.selected = true;
-  bDeptSel.insertBefore(blankDept, bDeptSel.firstChild);
-  bDeptSel.disabled = lockedDept;
-
-  // Milestone 9 — Project/Department are mutually exclusive. Opened from inside
-  // a Project or a Department, the type is already fixed by that context: hide
-  // the Task Type toggle and the other container's field entirely (not just
-  // disabled). Opened with neither preset (only All Tasks' Edit today), show
-  // the toggle and reveal whichever field matches the task's current link
-  // (defaulting to Project work for a task with neither link yet).
-  const tasktypeRow = document.getElementById('b-tasktype-row');
-  if (lockedProject) {
-    tasktypeRow.style.display = 'none';
-    document.getElementById('b-department-row').style.display = 'none';
-    document.getElementById('b-project-row').style.display = '';
-  } else if (lockedDept) {
-    tasktypeRow.style.display = 'none';
-    document.getElementById('b-project-row').style.display = 'none';
-    document.getElementById('b-department-row').style.display = '';
-  } else {
-    tasktypeRow.style.display = '';
-    applyBacklogTaskTypeUI(task?.departmentId ? 'department' : 'project');
-  }
-
   document.getElementById('b-description').value = task?.name   || '';
   document.getElementById('b-sources-list').innerHTML = '';
   let fetchedSources = [];
@@ -2268,12 +2302,12 @@ async function openBacklogModal(id = null, opts = {}) {
 
   clearBacklogErrors();
   document.getElementById('backlog-modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById((lockedProject || lockedDept) ? 'b-description' : 'b-company').focus(), 80);
+  setTimeout(() => document.getElementById('b-company').focus(), 80);
 }
 function closeBacklogModal() {
   document.getElementById('backlog-modal-overlay').classList.remove('open');
   backlogEditId = null;
-  _backlogCtx = { projectId: null, departmentId: null, onSaved: null };
+  _backlogCtx = { projectId: null, onSaved: null };
 }
 
 // Create a new task already linked to the open project (Projects detail → New Task).
@@ -2305,17 +2339,6 @@ async function submitBacklogModal() {
   if (!valid) return;
 
   const isEdit = backlogEditId !== null;
-  // Project/Department are mutually exclusive (Milestone 9) — only the field
-  // matching the active type is ever sent, regardless of what the other
-  // field's underlying picker/select still holds (setBacklogTaskType() no
-  // longer clears it on toggle, so a round-trip toggle can't lose data, but
-  // that means BOTH fields can carry a stale value at once; gating here,
-  // once, at the single point the payload is built, is what actually
-  // enforces the invariant). Locked-by-context (opened from a Project or a
-  // Department) always wins over the toggle, which isn't even shown then.
-  const activeLinkType = (_backlogCtx.projectId != null) ? 'project'
-    : (_backlogCtx.departmentId != null) ? 'department'
-    : _backlogTaskType;
   // A zero-log task's description is the task name; time type and natural are
   // both per-session, chosen when it's assigned to a day.
   const payload = {
@@ -2323,8 +2346,7 @@ async function submitBacklogModal() {
     status:      document.getElementById('b-status').value,
     company:     document.getElementById('b-company').value,
     system:      document.getElementById('b-system').value,
-    department:  activeLinkType === 'department' ? document.getElementById('b-department').value : '',
-    projectId:   activeLinkType === 'project' ? (bProjectPicker ? bProjectPicker.getSelectedId() : null) : null,
+    projectId:   bProjectPicker ? bProjectPicker.getSelectedId() : null,
   };
   const sourceRows = readTaskSourceRows('b-sources-list');
 
@@ -2341,9 +2363,102 @@ async function submitBacklogModal() {
   toast(isEdit ? 'Task updated' : 'Task created');
 }
 
+// ── Internal task modal — the internal-domain counterpart of the client task
+//    modal above. Never carries Company/System/
+//    Project; Department is required. opts:
+//   task         → the task being edited — omit to create
+//   departmentId → preset + lock the Department field to that department
+//                  (Internal Work's "New Task" for a selected department)
+//   onSaved      → called after a successful save to refresh the caller's view
+let internalTaskEditId = null;
+let _internalTaskCtx = { departmentId: null, onSaved: null };
+let _itSourceOriginalIds = [];
+
+async function openInternalTaskModal(id = null, opts = {}) {
+  internalTaskEditId = id;
+  _internalTaskCtx = { departmentId: opts.departmentId ?? null, onSaved: opts.onSaved || null };
+  const lockedDept = _internalTaskCtx.departmentId != null;
+  const task = opts.task || null;
+  const isEdit = !!task;
+  document.getElementById('internal-task-modal-title').textContent =
+    isEdit ? 'Edit Internal Task' : 'Add Internal Task';
+  document.querySelector('#internal-task-modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : 'Add Internal Task';
+
+  const initialDeptLabel = lockedDept
+    ? (deptList.find(d => d.id === _internalTaskCtx.departmentId)?.label || currentDept?.label || '')
+    : (task?.department || '');
+  populateSelect('it-department', 'department', initialDeptLabel);
+  document.getElementById('it-department').disabled = lockedDept;
+  populateSelect('it-status', 'status', task?.status || 'IN_PROGRESS');
+
+  document.getElementById('it-description').value = task?.name || '';
+  document.getElementById('it-sources-list').innerHTML = '';
+  let fetchedSources = [];
+  if (isEdit && task?.id) {
+    try { fetchedSources = (await window.api.getTask(task.id))?.sources || []; }
+    catch { fetchedSources = []; }
+  }
+  _itSourceOriginalIds = fetchedSources.map(s => s.id);
+  fetchedSources.forEach(s => addTaskSourceRow('it-sources-list', s));
+
+  clearErrorsIn('#internal-task-modal');
+  document.getElementById('internal-task-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById(lockedDept ? 'it-description' : 'it-department').focus(), 80);
+}
+function closeInternalTaskModal() {
+  document.getElementById('internal-task-modal-overlay').classList.remove('open');
+  internalTaskEditId = null;
+  _internalTaskCtx = { departmentId: null, onSaved: null };
+}
+function internalTaskOverlayClick(e) {
+  if (e.target === document.getElementById('internal-task-modal-overlay')) closeInternalTaskModal();
+}
+
+async function submitInternalTaskModal() {
+  clearErrorsIn('#internal-task-modal');
+  const fields = [
+    { id: 'it-department',  val: document.getElementById('it-department').value },
+    { id: 'it-description', val: document.getElementById('it-description').value.trim() },
+  ];
+  let valid = true;
+  fields.forEach(f => { if (!f.val) { markError(f.id); valid = false; } });
+  if (!valid) return;
+
+  const isEdit = internalTaskEditId !== null;
+  const payload = {
+    name:       document.getElementById('it-description').value.trim(),
+    status:     document.getElementById('it-status').value,
+    department: document.getElementById('it-department').value,
+  };
+  const sourceRows = readTaskSourceRows('it-sources-list');
+
+  try {
+    let taskId = internalTaskEditId;
+    if (isEdit) await window.api.updateInternalTask(internalTaskEditId, payload);
+    else        taskId = (await window.api.createInternalTask(payload)).id;
+    await saveTaskSources(taskId, sourceRows, _itSourceOriginalIds);
+  } catch { toast('Could not save the internal task'); return; }
+
+  const onSaved = _internalTaskCtx.onSaved;
+  closeInternalTaskModal();
+  if (onSaved) await onSaved();
+  toast(isEdit ? 'Internal task updated' : 'Internal task created');
+}
+
 // ── Filter ──
 let filterText = '';
 let filterStatuses = new Set();
+// Client / Internal / All — a domain slice next to the status chips
+// 'all' is the default so a fresh day never
+// looks like it's missing rows.
+let filterDomain = 'all';
+
+function setFilterDomain(domain) {
+  filterDomain = domain;
+  document.querySelectorAll('#ts-domain-ctl .seg-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.domain === domain));
+  renderTable();
+}
 
 function applyFilter() {
   filterText = document.getElementById('filter-input').value.toLowerCase().trim();
@@ -2381,6 +2496,8 @@ function renderFilterChips() {
 }
 
 function rowMatchesFilter(row) {
+  if (filterDomain === 'client' && row.departmentId != null) return false;
+  if (filterDomain === 'internal' && row.departmentId == null) return false;
   if (filterStatuses.size > 0 && !filterStatuses.has(row.status)) return false;
   if (!filterText) return true;
   // Search against the human labels of the code-valued fields (time / status).

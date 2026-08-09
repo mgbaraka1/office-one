@@ -249,6 +249,13 @@
       letter-spacing: -.1px; margin-right: 4px;
       display: inline-flex; align-items: center; gap: 8px;
     }
+    /* Optional dynamic subtitle after a page title (e.g. Internal Work's
+       organisation name) — muted, de-emphasized. */
+    .page-title-org {
+      font-size: 12px; font-weight: 500; color: var(--muted);
+      margin-left: 2px;
+    }
+    .page-title-org::before { content: '— '; }
 
     /* ══ SEGMENTED CONTROL (shared: analytics period, browse dimension,
           timesheet view toggle, record-modal mode) ══ */
@@ -1173,7 +1180,7 @@
     /* Horizontal bar list */
     .an-bars { display: flex; flex-direction: column; gap: 9px; }
     .an-bar-row { display: grid; grid-template-columns: 120px 1fr 56px; align-items: center; gap: 10px; }
-    button.an-bar-row { width: 100%; border: 0; background: none; padding: 0; font: inherit; text-align: left; color: inherit; }
+    button.an-bar-row { width: 100%; border: 0; background: none; padding: 0; font: inherit; text-align: start; color: inherit; }
     .an-bar-label { font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .an-bar-track { display: block; background: var(--surface2); border-radius: 6px; height: 18px; overflow: hidden; }
     .an-bar-fill { display: block; height: 100%; border-radius: 6px; background: var(--accent); min-width: 2px; transition: width .35s ease; }
@@ -2305,6 +2312,13 @@
     .pal-item.active .lic { color: var(--primary); }
     .pal-item-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .pal-item-hint { font-size: 11px; color: var(--muted); white-space: nowrap; }
+    /* Client/Internal domain badge on a task result */
+    .pal-item-badge {
+      font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px;
+      padding: 2px 7px; border-radius: 999px; white-space: nowrap; flex-shrink: 0;
+    }
+    .pal-item-badge-internal { background: color-mix(in srgb, var(--primary) 16%, transparent); color: var(--primary); }
+    .pal-item-badge-client   { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
     .pal-empty { text-align: center; color: var(--muted); font-size: var(--fs-sm); padding: 26px 12px; }
     #palette-foot {
       display: flex; align-items: center; gap: 14px; padding: 8px 16px;

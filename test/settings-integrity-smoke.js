@@ -1,6 +1,6 @@
 'use strict';
 
-// Phase 1 of SETTINGS_REFACTOR_PLAN.md: db.saveLookups() used to bare-`return`
+// db.saveLookups() used to bare-`return`
 // on a blank English label, a case-insensitive duplicate label, or a private
 // lookup id it couldn't access — while the caller still reported success. This
 // suite proves those three cases are now reported back as `skipped` entries

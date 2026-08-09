@@ -403,7 +403,7 @@ function saveKnowledgeDraftDebounced() {
   _knowledgeDraftSaveTimer = setTimeout(() => { window.api.saveKnowledgeDraft(knowledgeDraftCache).catch(() => {}); }, 300);
 }
 
-// ── Per-account UI preferences (SETTINGS_REFACTOR_PLAN.md Phase 3, S4) ──
+// ── Per-account UI preferences ────────────────────────────────────────────────
 // theme/density/canvas/motion/sidebar/timesheet view used to live only in
 // localStorage, which is machine-wide: a second account on the same Windows
 // login inherited whatever the first account last chose. Pre-login (theme
@@ -1060,7 +1060,7 @@ const SETTINGS_TABS = SETTINGS_CATALOG_TABS.map(t => t.key);
 async function initSettingsModule() {
   if (!settingsDirty) lookupsDraft = JSON.parse(JSON.stringify(LK.categories || {}));
   // Restore the last-used Settings tab for this account (S10 in
-  // SETTINGS_REFACTOR_PLAN.md) — uiState is already per-account (see
+  // uiState is already per-account (see
   // loadUiStateFromMain), so this just needed a place to remember which tab.
   // Only applies when it actually differs from what's currently active, so
   // it never fights an explicit deep link (palette/search jump) that calls
@@ -1076,6 +1076,8 @@ async function initSettingsModule() {
   if (_currentUser?.isAdmin) SETTINGS_TABS.forEach(renderLookupPanel);
   document.querySelectorAll('#setting-startonlastpage-ctl .seg-btn').forEach(b =>
     b.classList.toggle('active', (b.dataset.val === 'last') === !!uiState.startOnLastPage));
+  const orgNameInput = document.getElementById('s-org-name');
+  if (document.activeElement !== orgNameInput) orgNameInput.value = LK.orgName || '';
   const activeTab = document.querySelector('#module-settings .stab.active')?.dataset.tab || 'general';
   syncSettingsSaveButton(activeTab);
   if (activeTab === 'users') renderUserManagement();
@@ -1564,7 +1566,7 @@ function discardSettingsChanges() {
 }
 
 // Settings search used to only match a tab's own name (S9 in
-// SETTINGS_REFACTOR_PLAN.md) — typing "backup", "password", or "integrity"
+// Typing "backup", "password", or "integrity"
 // found nothing even though all three exist inside a panel. Each entry names
 // the tab it lives on, a selector to scroll to and highlight, and the search
 // terms that should find it (in addition to whatever the tab's own label
@@ -1616,7 +1618,7 @@ function filterSettingsTabs() {
 }
 
 // Swaps a draft entry with its neighbor — the only way to change sortOrder
-// (S6 in SETTINGS_REFACTOR_PLAN.md: it was written on save but had no UI).
+// It was written on save but previously had no UI.
 function moveDraftEntry(arr, index, delta, redraw) {
   const target = index + delta;
   if (target < 0 || target >= arr.length) return;

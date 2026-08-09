@@ -1,3 +1,110 @@
+// ── Domain-aware task payload helpers ────────────────────────────────────────
+// A handful of call sites rebuild an entire task payload from an in-memory
+// Task object — undo/restore after delete, merge-undo, one-click Done. Before
+// the client/internal split these always used window.api.createTask (client-
+// only now); which channel — and which field set — is correct now depends on
+// t.kind, so every such site goes through these two helpers instead of five
+// independent literals that could silently drift out of sync with each other
+// (see AGENTS.md's task_field_history note for the exact bug shape this
+// guards against: a payload that forgets a field the write path still acts on).
+function taskRestorePayload(t) {
+  return t.kind === 'INTERNAL'
+    ? { name: t.name, status: t.status, department: t.department, source: t.source }
+    : { name: t.name, status: t.status, company: t.company, system: t.system, source: t.source, projectId: t.projectId };
+}
+function createTaskInDomain(t) {
+  return t.kind === 'INTERNAL' ? window.api.createInternalTask(taskRestorePayload(t)) : window.api.createTask(taskRestorePayload(t));
+}
+function updateTaskInDomain(t, patch) {
+  const payload = Object.assign(taskRestorePayload(t), patch);
+  return t.kind === 'INTERNAL' ? window.api.updateInternalTask(t.id, payload) : window.api.updateTask(t.id, payload);
+}
+
+// ── Convert Task modal — the only way a task crosses the Client/Internal
+// domain boundary. Its fields swap by direction:
+// a single Department select converting to internal, or Company+System
+// converting to client. Sessions/sources/history all survive; only the
+// classification (and the fields that don't belong to the new one) changes.
+let _convertCtx = { task: null, onSaved: null };
+function openConvertTaskModal(task, onSaved) {
+  _convertCtx = { task, onSaved: onSaved || null };
+  const toInternal = task.kind !== 'INTERNAL';
+  document.getElementById('convert-task-modal-title').textContent =
+    toInternal ? 'Convert to Internal Task' : 'Convert to Client Task';
+  const intro = document.getElementById('convert-task-intro');
+  intro.dataset.userContent = '';
+  intro.textContent = toInternal
+    ? '"' + (task.name || '(untitled task)') + '" will become internal work: its Company, System, and Project link (if any) will be cleared.'
+    : '"' + (task.name || '(untitled task)') + '" will become client work: its Department link will be cleared.';
+
+  const fields = document.getElementById('ctv-fields');
+  fields.innerHTML = '';
+  const mkRow = (labelText, selId) => {
+    const row = document.createElement('div'); row.className = 'form-row';
+    const grp = document.createElement('div'); grp.className = 'form-group full';
+    const lbl = document.createElement('label'); lbl.textContent = labelText;
+    const sel = document.createElement('select'); sel.id = selId;
+    grp.appendChild(lbl); grp.appendChild(sel); row.appendChild(grp); fields.appendChild(row);
+    return sel;
+  };
+  if (toInternal) {
+    mkRow('Department', 'ctv-department');
+    populateSelect('ctv-department', 'department', '');
+    const sel = document.getElementById('ctv-department');
+    const blank = document.createElement('option'); blank.value = ''; blank.textContent = '— select —'; blank.selected = true;
+    sel.insertBefore(blank, sel.firstChild);
+  } else {
+    mkRow('Company', 'ctv-company');
+    populateSelect('ctv-company', 'companies', '');
+    const cSel = document.getElementById('ctv-company');
+    const cBlank = document.createElement('option'); cBlank.value = ''; cBlank.textContent = '— select —'; cBlank.selected = true;
+    cSel.insertBefore(cBlank, cSel.firstChild);
+    mkRow('System', 'ctv-system');
+    populateSelect('ctv-system', 'systems', '');
+    const sSel = document.getElementById('ctv-system');
+    const sBlank = document.createElement('option'); sBlank.value = ''; sBlank.textContent = '— select —'; sBlank.selected = true;
+    sSel.insertBefore(sBlank, sSel.firstChild);
+  }
+
+  clearErrorsIn('#convert-task-modal');
+  document.getElementById('convert-task-modal-overlay').classList.add('open');
+}
+function closeConvertTaskModal() {
+  document.getElementById('convert-task-modal-overlay').classList.remove('open');
+  _convertCtx = { task: null, onSaved: null };
+}
+function convertTaskOverlayClick(e) {
+  if (e.target === document.getElementById('convert-task-modal-overlay')) closeConvertTaskModal();
+}
+async function submitConvertTaskModal() {
+  const { task, onSaved } = _convertCtx;
+  if (!task) return;
+  clearErrorsIn('#convert-task-modal');
+  const toInternal = task.kind !== 'INTERNAL';
+  let payload, res;
+  if (toInternal) {
+    const department = document.getElementById('ctv-department').value;
+    if (!department) { markError('ctv-department'); return; }
+    payload = { department };
+  } else {
+    const company = document.getElementById('ctv-company').value;
+    const system = document.getElementById('ctv-system').value;
+    let valid = true;
+    if (!company) { markError('ctv-company'); valid = false; }
+    if (!system)  { markError('ctv-system');  valid = false; }
+    if (!valid) return;
+    payload = { company, system };
+  }
+  try {
+    res = toInternal ? await window.api.convertTaskToInternal(task.id, payload)
+      : await window.api.convertTaskToClient(task.id, payload);
+  } catch { toast('Could not convert task'); return; }
+  if (!res || res.ok === false) { toast((res && res.error) || 'Could not convert task'); return; }
+  closeConvertTaskModal();
+  if (onSaved) await onSaved();
+  toast(toInternal ? 'Converted to internal task' : 'Converted to client task');
+}
+
 // ── Project index (lightweight {id,name,status} cache for the Project field) ──
 // The timesheet and project task views let a task be linked to a project; both need the
 // project names available even before the Projects module is first opened. This
@@ -557,12 +664,7 @@ async function deleteSessionFromTaskDetail(task, workLog) {
   await reloadTimesheet();
   showGenericUndo(taskDeleted ? 'Session deleted (task removed)' : 'Session deleted', async () => {
     try {
-      const newTaskId = taskDeleted
-        ? (await window.api.createTask({
-            name: task.name, status: task.status, company: task.company, system: task.system,
-            source: task.source, projectId: task.projectId, department: task.department,
-          })).id
-        : task.id;
+      const newTaskId = taskDeleted ? (await createTaskInDomain(task)).id : task.id;
       await window.api.addWorkLog(newTaskId, {
         date: workLog.date, description: workLog.description, minutes: workLog.minutes,
         time: workLog.time, natural: workLog.natural,
@@ -592,9 +694,13 @@ async function openMergeModal(sourceTask) {
   document.getElementById('merge-modal-submit').disabled = true;
 
   // Lightweight (Milestone 7) — the merge target picker never renders sessions.
+  // Same-domain only — a merge moves the
+  // source's sessions onto the target's classification, so the picker never
+  // offers a target that would silently reclassify them; db.mergeTasks()
+  // enforces this server-side too.
   let taskList = [];
   try { taskList = await window.api.getTasksIndex(); } catch { taskList = []; }
-  taskList = (Array.isArray(taskList) ? taskList : []).filter(t => t.id !== sourceTask.id);
+  taskList = (Array.isArray(taskList) ? taskList : []).filter(t => t.id !== sourceTask.id && t.kind === sourceTask.kind);
 
   mergeTargetPicker = buildTaskSearchSelect(document.getElementById('merge-target-picker'),
     taskList, null, 'Search tasks…', (targetId) => {
@@ -639,10 +745,7 @@ async function submitMergeModal() {
   const movedIds = res.movedWorkLogIds || [];
   showGenericUndo('Merged into ' + (target.name || '(untitled task)'), async () => {
     try {
-      const restored = await window.api.createTask({
-        name: sourceTask.name, status: sourceTask.status, company: sourceTask.company, system: sourceTask.system,
-        projectId: sourceTask.projectId, department: sourceTask.department, source: sourceTask.source,
-      });
+      const restored = await createTaskInDomain(sourceTask);
       for (const logId of movedIds) await window.api.moveWorkLog(logId, restored.id);
       // The merged-away task's task_sources rows cascaded with it — recreate
       // them on the restored task (sourceTask.sources came from Task Detail's
@@ -992,10 +1095,7 @@ function buildLinkedTaskCard(t, handlers) {
     const doneBtn = pjMk('button', 'row-btn done-btn');
     doneBtn.innerHTML = ic('check'); doneBtn.title = 'Mark done';
     const setStatus = async (status) => {
-      await window.api.updateTask(t.id, {
-        name: t.name, status, company: t.company, system: t.system,
-        source: t.source, projectId: t.projectId, department: t.department,
-      });
+      await updateTaskInDomain(t, { status });
       if (handlers.onSessionSaved) await handlers.onSessionSaved();
     };
     doneBtn.addEventListener('click', async () => {
@@ -1019,6 +1119,16 @@ function buildLinkedTaskCard(t, handlers) {
   const actsWrap = pjMk('div', 'row-actions');
   const restoreActs = () => {
     actsWrap.innerHTML = '';
+    // Convert to the other domain — shown
+    // regardless of session count, since crossing domains is a classification
+    // change, not a container change, and a task with sessions can convert
+    // just as safely as a zero-log one.
+    if (handlers.onConvert) {
+      const convBtn = pjMk('button', 'row-btn');
+      convBtn.innerHTML = ic('arrow-right'); convBtn.title = handlers.convertTitle || 'Convert';
+      convBtn.addEventListener('click', handlers.onConvert);
+      actsWrap.appendChild(convBtn);
+    }
     if (hasLogs) {
       // Unlink only makes sense when this card is shown inside a container (a
       // Project or Department) — omit handlers.onUnlink (e.g. the All Tasks
@@ -1456,12 +1566,11 @@ async function doDeleteProjectTask(task) {
 // every card's sessions disappear. Only the picker call sites (Add Record,
 // Session edit modal, Merge modal) and the palette actually never render
 // sessions, so only those were switched.
-let allTasksList = [];        // Task[] (with nested workLogs) from tasks:list — see note above
+let allTasksList = [];        // Task[] (with nested workLogs) from tasks:list — CLIENT tasks only
 let atProjectsIdx = [];       // for the Project filter dropdown (all statuses, not just ACTIVE)
-let atDepartmentsIdx = [];    // for the Department filter dropdown
 let atStatuses = new Set();   // active ENTRY_STATUS filter chips
-// Milestone 9 — top-level population split, now that Project/Department are
-// mutually exclusive: '' (All) | 'project' | 'internal' | 'unassigned'.
+// Client Tasks is a client-only page since migration 053 (tasks:list
+// itself only ever returns CLIENT tasks) — '' (All) | 'project' | 'unassigned'.
 let atTypeFilter = '';
 // Milestone 11 — the IntersectionObserver an in-progress incremental render
 // created, if any. Every call to renderAllTasksCards() disconnects this
@@ -1469,7 +1578,7 @@ let atTypeFilter = '';
 // fast typing in the search box, each keystroke re-rendering) is never left
 // orphaned, still watching a sentinel that's no longer in the live DOM.
 let atCardsObserver = null;
-let atPresetFilter = null;    // one-shot filter applied on next render (e.g. {departmentId} from Analytics' chart click-through), then cleared
+let atPresetFilter = null;    // one-shot filter applied on next render, then cleared
 // Milestone 11 — a second one-shot, same apply-after-DOM-attachment mechanism
 // as atPresetFilter above, but sourced from persisted uiState instead of an
 // explicit click-through; uses the selects' own raw string values (not
@@ -1485,7 +1594,6 @@ function persistAllTasksFilters() {
     company: document.getElementById('at-company')?.value || '',
     system: document.getElementById('at-system')?.value || '',
     project: document.getElementById('at-project')?.value || '',
-    department: document.getElementById('at-department')?.value || '',
     statuses: Array.from(atStatuses),
     type: atTypeFilter,
   };
@@ -1494,13 +1602,12 @@ function persistAllTasksFilters() {
 
 async function initAllTasksModule() {
   try {
-    [allTasksList, atProjectsIdx, atDepartmentsIdx] = await Promise.all([
-      window.api.listTasks(), window.api.listProjects(), window.api.listDepartments(),
+    [allTasksList, atProjectsIdx] = await Promise.all([
+      window.api.listTasks(), window.api.listProjects(),
     ]);
   } catch { toast('Could not load tasks'); return; }
   if (!Array.isArray(allTasksList))     allTasksList = [];
   if (!Array.isArray(atProjectsIdx))    atProjectsIdx = [];
-  if (!Array.isArray(atDepartmentsIdx)) atDepartmentsIdx = [];
   const savedFilters = uiState.filters.allTasks;
   if (savedFilters) {
     atStatuses = new Set(savedFilters.statuses || []);
@@ -1517,12 +1624,13 @@ function renderAllTasksPanel() {
   const host = document.getElementById('at-panel');
   host.innerHTML = '';
 
-  // Milestone 9 — a top-level type split (All / Project tasks / Internal /
-  // Unassigned), separate from the Project/Department dropdowns below (which
-  // narrow to one specific container; this narrows to a whole population).
+  // A top-level type split (All / Project tasks / Unassigned), separate from
+  // the Project dropdown below (which narrows to one specific project; this
+  // narrows to a whole population). Client Tasks is client-only since
+  // No Internal segment here any more; this is the client-only page.
   const typeCtl = document.createElement('div'); typeCtl.className = 'seg-ctl'; typeCtl.id = 'at-type-ctl';
   typeCtl.style.marginBottom = 'var(--space-4)';
-  [['', 'All'], ['project', 'Project tasks'], ['internal', 'Internal'], ['unassigned', 'Unassigned']].forEach(([val, label]) => {
+  [['', 'All'], ['project', 'Project tasks'], ['unassigned', 'Unassigned']].forEach(([val, label]) => {
     const btn = document.createElement('button');
     btn.type = 'button'; btn.className = 'seg-btn' + (atTypeFilter === val ? ' active' : ''); btn.dataset.type = val;
     btn.textContent = label;
@@ -1566,10 +1674,6 @@ function renderAllTasksPanel() {
     lkOptions('SYSTEM').map(o => ({ value: o.label, label: lookupDisplayName(o) })))));
   bar.appendChild(mkField('Project', mkSelect('at-project', 'All projects',
     [{ value: 'none', label: 'Unlinked' }, ...atProjectsIdx.map(p => ({ value: String(p.id), label: p.name }))])));
-  bar.appendChild(mkField('Department', mkSelect('at-department', 'All departments',
-    [{ value: 'none', label: 'No department' }, ...atDepartmentsIdx.map(d => ({
-      value: String(d.id), label: lkLabelById('DEPARTMENT', d.id) || d.label,
-    }))])));
 
   const clearBtn = document.createElement('button'); clearBtn.className = 'cp-filter-clear';
   clearBtn.innerHTML = ic('x') + ' Clear filters';
@@ -1578,7 +1682,7 @@ function renderAllTasksPanel() {
     atTypeFilter = '';
     typeCtl.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b.dataset.type === ''));
     searchInp.value = '';
-    ['at-company', 'at-system', 'at-project', 'at-department'].forEach(id => { document.getElementById(id).value = ''; });
+    ['at-company', 'at-system', 'at-project'].forEach(id => { document.getElementById(id).value = ''; });
     renderAllTasksStatusChips();
     renderAllTasksCards();
     persistAllTasksFilters();
@@ -1587,26 +1691,22 @@ function renderAllTasksPanel() {
   host.appendChild(bar);
 
   // Milestone 11 — apply persisted filters first (so relaunching lands on the
-  // same slice), then a genuine one-shot atPresetFilter (Analytics' "Hours by
-  // Department" bar click-through, see openAllTasksForDepartment) on top,
-  // since that's a just-taken, more specific action that should win. Both
-  // must run AFTER `bar` is attached to the live document (host.appendChild
-  // above), since getElementById can't find an element that only exists in a
-  // detached node.
+  // same slice), then a genuine one-shot atPresetFilter on top, since that's a
+  // just-taken, more specific action that should win. Both must run AFTER
+  // `bar` is attached to the live document (host.appendChild above), since
+  // getElementById can't find an element that only exists in a detached node.
   if (atRestoreFilter) {
     const r = atRestoreFilter; atRestoreFilter = null;
     if (r.search) searchInp.value = r.search;
     if (r.company) document.getElementById('at-company').value = r.company;
     if (r.system) document.getElementById('at-system').value = r.system;
     if (r.project) document.getElementById('at-project').value = r.project;
-    if (r.department) document.getElementById('at-department').value = r.department;
   }
   if (atPresetFilter) {
     const preset = atPresetFilter; atPresetFilter = null;
     if (preset.company) document.getElementById('at-company').value = preset.company;
     if (preset.system) document.getElementById('at-system').value = preset.system;
     if (preset.projectId != null) document.getElementById('at-project').value = String(preset.projectId);
-    if (preset.departmentId != null) document.getElementById('at-department').value = String(preset.departmentId);
   }
 
   const chipsField = document.createElement('div'); chipsField.className = 'cp-filter-field';
@@ -1639,20 +1739,17 @@ function renderAllTasksStatusChips() {
   });
 }
 
-function atTaskMatchesFilters(t, q, company, system, projectSel, deptSel) {
+function atTaskMatchesFilters(t, q, company, system, projectSel) {
   if (atTypeFilter === 'project' && t.projectId == null) return false;
-  if (atTypeFilter === 'internal' && t.departmentId == null) return false;
-  if (atTypeFilter === 'unassigned' && (t.projectId != null || t.departmentId != null)) return false;
+  if (atTypeFilter === 'unassigned' && t.projectId != null) return false;
   if (atStatuses.size && !atStatuses.has(t.status)) return false;
   if (company && t.company !== company) return false;
   if (system && t.system !== system) return false;
   if (projectSel === 'none') { if (t.projectId != null) return false; }
   else if (projectSel && String(t.projectId) !== projectSel) return false;
-  if (deptSel === 'none') { if (t.departmentId != null) return false; }
-  else if (deptSel && String(t.departmentId) !== deptSel) return false;
   if (q) {
     const hay = [t.name, t.company, t.companyCode, t.companyNameEn, t.companyNameAr,
-      t.system, t.department, t.source, t.firstSourceRef].filter(Boolean).join(' ').toLowerCase();
+      t.system, t.source, t.firstSourceRef].filter(Boolean).join(' ').toLowerCase();
     if (!hay.includes(q)) return false;
   }
   return true;
@@ -1674,12 +1771,11 @@ function renderAllTasksCards() {
   const company = document.getElementById('at-company').value;
   const system = document.getElementById('at-system').value;
   const projectSel = document.getElementById('at-project').value;
-  const deptSel = document.getElementById('at-department').value;
-  const filtered = allTasksList.filter(t => atTaskMatchesFilters(t, q, company, system, projectSel, deptSel));
+  const filtered = allTasksList.filter(t => atTaskMatchesFilters(t, q, company, system, projectSel));
 
   const head = document.createElement('div'); head.className = 'cp-records-head';
   const title = document.createElement('h2'); title.className = 'cp-records-title';
-  title.textContent = 'Tasks (' + filtered.length +
+  title.textContent = 'Client Tasks (' + filtered.length +
     (filtered.length !== allTasksList.length ? ' of ' + allTasksList.length : '') + ')';
   head.appendChild(title);
   host.appendChild(head);
@@ -1702,9 +1798,10 @@ function renderAllTasksCards() {
     onEdit: () => openAllTasksEditTask(t.id),
     onDelete: () => doDeleteAllTasksTask(t),
     onSessionSaved: reloadAllTasksModule,
-    // All Tasks mixes both populations on one page (unlike Projects/Internal
-    // Tasks' own detail views, where the container is already implied) — show
-    // which one each card belongs to.
+    onConvert: () => openConvertTaskModal(t, reloadAllTasksModule),
+    convertTitle: 'Convert to internal task',
+    // Shows the Project pill when the task has one (unlike Projects' own
+    // detail view, where the container is already implied by the page itself).
     showContainerTag: true,
   });
 
@@ -1737,17 +1834,16 @@ function openAllTasksEditTask(taskId) {
 
 // Delete a zero-log task outright (see buildLinkedTaskCard for why: unlinking
 // isn't offered here since this page isn't a container). Undo re-creates an
-// equivalent task, restoring both its Project and Department links if it had them.
+// equivalent client task, restoring its Project link if it had one. This page
+// is client-only now (Client Tasks — see reloadAllTasksModule), but goes
+// through createTaskInDomain anyway for defense in depth.
 async function doDeleteAllTasksTask(task) {
   try { await window.api.deleteTask(task.id); }
   catch { toast('Could not delete task'); return; }
   await reloadAllTasksModule();
   showGenericUndo('Task deleted', async () => {
     try {
-      await window.api.createTask({
-        name: task.name, status: task.status, company: task.company, system: task.system,
-        source: task.source, projectId: task.projectId, department: task.department,
-      });
+      await createTaskInDomain(task);
     } catch { toast('Could not restore task'); return; }
     await reloadAllTasksModule();
   });
@@ -1769,6 +1865,13 @@ let deptList = [];
 let currentDept = null;   // full department ({id, code, label, tasks}) loaded in the right panel
 
 async function initInternalTasksModule() {
+  // Default to the By Department view on every entry; a click-through that
+  // wants All Internal (openInternalWorkForDepartment) calls setInternalWorkView
+  // right after switchModule and overrides this.
+  setInternalWorkView('department');
+  const orgSubtitle = document.getElementById('iw-org-subtitle');
+  orgSubtitle.textContent = LK.orgName || '';
+  orgSubtitle.hidden = !LK.orgName;
   try { deptList = await window.api.listDepartments(); }
   catch { toast('Could not load departments'); return; }
   if (!Array.isArray(deptList)) deptList = [];
@@ -1821,9 +1924,11 @@ async function reloadCurrentDept() {
   try { deptList = await window.api.listDepartments(); renderDeptList(); } catch {}
 }
 
-// (Re)build the right panel: a department placeholder, or its Tasks section —
-// same header/New Task/Link Task/card layout as renderProjectDetail's Tasks
-// section, just scoped to `dept` instead of `currentProject`.
+// (Re)build the right panel: a department placeholder, or its Tasks section.
+// No "Link Task" here any more — a task cannot
+// be cross-linked into a department from the client domain, only explicitly
+// converted (the card's own Convert action); "New Task" creates one already
+// classified internal and scoped to this department.
 function renderDeptTasksPanel(dept) {
   const host = document.getElementById('dept-tasks-panel');
   host.innerHTML = '';
@@ -1850,25 +1955,21 @@ function renderDeptTasksPanel(dept) {
   const tActions = pjMk('div', 'pj-section-actions');
   const newBtn = pjMk('button', 'btn primary');
   newBtn.innerHTML = ic('plus') + ' New Task';
-  newBtn.title = 'Create a new task already linked to this department';
+  newBtn.title = 'Create a new internal task already linked to this department';
   newBtn.addEventListener('click', openDeptNewTask);
-  const linkBtn = pjMk('button', 'btn');
-  linkBtn.innerHTML = ic('calendar-plus') + ' Link Task';
-  linkBtn.addEventListener('click', () => openLinkModal('department', dept.id));
   tActions.appendChild(newBtn);
-  tActions.appendChild(linkBtn);
   tHead.appendChild(tActions);
   tasksSec.appendChild(tHead);
 
   if (list.length === 0) {
-    tasksSec.appendChild(pjMk('div', 'cp-records-empty', 'No tasks linked yet — use “Link Task” to attach existing work.'));
+    tasksSec.appendChild(pjMk('div', 'cp-records-empty', 'No internal tasks yet — use “New Task” to add one.'));
   } else {
     list.forEach(t => tasksSec.appendChild(buildLinkedTaskCard(t, {
       onEdit: () => openDeptEditTask(t.id),
-      onUnlink: () => doUnlinkDeptTask(t.id),
       onDelete: () => doDeleteDeptTask(t),
       onSessionSaved: reloadCurrentDept,
-      unlinkTitle: 'Unlink from this department',
+      onConvert: () => openConvertTaskModal(t, reloadCurrentDept),
+      convertTitle: 'Convert to client task',
     })));
   }
   host.appendChild(tasksSec);
@@ -1876,33 +1977,175 @@ function renderDeptTasksPanel(dept) {
 
 function openDeptNewTask() {
   if (!currentDept) return;
-  openBacklogModal(null, { departmentId: currentDept.id, onSaved: reloadCurrentDept });
+  openInternalTaskModal(null, { departmentId: currentDept.id, onSaved: reloadCurrentDept });
 }
 function openDeptEditTask(taskId) {
   if (!currentDept) return;
   const task = (currentDept.tasks || []).find(t => t.id === taskId);
   if (!task) return;
-  openBacklogModal(taskId, { task, departmentId: task.departmentId ?? currentDept.id, onSaved: reloadCurrentDept });
+  openInternalTaskModal(taskId, { task, departmentId: task.departmentId ?? currentDept.id, onSaved: reloadCurrentDept });
 }
-async function doUnlinkDeptTask(taskId) {
-  try { await window.api.unlinkDepartmentTask(taskId); }
-  catch { toast('Could not unlink task'); return; }
-  await reloadCurrentDept();
-  toast('Task unlinked');
-}
-// Delete a zero-log department task outright (see buildLinkedTaskCard for why: it
-// has no other identity once unlinked). Undo re-creates an equivalent task.
+// Delete a zero-log internal task outright (see buildLinkedTaskCard for why:
+// it has no other identity once it loses its department). Undo re-creates it.
 async function doDeleteDeptTask(task) {
   try { await window.api.deleteTask(task.id); }
   catch { toast('Could not delete task'); return; }
   await reloadCurrentDept();
   showGenericUndo('Task deleted', async () => {
-    try {
-      await window.api.createTask({
-        name: task.name, status: task.status, company: task.company, system: task.system,
-        source: task.source, department: task.department,
-      });
-    } catch { toast('Could not restore task'); return; }
+    try { await createTaskInDomain(task); }
+    catch { toast('Could not restore task'); return; }
     await reloadCurrentDept();
+    if (internalWorkView === 'all') await reloadInternalWorkAll();
   });
+}
+
+// ══ INTERNAL WORK — All Internal (flat, filterable) view ═══════════════════
+// The internal-domain counterpart of Client Tasks — every internal task
+// across every department on one filterable list, day-agnostic, whether or
+// not it has any sessions. Mirrors renderAllTasksPanel/renderAllTasksCards'
+// shape (search + status chips + a Department select), minus the Company/
+// System/Project fields, which never apply to internal work.
+let internalWorkView = 'department';   // 'department' | 'all'
+let iwAllList = [];
+let iwStatuses = new Set();
+let iwPresetFilter = null;   // one-shot {departmentId}, from Analytics' chart click-through
+
+function setInternalWorkView(view) {
+  internalWorkView = view;
+  document.querySelectorAll('#iw-view-ctl .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+  document.getElementById('iw-view-department').style.display = view === 'department' ? '' : 'none';
+  document.getElementById('iw-all-panel').style.display = view === 'all' ? '' : 'none';
+  if (view === 'all') reloadInternalWorkAll();
+}
+
+async function reloadInternalWorkAll() {
+  try { iwAllList = await window.api.listInternalTasks(); } catch { iwAllList = []; }
+  if (!Array.isArray(iwAllList)) iwAllList = [];
+  renderInternalWorkAllPanel();
+}
+
+function renderInternalWorkAllPanel() {
+  const host = document.getElementById('iw-all-panel');
+  host.innerHTML = '';
+
+  const bar = document.createElement('div'); bar.className = 'cp-filter-bar';
+  const mkField = (labelText, el) => {
+    const f = document.createElement('div'); f.className = 'cp-filter-field';
+    const l = document.createElement('label'); l.textContent = labelText;
+    f.appendChild(l); f.appendChild(el); return f;
+  };
+  const searchInp = document.createElement('input');
+  searchInp.type = 'text'; searchInp.id = 'iw-search'; searchInp.placeholder = 'Search internal tasks…';
+  searchInp.addEventListener('input', renderInternalWorkAllCards);
+  bar.appendChild(mkField('Search', searchInp));
+
+  const deptSel = document.createElement('select'); deptSel.id = 'iw-department';
+  const allOpt = document.createElement('option'); allOpt.value = ''; allOpt.textContent = 'All departments';
+  deptSel.appendChild(allOpt);
+  deptList.forEach(d => {
+    const opt = document.createElement('option'); opt.dataset.userContent = '';
+    opt.value = String(d.id); opt.textContent = lkLabelById('DEPARTMENT', d.id) || d.label;
+    deptSel.appendChild(opt);
+  });
+  deptSel.addEventListener('change', renderInternalWorkAllCards);
+  bar.appendChild(mkField('Department', deptSel));
+  host.appendChild(bar);
+
+  if (iwPresetFilter) {
+    const preset = iwPresetFilter; iwPresetFilter = null;
+    if (preset.departmentId != null) deptSel.value = String(preset.departmentId);
+  }
+
+  const chipsField = document.createElement('div'); chipsField.className = 'cp-filter-field';
+  const chipsLabel = document.createElement('label'); chipsLabel.textContent = 'Status';
+  const chipsWrap = document.createElement('div'); chipsWrap.className = 'filter-chips'; chipsWrap.id = 'iw-status-chips';
+  chipsField.appendChild(chipsLabel); chipsField.appendChild(chipsWrap);
+  host.appendChild(chipsField);
+  renderInternalWorkStatusChips();
+
+  const cardsHost = document.createElement('div'); cardsHost.id = 'iw-cards';
+  cardsHost.style.marginTop = 'var(--space-5)';
+  host.appendChild(cardsHost);
+  renderInternalWorkAllCards();
+}
+
+function renderInternalWorkStatusChips() {
+  const wrap = document.getElementById('iw-status-chips');
+  wrap.innerHTML = '';
+  lkOptions('ENTRY_STATUS').forEach(o => {
+    const btn = document.createElement('button');
+    btn.className = 'filter-chip' + (iwStatuses.has(o.code) ? ' active' : '');
+    btn.dataset.userContent = ''; btn.textContent = lookupDisplayName(o);
+    btn.addEventListener('click', () => {
+      if (iwStatuses.has(o.code)) iwStatuses.delete(o.code); else iwStatuses.add(o.code);
+      btn.classList.toggle('active');
+      renderInternalWorkAllCards();
+    });
+    wrap.appendChild(btn);
+  });
+}
+
+function renderInternalWorkAllCards() {
+  const host = document.getElementById('iw-cards');
+  if (!host) return;
+  host.innerHTML = '';
+  const q = (document.getElementById('iw-search').value || '').trim().toLowerCase();
+  const deptSel = document.getElementById('iw-department').value;
+  const filtered = iwAllList.filter(t => {
+    if (iwStatuses.size && !iwStatuses.has(t.status)) return false;
+    if (deptSel && String(t.departmentId) !== deptSel) return false;
+    if (q) {
+      const hay = [t.name, t.department, t.source, t.firstSourceRef].filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  const head = document.createElement('div'); head.className = 'cp-records-head';
+  const title = document.createElement('h2'); title.className = 'cp-records-title';
+  title.textContent = 'Internal Tasks (' + filtered.length +
+    (filtered.length !== iwAllList.length ? ' of ' + iwAllList.length : '') + ')';
+  head.appendChild(title);
+  host.appendChild(head);
+
+  if (!filtered.length) {
+    host.appendChild(pjMk('div', 'cp-records-empty',
+      iwAllList.length ? 'No internal tasks match these filters.' : 'No internal tasks yet.'));
+    return;
+  }
+
+  filtered.forEach(t => host.appendChild(buildLinkedTaskCard(t, {
+    onEdit: () => openInternalWorkAllEditTask(t.id),
+    onDelete: () => doDeleteInternalWorkAllTask(t),
+    onSessionSaved: reloadInternalWorkAll,
+    onConvert: () => openConvertTaskModal(t, reloadInternalWorkAll),
+    convertTitle: 'Convert to client task',
+    showContainerTag: true,
+  })));
+}
+
+function openInternalWorkAllEditTask(taskId) {
+  const task = iwAllList.find(t => t.id === taskId);
+  if (!task) return;
+  openInternalTaskModal(taskId, { task, onSaved: reloadInternalWorkAll });
+}
+
+async function doDeleteInternalWorkAllTask(task) {
+  try { await window.api.deleteTask(task.id); }
+  catch { toast('Could not delete task'); return; }
+  await reloadInternalWorkAll();
+  showGenericUndo('Task deleted', async () => {
+    try { await createTaskInDomain(task); }
+    catch { toast('Could not restore task'); return; }
+    await reloadInternalWorkAll();
+  });
+}
+
+// Analytics' "Hours by Department" bar click-through (renderAnBars/anBarRow in
+// workspace.js) — routes into the All Internal view rather than Client Tasks,
+// since internal work is a separate page now.
+function openInternalWorkForDepartment(deptId) {
+  iwPresetFilter = { departmentId: deptId };
+  switchModule('internal-tasks');
+  setInternalWorkView('all');
 }
