@@ -91,10 +91,11 @@ gate('universal Create Hub exposes every core creation workflow safely',
   html.includes('id="create-hub-overlay"')
   && html.includes('data-onclick="openCreateHub()"')
   && html.includes('aria-keyshortcuts="Control+Shift+N"')
-  && (createHubMarkup.match(/data-onclick="runCreateFlow\('/g) || []).length === 8
+  && (createHubMarkup.match(/data-onclick="runCreateFlow\('/g) || []).length === 9
   && html.includes("e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'n'")
   && createHubCode.includes("switchModule('timesheet'); openModal()")
   && createHubCode.includes("switchModule('all-tasks'); openBacklogModal()")
+  && createHubCode.includes("switchModule('internal-tasks'); openInternalTaskModal()")
   && !createHubCode.includes('window.api.'));
 gate('primary workspace headers use concise direct titles',
   html.includes('<span class="page-title"><span class="ti-ic" data-ic="clock"></span>Timesheet</span>')

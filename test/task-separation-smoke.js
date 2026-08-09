@@ -1,31 +1,47 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Internal/Project task separation — headless data-layer smoke test (Milestone 9).
+// Client / Internal task domain separation — headless data-layer smoke test.
 //
 // Boots the app's data layer (db.js) DIRECTLY — no Electron, no IPC, no
 // renderer. Copies the live DB into a throwaway temp dir and runs there.
 //
 // Run:  node test/task-separation-smoke.js
 //
-// Background: a data audit against a copy of production found ZERO tasks with
-// both project_id AND department_id set (out of 322 total) — so there was no
-// conflicting real data to resolve, and no migration was needed for this
-// milestone (see ROADMAP.md's Milestone 9 write-up). This test instead covers
-// the exclusivity rule going forward, at every write path that can set either
-// field.
+// Background: this test used to cover Milestone 9's Project/Department mutual
+// exclusivity (a task could carry at most one of projectId/department, linked
+// or unlinked via linkTask/linkDepartmentTask). The 2026-08 domain separation
+// went further: Client work and Internal (department) work are now two
+// entirely separate domains with their own API surface (tasks:* vs internal:*)
+// — a task can no longer be cross-linked between them at all, only explicitly
+// *converted*. linkDepartmentTask/unlinkDepartmentTask/listLinkableTasksForDept
+// are gone; this file now exercises the replacement shape end to end.
 //
 // Gates exercised:
-//   1. createTask() with both a projectId and a department throws.
-//   2. createTask() with only a projectId, or only a department, succeeds.
-//   3. updateTask() that would leave a task linked to both throws, and the
-//      task's stored fields are unchanged after the throw (no partial write).
-//   4. linkTask() (Project link) rejects a task that already has a
-//      department_id set, with {ok:false}, and does not touch the row.
-//   5. linkDepartmentTask() rejects a task that already has a project_id set,
-//      with {ok:false}, and does not touch the row.
-//   6. listLinkableTasks() (Projects' "Link Task" picker) excludes
-//      department-linked tasks.
-//   7. listLinkableTasksForDepartment() excludes project-linked tasks.
-//   8. A task with neither link appears in both linkable-task lists.
+//   1. createTask() (client) silently ignores a `department` in the payload —
+//      the result is a client task with department_id NULL.
+//   2. createInternalTask() silently ignores company/system/projectId in the
+//      payload — the result is internal, with all three NULL.
+//   3. createInternalTask() with no resolvable department throws.
+//   4. updateTask() (client-only) throws when called on an existing internal
+//      task — it must go through updateInternalTask or convertTaskToClient.
+//   5. updateInternalTask() throws when called on an existing client task.
+//   6. updateTaskMeta() — the Timesheet autosave path — on an internal task
+//      with a non-empty `company` in the payload leaves company_id/system_id
+//      NULL. This is the single highest-risk regression the plan calls out:
+//      without this guard, every autosave of a day containing internal work
+//      would silently re-attach a client company to it.
+//   7. convertTaskToInternal() clears company/system/project, sets the
+//      department, and writes task_field_history rows (including a `Kind`
+//      row) for every field that changed.
+//   8. convertTaskToInternal() with no department returns {ok:false} and
+//      leaves the row untouched.
+//   9. convertTaskToClient() is the mirror of gate 7/8 (requires company AND
+//      system; clears department/project).
+//  10. listTasks() (tasks:list) returns CLIENT tasks only.
+//  11. listInternalTasks() (internal:list) returns INTERNAL tasks only.
+//  12. getTasksIndex() (tasks:index — pickers/palette) is NOT filtered by
+//      domain; both a client and an internal task appear in it.
+//  13. listLinkableTasks() (Projects' "Link Task" picker) excludes internal
+//      tasks — a client Project can never fold in internal work.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const fs   = require('node:fs');
@@ -64,66 +80,115 @@ try {
 
   const raw = new DatabaseSync(dbFilePath);
   const userRow = raw.prepare('SELECT id FROM users WHERE is_active = 1 ORDER BY id LIMIT 1').get();
-  const dualLinked = raw.prepare('SELECT COUNT(*) c FROM tasks WHERE project_id IS NOT NULL AND department_id IS NOT NULL').get().c;
   raw.close();
   if (!userRow) throw new Error('no active user in the copied DB');
   const userId = userRow.id;
-  console.log('Using userId=' + userId + '; dual-linked tasks in this copy: ' + dualLinked + '\n');
+  console.log('Using userId=' + userId + '\n');
 
   const project = db.createProject(userId, {
     name: 'Task-sep smoke project', description: '', companyIds: [], systemIds: [],
     status: 'ACTIVE', category: 'NEW_PROJECT',
   });
-  const dept = db.getLookupsByCategory('DEPARTMENT')[0];
+  const companies = db.loadLookups(userId).categories.COMPANY;
+  const systems = db.loadLookups(userId).categories.SYSTEM;
+  const dept = db.loadLookups(userId).categories.DEPARTMENT.find(d => d.isActive) || db.loadLookups(userId).categories.DEPARTMENT[0];
+  const company = companies[0], system = systems[0];
   if (!dept) throw new Error('no DEPARTMENT lookup codes in this copy');
+  if (!company || !system) throw new Error('no COMPANY/SYSTEM lookup codes in this copy');
 
-  // ── Gate 1/2 — createTask() ──────────────────────────────────────────────
-  let createBothThrew = false;
-  try { db.createTask(userId, { name: 'Both linked', status: 'OPEN', projectId: project.id, department: dept.label }); }
-  catch { createBothThrew = true; }
-  record('Gate 1: createTask() with both projectId and department throws', createBothThrew, 'threw=' + createBothThrew);
+  // ── Gate 1 — createTask() (client) ignores a `department` payload field ──
+  const clientTask = db.createTask(userId, {
+    name: 'Client task', status: 'OPEN', company: company.label, system: system.label, department: dept.label,
+  });
+  record('Gate 1: createTask() ignores `department` — result is client, department NULL',
+    clientTask.kind === 'CLIENT' && clientTask.departmentId === null && clientTask.company === company.label,
+    JSON.stringify({ kind: clientTask.kind, departmentId: clientTask.departmentId, company: clientTask.company }));
 
-  const projectOnlyTask = db.createTask(userId, { name: 'Project-only task', status: 'OPEN', projectId: project.id });
-  const deptOnlyTask = db.createTask(userId, { name: 'Department-only task', status: 'OPEN', department: dept.label });
-  record('Gate 2: createTask() with only projectId or only department succeeds',
-    projectOnlyTask.projectId === project.id && deptOnlyTask.departmentId === dept.id,
-    JSON.stringify({ projectOnlyTask: projectOnlyTask.projectId, deptOnlyTask: deptOnlyTask.departmentId }));
+  // ── Gate 2 — createInternalTask() ignores company/system/projectId ──────
+  const internalTask = db.createInternalTask(userId, {
+    name: 'Internal task', status: 'OPEN', department: dept.label,
+    company: company.label, system: system.label, projectId: project.id,
+  });
+  record('Gate 2: createInternalTask() ignores company/system/projectId — result is internal, all three NULL',
+    internalTask.kind === 'INTERNAL' && internalTask.departmentId === dept.id
+      && internalTask.company === '' && internalTask.system === '' && internalTask.projectId === null,
+    JSON.stringify({ kind: internalTask.kind, departmentId: internalTask.departmentId, company: internalTask.company, system: internalTask.system, projectId: internalTask.projectId }));
 
-  // ── Gate 3 — updateTask() ────────────────────────────────────────────────
-  const beforeUpdate = db.getTask(userId, deptOnlyTask.id);
-  let updateBothThrew = false;
-  try { db.updateTask(userId, deptOnlyTask.id, { name: deptOnlyTask.name, status: 'OPEN', department: dept.label, projectId: project.id }); }
-  catch { updateBothThrew = true; }
-  const afterUpdate = db.getTask(userId, deptOnlyTask.id);
-  record('Gate 3: updateTask() that would set both throws, and the row is unchanged after (no partial write)',
-    updateBothThrew && afterUpdate.projectId === null && afterUpdate.departmentId === beforeUpdate.departmentId,
-    JSON.stringify({ threw: updateBothThrew, before: beforeUpdate, after: afterUpdate }));
+  // ── Gate 3 — createInternalTask() with no department throws ─────────────
+  let noDeptThrew = false;
+  try { db.createInternalTask(userId, { name: 'No department', status: 'OPEN' }); }
+  catch { noDeptThrew = true; }
+  record('Gate 3: createInternalTask() with no resolvable department throws', noDeptThrew, 'threw=' + noDeptThrew);
 
-  // ── Gate 4 — linkTask() rejects a department-linked task ────────────────
-  const linkRes = db.linkTask(userId, project.id, deptOnlyTask.id);
-  const deptTaskAfterLinkAttempt = db.getTask(userId, deptOnlyTask.id);
-  record('Gate 4: linkTask() rejects a task already linked to a Department, row untouched',
-    linkRes.ok === false && deptTaskAfterLinkAttempt.projectId === null && deptTaskAfterLinkAttempt.departmentId === dept.id,
-    JSON.stringify({ linkRes, task: deptTaskAfterLinkAttempt }));
+  // ── Gate 4 — updateTask() throws on an internal task ────────────────────
+  let updateTaskOnInternalThrew = false;
+  try { db.updateTask(userId, internalTask.id, { name: 'x', status: 'OPEN', company: company.label, system: system.label }); }
+  catch { updateTaskOnInternalThrew = true; }
+  record('Gate 4: updateTask() (client-only) throws when called on an internal task', updateTaskOnInternalThrew, 'threw=' + updateTaskOnInternalThrew);
 
-  // ── Gate 5 — linkDepartmentTask() rejects a project-linked task ─────────
-  const linkDeptRes = db.linkDepartmentTask(userId, projectOnlyTask.id, dept.id);
-  const projTaskAfterLinkAttempt = db.getTask(userId, projectOnlyTask.id);
-  record('Gate 5: linkDepartmentTask() rejects a task already linked to a Project, row untouched',
-    linkDeptRes.ok === false && projTaskAfterLinkAttempt.departmentId === null && projTaskAfterLinkAttempt.projectId === project.id,
-    JSON.stringify({ linkDeptRes, task: projTaskAfterLinkAttempt }));
+  // ── Gate 5 — updateInternalTask() throws on a client task ───────────────
+  let updateInternalOnClientThrew = false;
+  try { db.updateInternalTask(userId, clientTask.id, { name: 'x', status: 'OPEN', department: dept.label }); }
+  catch { updateInternalOnClientThrew = true; }
+  record('Gate 5: updateInternalTask() throws when called on a client task', updateInternalOnClientThrew, 'threw=' + updateInternalOnClientThrew);
 
-  // ── Gate 6/7/8 — the two linkable-task pickers stop cross-offering ──────
-  const unlinkedTask = db.createTask(userId, { name: 'Fully unlinked task', status: 'OPEN' });
+  // ── Gate 6 — updateTaskMeta() autosave guard (the critical one) ─────────
+  const metaResult = db.updateTaskMeta(userId, internalTask.id, {
+    name: internalTask.name, status: 'IN_PROGRESS', company: company.label, system: system.label, source: '',
+  });
+  record('Gate 6: updateTaskMeta() on an internal task never writes company/system, even when the payload carries them',
+    metaResult.company === '' && metaResult.system === '' && metaResult.kind === 'INTERNAL' && metaResult.departmentId === dept.id,
+    JSON.stringify({ company: metaResult.company, system: metaResult.system, kind: metaResult.kind, departmentId: metaResult.departmentId }));
+
+  // ── Gate 7 — convertTaskToInternal() clears fields + writes history ─────
+  const toConvert = db.createTask(userId, { name: 'Convert me', status: 'OPEN', company: company.label, system: system.label, projectId: project.id });
+  const historyBefore = db.getTaskFieldHistory(userId, toConvert.id).length;
+  const convertRes = db.convertTaskToInternal(userId, toConvert.id, { department: dept.label });
+  const historyAfter = db.getTaskFieldHistory(userId, toConvert.id);
+  const kindRow = historyAfter.find(h => h.fieldName === 'Kind');
+  record('Gate 7: convertTaskToInternal() clears company/system/project, sets department, writes history incl. Kind',
+    convertRes.ok === true && convertRes.task.kind === 'INTERNAL' && convertRes.task.company === '' && convertRes.task.system === ''
+      && convertRes.task.projectId === null && convertRes.task.departmentId === dept.id
+      && historyAfter.length > historyBefore && !!kindRow && kindRow.oldValue === 'Client' && kindRow.newValue === 'Internal',
+    JSON.stringify({ convertRes, historyBefore, historyAfterCount: historyAfter.length, kindRow }));
+
+  // ── Gate 8 — convertTaskToInternal() with no department rejects, no write ──
+  const beforeBadConvert = db.getTask(userId, clientTask.id);
+  const badConvert = db.convertTaskToInternal(userId, clientTask.id, {});
+  const afterBadConvert = db.getTask(userId, clientTask.id);
+  record('Gate 8: convertTaskToInternal() with no department returns {ok:false}, row untouched',
+    badConvert.ok === false && afterBadConvert.kind === 'CLIENT' && afterBadConvert.company === beforeBadConvert.company,
+    JSON.stringify({ badConvert, before: beforeBadConvert.kind, after: afterBadConvert.kind }));
+
+  // ── Gate 9 — convertTaskToClient() is the mirror ────────────────────────
+  const convertBackRes = db.convertTaskToClient(userId, toConvert.id, { company: company.label, system: system.label });
+  const convertBackMissing = db.convertTaskToClient(userId, internalTask.id, { company: company.label }); // no system
+  record('Gate 9: convertTaskToClient() succeeds with company+system, rejects with only company',
+    convertBackRes.ok === true && convertBackRes.task.kind === 'CLIENT' && convertBackRes.task.departmentId === null
+      && convertBackMissing.ok === false,
+    JSON.stringify({ convertBackRes: { ok: convertBackRes.ok, kind: convertBackRes.task?.kind }, convertBackMissing }));
+
+  // ── Gate 10/11 — listTasks()/listInternalTasks() partition by domain ────
+  const clientList = db.listTasks(userId);
+  const internalList = db.listInternalTasks(userId);
+  record('Gate 10: listTasks() returns CLIENT tasks only',
+    clientList.every(t => t.kind === 'CLIENT') && clientList.some(t => t.id === clientTask.id) && !clientList.some(t => t.id === internalTask.id),
+    'count=' + clientList.length + ' allClient=' + clientList.every(t => t.kind === 'CLIENT'));
+  record('Gate 11: listInternalTasks() returns INTERNAL tasks only',
+    internalList.every(t => t.kind === 'INTERNAL') && internalList.some(t => t.id === internalTask.id) && !internalList.some(t => t.id === clientTask.id),
+    'count=' + internalList.length + ' allInternal=' + internalList.every(t => t.kind === 'INTERNAL'));
+
+  // ── Gate 12 — getTasksIndex() (pickers) is unfiltered by domain ─────────
+  const index = db.getTasksIndex(userId);
+  record('Gate 12: getTasksIndex() (pickers/palette) offers both domains',
+    index.some(t => t.id === clientTask.id) && index.some(t => t.id === internalTask.id),
+    JSON.stringify({ hasClient: index.some(t => t.id === clientTask.id), hasInternal: index.some(t => t.id === internalTask.id) }));
+
+  // ── Gate 13 — listLinkableTasks() excludes internal tasks ───────────────
   const linkable = db.listLinkableTasks(userId);
-  const linkableForDept = db.listLinkableTasksForDepartment(userId);
-  record('Gate 6: listLinkableTasks() excludes the department-linked task',
-    !linkable.some(t => t.id === deptOnlyTask.id), 'excluded=' + !linkable.some(t => t.id === deptOnlyTask.id));
-  record('Gate 7: listLinkableTasksForDepartment() excludes the project-linked task',
-    !linkableForDept.some(t => t.id === projectOnlyTask.id), 'excluded=' + !linkableForDept.some(t => t.id === projectOnlyTask.id));
-  record('Gate 8: a task with neither link appears in both linkable-task lists',
-    linkable.some(t => t.id === unlinkedTask.id) && linkableForDept.some(t => t.id === unlinkedTask.id),
-    JSON.stringify({ inProjectPicker: linkable.some(t => t.id === unlinkedTask.id), inDeptPicker: linkableForDept.some(t => t.id === unlinkedTask.id) }));
+  record('Gate 13: listLinkableTasks() (Projects\' Link Task picker) excludes internal tasks',
+    !linkable.some(t => t.id === internalTask.id),
+    'excluded=' + !linkable.some(t => t.id === internalTask.id));
 
 } catch (err) {
   console.error('\nTEST HARNESS ERROR: ' + (err && err.stack || err));

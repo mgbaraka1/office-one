@@ -59,11 +59,12 @@
     <button class="nav-item" data-module="timesheet" data-onclick="switchModule('timesheet')" title="Today — Timesheet">
       <span class="nav-icon" data-ic="clock"></span><span class="nav-label">Today</span>
     </button>
-    <button class="nav-item" data-module="all-tasks" data-onclick="switchModule('all-tasks')" title="Tasks">
-      <span class="nav-icon" data-ic="list"></span><span class="nav-label">Tasks</span>
+    <button class="nav-item" data-module="all-tasks" data-onclick="switchModule('all-tasks')" title="Client Tasks">
+      <span class="nav-icon" data-ic="list"></span><span class="nav-label">Client Tasks</span>
     </button>
-    <button class="nav-item" data-module="internal-tasks" data-onclick="switchModule('internal-tasks')" title="Departments">
-      <span class="nav-icon" data-ic="building"></span><span class="nav-label">Departments</span>
+    <div class="nav-section">Internal</div>
+    <button class="nav-item" data-module="internal-tasks" data-onclick="switchModule('internal-tasks')" title="Internal Work">
+      <span class="nav-icon" data-ic="building"></span><span class="nav-label">Internal Work</span>
     </button>
     <div class="nav-section">Clients &amp; Assets</div>
     <button class="nav-item" data-module="clients" data-onclick="switchModule('clients')" title="Clients">
@@ -371,6 +372,11 @@
       <button id="filter-clear" data-onclick="clearFilter()" title="Clear filter" data-ic="x"></button>
     </div>
     <div class="filter-chips" id="filter-chips"></div>
+    <div class="seg-ctl" id="ts-domain-ctl" title="Show client work, internal work, or both">
+      <button class="seg-btn active" data-domain="all" data-onclick="setFilterDomain('all')">All</button>
+      <button class="seg-btn" data-domain="client" data-onclick="setFilterDomain('client')">Client</button>
+      <button class="seg-btn" data-domain="internal" data-onclick="setFilterDomain('internal')">Internal</button>
+    </div>
     <div class="seg-ctl" id="ts-view-ctl" title="How the day's sessions are laid out">
       <button class="seg-btn" data-view="grouped" data-onclick="setTsView('grouped')"><span data-ic="layers"></span>By Task</button>
       <button class="seg-btn" data-view="flat" data-onclick="setTsView('flat')"><span data-ic="rows-3"></span>Flat</button>
@@ -454,7 +460,20 @@
             <input id="f-taskname" type="text" placeholder="e.g. Q3 billing integration" />
           </div>
         </div>
+        <!-- Client work vs Internal work — separate domains (migration 053).
+             This is what makes logging internal work possible from the daily
+             Timesheet surface at all; before this toggle, a brand-new task here
+             always required a Company. -->
         <div class="form-row">
+          <div class="form-group full">
+            <label>Task Type</label>
+            <div class="seg-ctl" id="f-tasktype-ctl">
+              <button type="button" class="seg-btn active" data-type="client" data-onclick="setModalTaskType('client')">Client / Project work</button>
+              <button type="button" class="seg-btn" data-type="internal" data-onclick="setModalTaskType('internal')">Internal</button>
+            </div>
+          </div>
+        </div>
+        <div class="form-row" id="f-clientfields-row">
           <div class="form-group">
             <label>Company</label>
             <select id="f-company"></select>
@@ -462,6 +481,12 @@
           <div class="form-group">
             <label>System</label>
             <select id="f-system"></select>
+          </div>
+        </div>
+        <div class="form-row" id="f-department-row" style="display:none">
+          <div class="form-group full">
+            <label>Department</label>
+            <select id="f-department"></select>
           </div>
         </div>
         <div class="form-row">
@@ -476,7 +501,7 @@
              <details> — no JS needed to open/close, and it degrades gracefully. -->
         <details class="modal-more">
           <summary>More options <span class="modal-more-hint">— Project link, Sources</span></summary>
-          <div class="form-row">
+          <div class="form-row" id="f-project-row">
             <div class="form-group full">
               <label>Project <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional, link this task to a project</span></label>
               <div id="f-project"></div>
@@ -659,20 +684,25 @@
      can be edited — and reassigned to a different task — from here too. ══ -->
 <div id="module-all-tasks" class="app-module">
   <div class="page-header">
-    <span class="page-title"><span class="ti-ic" data-ic="list"></span>Tasks</span>
+    <span class="page-title"><span class="ti-ic" data-ic="list"></span>Client Tasks</span>
   </div>
   <div class="cp-records-panel" id="at-panel" style="width:100%"></div>
 </div>
 
-<!-- ══ INTERNAL TASKS MODULE (DEPARTMENT lookup dimension — HR/Cybersecurity/etc.) ══ -->
-<!-- Single-page master/detail (Browse's shell, not Projects' list/detail swap) —
-     departments are a small, mostly-static set managed from Settings, so there's
-     no "create department" flow here, only picking one and managing its tasks. -->
+<!-- ══ INTERNAL WORK MODULE (DEPARTMENT lookup dimension — HR/Cybersecurity/etc.) ══
+     A separate domain from Client Tasks — internal work
+     belongs to the user's own organisation, never a client. Two views, toggled by
+     #iw-view-ctl: By Department (master/detail, Browse's shell) and All Internal
+     (a flat filterable list, the internal counterpart of Client Tasks). ══ -->
 <div id="module-internal-tasks" class="app-module">
   <div class="page-header">
-    <span class="page-title"><span class="ti-ic" data-ic="building"></span>Departments</span>
+    <span class="page-title"><span class="ti-ic" data-ic="building"></span>Internal Work<span class="page-title-org" id="iw-org-subtitle" hidden></span></span>
+    <div class="seg-ctl" id="iw-view-ctl">
+      <button type="button" class="seg-btn active" data-view="department" data-onclick="setInternalWorkView('department')">By Department</button>
+      <button type="button" class="seg-btn" data-view="all" data-onclick="setInternalWorkView('all')">All Internal</button>
+    </div>
   </div>
-  <div class="cp-body">
+  <div class="cp-body" id="iw-view-department">
     <div class="cp-list-panel">
       <div class="cp-list-search">
         <input type="text" id="dept-search" class="mod-search" placeholder="Search departments…" data-oninput="renderDeptList()">
@@ -681,6 +711,7 @@
     </div>
     <div class="cp-records-panel" id="dept-tasks-panel"></div>
   </div>
+  <div class="cp-records-panel" id="iw-all-panel" style="width:100%;display:none"></div>
 </div>
 
 <!-- ══ KNOWLEDGE HUB MODULE ══ -->
@@ -1387,6 +1418,29 @@
   </div>
 </div>
 
+<!-- ══ CONVERT TASK MODAL — the only way a task crosses the Client/Internal
+     domain boundary. Its fields swap depending
+     on direction (openConvertTaskModal sets #ctv-fields' contents): a single
+     Department select when converting to internal, or Company+System selects
+     when converting to client. Sessions/sources/history all survive — only
+     the classification (and the fields that don't belong to it) change. ══ -->
+<div id="convert-task-modal-overlay" class="modal-overlay" data-onclick="convertTaskOverlayClick(event)">
+  <div id="convert-task-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="convert-task-modal-title">Convert Task</span>
+      <button class="modal-close" data-onclick="closeConvertTaskModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <p class="merge-intro" id="convert-task-intro"></p>
+      <div id="ctv-fields"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-onclick="closeConvertTaskModal()">Cancel</button>
+      <button class="btn primary" data-onclick="submitConvertTaskModal()">Convert</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ PROJECT DELETE UNDO TOAST ══ -->
 <div id="project-undo-toast" role="status" aria-live="polite">
   <span>Project deleted</span>
@@ -1448,6 +1502,14 @@
         </div>
         <p class="general-hint">Which page the app opens on next launch. "Last page" also restores that
           page's filters and — for Clients/Internal Tasks — the last-open record.</p>
+        <hr class="modal-tasksection-divider" style="margin:20px 0" />
+        <div class="general-field">
+          <label for="s-org-name">Organisation name</label>
+          <input type="text" id="s-org-name" placeholder="e.g. your company's own name" autocomplete="off" style="max-width:320px" />
+        </div>
+        <p class="general-hint">Printed on Daily/Monthly report headers for internal (department) work and as the
+          Internal Work page's subtitle — never a Company, so it can never appear on the Clients page or in a
+          project's client list. Leave blank to print "Internal" instead.</p>
         <hr class="modal-tasksection-divider" style="margin:20px 0" />
         <button class="btn" data-onclick="openHowThinksOverlay()"><span data-ic="compass"></span>How This App Thinks</button>
         <p class="general-hint">A one-page explainer of the Task → Sessions → optional Project/Department model,
@@ -1622,24 +1684,8 @@
             <select id="b-status"></select>
           </div>
         </div>
-        <!-- Milestone 9: a task is Project work, Internal (department) work, or
-             neither, never both — shown only when the modal wasn't opened from
-             inside a Project or a Department (both already fix the type). -->
-        <div class="form-row" id="b-tasktype-row" style="display:none">
-          <div class="form-group full">
-            <label>Task Type</label>
-            <div class="seg-ctl" id="b-tasktype-ctl">
-              <button type="button" class="seg-btn" data-type="project" data-onclick="setBacklogTaskType('project')">Client / Project work</button>
-              <button type="button" class="seg-btn" data-type="department" data-onclick="setBacklogTaskType('department')">Internal</button>
-            </div>
-          </div>
-        </div>
-        <div class="form-row" id="b-department-row">
-          <div class="form-group full">
-            <label>Department <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional</span></label>
-            <select id="b-department"></select>
-          </div>
-        </div>
+        <!-- Client Tasks only — this modal never carries a Department (that's
+             a separate domain, its own #internal-task-modal below). -->
         <div class="form-row" id="b-project-row">
           <div class="form-group full">
             <label>Project <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional, link this task to a project</span></label>
@@ -1665,6 +1711,55 @@
     <div class="modal-footer">
       <button class="btn" data-onclick="closeBacklogModal()">Cancel</button>
       <button class="btn primary" data-onclick="submitBacklogModal()">Add Task</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ NEW/EDIT INTERNAL TASK MODAL — the Internal-domain counterpart of
+     #backlog-modal. Never carries Company/System/
+     Project; Department is required. Its own modal rather than a toggle inside
+     the client modal, since the two domains are meant to read as separate
+     concepts, not one form with a switch. ══ -->
+<div id="internal-task-modal-overlay" class="modal-overlay" data-onclick="internalTaskOverlayClick(event)">
+  <div id="internal-task-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="internal-task-modal-title">Add Internal Task</span>
+      <button class="modal-close" data-onclick="closeInternalTaskModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-tasksection">
+        <div class="modal-tasksection-head"><span data-ic="building"></span>Internal Task Details</div>
+        <div class="form-row">
+          <div class="form-group full">
+            <label>Department</label>
+            <select id="it-department"></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Status</label>
+            <select id="it-status"></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group full">
+            <label>Description</label>
+            <textarea id="it-description" placeholder="What needs to be done?"></textarea>
+          </div>
+        </div>
+        <hr class="modal-tasksection-divider" />
+        <div class="modal-tasksection-head"><span data-ic="tag"></span>Sources <span style="text-transform:none;font-weight:500;letter-spacing:normal">— optional, e.g. Jira tickets, email threads</span></div>
+        <div class="form-row">
+          <div class="form-group full">
+            <div id="it-sources-list"></div>
+            <button type="button" class="btn" data-onclick="addTaskSourceRow('it-sources-list')">+ Add Source</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-onclick="closeInternalTaskModal()">Cancel</button>
+      <button class="btn primary" data-onclick="submitInternalTaskModal()">Add Internal Task</button>
     </div>
   </div>
 </div>
@@ -1809,7 +1904,12 @@
         </button>
         <button class="create-flow" data-onclick="runCreateFlow('task')">
           <span class="create-flow-icon" data-ic="list"></span>
-          <span class="create-flow-copy"><span class="create-flow-title">Create task</span><span class="create-flow-desc">Plan project, department, or unlinked work</span></span>
+          <span class="create-flow-copy"><span class="create-flow-title">Create client task</span><span class="create-flow-desc">Plan work for a client, optionally linked to a project</span></span>
+          <span class="create-flow-arrow" data-ic="arrow-right"></span>
+        </button>
+        <button class="create-flow" data-onclick="runCreateFlow('internal-task')">
+          <span class="create-flow-icon" data-ic="building"></span>
+          <span class="create-flow-copy"><span class="create-flow-title">Create internal task</span><span class="create-flow-desc">Plan work for your own organisation, by department</span></span>
           <span class="create-flow-arrow" data-ic="arrow-right"></span>
         </button>
         <button class="create-flow" data-onclick="runCreateFlow('project')">

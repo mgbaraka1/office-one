@@ -8,6 +8,10 @@ let _palWorkspace = [];  // bounded FTS results from SQLite
 let _palOpenSeq = 0;     // prevents an older search load from repainting a newer open
 let _palSearchSeq = 0;
 let _palSearchTimer = null;
+// taskId -> departmentId != null, loaded once per palette-open (workspace_search's
+// FTS rows carry no domain info, so a task result
+// is badged from this side map instead of a trigger/schema change).
+let _palTaskDomainMap = null;
 
 const PAL_PAGES = [
   { icon: 'clock',            label: 'Today — Timesheet', go: 'timesheet' },
@@ -15,8 +19,8 @@ const PAL_PAGES = [
   { icon: 'file-text',        label: 'Reports',       go: 'reports' },
   { icon: 'building-2',       label: 'Browse — Companies', go: 'companies' },
   { icon: 'folder',           label: 'Browse — Systems',   go: 'systems' },
-  { icon: 'list',             label: 'Tasks — All',   go: 'all-tasks' },
-  { icon: 'building',         label: 'Tasks — Departments', go: 'internal-tasks' },
+  { icon: 'list',             label: 'Client Tasks',   go: 'all-tasks' },
+  { icon: 'building',         label: 'Internal Work',  go: 'internal-tasks' },
   { icon: 'layers',           label: 'Clients',       go: 'clients' },
   { icon: 'credit-card',      label: 'Subscriptions', go: 'subscriptions' },
   { icon: 'calendar-check',   label: 'Company Documents', go: 'companydocs' },
@@ -28,7 +32,7 @@ const PAL_PAGES = [
 // derived from settings-registry.js's SETTINGS_CATALOG_TABS (loaded before
 // this file) so this list can't drift from the actual tab set the way it
 // once did (it used to omit Maintenance, so the palette could not reach it —
-// see SETTINGS_REFACTOR_PLAN.md §1b, S1). Jumping calls the existing
+// registry). Jumping calls the existing
 // switchTab(btn) with that tab's real button element (not a fake one).
 const PAL_SETTINGS_TABS = [
   { key: 'general', label: 'General' },
@@ -45,10 +49,18 @@ async function openPalette() {
   const statusHost = document.getElementById('palette-status');
   inp.value = '';
   _palWorkspace = [];
+  _palTaskDomainMap = null;
   listHost.setAttribute('aria-busy', 'true');
   statusHost.textContent = 'Searching your workspace…';
   renderPalette();
   setTimeout(() => inp.focus(), 40);
+  // Fire-and-forget: loaded once per open, independent of the search request
+  // below, so a slow task list never delays the palette's first paint.
+  window.api.getTasksIndex().then(list => {
+    if (openSeq !== _palOpenSeq) return;
+    _palTaskDomainMap = new Map((list || []).map(t => [t.id, t.departmentId != null]));
+    renderPalette();
+  }).catch(() => { _palTaskDomainMap = new Map(); });
   await requestPaletteWorkspace('', openSeq);
 }
 function closePalette() {
@@ -139,6 +151,8 @@ function renderPalette() {
     { icon: 'zap',           label: 'Create something…',            match: 'create new add start hub',              run: openCreateHub },
     { icon: 'eye',           label: 'Workspace view & comfort',     match: 'view comfort density calm focus motion eye appearance', run: openWorkspaceView },
     { icon: 'plus',          label: 'Add record — log work',      match: 'add record log work session new', run: () => { switchModule('timesheet'); openModal(); } },
+    { icon: 'list',          label: 'Create client task',         match: 'new client task create',          run: () => runCreateFlow('task') },
+    { icon: 'building',      label: 'Create internal task',       match: 'new internal task create department', run: () => runCreateFlow('internal-task') },
     { icon: 'clipboard-list',label: 'New project',                match: 'new project create',              run: () => { switchModule('clients'); openProjectModal(); } },
     { icon: 'book-open',     label: 'New knowledge item',         match: 'new knowledge manual guide article create', run: () => { switchModule('knowledge'); openKnowledgeEditor(); } },
     { icon: 'calendar-check',label: 'Go to today',                match: 'today now current day',           run: () => { switchModule('timesheet'); goToday(); } },
@@ -180,10 +194,16 @@ function renderPalette() {
   };
   const workspaceItems = _palWorkspace.map(result => {
     const [icon, fallbackHint] = kindInfo[result.kind] || ['search', 'Open'];
+    // Client/Internal badge — only tasks have a
+    // domain; _palTaskDomainMap is null until its own async load resolves, in
+    // which case no badge renders for this pass (a re-render follows).
+    const isInternal = result.kind === 'task' ? _palTaskDomainMap?.get(result.id) : undefined;
+    const badge = isInternal === true ? 'Internal' : isInternal === false ? 'Client' : null;
     return {
       icon,
       label: result.title || '(untitled)',
       hint: result.subtitle || fallbackHint,
+      badge,
       run: async () => {
         if (result.kind === 'task') {
           const task = await window.api.getTask(result.id);
@@ -224,6 +244,7 @@ function renderPalette() {
       const idx = _palItems.indexOf(it);
       return '<button class="pal-item' + (idx === _palActive ? ' active' : '') + '" data-idx="' + idx + '">' +
         ic(it.icon) + '<span class="pal-item-label">' + esc(it.label) + '</span>' +
+        (it.badge ? '<span class="pal-item-badge pal-item-badge-' + (it.badge === 'Internal' ? 'internal' : 'client') + '">' + esc(it.badge) + '</span>' : '') +
         (it.hint ? '<span class="pal-item-hint">' + esc(it.hint) + '</span>' : '') + '</button>';
     }).join('')
   ).join('');

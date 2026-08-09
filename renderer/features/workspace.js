@@ -646,12 +646,18 @@ async function renderAnalytics() {
   const comparison = periodDelta == null ? 'no previous activity' : `${periodDelta >= 0 ? '+' : ''}${periodDelta}% vs previous period`;
 
   // ── KPIs ──
+  // Client vs Internal — the one combined total
+  // above, then this card breaks out how much of it was internal work. Only
+  // shown once there's actually some internal time in the period, so a user
+  // who never logs internal work doesn't see a permanent "0h" card.
+  const internalMin = Number(an.internalMin || 0);
   const kpis = [
     { label: 'Total Hours', val: (totalMin / 60).toFixed(1), unit: 'h', foot: `${recordCount} record${recordCount === 1 ? '' : 's'} · ${comparison}`, cls: 'accent' },
     { label: timeTypeLabel('WORK_TIME', 'Work Time'), val: (workMin / 60).toFixed(1),  unit: 'h', foot: `${pct(workMin)}% of total`, cls: '' },
     { label: timeTypeLabel('OVERTIME', 'Over Time'),  val: (otMin / 60).toFixed(1),    unit: 'h', foot: `${pct(otMin)}% of total`, cls: '' },
     { label: 'Avg / Day',   val: activeDays ? (totalMin / 60 / activeDays).toFixed(1) : '0', unit: 'h', foot: `${activeDays} active day${activeDays === 1 ? '' : 's'}`, cls: '' },
     { label: 'Completion',  val: String(completionRate), unit: '%', foot: `${doneCount} of ${recordCount} done`, cls: '' },
+    ...(internalMin > 0 ? [{ label: 'Internal Work', val: (internalMin / 60).toFixed(1), unit: 'h', foot: `${pct(internalMin)}% of total`, cls: '' }] : []),
   ];
   document.getElementById('an-kpis').innerHTML = kpis.map(k => `
     <div class="an-kpi ${k.cls}">
@@ -710,7 +716,7 @@ async function renderAnalytics() {
 // which has no page to click into anymore) renders plain, non-clickable bars.
 function renderAnBars(elId, map, subId, linkKind) {
   const items = Object.entries(map).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
-  const visibleLabel = key => linkKind === 'companies' ? companyDisplayName(key)
+  const visibleLabel = key => linkKind === 'companies' ? companyDisplayName(key, false)
     : linkKind === 'systems' ? lkLabel('SYSTEM', key)
     : linkKind === 'department' ? lkLabel('DEPARTMENT', key)
     : key;
@@ -729,7 +735,7 @@ function renderAnBars(elId, map, subId, linkKind) {
 const AN_BAR_LINK_ATTRS = {
   companies:      (label, visible) => ` data-kind="companies" data-name="${esc(label)}" title="Browse all work for ${esc(visible)}" data-onclick="openBrowseSlice(this.dataset.kind, this.dataset.name)"`,
   systems:        (label, visible) => ` data-kind="systems" data-name="${esc(label)}" title="Browse all work for ${esc(visible)}" data-onclick="openBrowseSlice(this.dataset.kind, this.dataset.name)"`,
-  department:     (label, visible) => ` data-name="${esc(label)}" title="Open All Tasks filtered to ${esc(visible)}" data-onclick="openAllTasksForDepartment(this.dataset.name)"`,
+  department:     (label, visible) => ` data-name="${esc(label)}" title="Open Internal Work filtered to ${esc(visible)}" data-onclick="openAllTasksForDepartment(this.dataset.name)"`,
 };
 function anBarRow(label, value, max, display, color, linkKind, visibleLabel = label) {
   const w = Math.max(2, Math.round((value / max) * 100));
@@ -746,14 +752,13 @@ function anBarRow(label, value, max, display, color, linkKind, visibleLabel = la
     </${tag}>`;
 }
 
-// Milestone 4 chart click-through — Analytics' "Hours by Department" bar,
-// which has no Browse-slice equivalent (Browse only slices by company/
-// system). Resolves to All Tasks' department filter (by lookup id, not
-// label), that dimension's own existing filter UI, not a new one.
+// Analytics' "Hours by Department" bar, which has no Browse-slice equivalent
+// Browse only slices by company/system. Since the domain separation,
+// internal work is its own page — this resolves the label to a lookup id and
+// routes into Internal Work's All Internal view, preset-filtered to it.
 function openAllTasksForDepartment(label) {
   const dept = lkFind('DEPARTMENT', label);
-  atPresetFilter = { departmentId: dept ? dept.id : null };
-  switchModule('all-tasks');
+  openInternalWorkForDepartment(dept ? dept.id : null);
 }
 
 // SVG donut from [{label, value, color}] segments.

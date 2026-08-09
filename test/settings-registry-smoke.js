@@ -1,6 +1,6 @@
 'use strict';
 
-// Phase 2 of SETTINGS_REFACTOR_PLAN.md (S1/S2): the Settings catalog tab set
+// The Settings catalog tab set
 // used to be hand-maintained independently in five places and had already
 // drifted — CURRENCY/BILLING_CYCLE had no editor, and the command palette
 // could not reach Maintenance. renderer/settings-registry.js is now the one

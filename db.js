@@ -471,7 +471,7 @@ const LOG_COLS = `wl.id AS wl_id, wl.task_id AS task_id, wl.date AS date,
   wl.description AS description, wl.minutes AS minutes, wl.time_type_id AS time_type_id,
   wl.activity_type_id AS activity_type_id, wl.sort_order AS sort_order,
   t.name AS task_name,
-  t.company_id AS company_id, t.system_id AS system_id,
+  t.company_id AS company_id, t.system_id AS system_id, t.department_id AS department_id,
   t.status_id AS status_id, t.source AS source, t.project_id AS project_id
   ${TASK_SOURCE_SUMMARY_COLS}`;
 
@@ -488,6 +488,8 @@ function dayEntryRowToApi(r) {
     status: lkCode(r.status_id) || 'IN_PROGRESS',
     minutes: (r.minutes === null || r.minutes === undefined) ? '' : r.minutes,
     projectId: r.project_id ?? null,   // linked Project (nullable); rendered as a pill
+    departmentId: r.department_id ?? null,
+    kind: isInternalTaskRow(r) ? 'INTERNAL' : 'CLIENT',
     ...companyProfileFields(r.company_id),
     ...taskSourceSummaryFields(r),
   };
@@ -639,9 +641,21 @@ function getAnalytics(userId, from, to, spanFrom, spanTo) {
     return m;
   };
 
+  // Client work vs internal (department) work — the one place these two
+  // otherwise-separate domains are meant to sit side by side (see
+  // Once a task is internal it never carries a
+  // company, so this is equivalent to summing byCompany/byDepartment, but a
+  // single scalar query is cheaper than re-deriving it from those maps.
+  const domainSplit = db.prepare(
+    `SELECT COALESCE(SUM(CASE WHEN t.department_id IS NULL THEN wl.minutes ELSE 0 END),0) AS clientMin,
+            COALESCE(SUM(CASE WHEN t.department_id IS NOT NULL THEN wl.minutes ELSE 0 END),0) AS internalMin
+       ${FROM} ${WHERE}`
+  ).get(...period);
+
   return {
     totalMin: totals.totalMin, recordCount: totals.recordCount, doneCount: totals.doneCount || 0,
     activeDays, byCompany, bySystem, byNatural, byType, byDepartment,
+    clientMin: domainSplit.clientMin, internalMin: domainSplit.internalMin,
     dayMin: perDay(false), dayOtMin: perDay(true),
   };
 }
@@ -766,7 +780,16 @@ function setUserDisplayName(userId, nameEn, nameAr) {
 function loadLookups(userId) {
   const categories = {};
   for (const cat of LOOKUP_CATEGORIES) categories[cat] = getLookupsByCategory(cat, true, userId);
-  return { categories, defaultName: userGet(userId, 'default_employee_name') || '' };
+  return {
+    categories,
+    defaultName: userGet(userId, 'default_employee_name') || '',
+    // The employer's display name — replaces the
+    // pre-053 misuse of a COMPANY lookup row for the employer. Used only by
+    // Daily/Monthly report headers for internal groups and the Internal Work
+    // page subtitle; never a lookup row, so it can never leak into the Clients
+    // page, Browse, Analytics by-company, or a project's company pills.
+    orgName: userGet(userId, 'org_name') || '',
+  };
 }
 // Persist edits from the Settings catalog editor. Existing rows are updated in
 // place and entries are NEVER hard-deleted — disable via isActive:false. COMPANY
@@ -836,6 +859,7 @@ function saveLookups(userId, data) {
       }
     }
     if (data && typeof data.defaultName === 'string') userSet(userId, 'default_employee_name', data.defaultName.trim());
+    if (data && typeof data.orgName === 'string') userSet(userId, 'org_name', data.orgName.trim());
   });
   lkInvalidate();
   return { ok: true, skipped };
@@ -2022,6 +2046,19 @@ function deleteKnowledgeGroup(userId, id) {
   return { ok: true, snapshot: group };
 }
 
+// ── Client vs Internal predicate ─────────────────────────────────────────────
+// A task is either client work (has/needs a Company+System, optionally a
+// Project) or internal work (has a Department, never a Company/System/Project)
+// — never both, never neither. Defined once here so every query/filter that
+// partitions the two domains shares one definition instead of re-deriving it,
+// which is what makes switching the underlying test (department_id today,
+// tasks.kind after migration 053 lands — see the plan's step 6) a two-line
+// change instead of a sweep through every call site.
+function internalTaskWhere(alias = 't') { return `${alias ? alias + '.' : ''}department_id IS NOT NULL`; }
+function clientTaskWhere(alias = 't')   { return `${alias ? alias + '.' : ''}department_id IS NULL`; }
+function isInternalTaskRow(row) { return !!(row && row.department_id != null); }
+function isInternalTaskApi(t)   { return !!(t && t.departmentId != null); }
+
 // Link / unlink a task to a project, addressed directly by its task id (the
 // two-level model — everything is a task now). Linking verifies project ownership;
 // each UPDATE is owner-scoped so a user can only touch their own rows. Milestone 9:
@@ -2044,53 +2081,23 @@ function unlinkTask(userId, taskId) {
   return { ok: true };
 }
 
-// Link / unlink a task to a department, the same shape as linkTask/unlinkTask
-// above but for the DEPARTMENT lookup dimension (Internal Tasks). Milestone 9:
-// Project/Department are mutually exclusive — a task already linked to a
-// Project is rejected here for the same reason linkTask rejects the reverse.
-function linkDepartmentTask(userId, taskId, departmentId) {
-  if (!isLookupId('DEPARTMENT', departmentId)) return { ok: false, error: 'department not found' };
-  const row = db.prepare('SELECT project_id, support_year_id FROM tasks WHERE id = ? AND user_id = ?').get(taskId, userId);
-  if (!row) return { ok: false, error: 'task not found' };
-  if (row.project_id != null) return { ok: false, error: 'task is already linked to a Project' };
-  if (row.support_year_id != null) return { ok: false, error: 'task is already linked to a Support Year' };
-  db.prepare('UPDATE tasks SET department_id = ? WHERE id = ? AND user_id = ?')
-    .run(Number(departmentId), taskId, userId);
-  return { ok: true };
-}
-function unlinkDepartmentTask(userId, taskId) {
-  db.prepare('UPDATE tasks SET department_id = NULL WHERE id = ? AND user_id = ?')
-    .run(taskId, userId);
-  return { ok: true };
-}
+// ── Retired: linkDepartmentTask / unlinkDepartmentTask / listLinkableTasksForDepartment ──
+// Client and Internal are separate domains — a
+// task cannot be cross-linked between them, only explicitly *converted* (see
+// convertTaskToInternal/convertTaskToClient below), which is a stronger
+// operation than a link/unlink pair since it also clears the fields that don't
+// belong to the new shape. The `departments:link-task`/`unlink-task`/
+// `linkable-tasks` IPC channels retire with these functions.
 
 // Tasks not linked to ANY project, for the "link an existing task" picker — every
-// unlinked task (with-sessions and zero-log alike), owner-scoped, oldest first,
-// each with its rollups. Read-only; the UI links via linkTask. Milestone 9: also
-// excludes department-linked tasks (Project/Department are mutually exclusive),
-// so this picker never offers an Internal task as something to fold into a Project.
-// Migration 035: also excludes Support-Year-linked tasks, for the same reason.
+// unlinked CLIENT task (with-sessions and zero-log alike), owner-scoped, oldest
+// first, each with its rollups. Read-only; the UI links via linkTask. Excludes
+// internal tasks by construction (a client Project can never fold in internal
+// work — see the domain split above), and Support-Year-linked tasks (migration
+// 035, permanently inert but still guarded against).
 function listLinkableTasks(userId) {
   return db.prepare(
-    `SELECT * FROM tasks WHERE user_id = ? AND project_id IS NULL AND department_id IS NULL AND support_year_id IS NULL ORDER BY created_at ASC, id ASC`
-  ).all(userId).map(t => {
-    const roll = db.prepare(
-      `SELECT COUNT(*) AS logCount, COALESCE(SUM(minutes),0) AS totalMinutes, MIN(date) AS firstDate, MAX(date) AS lastDate
-         FROM work_logs WHERE task_id = ?`
-    ).get(t.id);
-    return taskToApi(t, {
-      logCount: roll.logCount, totalMinutes: roll.totalMinutes, firstDate: roll.firstDate, lastDate: roll.lastDate,
-    });
-  });
-}
-
-// Same as listLinkableTasks but for the "link an existing task to a department"
-// picker (department_id IS NULL instead of project_id IS NULL). Milestone 9: also
-// excludes project-linked tasks, for the same mutual-exclusivity reason. Migration
-// 035: also excludes Support-Year-linked tasks.
-function listLinkableTasksForDepartment(userId) {
-  return db.prepare(
-    `SELECT * FROM tasks WHERE user_id = ? AND department_id IS NULL AND project_id IS NULL AND support_year_id IS NULL ORDER BY created_at ASC, id ASC`
+    `SELECT * FROM tasks WHERE user_id = ? AND project_id IS NULL AND ${clientTaskWhere('')} AND support_year_id IS NULL ORDER BY created_at ASC, id ASC`
   ).all(userId).map(t => {
     const roll = db.prepare(
       `SELECT COUNT(*) AS logCount, COALESCE(SUM(minutes),0) AS totalMinutes, MIN(date) AS firstDate, MAX(date) AS lastDate
@@ -2146,6 +2153,133 @@ function getDepartment(userId, id) {
   return { id: d.id, code: d.code, label: d.label, tasks: departmentTasks(userId, d.id) };
 }
 
+// ── Internal task CRUD ────────────────────────────────────────────────────────
+// The internal-domain counterpart of createTask/updateTask/listTasks below.
+// Deliberately separate functions rather than a shared one with a branch —
+// each builds its own write-field set (internalTaskWriteFields) so neither
+// domain can emit the other's columns, and each is the target of its own
+// internal:* IPC channel instead of overloading tasks:*.
+
+// Every internal task, with its rollups (no nested work logs) — the internal
+// counterpart of getTasksIndex, itself filtered to the internal population.
+function listInternalTasksIndex(userId) {
+  return getTasksIndex(userId).filter(isInternalTaskApi);
+}
+// Same, but with each task's ordered work logs nested — for the All Internal view.
+function listInternalTasks(userId) {
+  const index = listInternalTasksIndex(userId);
+  const logsByTask = new Map();
+  db.prepare(`SELECT ${WORK_LOG_COLS} FROM work_logs WHERE user_id = ? ORDER BY date ASC, sort_order, id`)
+    .all(userId).forEach(w => {
+      const list = logsByTask.get(w.task_id) || [];
+      list.push(workLogToApi(w));
+      logsByTask.set(w.task_id, list);
+    });
+  return index.map(t => ({ ...t, workLogs: logsByTask.get(t.id) || [] }));
+}
+
+// Insert a standalone internal task (no work logs yet) — the internal-domain
+// twin of createTask. A Department is required; company/system/project are
+// always NULL regardless of what the payload sends (internalTaskWriteFields
+// never resolves them). Returns the full task.
+function createInternalTask(userId, data) {
+  const f = internalTaskWriteFields(userId, data);
+  if (f.department_id == null) throw new Error('An internal task requires a Department');
+  const now = new Date().toISOString();
+  let id;
+  tx(() => {
+    id = Number(db.prepare(
+      `INSERT INTO tasks(user_id, name, status_id, company_id, system_id, project_id, department_id, support_year_id, source, sort_order, created_at, updated_at)
+       VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`
+    ).run(userId, f.name, f.status_id, f.company_id, f.system_id, f.project_id, f.department_id, f.support_year_id, f.source, nextTaskSort(userId), now, now).lastInsertRowid);
+  });
+  return getTask(userId, id);
+}
+
+// Update an internal task's profile fields in place — the internal-domain twin
+// of updateTask. Rejects (returns null the same way ownsTask-failure does,
+// via a thrown Error since this is a shape violation, not an ownership one) a
+// call against a task that is not currently internal — use
+// convertTaskToInternal to change a task's domain, not this.
+function updateInternalTask(userId, id, data) {
+  if (!ownsTask(userId, id)) return null;
+  const before = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+  if (!isInternalTaskRow(before)) throw new Error('Not an internal task — use convertTaskToInternal first');
+  const f = internalTaskWriteFields(userId, data);
+  if (f.department_id == null) throw new Error('An internal task requires a Department');
+  if (data?.source === undefined) f.source = before.source || '';
+  const now = new Date().toISOString();
+  const beforeForDiff = taskHistorySnapshot(before);
+  const next = taskHistorySnapshot({
+    name: f.name, status_id: f.status_id, company_id: null, system_id: null,
+    project_id: null, department_id: f.department_id, source: f.source,
+  });
+  tx(() => {
+    recordTaskHistory(userId, id, beforeForDiff, next);
+    db.prepare(
+      `UPDATE tasks SET name=?, status_id=?, company_id=NULL, system_id=NULL, project_id=NULL, department_id=?, source=?, updated_at=?
+        WHERE id=? AND user_id=?`
+    ).run(f.name, f.status_id, f.department_id, f.source, now, id, userId);
+  });
+  return getTask(userId, id);
+}
+
+// Convert an existing CLIENT task into an INTERNAL one, or vice versa — the
+// only way a task ever crosses the domain boundary (§4.5: no more cross-domain
+// linking). Clears every field that doesn't belong to the new shape and writes
+// one task_field_history row per field that actually changed (via the existing
+// recordTaskHistory/taskHistorySnapshot pair, which already diffs `department`
+// and — once kind is added there in the same step — `kind` itself), so the
+// conversion is fully audited and, via those archived old values, reversible.
+// Never throws: an invalid target (missing Department / Company / System)
+// returns {ok:false,error} so the UI can show it inline, the same convention
+// linkTask/linkDepartmentTask established for this schema's other "reject
+// rather than partially write" operations.
+function convertTaskToInternal(userId, id, data) {
+  if (!ownsTask(userId, id)) return { ok: false, error: 'task not found' };
+  const before = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+  if (isInternalTaskRow(before)) return { ok: false, error: 'already an internal task' };
+  const department_id = lkId('DEPARTMENT', data?.department);
+  if (department_id == null) return { ok: false, error: 'a Department is required' };
+  const now = new Date().toISOString();
+  const beforeForDiff = taskHistorySnapshot(before);
+  const next = taskHistorySnapshot({
+    name: before.name, status_id: before.status_id, company_id: null, system_id: null,
+    project_id: null, department_id, source: before.source,
+  });
+  tx(() => {
+    recordTaskHistory(userId, id, beforeForDiff, next);
+    db.prepare(
+      `UPDATE tasks SET company_id=NULL, system_id=NULL, project_id=NULL, department_id=?, updated_at=?
+        WHERE id=? AND user_id=?`
+    ).run(department_id, now, id, userId);
+  });
+  return { ok: true, task: getTask(userId, id) };
+}
+function convertTaskToClient(userId, id, data) {
+  if (!ownsTask(userId, id)) return { ok: false, error: 'task not found' };
+  const before = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+  if (!isInternalTaskRow(before)) return { ok: false, error: 'already a client task' };
+  const company_id = lkId('COMPANY', data?.company);
+  const system_id = lkIdForUser(userId, 'SYSTEM', data?.system);
+  if (company_id == null) return { ok: false, error: 'a Company is required' };
+  if (system_id == null) return { ok: false, error: 'a System is required' };
+  const now = new Date().toISOString();
+  const beforeForDiff = taskHistorySnapshot(before);
+  const next = taskHistorySnapshot({
+    name: before.name, status_id: before.status_id, company_id, system_id,
+    project_id: null, department_id: null, source: before.source,
+  });
+  tx(() => {
+    recordTaskHistory(userId, id, beforeForDiff, next);
+    db.prepare(
+      `UPDATE tasks SET company_id=?, system_id=?, project_id=NULL, department_id=NULL, updated_at=?
+        WHERE id=? AND user_id=?`
+    ).run(company_id, system_id, now, id, userId);
+  });
+  return { ok: true, task: getTask(userId, id) };
+}
+
 // ── Tasks + work logs (v2 API for the two-level model) ────────────────────────
 // The forward-looking data layer the renderer moves onto in Phase C. A `tasks` row
 // is a date-INDEPENDENT unit of work; its `work_logs` are the dated sessions.
@@ -2167,6 +2301,11 @@ function taskToApi(t, extra = {}) {
     source: t.source || '',
     projectId: t.project_id ?? null,
     departmentId: t.department_id ?? null,
+    // 'CLIENT' | 'INTERNAL' — derived from department_id until migration 053
+    // adds a real tasks.kind column; every
+    // renderer read of a task's domain goes through this field, never a raw
+    // departmentId != null check, so that step-6 swap only touches this line.
+    kind: isInternalTaskRow(t) ? 'INTERNAL' : 'CLIENT',
     supportYearId: t.support_year_id ?? null,
     sortOrder: t.sort_order ?? 0,
     createdAt: t.created_at,
@@ -2191,17 +2330,36 @@ function workLogToApi(w) {
 
 const WORK_LOG_COLS = 'id, user_id, task_id, date, description, minutes, time_type_id, activity_type_id, sort_order, created_at, updated_at';
 
-// API payload → task-level column values. Unknown/empty lookups → NULL (unset);
-// status defaults to IN_PROGRESS; the project link is ownership-validated.
-function taskWriteFields(userId, data) {
+// API payload → task-level column values, CLIENT shape (migration 053
+// §3/§5). Unknown/empty lookups → NULL (unset); status defaults to IN_PROGRESS;
+// the project link is ownership-validated. department_id is always NULL here,
+// regardless of what the payload sends — a client task can never be internal
+// work, so there is no `data?.department` read to smuggle one in through.
+function clientTaskWriteFields(userId, data) {
   return {
     name: String(data?.name ?? '').trim(),
     status_id: lkId('ENTRY_STATUS', data?.status) ?? lkId('ENTRY_STATUS', 'IN_PROGRESS'),
     company_id: lkId('COMPANY', data?.company),
     system_id: lkIdForUser(userId, 'SYSTEM', data?.system),
     project_id: ownedProjectId(userId, data?.projectId),
-    department_id: lkId('DEPARTMENT', data?.department),
+    department_id: null,
     support_year_id: ownedSupportYearId(userId, data?.supportYearId),
+    source: String(data?.source ?? ''),
+  };
+}
+// API payload → task-level column values, INTERNAL shape. Mirrors
+// clientTaskWriteFields but for the other domain: company/system/project are
+// always NULL, regardless of what the payload sends — internal work belongs
+// to the user's own organisation, never a client (see the plan's §1/§3).
+function internalTaskWriteFields(userId, data) {
+  return {
+    name: String(data?.name ?? '').trim(),
+    status_id: lkId('ENTRY_STATUS', data?.status) ?? lkId('ENTRY_STATUS', 'IN_PROGRESS'),
+    company_id: null,
+    system_id: null,
+    project_id: null,
+    department_id: lkId('DEPARTMENT', data?.department),
+    support_year_id: null,
     source: String(data?.source ?? ''),
   };
 }
@@ -2377,8 +2535,12 @@ function getTasksIndex(userId) {
   }));
 }
 
+// CLIENT tasks only (§5: tasks:* is the client-domain API; see listInternalTasks
+// above for the internal-domain twin). getTasksIndex itself stays unfiltered —
+// pickers like the Timesheet's existing-task picker and the command palette
+// deliberately offer both domains.
 function listTasks(userId) {
-  const index = getTasksIndex(userId);
+  const index = getTasksIndex(userId).filter(t => !isInternalTaskApi(t));
   const logsByTask = new Map();
   db.prepare(`SELECT ${WORK_LOG_COLS} FROM work_logs WHERE user_id = ? ORDER BY date ASC, sort_order, id`)
     .all(userId).forEach(w => {
@@ -2428,7 +2590,7 @@ function assertTaskLinkExclusive(projectId, departmentId, supportYearId) {
 // linked project's NAME / the DEPARTMENT lookup's LABEL (not the raw id) so
 // old/new values stay human-facing, matching every other history field here.
 const TASK_HISTORY_FIELDS = [
-  ['name', 'Name'], ['status', 'Status'], ['company', 'Company'], ['system', 'System'],
+  ['name', 'Name'], ['kind', 'Kind'], ['status', 'Status'], ['company', 'Company'], ['system', 'System'],
   ['project', 'Project'], ['department', 'Department'], ['source', 'Source'],
 ];
 
@@ -2445,6 +2607,12 @@ function projectNameById(id) {
 function taskHistorySnapshot(row) {
   return {
     name: row.name || '',
+    // Derived from department_id, same as taskToApi's `kind` field (until
+    // migration 053 adds a real column) — this is what makes a domain
+    // conversion (convertTaskToInternal/convertTaskToClient) show up as a
+    // "Kind: Client → Internal" history row automatically, with no separate
+    // bookkeeping in the conversion functions themselves.
+    kind: isInternalTaskRow(row) ? 'Internal' : 'Client',
     status: lkCode(row.status_id) || '',
     company: lkLabel(row.company_id) || '',
     system: lkLabel(row.system_id) || '',
@@ -2484,11 +2652,12 @@ function getTaskFieldHistory(userId, taskId) {
   ).all(userId, Number(taskId));
 }
 
-// Insert a standalone task (no work logs yet — the two-level analogue of a
-// "Not Yet" item). Returns the full task.
+// Insert a standalone CLIENT task (no work logs yet — the two-level analogue
+// of a "Not Yet" item). The tasks:create channel — client-domain only; see
+// createInternalTask above for the internal-domain twin. Returns the full task.
 function createTask(userId, data) {
   const now = new Date().toISOString();
-  const f = taskWriteFields(userId, data);
+  const f = clientTaskWriteFields(userId, data);
   assertTaskLinkExclusive(f.project_id, f.department_id, f.support_year_id);
   let id;
   tx(() => {
@@ -2500,16 +2669,22 @@ function createTask(userId, data) {
   return getTask(userId, id);
 }
 
-// Update a task's profile fields in place (its work logs are untouched). This
-// is the full-row editor — it CAN change project_id/department_id — used by
-// the actual link editors (openBacklogModal, Projects/Internal Tasks/All
-// Tasks). The Timesheet must never call this; see updateTaskMeta below.
-// Returns the refreshed task, or null if the caller doesn't own it.
+// Update a CLIENT task's profile fields in place (its work logs are
+// untouched). The tasks:update channel — client-domain only (§4.5/§5: a task
+// can no longer be cross-linked into a Department through this path; use
+// convertTaskToInternal to move it to the other domain, or updateInternalTask
+// if it already is one). It CAN still change project_id — used by the actual
+// link editors (the New/Edit Task modal, Projects, Client Tasks). The
+// Timesheet must never call this; see updateTaskMeta below.
+// Throws if `id` is currently an internal task (a shape violation, the same
+// convention updateInternalTask uses in reverse). Returns the refreshed task,
+// or null if the caller doesn't own it.
 function updateTask(userId, id, data) {
   if (!ownsTask(userId, id)) return null;
   const before = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+  if (isInternalTaskRow(before)) throw new Error('This is an internal task — use updateInternalTask or convertTaskToClient');
   const now = new Date().toISOString();
-  const f = taskWriteFields(userId, data);
+  const f = clientTaskWriteFields(userId, data);
   // The legacy `source` column is a fallback-only field no current UI writes
   // new data into — task origin is now tracked via the task_sources table
   // (see CLAUDE.md: "kept exactly as-is ... new/edited tasks no longer write
@@ -2549,8 +2724,17 @@ function updateTaskMeta(userId, id, data) {
   const now = new Date().toISOString();
   const name = String(data?.name ?? '').trim();
   const status_id = lkId('ENTRY_STATUS', data?.status) ?? lkId('ENTRY_STATUS', 'IN_PROGRESS');
-  const company_id = lkId('COMPANY', data?.company);
-  const system_id = lkIdForUser(userId, 'SYSTEM', data?.system);
+  // Internal-domain guard — the single
+  // highest-risk edit in that plan): this path is what the Timesheet's
+  // debounced autosave calls on every task with a session on the viewed day,
+  // via a payload (tsTaskPayload) that always carries *some* company/system
+  // string. Resolving and writing it unconditionally would silently
+  // re-attach a company to an internal task on the next autosave. An internal
+  // task's company/system stay hard NULL here regardless of what the payload
+  // sends — mirrors the guard already below for `source`.
+  const internal = isInternalTaskRow(before);
+  const company_id = internal ? null : lkId('COMPANY', data?.company);
+  const system_id = internal ? null : lkIdForUser(userId, 'SYSTEM', data?.system);
   // Same "don't blank a legacy fallback field the caller didn't actually send"
   // guard as updateTask() — belt-and-braces here too, since the Timesheet's
   // own payload (tsTaskPayload) always sends *some* source string, so this
@@ -2610,6 +2794,7 @@ function logsForDate(userId, date) {
     source: r.source || '',
     projectId: r.projectId ?? null,
     departmentId: r.departmentId ?? null,
+    kind: r.departmentId != null ? 'INTERNAL' : 'CLIENT',
     sortOrder: r.sortOrder ?? 0,
     ...taskSourceSummaryFields(r),
   }));
@@ -2774,6 +2959,15 @@ function mergeTasks(userId, sourceTaskId, targetTaskId) {
   if (!ownsTask(userId, sourceTaskId)) return { ok: false, error: 'source task not found' };
   if (!ownsTask(userId, targetTaskId)) return { ok: false, error: 'target task not found' };
   if (Number(sourceTaskId) === Number(targetTaskId)) return { ok: false, error: 'cannot merge a task into itself' };
+  // Client and Internal are separate domains — a
+  // merge moves the source's sessions onto the target's classification, so
+  // merging across domains would silently reclassify them. Use
+  // convertTaskToInternal/convertTaskToClient first if that's genuinely intended.
+  const sourceRow = db.prepare('SELECT department_id FROM tasks WHERE id = ?').get(sourceTaskId);
+  const targetRow = db.prepare('SELECT department_id FROM tasks WHERE id = ?').get(targetTaskId);
+  if (isInternalTaskRow(sourceRow) !== isInternalTaskRow(targetRow)) {
+    return { ok: false, error: 'cannot merge a client task with an internal task' };
+  }
   const now = new Date().toISOString();
   let movedWorkLogIds = [];
   tx(() => {
@@ -2911,7 +3105,7 @@ function saveKnowledgeDraft(userId, draft) {
   userSet(userId, 'knowledge_draft', json);
 }
 
-// ── Per-account UI preferences (SETTINGS_REFACTOR_PLAN.md Phase 3, S4) ──
+// ── Per-account UI preferences ────────────────────────────────────────────────
 // theme/density/canvas/motion/sidebar/timesheet view used to live only in
 // localStorage, which is machine-wide, not per-account: a second person
 // logging into the same Windows account's copy of the app inherited whatever
@@ -4132,7 +4326,9 @@ module.exports = {
   getAnalytics, getOverviewStats, getAttentionItems, getRecentActivity,
   createProject, listProjects, getProject, updateProject, deleteProject,
   linkTask, unlinkTask, listLinkableTasks,
-  listDepartments, getDepartment, linkDepartmentTask, unlinkDepartmentTask, listLinkableTasksForDepartment,
+  listDepartments, getDepartment,
+  listInternalTasks, createInternalTask, updateInternalTask,
+  convertTaskToInternal, convertTaskToClient,
   listTasks, getTasksIndex, getTask, searchWorkspace, createTask, updateTask, updateTaskMeta, deleteTask,
   getTaskSources, createTaskSource, updateTaskSource, deleteTaskSource, getTaskFieldHistory,
   listWorkLogs, logsForDate, addWorkLog, updateWorkLog, moveWorkLog, mergeTasks, deleteWorkLog, getWorkLogHistory,
