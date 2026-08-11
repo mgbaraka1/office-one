@@ -33,6 +33,7 @@
  * @property {string} firstSourceRef   The first (by sort_order) entry's ref, or '' if sourceCount is 0.
  * @property {string} firstSourceUrl   The first entry's url, or ''.
  * @property {string} firstSourceType  The first entry's TASK_SOURCE_TYPE code, or ''.
+ * @property {string} allSourceRefs    Every entry's ref, newline-joined (search-matching only — the UI never renders this raw).
  */
 
 /**
@@ -111,6 +112,7 @@
  * @property {string} [firstSourceRef]  The first entry's ref — present on tasks:list/tasks:index rows only (tasks:get instead carries the full `sources` array below).
  * @property {string} [firstSourceUrl]  The first entry's url — same availability as firstSourceRef.
  * @property {string} [firstSourceType] The first entry's TASK_SOURCE_TYPE code — same availability as firstSourceRef.
+ * @property {string} [allSourceRefs]   Every entry's ref, newline-joined — same availability as firstSourceRef. Search-matching only; the UI never renders this raw.
  * @property {TaskSource[]} [sources]   The task's full ordered list of source entries — tasks:get only.
  */
 

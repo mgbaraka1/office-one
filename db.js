@@ -463,16 +463,20 @@ const TASK_SOURCE_SUMMARY_COLS = `,
   (SELECT ts.source_ref FROM task_sources ts WHERE ts.task_id = t.id ORDER BY ts.sort_order, ts.id LIMIT 1) AS source_ref_first,
   (SELECT ts.source_url FROM task_sources ts WHERE ts.task_id = t.id ORDER BY ts.sort_order, ts.id LIMIT 1) AS source_url_first,
   (SELECT lc.code FROM task_sources ts JOIN lookup_codes lc ON lc.id = ts.source_type_id
-     WHERE ts.task_id = t.id ORDER BY ts.sort_order, ts.id LIMIT 1) AS source_type_first`;
+     WHERE ts.task_id = t.id ORDER BY ts.sort_order, ts.id LIMIT 1) AS source_type_first,
+  (SELECT GROUP_CONCAT(ts.source_ref, char(10)) FROM task_sources ts WHERE ts.task_id = t.id) AS source_refs_all`;
 
-// Reads TASK_SOURCE_SUMMARY_COLS's four aliases back into the flat fields every
+// Reads TASK_SOURCE_SUMMARY_COLS's five aliases back into the flat fields every
 // summary-level API shape (Task, DayEntryRow) exposes alongside its rollups.
+// allSourceRefs (newline-joined) exists purely for search matching against every
+// source ref on a task, not just the first — the UI still only displays the first.
 function taskSourceSummaryFields(r) {
   return {
     sourceCount: r.source_count || 0,
     firstSourceRef: r.source_ref_first || '',
     firstSourceUrl: r.source_url_first || '',
     firstSourceType: r.source_type_first || '',
+    allSourceRefs: r.source_refs_all || '',
   };
 }
 
@@ -2528,14 +2532,15 @@ function getTasksIndex(userId) {
        SELECT task_id, MAX(source_count) AS source_count,
               MAX(CASE WHEN source_rank = 1 THEN source_ref END) AS source_ref_first,
               MAX(CASE WHEN source_rank = 1 THEN source_url END) AS source_url_first,
-              MAX(CASE WHEN source_rank = 1 THEN source_type END) AS source_type_first
+              MAX(CASE WHEN source_rank = 1 THEN source_type END) AS source_type_first,
+              GROUP_CONCAT(source_ref, char(10)) AS source_refs_all
          FROM ranked_sources GROUP BY task_id
      )
      SELECT t.*, COALESCE(l.logCount, 0) AS logCount,
             COALESCE(l.totalMinutes, 0) AS totalMinutes,
             l.firstDate, l.lastDate,
             COALESCE(s.source_count, 0) AS source_count,
-            s.source_ref_first, s.source_url_first, s.source_type_first
+            s.source_ref_first, s.source_url_first, s.source_type_first, s.source_refs_all
        FROM tasks t
        LEFT JOIN log_rollup l ON l.task_id = t.id
        LEFT JOIN source_rollup s ON s.task_id = t.id
