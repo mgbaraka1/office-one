@@ -2806,7 +2806,7 @@
     .modal-box {
       border-color: color-mix(in srgb, var(--border) 85%, transparent);
       border-radius: 22px; box-shadow: 0 40px 100px -42px rgba(0,0,0,.7);
-      overflow: hidden;
+      overflow-x: hidden; overflow-y: auto;
     }
     .modal-header {
       min-height: 64px; background: color-mix(in srgb, var(--surface-2) 76%, transparent);
