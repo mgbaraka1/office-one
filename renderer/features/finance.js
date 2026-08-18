@@ -1,0 +1,2232 @@
+// ══ Finance — standalone financial record-keeping module ═══════════════════
+// Deliberately isolated from the rest of the app: its own client roster
+// (never the shared COMPANY lookup), its own finance_lookups catalog (never
+// lookup_codes / Settings), its own currency list. See AGENTS.md's Finance
+// section. Phase 1: clients, contracts, contract versions, installments, and
+// the Setup tab's catalog editor. Phase 2: Change Requests, Invoices,
+// invoice-to-installment/CR allocations, and payments — with the six
+// cross-entity invariants enforced server-side in finance-seed.js. Minutes /
+// Reports tabs are still shells — a later phase fills them in.
+let financeClients = [];
+let financeClientsLoaded = false;
+let financeClientFilter = '';
+let currentFinanceClient = null;        // full client (finance:client-get)
+let financeContracts = [];              // current client's contracts, each with nested versions[]/installments[]
+let financeChangeRequests = [];         // current client's change requests
+let financeInvoices = [];               // current client's invoices, each with nested links[]/payments[]
+let financeSummary = null;              // current client's Overview stats (finance:summary)
+let financeDetailTab = 'overview';
+let financeExpandedContracts = new Set();
+let financeExpandedVersionHistory = new Set();
+let financeExpandedInvoices = new Set();
+let financeExpandedCrs = new Set();
+let financeExpandedVersionFiles = new Set();
+let financeLookups = null;              // { categories: {...} } — Finance's own catalog, cached
+let financeLookupsDraft = null;         // Setup tab in-progress edits (local until Save)
+let financeSetupDirty = false;
+
+let financeClientEditId = null;
+let financeContractEditId = null;
+let financeVersionEditId = null;
+let financeVersionModalContractId = null;
+let financeInstallmentEditId = null;
+let financeInstallmentModalContractId = null;
+let financeCrEditId = null;
+let financeInvoiceEditId = null;
+let financeLinkModalInvoiceId = null;
+let financePaymentEditId = null;
+let financePaymentModalInvoiceId = null;
+let financeReverseLinkKind = null;      // 'installment' | 'cr' — target picking an invoice to link to
+let financeReverseLinkTargetId = null;
+
+// Minutes of Meeting
+let financeMeetings = [];               // current client's meetings, each with nested actions[]
+let currentFinanceMeeting = null;       // full meeting (finance:meeting-get) shown in the Minutes detail pane
+let financeMeetingEditId = null;
+let financeMeetingActionEditId = null;
+let financeMeetingActionModalMeetingId = null;
+let financeMeetingQuill = null;         // separate Quill instance from Knowledge Hub's
+
+// Attachments (shared across contract versions, CRs, invoices, meetings, clients)
+let financeAttachmentsCache = new Map(); // `${entityType}:${entityId}` -> attachment[]
+
+// Semantic (not literal-code) mapping so a status pill stays correctly
+// colored even after a Setup-tab relabel — codes are immutable, labels aren't.
+const GI_STATUS_PILL_WEIGHT = {
+  DRAFT: 'muted', ACTIVE: 'good', EXPIRED: 'bad', TERMINATED: 'bad',
+  SUBMITTED: 'warn', APPROVED: 'good', REJECTED: 'bad', DELIVERED: 'good',
+  ISSUED: 'warn', PARTIALLY_PAID: 'warn', PAID: 'good', CANCELLED: 'bad',
+};
+function finStatusPillClass(code) { return 'gi-pill-' + (GI_STATUS_PILL_WEIGHT[code] || 'muted'); }
+
+const FINANCE_DETAIL_TABS = [
+  { key: 'overview',  label: 'Overview' },
+  { key: 'contracts', label: 'Contracts' },
+  { key: 'crs',       label: 'Change Requests' },
+  { key: 'invoices',  label: 'Invoices' },
+  { key: 'minutes',   label: 'Minutes' },
+  { key: 'reports',   label: 'Reports' },
+  { key: 'setup',     label: 'Setup' },
+];
+const FINANCE_SETUP_CATEGORY_LABELS = {
+  CONTRACT_STATUS: 'Contract Status', CR_STATUS: 'Change Request Status', INVOICE_STATUS: 'Invoice Status',
+  CURRENCY: 'Currency', PAYMENT_METHOD: 'Payment Method',
+};
+
+// Small DOM helper local to this module (uniquely named to avoid clashes),
+// same convention as Projects' pjMk.
+function finMk(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+function finLang() { return window.ctI18n?.getLanguage?.() === 'ar' ? 'ar' : 'en'; }
+function finClientName(c) { return (finLang() === 'ar' && c?.nameAr) ? c.nameAr : (c?.name || ''); }
+function finMinorToStr(minor) { return ((Number(minor) || 0) / 100).toFixed(2); }
+function finStrToMinor(str) { const n = parseFloat(str); return Number.isFinite(n) ? Math.round(n * 100) : 0; }
+function finMoney(minor, currencyCode) {
+  const amt = finMinorToStr(minor);
+  return currencyCode ? (currencyCode + ' ' + amt) : amt;
+}
+function finStatusLabel(row) {
+  if (!row || !row.status) return '';
+  return finLang() === 'ar' ? (row.statusLabelAr || row.statusLabelEn) : row.statusLabelEn;
+}
+
+function initFinanceItModule() {
+  showFinanceListView();
+  if (!financeLookups) window.api.listFinanceLookups().then(l => { financeLookups = l; }).catch(() => {});
+  if (!financeClientsLoaded) loadFinanceClientsList();
+  else renderFinanceClientsList();
+}
+
+// ── List view ────────────────────────────────────────────────────────────────
+async function loadFinanceClientsList() {
+  const grid = document.getElementById('finance-clients-grid');
+  if (!grid.childElementCount) { grid.style.display = ''; showSkeleton(grid, 'cards', 3); }
+  let list;
+  try { list = await window.api.listFinanceClients(); }
+  catch { toast('Could not load Finance clients'); return; }
+  financeClients = Array.isArray(list) ? list : [];
+  financeClientsLoaded = true;
+  renderFinanceClientsList();
+}
+function applyFinanceClientFilter() {
+  financeClientFilter = (document.getElementById('finance-clients-filter').value || '').toLowerCase().trim();
+  renderFinanceClientsList();
+}
+function showFinanceListView() {
+  document.getElementById('finance-detail-view').style.display = 'none';
+  document.getElementById('finance-list-view').style.display = '';
+}
+function showFinanceDetailView() {
+  document.getElementById('finance-list-view').style.display = 'none';
+  document.getElementById('finance-detail-view').style.display = '';
+}
+
+function buildFinanceClientCard(c) {
+  const card = finMk('div', 'gi-card');
+  card.dataset.financeClientId = c.id;
+  card.addEventListener('click', () => openFinanceClientDetail(c.id));
+
+  const head = finMk('div', 'gi-card-head');
+  const identity = finMk('div', 'gi-card-identity');
+  identity.appendChild(finMk('div', 'gi-card-name', finClientName(c) || 'Untitled'));
+  if (c.code) identity.appendChild(finMk('span', 'gi-code-badge', c.code));
+  head.appendChild(identity);
+  const headIcons = finMk('div', 'gi-card-icons');
+  const editBtn = finMk('button', 'gi-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit';
+  editBtn.addEventListener('click', e => { e.stopPropagation(); openFinanceClientModal(c); });
+  headIcons.appendChild(editBtn);
+  const delBtn = finMk('button', 'gi-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete';
+  delBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    showDeleteConfirm(headIcons, () => deleteFinanceClientFlow(c.id), () => renderFinanceClientsList());
+  });
+  headIcons.appendChild(delBtn);
+  head.appendChild(headIcons);
+  card.appendChild(head);
+
+  const foot = finMk('div', 'gi-card-foot');
+  const count = finMk('span', 'gi-card-count');
+  count.innerHTML = ic('briefcase');
+  count.appendChild(document.createTextNode(' ' + c.contractCount + ' contract' + (c.contractCount === 1 ? '' : 's')));
+  foot.appendChild(count);
+  foot.appendChild(finMk('span', 'gi-card-outstanding' + (c.outstandingMinor > 0 ? ' has-balance' : ''),
+    'Outstanding ' + finMinorToStr(c.outstandingMinor)));
+  const open = finMk('span', 'pj-card-open', 'Open');
+  open.insertAdjacentHTML('beforeend', ic('chevron-right'));
+  foot.appendChild(open);
+  card.appendChild(foot);
+  return card;
+}
+
+function renderFinanceClientsList() {
+  const grid  = document.getElementById('finance-clients-grid');
+  const empty = document.getElementById('finance-clients-empty-state');
+  grid.innerHTML = '';
+
+  if (financeClients.length === 0) {
+    grid.style.display = 'none';
+    empty.hidden = false;
+    empty.querySelector('p').innerHTML = 'No Finance clients yet — click <strong>+ New Client</strong> to add one';
+    return;
+  }
+  const shown = financeClients.filter(c => textMatch([c.name, c.nameAr, c.code, c.contactName, c.contactEmail], financeClientFilter));
+  if (shown.length === 0) {
+    grid.style.display = 'none';
+    empty.hidden = false;
+    empty.querySelector('p').textContent = 'No clients match your search';
+    return;
+  }
+  grid.style.display = '';
+  empty.hidden = true;
+  shown.forEach(c => grid.appendChild(buildFinanceClientCard(c)));
+}
+
+// ── Client detail (list of tabs) ─────────────────────────────────────────────
+async function openFinanceClientDetail(id) {
+  let client;
+  try { client = await window.api.getFinanceClient(id); }
+  catch { toast('Could not open client'); return; }
+  if (!client) { toast('Client not found'); return; }
+  currentFinanceClient = client;
+  financeDetailTab = 'overview';
+  financeExpandedContracts = new Set();
+  financeExpandedVersionHistory = new Set();
+  financeExpandedInvoices = new Set();
+  financeExpandedCrs = new Set();
+  financeExpandedVersionFiles = new Set();
+  financeContracts = [];
+  financeChangeRequests = [];
+  financeInvoices = [];
+  financeSummary = null;
+  financeMeetings = [];
+  currentFinanceMeeting = null;
+  financeAttachmentsCache = new Map();
+  showFinanceDetailView();
+  renderFinanceClientDetail();
+  await loadFinanceContractsForCurrentClient();
+  await loadFinanceSummaryForCurrentClient();
+  await loadFinanceCrsForCurrentClient();
+  await loadFinanceInvoicesForCurrentClient();
+  await loadFinanceMeetingsForCurrentClient();
+}
+function backToFinanceClientsList() {
+  currentFinanceClient = null;
+  showFinanceListView();
+  loadFinanceClientsList();
+}
+async function loadFinanceContractsForCurrentClient() {
+  if (!currentFinanceClient) return;
+  try { financeContracts = await window.api.listFinanceContracts(currentFinanceClient.id); }
+  catch { financeContracts = []; toast('Could not load contracts'); }
+  if (financeDetailTab === 'contracts') renderFinanceDetailSections();
+}
+async function loadFinanceSummaryForCurrentClient() {
+  if (!currentFinanceClient) return;
+  try { financeSummary = await window.api.getFinanceClientSummary(currentFinanceClient.id); }
+  catch { financeSummary = null; }
+  if (financeDetailTab === 'overview') renderFinanceDetailSections();
+}
+async function loadFinanceCrsForCurrentClient() {
+  if (!currentFinanceClient) return;
+  try { financeChangeRequests = await window.api.listFinanceChangeRequests(currentFinanceClient.id); }
+  catch { financeChangeRequests = []; toast('Could not load change requests'); }
+  if (financeDetailTab === 'crs') renderFinanceDetailSections();
+}
+async function loadFinanceInvoicesForCurrentClient() {
+  if (!currentFinanceClient) return;
+  try { financeInvoices = await window.api.listFinanceInvoices(currentFinanceClient.id); }
+  catch { financeInvoices = []; toast('Could not load invoices'); }
+  if (financeDetailTab === 'invoices') renderFinanceDetailSections();
+}
+async function loadFinanceMeetingsForCurrentClient() {
+  if (!currentFinanceClient) return;
+  try { financeMeetings = await window.api.listFinanceMeetings(currentFinanceClient.id); }
+  catch { financeMeetings = []; toast('Could not load meetings'); }
+  if (financeDetailTab === 'minutes') renderFinanceDetailSections();
+}
+
+function renderFinanceClientDetail() {
+  const host = document.getElementById('finance-detail-view');
+  host.innerHTML = '';
+  const c = currentFinanceClient;
+  if (!c) return;
+
+  const crumbs = finMk('div', 'pj-crumbs');
+  const crumbRoot = finMk('button', 'pj-crumb-link', 'Finance');
+  crumbRoot.addEventListener('click', backToFinanceClientsList);
+  crumbs.appendChild(crumbRoot);
+  const sep = finMk('span', 'pj-crumb-sep'); sep.innerHTML = ic('chevron-right');
+  crumbs.appendChild(sep);
+  crumbs.appendChild(finMk('span', 'pj-crumb-here', finClientName(c) || 'Untitled'));
+  host.appendChild(crumbs);
+
+  const head = finMk('div', 'pj-detail-head');
+  const titleBlock = finMk('div', 'gi-detail-identity');
+  titleBlock.appendChild(finMk('div', 'pj-detail-title', finClientName(c) || 'Untitled'));
+  if (c.code) titleBlock.appendChild(finMk('div', 'gi-detail-alt', c.code));
+  head.appendChild(titleBlock);
+  const headActions = finMk('div', 'gi-detail-actions');
+  const editBtn = finMk('button', 'btn');
+  editBtn.innerHTML = ic('pencil') + ' Edit';
+  editBtn.addEventListener('click', () => openFinanceClientModal(c));
+  headActions.appendChild(editBtn);
+  head.appendChild(headActions);
+  host.appendChild(head);
+
+  // Kept outside the re-rendered sections container so tab switching never
+  // rebuilds the toolbar itself — the Clients page's .cl-detail-toolbar
+  // pattern is the model this copies.
+  const toolbar = finMk('div', 'gi-detail-toolbar');
+  const tabs = finMk('div', 'seg-ctl workspace-tabs');
+  tabs.setAttribute('aria-label', 'Finance client workspace');
+  FINANCE_DETAIL_TABS.forEach(t => {
+    const btn = finMk('button', 'seg-btn' + (financeDetailTab === t.key ? ' active' : ''), t.label);
+    btn.type = 'button';
+    btn.addEventListener('click', () => setFinanceDetailTab(t.key));
+    tabs.appendChild(btn);
+  });
+  toolbar.appendChild(tabs);
+  host.appendChild(toolbar);
+
+  const sectionsHost = finMk('div', 'gi-detail-sections');
+  sectionsHost.id = 'finance-detail-sections';
+  host.appendChild(sectionsHost);
+
+  renderFinanceDetailSections();
+}
+
+function setFinanceDetailTab(key) {
+  if (!FINANCE_DETAIL_TABS.some(t => t.key === key)) key = 'overview';
+  financeDetailTab = key;
+  renderFinanceClientDetail();
+}
+
+function renderFinanceDetailSections() {
+  const host = document.getElementById('finance-detail-sections');
+  if (!host) return;
+  host.innerHTML = '';
+  if (financeDetailTab === 'overview') renderFinanceOverviewSection(host);
+  else if (financeDetailTab === 'contracts') renderFinanceContractsSection(host);
+  else if (financeDetailTab === 'crs') renderFinanceCrsSection(host);
+  else if (financeDetailTab === 'invoices') renderFinanceInvoicesSection(host);
+  else if (financeDetailTab === 'minutes') renderFinanceMinutesSection(host);
+  else if (financeDetailTab === 'reports') renderFinanceReportsSection(host);
+  else if (financeDetailTab === 'setup') renderFinanceSetupSection(host);
+  else renderFinanceComingSoonSection(host, FINANCE_DETAIL_TABS.find(t => t.key === financeDetailTab)?.label || '');
+}
+function renderFinanceComingSoonSection(host, label) {
+  host.appendChild(finMk('div', 'gi-empty', label + ' is coming in a later phase of Finance.'));
+}
+
+// ── Overview tab ──────────────────────────────────────────────────────────────
+function renderFinanceOverviewSection(host) {
+  const c = currentFinanceClient;
+  const s = financeSummary || {
+    contractCount: c.contractCount, activeContractCount: 0, finalContractValueMinor: 0,
+    invoicedMinor: 0, paidMinor: 0, outstandingMinor: c.outstandingMinor, changeRequestCount: 0,
+  };
+  const grid = finMk('div', 'gi-stat-grid');
+  const stat = (label, value) => {
+    const box = finMk('div', 'gi-stat');
+    box.appendChild(finMk('div', 'gi-stat-label', label));
+    box.appendChild(finMk('div', 'gi-stat-value', value));
+    return box;
+  };
+  grid.appendChild(stat('Contracts', String(s.contractCount)));
+  grid.appendChild(stat('Active Contracts', String(s.activeContractCount)));
+  grid.appendChild(stat('Final Contract Value', finMinorToStr(s.finalContractValueMinor)));
+  grid.appendChild(stat('Invoiced', finMinorToStr(s.invoicedMinor)));
+  grid.appendChild(stat('Paid', finMinorToStr(s.paidMinor)));
+  grid.appendChild(stat('Outstanding', finMinorToStr(s.outstandingMinor)));
+  grid.appendChild(stat('Change Requests', String(s.changeRequestCount)));
+  host.appendChild(grid);
+
+  const info = finMk('div', 'gi-section');
+  const infoHead = finMk('div', 'pj-section-title');
+  infoHead.innerHTML = ic('file-text');
+  infoHead.appendChild(document.createTextNode('Client Details'));
+  info.appendChild(infoHead);
+  const rows = [
+    ['Contact', c.contactName], ['Email', c.contactEmail], ['Phone', c.contactPhone],
+    ['Address', c.address], ['Tax Number', c.taxNumber], ['Notes', c.notes],
+  ].filter(([, v]) => v);
+  if (rows.length === 0) {
+    info.appendChild(finMk('div', 'gi-empty-sm', 'No additional contact details recorded.'));
+  } else {
+    rows.forEach(([label, value]) => {
+      const row = finMk('div', 'gi-info-row');
+      row.appendChild(finMk('span', 'gi-info-label', label));
+      row.appendChild(finMk('span', 'gi-info-value', value));
+      info.appendChild(row);
+    });
+  }
+  host.appendChild(info);
+
+  host.appendChild(buildFinanceAttachmentsWidget('client', c.id));
+}
+
+// ── Contracts tab ─────────────────────────────────────────────────────────────
+function renderFinanceContractsSection(host) {
+  const sec = finMk('div', 'pj-section');
+  const secHead = finMk('div', 'pj-section-head');
+  const title = finMk('div', 'pj-section-title');
+  title.innerHTML = ic('file-text');
+  title.appendChild(document.createTextNode('Contracts (' + financeContracts.length + ')'));
+  secHead.appendChild(title);
+  const actions = finMk('div', 'pj-section-actions');
+  const addBtn = finMk('button', 'btn primary');
+  addBtn.innerHTML = ic('plus') + ' New Contract';
+  addBtn.addEventListener('click', () => openFinanceContractModal(null));
+  actions.appendChild(addBtn);
+  secHead.appendChild(actions);
+  sec.appendChild(secHead);
+
+  if (financeContracts.length === 0) {
+    sec.appendChild(finMk('div', 'gi-empty', 'No contracts yet for this client.'));
+  } else {
+    const list = finMk('div', 'gi-contract-list');
+    financeContracts.forEach(k => list.appendChild(buildFinanceContractCard(k)));
+    sec.appendChild(list);
+  }
+  host.appendChild(sec);
+}
+
+function toggleFinanceContractExpanded(id) {
+  if (financeExpandedContracts.has(id)) financeExpandedContracts.delete(id);
+  else financeExpandedContracts.add(id);
+  renderFinanceDetailSections();
+}
+function toggleFinanceVersionHistory(contractId) {
+  if (financeExpandedVersionHistory.has(contractId)) financeExpandedVersionHistory.delete(contractId);
+  else financeExpandedVersionHistory.add(contractId);
+  renderFinanceDetailSections();
+}
+
+function buildFinanceContractCard(k) {
+  const expanded = financeExpandedContracts.has(k.id);
+  const card = finMk('div', 'gi-contract-card' + (expanded ? ' expanded' : ''));
+
+  const head = finMk('div', 'gi-contract-head');
+  head.addEventListener('click', () => toggleFinanceContractExpanded(k.id));
+  const titleWrap = finMk('div', 'gi-contract-title-wrap');
+  titleWrap.appendChild(finMk('div', 'gi-contract-title', k.title));
+  const metaBits = [k.ref, finStatusLabel(k), k.currencyCode].filter(Boolean);
+  titleWrap.appendChild(finMk('div', 'gi-contract-meta', metaBits.join(' · ')));
+  head.appendChild(titleWrap);
+  const chev = finMk('span', 'gi-contract-chevron');
+  chev.innerHTML = ic(expanded ? 'chevron-up' : 'chevron-down');
+  head.appendChild(chev);
+  card.appendChild(head);
+
+  const headActions = finMk('div', 'gi-contract-actions');
+  const editBtn = finMk('button', 'gi-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit contract';
+  editBtn.addEventListener('click', e => { e.stopPropagation(); openFinanceContractModal(k); });
+  headActions.appendChild(editBtn);
+  const delBtn = finMk('button', 'gi-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete contract';
+  delBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    showDeleteConfirm(headActions, () => deleteFinanceContractFlow(k.id), () => renderFinanceDetailSections());
+  });
+  headActions.appendChild(delBtn);
+  card.appendChild(headActions);
+
+  if (expanded) card.appendChild(buildFinanceContractBody(k));
+  return card;
+}
+
+function buildFinanceContractBody(k) {
+  const body = finMk('div', 'gi-contract-body');
+
+  // Versions — the final version promoted and badged; earlier versions collapsed.
+  const vSec = finMk('div', 'gi-subsection');
+  const vHead = finMk('div', 'gi-subsection-head');
+  vHead.appendChild(finMk('span', 'gi-subsection-title', 'Versions'));
+  const vAdd = finMk('button', 'gi-mini-btn'); vAdd.innerHTML = ic('plus') + ' Add Version';
+  vAdd.addEventListener('click', () => openFinanceVersionModal(k.id, null));
+  vHead.appendChild(vAdd);
+  vSec.appendChild(vHead);
+  const finalV = k.versions.find(v => v.isFinal);
+  const otherV = k.versions.filter(v => !v.isFinal);
+  if (!k.versions.length) {
+    vSec.appendChild(finMk('div', 'gi-empty-sm', 'No versions yet.'));
+  } else {
+    if (finalV) vSec.appendChild(buildFinanceVersionRow(finalV, k, true));
+    if (otherV.length) {
+      const historyOpen = !finalV || financeExpandedVersionHistory.has(k.id);
+      if (finalV) {
+        const toggleBtn = finMk('button', 'gi-mini-link',
+          (historyOpen ? 'Hide' : 'Show') + ' ' + otherV.length + ' earlier version' + (otherV.length === 1 ? '' : 's'));
+        toggleBtn.addEventListener('click', () => toggleFinanceVersionHistory(k.id));
+        vSec.appendChild(toggleBtn);
+      }
+      if (historyOpen) otherV.forEach(v => vSec.appendChild(buildFinanceVersionRow(v, k, false)));
+    }
+  }
+  body.appendChild(vSec);
+
+  // Installments — schedule with a per-row invoiced/outstanding indicator.
+  const iSec = finMk('div', 'gi-subsection');
+  const iHead = finMk('div', 'gi-subsection-head');
+  iHead.appendChild(finMk('span', 'gi-subsection-title', 'Installment Schedule'));
+  const iAdd = finMk('button', 'gi-mini-btn'); iAdd.innerHTML = ic('plus') + ' Add Installment';
+  iAdd.addEventListener('click', () => openFinanceInstallmentModal(k.id, null));
+  iHead.appendChild(iAdd);
+  iSec.appendChild(iHead);
+  if (!k.installments.length) {
+    iSec.appendChild(finMk('div', 'gi-empty-sm', 'No installments yet.'));
+  } else {
+    const table = document.createElement('table');
+    table.className = 'gi-installment-table';
+    table.innerHTML = '<thead><tr><th>#</th><th>Title</th><th>Due</th><th>Amount</th><th>Status</th><th></th></tr></thead>';
+    const tbody = document.createElement('tbody');
+    k.installments.forEach(inst => tbody.appendChild(buildFinanceInstallmentRow(inst, k)));
+    table.appendChild(tbody);
+    iSec.appendChild(table);
+  }
+  body.appendChild(iSec);
+
+  return body;
+}
+
+function buildFinanceVersionRow(v, k, promoted) {
+  const filesOpen = financeExpandedVersionFiles.has(v.id);
+  const wrap = finMk('div', 'gi-version-wrap');
+  const row = finMk('div', 'gi-version-row' + (promoted ? ' promoted' : ''));
+  const main = finMk('div', 'gi-version-main');
+  main.appendChild(finMk('span', 'gi-version-label', v.versionLabel));
+  if (v.isFinal) main.appendChild(finMk('span', 'gi-final-badge', 'Final'));
+  row.appendChild(main);
+  row.appendChild(finMk('span', 'gi-version-value', finMoney(v.valueMinor, k.currencyCode)));
+  row.appendChild(finMk('span', 'gi-version-dates', [v.signedDate, v.effectiveDate].filter(Boolean).join(' · ')));
+  const actions = finMk('div', 'gi-version-actions');
+  if (!v.isFinal) {
+    const finalBtn = finMk('button', 'gi-mini-link', 'Mark Final');
+    finalBtn.addEventListener('click', () => setFinanceVersionFinal(v.id));
+    actions.appendChild(finalBtn);
+  }
+  const filesBtn = finMk('button', 'gi-icon-btn' + (filesOpen ? ' active' : '')); filesBtn.innerHTML = ic('file-text'); filesBtn.title = 'Files';
+  filesBtn.addEventListener('click', () => {
+    if (financeExpandedVersionFiles.has(v.id)) financeExpandedVersionFiles.delete(v.id);
+    else financeExpandedVersionFiles.add(v.id);
+    renderFinanceDetailSections();
+  });
+  actions.appendChild(filesBtn);
+  const editBtn = finMk('button', 'gi-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit version';
+  editBtn.addEventListener('click', () => openFinanceVersionModal(k.id, v));
+  actions.appendChild(editBtn);
+  const delBtn = finMk('button', 'gi-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete version';
+  delBtn.addEventListener('click', () =>
+    showDeleteConfirm(actions, () => deleteFinanceVersionFlow(v.id, k.id), () => renderFinanceDetailSections()));
+  actions.appendChild(delBtn);
+  row.appendChild(actions);
+  wrap.appendChild(row);
+  if (filesOpen) wrap.appendChild(buildFinanceAttachmentsWidget('contract_version', v.id));
+  return wrap;
+}
+
+function buildFinanceInstallmentRow(inst, k) {
+  const tr = document.createElement('tr');
+  const links = financeInvoicesLinkedTo('installment', inst.id);
+  const tdSeq = document.createElement('td'); tdSeq.textContent = String(inst.seq); tr.appendChild(tdSeq);
+  const tdTitle = document.createElement('td');
+  tdTitle.appendChild(document.createTextNode(inst.title || '—'));
+  if (inst.milestone) tdTitle.appendChild(finMk('div', 'gi-installment-milestone', inst.milestone));
+  tr.appendChild(tdTitle);
+  const tdDue = document.createElement('td'); tdDue.textContent = inst.dueDate || '—'; tr.appendChild(tdDue);
+  const tdAmount = document.createElement('td'); tdAmount.textContent = finMoney(inst.amountMinor, k.currencyCode); tr.appendChild(tdAmount);
+  const tdStatus = document.createElement('td');
+  if (links.length) {
+    const chips = finMk('div', 'gi-invoice-link-chips');
+    links.forEach(({ invoice, link }) => chips.appendChild(buildFinanceInvoiceLinkChip(invoice, link)));
+    tdStatus.appendChild(chips);
+    if (inst.outstandingMinor > 0) tdStatus.appendChild(finMk('div', 'gi-inst-status gi-inst-status-partially-invoiced', 'Partially invoiced'));
+  } else {
+    tdStatus.appendChild(finMk('span', 'gi-inst-status gi-inst-status-not-invoiced', 'Not Invoiced'));
+  }
+  tr.appendChild(tdStatus);
+  const tdActions = document.createElement('td');
+  const actions = finMk('div', 'gi-row-actions');
+  if (inst.outstandingMinor > 0) {
+    const linkBtn = finMk('button', 'gi-icon-btn'); linkBtn.innerHTML = ic('plug'); linkBtn.title = 'Link to invoice';
+    linkBtn.addEventListener('click', () => openFinanceReverseLinkModal('installment', inst.id));
+    actions.appendChild(linkBtn);
+  }
+  const editBtn = finMk('button', 'gi-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit installment';
+  editBtn.addEventListener('click', () => openFinanceInstallmentModal(k.id, inst));
+  actions.appendChild(editBtn);
+  const delBtn = finMk('button', 'gi-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete installment';
+  delBtn.addEventListener('click', () =>
+    showDeleteConfirm(actions, () => deleteFinanceInstallmentFlow(inst.id, k.id), () => renderFinanceDetailSections()));
+  actions.appendChild(delBtn);
+  tdActions.appendChild(actions);
+  tr.appendChild(tdActions);
+  return tr;
+}
+// Reverse lookup for the linked-invoice chips on installment/CR rows —
+// financeInvoices is already loaded with each invoice's links[] (installmentId/
+// crId), so this is a client-side scan, not a new IPC round trip.
+function financeInvoicesLinkedTo(kind, id) {
+  const out = [];
+  for (const inv of financeInvoices) {
+    for (const l of (inv.links || [])) {
+      if ((kind === 'installment' && l.installmentId === id) || (kind === 'cr' && l.crId === id)) out.push({ invoice: inv, link: l });
+    }
+  }
+  return out;
+}
+function financeJumpToInvoice(invoiceId) {
+  financeExpandedInvoices.add(invoiceId);
+  setFinanceDetailTab('invoices');
+}
+function buildFinanceInvoiceLinkChip(invoice, link) {
+  const chip = finMk('button', 'gi-invoice-link-chip', invoice.number + ' · ' + finMinorToStr(link.allocatedMinor));
+  chip.type = 'button';
+  chip.title = 'Go to invoice ' + invoice.number;
+  chip.addEventListener('click', e => { e.stopPropagation(); financeJumpToInvoice(invoice.id); });
+  return chip;
+}
+
+// ── Change Requests tab ────────────────────────────────────────────────────────
+function financeContractLabel(contractId) {
+  const k = financeContracts.find(c => c.id === contractId);
+  return k ? (k.ref || k.title) : '';
+}
+function renderFinanceCrsSection(host) {
+  const sec = finMk('div', 'pj-section');
+  const secHead = finMk('div', 'pj-section-head');
+  const title = finMk('div', 'pj-section-title');
+  title.innerHTML = ic('file-text');
+  title.appendChild(document.createTextNode('Change Requests (' + financeChangeRequests.length + ')'));
+  secHead.appendChild(title);
+  const actions = finMk('div', 'pj-section-actions');
+  const addBtn = finMk('button', 'btn primary');
+  addBtn.innerHTML = ic('plus') + ' New Change Request';
+  addBtn.addEventListener('click', () => openFinanceCrModal(null));
+  actions.appendChild(addBtn);
+  secHead.appendChild(actions);
+  sec.appendChild(secHead);
+
+  if (financeChangeRequests.length === 0) {
+    sec.appendChild(finMk('div', 'gi-empty', 'No change requests yet for this client.'));
+  } else {
+    const list = finMk('div', 'gi-cr-list');
+    financeChangeRequests.forEach(cr => list.appendChild(buildFinanceCrRow(cr)));
+    sec.appendChild(list);
+  }
+  host.appendChild(sec);
+}
+function buildFinanceCrRow(cr) {
+  const expanded = financeExpandedCrs.has(cr.id);
+  const wrap = finMk('div', 'gi-cr-row' + (expanded ? ' expanded' : ''));
+  const head = finMk('div', 'gi-cr-head');
+  head.addEventListener('click', () => {
+    if (financeExpandedCrs.has(cr.id)) financeExpandedCrs.delete(cr.id); else financeExpandedCrs.add(cr.id);
+    renderFinanceDetailSections();
+  });
+  const main = finMk('div', 'gi-cr-main');
+  main.appendChild(finMk('span', 'gi-cr-title', cr.title));
+  main.appendChild(finMk('span', 'gi-pill ' + finStatusPillClass(cr.status), finStatusLabel(cr) || '—'));
+  head.appendChild(main);
+  const metaBits = [cr.ref, cr.contractId ? financeContractLabel(cr.contractId) : ''].filter(Boolean);
+  head.appendChild(finMk('span', 'gi-cr-meta', metaBits.join(' · ')));
+  head.appendChild(finMk('span', 'gi-cr-value', finMoney(cr.amountMinor, cr.currencyCode)));
+  const links = financeInvoicesLinkedTo('cr', cr.id);
+  const linkWrap = finMk('div', 'gi-invoice-link-chips');
+  if (links.length) links.forEach(({ invoice, link }) => linkWrap.appendChild(buildFinanceInvoiceLinkChip(invoice, link)));
+  else linkWrap.appendChild(finMk('span', 'gi-inst-status gi-inst-status-not-invoiced', 'Not Invoiced'));
+  head.appendChild(linkWrap);
+  const actions = finMk('div', 'gi-cr-actions');
+  if (cr.outstandingMinor > 0) {
+    const linkBtn = finMk('button', 'gi-icon-btn'); linkBtn.innerHTML = ic('plug'); linkBtn.title = 'Link to invoice';
+    linkBtn.addEventListener('click', e => { e.stopPropagation(); openFinanceReverseLinkModal('cr', cr.id); });
+    actions.appendChild(linkBtn);
+  }
+  const editBtn = finMk('button', 'gi-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit change request';
+  editBtn.addEventListener('click', e => { e.stopPropagation(); openFinanceCrModal(cr); });
+  actions.appendChild(editBtn);
+  const delBtn = finMk('button', 'gi-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete change request';
+  delBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    showDeleteConfirm(actions, () => deleteFinanceCrFlow(cr.id), () => renderFinanceDetailSections());
+  });
+  actions.appendChild(delBtn);
+  head.appendChild(actions);
+  wrap.appendChild(head);
+  if (expanded) wrap.appendChild(buildFinanceAttachmentsWidget('cr', cr.id));
+  return wrap;
+}
+
+// ── Invoices tab ──────────────────────────────────────────────────────────────
+function renderFinanceInvoicesSection(host) {
+  const sec = finMk('div', 'pj-section');
+  const secHead = finMk('div', 'pj-section-head');
+  const title = finMk('div', 'pj-section-title');
+  title.innerHTML = ic('file-text');
+  title.appendChild(document.createTextNode('Invoices (' + financeInvoices.length + ')'));
+  secHead.appendChild(title);
+  const actions = finMk('div', 'pj-section-actions');
+  const addBtn = finMk('button', 'btn primary');
+  addBtn.innerHTML = ic('plus') + ' New Invoice';
+  addBtn.addEventListener('click', () => openFinanceInvoiceModal(null));
+  actions.appendChild(addBtn);
+  secHead.appendChild(actions);
+  sec.appendChild(secHead);
+
+  if (financeInvoices.length === 0) {
+    sec.appendChild(finMk('div', 'gi-empty', 'No invoices yet for this client.'));
+  } else {
+    const list = finMk('div', 'gi-invoice-list');
+    financeInvoices.forEach(inv => list.appendChild(buildFinanceInvoiceCard(inv)));
+    sec.appendChild(list);
+  }
+  host.appendChild(sec);
+}
+function toggleFinanceInvoiceExpanded(id) {
+  if (financeExpandedInvoices.has(id)) financeExpandedInvoices.delete(id);
+  else financeExpandedInvoices.add(id);
+  renderFinanceDetailSections();
+}
+function buildFinanceInvoiceCard(inv) {
+  const expanded = financeExpandedInvoices.has(inv.id);
+  const card = finMk('div', 'gi-invoice-card' + (expanded ? ' expanded' : ''));
+
+  const head = finMk('div', 'gi-invoice-head');
+  head.addEventListener('click', () => toggleFinanceInvoiceExpanded(inv.id));
+  const titleWrap = finMk('div', 'gi-invoice-title-wrap');
+  const titleRow = finMk('div', 'gi-invoice-title', inv.number + ' ');
+  titleRow.appendChild(finMk('span', 'gi-pill ' + finStatusPillClass(inv.status), finStatusLabel(inv) || '—'));
+  titleWrap.appendChild(titleRow);
+  const metaBits = [
+    finMoney(inv.totalMinor, inv.currencyCode) + ' total',
+    'Paid ' + finMinorToStr(inv.paidMinor),
+    inv.outstandingMinor > 0 ? 'Outstanding ' + finMinorToStr(inv.outstandingMinor) : 'Fully paid',
+    inv.dueDate ? ('Due ' + inv.dueDate) : '',
+  ].filter(Boolean);
+  titleWrap.appendChild(finMk('div', 'gi-invoice-meta', metaBits.join(' · ')));
+  head.appendChild(titleWrap);
+  const chev = finMk('span', 'gi-invoice-chevron');
+  chev.innerHTML = ic(expanded ? 'chevron-up' : 'chevron-down');
+  head.appendChild(chev);
+  card.appendChild(head);
+
+  const headActions = finMk('div', 'gi-invoice-actions');
+  const editBtn = finMk('button', 'gi-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit invoice';
+  editBtn.addEventListener('click', e => { e.stopPropagation(); openFinanceInvoiceModal(inv); });
+  headActions.appendChild(editBtn);
+  const delBtn = finMk('button', 'gi-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete invoice';
+  delBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    showDeleteConfirm(headActions, () => deleteFinanceInvoiceFlow(inv.id), () => renderFinanceDetailSections());
+  });
+  headActions.appendChild(delBtn);
+  card.appendChild(headActions);
+
+  if (expanded) card.appendChild(buildFinanceInvoiceBody(inv));
+  return card;
+}
+function financeLinkTargetLabel(link) {
+  if (link.installmentId != null) {
+    for (const k of financeContracts) {
+      const inst = k.installments.find(i => i.id === link.installmentId);
+      if (inst) return 'Installment #' + inst.seq + (inst.title ? ' — ' + inst.title : '') + ' (' + k.title + ')';
+    }
+    return 'Installment #' + link.installmentId;
+  }
+  const cr = financeChangeRequests.find(c => c.id === link.crId);
+  return cr ? ('CR — ' + cr.title) : ('Change Request #' + link.crId);
+}
+function buildFinanceInvoiceBody(inv) {
+  const body = finMk('div', 'gi-invoice-body');
+
+  // Allocations — invoice-to-installment/CR links. Add-only from this tab;
+  // removing one is the only "edit", via delete + undo.
+  const lSec = finMk('div', 'gi-subsection');
+  const lHead = finMk('div', 'gi-subsection-head');
+  lHead.appendChild(finMk('span', 'gi-subsection-title', 'Allocations'));
+  const lAdd = finMk('button', 'gi-mini-btn'); lAdd.innerHTML = ic('plus') + ' Add Allocation';
+  lAdd.addEventListener('click', () => openFinanceLinkModal(inv.id));
+  lHead.appendChild(lAdd);
+  lSec.appendChild(lHead);
+  if (!inv.links.length) {
+    lSec.appendChild(finMk('div', 'gi-empty-sm', 'No allocations yet.'));
+  } else {
+    const table = document.createElement('table');
+    table.className = 'gi-mini-table';
+    table.innerHTML = '<thead><tr><th>Linked To</th><th>Allocated</th><th></th></tr></thead>';
+    const tbody = document.createElement('tbody');
+    inv.links.forEach(l => tbody.appendChild(buildFinanceLinkRow(l, inv)));
+    table.appendChild(tbody);
+    lSec.appendChild(table);
+  }
+  body.appendChild(lSec);
+
+  // Payments
+  const pSec = finMk('div', 'gi-subsection');
+  const pHead = finMk('div', 'gi-subsection-head');
+  pHead.appendChild(finMk('span', 'gi-subsection-title', 'Payments'));
+  const pAdd = finMk('button', 'gi-mini-btn'); pAdd.innerHTML = ic('plus') + ' Add Payment';
+  pAdd.addEventListener('click', () => openFinancePaymentModal(inv.id, null));
+  pHead.appendChild(pAdd);
+  pSec.appendChild(pHead);
+  if (!inv.payments.length) {
+    pSec.appendChild(finMk('div', 'gi-empty-sm', 'No payments recorded yet.'));
+  } else {
+    const table = document.createElement('table');
+    table.className = 'gi-mini-table';
+    table.innerHTML = '<thead><tr><th>Date</th><th>Amount</th><th>Method</th><th>Reference</th><th></th></tr></thead>';
+    const tbody = document.createElement('tbody');
+    inv.payments.forEach(p => tbody.appendChild(buildFinancePaymentRow(p, inv)));
+    table.appendChild(tbody);
+    pSec.appendChild(table);
+  }
+  body.appendChild(pSec);
+
+  body.appendChild(buildFinanceAttachmentsWidget('invoice', inv.id));
+
+  return body;
+}
+function buildFinanceLinkRow(l, inv) {
+  const tr = document.createElement('tr');
+  const tdTarget = document.createElement('td'); tdTarget.textContent = financeLinkTargetLabel(l); tr.appendChild(tdTarget);
+  const tdAmt = document.createElement('td'); tdAmt.textContent = finMoney(l.allocatedMinor, inv.currencyCode); tr.appendChild(tdAmt);
+  const tdActions = document.createElement('td');
+  const actions = finMk('div', 'gi-row-actions');
+  const delBtn = finMk('button', 'gi-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Remove allocation';
+  delBtn.addEventListener('click', () =>
+    showDeleteConfirm(actions, () => deleteFinanceInvoiceLinkFlow(l.id, inv.id), () => renderFinanceDetailSections()));
+  actions.appendChild(delBtn);
+  tdActions.appendChild(actions);
+  tr.appendChild(tdActions);
+  return tr;
+}
+function buildFinancePaymentRow(p, inv) {
+  const tr = document.createElement('tr');
+  const tdDate = document.createElement('td'); tdDate.textContent = p.paidDate || '—'; tr.appendChild(tdDate);
+  const tdAmt = document.createElement('td'); tdAmt.textContent = finMoney(p.amountMinor, inv.currencyCode); tr.appendChild(tdAmt);
+  const tdMethod = document.createElement('td');
+  tdMethod.textContent = (finLang() === 'ar' ? (p.methodLabelAr || p.methodLabelEn) : p.methodLabelEn) || '—';
+  tr.appendChild(tdMethod);
+  const tdRef = document.createElement('td'); tdRef.textContent = p.reference || '—'; tr.appendChild(tdRef);
+  const tdActions = document.createElement('td');
+  const actions = finMk('div', 'gi-row-actions');
+  const editBtn = finMk('button', 'gi-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit payment';
+  editBtn.addEventListener('click', () => openFinancePaymentModal(inv.id, p));
+  actions.appendChild(editBtn);
+  const delBtn = finMk('button', 'gi-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete payment';
+  delBtn.addEventListener('click', () =>
+    showDeleteConfirm(actions, () => deleteFinancePaymentFlow(p.id, inv.id), () => renderFinanceDetailSections()));
+  actions.appendChild(delBtn);
+  tdActions.appendChild(actions);
+  tr.appendChild(tdActions);
+  return tr;
+}
+
+// ── Minutes tab ────────────────────────────────────────────────────────────
+let financeExpandedMeetings = new Set();
+function renderFinanceMinutesSection(host) {
+  const sec = finMk('div', 'pj-section');
+  const secHead = finMk('div', 'pj-section-head');
+  const title = finMk('div', 'pj-section-title');
+  title.innerHTML = ic('file-text');
+  title.appendChild(document.createTextNode('Minutes of Meeting (' + financeMeetings.length + ')'));
+  secHead.appendChild(title);
+  const actions = finMk('div', 'pj-section-actions');
+  const addBtn = finMk('button', 'btn primary');
+  addBtn.innerHTML = ic('plus') + ' New Meeting';
+  addBtn.addEventListener('click', () => openFinanceMeetingModal(null));
+  actions.appendChild(addBtn);
+  secHead.appendChild(actions);
+  sec.appendChild(secHead);
+
+  if (financeMeetings.length === 0) {
+    sec.appendChild(finMk('div', 'gi-empty', 'No meetings recorded yet for this client.'));
+  } else {
+    const list = finMk('div', 'gi-meeting-list');
+    financeMeetings.forEach(m => list.appendChild(buildFinanceMeetingCard(m)));
+    sec.appendChild(list);
+  }
+  host.appendChild(sec);
+}
+function toggleFinanceMeetingExpanded(id) {
+  if (financeExpandedMeetings.has(id)) financeExpandedMeetings.delete(id);
+  else financeExpandedMeetings.add(id);
+  renderFinanceDetailSections();
+}
+function buildFinanceMeetingCard(m) {
+  const expanded = financeExpandedMeetings.has(m.id);
+  const card = finMk('div', 'gi-meeting-card' + (expanded ? ' expanded' : ''));
+
+  const head = finMk('div', 'gi-meeting-head');
+  head.addEventListener('click', () => toggleFinanceMeetingExpanded(m.id));
+  const titleWrap = finMk('div', 'gi-meeting-title-wrap');
+  titleWrap.appendChild(finMk('div', 'gi-meeting-title', m.title));
+  const metaBits = [m.meetingDate, m.location, m.contractId ? financeContractLabel(m.contractId) : ''].filter(Boolean);
+  titleWrap.appendChild(finMk('div', 'gi-meeting-meta', metaBits.join(' · ')));
+  head.appendChild(titleWrap);
+  const chev = finMk('span', 'gi-meeting-chevron');
+  chev.innerHTML = ic(expanded ? 'chevron-up' : 'chevron-down');
+  head.appendChild(chev);
+  card.appendChild(head);
+
+  const headActions = finMk('div', 'gi-meeting-actions-bar');
+  const editBtn = finMk('button', 'gi-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit meeting';
+  editBtn.addEventListener('click', e => { e.stopPropagation(); openFinanceMeetingModal(m); });
+  headActions.appendChild(editBtn);
+  const delBtn = finMk('button', 'gi-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete meeting';
+  delBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    showDeleteConfirm(headActions, () => deleteFinanceMeetingFlow(m.id), () => renderFinanceDetailSections());
+  });
+  headActions.appendChild(delBtn);
+  card.appendChild(headActions);
+
+  if (expanded) card.appendChild(buildFinanceMeetingBody(m));
+  return card;
+}
+function buildFinanceMeetingBody(m) {
+  const body = finMk('div', 'gi-meeting-body');
+  if (m.attendees) {
+    const row = finMk('div', 'gi-info-row');
+    row.appendChild(finMk('span', 'gi-info-label', 'Attendees'));
+    row.appendChild(finMk('span', 'gi-info-value', m.attendees));
+    body.appendChild(row);
+  }
+  if (m.agenda) {
+    const row = finMk('div', 'gi-info-row');
+    row.appendChild(finMk('span', 'gi-info-label', 'Agenda'));
+    row.appendChild(finMk('span', 'gi-info-value', m.agenda));
+    body.appendChild(row);
+  }
+  const contentHost = finMk('div', 'gi-meeting-content');
+  const safeContent = (m.content || '').trim() ? sanitizeKnowledgeHtml(m.content) : '';
+  if (safeContent) contentHost.innerHTML = safeContent;
+  else contentHost.appendChild(finMk('div', 'gi-empty-sm', 'No minutes recorded yet.'));
+  body.appendChild(contentHost);
+
+  // Action items
+  const aSec = finMk('div', 'gi-subsection');
+  const aHead = finMk('div', 'gi-subsection-head');
+  aHead.appendChild(finMk('span', 'gi-subsection-title', 'Action Items'));
+  const aAdd = finMk('button', 'gi-mini-btn'); aAdd.innerHTML = ic('plus') + ' Add Action Item';
+  aAdd.addEventListener('click', () => openFinanceMeetingActionModal(m.id, null));
+  aHead.appendChild(aAdd);
+  aSec.appendChild(aHead);
+  if (!m.actions.length) {
+    aSec.appendChild(finMk('div', 'gi-empty-sm', 'No action items yet.'));
+  } else {
+    const table = document.createElement('table');
+    table.className = 'gi-mini-table';
+    table.innerHTML = '<thead><tr><th></th><th>Description</th><th>Owner</th><th>Due</th><th></th></tr></thead>';
+    const tbody = document.createElement('tbody');
+    m.actions.forEach(a => tbody.appendChild(buildFinanceMeetingActionRow(a, m)));
+    table.appendChild(tbody);
+    aSec.appendChild(table);
+  }
+  body.appendChild(aSec);
+
+  body.appendChild(buildFinanceAttachmentsWidget('meeting', m.id));
+  return body;
+}
+function buildFinanceMeetingActionRow(a, m) {
+  const tr = document.createElement('tr');
+  tr.className = a.status === 'DONE' ? 'gi-action-done' : '';
+  const tdStatus = document.createElement('td');
+  const statusBtn = finMk('button', 'gi-icon-btn');
+  statusBtn.innerHTML = ic(a.status === 'DONE' ? 'circle-check' : 'circle');
+  statusBtn.title = a.status === 'DONE' ? 'Mark open' : 'Mark done';
+  statusBtn.addEventListener('click', () => toggleFinanceMeetingActionFlow(a.id));
+  tdStatus.appendChild(statusBtn);
+  tr.appendChild(tdStatus);
+  const tdDesc = document.createElement('td'); tdDesc.textContent = a.description; tr.appendChild(tdDesc);
+  const tdOwner = document.createElement('td'); tdOwner.textContent = a.owner || '—'; tr.appendChild(tdOwner);
+  const tdDue = document.createElement('td'); tdDue.textContent = a.dueDate || '—'; tr.appendChild(tdDue);
+  const tdActions = document.createElement('td');
+  const actions = finMk('div', 'gi-row-actions');
+  const editBtn = finMk('button', 'gi-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit action item';
+  editBtn.addEventListener('click', () => openFinanceMeetingActionModal(m.id, a));
+  actions.appendChild(editBtn);
+  const delBtn = finMk('button', 'gi-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete action item';
+  delBtn.addEventListener('click', () =>
+    showDeleteConfirm(actions, () => deleteFinanceMeetingActionFlow(a.id, m.id), () => renderFinanceDetailSections()));
+  actions.appendChild(delBtn);
+  tdActions.appendChild(actions);
+  tr.appendChild(tdActions);
+  return tr;
+}
+
+// ── Reports tab ────────────────────────────────────────────────────────────
+// A recap of the same Overview numbers plus an Excel export — row shaping
+// happens here from state already loaded for the other tabs, exactly like
+// renderer/features/reports.js shapes reportData for the Timesheet export;
+// xlsx.js's createFinanceReportWorkbook only lays the cells out.
+function renderFinanceReportsSection(host) {
+  const c = currentFinanceClient;
+  const s = financeSummary || {
+    contractCount: c.contractCount, activeContractCount: 0, finalContractValueMinor: 0,
+    invoicedMinor: 0, paidMinor: 0, outstandingMinor: c.outstandingMinor, changeRequestCount: 0,
+  };
+  const sec = finMk('div', 'pj-section');
+  const secHead = finMk('div', 'pj-section-head');
+  const title = finMk('div', 'pj-section-title');
+  title.innerHTML = ic('file-text');
+  title.appendChild(document.createTextNode('Report'));
+  secHead.appendChild(title);
+  const actions = finMk('div', 'pj-section-actions');
+  const exportBtn = finMk('button', 'btn primary');
+  exportBtn.innerHTML = ic('download') + ' Export to Excel';
+  exportBtn.addEventListener('click', () => exportFinanceReportFlow());
+  actions.appendChild(exportBtn);
+  secHead.appendChild(actions);
+  sec.appendChild(secHead);
+
+  const grid = finMk('div', 'gi-stat-grid');
+  const stat = (label, value) => {
+    const box = finMk('div', 'gi-stat');
+    box.appendChild(finMk('div', 'gi-stat-label', label));
+    box.appendChild(finMk('div', 'gi-stat-value', value));
+    return box;
+  };
+  grid.appendChild(stat('Contracts', String(s.contractCount)));
+  grid.appendChild(stat('Active Contracts', String(s.activeContractCount)));
+  grid.appendChild(stat('Final Contract Value', finMinorToStr(s.finalContractValueMinor)));
+  grid.appendChild(stat('Invoiced', finMinorToStr(s.invoicedMinor)));
+  grid.appendChild(stat('Paid', finMinorToStr(s.paidMinor)));
+  grid.appendChild(stat('Outstanding', finMinorToStr(s.outstandingMinor)));
+  grid.appendChild(stat('Change Requests', String(s.changeRequestCount)));
+  sec.appendChild(grid);
+  sec.appendChild(finMk('p', 'gi-empty-sm',
+    'Exports every contract, change request, and invoice currently loaded for this client into one Excel workbook.'));
+  host.appendChild(sec);
+}
+function buildFinanceReportData() {
+  const c = currentFinanceClient;
+  const s = financeSummary || {
+    contractCount: c.contractCount, activeContractCount: 0, finalContractValueMinor: 0,
+    invoicedMinor: 0, paidMinor: 0, outstandingMinor: c.outstandingMinor, changeRequestCount: 0,
+  };
+  return {
+    title: 'Finance — ' + (finClientName(c) || 'Client') + ' Report',
+    sheetName: finClientName(c) || 'Finance Report',
+    clientName: finClientName(c) || '', generatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+    rtl: finLang() === 'ar',
+    summary: s,
+    contracts: financeContracts.map(k => ({
+      ref: k.ref, title: k.title, status: finStatusLabel(k), currencyCode: k.currencyCode,
+      finalValueMinor: (k.versions.find(v => v.isFinal) || {}).valueMinor || 0,
+      startDate: k.startDate, endDate: k.endDate,
+    })),
+    changeRequests: financeChangeRequests.map(cr => ({
+      ref: cr.ref, title: cr.title, status: finStatusLabel(cr), amountMinor: cr.amountMinor,
+      currencyCode: cr.currencyCode, contractLabel: cr.contractId ? financeContractLabel(cr.contractId) : '',
+    })),
+    invoices: financeInvoices.map(inv => ({
+      number: inv.number, status: finStatusLabel(inv), currencyCode: inv.currencyCode,
+      totalMinor: inv.totalMinor, paidMinor: inv.paidMinor, outstandingMinor: inv.outstandingMinor,
+      issueDate: inv.issueDate, dueDate: inv.dueDate,
+    })),
+  };
+}
+async function exportFinanceReportFlow() {
+  const data = buildFinanceReportData();
+  const safeName = (finClientName(currentFinanceClient) || 'finance-it-report').replace(/[\\/:*?"<>|]/g, ' ').trim();
+  let res;
+  try { res = await window.api.exportFinanceReportExcel(data, safeName + '.xlsx'); }
+  catch { toast('Could not export report'); return; }
+  if (!res.ok) { if (res.error) toast(res.error); return; }
+  toast('Report exported');
+}
+
+// ── Attachments (shared widget: contract versions, CRs, invoices, meetings,
+// clients) ────────────────────────────────────────────────────────────────
+function finAttachKey(entityType, entityId) { return entityType + ':' + entityId; }
+function finAttachmentSizeLabel(bytes) {
+  const n = Number(bytes) || 0;
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  return (n / (1024 * 1024)).toFixed(1) + ' MB';
+}
+async function loadFinanceAttachments(entityType, entityId) {
+  const key = finAttachKey(entityType, entityId);
+  let list;
+  try { list = await window.api.listFinanceAttachments(entityType, entityId); }
+  catch { list = []; }
+  list = Array.isArray(list) ? list : [];
+  financeAttachmentsCache.set(key, list);
+  return list;
+}
+// Builds a self-contained "Attachments" subsection. Caches per entity so
+// switching tabs/collapsing-and-reopening a card doesn't re-fetch every time;
+// refreshFinanceAttachmentsWidget() re-renders every mounted copy of a given key
+// (a version's files panel can be the only one showing, but the pattern stays
+// generic for entities that might appear more than once in the DOM).
+function buildFinanceAttachmentsWidget(entityType, entityId) {
+  const key = finAttachKey(entityType, entityId);
+  const wrap = finMk('div', 'gi-subsection gi-attachments');
+  const head = finMk('div', 'gi-subsection-head');
+  head.appendChild(finMk('span', 'gi-subsection-title', 'Attachments'));
+  const addBtn = finMk('button', 'gi-mini-btn'); addBtn.innerHTML = ic('upload') + ' Attach File';
+  addBtn.addEventListener('click', () => uploadFinanceAttachmentFlow(entityType, entityId));
+  head.appendChild(addBtn);
+  wrap.appendChild(head);
+
+  const listHost = finMk('div', 'gi-attachment-list');
+  listHost.dataset.financeAttachKey = key;
+  wrap.appendChild(listHost);
+
+  const cached = financeAttachmentsCache.get(key);
+  if (cached) {
+    renderFinanceAttachmentList(listHost, entityType, entityId, cached);
+  } else {
+    listHost.appendChild(finMk('div', 'gi-empty-sm', 'Loading…'));
+    loadFinanceAttachments(entityType, entityId).then(list => {
+      if (document.body.contains(listHost)) renderFinanceAttachmentList(listHost, entityType, entityId, list);
+    });
+  }
+  return wrap;
+}
+function renderFinanceAttachmentList(host, entityType, entityId, list) {
+  host.innerHTML = '';
+  if (!list.length) { host.appendChild(finMk('div', 'gi-empty-sm', 'No files attached.')); return; }
+  list.forEach(a => host.appendChild(buildFinanceAttachmentRow(a, entityType, entityId)));
+}
+function buildFinanceAttachmentRow(a, entityType, entityId) {
+  const row = finMk('div', 'gi-attachment-row');
+  const name = finMk('span', 'gi-attachment-name');
+  name.innerHTML = ic('file-text');
+  name.appendChild(document.createTextNode(' ' + a.originalName));
+  row.appendChild(name);
+  row.appendChild(finMk('span', 'gi-attachment-meta', finAttachmentSizeLabel(a.fileSize)));
+  const actions = finMk('div', 'gi-row-actions');
+  const openBtn = finMk('button', 'gi-icon-btn'); openBtn.innerHTML = ic('external-link'); openBtn.title = 'Open';
+  openBtn.addEventListener('click', async () => {
+    let r; try { r = await window.api.openFinanceAttachment(a.id); } catch { toast('Could not open file'); return; }
+    if (!r.ok) toast(r.error || 'Could not open file');
+  });
+  actions.appendChild(openBtn);
+  const dlBtn = finMk('button', 'gi-icon-btn'); dlBtn.innerHTML = ic('download'); dlBtn.title = 'Download';
+  dlBtn.addEventListener('click', async () => {
+    let r; try { r = await window.api.downloadFinanceAttachment(a.id); } catch { toast('Could not download file'); return; }
+    if (!r.ok && !r.canceled) toast(r.error || 'Could not download file');
+    else if (r.ok) toast('File saved');
+  });
+  actions.appendChild(dlBtn);
+  const delBtn = finMk('button', 'gi-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete';
+  delBtn.addEventListener('click', () =>
+    showDeleteConfirm(actions, () => deleteFinanceAttachmentFlow(a.id, entityType, entityId), () => refreshFinanceAttachmentsWidget(entityType, entityId)));
+  actions.appendChild(delBtn);
+  row.appendChild(actions);
+  return row;
+}
+async function uploadFinanceAttachmentFlow(entityType, entityId) {
+  let res;
+  try { res = await window.api.uploadFinanceAttachment(entityType, entityId); }
+  catch { toast('Could not upload file'); return; }
+  if (res.canceled) return;
+  if (!res.ok) { toast(res.error || 'Could not upload file'); return; }
+  toast('File attached');
+  await refreshFinanceAttachmentsWidget(entityType, entityId);
+}
+async function refreshFinanceAttachmentsWidget(entityType, entityId) {
+  const key = finAttachKey(entityType, entityId);
+  const list = await loadFinanceAttachments(entityType, entityId);
+  document.querySelectorAll('.gi-attachment-list[data-finance-attach-key="' + CSS.escape(key) + '"]')
+    .forEach(host => renderFinanceAttachmentList(host, entityType, entityId, list));
+}
+// The file itself stays on disk until the undo window lapses with no
+// restore (onExpire purges it) — the same pattern company-documents.js uses
+// for its own file-remove-with-undo flow.
+async function deleteFinanceAttachmentFlow(id, entityType, entityId) {
+  let res;
+  try { res = await window.api.deleteFinanceAttachment(id); }
+  catch { toast('Could not delete file'); return; }
+  if (!res.ok) { toast(res.error || 'Could not delete file'); return; }
+  await refreshFinanceAttachmentsWidget(entityType, entityId);
+  const snapshot = res.snapshot;
+  toast('File deleted', { actionLabel: 'Undo', duration: 5000,
+    onAction: async () => {
+      let restored;
+      try { restored = await window.api.restoreFinanceAttachment(snapshot); }
+      catch { toast('Could not restore file'); return; }
+      toast(restored.ok ? 'File restored' : (restored.error || 'Could not restore file'));
+      await refreshFinanceAttachmentsWidget(entityType, entityId);
+    },
+    onExpire: () => window.api.purgeFinanceAttachmentFile(snapshot.entityType, snapshot.entityId, snapshot.filePath).catch(() => {}),
+  });
+}
+
+// ── Client modal ──────────────────────────────────────────────────────────────
+function openFinanceClientModal(c) {
+  financeClientEditId = c ? c.id : null;
+  document.getElementById('finance-client-modal-title').textContent = c ? 'Edit Client' : 'New Client';
+  document.getElementById('finance-client-modal-submit').textContent = c ? 'Save Changes' : 'Add Client';
+  document.getElementById('gi-client-name').value = c ? (c.name || '') : '';
+  document.getElementById('gi-client-name-ar').value = c ? (c.nameAr || '') : '';
+  document.getElementById('gi-client-code').value = c ? (c.code || '') : '';
+  document.getElementById('gi-client-contact-name').value = c ? (c.contactName || '') : '';
+  document.getElementById('gi-client-contact-email').value = c ? (c.contactEmail || '') : '';
+  document.getElementById('gi-client-contact-phone').value = c ? (c.contactPhone || '') : '';
+  document.getElementById('gi-client-address').value = c ? (c.address || '') : '';
+  document.getElementById('gi-client-tax-number').value = c ? (c.taxNumber || '') : '';
+  document.getElementById('gi-client-notes').value = c ? (c.notes || '') : '';
+  clearErrorsIn('#finance-client-modal');
+  document.getElementById('finance-client-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('gi-client-name').focus(), 80);
+}
+function closeFinanceClientModal() {
+  document.getElementById('finance-client-modal-overlay').classList.remove('open');
+  financeClientEditId = null;
+}
+function financeClientOverlayClick(e) {
+  if (e.target === document.getElementById('finance-client-modal-overlay')) closeFinanceClientModal();
+}
+async function submitFinanceClientModal() {
+  clearErrorsIn('#finance-client-modal');
+  const name = document.getElementById('gi-client-name').value.trim();
+  if (!name) { markError('gi-client-name'); return; }
+  const data = {
+    name, nameAr: document.getElementById('gi-client-name-ar').value.trim(),
+    code: document.getElementById('gi-client-code').value.trim().toUpperCase(),
+    contactName: document.getElementById('gi-client-contact-name').value.trim(),
+    contactEmail: document.getElementById('gi-client-contact-email').value.trim(),
+    contactPhone: document.getElementById('gi-client-contact-phone').value.trim(),
+    address: document.getElementById('gi-client-address').value.trim(),
+    taxNumber: document.getElementById('gi-client-tax-number').value.trim(),
+    notes: document.getElementById('gi-client-notes').value.trim(),
+  };
+  let res;
+  try {
+    res = financeClientEditId != null
+      ? await window.api.updateFinanceClient(financeClientEditId, data)
+      : await window.api.createFinanceClient(data);
+  } catch { toast('Could not save client'); return; }
+  if (!res.ok) { toast(res.error || 'Could not save client'); return; }
+  closeFinanceClientModal();
+  toast(financeClientEditId != null ? 'Client saved' : 'Client created');
+  if (currentFinanceClient && res.client.id === currentFinanceClient.id) {
+    currentFinanceClient = res.client;
+    renderFinanceClientDetail();
+  }
+  financeClientsLoaded = false;
+  if (document.getElementById('finance-list-view').style.display !== 'none') loadFinanceClientsList();
+}
+async function deleteFinanceClientFlow(id) {
+  let res;
+  try { res = await window.api.deleteFinanceClient(id); }
+  catch { toast('Could not delete client'); renderFinanceClientsList(); return; }
+  if (!res.ok) { toast(res.error || 'Could not delete client'); renderFinanceClientsList(); return; }
+  financeClients = financeClients.filter(c => c.id !== id);
+  renderFinanceClientsList();
+  const snapshot = res.snapshot;
+  showGenericUndo('Client deleted', async () => {
+    try {
+      const restored = await window.api.createFinanceClient({
+        name: snapshot.name, nameAr: snapshot.nameAr, code: snapshot.code, contactName: snapshot.contactName,
+        contactEmail: snapshot.contactEmail, contactPhone: snapshot.contactPhone, address: snapshot.address,
+        taxNumber: snapshot.taxNumber, notes: snapshot.notes,
+      });
+      if (!restored.ok) { toast(restored.error || 'Could not restore client'); return; }
+      toast('Client restored');
+    } catch { toast('Could not restore client'); }
+    financeClientsLoaded = false;
+    loadFinanceClientsList();
+  });
+}
+
+// ── Contract modal ────────────────────────────────────────────────────────────
+function populateFinanceLookupSelect(selectId, category, currentVal, noneLabel) {
+  const el = document.getElementById(selectId);
+  el.innerHTML = '';
+  const none = document.createElement('option'); none.value = ''; none.textContent = noneLabel;
+  el.appendChild(none);
+  const opts = (financeLookups?.categories[category] || []).filter(o => o.isActive || o.code === currentVal);
+  opts.forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o.code;
+    opt.textContent = finLang() === 'ar' ? (o.labelAr || o.labelEn) : o.labelEn;
+    if (o.code === currentVal) opt.selected = true;
+    el.appendChild(opt);
+  });
+  if (!currentVal) none.selected = true;
+}
+function populateFinanceCurrencySelect(selectId, currentVal) {
+  const el = document.getElementById(selectId);
+  el.innerHTML = '';
+  const none = document.createElement('option'); none.value = ''; none.textContent = '— No currency —';
+  el.appendChild(none);
+  const opts = (financeLookups?.categories.CURRENCY || []).filter(o => o.isActive || o.code === currentVal);
+  opts.forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o.code;
+    opt.textContent = o.code + ' — ' + (finLang() === 'ar' ? (o.labelAr || o.labelEn) : o.labelEn);
+    if (o.code === currentVal) opt.selected = true;
+    el.appendChild(opt);
+  });
+  if (!currentVal) none.selected = true;
+}
+
+function populateFinanceContractSelect(selectId, currentVal) {
+  const el = document.getElementById(selectId);
+  el.innerHTML = '';
+  const none = document.createElement('option'); none.value = ''; none.textContent = '— No contract —';
+  el.appendChild(none);
+  financeContracts.forEach(k => {
+    const opt = document.createElement('option');
+    opt.value = String(k.id);
+    opt.textContent = k.ref ? (k.ref + ' — ' + k.title) : k.title;
+    if (currentVal != null && String(k.id) === String(currentVal)) opt.selected = true;
+    el.appendChild(opt);
+  });
+  if (currentVal == null || currentVal === '') none.selected = true;
+}
+
+function openFinanceContractModal(k) {
+  financeContractEditId = k ? k.id : null;
+  document.getElementById('finance-contract-modal-title').textContent = k ? 'Edit Contract' : 'New Contract';
+  document.getElementById('finance-contract-modal-submit').textContent = k ? 'Save Changes' : 'Add Contract';
+  document.getElementById('gi-contract-title').value = k ? (k.title || '') : '';
+  document.getElementById('gi-contract-ref').value = k ? (k.ref || '') : '';
+  document.getElementById('gi-contract-description').value = k ? (k.description || '') : '';
+  document.getElementById('gi-contract-start').value = k ? (k.startDate || '') : '';
+  document.getElementById('gi-contract-end').value = k ? (k.endDate || '') : '';
+  document.getElementById('gi-contract-notes').value = k ? (k.notes || '') : '';
+  populateFinanceLookupSelect('gi-contract-status', 'CONTRACT_STATUS', k ? k.status : '', '— No status —');
+  populateFinanceCurrencySelect('gi-contract-currency', k ? k.currencyCode : '');
+  clearErrorsIn('#finance-contract-modal');
+  document.getElementById('finance-contract-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('gi-contract-title').focus(), 80);
+}
+function closeFinanceContractModal() {
+  document.getElementById('finance-contract-modal-overlay').classList.remove('open');
+  financeContractEditId = null;
+}
+function financeContractOverlayClick(e) {
+  if (e.target === document.getElementById('finance-contract-modal-overlay')) closeFinanceContractModal();
+}
+async function submitFinanceContractModal() {
+  clearErrorsIn('#finance-contract-modal');
+  const title = document.getElementById('gi-contract-title').value.trim();
+  if (!title) { markError('gi-contract-title'); return; }
+  const data = {
+    title, ref: document.getElementById('gi-contract-ref').value.trim(),
+    description: document.getElementById('gi-contract-description').value.trim(),
+    status: document.getElementById('gi-contract-status').value,
+    currencyCode: document.getElementById('gi-contract-currency').value,
+    startDate: document.getElementById('gi-contract-start').value,
+    endDate: document.getElementById('gi-contract-end').value,
+    notes: document.getElementById('gi-contract-notes').value.trim(),
+  };
+  let res;
+  try {
+    res = financeContractEditId != null
+      ? await window.api.updateFinanceContract(financeContractEditId, data)
+      : await window.api.createFinanceContract(currentFinanceClient.id, data);
+  } catch { toast('Could not save contract'); return; }
+  if (!res.ok) { toast(res.error || 'Could not save contract'); return; }
+  closeFinanceContractModal();
+  toast(financeContractEditId != null ? 'Contract saved' : 'Contract created');
+  financeClientsLoaded = false; // contract count / outstanding on the list card may have changed
+  await loadFinanceContractsForCurrentClient();
+  renderFinanceDetailSections();
+}
+async function deleteFinanceContractFlow(id) {
+  let res;
+  try { res = await window.api.deleteFinanceContract(id); }
+  catch { toast('Could not delete contract'); return; }
+  if (!res.ok) { toast(res.error || 'Could not delete contract'); return; }
+  financeClientsLoaded = false;
+  await loadFinanceContractsForCurrentClient();
+  renderFinanceDetailSections();
+  const snapshot = res.snapshot;
+  const clientId = currentFinanceClient?.id;
+  showGenericUndo('Contract deleted', async () => {
+    try {
+      const created = await window.api.createFinanceContract(clientId, {
+        title: snapshot.title, ref: snapshot.ref, description: snapshot.description, status: snapshot.status,
+        currencyCode: snapshot.currencyCode, startDate: snapshot.startDate, endDate: snapshot.endDate, notes: snapshot.notes,
+      });
+      if (!created.ok) { toast(created.error || 'Could not restore contract'); return; }
+      const newContractId = created.contract.id;
+      let finalLabel = null;
+      for (const v of snapshot.versions) {
+        const vr = await window.api.createFinanceContractVersion(newContractId, {
+          versionLabel: v.versionLabel, valueMinor: v.valueMinor, signedDate: v.signedDate,
+          effectiveDate: v.effectiveDate, notes: v.notes,
+        });
+        if (vr.ok && v.isFinal) finalLabel = v.versionLabel;
+      }
+      if (finalLabel) {
+        const rebuilt = await window.api.getFinanceContract(newContractId);
+        const match = rebuilt?.versions?.find(v => v.versionLabel === finalLabel);
+        if (match) await window.api.setFinalFinanceContractVersion(match.id);
+      }
+      for (const inst of snapshot.installments) {
+        await window.api.createFinanceInstallment(newContractId, {
+          seq: inst.seq, title: inst.title, milestone: inst.milestone, dueDate: inst.dueDate,
+          amountMinor: inst.amountMinor, notes: inst.notes,
+        });
+      }
+      toast('Contract restored');
+    } catch { toast('Could not restore contract'); }
+    financeClientsLoaded = false;
+    await loadFinanceContractsForCurrentClient();
+    renderFinanceDetailSections();
+  });
+}
+
+// ── Version modal ─────────────────────────────────────────────────────────────
+function openFinanceVersionModal(contractId, v) {
+  financeVersionModalContractId = contractId;
+  financeVersionEditId = v ? v.id : null;
+  document.getElementById('finance-version-modal-title').textContent = v ? 'Edit Version' : 'New Version';
+  document.getElementById('finance-version-modal-submit').textContent = v ? 'Save Changes' : 'Add Version';
+  document.getElementById('gi-version-label').value = v ? (v.versionLabel || '') : '';
+  document.getElementById('gi-version-value').value = v ? finMinorToStr(v.valueMinor) : '';
+  document.getElementById('gi-version-signed').value = v ? (v.signedDate || '') : '';
+  document.getElementById('gi-version-effective').value = v ? (v.effectiveDate || '') : '';
+  document.getElementById('gi-version-notes').value = v ? (v.notes || '') : '';
+  // isFinal is only offered at creation — an existing version's final flag is
+  // changed only through the dedicated "Mark Final" action.
+  document.getElementById('gi-version-final-row').style.display = v ? 'none' : '';
+  document.getElementById('gi-version-final').checked = false;
+  clearErrorsIn('#finance-version-modal');
+  document.getElementById('finance-version-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('gi-version-label').focus(), 80);
+}
+function closeFinanceVersionModal() {
+  document.getElementById('finance-version-modal-overlay').classList.remove('open');
+  financeVersionEditId = null; financeVersionModalContractId = null;
+}
+function financeVersionOverlayClick(e) {
+  if (e.target === document.getElementById('finance-version-modal-overlay')) closeFinanceVersionModal();
+}
+async function submitFinanceVersionModal() {
+  clearErrorsIn('#finance-version-modal');
+  const versionLabel = document.getElementById('gi-version-label').value.trim();
+  if (!versionLabel) { markError('gi-version-label'); return; }
+  const data = {
+    versionLabel, valueMinor: finStrToMinor(document.getElementById('gi-version-value').value),
+    signedDate: document.getElementById('gi-version-signed').value,
+    effectiveDate: document.getElementById('gi-version-effective').value,
+    notes: document.getElementById('gi-version-notes').value.trim(),
+    isFinal: document.getElementById('gi-version-final').checked,
+  };
+  let res;
+  try {
+    res = financeVersionEditId != null
+      ? await window.api.updateFinanceContractVersion(financeVersionEditId, data)
+      : await window.api.createFinanceContractVersion(financeVersionModalContractId, data);
+  } catch { toast('Could not save version'); return; }
+  if (!res.ok) { toast(res.error || 'Could not save version'); return; }
+  closeFinanceVersionModal();
+  toast(financeVersionEditId != null ? 'Version saved' : 'Version created');
+  await loadFinanceContractsForCurrentClient();
+  renderFinanceDetailSections();
+}
+async function setFinanceVersionFinal(id) {
+  let res;
+  try { res = await window.api.setFinalFinanceContractVersion(id); }
+  catch { toast('Could not update final version'); return; }
+  if (!res.ok) { toast(res.error || 'Could not update final version'); return; }
+  toast('Final version updated');
+  await loadFinanceContractsForCurrentClient();
+  renderFinanceDetailSections();
+}
+async function deleteFinanceVersionFlow(id, contractId) {
+  let res;
+  try { res = await window.api.deleteFinanceContractVersion(id); }
+  catch { toast('Could not delete version'); return; }
+  if (!res.ok) { toast(res.error || 'Could not delete version'); return; }
+  await loadFinanceContractsForCurrentClient();
+  renderFinanceDetailSections();
+  const snapshot = res.snapshot;
+  showGenericUndo('Version deleted', async () => {
+    try {
+      const created = await window.api.createFinanceContractVersion(contractId, {
+        versionLabel: snapshot.versionLabel, valueMinor: snapshot.valueMinor, signedDate: snapshot.signedDate,
+        effectiveDate: snapshot.effectiveDate, notes: snapshot.notes, isFinal: snapshot.isFinal,
+      });
+      if (!created.ok) { toast(created.error || 'Could not restore version'); return; }
+      toast('Version restored');
+    } catch { toast('Could not restore version'); }
+    await loadFinanceContractsForCurrentClient();
+    renderFinanceDetailSections();
+  });
+}
+
+// ── Installment modal ─────────────────────────────────────────────────────────
+function openFinanceInstallmentModal(contractId, inst) {
+  financeInstallmentModalContractId = contractId;
+  financeInstallmentEditId = inst ? inst.id : null;
+  document.getElementById('finance-installment-modal-title').textContent = inst ? 'Edit Installment' : 'New Installment';
+  document.getElementById('finance-installment-modal-submit').textContent = inst ? 'Save Changes' : 'Add Installment';
+  document.getElementById('gi-installment-seq').value = inst ? inst.seq : '';
+  document.getElementById('gi-installment-title').value = inst ? (inst.title || '') : '';
+  document.getElementById('gi-installment-milestone').value = inst ? (inst.milestone || '') : '';
+  document.getElementById('gi-installment-due').value = inst ? (inst.dueDate || '') : '';
+  document.getElementById('gi-installment-amount').value = inst ? finMinorToStr(inst.amountMinor) : '';
+  document.getElementById('gi-installment-notes').value = inst ? (inst.notes || '') : '';
+  clearErrorsIn('#finance-installment-modal');
+  document.getElementById('finance-installment-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('gi-installment-title').focus(), 80);
+}
+function closeFinanceInstallmentModal() {
+  document.getElementById('finance-installment-modal-overlay').classList.remove('open');
+  financeInstallmentEditId = null; financeInstallmentModalContractId = null;
+}
+function financeInstallmentOverlayClick(e) {
+  if (e.target === document.getElementById('finance-installment-modal-overlay')) closeFinanceInstallmentModal();
+}
+async function submitFinanceInstallmentModal() {
+  clearErrorsIn('#finance-installment-modal');
+  const seqVal = document.getElementById('gi-installment-seq').value.trim();
+  if (financeInstallmentEditId != null && !seqVal) { markError('gi-installment-seq'); return; }
+  const data = {
+    seq: seqVal ? Number(seqVal) : undefined,
+    title: document.getElementById('gi-installment-title').value.trim(),
+    milestone: document.getElementById('gi-installment-milestone').value.trim(),
+    dueDate: document.getElementById('gi-installment-due').value,
+    amountMinor: finStrToMinor(document.getElementById('gi-installment-amount').value),
+    notes: document.getElementById('gi-installment-notes').value.trim(),
+  };
+  let res;
+  try {
+    res = financeInstallmentEditId != null
+      ? await window.api.updateFinanceInstallment(financeInstallmentEditId, data)
+      : await window.api.createFinanceInstallment(financeInstallmentModalContractId, data);
+  } catch { toast('Could not save installment'); return; }
+  if (!res.ok) { toast(res.error || 'Could not save installment'); return; }
+  closeFinanceInstallmentModal();
+  toast(financeInstallmentEditId != null ? 'Installment saved' : 'Installment created');
+  await loadFinanceContractsForCurrentClient();
+  renderFinanceDetailSections();
+}
+async function deleteFinanceInstallmentFlow(id, contractId) {
+  let res;
+  try { res = await window.api.deleteFinanceInstallment(id); }
+  catch { toast('Could not delete installment'); return; }
+  if (!res.ok) { toast(res.error || 'Could not delete installment'); return; }
+  await loadFinanceContractsForCurrentClient();
+  renderFinanceDetailSections();
+  const snapshot = res.snapshot;
+  showGenericUndo('Installment deleted', async () => {
+    try {
+      const created = await window.api.createFinanceInstallment(contractId, {
+        seq: snapshot.seq, title: snapshot.title, milestone: snapshot.milestone, dueDate: snapshot.dueDate,
+        amountMinor: snapshot.amountMinor, notes: snapshot.notes,
+      });
+      if (!created.ok) { toast(created.error || 'Could not restore installment'); return; }
+      toast('Installment restored');
+    } catch { toast('Could not restore installment'); }
+    await loadFinanceContractsForCurrentClient();
+    renderFinanceDetailSections();
+  });
+}
+
+// ── Change Request modal ──────────────────────────────────────────────────────
+function openFinanceCrModal(cr) {
+  financeCrEditId = cr ? cr.id : null;
+  document.getElementById('finance-cr-modal-title').textContent = cr ? 'Edit Change Request' : 'New Change Request';
+  document.getElementById('finance-cr-modal-submit').textContent = cr ? 'Save Changes' : 'Add Change Request';
+  document.getElementById('gi-cr-title').value = cr ? (cr.title || '') : '';
+  document.getElementById('gi-cr-ref').value = cr ? (cr.ref || '') : '';
+  document.getElementById('gi-cr-amount').value = cr ? finMinorToStr(cr.amountMinor) : '';
+  document.getElementById('gi-cr-requested').value = cr ? (cr.requestedDate || '') : '';
+  document.getElementById('gi-cr-approved').value = cr ? (cr.approvedDate || '') : '';
+  document.getElementById('gi-cr-description').value = cr ? (cr.description || '') : '';
+  document.getElementById('gi-cr-notes').value = cr ? (cr.notes || '') : '';
+  populateFinanceLookupSelect('gi-cr-status', 'CR_STATUS', cr ? cr.status : '', '— No status —');
+  populateFinanceCurrencySelect('gi-cr-currency', cr ? cr.currencyCode : '');
+  populateFinanceContractSelect('gi-cr-contract', cr ? cr.contractId : '');
+  clearErrorsIn('#finance-cr-modal');
+  document.getElementById('finance-cr-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('gi-cr-title').focus(), 80);
+}
+function closeFinanceCrModal() {
+  document.getElementById('finance-cr-modal-overlay').classList.remove('open');
+  financeCrEditId = null;
+}
+function financeCrOverlayClick(e) {
+  if (e.target === document.getElementById('finance-cr-modal-overlay')) closeFinanceCrModal();
+}
+async function submitFinanceCrModal() {
+  clearErrorsIn('#finance-cr-modal');
+  const title = document.getElementById('gi-cr-title').value.trim();
+  if (!title) { markError('gi-cr-title'); return; }
+  const contractVal = document.getElementById('gi-cr-contract').value;
+  const data = {
+    title, ref: document.getElementById('gi-cr-ref').value.trim(),
+    description: document.getElementById('gi-cr-description').value.trim(),
+    status: document.getElementById('gi-cr-status').value,
+    contractId: contractVal ? Number(contractVal) : null,
+    amountMinor: finStrToMinor(document.getElementById('gi-cr-amount').value),
+    currencyCode: document.getElementById('gi-cr-currency').value,
+    requestedDate: document.getElementById('gi-cr-requested').value,
+    approvedDate: document.getElementById('gi-cr-approved').value,
+    notes: document.getElementById('gi-cr-notes').value.trim(),
+  };
+  let res;
+  try {
+    res = financeCrEditId != null
+      ? await window.api.updateFinanceChangeRequest(financeCrEditId, data)
+      : await window.api.createFinanceChangeRequest(currentFinanceClient.id, data);
+  } catch { toast('Could not save change request'); return; }
+  if (!res.ok) { toast(res.error || 'Could not save change request'); return; }
+  closeFinanceCrModal();
+  toast(financeCrEditId != null ? 'Change request saved' : 'Change request created');
+  await loadFinanceCrsForCurrentClient();
+  await loadFinanceSummaryForCurrentClient();
+  renderFinanceDetailSections();
+}
+async function deleteFinanceCrFlow(id) {
+  let res;
+  try { res = await window.api.deleteFinanceChangeRequest(id); }
+  catch { toast('Could not delete change request'); return; }
+  if (!res.ok) { toast(res.error || 'Could not delete change request'); return; }
+  await loadFinanceCrsForCurrentClient();
+  await loadFinanceSummaryForCurrentClient();
+  renderFinanceDetailSections();
+  const snapshot = res.snapshot;
+  const clientId = currentFinanceClient?.id;
+  showGenericUndo('Change request deleted', async () => {
+    try {
+      const created = await window.api.createFinanceChangeRequest(clientId, {
+        title: snapshot.title, ref: snapshot.ref, description: snapshot.description, status: snapshot.status,
+        contractId: snapshot.contractId, amountMinor: snapshot.amountMinor, currencyCode: snapshot.currencyCode,
+        requestedDate: snapshot.requestedDate, approvedDate: snapshot.approvedDate, notes: snapshot.notes,
+      });
+      if (!created.ok) { toast(created.error || 'Could not restore change request'); return; }
+      toast('Change request restored');
+    } catch { toast('Could not restore change request'); }
+    await loadFinanceCrsForCurrentClient();
+    await loadFinanceSummaryForCurrentClient();
+    renderFinanceDetailSections();
+  });
+}
+
+// ── Invoice modal ─────────────────────────────────────────────────────────────
+function openFinanceInvoiceModal(inv) {
+  financeInvoiceEditId = inv ? inv.id : null;
+  document.getElementById('finance-invoice-modal-title').textContent = inv ? 'Edit Invoice' : 'New Invoice';
+  document.getElementById('finance-invoice-modal-submit').textContent = inv ? 'Save Changes' : 'Add Invoice';
+  document.getElementById('gi-invoice-number').value = inv ? (inv.number || '') : '';
+  document.getElementById('gi-invoice-amount').value = inv ? finMinorToStr(inv.amountMinor) : '';
+  document.getElementById('gi-invoice-tax').value = inv ? finMinorToStr(inv.taxMinor) : '';
+  document.getElementById('gi-invoice-issue').value = inv ? (inv.issueDate || '') : '';
+  document.getElementById('gi-invoice-due').value = inv ? (inv.dueDate || '') : '';
+  document.getElementById('gi-invoice-notes').value = inv ? (inv.notes || '') : '';
+  populateFinanceLookupSelect('gi-invoice-status', 'INVOICE_STATUS', inv ? inv.status : '', '— No status —');
+  populateFinanceCurrencySelect('gi-invoice-currency', inv ? inv.currencyCode : '');
+  clearErrorsIn('#finance-invoice-modal');
+  document.getElementById('finance-invoice-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('gi-invoice-number').focus(), 80);
+}
+function closeFinanceInvoiceModal() {
+  document.getElementById('finance-invoice-modal-overlay').classList.remove('open');
+  financeInvoiceEditId = null;
+}
+function financeInvoiceOverlayClick(e) {
+  if (e.target === document.getElementById('finance-invoice-modal-overlay')) closeFinanceInvoiceModal();
+}
+async function submitFinanceInvoiceModal() {
+  clearErrorsIn('#finance-invoice-modal');
+  const number = document.getElementById('gi-invoice-number').value.trim();
+  if (!number) { markError('gi-invoice-number'); return; }
+  const data = {
+    number, amountMinor: finStrToMinor(document.getElementById('gi-invoice-amount').value),
+    taxMinor: finStrToMinor(document.getElementById('gi-invoice-tax').value),
+    currencyCode: document.getElementById('gi-invoice-currency').value,
+    status: document.getElementById('gi-invoice-status').value,
+    issueDate: document.getElementById('gi-invoice-issue').value,
+    dueDate: document.getElementById('gi-invoice-due').value,
+    notes: document.getElementById('gi-invoice-notes').value.trim(),
+  };
+  let res;
+  try {
+    res = financeInvoiceEditId != null
+      ? await window.api.updateFinanceInvoice(financeInvoiceEditId, data)
+      : await window.api.createFinanceInvoice(currentFinanceClient.id, data);
+  } catch { toast('Could not save invoice'); return; }
+  if (!res.ok) { toast(res.error || 'Could not save invoice'); return; }
+  closeFinanceInvoiceModal();
+  toast(financeInvoiceEditId != null ? 'Invoice saved' : 'Invoice created');
+  financeClientsLoaded = false; // outstanding on the list card may have changed
+  await loadFinanceInvoicesForCurrentClient();
+  await loadFinanceSummaryForCurrentClient();
+  renderFinanceDetailSections();
+}
+async function deleteFinanceInvoiceFlow(id) {
+  let res;
+  try { res = await window.api.deleteFinanceInvoice(id); }
+  catch { toast('Could not delete invoice'); return; }
+  if (!res.ok) { toast(res.error || 'Could not delete invoice'); return; }
+  financeClientsLoaded = false;
+  await refreshFinanceAfterInvoiceChange();
+  const snapshot = res.snapshot;
+  const clientId = currentFinanceClient?.id;
+  showGenericUndo('Invoice deleted', async () => {
+    try {
+      const created = await window.api.createFinanceInvoice(clientId, {
+        number: snapshot.number, amountMinor: snapshot.amountMinor, taxMinor: snapshot.taxMinor,
+        currencyCode: snapshot.currencyCode, status: snapshot.status, issueDate: snapshot.issueDate,
+        dueDate: snapshot.dueDate, notes: snapshot.notes,
+      });
+      if (!created.ok) { toast(created.error || 'Could not restore invoice'); return; }
+      const newInvoiceId = created.invoice.id;
+      for (const l of snapshot.links) {
+        await window.api.createFinanceInvoiceLink(newInvoiceId, {
+          installmentId: l.installmentId, crId: l.crId, allocatedMinor: l.allocatedMinor,
+        });
+      }
+      for (const p of snapshot.payments) {
+        await window.api.createFinancePayment(newInvoiceId, {
+          paidDate: p.paidDate, amountMinor: p.amountMinor, method: p.method, reference: p.reference, notes: p.notes,
+        });
+      }
+      toast('Invoice restored');
+    } catch { toast('Could not restore invoice'); }
+    financeClientsLoaded = false;
+    await refreshFinanceAfterInvoiceChange();
+  });
+}
+// Shared by every flow that can move an invoice allocation (create/delete
+// invoice, create/delete a link): the installment/CR invoiced/outstanding
+// indicators live on the Contracts/Change-Requests tabs, not just Invoices.
+async function refreshFinanceAfterInvoiceChange() {
+  await loadFinanceInvoicesForCurrentClient();
+  await loadFinanceSummaryForCurrentClient();
+  await loadFinanceContractsForCurrentClient();
+  await loadFinanceCrsForCurrentClient();
+  renderFinanceDetailSections();
+}
+
+// ── "Link to Invoice" modal — the mirror image of the Invoice tab's own "Add
+// Allocation" flow. That one is invoice-first (pick an installment/CR from a
+// fixed invoice); this is target-first (pick an invoice from a fixed
+// installment/CR), reachable directly from the Contracts/Change Requests
+// tabs so linking doesn't require already being inside an expanded invoice
+// card. Both write through the same finance:invoice-link-create call.
+function openFinanceReverseLinkModal(kind, id) {
+  financeReverseLinkKind = kind;
+  financeReverseLinkTargetId = id;
+  let label = '', outstanding = 0;
+  if (kind === 'installment') {
+    for (const k of financeContracts) {
+      const inst = k.installments.find(i => i.id === id);
+      if (inst) { label = k.title + ' — #' + inst.seq + (inst.title ? ' ' + inst.title : ''); outstanding = inst.outstandingMinor; break; }
+    }
+  } else {
+    const cr = financeChangeRequests.find(c => c.id === id);
+    if (cr) { label = 'CR — ' + cr.title; outstanding = cr.outstandingMinor; }
+  }
+  document.getElementById('gi-reverse-link-target-label').textContent = label;
+  document.getElementById('gi-reverse-link-amount').value = outstanding > 0 ? finMinorToStr(outstanding) : '';
+  renderFinanceReverseLinkInvoiceOptions();
+  clearErrorsIn('#finance-reverse-link-modal');
+  document.getElementById('finance-reverse-link-modal-overlay').classList.add('open');
+}
+function closeFinanceReverseLinkModal() {
+  document.getElementById('finance-reverse-link-modal-overlay').classList.remove('open');
+  financeReverseLinkKind = null; financeReverseLinkTargetId = null;
+}
+function financeReverseLinkOverlayClick(e) {
+  if (e.target === document.getElementById('finance-reverse-link-modal-overlay')) closeFinanceReverseLinkModal();
+}
+function renderFinanceReverseLinkInvoiceOptions() {
+  const select = document.getElementById('gi-reverse-link-invoice');
+  select.innerHTML = '';
+  if (!financeInvoices.length) {
+    const opt = document.createElement('option'); opt.value = ''; opt.textContent = 'No invoices for this client yet';
+    select.appendChild(opt);
+    return;
+  }
+  financeInvoices.forEach(inv => {
+    const opt = document.createElement('option');
+    opt.value = String(inv.id);
+    opt.textContent = inv.number + (inv.currencyCode ? ' (' + inv.currencyCode + ')' : '') + ' — outstanding ' + finMinorToStr(inv.outstandingMinor);
+    select.appendChild(opt);
+  });
+}
+async function submitFinanceReverseLinkModal() {
+  clearErrorsIn('#finance-reverse-link-modal');
+  const invoiceId = Number(document.getElementById('gi-reverse-link-invoice').value);
+  if (!invoiceId) { markError('gi-reverse-link-invoice'); return; }
+  const amountMinor = finStrToMinor(document.getElementById('gi-reverse-link-amount').value);
+  if (amountMinor <= 0) { markError('gi-reverse-link-amount'); return; }
+  const data = { allocatedMinor: amountMinor };
+  if (financeReverseLinkKind === 'installment') data.installmentId = financeReverseLinkTargetId; else data.crId = financeReverseLinkTargetId;
+  let res;
+  try { res = await window.api.createFinanceInvoiceLink(invoiceId, data); }
+  catch { toast('Could not add allocation'); return; }
+  if (!res.ok) { toast(res.error || 'Could not add allocation'); return; }
+  closeFinanceReverseLinkModal();
+  toast('Linked to invoice');
+  await refreshFinanceAfterInvoiceChange();
+}
+
+// ── Invoice Link ("Add Allocation") modal ────────────────────────────────────
+function openFinanceLinkModal(invoiceId) {
+  financeLinkModalInvoiceId = invoiceId;
+  document.getElementById('gi-link-type-installment').checked = true;
+  document.getElementById('gi-link-amount').value = '';
+  renderFinanceLinkTargetOptions();
+  clearErrorsIn('#finance-link-modal');
+  document.getElementById('finance-link-modal-overlay').classList.add('open');
+}
+function closeFinanceLinkModal() {
+  document.getElementById('finance-link-modal-overlay').classList.remove('open');
+  financeLinkModalInvoiceId = null;
+}
+function financeLinkOverlayClick(e) {
+  if (e.target === document.getElementById('finance-link-modal-overlay')) closeFinanceLinkModal();
+}
+function renderFinanceLinkTargetOptions() {
+  const isInstallment = document.getElementById('gi-link-type-installment').checked;
+  const select = document.getElementById('gi-link-target');
+  select.innerHTML = '';
+  if (isInstallment) {
+    const items = [];
+    financeContracts.forEach(k => k.installments.forEach(i => { if (i.outstandingMinor > 0) items.push({ k, i }); }));
+    if (!items.length) {
+      const opt = document.createElement('option'); opt.value = ''; opt.textContent = 'No outstanding installments';
+      select.appendChild(opt);
+      return;
+    }
+    items.forEach(({ k, i }) => {
+      const opt = document.createElement('option');
+      opt.value = 'installment:' + i.id;
+      opt.textContent = k.title + ' — #' + i.seq + (i.title ? ' ' + i.title : '') + ' (outstanding ' + finMinorToStr(i.outstandingMinor) + ')';
+      select.appendChild(opt);
+    });
+  } else {
+    const items = financeChangeRequests.filter(cr => cr.outstandingMinor > 0);
+    if (!items.length) {
+      const opt = document.createElement('option'); opt.value = ''; opt.textContent = 'No outstanding change requests';
+      select.appendChild(opt);
+      return;
+    }
+    items.forEach(cr => {
+      const opt = document.createElement('option');
+      opt.value = 'cr:' + cr.id;
+      opt.textContent = cr.title + ' (outstanding ' + finMinorToStr(cr.outstandingMinor) + ')';
+      select.appendChild(opt);
+    });
+  }
+}
+async function submitFinanceLinkModal() {
+  clearErrorsIn('#finance-link-modal');
+  const targetVal = document.getElementById('gi-link-target').value;
+  if (!targetVal) { markError('gi-link-target'); return; }
+  const [kind, idStr] = targetVal.split(':');
+  const amountMinor = finStrToMinor(document.getElementById('gi-link-amount').value);
+  if (amountMinor <= 0) { markError('gi-link-amount'); return; }
+  const data = { allocatedMinor: amountMinor };
+  if (kind === 'installment') data.installmentId = Number(idStr); else data.crId = Number(idStr);
+  let res;
+  try { res = await window.api.createFinanceInvoiceLink(financeLinkModalInvoiceId, data); }
+  catch { toast('Could not add allocation'); return; }
+  if (!res.ok) { toast(res.error || 'Could not add allocation'); return; }
+  closeFinanceLinkModal();
+  toast('Allocation added');
+  await refreshFinanceAfterInvoiceChange();
+}
+async function deleteFinanceInvoiceLinkFlow(id, invoiceId) {
+  let res;
+  try { res = await window.api.deleteFinanceInvoiceLink(id); }
+  catch { toast('Could not remove allocation'); return; }
+  if (!res.ok) { toast(res.error || 'Could not remove allocation'); return; }
+  await refreshFinanceAfterInvoiceChange();
+  const snapshot = res.snapshot;
+  showGenericUndo('Allocation removed', async () => {
+    try {
+      const data = { allocatedMinor: snapshot.allocatedMinor };
+      if (snapshot.installmentId != null) data.installmentId = snapshot.installmentId; else data.crId = snapshot.crId;
+      const created = await window.api.createFinanceInvoiceLink(invoiceId, data);
+      if (!created.ok) { toast(created.error || 'Could not restore allocation'); return; }
+      toast('Allocation restored');
+    } catch { toast('Could not restore allocation'); }
+    await refreshFinanceAfterInvoiceChange();
+  });
+}
+
+// ── Payment modal ─────────────────────────────────────────────────────────────
+function openFinancePaymentModal(invoiceId, p) {
+  financePaymentModalInvoiceId = invoiceId;
+  financePaymentEditId = p ? p.id : null;
+  document.getElementById('finance-payment-modal-title').textContent = p ? 'Edit Payment' : 'New Payment';
+  document.getElementById('finance-payment-modal-submit').textContent = p ? 'Save Changes' : 'Add Payment';
+  document.getElementById('gi-payment-amount').value = p ? finMinorToStr(p.amountMinor) : '';
+  document.getElementById('gi-payment-date').value = p ? (p.paidDate || '') : '';
+  document.getElementById('gi-payment-reference').value = p ? (p.reference || '') : '';
+  document.getElementById('gi-payment-notes').value = p ? (p.notes || '') : '';
+  populateFinanceLookupSelect('gi-payment-method', 'PAYMENT_METHOD', p ? p.method : '', '— No method —');
+  clearErrorsIn('#finance-payment-modal');
+  document.getElementById('finance-payment-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('gi-payment-amount').focus(), 80);
+}
+function closeFinancePaymentModal() {
+  document.getElementById('finance-payment-modal-overlay').classList.remove('open');
+  financePaymentEditId = null; financePaymentModalInvoiceId = null;
+}
+function financePaymentOverlayClick(e) {
+  if (e.target === document.getElementById('finance-payment-modal-overlay')) closeFinancePaymentModal();
+}
+async function submitFinancePaymentModal() {
+  clearErrorsIn('#finance-payment-modal');
+  const amountMinor = finStrToMinor(document.getElementById('gi-payment-amount').value);
+  if (amountMinor <= 0) { markError('gi-payment-amount'); return; }
+  const data = {
+    amountMinor, paidDate: document.getElementById('gi-payment-date').value,
+    method: document.getElementById('gi-payment-method').value,
+    reference: document.getElementById('gi-payment-reference').value.trim(),
+    notes: document.getElementById('gi-payment-notes').value.trim(),
+  };
+  let res;
+  try {
+    res = financePaymentEditId != null
+      ? await window.api.updateFinancePayment(financePaymentEditId, data)
+      : await window.api.createFinancePayment(financePaymentModalInvoiceId, data);
+  } catch { toast('Could not save payment'); return; }
+  if (!res.ok) { toast(res.error || 'Could not save payment'); return; }
+  closeFinancePaymentModal();
+  toast(financePaymentEditId != null ? 'Payment saved' : 'Payment recorded');
+  await refreshFinanceAfterInvoiceChange();
+}
+async function deleteFinancePaymentFlow(id, invoiceId) {
+  let res;
+  try { res = await window.api.deleteFinancePayment(id); }
+  catch { toast('Could not delete payment'); return; }
+  if (!res.ok) { toast(res.error || 'Could not delete payment'); return; }
+  await refreshFinanceAfterInvoiceChange();
+  const snapshot = res.snapshot;
+  showGenericUndo('Payment deleted', async () => {
+    try {
+      const created = await window.api.createFinancePayment(invoiceId, {
+        amountMinor: snapshot.amountMinor, paidDate: snapshot.paidDate, method: snapshot.method,
+        reference: snapshot.reference, notes: snapshot.notes,
+      });
+      if (!created.ok) { toast(created.error || 'Could not restore payment'); return; }
+      toast('Payment restored');
+    } catch { toast('Could not restore payment'); }
+    await refreshFinanceAfterInvoiceChange();
+  });
+}
+
+// ── Meeting modal ──────────────────────────────────────────────────────────
+function populateFinanceCrSelect(selectId, currentVal) {
+  const el = document.getElementById(selectId);
+  el.innerHTML = '';
+  const none = document.createElement('option'); none.value = ''; none.textContent = '— No change request —';
+  el.appendChild(none);
+  financeChangeRequests.forEach(cr => {
+    const opt = document.createElement('option');
+    opt.value = String(cr.id);
+    opt.textContent = cr.ref ? (cr.ref + ' — ' + cr.title) : cr.title;
+    if (currentVal != null && String(cr.id) === String(currentVal)) opt.selected = true;
+    el.appendChild(opt);
+  });
+  if (currentVal == null || currentVal === '') none.selected = true;
+}
+// A separate Quill instance from Knowledge Hub's knowledgeQuill (renderer/
+// features/knowledge.js) — same vendored library + sanitizeKnowledgeHtml(),
+// its own DOM host so the two modules never share editor state.
+function financeMeetingQuillPlaceholder() {
+  const source = 'Write meeting minutes…';
+  return window.ctI18n ? window.ctI18n.t(source) : source;
+}
+function ensureFinanceMeetingQuill() {
+  if (financeMeetingQuill) return financeMeetingQuill;
+  financeMeetingQuill = new Quill('#gi-meeting-content-editor', {
+    theme: 'snow',
+    placeholder: financeMeetingQuillPlaceholder(),
+    modules: {
+      toolbar: [
+        [{ header: [1, 2, 3, false] }],
+        ['bold', 'italic', 'underline', 'strike'],
+        [{ list: 'ordered' }, { list: 'bullet' }],
+        ['blockquote', 'code-block'],
+        ['link'],
+      ],
+    },
+  });
+  document.addEventListener('ct:languagechange', () => financeMeetingQuill.root.setAttribute('data-placeholder', financeMeetingQuillPlaceholder()));
+  return financeMeetingQuill;
+}
+function getFinanceMeetingEditorContent() {
+  const quill = ensureFinanceMeetingQuill();
+  return quill.getText().trim() ? sanitizeKnowledgeHtml(quill.getSemanticHTML()) : '';
+}
+function setFinanceMeetingEditorContent(html) {
+  const quill = ensureFinanceMeetingQuill();
+  quill.setContents(quill.clipboard.convert({ html: sanitizeKnowledgeHtml(html || '') }), 'silent');
+}
+function openFinanceMeetingModal(m) {
+  financeMeetingEditId = m ? m.id : null;
+  document.getElementById('finance-meeting-modal-title').textContent = m ? 'Edit Meeting' : 'New Meeting';
+  document.getElementById('finance-meeting-modal-submit').textContent = m ? 'Save Changes' : 'Add Meeting';
+  document.getElementById('gi-meeting-title').value = m ? (m.title || '') : '';
+  document.getElementById('gi-meeting-date').value = m ? (m.meetingDate || '') : '';
+  document.getElementById('gi-meeting-location').value = m ? (m.location || '') : '';
+  document.getElementById('gi-meeting-attendees').value = m ? (m.attendees || '') : '';
+  document.getElementById('gi-meeting-agenda').value = m ? (m.agenda || '') : '';
+  populateFinanceContractSelect('gi-meeting-contract', m ? m.contractId : '');
+  populateFinanceCrSelect('gi-meeting-cr', m ? m.crId : '');
+  setFinanceMeetingEditorContent(m ? m.content : '');
+  clearErrorsIn('#finance-meeting-modal');
+  document.getElementById('finance-meeting-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('gi-meeting-title').focus(), 80);
+}
+function closeFinanceMeetingModal() {
+  document.getElementById('finance-meeting-modal-overlay').classList.remove('open');
+  financeMeetingEditId = null;
+}
+function financeMeetingOverlayClick(e) {
+  if (e.target === document.getElementById('finance-meeting-modal-overlay')) closeFinanceMeetingModal();
+}
+async function submitFinanceMeetingModal() {
+  clearErrorsIn('#finance-meeting-modal');
+  const title = document.getElementById('gi-meeting-title').value.trim();
+  if (!title) { markError('gi-meeting-title'); return; }
+  const contractVal = document.getElementById('gi-meeting-contract').value;
+  const crVal = document.getElementById('gi-meeting-cr').value;
+  const data = {
+    title, meetingDate: document.getElementById('gi-meeting-date').value,
+    location: document.getElementById('gi-meeting-location').value.trim(),
+    attendees: document.getElementById('gi-meeting-attendees').value.trim(),
+    agenda: document.getElementById('gi-meeting-agenda').value.trim(),
+    contractId: contractVal ? Number(contractVal) : null,
+    crId: crVal ? Number(crVal) : null,
+    content: getFinanceMeetingEditorContent(),
+  };
+  let res;
+  try {
+    res = financeMeetingEditId != null
+      ? await window.api.updateFinanceMeeting(financeMeetingEditId, data)
+      : await window.api.createFinanceMeeting(currentFinanceClient.id, data);
+  } catch { toast('Could not save meeting'); return; }
+  if (!res.ok) { toast(res.error || 'Could not save meeting'); return; }
+  closeFinanceMeetingModal();
+  toast(financeMeetingEditId != null ? 'Meeting saved' : 'Meeting created');
+  await loadFinanceMeetingsForCurrentClient();
+  renderFinanceDetailSections();
+}
+async function deleteFinanceMeetingFlow(id) {
+  let res;
+  try { res = await window.api.deleteFinanceMeeting(id); }
+  catch { toast('Could not delete meeting'); return; }
+  if (!res.ok) { toast(res.error || 'Could not delete meeting'); return; }
+  financeExpandedMeetings.delete(id);
+  await loadFinanceMeetingsForCurrentClient();
+  renderFinanceDetailSections();
+  const snapshot = res.snapshot;
+  const clientId = currentFinanceClient?.id;
+  // Attachments on this meeting were already purged server-side (see
+  // finance-seed.js's purgeFinanceAttachmentsForEntities) — restoring the meeting
+  // row does not bring its files back, a deliberate scope limit.
+  showGenericUndo('Meeting deleted', async () => {
+    try {
+      const created = await window.api.createFinanceMeeting(clientId, {
+        title: snapshot.title, meetingDate: snapshot.meetingDate, location: snapshot.location,
+        attendees: snapshot.attendees, agenda: snapshot.agenda, contractId: snapshot.contractId,
+        crId: snapshot.crId, content: snapshot.content,
+      });
+      if (!created.ok) { toast(created.error || 'Could not restore meeting'); return; }
+      const newMeetingId = created.meeting.id;
+      for (const a of snapshot.actions) {
+        await window.api.createFinanceMeetingAction(newMeetingId, { description: a.description, owner: a.owner, dueDate: a.dueDate });
+      }
+      toast('Meeting restored');
+    } catch { toast('Could not restore meeting'); }
+    await loadFinanceMeetingsForCurrentClient();
+    renderFinanceDetailSections();
+  });
+}
+
+// ── Meeting Action Item modal ─────────────────────────────────────────────
+function openFinanceMeetingActionModal(meetingId, a) {
+  financeMeetingActionModalMeetingId = meetingId;
+  financeMeetingActionEditId = a ? a.id : null;
+  document.getElementById('finance-meeting-action-modal-title').textContent = a ? 'Edit Action Item' : 'New Action Item';
+  document.getElementById('finance-meeting-action-modal-submit').textContent = a ? 'Save Changes' : 'Add Action Item';
+  document.getElementById('gi-action-description').value = a ? (a.description || '') : '';
+  document.getElementById('gi-action-owner').value = a ? (a.owner || '') : '';
+  document.getElementById('gi-action-due').value = a ? (a.dueDate || '') : '';
+  clearErrorsIn('#finance-meeting-action-modal');
+  document.getElementById('finance-meeting-action-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('gi-action-description').focus(), 80);
+}
+function closeFinanceMeetingActionModal() {
+  document.getElementById('finance-meeting-action-modal-overlay').classList.remove('open');
+  financeMeetingActionEditId = null; financeMeetingActionModalMeetingId = null;
+}
+function financeMeetingActionOverlayClick(e) {
+  if (e.target === document.getElementById('finance-meeting-action-modal-overlay')) closeFinanceMeetingActionModal();
+}
+async function submitFinanceMeetingActionModal() {
+  clearErrorsIn('#finance-meeting-action-modal');
+  const description = document.getElementById('gi-action-description').value.trim();
+  if (!description) { markError('gi-action-description'); return; }
+  const data = {
+    description, owner: document.getElementById('gi-action-owner').value.trim(),
+    dueDate: document.getElementById('gi-action-due').value,
+  };
+  let res;
+  try {
+    res = financeMeetingActionEditId != null
+      ? await window.api.updateFinanceMeetingAction(financeMeetingActionEditId, data)
+      : await window.api.createFinanceMeetingAction(financeMeetingActionModalMeetingId, data);
+  } catch { toast('Could not save action item'); return; }
+  if (!res.ok) { toast(res.error || 'Could not save action item'); return; }
+  closeFinanceMeetingActionModal();
+  toast(financeMeetingActionEditId != null ? 'Action item saved' : 'Action item added');
+  await loadFinanceMeetingsForCurrentClient();
+  renderFinanceDetailSections();
+}
+async function toggleFinanceMeetingActionFlow(id) {
+  let res;
+  try { res = await window.api.toggleFinanceMeetingActionStatus(id); }
+  catch { toast('Could not update action item'); return; }
+  if (!res.ok) { toast(res.error || 'Could not update action item'); return; }
+  await loadFinanceMeetingsForCurrentClient();
+  renderFinanceDetailSections();
+}
+async function deleteFinanceMeetingActionFlow(id, meetingId) {
+  let res;
+  try { res = await window.api.deleteFinanceMeetingAction(id); }
+  catch { toast('Could not delete action item'); return; }
+  if (!res.ok) { toast(res.error || 'Could not delete action item'); return; }
+  await loadFinanceMeetingsForCurrentClient();
+  renderFinanceDetailSections();
+  const snapshot = res.snapshot;
+  showGenericUndo('Action item deleted', async () => {
+    try {
+      // Identify the just-restored row by set difference (before/after ids),
+      // not by matching on description text — two action items can share the
+      // same wording, and a text match would risk flipping the wrong one to
+      // DONE (see test/finance-it-smoke.js's payment-id-diff pattern for the
+      // same reasoning applied to payments).
+      const before = await window.api.getFinanceMeeting(meetingId);
+      const beforeIds = new Set((before?.actions || []).map(a => a.id));
+      const created = await window.api.createFinanceMeetingAction(meetingId, {
+        description: snapshot.description, owner: snapshot.owner, dueDate: snapshot.dueDate,
+      });
+      if (!created.ok) { toast(created.error || 'Could not restore action item'); return; }
+      if (snapshot.status === 'DONE') {
+        const match = created.meeting.actions.find(a => !beforeIds.has(a.id));
+        if (match) await window.api.toggleFinanceMeetingActionStatus(match.id);
+      }
+      toast('Action item restored');
+    } catch { toast('Could not restore action item'); }
+    await loadFinanceMeetingsForCurrentClient();
+    renderFinanceDetailSections();
+  });
+}
+
+// ── Setup tab — Finance's own catalog editor (finance_lookups), separate from
+// the app-wide Settings page ───────────────────────────────────────────────
+function finMoveDraftEntry(arr, i, delta) {
+  const j = i + delta;
+  if (j < 0 || j >= arr.length) return;
+  [arr[i], arr[j]] = [arr[j], arr[i]];
+}
+function renderFinanceSetupSection(host) {
+  if (!financeLookupsDraft) financeLookupsDraft = JSON.parse(JSON.stringify(financeLookups?.categories || {}));
+
+  const wrap = finMk('div', 'gi-setup');
+  wrap.appendChild(finMk('p', 'gi-setup-intro',
+    'Finance’s own catalog, separate from the app’s shared lookups. Add, relabel, reorder, or disable values here.'));
+
+  Object.keys(FINANCE_SETUP_CATEGORY_LABELS).forEach(cat => {
+    const panel = finMk('div', 'gi-setup-panel');
+    panel.appendChild(finMk('div', 'gi-setup-panel-title', FINANCE_SETUP_CATEGORY_LABELS[cat]));
+    const list = finMk('div', 'gi-setup-list');
+    const arr = financeLookupsDraft[cat] || (financeLookupsDraft[cat] = []);
+    arr.forEach((opt, i) => list.appendChild(buildFinanceSetupRow(arr, i)));
+    panel.appendChild(list);
+    const addBtn = finMk('button', 'gi-mini-btn'); addBtn.innerHTML = ic('plus') + ' Add Entry';
+    addBtn.addEventListener('click', () => {
+      arr.push({ labelEn: '', labelAr: '', isActive: true, sortOrder: arr.length });
+      financeSetupDirty = true;
+      renderFinanceDetailSections();
+    });
+    panel.appendChild(addBtn);
+    wrap.appendChild(panel);
+  });
+
+  const footer = finMk('div', 'gi-setup-footer');
+  const saveBtn = finMk('button', 'btn primary', 'Save Catalog');
+  saveBtn.id = 'finance-setup-save-btn';
+  saveBtn.disabled = !financeSetupDirty;
+  saveBtn.addEventListener('click', saveFinanceSetupCatalog);
+  footer.appendChild(saveBtn);
+  const unsavedLabel = finMk('span', 'gi-setup-unsaved', 'Unsaved changes');
+  unsavedLabel.id = 'finance-setup-unsaved-label';
+  unsavedLabel.hidden = !financeSetupDirty;
+  footer.appendChild(unsavedLabel);
+  wrap.appendChild(footer);
+
+  host.appendChild(wrap);
+}
+// Typing in a label field marks the draft dirty without a full re-render (a
+// full renderFinanceDetailSections() would rebuild every row and steal focus out
+// from under the input mid-keystroke) — just flip the Save button + "Unsaved
+// changes" label directly instead.
+function finMarkFinanceSetupDirty() {
+  financeSetupDirty = true;
+  const saveBtn = document.getElementById('finance-setup-save-btn');
+  if (saveBtn) saveBtn.disabled = false;
+  const label = document.getElementById('finance-setup-unsaved-label');
+  if (label) label.hidden = false;
+}
+function buildFinanceSetupRow(arr, i) {
+  const opt = arr[i];
+  const row = finMk('div', 'gi-setup-row' + (opt.isActive === false ? ' inactive' : ''));
+  const enInput = document.createElement('input');
+  enInput.type = 'text'; enInput.placeholder = 'English label'; enInput.value = opt.labelEn || ''; enInput.dir = 'ltr';
+  enInput.addEventListener('input', e => { opt.labelEn = e.target.value; finMarkFinanceSetupDirty(); });
+  row.appendChild(enInput);
+  const arInput = document.createElement('input');
+  arInput.type = 'text'; arInput.placeholder = 'التسمية بالعربية'; arInput.value = opt.labelAr || ''; arInput.dir = 'rtl';
+  arInput.addEventListener('input', e => { opt.labelAr = e.target.value; finMarkFinanceSetupDirty(); });
+  row.appendChild(arInput);
+  row.appendChild(finMk('span', 'gi-setup-code', opt.code || 'new'));
+
+  const reorder = finMk('div', 'gi-setup-reorder');
+  const up = finMk('button', 'gi-icon-btn'); up.type = 'button'; up.innerHTML = ic('chevron-up'); up.title = 'Move up'; up.disabled = i === 0;
+  up.addEventListener('click', () => { finMoveDraftEntry(arr, i, -1); financeSetupDirty = true; renderFinanceDetailSections(); });
+  const down = finMk('button', 'gi-icon-btn'); down.type = 'button'; down.innerHTML = ic('chevron-down'); down.title = 'Move down'; down.disabled = i === arr.length - 1;
+  down.addEventListener('click', () => { finMoveDraftEntry(arr, i, 1); financeSetupDirty = true; renderFinanceDetailSections(); });
+  reorder.appendChild(up); reorder.appendChild(down);
+  row.appendChild(reorder);
+
+  const toggleBtn = finMk('button', 'gi-icon-btn' + (opt.isActive === false ? '' : ' danger'));
+  toggleBtn.type = 'button';
+  toggleBtn.innerHTML = ic(opt.isActive === false ? 'circle-check' : 'ban');
+  toggleBtn.title = opt.isActive === false ? 'Re-enable' : 'Disable (hide from dropdowns)';
+  toggleBtn.addEventListener('click', () => {
+    if (opt.id == null) arr.splice(i, 1); // never-saved new row — just drop it
+    else opt.isActive = opt.isActive === false;
+    financeSetupDirty = true;
+    renderFinanceDetailSections();
+  });
+  row.appendChild(toggleBtn);
+  return row;
+}
+async function saveFinanceSetupCatalog() {
+  const categories = {};
+  Object.entries(financeLookupsDraft).forEach(([cat, arr]) => {
+    categories[cat] = arr.filter(o => (o.labelEn || '').trim()).map((o, i) => ({ ...o, sortOrder: i }));
+  });
+  let res;
+  try { res = await window.api.saveFinanceLookups({ categories }); }
+  catch { toast('Could not save catalog'); return; }
+  if (!res.ok) { toast('Could not save catalog'); return; }
+  toast('Catalog saved');
+  financeSetupDirty = false;
+  try { financeLookups = await window.api.listFinanceLookups(); } catch { /* keep prior cache */ }
+  financeLookupsDraft = null;
+  renderFinanceDetailSections();
+}

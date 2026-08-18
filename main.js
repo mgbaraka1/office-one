@@ -2,9 +2,10 @@ const { app, BrowserWindow, ipcMain, shell, dialog, safeStorage, clipboard } = r
 const fs = require('node:fs');
 const path = require('node:path');
 const db     = require('./db');
+const financeDb = require('./finance-seed');
 const auth   = require('./auth');
 const { validateIpcArgs } = require('./ipc-contracts');
-const { createTimesheetWorkbook } = require('./xlsx');
+const { createTimesheetWorkbook, createFinanceReportWorkbook } = require('./xlsx');
 
 const e2ePort = !app.isPackaged ? Number(process.env.COOPERATION_TOOLS_E2E_PORT) : 0;
 const isE2ERun = Number.isInteger(e2ePort) && e2ePort > 0 && e2ePort <= 65535;
@@ -482,6 +483,125 @@ ipcMain.handle('clients:internal-delete', authed((_e, id)              => db.del
 ipcMain.handle('clients:internal-rename-group', authed((_e, companyId, oldName, newName) => db.renameClientInternalSystemGroup(auth.requireUserId(), companyId, oldName, newName)));
 ipcMain.handle('clients:internal-assign-group', authed((_e, companyId, recordIds, groupName) => db.assignClientInternalGroup(auth.requireUserId(), companyId, recordIds, groupName)));
 ipcMain.handle('clients:field-history', authed((_e, recordType, recordId) => db.getClientFieldHistory(auth.requireUserId(), recordType, recordId)));
+
+// ── Finance (standalone financial record-keeping module — deliberately
+// isolated from the rest of the app; see AGENTS.md's Finance section. Every
+// handler delegates straight to finance-seed.js, Finance's own data layer) ──
+ipcMain.handle('finance:lookups-list', authed(()             => financeDb.listFinanceLookups(auth.requireUserId())));
+ipcMain.handle('finance:lookups-save', authed((_e, data)     => financeDb.saveFinanceLookups(auth.requireUserId(), data)));
+ipcMain.handle('finance:clients-list', authed(()             => financeDb.listFinanceClients(auth.requireUserId())));
+ipcMain.handle('finance:client-get',   authed((_e, id)       => financeDb.getFinanceClient(auth.requireUserId(), id)));
+ipcMain.handle('finance:client-create', authed((_e, data)    => financeDb.createFinanceClient(auth.requireUserId(), data)));
+ipcMain.handle('finance:client-update', authed((_e, id, data) => financeDb.updateFinanceClient(auth.requireUserId(), id, data)));
+ipcMain.handle('finance:client-delete', authed((_e, id)      => financeDb.deleteFinanceClient(auth.requireUserId(), id)));
+ipcMain.handle('finance:contracts-list', authed((_e, clientId) => financeDb.listFinanceContracts(auth.requireUserId(), clientId)));
+ipcMain.handle('finance:contract-get',   authed((_e, id)        => financeDb.getFinanceContract(auth.requireUserId(), id)));
+ipcMain.handle('finance:contract-create', authed((_e, clientId, data) => financeDb.createFinanceContract(auth.requireUserId(), clientId, data)));
+ipcMain.handle('finance:contract-update', authed((_e, id, data)       => financeDb.updateFinanceContract(auth.requireUserId(), id, data)));
+ipcMain.handle('finance:contract-delete', authed((_e, id)             => financeDb.deleteFinanceContract(auth.requireUserId(), id)));
+ipcMain.handle('finance:version-create', authed((_e, contractId, data) => financeDb.createFinanceContractVersion(auth.requireUserId(), contractId, data)));
+ipcMain.handle('finance:version-update', authed((_e, id, data)         => financeDb.updateFinanceContractVersion(auth.requireUserId(), id, data)));
+ipcMain.handle('finance:version-delete', authed((_e, id)                => financeDb.deleteFinanceContractVersion(auth.requireUserId(), id)));
+ipcMain.handle('finance:version-set-final', authed((_e, id)            => financeDb.setFinalFinanceContractVersion(auth.requireUserId(), id)));
+ipcMain.handle('finance:installment-create', authed((_e, contractId, data) => financeDb.createFinanceInstallment(auth.requireUserId(), contractId, data)));
+ipcMain.handle('finance:installment-update', authed((_e, id, data)         => financeDb.updateFinanceInstallment(auth.requireUserId(), id, data)));
+ipcMain.handle('finance:installment-delete', authed((_e, id)                => financeDb.deleteFinanceInstallment(auth.requireUserId(), id)));
+ipcMain.handle('finance:crs-list', authed((_e, clientId) => financeDb.listFinanceChangeRequests(auth.requireUserId(), clientId)));
+ipcMain.handle('finance:cr-get',   authed((_e, id)       => financeDb.getFinanceChangeRequest(auth.requireUserId(), id)));
+ipcMain.handle('finance:cr-create', authed((_e, clientId, data) => financeDb.createFinanceChangeRequest(auth.requireUserId(), clientId, data)));
+ipcMain.handle('finance:cr-update', authed((_e, id, data)       => financeDb.updateFinanceChangeRequest(auth.requireUserId(), id, data)));
+ipcMain.handle('finance:cr-delete', authed((_e, id)             => financeDb.deleteFinanceChangeRequest(auth.requireUserId(), id)));
+ipcMain.handle('finance:invoices-list', authed((_e, clientId) => financeDb.listFinanceInvoices(auth.requireUserId(), clientId)));
+ipcMain.handle('finance:invoice-get',   authed((_e, id)        => financeDb.getFinanceInvoice(auth.requireUserId(), id)));
+ipcMain.handle('finance:invoice-create', authed((_e, clientId, data) => financeDb.createFinanceInvoice(auth.requireUserId(), clientId, data)));
+ipcMain.handle('finance:invoice-update', authed((_e, id, data)       => financeDb.updateFinanceInvoice(auth.requireUserId(), id, data)));
+ipcMain.handle('finance:invoice-delete', authed((_e, id)             => financeDb.deleteFinanceInvoice(auth.requireUserId(), id)));
+ipcMain.handle('finance:invoice-link-create', authed((_e, invoiceId, data) => financeDb.createFinanceInvoiceLink(auth.requireUserId(), invoiceId, data)));
+ipcMain.handle('finance:invoice-link-delete', authed((_e, id)                => financeDb.deleteFinanceInvoiceLink(auth.requireUserId(), id)));
+ipcMain.handle('finance:payment-create', authed((_e, invoiceId, data) => financeDb.createFinancePayment(auth.requireUserId(), invoiceId, data)));
+ipcMain.handle('finance:payment-update', authed((_e, id, data)        => financeDb.updateFinancePayment(auth.requireUserId(), id, data)));
+ipcMain.handle('finance:payment-delete', authed((_e, id)               => financeDb.deleteFinancePayment(auth.requireUserId(), id)));
+ipcMain.handle('finance:summary', authed((_e, clientId) => financeDb.getFinanceClientSummary(auth.requireUserId(), clientId)));
+
+// ── Finance attachments (contract versions, CRs, invoices, meetings, clients) ──
+// Allowlist mirrors financeDb.FINANCE_DOC_EXTENSIONS; the native dialog also filters
+// by it so the user only sees permitted types (the db layer re-validates regardless).
+const FINANCE_UPLOAD_EXTENSIONS = financeDb.FINANCE_DOC_EXTENSIONS;
+ipcMain.handle('finance:attachments-list', authed((_e, entityType, entityId) => financeDb.listFinanceAttachments(auth.requireUserId(), entityType, entityId)));
+ipcMain.handle('finance:attachment-upload', authed(async (_e, entityType, entityId) => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    title: 'Choose a file to attach',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Documents & images', extensions: FINANCE_UPLOAD_EXTENSIONS },
+      { name: 'PDF',    extensions: ['pdf'] },
+      { name: 'Word',   extensions: ['doc', 'docx'] },
+      { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },
+    ],
+  });
+  if (canceled || !filePaths?.[0]) return { ok: false, canceled: true };
+  return financeDb.createFinanceAttachment(auth.requireUserId(), entityType, entityId, filePaths[0]);
+}));
+ipcMain.handle('finance:attachment-download', authed(async (_e, id) => {
+  const r = financeDb.resolveFinanceAttachment(auth.requireUserId(), id);
+  if (!r.ok) return r;
+  if (!r.exists) return { ok: false, error: 'The file is missing from disk' };
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    title: 'Save file as', defaultPath: r.originalName,
+  });
+  if (canceled || !filePath) return { ok: false, canceled: true };
+  try { fs.copyFileSync(r.absPath, filePath); return { ok: true, path: filePath }; }
+  catch (err) { return { ok: false, error: String(err?.message || err) }; }
+}));
+ipcMain.handle('finance:attachment-open', authed(async (_e, id) => {
+  const r = financeDb.resolveFinanceAttachment(auth.requireUserId(), id);
+  if (!r.ok) return r;
+  if (!r.exists) return { ok: false, error: 'The file is missing from disk' };
+  const errMsg = await shell.openPath(r.absPath);   // '' on success
+  return errMsg ? { ok: false, error: errMsg } : { ok: true };
+}));
+ipcMain.handle('finance:attachment-delete',  authed((_e, id)             => financeDb.deleteFinanceAttachment(auth.requireUserId(), id)));
+ipcMain.handle('finance:attachment-restore', authed((_e, snapshot)       => financeDb.restoreFinanceAttachment(auth.requireUserId(), snapshot)));
+ipcMain.handle('finance:attachment-purge',   authed((_e, entityType, entityId, relPath) => { financeDb.purgeFinanceAttachmentFile(auth.requireUserId(), entityType, entityId, relPath); return { ok: true }; }));
+
+// ── Finance Minutes of Meeting ──
+ipcMain.handle('finance:meetings-list', authed((_e, clientId) => financeDb.listFinanceMeetings(auth.requireUserId(), clientId)));
+ipcMain.handle('finance:meeting-get',   authed((_e, id)        => financeDb.getFinanceMeeting(auth.requireUserId(), id)));
+ipcMain.handle('finance:meeting-create', authed((_e, clientId, data) => financeDb.createFinanceMeeting(auth.requireUserId(), clientId, data)));
+ipcMain.handle('finance:meeting-update', authed((_e, id, data)       => financeDb.updateFinanceMeeting(auth.requireUserId(), id, data)));
+ipcMain.handle('finance:meeting-delete', authed((_e, id)              => financeDb.deleteFinanceMeeting(auth.requireUserId(), id)));
+ipcMain.handle('finance:action-create', authed((_e, meetingId, data) => financeDb.createFinanceMeetingAction(auth.requireUserId(), meetingId, data)));
+ipcMain.handle('finance:action-update', authed((_e, id, data)        => financeDb.updateFinanceMeetingAction(auth.requireUserId(), id, data)));
+ipcMain.handle('finance:action-toggle', authed((_e, id)               => financeDb.toggleFinanceMeetingActionStatus(auth.requireUserId(), id)));
+ipcMain.handle('finance:action-delete', authed((_e, id)               => financeDb.deleteFinanceMeetingAction(auth.requireUserId(), id)));
+
+// ── Finance Reports (Excel export) ──
+// Mirrors report:exportExcel's shape exactly (size guard, save dialog,
+// write) but calls createFinanceReportWorkbook — the report DATA is shaped in
+// renderer/features/finance-it.js from state it already has loaded, the same
+// division of responsibility the Timesheet export already uses.
+ipcMain.handle('finance:report-export-excel', authed(async (_e, reportData, defaultName) => {
+  try {
+    const serializedBytes = Buffer.byteLength(JSON.stringify(reportData || {}), 'utf8');
+    if (!reportData || serializedBytes > 10 * 1024 * 1024) {
+      return { ok: false, error: 'Excel report content is empty or too large' };
+    }
+    const safeDefaultName = path.basename(String(defaultName || 'finance-it-report.xlsx')).slice(0, 180) || 'finance-it-report.xlsx';
+    const e2eXlsxPath = isE2ERun ? process.env.COOPERATION_TOOLS_E2E_XLSX_PATH : null;
+    const { canceled, filePath } = e2eXlsxPath
+      ? { canceled: false, filePath: e2eXlsxPath }
+      : await dialog.showSaveDialog(win, {
+          title: 'Save Finance report as Excel',
+          defaultPath: safeDefaultName,
+          filters: [{ name: 'Excel workbook', extensions: ['xlsx'] }],
+        });
+    if (canceled || !filePath) return { ok: false };
+    fs.writeFileSync(filePath, createFinanceReportWorkbook(reportData));
+    return { ok: true, path: filePath };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err) };
+  }
+}));
 
 // ── UI state (Milestone 11 — this-machine-only, like window prefs, but the
 // renderer needs read/write access since only it knows which module/filter

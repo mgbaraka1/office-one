@@ -2862,5 +2862,8 @@ function switchModule(name) {
   } else if (name === 'clients') {
     window.api.setTitle('Office ONE — Clients');
     initClientsModule();
+  } else if (name === 'finance-it') {
+    window.api.setTitle('Office ONE — Finance');
+    initFinanceItModule();
   }
 }

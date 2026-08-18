@@ -168,4 +168,93 @@ function createTimesheetWorkbook(input) {
   ]);
 }
 
-module.exports = { createTimesheetWorkbook };
+// ── Finance client report ─────────────────────────────────────────────────
+// A second, independent report shape sharing this file's OpenXML primitives
+// (zip/xml/textCell/numberCell/safeSheetName/etc.) — the "reusable xlsx.js
+// writer" Finance's isolation rules call out by name. Row shaping (which
+// contracts/CRs/invoices, in what order) happens in renderer/features/
+// finance-it.js, exactly like createTimesheetWorkbook's reportData is shaped in
+// renderer/features/reports.js; this function only lays cells out. One
+// worksheet with stacked sections, not one sheet per section — same "keep
+// the surface small" philosophy as the timesheet writer above.
+function financeSectionHeaderRow(r, label, span) {
+  const cells = [textCell(`A${r}`, label, 2)];
+  for (let i = 1; i < span; i++) cells.push(textCell(`${String.fromCharCode(65 + i)}${r}`, '', 2));
+  return `<row r="${r}" ht="22" customHeight="1">${cells.join('')}</row>`;
+}
+function financeTableHeaderRow(r, headers) {
+  return `<row r="${r}">${headers.map((h, i) => textCell(`${String.fromCharCode(65 + i)}${r}`, h, 4)).join('')}</row>`;
+}
+function financeMoney(minor) { return Math.round((Number(minor) || 0)) / 100; }
+
+function createFinanceReportWorkbook(input) {
+  if (!input || typeof input !== 'object') throw new Error('Invalid Excel report data');
+  const s = input.summary || {};
+  const contracts = Array.isArray(input.contracts) ? input.contracts.slice(0, 5000) : [];
+  const changeRequests = Array.isArray(input.changeRequests) ? input.changeRequests.slice(0, 5000) : [];
+  const invoices = Array.isArray(input.invoices) ? input.invoices.slice(0, 5000) : [];
+
+  const sheetRows = [];
+  let r = 1;
+  sheetRows.push(`<row r="${r}" ht="28" customHeight="1">${textCell(`A${r}`, input.title || 'Finance — Client Report', 1)}</row>`); r++;
+  sheetRows.push(`<row r="${r}">${textCell(`A${r}`, 'Client', 11)}${textCell(`B${r}`, input.clientName || '', 0)}${textCell(`D${r}`, 'Generated', 11)}${textCell(`E${r}`, input.generatedAt || '', 0)}</row>`); r++;
+  r++; // blank
+
+  sheetRows.push(financeTableHeaderRow(r, ['Contracts', 'Active', 'Final Value', 'Invoiced', 'Paid', 'Outstanding', 'Change Requests'])); r++;
+  sheetRows.push(`<row r="${r}">${numberCell(`A${r}`, s.contractCount || 0, 6)}${numberCell(`B${r}`, s.activeContractCount || 0, 6)}${numberCell(`C${r}`, financeMoney(s.finalContractValueMinor), 7)}${numberCell(`D${r}`, financeMoney(s.invoicedMinor), 7)}${numberCell(`E${r}`, financeMoney(s.paidMinor), 7)}${numberCell(`F${r}`, financeMoney(s.outstandingMinor), 7)}${numberCell(`G${r}`, s.changeRequestCount || 0, 6)}</row>`); r++;
+  r++; // blank
+
+  sheetRows.push(financeSectionHeaderRow(r, `Contracts (${contracts.length})`, 7)); r++;
+  sheetRows.push(financeTableHeaderRow(r, ['Ref', 'Title', 'Status', 'Currency', 'Final Value', 'Start', 'End'])); r++;
+  if (!contracts.length) { sheetRows.push(`<row r="${r}">${textCell(`A${r}`, 'No contracts.')}</row>`); r++; }
+  for (const k of contracts) {
+    sheetRows.push(`<row r="${r}">${textCell(`A${r}`, k.ref)}${textCell(`B${r}`, k.title)}${textCell(`C${r}`, k.status)}${textCell(`D${r}`, k.currencyCode)}${numberCell(`E${r}`, financeMoney(k.finalValueMinor), 7)}${textCell(`F${r}`, k.startDate)}${textCell(`G${r}`, k.endDate)}</row>`);
+    r++;
+  }
+  r++; // blank
+
+  sheetRows.push(financeSectionHeaderRow(r, `Change Requests (${changeRequests.length})`, 6)); r++;
+  sheetRows.push(financeTableHeaderRow(r, ['Ref', 'Title', 'Status', 'Amount', 'Currency', 'Contract'])); r++;
+  if (!changeRequests.length) { sheetRows.push(`<row r="${r}">${textCell(`A${r}`, 'No change requests.')}</row>`); r++; }
+  for (const cr of changeRequests) {
+    sheetRows.push(`<row r="${r}">${textCell(`A${r}`, cr.ref)}${textCell(`B${r}`, cr.title)}${textCell(`C${r}`, cr.status)}${numberCell(`D${r}`, financeMoney(cr.amountMinor), 7)}${textCell(`E${r}`, cr.currencyCode)}${textCell(`F${r}`, cr.contractLabel)}</row>`);
+    r++;
+  }
+  r++; // blank
+
+  sheetRows.push(financeSectionHeaderRow(r, `Invoices (${invoices.length})`, 8)); r++;
+  sheetRows.push(financeTableHeaderRow(r, ['Number', 'Status', 'Currency', 'Total', 'Paid', 'Outstanding', 'Issue Date', 'Due Date'])); r++;
+  if (!invoices.length) { sheetRows.push(`<row r="${r}">${textCell(`A${r}`, 'No invoices.')}</row>`); r++; }
+  for (const inv of invoices) {
+    sheetRows.push(`<row r="${r}">${textCell(`A${r}`, inv.number)}${textCell(`B${r}`, inv.status)}${textCell(`C${r}`, inv.currencyCode)}${numberCell(`D${r}`, financeMoney(inv.totalMinor), 7)}${numberCell(`E${r}`, financeMoney(inv.paidMinor), 7)}${numberCell(`F${r}`, financeMoney(inv.outstandingMinor), 7)}${textCell(`G${r}`, inv.issueDate)}${textCell(`H${r}`, inv.dueDate)}</row>`);
+    r++;
+  }
+  const lastRow = Math.max(r - 1, 1);
+
+  const worksheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <dimension ref="A1:H${lastRow}"/><sheetViews><sheetView workbookViewId="0"${input.rtl ? ' rightToLeft="1"' : ''}/></sheetViews>
+  <sheetFormatPr defaultRowHeight="18"/><cols><col min="1" max="1" width="16" customWidth="1"/><col min="2" max="2" width="30" customWidth="1"/><col min="3" max="3" width="14" customWidth="1"/><col min="4" max="8" width="16" customWidth="1"/></cols>
+  <sheetData>${sheetRows.join('')}</sheetData>
+  <mergeCells count="1"><mergeCell ref="A1:H1"/></mergeCells>
+  <pageMargins left="0.3" right="0.3" top="0.5" bottom="0.5" header="0.2" footer="0.2"/><pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/></worksheet>`;
+
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="0"/><fonts count="4"><font><sz val="10"/><name val="Segoe UI"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="16"/><name val="Segoe UI"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="10"/><name val="Segoe UI"/></font><font><b/><sz val="10"/><name val="Segoe UI"/></font></fonts><fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFC9644A"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF3E4DC"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFD9D9D9"/></left><right style="thin"><color rgb="FFD9D9D9"/></right><top style="thin"><color rgb="FFD9D9D9"/></top><bottom style="thin"><color rgb="FFD9D9D9"/></bottom><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="12"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="0" fontId="2" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="3" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="2" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+
+  const workbook = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${xml(safeSheetName(input.sheetName || 'Finance Report'))}" sheetId="1" r:id="rId1"/></sheets><calcPr calcId="191029" fullCalcOnLoad="1" forceFullCalc="1"/></workbook>`;
+  const workbookRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+  const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>`;
+  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>`;
+  const now = new Date().toISOString();
+  const core = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:creator>Office ONE</dc:creator><cp:lastModifiedBy>Office ONE</cp:lastModifiedBy><dcterms:created xsi:type="dcterms:W3CDTF">${now}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">${now}</dcterms:modified></cp:coreProperties>`;
+  const app = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>Office ONE</Application><AppVersion>${xml(APP_VERSION)}</AppVersion></Properties>`;
+
+  return zip([
+    ['[Content_Types].xml', contentTypes], ['_rels/.rels', rels], ['docProps/app.xml', app],
+    ['docProps/core.xml', core], ['xl/workbook.xml', workbook], ['xl/_rels/workbook.xml.rels', workbookRels],
+    ['xl/styles.xml', styles], ['xl/worksheets/sheet1.xml', worksheet],
+  ]);
+}
+
+module.exports = { createTimesheetWorkbook, createFinanceReportWorkbook };
