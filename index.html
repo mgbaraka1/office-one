@@ -8,6 +8,7 @@
   <script src="renderer/i18n.js"></script>
   <link rel="stylesheet" href="renderer/vendor/quill/quill.snow.css">
   <link rel="stylesheet" href="renderer/app.css">
+  <link rel="stylesheet" href="renderer/finance-it.css">
 </head>
 <body>
 
@@ -65,6 +66,9 @@
     <div class="nav-section">Internal</div>
     <button class="nav-item" data-module="internal-tasks" data-onclick="switchModule('internal-tasks')" title="Internal Work">
       <span class="nav-icon" data-ic="building"></span><span class="nav-label">Internal Work</span>
+    </button>
+    <button class="nav-item" data-module="finance-it" data-onclick="switchModule('finance-it')" title="Finance">
+      <span class="nav-icon" data-ic="briefcase"></span><span class="nav-label">Finance</span>
     </button>
     <div class="nav-section">Clients &amp; Assets</div>
     <button class="nav-item" data-module="clients" data-onclick="switchModule('clients')" title="Clients">
@@ -1264,6 +1268,579 @@
   </div>
 </div>
 
+<!-- ══ Finance MODULE — standalone financial record-keeping for Finance
+     (clients, contracts with versions, change requests, invoices, minutes of
+     meeting, reports). Deliberately isolated from the rest of the app — its
+     own client roster, its own finance_lookups catalog, its own stylesheet
+     (renderer/finance-it.css, .gi- prefixed). See AGENTS.md's Finance section. ══ -->
+<div id="module-finance-it" class="app-module">
+  <div id="finance-list-view">
+    <div id="finance-topbar" class="page-header">
+      <span class="page-title"><span class="ti-ic" data-ic="briefcase"></span>Finance</span>
+      <div class="topbar-right">
+        <input type="text" id="finance-clients-filter" class="mod-search" placeholder="Search clients…" data-oninput="applyFinanceClientFilter()">
+        <button class="btn primary" data-onclick="openFinanceClientModal()"><span data-ic="plus"></span>New Client</button>
+      </div>
+    </div>
+    <div class="pj-scroll">
+      <div class="gi-grid" id="finance-clients-grid"></div>
+      <div id="finance-clients-empty-state" class="empty-state" hidden>
+        <div class="empty-state-inner">
+          <span data-ic="briefcase"></span>
+          <p>No Finance clients yet — click <strong>+ New Client</strong> to add one</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="finance-detail-view" class="pj-scroll" style="display:none"></div>
+</div>
+
+<!-- ══ Finance CLIENT ADD/EDIT MODAL ══ -->
+<div id="finance-client-modal-overlay" class="modal-overlay" data-onclick="financeClientOverlayClick(event)">
+  <div id="finance-client-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="finance-client-modal-title">New Client</span>
+      <button class="modal-close" data-onclick="closeFinanceClientModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>English Name</label>
+          <input id="gi-client-name" type="text" placeholder="e.g. Acme Corporation" />
+        </div>
+        <div class="form-group">
+          <label>Arabic Name <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional</span></label>
+          <input id="gi-client-name-ar" type="text" dir="rtl" placeholder="اسم العميل بالعربية" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Code <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional</span></label>
+          <input id="gi-client-code" type="text" placeholder="e.g. ACME" />
+        </div>
+        <div class="form-group">
+          <label>Contact Name</label>
+          <input id="gi-client-contact-name" type="text" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Contact Email</label>
+          <input id="gi-client-contact-email" type="email" />
+        </div>
+        <div class="form-group">
+          <label>Contact Phone</label>
+          <input id="gi-client-contact-phone" type="text" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Address</label>
+          <input id="gi-client-address" type="text" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Tax Number</label>
+          <input id="gi-client-tax-number" type="text" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Notes</label>
+          <textarea id="gi-client-notes"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-onclick="closeFinanceClientModal()">Cancel</button>
+      <button class="btn primary" id="finance-client-modal-submit" data-onclick="submitFinanceClientModal()">Add Client</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Finance CONTRACT ADD/EDIT MODAL ══ -->
+<div id="finance-contract-modal-overlay" class="modal-overlay" data-onclick="financeContractOverlayClick(event)">
+  <div id="finance-contract-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="finance-contract-modal-title">New Contract</span>
+      <button class="modal-close" data-onclick="closeFinanceContractModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Title</label>
+          <input id="gi-contract-title" type="text" placeholder="e.g. Support Agreement 2026" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Reference</label>
+          <input id="gi-contract-ref" type="text" />
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="gi-contract-status"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Currency</label>
+          <select id="gi-contract-currency"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Start Date</label>
+          <input id="gi-contract-start" type="date" />
+        </div>
+        <div class="form-group">
+          <label>End Date</label>
+          <input id="gi-contract-end" type="date" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Description</label>
+          <textarea id="gi-contract-description"></textarea>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Notes</label>
+          <textarea id="gi-contract-notes"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-onclick="closeFinanceContractModal()">Cancel</button>
+      <button class="btn primary" id="finance-contract-modal-submit" data-onclick="submitFinanceContractModal()">Add Contract</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Finance CONTRACT VERSION ADD/EDIT MODAL ══ -->
+<div id="finance-version-modal-overlay" class="modal-overlay" data-onclick="financeVersionOverlayClick(event)">
+  <div id="finance-version-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="finance-version-modal-title">New Version</span>
+      <button class="modal-close" data-onclick="closeFinanceVersionModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Version Label</label>
+          <input id="gi-version-label" type="text" placeholder="e.g. v1.0" />
+        </div>
+        <div class="form-group">
+          <label>Value</label>
+          <input id="gi-version-value" type="number" step="0.01" min="0" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Signed Date</label>
+          <input id="gi-version-signed" type="date" />
+        </div>
+        <div class="form-group">
+          <label>Effective Date</label>
+          <input id="gi-version-effective" type="date" />
+        </div>
+      </div>
+      <div class="form-row" id="gi-version-final-row">
+        <div class="form-group full">
+          <label class="gi-check"><input id="gi-version-final" type="checkbox" /> Mark as the final version</label>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Notes</label>
+          <textarea id="gi-version-notes"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-onclick="closeFinanceVersionModal()">Cancel</button>
+      <button class="btn primary" id="finance-version-modal-submit" data-onclick="submitFinanceVersionModal()">Add Version</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Finance INSTALLMENT ADD/EDIT MODAL ══ -->
+<div id="finance-installment-modal-overlay" class="modal-overlay" data-onclick="financeInstallmentOverlayClick(event)">
+  <div id="finance-installment-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="finance-installment-modal-title">New Installment</span>
+      <button class="modal-close" data-onclick="closeFinanceInstallmentModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Sequence #</label>
+          <input id="gi-installment-seq" type="number" min="1" step="1" placeholder="auto" />
+        </div>
+        <div class="form-group">
+          <label>Amount</label>
+          <input id="gi-installment-amount" type="number" step="0.01" min="0" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Title</label>
+          <input id="gi-installment-title" type="text" placeholder="e.g. Kickoff" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Milestone</label>
+          <input id="gi-installment-milestone" type="text" />
+        </div>
+        <div class="form-group">
+          <label>Due Date</label>
+          <input id="gi-installment-due" type="date" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Notes</label>
+          <textarea id="gi-installment-notes"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-onclick="closeFinanceInstallmentModal()">Cancel</button>
+      <button class="btn primary" id="finance-installment-modal-submit" data-onclick="submitFinanceInstallmentModal()">Add Installment</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Finance CHANGE REQUEST ADD/EDIT MODAL ══ -->
+<div id="finance-cr-modal-overlay" class="modal-overlay" data-onclick="financeCrOverlayClick(event)">
+  <div id="finance-cr-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="finance-cr-modal-title">New Change Request</span>
+      <button class="modal-close" data-onclick="closeFinanceCrModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Title</label>
+          <input id="gi-cr-title" type="text" placeholder="e.g. Add reporting module" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Reference</label>
+          <input id="gi-cr-ref" type="text" />
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="gi-cr-status"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Contract <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional</span></label>
+          <select id="gi-cr-contract"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Amount</label>
+          <input id="gi-cr-amount" type="number" step="0.01" min="0" />
+        </div>
+        <div class="form-group">
+          <label>Currency</label>
+          <select id="gi-cr-currency"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Requested Date</label>
+          <input id="gi-cr-requested" type="date" />
+        </div>
+        <div class="form-group">
+          <label>Approved Date</label>
+          <input id="gi-cr-approved" type="date" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Description</label>
+          <textarea id="gi-cr-description"></textarea>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Notes</label>
+          <textarea id="gi-cr-notes"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-onclick="closeFinanceCrModal()">Cancel</button>
+      <button class="btn primary" id="finance-cr-modal-submit" data-onclick="submitFinanceCrModal()">Add Change Request</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Finance INVOICE ADD/EDIT MODAL ══ -->
+<div id="finance-invoice-modal-overlay" class="modal-overlay" data-onclick="financeInvoiceOverlayClick(event)">
+  <div id="finance-invoice-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="finance-invoice-modal-title">New Invoice</span>
+      <button class="modal-close" data-onclick="closeFinanceInvoiceModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Invoice Number</label>
+          <input id="gi-invoice-number" type="text" placeholder="e.g. INV-0001" />
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="gi-invoice-status"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Amount</label>
+          <input id="gi-invoice-amount" type="number" step="0.01" min="0" />
+        </div>
+        <div class="form-group">
+          <label>Tax</label>
+          <input id="gi-invoice-tax" type="number" step="0.01" min="0" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Currency</label>
+          <select id="gi-invoice-currency"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Issue Date</label>
+          <input id="gi-invoice-issue" type="date" />
+        </div>
+        <div class="form-group">
+          <label>Due Date</label>
+          <input id="gi-invoice-due" type="date" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Notes</label>
+          <textarea id="gi-invoice-notes"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-onclick="closeFinanceInvoiceModal()">Cancel</button>
+      <button class="btn primary" id="finance-invoice-modal-submit" data-onclick="submitFinanceInvoiceModal()">Add Invoice</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Finance INVOICE ALLOCATION (LINK) MODAL ══ -->
+<div id="finance-link-modal-overlay" class="modal-overlay" data-onclick="financeLinkOverlayClick(event)">
+  <div id="finance-link-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title">Add Allocation</span>
+      <button class="modal-close" data-onclick="closeFinanceLinkModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label class="gi-check"><input type="radio" name="gi-link-type" id="gi-link-type-installment" checked data-onchange="renderFinanceLinkTargetOptions()" /> Installment</label>
+          <label class="gi-check"><input type="radio" name="gi-link-type" id="gi-link-type-cr" data-onchange="renderFinanceLinkTargetOptions()" /> Change Request</label>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Target</label>
+          <select id="gi-link-target"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Allocated Amount</label>
+          <input id="gi-link-amount" type="number" step="0.01" min="0" />
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-onclick="closeFinanceLinkModal()">Cancel</button>
+      <button class="btn primary" data-onclick="submitFinanceLinkModal()">Add Allocation</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Finance LINK-TO-INVOICE MODAL (mirror of Add Allocation, target-first) ══ -->
+<div id="finance-reverse-link-modal-overlay" class="modal-overlay" data-onclick="financeReverseLinkOverlayClick(event)">
+  <div id="finance-reverse-link-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title">Link to Invoice</span>
+      <button class="modal-close" data-onclick="closeFinanceReverseLinkModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Target</label>
+          <div id="gi-reverse-link-target-label" class="gi-empty-sm"></div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Invoice</label>
+          <select id="gi-reverse-link-invoice"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Allocated Amount</label>
+          <input id="gi-reverse-link-amount" type="number" step="0.01" min="0" />
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-onclick="closeFinanceReverseLinkModal()">Cancel</button>
+      <button class="btn primary" data-onclick="submitFinanceReverseLinkModal()">Link to Invoice</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Finance PAYMENT ADD/EDIT MODAL ══ -->
+<div id="finance-payment-modal-overlay" class="modal-overlay" data-onclick="financePaymentOverlayClick(event)">
+  <div id="finance-payment-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="finance-payment-modal-title">New Payment</span>
+      <button class="modal-close" data-onclick="closeFinancePaymentModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Amount</label>
+          <input id="gi-payment-amount" type="number" step="0.01" min="0" />
+        </div>
+        <div class="form-group">
+          <label>Paid Date</label>
+          <input id="gi-payment-date" type="date" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Method</label>
+          <select id="gi-payment-method"></select>
+        </div>
+        <div class="form-group">
+          <label>Reference</label>
+          <input id="gi-payment-reference" type="text" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Notes</label>
+          <textarea id="gi-payment-notes"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-onclick="closeFinancePaymentModal()">Cancel</button>
+      <button class="btn primary" id="finance-payment-modal-submit" data-onclick="submitFinancePaymentModal()">Add Payment</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Finance MEETING ADD/EDIT MODAL ══ -->
+<div id="finance-meeting-modal-overlay" class="modal-overlay" data-onclick="financeMeetingOverlayClick(event)">
+  <div id="finance-meeting-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="finance-meeting-modal-title">New Meeting</span>
+      <button class="modal-close" data-onclick="closeFinanceMeetingModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Title</label>
+          <input id="gi-meeting-title" type="text" placeholder="e.g. Kickoff meeting" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Date</label>
+          <input id="gi-meeting-date" type="date" />
+        </div>
+        <div class="form-group">
+          <label>Location</label>
+          <input id="gi-meeting-location" type="text" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Contract <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional</span></label>
+          <select id="gi-meeting-contract"></select>
+        </div>
+        <div class="form-group">
+          <label>Change Request <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional</span></label>
+          <select id="gi-meeting-cr"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Attendees</label>
+          <input id="gi-meeting-attendees" type="text" placeholder="Comma-separated names" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Agenda</label>
+          <textarea id="gi-meeting-agenda"></textarea>
+        </div>
+      </div>
+      <div class="form-group full"><label>Minutes</label>
+        <div class="gi-editor-pane"><div id="gi-meeting-content-editor"></div></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-onclick="closeFinanceMeetingModal()">Cancel</button>
+      <button class="btn primary" id="finance-meeting-modal-submit" data-onclick="submitFinanceMeetingModal()">Add Meeting</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Finance MEETING ACTION ITEM ADD/EDIT MODAL ══ -->
+<div id="finance-meeting-action-modal-overlay" class="modal-overlay" data-onclick="financeMeetingActionOverlayClick(event)">
+  <div id="finance-meeting-action-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="finance-meeting-action-modal-title">New Action Item</span>
+      <button class="modal-close" data-onclick="closeFinanceMeetingActionModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Description</label>
+          <textarea id="gi-action-description"></textarea>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Owner</label>
+          <input id="gi-action-owner" type="text" />
+        </div>
+        <div class="form-group">
+          <label>Due Date</label>
+          <input id="gi-action-due" type="date" />
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-onclick="closeFinanceMeetingActionModal()">Cancel</button>
+      <button class="btn primary" id="finance-meeting-action-modal-submit" data-onclick="submitFinanceMeetingActionModal()">Add Action Item</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ PROJECT ADD/EDIT MODAL ══ -->
 <div id="project-modal-overlay" class="modal-overlay" data-onclick="projectOverlayClick(event)">
   <div id="project-modal" class="modal-box">
@@ -2103,6 +2680,7 @@
 <script src="renderer/features/knowledge.js"></script>
 <script src="renderer/features/company-documents.js"></script>
 <script src="renderer/features/clients.js"></script>
+<script src="renderer/features/finance-it.js"></script>
 <script src="renderer/features/shell.js"></script>
 <div id="app-toast" class="app-toast" role="status" aria-live="polite"></div>
 </body>

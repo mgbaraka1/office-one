@@ -1,6 +1,6 @@
 {
   "name": "timesheet",
-  "version": "8.6.0",
+  "version": "9.0.0",
   "description": "Office ONE — an offline, multi-user Electron desktop app for timesheets, projects, client infrastructure, company documents, and a searchable Knowledge Hub, with analytics and PDF reports. Each account's data is isolated in an embedded SQLite database.",
   "main": "main.js",
   "scripts": {
@@ -39,6 +39,7 @@
     "files": [
       "main.js",
       "db.js",
+      "finance-seed.js",
       "auth.js",
       "xlsx.js",
       "ipc-contracts.js",
