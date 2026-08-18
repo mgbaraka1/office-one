@@ -166,6 +166,14 @@ function uniqueCode(category, base) {
 // They are deliberately separate so each can fail/log independently and so the
 // boot order is obvious at the call site rather than buried inside one function.
 
+// Exposes the live connection to finance-seed.js (the Finance module's own,
+// deliberately isolated data layer — see AGENTS.md) so it shares this same
+// file, transaction, backup, and integrity check instead of opening a second
+// connection. A function, not a snapshot: `db` is reassigned by
+// openConnection()/close(), and callers must always re-resolve through here
+// rather than caching the returned value.
+function getConnection() { return db; }
+
 // Step 1 — open (or create) the database file and apply connection-level PRAGMAs.
 function openConnection(dir) {
   userDataDir = dir;
@@ -237,7 +245,8 @@ function runMaintenance() {
   const projectIds = sweepOrphanProjectFiles();        // drop file folders for projects that no longer exist
   const companyDocumentIds = sweepOrphanCompanyDocumentFiles(); // same, for company_documents/{id}/ folders
   const knowledgeItemIds = sweepOrphanKnowledgeFiles();
-  _lastOrphanSweepReport = { projectIds, companyDocumentIds, knowledgeItemIds, backup, ranAt: new Date().toISOString() };
+  const financeFiles = sweepOrphanFinanceFiles();
+  _lastOrphanSweepReport = { projectIds, companyDocumentIds, knowledgeItemIds, financeFiles, backup, ranAt: new Date().toISOString() };
   return _lastOrphanSweepReport;
 }
 // A lookup with no access rows is global. Once any access row exists it is
@@ -265,7 +274,7 @@ function lkIdForUser(userId, category, value) {
 // process launch) — a sweep's result is only meaningful for "what happened
 // this boot", and by the time it's viewed the orphans are already gone, so
 // there's nothing left to persist or re-scan.
-let _lastOrphanSweepReport = { projectIds: [], companyDocumentIds: [], knowledgeItemIds: [], backup: null, ranAt: null };
+let _lastOrphanSweepReport = { projectIds: [], companyDocumentIds: [], knowledgeItemIds: [], financeFiles: [], backup: null, ranAt: null };
 function getOrphanSweepReport() { return _lastOrphanSweepReport; }
 
 function sweepOrphanProjectFiles() {
@@ -336,6 +345,42 @@ function sweepOrphanKnowledgeFiles() {
         removed.push(name);
       }
     }
+  } catch { /* non-critical */ }
+  return removed;
+}
+
+// Unlike the three sweeps above (one flat {id}/ level, compared against a
+// single table's live ids), finance_attachments is a two-level polymorphic tree
+// — finance_it/{entity_type}/{entity_id}/{file} — with no single owning table to
+// diff against. Instead this walks every file under finance_it/ and removes any
+// whose relative path (exactly what finance_attachments.file_path stores) isn't
+// referenced by a live row, then prunes the now-empty directories left behind.
+// finance-seed.js's own delete paths already purge attachments immediately on a
+// contract-version/CR/invoice/meeting/client delete; this is the safety net
+// for whatever that best-effort cleanup missed (e.g. the app closing mid-purge).
+function sweepOrphanFinanceFiles() {
+  const removed = [];
+  try {
+    const root = path.join(userDataDir, 'finance_it');
+    if (!fs.existsSync(root)) return removed;
+    const live = new Set(db.prepare('SELECT file_path FROM finance_attachments').all().map(r => r.file_path));
+    const walk = (dir) => {
+      for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+        const abs = path.join(dir, ent.name);
+        if (ent.isDirectory()) { walk(abs); continue; }
+        const rel = path.relative(userDataDir, abs);
+        if (!live.has(rel)) { fs.rmSync(abs, { force: true }); removed.push(rel); }
+      }
+    };
+    walk(root);
+    const pruneEmpty = (dir) => {
+      if (!fs.existsSync(dir)) return;
+      for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (ent.isDirectory()) pruneEmpty(path.join(dir, ent.name));
+      }
+      if (dir !== root && fs.readdirSync(dir).length === 0) fs.rmdirSync(dir);
+    };
+    pruneEmpty(root);
   } catch { /* non-critical */ }
   return removed;
 }
@@ -3424,6 +3469,7 @@ function fullBackup(desktopDir) {
     ['projects', projectsRootDir()],
     ['company_documents', companyDocumentsRootDir()],
     ['knowledge_hub', knowledgeRootDir()],
+    ['finance_it', path.join(userDataDir, 'finance_it')],
     ['backups', path.join(userDataDir, 'backups')],
   ]) {
     const destDir = path.join(destRoot, key);
@@ -3460,7 +3506,7 @@ function fullBackup(desktopDir) {
   return { ok: true, path: destRoot, manifest };
 }
 
-const FULL_BACKUP_DIRS = ['projects', 'company_documents', 'knowledge_hub', 'backups'];
+const FULL_BACKUP_DIRS = ['projects', 'company_documents', 'knowledge_hub', 'finance_it', 'backups'];
 
 function inspectFullBackup(bundleDir) {
   const root = path.resolve(String(bundleDir || ''));
@@ -3531,6 +3577,7 @@ function inspectFullBackup(bundleDir) {
       ['project_documents', 'file_path'],
       ['company_documents', 'file_path'],
       ['knowledge_attachments', 'file_path'],
+      ['finance_attachments', 'file_path'],
     ];
     for (const [table, column] of refs) {
       const exists = candidate.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table);
@@ -4334,7 +4381,7 @@ function assignClientInternalGroup(userId, companyId, recordIds, groupName) {
 
 module.exports = {
   LOOKUP_CATEGORIES, LOOKUP_MERGE_TARGETS,
-  openConnection, applyMigrations, runMaintenance,
+  openConnection, applyMigrations, runMaintenance, getConnection,
   close, backup, dbPath,
   projectsRootDir, knowledgeRootDir,
   countUsers, getUserByUsername, getUserById, listUsers, countActiveAdmins,

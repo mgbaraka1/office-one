@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { createTimesheetWorkbook } = require('../xlsx');
+const { createTimesheetWorkbook, createFinanceReportWorkbook } = require('../xlsx');
 
 function readStoredZip(buffer) {
   const entries = new Map();
@@ -58,3 +58,37 @@ assert.throws(() => createTimesheetWorkbook(null), /Invalid Excel report data/);
 
 console.log('PASS  Excel export produces a genuine structured OpenXML workbook');
 console.log('PASS  dates/numbers are typed, summaries are formula-driven, and Arabic/RTL content is preserved');
+
+// ── Finance report writer — shares this file's OpenXML primitives, second
+// exported function, own layout (one sheet, stacked sections). ────────────
+const financeWorkbook = createFinanceReportWorkbook({
+  title: 'Finance — Acme Report', sheetName: 'Acme / invalid: name',
+  clientName: 'Acme Corp — شركة أكمي', generatedAt: '2026-08-17 12:00:00', rtl: true,
+  summary: { contractCount: 2, activeContractCount: 1, finalContractValueMinor: 1_000_000, invoicedMinor: 500_000, paidMinor: 300_000, outstandingMinor: 200_000, changeRequestCount: 1 },
+  contracts: [{ ref: 'FINANCE-C-001', title: 'Support Agreement', status: 'Active', currencyCode: 'SAR', finalValueMinor: 1_000_000, startDate: '2026-01-01', endDate: '2026-12-31' }],
+  changeRequests: [{ ref: 'CR-001', title: 'إضافة وحدة', status: 'Approved', amountMinor: 30_000, currencyCode: 'SAR', contractLabel: 'FINANCE-C-001' }],
+  invoices: [{ number: 'INV-0001', status: 'Issued', currencyCode: 'SAR', totalMinor: 500_000, paidMinor: 300_000, outstandingMinor: 200_000, issueDate: '2026-02-01', dueDate: '2026-03-01' }],
+});
+assert.ok(Buffer.isBuffer(financeWorkbook) && financeWorkbook.length > 3000, 'Finance writer returns a non-trivial workbook buffer');
+assert.equal(financeWorkbook.readUInt32LE(0), 0x04034B50, 'Finance workbook starts with a ZIP local-file signature');
+const financeEntries = readStoredZip(financeWorkbook);
+for (const name of ['[Content_Types].xml', '_rels/.rels', 'xl/workbook.xml', 'xl/styles.xml', 'xl/worksheets/sheet1.xml']) {
+  assert.ok(financeEntries.has(name), `Finance workbook contains ${name}`);
+}
+const financeSheet = financeEntries.get('xl/worksheets/sheet1.xml');
+assert.match(financeSheet, /rightToLeft="1"/, 'Arabic Finance reports opt into RTL sheet direction');
+assert.match(financeSheet, /شركة أكمي/, 'Unicode/Arabic client name is preserved');
+assert.match(financeSheet, /Contracts \(1\)/, 'section headers include live counts');
+assert.match(financeSheet, /Change Requests \(1\)/);
+assert.match(financeSheet, /Invoices \(1\)/);
+assert.match(financeSheet, /<c r="C5"[^>]*><v>10000<\/v><\/c>/, 'minor-unit money is converted to decimal (1,000,000 minor -> 10000.00)');
+assert.match(financeSheet, /FINANCE-C-001/, 'contract row data is present');
+assert.match(financeSheet, /INV-0001/, 'invoice row data is present');
+const financeWorkbookXml = financeEntries.get('xl/workbook.xml');
+assert.match(financeWorkbookXml, /name="Acme invalid name"/, 'invalid worksheet-name characters are sanitized');
+assert.throws(() => createFinanceReportWorkbook(null), /Invalid Excel report data/);
+const emptyFinanceWorkbook = createFinanceReportWorkbook({ clientName: 'Empty Co' });
+const emptyEntries = readStoredZip(emptyFinanceWorkbook);
+assert.match(emptyEntries.get('xl/worksheets/sheet1.xml'), /No contracts\.|No change requests\.|No invoices\./, 'an empty report renders explicit empty-section rows rather than blank gaps');
+
+console.log('PASS  Finance report export produces a genuine structured OpenXML workbook with stacked sections');
