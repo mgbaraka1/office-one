@@ -18,6 +18,7 @@ const html = [
 ].join('\n');
 const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
 const preload = fs.readFileSync(path.join(__dirname, '..', 'preload.js'), 'utf8');
+const auth = fs.readFileSync(path.join(__dirname, '..', 'auth.js'), 'utf8');
 const i18n = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'i18n.js'), 'utf8');
 const results = [];
 function gate(name, pass) { results.push({ name, pass: !!pass }); }
@@ -67,9 +68,8 @@ gate('shortcut suppression covers all current modal overlays', html.includes("'.
 gate('sidebar exposes Tasks and Departments as separate destinations',
   html.includes('data-module="all-tasks" data-onclick="switchModule(\'all-tasks\')"')
   && html.includes('data-module="internal-tasks" data-onclick="switchModule(\'internal-tasks\')"'));
-gate('sidebar shows the signed-in identity, explicit role, and runtime app version',
+gate('sidebar shows the signed-in identity and runtime app version',
   html.includes('id="sidebar-user-avatar"')
-  && html.includes("user?.isAdmin ? 'Administrator' : 'Standard User'")
   && html.includes('await window.api.appVersion()')
   && html.includes('id="app-version"'));
 gate('Quick Find is visible, shortcut-labelled, and uses bounded SQLite full-text search',
@@ -173,12 +173,33 @@ gate('language can only be selected on the login page',
 gate('account controls live on a dedicated User Management page',
   html.includes('data-tab="users"')
   && html.includes('id="user-list"')
-  && html.includes('id="user-edit-role"')
+  && html.includes('id="user-edit-active"')
   && html.includes('function renderUserManagement()')
   && !html.includes('id="setting-default-name"')
   && !html.includes('<h3>Account Security</h3>')
   && !html.includes('<h3>Add Account</h3>'));
 gate('Analytics offers accessible data tables and labelled SVG charts', html.includes('class="an-data-details"') && html.includes('role="img" aria-label="Daily hours trend'));
+// The admin/role concept was removed (FINANCE_INTEGRATION_PLAN.md §9): any
+// authenticated account may perform any action, and shared-data changes are
+// attributed rather than gated. This gate is what stops a role check quietly
+// reappearing — the renderer must not branch on isAdmin anywhere, the role
+// selector must stay gone, and auth.js must expose no requireAdmin().
+// Matches property ACCESS (`.isAdmin`), not the bare word — the codebase still
+// explains in comments why the role concept was removed, and a prose mention
+// must not fail a gate about behaviour.
+gate('the admin/role concept is retired from the renderer',
+  !/[.?]isAdmin/.test(html)
+  && !html.includes('id="user-edit-role"')
+  && !html.includes("'Administrator'"));
+gate('no IPC handler is gated on an administrator role',
+  !main.includes('requireAdmin')
+  && !/\badmin\(/.test(main)
+  && !auth.includes('function requireAdmin'));
+// users.is_admin stays as an inert column rather than being dropped — the
+// never-delete rule applies to columns too.
+gate('users.is_admin survives as an inert column',
+  auth.includes('is_admin') && !auth.includes('session.isAdmin ?'));
+
 gate('Project Categories UI is retired', !html.includes('id="p-category"')
   && !html.includes('Project Category</button>')
   && !html.includes('Hours by Project Category'));

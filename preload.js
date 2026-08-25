@@ -220,6 +220,7 @@ contextBridge.exposeInMainWorld('api', {
   getCompanyProfile: (companyId) => ipcRenderer.invoke('clients:profile-get', companyId),
   saveCompanyProfile: (companyId, data) => ipcRenderer.invoke('clients:profile-save', companyId, data),
   getCompanyProfileHistory: (companyId) => ipcRenderer.invoke('clients:profile-history', companyId),
+  getLookupCodeHistory: (lookupId) => ipcRenderer.invoke('lookups:history', lookupId),
   listFinanceCandidateCompanies: () => ipcRenderer.invoke('finance:candidate-companies'),
   getFinanceOverview: () => ipcRenderer.invoke('finance:overview'),
 

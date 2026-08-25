@@ -530,6 +530,43 @@
  */
 
 /**
+ * One audit row for a shared-catalog edit (`lookups:history`, migration 058).
+ * lookup_codes had no history of any kind while the catalog editor was
+ * administrator-only; with the admin concept gone, any account can rename a
+ * company — and that rename propagates to every task, project, report and
+ * invoice referencing it, so who changed it has to be recoverable.
+ *
+ * Like CompanyProfileHistoryEntry and for the same reason, this is NOT
+ * user-scoped on read: the catalog is shared, so seeing who changed it is the
+ * point. `sort_order` is deliberately not audited — reordering is presentation,
+ * not meaning, and auditing it would bury the changes that matter.
+ * @typedef {Object} LookupCodeHistoryEntry
+ * @property {number} id
+ * @property {string} fieldName  Human label ('Code', 'English Name', 'Arabic Name', 'Active'), not the raw column.
+ * @property {string} oldValue
+ * @property {string} newValue
+ * @property {string} changedAt
+ * @property {string} changedBy  Username of the account that made the change, or 'unknown'.
+ */
+
+/**
+ * Finance's headline figures for the module landing card (`finance:overview`).
+ * Scoped to the signed-in account, like every other finance_* read.
+ *
+ * All amounts are INTEGER MINOR UNITS (halalas/cents), matching every Finance
+ * amount column — never a float. Cancelled invoices are excluded from all
+ * totals. `overdueInvoiceCount` is DUE-DATE-based rather than status-based: an
+ * invoice left at ISSUED is still overdue once its due date has passed.
+ * @typedef {Object} FinanceOverview
+ * @property {number} clientCount
+ * @property {number} activeContracts    Excludes TERMINATED and EXPIRED.
+ * @property {number} invoicedMinor      Amount + tax across non-cancelled invoices.
+ * @property {number} paidMinor          Sum of recorded payments against those invoices.
+ * @property {number} outstandingMinor   invoicedMinor - paidMinor, floored at 0.
+ * @property {number} overdueInvoiceCount  Non-cancelled invoices past due with a balance remaining.
+ */
+
+/**
  * A company from the shared roster that is not in Finance yet
  * (`finance:candidate-companies`) — what the "add a client to Finance" picker
  * offers. Excludes soft-disabled rows and lookups this account cannot access.

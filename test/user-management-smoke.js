@@ -24,13 +24,15 @@ try {
   record('Administrator sees every managed account without password hashes',
     adminList.length === 3 && adminList.every(user => !('password_hash' in user) && !('passwordHash' in user)));
 
-  const disabledAdmin = auth.updateUser(secondAdmin.user.id, { username: 'second-admin', isAdmin: true, isActive: false, actorPassword: 'primary-password' });
-  const lastAdminGuard = auth.updateUser(setup.user.id, { username: 'primary-admin', isAdmin: false, isActive: true });
-  const selfDisableGuard = auth.updateUser(setup.user.id, { username: 'primary-admin', isAdmin: true, isActive: false });
-  record('The final active administrator cannot be demoted', disabledAdmin.ok && !lastAdminGuard.ok && /one active administrator/i.test(lastAdminGuard.error));
+  // Roles are gone; what survives is the last-active-ACCOUNT invariant. It is an
+  // integrity rule, not a permission check — with no network password reset,
+  // emptying the last usable account would lock everyone out of production.
+  const disabledOther = auth.updateUser(secondAdmin.user.id, { username: 'second-admin', isActive: false, actorPassword: 'primary-password' });
+  const selfDisableGuard = auth.updateUser(setup.user.id, { username: 'primary-admin', isActive: false });
+  record('Any account can deactivate another account', disabledOther.ok, JSON.stringify(disabledOther.error || ''));
   record('The signed-in account cannot deactivate itself', !selfDisableGuard.ok && /cannot deactivate/i.test(selfDisableGuard.error));
 
-  auth.updateUser(secondAdmin.user.id, { username: 'second-admin', isAdmin: true, isActive: true, actorPassword: 'primary-password' });
+  auth.updateUser(secondAdmin.user.id, { username: 'second-admin', isActive: true, actorPassword: 'primary-password' });
 
   // Re-auth for privileged actions on ANOTHER account
   // Phase 5): resetting someone else's password or changing their role/active
@@ -41,13 +43,13 @@ try {
   const missingActorPassword = auth.updateUser(resetTarget.user.id, { username: 'reset-target', password: 'admin-reset-password' });
   const wrongActorPassword = auth.updateUser(resetTarget.user.id, { username: 'reset-target', password: 'admin-reset-password', actorPassword: 'not-the-real-password' });
   const correctActorPassword = auth.updateUser(resetTarget.user.id, { username: 'reset-target', password: 'admin-reset-password', actorPassword: 'primary-password' });
-  record('An admin resetting someone else\'s password without their own password is refused',
+  record('Resetting someone else\'s password without your own password is refused',
     !missingActorPassword.ok && /current password is required/i.test(missingActorPassword.error));
-  record('An admin resetting someone else\'s password with the WRONG own password is refused',
+  record('Resetting someone else\'s password with the WRONG own password is refused',
     !wrongActorPassword.ok && /current password is required/i.test(wrongActorPassword.error));
-  record('An admin resetting someone else\'s password with their OWN correct password succeeds', correctActorPassword.ok);
+  record('Resetting someone else\'s password with your OWN correct password succeeds', correctActorPassword.ok);
   const nonPrivilegedEdit = auth.updateUser(resetTarget.user.id, { username: 'reset-target', nameEn: 'Renamed By Admin' });
-  record('An admin editing someone else\'s non-privileged fields (e.g. display name) does not require re-auth', nonPrivilegedEdit.ok);
+  record('Editing someone else\'s non-privileged fields (e.g. display name) does not require re-auth', nonPrivilegedEdit.ok);
   record('the password reset actually took effect (re-auth guard did not just no-op)',
     auth.login('reset-target', 'admin-reset-password').ok === true);
 
@@ -58,9 +60,9 @@ try {
   // active session, so re-establish the admin session first.)
   auth.login('primary-admin', 'primary-password');
   const freshAccount = auth.addUser('rotation-target', 'admin-issued-password', false);
-  record('An admin-created account is flagged to change its password on next login', freshAccount.user.mustChangePassword === true);
+  record('An account created for someone else is flagged to change its password on next login', freshAccount.user.mustChangePassword === true);
   const freshLogin = auth.login('rotation-target', 'admin-issued-password');
-  record('Login surfaces the must-change-password flag for an admin-created account', freshLogin.ok && freshLogin.user.mustChangePassword === true);
+  record('Login surfaces the must-change-password flag for such an account', freshLogin.ok && freshLogin.user.mustChangePassword === true);
   const selfChange = auth.updateUser(freshAccount.user.id, {
     username: 'rotation-target', password: 'self-chosen-password', currentPassword: 'admin-issued-password',
   });
@@ -73,24 +75,39 @@ try {
   const adminReset = auth.updateUser(freshAccount.user.id, {
     username: 'rotation-target', password: 'admin-reissued-password', actorPassword: 'primary-password',
   });
-  record('An admin resetting someone else\'s password re-flags it for rotation', adminReset.ok && adminReset.user.mustChangePassword === true);
+  record('Resetting someone else\'s password re-flags it for rotation', adminReset.ok && adminReset.user.mustChangePassword === true);
   auth.logout();
 
   auth.login('standard-user', 'standard-password');
-  const standardList = auth.listUsers();
-  const crossEdit = auth.updateUser(secondAdmin.user.id, { username: 'hijacked' });
+  const everyList = auth.listUsers();
+  // Editing ANOTHER account is now allowed for any account — but re-authentication
+  // still applies, and it is more important than before rather than less: with no
+  // roles, the only thing standing between an unattended session and someone
+  // else's password is proving who is at the keyboard.
+  const crossEditNoReauth = auth.updateUser(secondAdmin.user.id, { username: 'second-admin', password: 'hijacked-password' });
+  const crossEditWrongReauth = auth.updateUser(secondAdmin.user.id, {
+    username: 'second-admin', password: 'hijacked-password', actorPassword: 'not-my-password',
+  });
+  const crossRename = auth.updateUser(secondAdmin.user.id, { username: 'renamed-by-peer' });
   const noCurrentPassword = auth.updateUser(standard.user.id, {
     username: 'standard-user', password: 'replacement-password', currentPassword: 'wrong-password',
   });
+  const selfDeactivate = auth.updateUser(standard.user.id, { username: 'standard-user', isActive: false });
   const ownEdit = auth.updateUser(standard.user.id, {
     username: 'renamed-user', password: 'replacement-password', currentPassword: 'standard-password',
-    isAdmin: true, isActive: false,
   });
-  record('Standard users see and edit only their own account',
-    standardList.length === 1 && standardList[0].isCurrent && !crossEdit.ok);
+  record('Every account sees every managed account (no role scoping)',
+    everyList.length >= 3 && everyList.some(u => u.isCurrent), 'count=' + everyList.length);
+  record('Resetting another account\'s password still requires re-authentication',
+    !crossEditNoReauth.ok && !crossEditWrongReauth.ok
+      && /current password/i.test(crossEditNoReauth.error || ''), JSON.stringify(crossEditNoReauth.error));
+  record('A non-privileged change to another account needs no re-authentication',
+    crossRename.ok && crossRename.user.username === 'renamed-by-peer', JSON.stringify(crossRename.error || ''));
   record('Changing your own password requires the current password', !noCurrentPassword.ok && /incorrect/i.test(noCurrentPassword.error));
-  record('A standard user can rename their account and change its password without elevating permissions',
-    ownEdit.ok && ownEdit.user.username === 'renamed-user' && !ownEdit.user.isAdmin && ownEdit.user.isActive);
+  record('The last-active-account invariant survives the removal of roles',
+    !selfDeactivate.ok && /cannot deactivate/i.test(selfDeactivate.error), JSON.stringify(selfDeactivate.error));
+  record('Any account can rename itself and change its own password',
+    ownEdit.ok && ownEdit.user.username === 'renamed-user' && ownEdit.user.isActive);
   auth.logout();
   record('The edited credentials authenticate and the old username no longer does',
     auth.login('standard-user', 'replacement-password').ok === false
