@@ -499,6 +499,12 @@ ipcMain.handle('clients:internal-delete', authed((_e, id)              => db.del
 ipcMain.handle('clients:internal-rename-group', authed((_e, companyId, oldName, newName) => db.renameClientInternalSystemGroup(auth.requireUserId(), companyId, oldName, newName)));
 ipcMain.handle('clients:internal-assign-group', authed((_e, companyId, recordIds, groupName) => db.assignClientInternalGroup(auth.requireUserId(), companyId, recordIds, groupName)));
 ipcMain.handle('clients:field-history', authed((_e, recordType, recordId) => db.getClientFieldHistory(auth.requireUserId(), recordType, recordId)));
+// The shared company profile (migration 056). Writable by any authenticated
+// user by design — this data has no admin concept — so every write is recorded
+// against the acting account and the history is readable by everyone.
+ipcMain.handle('clients:profile-get',     authed((_e, companyId)       => db.getCompanyProfile(companyId)));
+ipcMain.handle('clients:profile-save',    authed((_e, companyId, data) => db.saveCompanyProfile(auth.requireUserId(), companyId, data)));
+ipcMain.handle('clients:profile-history', authed((_e, companyId)       => db.getCompanyProfileHistory(companyId)));
 
 // ── Finance (standalone financial record-keeping module — deliberately
 // isolated from the rest of the app; see AGENTS.md's Finance section. Every
@@ -506,6 +512,9 @@ ipcMain.handle('clients:field-history', authed((_e, recordType, recordId) => db.
 ipcMain.handle('finance:lookups-list', authed(()             => financeDb.listFinanceLookups(auth.requireUserId())));
 ipcMain.handle('finance:lookups-save', authed((_e, data)     => financeDb.saveFinanceLookups(auth.requireUserId(), data)));
 ipcMain.handle('finance:clients-list', authed(()             => financeDb.listFinanceClients(auth.requireUserId())));
+// The shared roster's companies that are not in Finance yet — what the "add a
+// client" picker offers, now that Finance no longer invents its own names.
+ipcMain.handle('finance:candidate-companies', authed(() => financeDb.listFinanceCandidateCompanies(auth.requireUserId())));
 ipcMain.handle('finance:client-get',   authed((_e, id)       => financeDb.getFinanceClient(auth.requireUserId(), id)));
 ipcMain.handle('finance:client-create', authed((_e, data)    => financeDb.createFinanceClient(auth.requireUserId(), data)));
 ipcMain.handle('finance:client-update', authed((_e, id, data) => financeDb.updateFinanceClient(auth.requireUserId(), id, data)));

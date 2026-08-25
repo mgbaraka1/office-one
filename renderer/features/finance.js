@@ -1159,13 +1159,47 @@ async function deleteFinanceAttachmentFlow(id, entityType, entityId) {
 }
 
 // ── Client modal ──────────────────────────────────────────────────────────────
-function openFinanceClientModal(c) {
+// Identity is no longer typed here (migration 056): a Finance client IS a
+// company from the shared roster. Creating one picks an existing company;
+// editing one shows its name and code read-only, because a rename has to land
+// in Settings -> Companies where every other client's name lives, or Finance
+// would drift from the roster it is supposed to share.
+async function openFinanceClientModal(c) {
   financeClientEditId = c ? c.id : null;
-  document.getElementById('finance-client-modal-title').textContent = c ? 'Edit Client' : 'New Client';
+  document.getElementById('finance-client-modal-title').textContent = c ? 'Edit Client' : 'Add Client to Finance';
   document.getElementById('finance-client-modal-submit').textContent = c ? 'Save Changes' : 'Add Client';
-  document.getElementById('fin-client-name').value = c ? (c.name || '') : '';
-  document.getElementById('fin-client-name-ar').value = c ? (c.nameAr || '') : '';
-  document.getElementById('fin-client-code').value = c ? (c.code || '') : '';
+
+  const picker = document.getElementById('fin-client-company-row');
+  const identity = document.getElementById('fin-client-identity-row');
+  if (c) {
+    picker.hidden = true;
+    identity.hidden = false;
+    document.getElementById('fin-client-identity-name').textContent = c.name || '—';
+    document.getElementById('fin-client-identity-code').textContent = c.code || '';
+  } else {
+    picker.hidden = false;
+    identity.hidden = true;
+    const select = document.getElementById('fin-client-company');
+    select.innerHTML = '';
+    let candidates = [];
+    try { candidates = await window.api.listFinanceCandidateCompanies(); }
+    catch { toast('Could not load the client list'); return; }
+    if (!candidates.length) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      // Runtime <option>s are one of i18n.js's known blind spots, so this text
+      // is registered in the dictionary rather than left to the DOM observer.
+      opt.textContent = ctI18n?.t?.('Every client is already in Finance') || 'Every client is already in Finance';
+      select.appendChild(opt);
+    }
+    candidates.forEach(co => {
+      const opt = document.createElement('option');
+      opt.value = String(co.id);
+      opt.textContent = (finLang() === 'ar' && co.nameAr ? co.nameAr : co.name) + (co.code ? ' — ' + co.code : '');
+      select.appendChild(opt);
+    });
+  }
+
   document.getElementById('fin-client-contact-name').value = c ? (c.contactName || '') : '';
   document.getElementById('fin-client-contact-email').value = c ? (c.contactEmail || '') : '';
   document.getElementById('fin-client-contact-phone').value = c ? (c.contactPhone || '') : '';
@@ -1174,7 +1208,7 @@ function openFinanceClientModal(c) {
   document.getElementById('fin-client-notes').value = c ? (c.notes || '') : '';
   clearErrorsIn('#finance-client-modal');
   document.getElementById('finance-client-modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById('fin-client-name').focus(), 80);
+  setTimeout(() => document.getElementById(c ? 'fin-client-contact-name' : 'fin-client-company').focus(), 80);
 }
 function closeFinanceClientModal() {
   document.getElementById('finance-client-modal-overlay').classList.remove('open');
@@ -1185,11 +1219,10 @@ function financeClientOverlayClick(e) {
 }
 async function submitFinanceClientModal() {
   clearErrorsIn('#finance-client-modal');
-  const name = document.getElementById('fin-client-name').value.trim();
-  if (!name) { markError('fin-client-name'); return; }
+  const companyId = financeClientEditId != null ? null : document.getElementById('fin-client-company').value;
+  if (financeClientEditId == null && !companyId) { markError('fin-client-company'); return; }
   const data = {
-    name, nameAr: document.getElementById('fin-client-name-ar').value.trim(),
-    code: document.getElementById('fin-client-code').value.trim().toUpperCase(),
+    companyId: companyId ? Number(companyId) : undefined,
     contactName: document.getElementById('fin-client-contact-name').value.trim(),
     contactEmail: document.getElementById('fin-client-contact-email').value.trim(),
     contactPhone: document.getElementById('fin-client-contact-phone').value.trim(),

@@ -19,9 +19,15 @@ let clientNewGroupKind = null;       // 'server' | 'internal' — which section'
 // + one active workspace tab. Reset per client on open; preserved across an
 // in-place reload (post-CRUD refresh of the same client).
 let clientDetailSearch = '';
+// This client's Finance profile + summary, or null when it has none. Loaded on
+// demand (the Finance tab is the only thing that needs it) and cleared whenever
+// a different client is opened.
+let clientFinance = null;
+let clientFinanceLoadedFor = null;
 const CLIENT_DETAIL_TYPES = [
   { key: 'overview',  label: 'Overview' },
   { key: 'projects',  label: 'Projects' },
+  { key: 'finance',   label: 'Finance' },
   { key: 'auth',      label: 'Access' },
   { key: 'servers',   label: 'Servers' },
   { key: 'internal',  label: 'Systems' },
@@ -218,6 +224,7 @@ async function openClientDetail(companyId, presetSearch) {
   catch { toast('Could not open client'); return; }
   if (!client) { toast('Client not found'); return; }
   currentClient = client;
+  if (clientFinanceLoadedFor !== client.id) { clientFinance = null; clientFinanceLoadedFor = null; }
   clientDetailSearch = presetSearch || '';
   clientDetailTab = presetSearch ? 'overview' : (uiState.filters.clients?.tab || 'overview');
   if (!CLIENT_DETAIL_TYPES.some(t => t.key === clientDetailTab)) clientDetailTab = 'overview';
@@ -423,6 +430,27 @@ function renderClientDetail(c) {
 // password/secretKey, per the no-credential-search rule) and the active detail tab.
 // Called on every search keystroke / workspace-tab switch, and once from
 // renderClientDetail on open/reload.
+// Finance data for the open client, fetched once per client. Finance keeps its
+// own per-user roster keyed to a company id (migration 056), so a client that
+// has never been invoiced simply has no row — not an error.
+async function loadClientFinance(companyId) {
+  if (clientFinanceLoadedFor === companyId) return;
+  clientFinanceLoadedFor = companyId;
+  clientFinance = null;
+  try {
+    const clients = await window.api.listFinanceClients();
+    const match = (clients || []).find(fc => fc.companyId === companyId);
+    if (!match) return;
+    const [summary, contracts, invoices] = await Promise.all([
+      window.api.getFinanceClientSummary(match.id),
+      window.api.listFinanceContracts(match.id),
+      window.api.listFinanceInvoices(match.id),
+    ]);
+    clientFinance = { client: match, summary, contracts, invoices };
+  } catch { clientFinance = null; }
+  if (currentClient && currentClient.id === companyId) renderClientDetailSections(currentClient);
+}
+
 function renderClientDetailSections(c) {
   const host = document.getElementById('client-detail-sections');
   if (!host) return;
@@ -438,6 +466,75 @@ function renderClientDetailSections(c) {
     return;
   }
   const showSection = key => !!q || clientDetailTab === key;
+
+  // ── Finance section (this client's contracts and invoices, from the Finance
+  // module's own data layer). Read-only here: it is a window into Finance, not
+  // a second place to edit it, so every action routes into the module itself. ──
+  if (showSection('finance')) {
+    const finSec = pjMk('div', 'pj-section');
+    const finHead = pjMk('div', 'pj-section-head');
+    const finTitle = pjMk('div', 'pj-section-title');
+    finTitle.innerHTML = ic('credit-card');
+    finTitle.appendChild(document.createTextNode('Finance'));
+    finHead.appendChild(finTitle);
+    const finActions = pjMk('div', 'pj-section-actions');
+    const openBtn = pjMk('button', 'btn');
+    openBtn.innerHTML = ic('arrow-right') + ' Open in Finance';
+    openBtn.addEventListener('click', () => {
+      switchModule('finance');
+      if (clientFinance) openFinanceClientDetail(clientFinance.client.id);
+    });
+    finActions.appendChild(openBtn);
+    finHead.appendChild(finActions);
+    finSec.appendChild(finHead);
+
+    if (clientFinanceLoadedFor !== c.id) {
+      finSec.appendChild(pjMk('div', 'cp-records-empty', 'Loading…'));
+      loadClientFinance(c.id);
+    } else if (!clientFinance) {
+      finSec.appendChild(pjMk('div', 'cp-records-empty', 'This client has no financial records yet.'));
+    } else {
+      // Reuses the Overview tab's own stat-card grid rather than a parallel
+      // set of Finance-only classes, so the two tabs stay visually identical.
+      const sum = clientFinance.summary || {};
+      const grid = pjMk('div', 'client-overview-grid');
+      [
+        ['Contracts', String(sum.contractCount || 0)],
+        ['Invoiced', finMoney(sum.invoicedMinor)],
+        ['Paid', finMoney(sum.paidMinor)],
+        ['Outstanding', finMoney(sum.outstandingMinor)],
+      ].forEach(([label, value]) => {
+        const card = pjMk('div', 'client-overview-card');
+        card.appendChild(pjMk('b', '', value));
+        card.appendChild(pjMk('span', '', label));
+        grid.appendChild(card);
+      });
+      finSec.appendChild(grid);
+
+      const contracts = (clientFinance.contracts || []).filter(k => textMatch([k.title, k.ref, k.status], q));
+      if (!contracts.length) {
+        finSec.appendChild(pjMk('div', 'cp-records-empty',
+          clientFinance.contracts.length ? 'No contracts match your search.' : 'No contracts yet.'));
+      } else {
+        contracts.forEach(k => {
+          const row = pjMk('div', 'cl-item-card');
+          const main = pjMk('div', 'cl-item-main');
+          const name = pjMk('div', 'cl-item-title', k.title || 'Untitled');
+          name.dataset.userContent = '';
+          main.appendChild(name);
+          main.appendChild(pjMk('div', 'cl-item-meta',
+            [k.ref, k.statusLabelEn || k.status, k.endDate ? 'ends ' + k.endDate : ''].filter(Boolean).join(' · ')));
+          row.appendChild(main);
+          row.addEventListener('click', () => {
+            switchModule('finance');
+            openFinanceClientDetail(clientFinance.client.id);
+          });
+          finSec.appendChild(row);
+        });
+      }
+    }
+    host.appendChild(finSec);
+  }
 
   // ── Projects section (this client's own projects — merged in from the retired
   // Clients Projects page; a project is grouped under its FIRST linked company,
