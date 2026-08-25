@@ -16,8 +16,17 @@
 //
 // `mergeable: true` mirrors db.js's LOOKUP_MERGE_TARGETS — only categories
 // migration 003 could have seeded with genuine free-text duplicates.
+//
+// `settingsTab: false` means "this category has no Settings panel — it is
+// managed elsewhere". The entry still has to exist here: LK_CAT/LK_VALUE map
+// the ui key to its category for every populateSelect() call in the app, and
+// LOOKUP_MERGE_CATEGORIES derives the Maintenance duplicate-merge list from
+// this same array. Only SETTINGS_TABS and the command palette filter it out.
 const SETTINGS_CATALOG_TABS = [
-  { key: 'companies', category: 'COMPANY', valueField: 'code', label: 'Companies', icon: 'building-2', editor: 'company', mergeable: true },
+  // Clients are created, renamed, archived and reordered on the Clients page —
+  // the roster IS this catalog, so it is managed where clients live rather than
+  // in a second editor here. Duplicate merging still runs from Maintenance.
+  { key: 'companies', category: 'COMPANY', valueField: 'code', label: 'Companies', icon: 'building-2', editor: 'external', settingsTab: false, mergeable: true },
   { key: 'systems', category: 'SYSTEM', valueField: 'label', label: 'Systems', icon: 'folder', editor: 'lookup', mergeable: true },
   { key: 'natural', category: 'ACTIVITY_TYPE', valueField: 'label', label: 'Natural', icon: 'tag', editor: 'lookup', mergeable: true },
   { key: 'timeType', category: 'TIME_TYPE', valueField: 'code', label: 'Time Type', icon: 'alarm-clock', editor: 'lookup' },

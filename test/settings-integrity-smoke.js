@@ -56,22 +56,42 @@ try {
   const afterDupe = db.getLookupsByCategory('ENTRY_STATUS', true).find(item => item.id === target.id);
   check('the row keeps its original label after a duplicate-label skip', afterDupe.nameEn === target.nameEn);
 
-  // 3. A real validation error (COMPANY code collision) still throws with its
-  //    precise message — the renderer must be able to show it, not a generic
-  //    "Could not save settings".
+  // 3. A company code is write-once, so there is no such thing as an existing
+  //    row's code colliding: saveLookups ignores `code` on every update. What
+  //    still has to fail loudly is a NEW row claiming a code already in use.
   const companies = db.getLookupsByCategory('COMPANY', true);
   if (companies.length >= 2) {
     const [companyA, companyB] = companies;
+    // Sending companyB's code for companyA is not an error and is not a rename
+    // — it simply has no effect, while the row's names still save normally.
+    db.saveLookups(user.id, { categories: { COMPANY: [
+      { id: companyA.id, code: companyB.code, label: companyA.nameEn, nameEn: companyA.nameEn, nameAr: companyA.nameAr, isActive: true },
+    ] } });
+    const afterCodeEdit = db.getLookupsByCategory('COMPANY', true).find(c => c.id === companyA.id);
+    check('a company code cannot be changed through saveLookups',
+      afterCodeEdit.code === companyA.code, `before=${companyA.code} after=${afterCodeEdit.code}`);
+
+    // A brand-new row is the one place a code is set, and a clash there still
+    // throws its precise message — the renderer must be able to show it, not a
+    // generic "Could not save settings".
     assert.throws(
       () => db.saveLookups(user.id, { categories: { COMPANY: [
-        { id: companyA.id, code: companyB.code, label: companyA.nameEn, nameEn: companyA.nameEn, nameAr: companyA.nameAr, isActive: true },
+        { id: null, code: companyB.code, label: 'Code Clash', nameEn: 'Code Clash', nameAr: '', isActive: true },
       ] } }),
       /already in use/,
-      'expected a company code collision to throw with its real message'
+      'expected a new company code collision to throw with its real message'
     );
-    check('a company code collision throws its precise message (not swallowed)', true);
+    check('a new company code collision throws its precise message (not swallowed)', true);
+
+    // The Clients page's own create path reports the same clash as a refusal
+    // rather than an exception, so a rejected create is never a partial write.
+    const refused = db.createClient(user.id, { code: companyB.code, nameEn: 'Code Clash Two' });
+    check('createClient refuses a duplicate code without throwing',
+      refused.ok === false && /already in use/.test(refused.error || ''), refused.error);
   } else {
-    check('a company code collision throws its precise message (not swallowed)', true, 'skipped — fixture has < 2 companies');
+    check('a company code cannot be changed through saveLookups', true, 'skipped — fixture has < 2 companies');
+    check('a new company code collision throws its precise message (not swallowed)', true, 'skipped — fixture has < 2 companies');
+    check('createClient refuses a duplicate code without throwing', true, 'skipped — fixture has < 2 companies');
   }
 
   // 4. A normal, non-colliding edit still saves and is not reported as skipped.

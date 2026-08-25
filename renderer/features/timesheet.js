@@ -91,7 +91,7 @@ async function switchDay(dateStr) {
   document.getElementById('hName').value = (await window.api.getDayName(dateStr)) || LK.defaultName || '';
   document.getElementById('hDate').value = dateStr;
 
-  window.api.setTitle('Office ONE — Timesheet — ' + dateStr);
+  setAppTitle('Timesheet', dateStr);
 
   renderTable();
   renderCalendar();
@@ -2816,6 +2816,10 @@ function switchModule(name) {
   // it covers a ui-state blob the migration could not parse, and any older
   // deep link that still names the module by its previous id.
   if (name === 'finance-it') name = 'finance';
+  // Finance stopped being a module of its own — contracts, invoices and
+  // meetings are client records now. A remembered "last module" of finance (or
+  // a stale deep link) lands on Clients, which is where they live.
+  if (name === 'finance') name = 'clients';
   if (activeModule === name) {
     if (name === 'browse') setBrowseKind(browseKind);
     else if (name === 'clients') backToClientsList();
@@ -2844,40 +2848,37 @@ function switchModule(name) {
   syncControlSemantics(document.getElementById('sidebar'));
 
   if (name === 'timesheet') {
-    window.api.setTitle('Office ONE — Timesheet — ' + activeDate);
+    setAppTitle('Timesheet', activeDate);
   } else if (name === 'subscriptions') {
-    window.api.setTitle('Office ONE — Subscriptions');
+    setAppTitle('Subscriptions');
     if (!subsLoaded) loadSubscriptionsData();
     else renderSubscriptions();
   } else if (name === 'analytics') {
-    window.api.setTitle('Office ONE — Overview');
+    setAppTitle('Overview');
     analyticsLoaded = true;
     renderAnalytics();
   } else if (name === 'reports') {
-    window.api.setTitle('Office ONE — Reports');
+    setAppTitle('Reports');
     initReportsModule();
   } else if (name === 'settings') {
-    window.api.setTitle('Office ONE — Settings');
+    setAppTitle('Settings');
     initSettingsModule();
   } else if (name === 'browse') {
     setBrowseKind(browseKind);
   } else if (name === 'all-tasks') {
-    window.api.setTitle('Office ONE — Tasks');
+    setAppTitle('Tasks');
     initAllTasksModule();
   } else if (name === 'internal-tasks') {
-    window.api.setTitle('Office ONE — Departments');
+    setAppTitle('Departments');
     initInternalTasksModule();
   } else if (name === 'companydocs') {
-    window.api.setTitle('Office ONE — Company Documents');
+    setAppTitle('Company Documents');
     initCompanyDocsModule();
   } else if (name === 'knowledge') {
-    window.api.setTitle('Office ONE — Knowledge Hub');
+    setAppTitle('Knowledge Hub');
     initKnowledgeModule();
   } else if (name === 'clients') {
-    window.api.setTitle('Office ONE — Clients');
+    setAppTitle('Clients');
     initClientsModule();
-  } else if (name === 'finance') {
-    window.api.setTitle('Office ONE — Finance');
-    initFinanceModule();
   }
 }

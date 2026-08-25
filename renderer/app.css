@@ -1300,11 +1300,6 @@
     }
     .toast-action-btn:hover { text-decoration: underline; }
 
-    /* Sidebar Backup Data button's "Full backup / Database only" choice menu — opens
-       upward since the button sits at the bottom of the sidebar. */
-    .backup-btn-wrap { position: relative; }
-    #backup-choice-menu { left: 0; right: auto; top: auto; bottom: calc(100% + 6px); width: 100%; min-width: 0; }
-
     /* Timer pause button */
     #timer-pause-btn {
       background: color-mix(in srgb, var(--good) 15%, transparent); border: none; color: var(--good); cursor: pointer;
@@ -1730,19 +1725,15 @@
     .lookup-item-reorder-btn .lic { width: 14px; height: 14px; }
     .lookup-item-reorder-btn:hover:not(:disabled) { color: var(--text); background: var(--border); }
     .lookup-item-reorder-btn:disabled { opacity: .3; cursor: default; }
-    .client-profile-intro { margin-bottom: 14px; }
-    .client-profile-list { gap: 10px; }
-    .lookup-item.client-profile-item {
-      display: grid; grid-template-columns: minmax(120px,.65fr) minmax(180px,1fr) minmax(180px,1fr) auto auto;
-      gap: 10px; align-items: end; padding: 12px;
-    }
+    /* .client-profile-field is shared by the bilingual catalog editor below.
+       The Companies settings panel that used to own the rest of this block is
+       gone — clients are managed on the Clients page (see .cl-identity-* and
+       .cl-list-actions further down). */
     .client-profile-field { min-width: 0; }
     .client-profile-field > span {
       display: block; margin-bottom: 5px; color: var(--muted);
       font-size: 10px; font-weight: 700; letter-spacing: .45px; text-transform: uppercase;
     }
-    .client-profile-item .client-profile-field input { width: 100%; }
-    .client-code-field input { font-family: 'Cascadia Mono', Consolas, monospace; letter-spacing: .4px; }
     .lookup-bilingual-intro { margin-bottom: 14px; }
     .bilingual-lookup-list { gap: 8px; }
     .lookup-item.bilingual-lookup-item {
@@ -1751,8 +1742,6 @@
     }
     .bilingual-lookup-item .client-profile-field input { width: 100%; }
     @media (max-width: 900px) {
-      .lookup-item.client-profile-item { grid-template-columns: 1fr 1fr auto auto; }
-      .client-profile-item .client-code-field { grid-column: 1 / -3; }
       .lookup-item.bilingual-lookup-item { grid-template-columns: 1fr 1fr auto auto; }
     }
     @media (max-width: 620px) {
@@ -1777,6 +1766,46 @@
     .client-profile-summary-field b { display: block; overflow-wrap: anywhere; font-size: 14px; }
     html[dir="rtl"] .client-profile-summary-field:last-child b { direction: rtl; }
     @media (max-width: 720px) { .client-profile-summary { grid-template-columns: 1fr; } }
+
+    /* ── Client roster management (Clients page) ──
+       The identity block on a client's Overview tab. The two names are inputs;
+       the company code deliberately is not — it is permanent, and the lock
+       glyph beside its caption is the visible reason why. */
+    .client-profile-summary-field label {
+      display: block; margin-bottom: 5px; color: var(--muted);
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+    }
+    .cl-identity-input {
+      width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 7px 10px; font-size: 14px; font-family: inherit;
+      background: var(--surface2); color: var(--text); outline: none;
+      transition: border-color var(--speed), box-shadow var(--speed);
+    }
+    .cl-identity-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); background: var(--input-focus-bg); }
+    .cl-identity-locked { background: var(--surface2); }
+    .cl-identity-locked span { display: flex; align-items: center; gap: 5px; }
+    .cl-identity-locked .lic { width: 11px; height: 11px; }
+    .cl-identity-locked b { font-family: 'Cascadia Mono', Consolas, monospace; letter-spacing: .4px; padding: 7px 0; }
+
+    /* Roster actions above the card grid: Show archived / Arrange / New Client. */
+    .cl-list-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+    .cl-list-actions .btn.active { border-color: var(--primary); color: var(--primary); }
+    html[dir="rtl"] .cl-list-actions { justify-content: flex-start; }
+
+    /* An archived client stays visible but reads as set aside, not as live. */
+    .pj-card.cl-card-archived { opacity: .62; border-style: dashed; }
+    .pj-card.cl-card-archived:hover { opacity: 1; }
+    .cl-archived-badge {
+      flex: none; padding: 2px 8px; border-radius: 999px; font-size: 10px;
+      font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+      background: var(--surface2); color: var(--muted); border: 1px solid var(--border);
+    }
+    .cl-card-restore { flex: none; padding: 4px 10px; font-size: 12px; }
+    .cl-card-reorder {
+      display: flex; justify-content: flex-end; gap: 4px;
+      margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border);
+    }
+    .cl-archive-slot { display: inline-flex; align-items: center; margin-inline-start: auto; }
 
     .lookup-add-row {
       display: flex; gap: 8px;

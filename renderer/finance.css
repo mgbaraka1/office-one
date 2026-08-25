@@ -1,27 +1,13 @@
-/* ══ Finance — standalone financial record-keeping module ═══════════════════
-   Every class here is .fin- prefixed and lives only in this file (per the
-   module's isolation rules — see AGENTS.md). Generic shared chrome
-   (.btn/.modal-overlay/.pj-card-open/.seg-ctl/.form-row/etc.) intentionally
-   comes from renderer/app.css, the same shared UI primitives every other
-   module already uses — nothing Finance-domain-specific lives there. */
+/* ══ Finance — the client's financial records ═══════════════════════════════
+   Every class here is .fin- prefixed and lives only in this file. Generic
+   shared chrome (.btn/.modal-overlay/.pj-card-open/.seg-ctl/.form-row/etc.)
+   intentionally comes from renderer/app.css, the same shared UI primitives
+   every other module already uses — nothing Finance-domain-specific lives
+   there. See AGENTS.md's Finance section.
 
-/* ── List view: client card grid ── */
-.fin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px; }
-.fin-card {
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-3);
-  cursor: pointer; transition: border-color .15s, box-shadow .15s;
-}
-.fin-card:hover { border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); box-shadow: var(--shadow-sm); }
-.fin-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
-.fin-card-identity { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; min-width: 0; }
-.fin-card-name { font-weight: 650; font-size: 15px; color: var(--text); }
-.fin-code-badge {
-  font-size: 11px; font-weight: 700; letter-spacing: .3px; color: var(--muted);
-  background: var(--surface2); border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px;
-}
-.fin-card-icons { display: flex; gap: 4px; opacity: 0; transition: opacity .12s; }
-.fin-card:hover .fin-card-icons, .fin-card:focus-within .fin-card-icons { opacity: 1; }
+   Finance has no page of its own, so there is no list view here any more: the
+   Clients page hosts these sections, and the client card grid it used to have
+   is .cl-* markup in app.css. */
 .fin-icon-btn {
   border: 1px solid var(--border); background: var(--surface); color: var(--muted);
   width: 28px; height: 28px; border-radius: var(--radius-sm); display: inline-flex;
@@ -30,20 +16,19 @@
 .fin-icon-btn:hover { color: var(--text); border-color: color-mix(in srgb, var(--border) 60%, var(--text)); }
 .fin-icon-btn.danger:hover { color: var(--bad); border-color: var(--bad); }
 .fin-icon-btn:disabled { opacity: .4; cursor: not-allowed; }
-.fin-card-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
-.fin-card-count { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
-.fin-card-count svg { width: 14px; height: 14px; }
-.fin-card-outstanding { font-size: 12.5px; font-weight: 600; color: var(--muted); }
-.fin-card-outstanding.has-balance { color: var(--warn); }
+.fin-code-badge {
+  font-size: 11px; font-weight: 700; letter-spacing: .3px; color: var(--muted);
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px;
+}
 
-/* ── Detail view: identity + toolbar ── */
-.fin-detail-identity { display: flex; flex-direction: column; gap: 2px; }
-.fin-detail-alt { font-size: 12.5px; color: var(--muted); }
-.fin-detail-actions { display: flex; gap: var(--space-2); }
-.fin-detail-toolbar { display: flex; align-items: center; gap: var(--space-3); padding: 0 0 var(--space-4); flex-wrap: wrap; }
+/* ── The client's Finance tab: money strip, sub-tabs, sections ── */
+.fin-detail-toolbar { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4) 0; flex-wrap: wrap; }
 .fin-detail-sections { display: flex; flex-direction: column; gap: var(--space-5); }
+/* Set up / no-records-yet state, and the flat hit list an active search shows
+   in place of the workspace. */
+.cl-finance-start { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-3); }
+.cl-finance-hits { display: flex; flex-direction: column; gap: var(--space-2); }
 
-/* ── Overview tab ── */
 .fin-stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--space-3); }
 .fin-stat {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
@@ -233,7 +218,6 @@
 .fin-editor-pane .ql-snow .ql-tooltip input[type=text] { background: var(--surface-2, var(--surface2)); border-color: var(--border); color: var(--text); border-radius: 5px; }
 
 @media (max-width: 720px) {
-  .fin-grid { grid-template-columns: 1fr; }
   .fin-info-label { flex-basis: 100px; }
   .fin-contract-actions { position: static; opacity: 1; }
   .fin-meeting-actions-bar { position: static; opacity: 1; }

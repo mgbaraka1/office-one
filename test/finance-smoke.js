@@ -570,9 +570,11 @@ try {
     attentionOf('financeInvoice').some(a => a.id === feedInvoice.id && a.date === '2026-11-30'),
     JSON.stringify(attentionOf('financeInvoice')));
 
-  record('Attention: rows carry a Finance clientId for deep-linking, not a companyId',
+  // Both ids, deliberately: `clientId` is Finance's own row, `companyId` is the
+  // client page the Overview deep-links to now that Finance renders there.
+  record('Attention: rows carry both the Finance clientId and the owning companyId',
     attentionOf('financeInvoice').every(a => a.clientId === feedClient.id && a.module === 'finance'
-      && !Object.hasOwn(a, 'companyId')));
+      && a.companyId === feedClient.companyId));
 
   financeDb.createFinancePayment(userId, feedInvoice.id, { amountMinor: 50000, paidDate: '2026-11-01' });
   record('Attention: a fully paid invoice drops out even while its status says ISSUED',

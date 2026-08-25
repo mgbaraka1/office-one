@@ -1264,15 +1264,19 @@ function getFinanceClientSummary(userId, clientId) {
 // Returns raw dates plus a deep-link target, matching getAttentionItems()'s
 // contract exactly: the renderer already owns daysUntil()/renewClass()/
 // renewLabel() and applies the same day-math to these rows.
+// Every item carries `companyId` as well as Finance's own `clientId`: the
+// Overview's deep link opens the client's page, because that is where a
+// contract or an invoice is now shown.
 function getFinanceAttentionItems(userId) {
   const items = [];
 
   // Unpaid/partly-paid invoices only. A settled or cancelled invoice is not
   // something to act on, and would otherwise sit in the Attention list forever.
   const invoices = conn().prepare(
-    `SELECT i.id, i.number, i.due_date, i.client_id, i.amount_minor, i.tax_minor,
+    `SELECT i.id, i.number, i.due_date, i.client_id, c.company_id, i.amount_minor, i.tax_minor,
             COALESCE(p.paid, 0) AS paid, st.code AS status_code
        FROM finance_invoices i
+       JOIN finance_clients c ON c.id = i.client_id
        LEFT JOIN (SELECT invoice_id, SUM(amount_minor) AS paid FROM finance_invoice_payments GROUP BY invoice_id) p
          ON p.invoice_id = i.id
        LEFT JOIN finance_lookups st ON st.id = i.status_id
@@ -1283,15 +1287,16 @@ function getFinanceAttentionItems(userId) {
     if (r.amount_minor + r.tax_minor - r.paid <= 0) continue;
     items.push({
       type: 'financeInvoice', id: r.id, title: r.number || 'Invoice',
-      date: r.due_date, module: 'finance', clientId: r.client_id,
+      date: r.due_date, module: 'finance', clientId: r.client_id, companyId: r.company_id ?? null,
     });
   }
 
   const installments = conn().prepare(
-    `SELECT n.id, n.title, n.seq, n.due_date, k.client_id,
+    `SELECT n.id, n.title, n.seq, n.due_date, k.client_id, c.company_id,
             n.amount_minor, COALESCE(l.allocated, 0) AS allocated
        FROM finance_contract_installments n
        JOIN finance_contracts k ON k.id = n.contract_id
+       JOIN finance_clients c ON c.id = k.client_id
        LEFT JOIN (
          SELECT il.installment_id, SUM(il.allocated_minor) AS allocated
            FROM finance_invoice_links il
@@ -1308,13 +1313,14 @@ function getFinanceAttentionItems(userId) {
     items.push({
       type: 'financeInstallment', id: r.id,
       title: r.title || `Installment ${r.seq}`,
-      date: r.due_date, module: 'finance', clientId: r.client_id,
+      date: r.due_date, module: 'finance', clientId: r.client_id, companyId: r.company_id ?? null,
     });
   }
 
   const contracts = conn().prepare(
-    `SELECT k.id, k.title, k.end_date, k.client_id, st.code AS status_code
+    `SELECT k.id, k.title, k.end_date, k.client_id, c.company_id, st.code AS status_code
        FROM finance_contracts k
+       JOIN finance_clients c ON c.id = k.client_id
        LEFT JOIN finance_lookups st ON st.id = k.status_id
       WHERE k.user_id = ? AND k.end_date IS NOT NULL AND k.end_date != ''`
   ).all(userId);
@@ -1322,7 +1328,7 @@ function getFinanceAttentionItems(userId) {
     if (r.status_code === 'TERMINATED' || r.status_code === 'EXPIRED') continue;
     items.push({
       type: 'financeContract', id: r.id, title: r.title || 'Contract',
-      date: r.end_date, module: 'finance', clientId: r.client_id,
+      date: r.end_date, module: 'finance', clientId: r.client_id, companyId: r.company_id ?? null,
     });
   }
 

@@ -58,21 +58,46 @@ try {
     check(`registry entry for ${entry.category} has all required fields`,
       typeof entry.key === 'string' && typeof entry.label === 'string'
         && (entry.valueField === 'code' || entry.valueField === 'label')
-        && (entry.editor === 'lookup' || entry.editor === 'company'));
+        && (entry.editor === 'lookup' || entry.editor === 'external'));
   }
+
+  // `settingsTab: false` = the category has no Settings panel because it is
+  // managed elsewhere in the app. The registry entry still has to exist (LK_CAT
+  // and LOOKUP_MERGE_CATEGORIES both derive from this array), so the tab/panel
+  // check below skips it — but nothing else about the entry may go missing.
+  const externallyManaged = registry.filter(t => t.settingsTab === false);
+  check('every externally-managed entry declares editor: "external"',
+    externallyManaged.every(t => t.editor === 'external'),
+    `keys=${JSON.stringify(externallyManaged.map(t => t.key))}`);
+  // COMPANY is the one such category today: managed on the Clients page, but
+  // still a real lookup category and still merge-eligible from Maintenance.
+  // Both of those are exactly why its registry entry could not simply be deleted.
+  check('COMPANY is externally managed (the Clients page owns the roster)',
+    externallyManaged.length === 1 && externallyManaged[0].category === 'COMPANY',
+    `externallyManaged=${JSON.stringify(externallyManaged.map(t => t.category))}`);
+  check('COMPANY is still a db.js lookup category', dbCategories.has('COMPANY'));
+  check('COMPANY is still merge-eligible from Maintenance', dbMergeable.has('COMPANY'));
 
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   for (const entry of registry) {
     const hasButton = html.includes(`data-tab="${entry.key}"`);
     const hasPanel = html.includes(`id="tab-${entry.key}"`);
+    if (entry.settingsTab === false) {
+      check(`index.html has NO tab button or panel for externally-managed "${entry.key}"`,
+        !hasButton && !hasPanel, `button=${hasButton} panel=${hasPanel}`);
+      continue;
+    }
     check(`index.html has a tab button and panel for "${entry.key}"`, hasButton && hasPanel,
       `button=${hasButton} panel=${hasPanel}`);
   }
 
   const shellSource = fs.readFileSync(path.join(root, 'renderer', 'features', 'shell.js'), 'utf8');
   check('the command palette derives its catalog entries from the registry (not a hand-copied list)',
-    shellSource.includes('...SETTINGS_CATALOG_TABS.map(t => ({ key: t.key, label: t.label }))'));
+    shellSource.includes(".filter(t => t.settingsTab !== false).map(t => ({ key: t.key, label: t.label }))"));
   check('the command palette can reach Maintenance', shellSource.includes("{ key: 'maintenance', label: 'Maintenance' }"));
+  const coreSource = fs.readFileSync(path.join(root, 'renderer', 'core.js'), 'utf8');
+  check('SETTINGS_TABS omits externally-managed categories',
+    coreSource.includes('SETTINGS_CATALOG_TABS.filter(t => t.settingsTab !== false).map(t => t.key)'));
 } catch (error) {
   console.error(error);
   failed = true;

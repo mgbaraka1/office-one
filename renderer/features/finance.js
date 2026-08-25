@@ -1,21 +1,26 @@
-// ══ Finance — standalone financial record-keeping module ═══════════════════
-// Deliberately isolated from the rest of the app: its own client roster
-// (never the shared COMPANY lookup), its own finance_lookups catalog (never
-// lookup_codes / Settings), its own currency list. See AGENTS.md's Finance
-// section. Phase 1: clients, contracts, contract versions, installments, and
-// the Setup tab's catalog editor. Phase 2: Change Requests, Invoices,
-// invoice-to-installment/CR allocations, and payments — with the six
-// cross-entity invariants enforced server-side in finance-db.js. Minutes /
-// Reports tabs are still shells — a later phase fills them in.
+// ══ Finance — a client's financial record-keeping ══════════════════════════
+// Finance is NOT a page of its own. A contract, a change request and an
+// invoice are all *client* records, so they render inside the Clients page —
+// in the open client's Finance tab — and minutes of meeting render in that
+// same client's Meetings tab. The finance_lookups catalog editor lives in
+// Settings → Finance, next to every other catalog. See AGENTS.md's Finance
+// section.
+//
+// What did NOT change: finance-db.js is still the only thing that writes
+// these tables, finance_lookups is still Finance's own catalog (never
+// lookup_codes), and every cross-entity invariant is still enforced
+// server-side. Only the surfaces moved.
+//
+// There is no module state for "which finance client is open" beyond
+// currentFinanceClient, which the Clients page sets when it opens a client.
 let financeClients = [];
 let financeClientsLoaded = false;
-let financeClientFilter = '';
 let currentFinanceClient = null;        // full client (finance:client-get)
 let financeContracts = [];              // current client's contracts, each with nested versions[]/installments[]
 let financeChangeRequests = [];         // current client's change requests
 let financeInvoices = [];               // current client's invoices, each with nested links[]/payments[]
 let financeSummary = null;              // current client's Overview stats (finance:summary)
-let financeDetailTab = 'overview';
+let financeDetailTab = 'contracts';
 let financeExpandedContracts = new Set();
 let financeExpandedVersionHistory = new Set();
 let financeExpandedInvoices = new Set();
@@ -59,14 +64,16 @@ const GI_STATUS_PILL_WEIGHT = {
 };
 function finStatusPillClass(code) { return 'fin-pill-' + (GI_STATUS_PILL_WEIGHT[code] || 'muted'); }
 
+// The sub-tabs inside a client's Finance tab. Meeting Minutes left this strip
+// when it became a client tab of its own (a meeting is not a finance record),
+// and Setup left it for Settings → Finance. Overview left it too: the client's
+// own Overview tab already carries the money strip, and the figures now sit
+// permanently above these tabs rather than hiding behind one of them.
 const FINANCE_DETAIL_TABS = [
-  { key: 'overview',  label: 'Overview' },
   { key: 'contracts', label: 'Contracts' },
   { key: 'crs',       label: 'Change Requests' },
   { key: 'invoices',  label: 'Invoices' },
-  { key: 'minutes',   label: 'Minutes' },
   { key: 'reports',   label: 'Reports' },
-  { key: 'setup',     label: 'Setup' },
 ];
 const FINANCE_SETUP_CATEGORY_LABELS = {
   CONTRACT_STATUS: 'Contract Status', CR_STATUS: 'Change Request Status', INVOICE_STATUS: 'Invoice Status',
@@ -82,6 +89,9 @@ function finMk(tag, cls, text) {
   return e;
 }
 function finLang() { return window.ctI18n?.getLanguage?.() === 'ar' ? 'ar' : 'en'; }
+// For copy that never reaches the DOM (export payloads, editor placeholders),
+// where the i18n MutationObserver has nothing to translate.
+function finT(key, vars) { return window.ctI18n?.t?.(key, vars) || key; }
 function finClientName(c) { return (finLang() === 'ar' && c?.nameAr) ? c.nameAr : (c?.name || ''); }
 function finMinorToStr(minor) { return ((Number(minor) || 0) / 100).toFixed(2); }
 function finStrToMinor(str) { const n = parseFloat(str); return Number.isFinite(n) ? Math.round(n * 100) : 0; }
@@ -94,110 +104,57 @@ function finStatusLabel(row) {
   return finLang() === 'ar' ? (row.statusLabelAr || row.statusLabelEn) : row.statusLabelEn;
 }
 
-function initFinanceModule() {
-  showFinanceListView();
-  if (!financeLookups) window.api.listFinanceLookups().then(l => { financeLookups = l; }).catch(() => {});
-  if (!financeClientsLoaded) loadFinanceClientsList();
-  else renderFinanceClientsList();
+// ── Roster cache ─────────────────────────────────────────────────────────────
+// Finance has no client list of its own any more — the Clients page IS the
+// roster (migration 056 made finance_clients a per-client finance profile
+// keyed to a COMPANY lookup). This cache survives only because two callers
+// still need to go the other way, from a finance client id back to a company:
+// the Create Hub picker and the deep links in Quick Find / the Overview
+// attention list.
+async function ensureFinanceClientsCache(force) {
+  if (financeClientsLoaded && !force) return financeClients;
+  try {
+    const list = await window.api.listFinanceClients();
+    financeClients = Array.isArray(list) ? list : [];
+    financeClientsLoaded = true;
+  } catch { financeClients = []; }
+  return financeClients;
+}
+function financeClientForCompany(companyId) {
+  return financeClients.find(fc => fc.companyId === companyId) || null;
+}
+// The modals' status/currency/payment-method dropdowns read this catalog, and
+// nothing loads it at boot any more now that Finance has no init step.
+async function ensureFinanceLookups() {
+  if (financeLookups) return financeLookups;
+  try { financeLookups = await window.api.listFinanceLookups(); } catch { financeLookups = null; }
+  return financeLookups;
 }
 
-// ── List view ────────────────────────────────────────────────────────────────
-async function loadFinanceClientsList() {
-  const grid = document.getElementById('finance-clients-grid');
-  if (!grid.childElementCount) { grid.style.display = ''; showSkeleton(grid, 'cards', 3); }
-  let list;
-  try { list = await window.api.listFinanceClients(); }
-  catch { toast('Could not load Finance clients'); return; }
-  financeClients = Array.isArray(list) ? list : [];
-  financeClientsLoaded = true;
-  renderFinanceClientsList();
-}
-function applyFinanceClientFilter() {
-  financeClientFilter = (document.getElementById('finance-clients-filter').value || '').toLowerCase().trim();
-  renderFinanceClientsList();
-}
-function showFinanceListView() {
-  document.getElementById('finance-detail-view').style.display = 'none';
-  document.getElementById('finance-list-view').style.display = '';
-}
-function showFinanceDetailView() {
-  document.getElementById('finance-list-view').style.display = 'none';
-  document.getElementById('finance-detail-view').style.display = '';
+// Every Finance surface is now mounted inside another page, so a mutation
+// cannot simply re-render "the Finance module". Ask the Clients page to
+// repaint the open client instead — it owns the tab strip, its counts, and
+// the hosts these sections render into.
+function refreshFinanceHostPage() {
+  if (typeof renderClientDetailAfterFinanceChange === 'function') renderClientDetailAfterFinanceChange();
 }
 
-function buildFinanceClientCard(c) {
-  const card = finMk('div', 'fin-card');
-  card.dataset.financeClientId = c.id;
-  card.addEventListener('click', () => openFinanceClientDetail(c.id));
-
-  const head = finMk('div', 'fin-card-head');
-  const identity = finMk('div', 'fin-card-identity');
-  identity.appendChild(finMk('div', 'fin-card-name', finClientName(c) || 'Untitled'));
-  if (c.code) identity.appendChild(finMk('span', 'fin-code-badge', c.code));
-  head.appendChild(identity);
-  const headIcons = finMk('div', 'fin-card-icons');
-  const editBtn = finMk('button', 'fin-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit';
-  editBtn.addEventListener('click', e => { e.stopPropagation(); openFinanceClientModal(c); });
-  headIcons.appendChild(editBtn);
-  const delBtn = finMk('button', 'fin-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete';
-  delBtn.addEventListener('click', e => {
-    e.stopPropagation();
-    showDeleteConfirm(headIcons, () => deleteFinanceClientFlow(c.id), () => renderFinanceClientsList());
-  });
-  headIcons.appendChild(delBtn);
-  head.appendChild(headIcons);
-  card.appendChild(head);
-
-  const foot = finMk('div', 'fin-card-foot');
-  const count = finMk('span', 'fin-card-count');
-  count.innerHTML = ic('briefcase');
-  count.appendChild(document.createTextNode(' ' + c.contractCount + ' contract' + (c.contractCount === 1 ? '' : 's')));
-  foot.appendChild(count);
-  foot.appendChild(finMk('span', 'fin-card-outstanding' + (c.outstandingMinor > 0 ? ' has-balance' : ''),
-    'Outstanding ' + finMinorToStr(c.outstandingMinor)));
-  const open = finMk('span', 'pj-card-open', 'Open');
-  open.insertAdjacentHTML('beforeend', ic('chevron-right'));
-  foot.appendChild(open);
-  card.appendChild(foot);
-  return card;
-}
-
-function renderFinanceClientsList() {
-  const grid  = document.getElementById('finance-clients-grid');
-  const empty = document.getElementById('finance-clients-empty-state');
-  grid.innerHTML = '';
-
-  if (financeClients.length === 0) {
-    grid.style.display = 'none';
-    empty.hidden = false;
-    empty.querySelector('p').innerHTML = 'No Finance clients yet — click <strong>+ New Client</strong> to add one';
-    return;
-  }
-  const shown = financeClients.filter(c => textMatch([c.name, c.nameAr, c.code, c.contactName, c.contactEmail], financeClientFilter));
-  if (shown.length === 0) {
-    grid.style.display = 'none';
-    empty.hidden = false;
-    empty.querySelector('p').textContent = 'No clients match your search';
-    return;
-  }
-  grid.style.display = '';
-  empty.hidden = true;
-  shown.forEach(c => grid.appendChild(buildFinanceClientCard(c)));
-}
-
-// ── Client detail (list of tabs) ─────────────────────────────────────────────
-async function openFinanceClientDetail(id) {
+// ── Client detail (loaded by the Clients page) ───────────────────────────────
+// Pulls one finance client and every record hanging off it into module state.
+// Deliberately does NOT render: the Clients page decides where the Finance and
+// Meetings tabs live and repaints them once the whole set has landed.
+async function loadFinanceClientRecords(id) {
   let client;
   try { client = await window.api.getFinanceClient(id); }
-  catch { toast('Could not open client'); return; }
-  if (!client) { toast('Client not found'); return; }
+  catch { return false; }
+  if (!client) return false;
   currentFinanceClient = client;
-  financeDetailTab = 'overview';
   financeExpandedContracts = new Set();
   financeExpandedVersionHistory = new Set();
   financeExpandedInvoices = new Set();
   financeExpandedCrs = new Set();
   financeExpandedVersionFiles = new Set();
+  financeExpandedMeetings = new Set();
   financeContracts = [];
   financeChangeRequests = [];
   financeInvoices = [];
@@ -205,87 +162,108 @@ async function openFinanceClientDetail(id) {
   financeMeetings = [];
   currentFinanceMeeting = null;
   financeAttachmentsCache = new Map();
-  showFinanceDetailView();
-  renderFinanceClientDetail();
-  await loadFinanceContractsForCurrentClient();
-  await loadFinanceSummaryForCurrentClient();
-  await loadFinanceCrsForCurrentClient();
-  await loadFinanceInvoicesForCurrentClient();
-  await loadFinanceMeetingsForCurrentClient();
+  await ensureFinanceLookups();
+  await Promise.all([
+    loadFinanceContractsForCurrentClient(),
+    loadFinanceSummaryForCurrentClient(),
+    loadFinanceCrsForCurrentClient(),
+    loadFinanceInvoicesForCurrentClient(),
+    loadFinanceMeetingsForCurrentClient(),
+  ]);
+  return true;
 }
-function backToFinanceClientsList() {
+function clearFinanceClientRecords() {
   currentFinanceClient = null;
-  showFinanceListView();
-  loadFinanceClientsList();
+  financeContracts = [];
+  financeChangeRequests = [];
+  financeInvoices = [];
+  financeMeetings = [];
+  financeSummary = null;
+  currentFinanceMeeting = null;
+  financeAttachmentsCache = new Map();
 }
+// Creates the finance profile for a client that has never been invoiced. The
+// company is already known, so there is nothing to ask for — the roster and
+// the finance profile are the same client now.
+async function enableFinanceForCompany(companyId) {
+  let res;
+  try { res = await window.api.createFinanceClient({ companyId }); }
+  catch { toast('Could not set up Finance for this client'); return null; }
+  if (!res.ok) { toast(res.error || 'Could not set up Finance for this client'); return null; }
+  financeClientsLoaded = false;
+  await ensureFinanceClientsCache(true);
+  return res.client;
+}
+// The loaders never render — every caller already repaints afterwards, and on
+// open loadFinanceClientRecords() runs all five in parallel and paints once.
 async function loadFinanceContractsForCurrentClient() {
   if (!currentFinanceClient) return;
   try { financeContracts = await window.api.listFinanceContracts(currentFinanceClient.id); }
   catch { financeContracts = []; toast('Could not load contracts'); }
-  if (financeDetailTab === 'contracts') renderFinanceDetailSections();
 }
 async function loadFinanceSummaryForCurrentClient() {
   if (!currentFinanceClient) return;
   try { financeSummary = await window.api.getFinanceClientSummary(currentFinanceClient.id); }
   catch { financeSummary = null; }
-  if (financeDetailTab === 'overview') renderFinanceDetailSections();
 }
 async function loadFinanceCrsForCurrentClient() {
   if (!currentFinanceClient) return;
   try { financeChangeRequests = await window.api.listFinanceChangeRequests(currentFinanceClient.id); }
   catch { financeChangeRequests = []; toast('Could not load change requests'); }
-  if (financeDetailTab === 'crs') renderFinanceDetailSections();
 }
 async function loadFinanceInvoicesForCurrentClient() {
   if (!currentFinanceClient) return;
   try { financeInvoices = await window.api.listFinanceInvoices(currentFinanceClient.id); }
   catch { financeInvoices = []; toast('Could not load invoices'); }
-  if (financeDetailTab === 'invoices') renderFinanceDetailSections();
 }
 async function loadFinanceMeetingsForCurrentClient() {
   if (!currentFinanceClient) return;
   try { financeMeetings = await window.api.listFinanceMeetings(currentFinanceClient.id); }
   catch { financeMeetings = []; toast('Could not load meetings'); }
-  if (financeDetailTab === 'minutes') renderFinanceDetailSections();
 }
 
-function renderFinanceClientDetail() {
-  const host = document.getElementById('finance-detail-view');
-  host.innerHTML = '';
-  const c = currentFinanceClient;
-  if (!c) return;
+// ── The three mounted surfaces ───────────────────────────────────────────────
+// Finance renders into hosts other pages own, so "re-render Finance" means
+// "re-render whichever of its surfaces is on screen right now". Every mutation
+// flow in this file already calls renderFinanceDetailSections(); keeping that
+// name means none of them had to change when the module became three tabs.
+//
+//   #finance-detail-sections    the client's Finance tab (contracts/CRs/invoices/reports)
+//   #finance-meetings-sections  the client's Meetings tab
+//   #finance-setup-sections     Settings → Finance
+function renderFinanceDetailSections() {
+  const ws = document.getElementById('finance-detail-sections');
+  if (ws && currentFinanceClient) {
+    ws.innerHTML = '';
+    if (financeDetailTab === 'crs') renderFinanceCrsSection(ws);
+    else if (financeDetailTab === 'invoices') renderFinanceInvoicesSection(ws);
+    else if (financeDetailTab === 'reports') renderFinanceReportsSection(ws);
+    else renderFinanceContractsSection(ws);
+    renderFinanceStatStrip();
+  }
+  const mt = document.getElementById('finance-meetings-sections');
+  if (mt && currentFinanceClient) { mt.innerHTML = ''; renderFinanceMinutesSection(mt); }
+  const su = document.getElementById('finance-setup-sections');
+  if (su) { su.innerHTML = ''; renderFinanceSetupSection(su); }
+}
 
-  const crumbs = finMk('div', 'pj-crumbs');
-  const crumbRoot = finMk('button', 'pj-crumb-link', 'Finance');
-  crumbRoot.addEventListener('click', backToFinanceClientsList);
-  crumbs.appendChild(crumbRoot);
-  const sep = finMk('span', 'pj-crumb-sep'); sep.innerHTML = ic('chevron-right');
-  crumbs.appendChild(sep);
-  crumbs.appendChild(finMk('span', 'pj-crumb-here', finClientName(c) || 'Untitled'));
-  host.appendChild(crumbs);
+// Renders a client's whole Finance workspace into the Clients page. `host` is
+// the client detail's own section container, so everything below stays on the
+// client's page — opening a contract never navigates anywhere.
+function renderClientFinanceWorkspace(host) {
+  if (!currentFinanceClient) return;
+  const strip = finMk('div', 'fin-stat-grid');
+  strip.id = 'finance-stat-strip';
+  host.appendChild(strip);
 
-  const head = finMk('div', 'pj-detail-head');
-  const titleBlock = finMk('div', 'fin-detail-identity');
-  titleBlock.appendChild(finMk('div', 'pj-detail-title', finClientName(c) || 'Untitled'));
-  if (c.code) titleBlock.appendChild(finMk('div', 'fin-detail-alt', c.code));
-  head.appendChild(titleBlock);
-  const headActions = finMk('div', 'fin-detail-actions');
-  const editBtn = finMk('button', 'btn');
-  editBtn.innerHTML = ic('pencil') + ' Edit';
-  editBtn.addEventListener('click', () => openFinanceClientModal(c));
-  headActions.appendChild(editBtn);
-  head.appendChild(headActions);
-  host.appendChild(head);
-
-  // Kept outside the re-rendered sections container so tab switching never
-  // rebuilds the toolbar itself — the Clients page's .cl-detail-toolbar
-  // pattern is the model this copies.
   const toolbar = finMk('div', 'fin-detail-toolbar');
   const tabs = finMk('div', 'seg-ctl workspace-tabs');
-  tabs.setAttribute('aria-label', 'Finance client workspace');
+  tabs.id = 'finance-workspace-tabs';
+  tabs.setAttribute('aria-label', 'Finance workspace');
   FINANCE_DETAIL_TABS.forEach(t => {
     const btn = finMk('button', 'seg-btn' + (financeDetailTab === t.key ? ' active' : ''), t.label);
     btn.type = 'button';
+    btn.dataset.finTab = t.key;
     btn.addEventListener('click', () => setFinanceDetailTab(t.key));
     tabs.appendChild(btn);
   });
@@ -297,58 +275,82 @@ function renderFinanceClientDetail() {
   host.appendChild(sectionsHost);
 
   renderFinanceDetailSections();
+  renderFinanceBillingSection(host);
 }
 
-function setFinanceDetailTab(key) {
-  if (!FINANCE_DETAIL_TABS.some(t => t.key === key)) key = 'overview';
-  financeDetailTab = key;
-  renderFinanceClientDetail();
-}
-
-function renderFinanceDetailSections() {
-  const host = document.getElementById('finance-detail-sections');
-  if (!host) return;
-  host.innerHTML = '';
-  if (financeDetailTab === 'overview') renderFinanceOverviewSection(host);
-  else if (financeDetailTab === 'contracts') renderFinanceContractsSection(host);
-  else if (financeDetailTab === 'crs') renderFinanceCrsSection(host);
-  else if (financeDetailTab === 'invoices') renderFinanceInvoicesSection(host);
-  else if (financeDetailTab === 'minutes') renderFinanceMinutesSection(host);
-  else if (financeDetailTab === 'reports') renderFinanceReportsSection(host);
-  else if (financeDetailTab === 'setup') renderFinanceSetupSection(host);
-  else renderFinanceComingSoonSection(host, FINANCE_DETAIL_TABS.find(t => t.key === financeDetailTab)?.label || '');
-}
-function renderFinanceComingSoonSection(host, label) {
-  host.appendChild(finMk('div', 'fin-empty', label + ' is coming in a later phase of Finance.'));
-}
-
-// ── Overview tab ──────────────────────────────────────────────────────────────
-function renderFinanceOverviewSection(host) {
-  const c = currentFinanceClient;
-  const s = financeSummary || {
-    contractCount: c.contractCount, activeContractCount: 0, finalContractValueMinor: 0,
-    invoicedMinor: 0, paidMinor: 0, outstandingMinor: c.outstandingMinor, changeRequestCount: 0,
-  };
-  const grid = finMk('div', 'fin-stat-grid');
+// The money figures sit above the sub-tabs, so they are repainted in place
+// rather than rebuilt with the section below them.
+function renderFinanceStatStrip() {
+  const grid = document.getElementById('finance-stat-strip');
+  if (!grid || !currentFinanceClient) return;
+  grid.innerHTML = '';
+  const s = financeSummaryOrFallback();
   const stat = (label, value) => {
     const box = finMk('div', 'fin-stat');
     box.appendChild(finMk('div', 'fin-stat-label', label));
     box.appendChild(finMk('div', 'fin-stat-value', value));
-    return box;
+    grid.appendChild(box);
   };
-  grid.appendChild(stat('Contracts', String(s.contractCount)));
-  grid.appendChild(stat('Active Contracts', String(s.activeContractCount)));
-  grid.appendChild(stat('Final Contract Value', finMinorToStr(s.finalContractValueMinor)));
-  grid.appendChild(stat('Invoiced', finMinorToStr(s.invoicedMinor)));
-  grid.appendChild(stat('Paid', finMinorToStr(s.paidMinor)));
-  grid.appendChild(stat('Outstanding', finMinorToStr(s.outstandingMinor)));
-  grid.appendChild(stat('Change Requests', String(s.changeRequestCount)));
-  host.appendChild(grid);
+  stat('Contracts', String(s.contractCount));
+  stat('Active Contracts', String(s.activeContractCount));
+  stat('Final Contract Value', finMinorToStr(s.finalContractValueMinor));
+  stat('Invoiced', finMinorToStr(s.invoicedMinor));
+  stat('Paid', finMinorToStr(s.paidMinor));
+  stat('Outstanding', finMinorToStr(s.outstandingMinor));
+  stat('Change Requests', String(s.changeRequestCount));
+}
+function financeSummaryOrFallback() {
+  const c = currentFinanceClient;
+  return financeSummary || {
+    contractCount: c?.contractCount || 0, activeContractCount: 0, finalContractValueMinor: 0,
+    invoicedMinor: 0, paidMinor: 0, outstandingMinor: c?.outstandingMinor || 0, changeRequestCount: 0,
+  };
+}
 
+// Renders the client's Meetings tab. Minutes of meeting are a record of what
+// was agreed with a client, not a financial document — they left the Finance
+// tab for a tab of their own, and only the storage stayed in finance_meetings.
+function renderClientMeetingsWorkspace(host) {
+  if (!currentFinanceClient) return;
+  const sectionsHost = finMk('div', 'fin-detail-sections');
+  sectionsHost.id = 'finance-meetings-sections';
+  host.appendChild(sectionsHost);
+  renderFinanceDetailSections();
+}
+
+// Switching a sub-tab only swaps the section below the strip — rebuilding the
+// whole workspace would throw away the client page's scroll position.
+function setFinanceDetailTab(key) {
+  if (!FINANCE_DETAIL_TABS.some(t => t.key === key)) key = FINANCE_DETAIL_TABS[0].key;
+  financeDetailTab = key;
+  document.querySelectorAll('#finance-workspace-tabs .seg-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.finTab === key);
+  });
+  renderFinanceDetailSections();
+}
+
+// ── Billing details ───────────────────────────────────────────────────────────
+// The client's billing identity and its finance-level attachments. Sits at the
+// foot of the Finance tab rather than behind a sub-tab of its own, because it
+// is context for every contract and invoice above it, not a fifth thing to
+// browse. The money figures it used to carry are now the permanent strip at
+// the top of the tab.
+function renderFinanceBillingSection(host) {
+  const c = currentFinanceClient;
+  if (!c) return;
   const info = finMk('div', 'fin-section');
-  const infoHead = finMk('div', 'pj-section-title');
-  infoHead.innerHTML = ic('file-text');
-  infoHead.appendChild(document.createTextNode('Client Details'));
+  const infoHead = finMk('div', 'pj-section-head');
+  const infoTitle = finMk('div', 'pj-section-title');
+  infoTitle.innerHTML = ic('file-text');
+  infoTitle.appendChild(document.createTextNode('Billing Details'));
+  infoHead.appendChild(infoTitle);
+  const infoActions = finMk('div', 'pj-section-actions');
+  const editBtn = finMk('button', 'btn');
+  editBtn.type = 'button';
+  editBtn.innerHTML = ic('pencil') + ' Edit Billing Details';
+  editBtn.addEventListener('click', () => openFinanceClientModal(c));
+  infoActions.appendChild(editBtn);
+  infoHead.appendChild(infoActions);
   info.appendChild(infoHead);
   const rows = [
     ['Contact', c.contactName], ['Email', c.contactEmail], ['Phone', c.contactPhone],
@@ -964,11 +966,6 @@ function buildFinanceMeetingActionRow(a, m) {
 // renderer/features/reports.js shapes reportData for the Timesheet export;
 // xlsx.js's createFinanceReportWorkbook only lays the cells out.
 function renderFinanceReportsSection(host) {
-  const c = currentFinanceClient;
-  const s = financeSummary || {
-    contractCount: c.contractCount, activeContractCount: 0, finalContractValueMinor: 0,
-    invoicedMinor: 0, paidMinor: 0, outstandingMinor: c.outstandingMinor, changeRequestCount: 0,
-  };
   const sec = finMk('div', 'pj-section');
   const secHead = finMk('div', 'pj-section-head');
   const title = finMk('div', 'pj-section-title');
@@ -983,34 +980,19 @@ function renderFinanceReportsSection(host) {
   secHead.appendChild(actions);
   sec.appendChild(secHead);
 
-  const grid = finMk('div', 'fin-stat-grid');
-  const stat = (label, value) => {
-    const box = finMk('div', 'fin-stat');
-    box.appendChild(finMk('div', 'fin-stat-label', label));
-    box.appendChild(finMk('div', 'fin-stat-value', value));
-    return box;
-  };
-  grid.appendChild(stat('Contracts', String(s.contractCount)));
-  grid.appendChild(stat('Active Contracts', String(s.activeContractCount)));
-  grid.appendChild(stat('Final Contract Value', finMinorToStr(s.finalContractValueMinor)));
-  grid.appendChild(stat('Invoiced', finMinorToStr(s.invoicedMinor)));
-  grid.appendChild(stat('Paid', finMinorToStr(s.paidMinor)));
-  grid.appendChild(stat('Outstanding', finMinorToStr(s.outstandingMinor)));
-  grid.appendChild(stat('Change Requests', String(s.changeRequestCount)));
-  sec.appendChild(grid);
+  // No stat grid here — the same figures are already pinned above the sub-tabs.
   sec.appendChild(finMk('p', 'fin-empty-sm',
     'Exports every contract, change request, and invoice currently loaded for this client into one Excel workbook.'));
   host.appendChild(sec);
 }
 function buildFinanceReportData() {
   const c = currentFinanceClient;
-  const s = financeSummary || {
-    contractCount: c.contractCount, activeContractCount: 0, finalContractValueMinor: 0,
-    invoicedMinor: 0, paidMinor: 0, outstandingMinor: c.outstandingMinor, changeRequestCount: 0,
-  };
+  const s = financeSummaryOrFallback();
   return {
-    title: 'Finance — ' + (finClientName(c) || 'Client') + ' Report',
-    sheetName: finClientName(c) || 'Finance Report',
+    // These leave the DOM for the workbook, so the i18n observer never sees
+    // them — resolve them through t() at build time instead.
+    title: finT('Finance — {client} Report', { client: finClientName(c) || finT('Client') }),
+    sheetName: finClientName(c) || finT('Finance Report'),
     clientName: finClientName(c) || '', generatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
     rtl: finLang() === 'ar',
     summary: s,
@@ -1166,7 +1148,7 @@ async function deleteFinanceAttachmentFlow(id, entityType, entityId) {
 // would drift from the roster it is supposed to share.
 async function openFinanceClientModal(c) {
   financeClientEditId = c ? c.id : null;
-  document.getElementById('finance-client-modal-title').textContent = c ? 'Edit Client' : 'Add Client to Finance';
+  document.getElementById('finance-client-modal-title').textContent = c ? 'Billing Details' : 'Add Client to Finance';
   document.getElementById('finance-client-modal-submit').textContent = c ? 'Save Changes' : 'Add Client';
 
   const picker = document.getElementById('fin-client-company-row');
@@ -1237,27 +1219,32 @@ async function submitFinanceClientModal() {
       : await window.api.createFinanceClient(data);
   } catch { toast('Could not save client'); return; }
   if (!res.ok) { toast(res.error || 'Could not save client'); return; }
+  const wasEdit = financeClientEditId != null;
   closeFinanceClientModal();
-  toast(financeClientEditId != null ? 'Client saved' : 'Client created');
-  if (currentFinanceClient && res.client.id === currentFinanceClient.id) {
-    currentFinanceClient = res.client;
-    renderFinanceClientDetail();
-  }
+  toast(wasEdit ? 'Billing details saved' : 'Client added to Finance');
+  if (currentFinanceClient && res.client.id === currentFinanceClient.id) currentFinanceClient = res.client;
   financeClientsLoaded = false;
-  if (document.getElementById('finance-list-view').style.display !== 'none') loadFinanceClientsList();
+  refreshFinanceHostPage();
 }
+// Removes the finance profile — never the client, which is a COMPANY lookup
+// the Clients page owns. Only reachable when the client has no financial
+// records left, exactly as before the two rosters merged.
 async function deleteFinanceClientFlow(id) {
   let res;
   try { res = await window.api.deleteFinanceClient(id); }
-  catch { toast('Could not delete client'); renderFinanceClientsList(); return; }
-  if (!res.ok) { toast(res.error || 'Could not delete client'); renderFinanceClientsList(); return; }
+  catch { toast('Could not delete client'); refreshFinanceHostPage(); return; }
+  if (!res.ok) { toast(res.error || 'Could not delete client'); refreshFinanceHostPage(); return; }
   financeClients = financeClients.filter(c => c.id !== id);
-  renderFinanceClientsList();
+  if (currentFinanceClient && currentFinanceClient.id === id) clearFinanceClientRecords();
+  refreshFinanceHostPage();
   const snapshot = res.snapshot;
   showGenericUndo('Client deleted', async () => {
     try {
+      // companyId is what createFinanceClient keys the profile to (migration
+      // 056); name/code are derived from the company, so sending them without
+      // it restored nothing at all.
       const restored = await window.api.createFinanceClient({
-        name: snapshot.name, nameAr: snapshot.nameAr, code: snapshot.code, contactName: snapshot.contactName,
+        companyId: snapshot.companyId, contactName: snapshot.contactName,
         contactEmail: snapshot.contactEmail, contactPhone: snapshot.contactPhone, address: snapshot.address,
         taxNumber: snapshot.taxNumber, notes: snapshot.notes,
       });
@@ -1265,7 +1252,8 @@ async function deleteFinanceClientFlow(id) {
       toast('Client restored');
     } catch { toast('Could not restore client'); }
     financeClientsLoaded = false;
-    loadFinanceClientsList();
+    await ensureFinanceClientsCache(true);
+    refreshFinanceHostPage();
   });
 }
 
@@ -1993,8 +1981,7 @@ function populateFinanceCrSelect(selectId, currentVal) {
 // features/knowledge.js) — same vendored library + sanitizeKnowledgeHtml(),
 // its own DOM host so the two modules never share editor state.
 function financeMeetingQuillPlaceholder() {
-  const source = 'Write meeting minutes…';
-  return window.ctI18n ? window.ctI18n.t(source) : source;
+  return finT('Write meeting minutes…');
 }
 function ensureFinanceMeetingQuill() {
   if (financeMeetingQuill) return financeMeetingQuill;
@@ -2191,6 +2178,23 @@ function finMoveDraftEntry(arr, i, delta) {
   if (j < 0 || j >= arr.length) return;
   [arr[i], arr[j]] = [arr[j], arr[i]];
 }
+// ── Settings → Finance ───────────────────────────────────────────────────────
+// Finance's catalog is finance_lookups, not lookup_codes, so this tab is
+// hand-authored in index.html rather than generated from settings-registry.js
+// — the same exception Backup Data is. It used to be a Setup tab inside the
+// Finance module; app settings belong in app Settings.
+async function renderFinanceSetupTab() {
+  const panel = document.getElementById('finance-setup-host');
+  if (!panel) return;
+  panel.innerHTML = '';
+  const sectionsHost = finMk('div', 'fin-setup-host');
+  sectionsHost.id = 'finance-setup-sections';
+  panel.appendChild(sectionsHost);
+  financeLookupsDraft = null;
+  financeSetupDirty = false;
+  await ensureFinanceLookups();
+  renderFinanceDetailSections();
+}
 function renderFinanceSetupSection(host) {
   if (!financeLookupsDraft) financeLookupsDraft = JSON.parse(JSON.stringify(financeLookups?.categories || {}));
 
@@ -2251,7 +2255,9 @@ function buildFinanceSetupRow(arr, i) {
   arInput.type = 'text'; arInput.placeholder = 'التسمية بالعربية'; arInput.value = opt.labelAr || ''; arInput.dir = 'rtl';
   arInput.addEventListener('input', e => { opt.labelAr = e.target.value; finMarkFinanceSetupDirty(); });
   row.appendChild(arInput);
-  row.appendChild(finMk('span', 'fin-setup-code', opt.code || 'new'));
+  // Same read-only code chip the shared Settings catalog shows, and the same
+  // wording for a row that has not been saved a code yet.
+  row.appendChild(finMk('span', 'fin-setup-code', opt.code || 'new entry'));
 
   const reorder = finMk('div', 'fin-setup-reorder');
   const up = finMk('button', 'fin-icon-btn'); up.type = 'button'; up.innerHTML = ic('chevron-up'); up.title = 'Move up'; up.disabled = i === 0;
@@ -2292,38 +2298,52 @@ async function saveFinanceSetupCatalog() {
 
 // ── Create Hub entry points (Ctrl+Shift+N) ──────────────────────────────────
 // The contract/invoice modals assume currentFinanceClient is already set,
-// because normally you reach them from inside a client's detail view. The
-// Create Hub can fire from anywhere, so these resolve a client first and only
-// then open the modal.
+// because normally you reach them from inside a client's Finance tab. The
+// Create Hub can fire from anywhere, so these resolve a client first, walk to
+// that client's page, and only then open the modal.
 //
 // One client: skip the question entirely and go straight there. Several: reuse
 // the command palette's own picker rather than inventing a second one. None:
 // say so, because "New Contract" with no client to hang it on is a dead end.
 async function startFinanceCreation(kind) {
-  if (!financeClientsLoaded) {
-    try {
-      const list = await window.api.listFinanceClients();
-      financeClients = Array.isArray(list) ? list : [];
-      financeClientsLoaded = true;
-    } catch { toast('Could not load Finance clients'); return; }
-  }
+  await ensureFinanceClientsCache();
 
   if (!financeClients.length) {
-    switchModule('finance');
-    toast('Add a Finance client first', { actionLabel: 'Add client', onAction: () => openFinanceClientModal() });
+    switchModule('clients');
+    toast('Set Finance up on a client first');
     return;
   }
 
   const open = async (clientId) => {
-    switchModule('finance');
-    if (!currentFinanceClient || currentFinanceClient.id !== clientId) await openFinanceClientDetail(clientId);
-    setFinanceDetailTab(kind === 'invoice' ? 'invoices' : 'contracts');
+    const fc = financeClients.find(c => c.id === clientId);
+    if (!fc || fc.companyId == null) { toast('Could not open client'); return; }
+    await openClientFinance(fc.companyId, kind === 'invoice' ? 'invoices' : 'contracts');
     if (kind === 'invoice') openFinanceInvoiceModal();
     else openFinanceContractModal();
   };
 
   if (financeClients.length === 1) { await open(financeClients[0].id); return; }
   openFinanceClientPicker(kind, open);
+}
+
+// The one way into a client's financial records from anywhere else in the app
+// — the Create Hub, Quick Find, and the Overview attention list all land here.
+// There is no Finance page to switch to: this walks to the client instead.
+async function openClientFinance(companyId, subTab) {
+  // A finance profile with no company link should not exist after migration
+  // 056, but a half-migrated row would have nowhere to navigate to.
+  if (companyId == null) { switchModule('clients'); return; }
+  if (subTab && FINANCE_DETAIL_TABS.some(t => t.key === subTab)) financeDetailTab = subTab;
+  switchModule('clients');
+  await openClientDetail(companyId, '', subTab === 'meetings' ? 'meetings' : 'finance');
+}
+// Resolves a Finance client id (what a search hit or an attention item carries)
+// to the company whose page now owns it.
+async function openFinanceRecordByClientId(financeClientId, subTab) {
+  await ensureFinanceClientsCache();
+  const fc = financeClients.find(c => c.id === financeClientId);
+  if (!fc || fc.companyId == null) { switchModule('clients'); return; }
+  await openClientFinance(fc.companyId, subTab);
 }
 
 // Lightweight inline picker built on the shared modal shell, so it inherits the

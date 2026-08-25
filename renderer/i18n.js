@@ -103,7 +103,11 @@
     'Port': 'المنفذ', 'Operating System': 'نظام التشغيل', 'Role': 'الدور', 'Password': 'كلمة المرور',
     'Endpoint / URL': 'نقطة الاتصال / الرابط', 'Expiry Date (optional)': 'تاريخ الانتهاء (اختياري)',
     'Credential Location (optional)': 'موقع بيانات الدخول (اختياري)', 'Secret Key (optional)': 'المفتاح السري (اختياري)',
-    'Company Code (optional)': 'رمز الشركة (اختياري)', 'No companies yet — add one in': 'لا توجد شركات بعد — أضف واحدة من',
+    'Company Code (optional)': 'رمز الشركة (اختياري)',
+    // The Clients empty state. Split around its <strong>, like every other
+    // empty state — the observer translates each text node separately.
+    'No clients yet — click': 'لا يوجد عملاء بعد — انقر',
+    'No active clients — click': 'لا يوجد عملاء نشطون — انقر',
     'Knowledge item deleted': 'تم حذف عنصر المعرفة', 'New Knowledge Item': 'عنصر معرفة جديد',
     'Create Item': 'إنشاء عنصر', 'Write an article': 'كتابة مقال', 'Write knowledge': 'كتابة معرفة',
     'Search Knowledge Hub': 'البحث في مركز المعرفة', 'No knowledge found': 'لم يتم العثور على معرفة',
@@ -138,7 +142,7 @@
     'Recovery Readiness': 'جاهزية الاستعادة', 'Run Audit': 'تشغيل التدقيق', 'Backups': 'النسخ الاحتياطية',
     'Run Check': 'تشغيل الفحص', 'Integrity Check': 'فحص السلامة', 'Orphan File Sweep': 'تنظيف الملفات غير المرتبطة',
     'Lookup Duplicates': 'تكرارات الكتالوج', 'Scan': 'فحص', 'Merge': 'دمج',
-    'Workspace View': 'عرض مساحة العمل', 'Density': 'الكثافة', 'Comfort': 'الراحة', 'Compact': 'مدمج',
+    'Workspace View': 'عرض مساحة العمل', 'Appearance': 'المظهر', 'Density': 'الكثافة', 'Comfort': 'الراحة', 'Compact': 'مدمج',
     'Balanced': 'متوازن', 'Spacious': 'واسع', 'Motion': 'الحركة', 'Gentle': 'لطيفة', 'Static': 'ثابتة',
     'Focus Mode': 'وضع التركيز', 'Enter Focus': 'بدء التركيز', 'Exit Focus': 'إنهاء التركيز',
     'Keyboard Shortcuts': 'اختصارات لوحة المفاتيح', 'Find Anything': 'البحث عن أي شيء',
@@ -223,7 +227,10 @@
     'Checks the live database, every rotating snapshot, referenced document files, search index, disk headroom, schema version, and credential portability. Read-only and safe to run.': 'يفحص قاعدة البيانات الحية وكل نسخة دورية وملفات المستندات المشار إليها وفهرس البحث ومساحة القرص وإصدار المخطط وقابلية نقل بيانات الدخول. الفحص للقراءة فقط وآمن.',
     'Auto-rotated snapshots taken on launch (newest 5 kept). Restoring replaces the live database and restarts the app — a safety copy of the current data is always taken first.': 'نسخ دورية تُنشأ عند التشغيل (يُحتفظ بأحدث خمس). تستبدل الاستعادة قاعدة البيانات الحية وتعيد تشغيل التطبيق، وتُنشأ دائماً نسخة أمان أولاً.',
     'Read-only — checks the database file for structural corruption and dangling foreign keys. Safe to run any time.': 'للقراءة فقط — يفحص ملف قاعدة البيانات بحثاً عن تلف بنيوي ومفاتيح خارجية غير مرتبطة. آمن للتشغيل في أي وقت.',
-    'Tune the visual rhythm for your eyes and your task. These preferences stay on this device and never change your records.': 'اضبط مظهر الواجهة بما يلائم عينيك وعملك. تبقى هذه التفضيلات على هذا الجهاز ولا تغيّر سجلاتك.',
+    'Tune the visual rhythm for your eyes and your task. These preferences follow your account and never change your records.': 'اضبط مظهر الواجهة بما يلائم عينيك وعملك. تتبع هذه التفضيلات حسابك ولا تغيّر سجلاتك.',
+    'Choose the overall light level of the interface.': 'اختر مستوى الإضاءة العام للواجهة.',
+    'Bright, high-contrast surfaces': 'أسطح ساطعة عالية التباين', 'Dimmed surfaces for low light': 'أسطح خافتة للإضاءة المنخفضة',
+    'Writes just the SQLite file wherever you choose. Quick, but it carries none of the uploaded project, company document, Knowledge Hub, or Finance files — use Full Backup for a complete recovery point.': 'يحفظ ملف SQLite فقط في المكان الذي تختاره. سريع، لكنه لا يحمل أياً من ملفات المشاريع أو مستندات الشركة أو مركز المعرفة أو المالية المرفوعة — استخدم النسخة الاحتياطية الكاملة للحصول على نقطة استعادة كاملة.',
     'Temporarily hide navigation and give the active workspace the full window.': 'أخفِ التنقل مؤقتاً وامنح مساحة العمل النشطة كامل النافذة.',
     'Start any core workflow from one place. Nothing is written until you complete and save the existing form.': 'ابدأ أي إجراء أساسي من مكان واحد. لن تُكتب أي بيانات حتى تكمل النموذج وتحفظه.',
     'is one stretch of time on one date, logged against a task — a task can have many, across many days.': 'هي فترة عمل في تاريخ واحد مسجلة على مهمة؛ ويمكن للمهمة أن تحتوي جلسات عديدة عبر أيام مختلفة.',
@@ -259,7 +266,7 @@
     '— optional, e.g. Jira tickets, email threads': '— اختياري، مثل تذاكر Jira ومحادثات البريد',
     '— the day this session was worked': '— اليوم الذي نُفذت فيه هذه الجلسة',
     '/30 tags. Existing tags are suggested automatically.': '/30 وسم. تُقترح الوسوم الموجودة تلقائياً.',
-    '— optional': '— اختياري', 'Settings → Companies': 'الإعدادات ← الشركات',
+    '— optional': '— اختياري',
     '— expiry, credential location, notes': '— انتهاء الصلاحية وموقع بيانات الدخول والملاحظات',
     '— secret, expiry, endpoints, notes': '— المفتاح السري والانتهاء ونقاط الاتصال والملاحظات',
     '— search and click to add': '— ابحث وانقر للإضافة', '— a project can span several': '— يمكن أن يشمل المشروع عدة أنظمة',
@@ -301,7 +308,7 @@
     'Add a Finance client first': 'أضف عميل المالية أولاً',
     'Add client': 'إضافة عميل',
     // Finance tab on the Clients page + the company-picker client modal (plan §6).
-    'Rename this client in Settings → Companies': 'أعد تسمية هذا العميل من الإعدادات ← الشركات',
+    'Rename this client on the Clients page': 'أعد تسمية هذا العميل من صفحة العملاء',
     'This client has no financial records yet.': 'لا توجد سجلات مالية لهذا العميل بعد.',
     'Add Client to Finance': 'إضافة عميل إلى المالية',
     'Open in Finance': 'فتح في المالية',
@@ -309,8 +316,7 @@
     'No contracts yet.': 'لا توجد عقود بعد.',
     'No contracts match your search.': 'لا توجد عقود تطابق بحثك.',
     'Invoiced': 'مفوتر', 'Outstanding': 'مستحق', 'Contracts': 'العقود',
-    'Workspace view and eye comfort': 'عرض مساحة العمل وراحة العين', 'Switch between light and dark mode': 'التبديل بين الوضع الفاتح والداكن',
-    'Back up your data — a full backup or just the database': 'نسخ بياناتك احتياطياً — نسخة كاملة أو قاعدة البيانات فقط',
+    'Theme, workspace view, and eye comfort': 'السمة وعرض مساحة العمل وراحة العين',
     'Log out of this session': 'تسجيل الخروج من هذه الجلسة', 'Application version': 'إصدار التطبيق',
     'Save this analytics view as PDF': 'حفظ عرض التحليلات بصيغة PDF', 'Start a workflow': 'بدء إجراء',
     'Pause / resume': 'إيقاف مؤقت / استئناف', 'Month overview': 'نظرة عامة على الشهر',
@@ -334,6 +340,7 @@
     'Login password': 'كلمة مرور الدخول', 'Anything worth remembering about this server': 'أي ملاحظات مهمة حول هذا الخادم',
     'Integration secret key': 'المفتاح السري للتكامل', 'What is this engagement about?': 'ما موضوع هذا المشروع؟',
     'Search tasks…': 'البحث في المهام…', 'Find a setting…': 'البحث عن إعداد…', 'What needs to be done?': 'ما المطلوب إنجازه؟',
+    'Workspace appearance': 'مظهر مساحة العمل',
     'Workspace density': 'كثافة مساحة العمل', 'Workspace canvas': 'خلفية مساحة العمل', 'Workspace motion': 'حركة مساحة العمل',
     'Exit Focus Mode (Ctrl+Shift+F)': 'إنهاء وضع التركيز (Ctrl+Shift+F)',
     'Jump to a page, task, project or date…': 'انتقل إلى صفحة أو مهمة أو مشروع أو تاريخ…',
@@ -434,7 +441,8 @@
     'All companies': 'كل الشركات', 'All systems': 'كل الأنظمة', 'All projects': 'كل المشاريع',
     'All departments': 'كل الأقسام', 'All knowledge': 'كل المعرفة',
     'Unlinked': 'غير مرتبط', 'No department': 'بلا قسم', 'No type': 'بلا نوع',
-    'Full backup to Desktop': 'نسخة احتياطية كاملة إلى سطح المكتب', 'Database only…': 'قاعدة البيانات فقط…',
+    'Database Only': 'قاعدة البيانات فقط', 'Save a Copy of the Database…': 'حفظ نسخة من قاعدة البيانات…',
+    'Database backed up': 'تم نسخ قاعدة البيانات احتياطياً',
     'Jan': 'يناير', 'Feb': 'فبراير', 'Mar': 'مارس', 'Apr': 'أبريل', 'May': 'مايو', 'Jun': 'يونيو',
     'Jul': 'يوليو', 'Aug': 'أغسطس', 'Sep': 'سبتمبر', 'Oct': 'أكتوبر', 'Nov': 'نوفمبر', 'Dec': 'ديسمبر',
     'No knowledge yet': 'لا توجد معرفة بعد', 'No search results': 'لا توجد نتائج بحث',
@@ -447,6 +455,33 @@
     'Access records': 'سجلات الوصول', 'Internal systems': 'الأنظمة الداخلية',
     'Add Access': 'إضافة وصول', 'Workspace summary': 'ملخص مساحة العمل',
     "Search this client's records…": 'ابحث في سجلات هذا العميل…',
+    // Client roster management (create / rename / archive / arrange). Several of
+    // these are built in template literals or set as .title/.textContent from
+    // clients.js — i18n.js's two known blind spots — so they are registered
+    // here explicitly rather than left to the DOM observer.
+    // 'New Client', 'Archive', 'Company Code', 'English Name', 'Arabic Name',
+    // 'Move up' and 'Move down' are already in the dictionary from other pages
+    // and are deliberately not repeated here.
+    'Create Client': 'إنشاء عميل',
+    'Show archived': 'إظهار المؤرشفة', 'Arrange': 'ترتيب',
+    'Archived': 'مؤرشف', 'Restore': 'استعادة',
+    'Archive Client': 'أرشفة العميل', 'Restore Client': 'استعادة العميل',
+    'Archive this client?': 'أرشفة هذا العميل؟',
+    'Client created': 'تم إنشاء العميل',
+    'Client archived': 'تمت أرشفة العميل', 'Client restored': 'تمت استعادة العميل',
+    'Permanent — a company code cannot be changed after the client is created.':
+      'دائم — لا يمكن تغيير رمز الشركة بعد إنشاء العميل.',
+    'A company code is permanent — it keeps tasks, projects, invoices and infrastructure linked.':
+      'رمز الشركة دائم — فهو يبقي المهام والمشاريع والفواتير والبنية التحتية مرتبطة.',
+    'Hide this client from the roster and from company dropdowns. Nothing is deleted.':
+      'إخفاء هذا العميل من القائمة ومن قوائم الشركات المنسدلة. لا يُحذف أي شيء.',
+    'A client needs a company code': 'العميل يحتاج إلى رمز شركة',
+    'A client needs an English name': 'العميل يحتاج إلى اسم بالإنجليزية',
+    'Could not create the client': 'تعذّر إنشاء العميل',
+    'Could not save the client name': 'تعذّر حفظ اسم العميل',
+    'Could not update this client': 'تعذّر تحديث هذا العميل',
+    'Could not save the new order': 'تعذّر حفظ الترتيب الجديد',
+    'Saved — reopen the app to refresh company lists': 'تم الحفظ — أعد فتح التطبيق لتحديث قوائم الشركات',
     // Knowledge Hub article editor (Quill) toolbar — screen-reader aria-labels.
     // Quill sets these as lowercase format-name aria-label values, not title
     // tooltips (the toolbar shows icons only), so this only affects assistive
@@ -522,14 +557,311 @@
     'Delete last session? This also deletes the task.': 'حذف الجلسة الأخيرة؟ سيؤدي هذا أيضاً إلى حذف المهمة.',
   });
 
+  // Shared renderer copy that is built at runtime in core.js — task-source
+  // field labels, picker chrome, Settings save feedback and User Management.
+  // None of it is static markup, so the coverage smoke test never saw it.
+  Object.assign(ar, {
+    'Email Title / Subject': 'عنوان / موضوع البريد', 'e.g. Renewal quote issue': 'مثال: مشكلة عرض سعر التجديد',
+    'Meeting Title': 'عنوان الاجتماع', 'e.g. Sprint planning': 'مثال: تخطيط السبرنت',
+    'Caller Name': 'اسم المتصل', 'e.g. John Smith': 'مثال: محمد أحمد',
+    'Search…': 'بحث…', '(untitled task)': '(مهمة بلا اسم)',
+    'Recent': 'الأخيرة', 'All tasks': 'كل المهام',
+    'Hide completed': 'إخفاء المكتملة', 'Show completed': 'إظهار المكتملة',
+    'missing an English label': 'ينقصه تسمية بالإنجليزية',
+    'duplicates another entry’s label': 'يكرر تسمية قيد آخر',
+    'could not be saved (not accessible)': 'تعذّر حفظه (غير متاح)',
+    // Re-authentication before acting on another account. With roles retired
+    // this is an identity check, not an administrator check — the copy says so.
+    'Your password': 'كلمة مرورك',
+    'Required to reset this user’s password or change their active status.':
+      'مطلوبة لإعادة تعيين كلمة مرور هذا المستخدم أو تغيير حالة تفعيله.',
+    'Temporary password': 'كلمة مرور مؤقتة', 'New password (optional)': 'كلمة مرور جديدة (اختياري)',
+    'Create User': 'إنشاء مستخدم',
+    'Username may only contain letters, numbers, and . _ -':
+      'يمكن أن يحتوي اسم المستخدم على حروف وأرقام والرموز . _ - فقط',
+    'User created': 'تم إنشاء المستخدم', 'User updated': 'تم تحديث المستخدم',
+  });
+
+  // Clients page: infrastructure field labels (shared by the record cards and
+  // the history diff), group management, and the runtime-built empty states.
+  Object.assign(ar, {
+    'to add one, or': 'لإضافة واحد، أو', 'View': 'عرض', '(empty)': '(فارغ)',
+    'Endpoint': 'نقطة الاتصال', 'Expiry Date': 'تاريخ الانتهاء',
+    'Credential Location': 'موقع بيانات الدخول', 'Host (IP)': 'المضيف (IP)', 'Host': 'المضيف',
+    'System Name': 'اسم النظام', 'Secret Key': 'المفتاح السري', 'Engine': 'المحرك',
+    'Identity:': 'الهوية:',
+    'Search this client\'s records…': 'البحث في سجلات هذا العميل…',
+    'Move group to another system': 'نقل المجموعة إلى نظام آخر', 'Rename group': 'إعادة تسمية المجموعة',
+    'Move System Group': 'نقل مجموعة النظام',
+    'Select a system…': 'اختر نظاماً…', 'Select a role…': 'اختر دوراً…',
+    'Group moved': 'تم نقل المجموعة', 'Group renamed': 'تمت إعادة تسمية المجموعة',
+    'New Server Group': 'مجموعة خوادم جديدة', 'New System Group': 'مجموعة أنظمة جديدة',
+    'No servers recorded yet — add a server first, then group it here.':
+      'لا توجد خوادم مسجّلة بعد — أضف خادماً أولاً ثم جمّعه هنا.',
+    'No internal systems recorded yet — add one first, then group it here.':
+      'لا توجد أنظمة داخلية مسجّلة بعد — أضف واحداً أولاً ثم جمّعه هنا.',
+    'No changes recorded yet.': 'لم تُسجَّل تغييرات بعد.',
+    'record': 'سجل',
+    '(unnamed connection)': '(اتصال بلا اسم)', '(unnamed system)': '(نظام بلا اسم)',
+    '(no system)': '(بلا نظام)', '(no role)': '(بلا دور)', '(no environment)': '(بلا بيئة)',
+    'Edit Auth Connection': 'تعديل اتصال المصادقة', 'Edit Server': 'تعديل الخادم',
+    'Edit Internal System': 'تعديل النظام الداخلي',
+    'VPN connection deleted': 'تم حذف اتصال VPN', 'Server deleted': 'تم حذف الخادم',
+    'Internal system deleted': 'تم حذف النظام الداخلي',
+    'That System / Role / Environment is already taken.': 'هذا النظام / الدور / البيئة مستخدم بالفعل.',
+    'Password:': 'كلمة المرور:', 'Secret Key:': 'المفتاح السري:',
+    // Shell: command palette, close/logout guards, and the account chip.
+    'Save failed': 'فشل الحفظ', 'Account': 'حساب',
+    'Close cancelled — your unsaved changes are still open.':
+      'أُلغي الإغلاق — تغييراتك غير المحفوظة ما زالت مفتوحة.',
+    'Logout cancelled — your unsaved changes are still open.':
+      'أُلغي تسجيل الخروج — تغييراتك غير المحفوظة ما زالت مفتوحة.',
+  });
+
+  // Tasks, sessions, projects and project documents — all built at runtime.
+  Object.assign(ar, {
+    'Add Session': 'إضافة جلسة', 'Edit sources': 'تعديل المصادر', 'Add Source': 'إضافة مصدر',
+    'Enter a whole number from 1 to 1440.': 'أدخل عدداً صحيحاً من 1 إلى 1440.',
+    'Session moved to a different task': 'تم نقل الجلسة إلى مهمة أخرى', 'Session updated': 'تم تحديث الجلسة',
+    'Session deleted': 'تم حذف الجلسة', 'Session deleted (task removed)': 'تم حذف الجلسة (وأُزيلت المهمة)',
+    'session': 'جلسة', 'Created': 'تاريخ الإنشاء',
+    'Untitled project': 'مشروع بلا اسم', 'Profile': 'الملف', 'Documents': 'المستندات',
+    'Link Task': 'ربط مهمة', 'Unlink': 'إلغاء الربط', 'Unlink from this project': 'إلغاء الربط بهذا المشروع',
+    'Marked done': 'تم التحديد كمكتمل',
+    '(file)': '(ملف)', 'Upload': 'رفع', 'Upload a file': 'رفع ملف', 'Save a copy': 'حفظ نسخة',
+    'Replace': 'استبدال', 'Replace with another file': 'استبدال بملف آخر', 'Remove this file': 'إزالة هذا الملف',
+    'Previous file restored': 'تمت استعادة الملف السابق',
+    'Edit Project': 'تعديل المشروع', 'Project restored': 'تمت استعادة المشروع',
+    'Task deleted': 'تم حذف المهمة',
+    'No tasks match these filters.': 'لا توجد مهام مطابقة لعوامل التصفية هذه.',
+    'No internal tasks yet.': 'لا توجد مهام داخلية بعد.',
+    'No departments yet — add one from Settings': 'لا توجد أقسام بعد — أضف قسماً من الإعدادات',
+  });
+
+  // Timesheet, month view, record/task modals, and Company Documents.
+  Object.assign(ar, {
+    // Month-view column initials.
+    'Su': 'أحد', 'Mo': 'إثن', 'Tu': 'ثلا', 'We': 'أرب', 'Th': 'خمي', 'Fr': 'جمع', 'Sa': 'سبت',
+    'Grouped view is used automatically in compact windows': 'يُستخدم العرض المجمّع تلقائياً في النوافذ الضيقة',
+    'Search your tasks…': 'ابحث في مهامك…', 'No project': 'بلا مشروع',
+    'Edit Record': 'تعديل السجل', 'Edit Task': 'تعديل المهمة', 'New Project Task': 'مهمة مشروع جديدة',
+    'Task created': 'تم إنشاء المهمة', 'Task updated': 'تم تحديث المهمة',
+    'Could not change the project link': 'تعذّر تغيير رابط المشروع',
+    'Please complete this field.': 'يرجى إكمال هذا الحقل.',
+    'Untitled document': 'مستند بلا اسم', 'Remove file': 'إزالة الملف', 'Edit Document': 'تعديل المستند',
+  });
+
+  // Knowledge Hub — facets, document version history, and the group editor.
+  Object.assign(ar, {
+    'Drafts': 'المسودات', 'Group': 'مجموعة', '(document)': '(مستند)',
+    'Hide previous versions': 'إخفاء الإصدارات السابقة',
+    'No groups match.': 'لا توجد مجموعات مطابقة.', 'No groups yet.': 'لا توجد مجموعات بعد.',
+    'Edit Knowledge Item': 'تعديل عنصر المعرفة', 'New Document Item': 'عنصر مستند جديد',
+    'Create & Choose File': 'إنشاء واختيار ملف',
+    'Knowledge item saved': 'تم حفظ عنصر المعرفة', 'Knowledge item created': 'تم إنشاء عنصر المعرفة',
+    'Knowledge item archived': 'تمت أرشفة عنصر المعرفة',
+    'Knowledge item marked ready': 'تم تحديد عنصر المعرفة كجاهز',
+    'Knowledge item moved to draft': 'تم نقل عنصر المعرفة إلى المسودات',
+    'Add New Version': 'إضافة إصدار جديد',
+    'Edit Group': 'تعديل المجموعة', 'Save Group': 'حفظ المجموعة', 'Group saved': 'تم حفظ المجموعة',
+  });
+
+  // Overview / Browse / Subscriptions / Full Backup — the workspace surfaces.
+  Object.assign(ar, {
+    'company': 'شركة', 'system': 'نظام',
+    'From': 'من', 'To': 'إلى', 'Other': 'أخرى',
+    'Expand navigation': 'توسيع التنقل',
+    'Good morning': 'صباح الخير', 'Good afternoon': 'مساء الخير', 'Good evening': 'مساء الخير',
+    // "Needs Attention" row kinds.
+    'Renews': 'يتجدد', 'Auth expires': 'تنتهي صلاحية المصادقة',
+    'Internal System expires': 'تنتهي صلاحية النظام الداخلي',
+    'Invoice due': 'فاتورة مستحقة', 'Installment due': 'دفعة مستحقة', 'Contract ends': 'ينتهي العقد',
+    'The backup folder could not be validated.': 'تعذّر التحقق من مجلد النسخة الاحتياطية.',
+    'That folder is not a valid full backup.': 'هذا المجلد ليس نسخة احتياطية كاملة صالحة.',
+    'Full restore failed': 'فشلت الاستعادة الكاملة',
+    'Backed up': 'تم النسخ الاحتياطي', 'Failed': 'فشل',
+    'Edit Subscription': 'تعديل الاشتراك',
+  });
+
+  // ── Main-process error messages ────────────────────────────────────────────
+  // auth.js / db.js / finance-db.js / main.js return these as `{ ok:false,
+  // error }` and the renderer drops them straight into the DOM, so the observer
+  // translates them like any other UI string — but the coverage smoke test only
+  // reads renderer sources, so nothing here was ever flagged.
+
+  // auth.js — the login screen and User Management.
+  Object.assign(ar, {
+    'An account already exists. Please log in.': 'يوجد حساب بالفعل. يرجى تسجيل الدخول.',
+    'That username is already taken.': 'اسم المستخدم هذا مستخدم بالفعل.',
+    'Incorrect username or password.': 'اسم المستخدم أو كلمة المرور غير صحيحة.',
+    'Account not found.': 'لم يُعثر على الحساب.',
+    'You cannot deactivate your current account.': 'لا يمكنك إلغاء تفعيل حسابك الحالي.',
+    'At least one active account is required.': 'يلزم وجود حساب نشط واحد على الأقل.',
+    'Your current password is required to make this change.': 'كلمة مرورك الحالية مطلوبة لإجراء هذا التغيير.',
+    'Current password is incorrect.': 'كلمة المرور الحالية غير صحيحة.',
+    'Not authenticated': 'غير مُصادق عليه',
+    'Login failed.': 'فشل تسجيل الدخول.',
+    'Something went wrong. Please try again.': 'حدث خطأ ما. يرجى المحاولة مرة أخرى.',
+    'Could not save the user.': 'تعذّر حفظ المستخدم.',
+  });
+
+  // finance-db.js — every refusal the Finance module can surface as a toast or
+  // an inline modal error. All six cross-entity invariants live here.
+  Object.assign(ar, {
+    'Pick a client from the company list': 'اختر عميلاً من قائمة الشركات',
+    'That client is already in Finance': 'هذا العميل مضاف بالفعل إلى المالية',
+    'Delete this client’s contracts first': 'احذف عقود هذا العميل أولاً',
+    'Delete this client’s change requests first': 'احذف طلبات التغيير لهذا العميل أولاً',
+    'Delete this client’s invoices first': 'احذف فواتير هذا العميل أولاً',
+    'Delete this client’s meetings first': 'احذف اجتماعات هذا العميل أولاً',
+    'Contract title is required': 'عنوان العقد مطلوب',
+    'Contract not found': 'لم يُعثر على العقد',
+    'Contract not found for this client': 'لم يُعثر على العقد لهذا العميل',
+    'This contract has an installment that has already been invoiced — delete that invoice allocation first':
+      'يحتوي هذا العقد على دفعة تمت فوترتها بالفعل — احذف تخصيص تلك الفاتورة أولاً',
+    'Version label is required': 'تسمية الإصدار مطلوبة',
+    'Version not found': 'لم يُعثر على الإصدار',
+    'Installment not found': 'لم يُعثر على الدفعة',
+    'Installment not found for this client': 'لم يُعثر على الدفعة لهذا العميل',
+    'A valid sequence number is required': 'مطلوب رقم تسلسلي صالح',
+    'This installment has already been invoiced and cannot be deleted':
+      'تمت فوترة هذه الدفعة بالفعل ولا يمكن حذفها',
+    'Change request title is required': 'عنوان طلب التغيير مطلوب',
+    'Change request not found': 'لم يُعثر على طلب التغيير',
+    'Change request not found for this client': 'لم يُعثر على طلب التغيير لهذا العميل',
+    'This change request has already been invoiced and cannot be deleted':
+      'تمت فوترة طلب التغيير هذا بالفعل ولا يمكن حذفه',
+    'Invoice number is required': 'رقم الفاتورة مطلوب',
+    'Invoice not found': 'لم يُعثر على الفاتورة',
+    'Link exactly one installment or change request': 'اربط دفعة واحدة أو طلب تغيير واحد فقط',
+    'Allocated amount must be greater than zero': 'يجب أن يكون المبلغ المخصَّص أكبر من صفر',
+    'Link not found': 'لم يُعثر على الرابط',
+    'Payment amount must be greater than zero': 'يجب أن يكون مبلغ الدفعة أكبر من صفر',
+    'Payment not found': 'لم يُعثر على الدفعة المالية',
+    'Not found': 'غير موجود',
+    'Attachment not found': 'لم يُعثر على المرفق',
+    'Invalid stored file path': 'مسار الملف المخزَّن غير صالح',
+    'The file is no longer available to restore': 'لم يعد الملف متاحاً للاستعادة',
+    'Meeting title is required': 'عنوان الاجتماع مطلوب',
+    'Meeting not found': 'لم يُعثر على الاجتماع',
+    'Action item description is required': 'وصف بند العمل مطلوب',
+    'Action item not found': 'لم يُعثر على بند العمل',
+    // Shared by db.js and finance-db.js upload validation.
+    'Could not read the selected file': 'تعذّرت قراءة الملف المحدد',
+    'File must be between 1 byte and 100 MB': 'يجب أن يكون حجم الملف بين 1 بايت و100 ميجابايت',
+    'The file contents do not match its extension': 'محتوى الملف لا يطابق امتداده',
+    'Could not validate the selected file': 'تعذّر التحقق من الملف المحدد',
+    'Resolved path is outside the allowed data directory': 'المسار خارج مجلد البيانات المسموح به',
+  });
+
+  // db.js and main.js. Internal guard rails that only fire on a tampered or
+  // corrupt call ("Untrusted IPC sender", "database not open") are deliberately
+  // left in English — they are diagnostics, not user copy.
+  Object.assign(ar, {
+    // Documents and project/company files.
+    'Unknown or unsafe document type': 'نوع مستند غير معروف أو غير آمن',
+    'No file for this document': 'لا يوجد ملف لهذا المستند',
+    'Stored file path is invalid': 'مسار الملف المخزَّن غير صالح',
+    'The previous file is no longer available': 'لم يعد الملف السابق متاحاً',
+    'File is still in use': 'الملف قيد الاستخدام',
+    'The file is missing from disk': 'الملف مفقود من القرص',
+    'The attachment is missing from disk': 'المرفق مفقود من القرص',
+    'Document not found': 'لم يُعثر على المستند',
+    'Invalid restore request': 'طلب استعادة غير صالح',
+    'Not authorized to purge this project': 'غير مصرّح بإزالة هذا المشروع نهائياً',
+    'Not authorized to restore this project': 'غير مصرّح باستعادة هذا المشروع',
+    'Not authorized to purge this document': 'غير مصرّح بإزالة هذا المستند نهائياً',
+    'Not authorized to restore this document': 'غير مصرّح باستعادة هذا المستند',
+    'Not authorized to purge this item': 'غير مصرّح بإزالة هذا العنصر نهائياً',
+    'Not authorized to restore this item': 'غير مصرّح باستعادة هذا العنصر',
+    // Knowledge Hub.
+    'Knowledge title is required': 'عنوان عنصر المعرفة مطلوب',
+    'Knowledge item not found': 'لم يُعثر على عنصر المعرفة',
+    'This document version already exists': 'هذا الإصدار من المستند موجود بالفعل',
+    'Group name is required': 'اسم المجموعة مطلوب',
+    'Group not found': 'لم يُعثر على المجموعة',
+    // Tasks, sessions and the task/project link rules.
+    'project not found': 'لم يُعثر على المشروع', 'task not found': 'لم يُعثر على المهمة',
+    'work log not found': 'لم يُعثر على سجل العمل',
+    'source task not found': 'لم يُعثر على المهمة المصدر',
+    'target task not found': 'لم يُعثر على المهمة الهدف',
+    'cannot merge a task into itself': 'لا يمكن دمج مهمة في نفسها',
+    'cannot merge a client task with an internal task': 'لا يمكن دمج مهمة عميل مع مهمة داخلية',
+    'task is already linked to a Department': 'المهمة مرتبطة بالفعل بقسم',
+    'A task cannot be linked to more than one of Project, Department, or Support Year':
+      'لا يمكن ربط المهمة بأكثر من واحد من: المشروع أو القسم أو سنة الدعم',
+    'An internal task requires a Department': 'المهمة الداخلية تتطلب قسماً',
+    'already an internal task': 'مهمة داخلية بالفعل', 'already a client task': 'مهمة عميل بالفعل',
+    'a Department is required': 'القسم مطلوب', 'a Company is required': 'الشركة مطلوبة',
+    'a System is required': 'النظام مطلوب',
+    'A valid work-log date is required': 'مطلوب تاريخ صالح لسجل العمل',
+    'Minutes must be a whole number from 1 to 1440': 'يجب أن تكون الدقائق عدداً صحيحاً من 1 إلى 1440',
+    // Clients, subscriptions and the shared catalog.
+    'Unknown client': 'عميل غير معروف', 'Invalid client order': 'ترتيب العملاء غير صالح',
+    'A company code must start with a letter or digit and use only letters, digits, _ and -':
+      'يجب أن يبدأ رمز الشركة بحرف أو رقم وأن يستخدم الحروف والأرقام والرمزين _ و- فقط',
+    'Invalid subscription id': 'معرّف اشتراك غير صالح',
+    'Subscription id belongs to another account': 'معرّف الاشتراك يخص حساباً آخر',
+    'Merging is only supported for Companies, Systems, and Natural':
+      'الدمج مدعوم فقط للشركات والأنظمة وطبيعة العمل',
+    'cannot merge a code into itself': 'لا يمكن دمج رمز في نفسه',
+    'code not found in this category': 'لم يُعثر على الرمز في هذه الفئة',
+    'Secure credential storage is unavailable; the secret was not saved':
+      'التخزين الآمن لبيانات الدخول غير متاح؛ لم يتم حفظ السر.',
+    // Backup and restore.
+    'backup not found': 'لم يُعثر على النسخة الاحتياطية',
+    'Backup failed SQLite integrity_check': 'لم تجتز النسخة الاحتياطية فحص سلامة SQLite',
+    'Backup contains dangling foreign-key references': 'تحتوي النسخة الاحتياطية على مراجع مفاتيح خارجية معلّقة',
+    'Backup schema is not compatible with this app version': 'مخطط النسخة الاحتياطية غير متوافق مع هذا الإصدار من التطبيق',
+    'Selected backup is not a folder': 'النسخة الاحتياطية المحددة ليست مجلداً',
+    'Selected backup folder does not exist': 'مجلد النسخة الاحتياطية المحدد غير موجود',
+    'Selected folder is not an Office ONE full backup': 'المجلد المحدد ليس نسخة احتياطية كاملة من Office ONE',
+    'Full backup is missing its manifest or database': 'تفتقد النسخة الاحتياطية الكاملة بيان المحتويات أو قاعدة البيانات',
+    'Backup manifest is unexpectedly large': 'بيان المحتويات أكبر من المتوقع',
+    'Backup manifest contains an invalid file inventory': 'يحتوي بيان المحتويات على جرد ملفات غير صالح',
+    'Backup manifest contains an unsafe file path': 'يحتوي بيان المحتويات على مسار ملف غير آمن',
+    'Backup manifest does not cover the database file': 'لا يغطي بيان المحتويات ملف قاعدة البيانات',
+    'Backup manifest schema version does not match its database': 'إصدار مخطط بيان المحتويات لا يطابق قاعدة بياناته',
+    'No validated full backup is selected': 'لم يتم اختيار نسخة احتياطية كاملة تم التحقق منها',
+    // Export size guards (main.js).
+    'Report content is empty or too large': 'محتوى التقرير فارغ أو كبير جداً',
+    'CSV content is empty or too large': 'محتوى CSV فارغ أو كبير جداً',
+    'Excel report content is empty or too large': 'محتوى تقرير Excel فارغ أو كبير جداً',
+    'Invalid secret value': 'قيمة سرية غير صالحة',
+  });
+
   // Finance — standalone financial record-keeping module (2026-08). "Finance"
-  // is a Latin brand shown identically in both languages, the same convention
-  // as 'Office ONE' above.
+  // is an ordinary translated module name (المالية), NOT a Latin brand like
+  // 'Office ONE' above — an earlier version of this comment claimed otherwise
+  // and left "Finance" untranslated in a few strings.
+  // Finance moved onto the Clients page (2026-08): its records render in the
+  // client's Finance and Meetings tabs, and its catalog editor in Settings.
+  // 'Meetings' is the client tab; 'Meeting Minutes' stays the wording inside
+  // it, because 'Minutes' alone already means the Timesheet's time unit and
+  // one English key can only carry one Arabic meaning.
+  Object.assign(ar, {
+    'Meetings': 'الاجتماعات',
+    'Finance workspace': 'مساحة عمل المالية',
+    'Billing Details': 'تفاصيل الفوترة',
+    'Edit Billing Details': 'تعديل تفاصيل الفوترة',
+    'Billing details saved': 'تم حفظ تفاصيل الفوترة',
+    'Client added to Finance': 'تمت إضافة العميل إلى المالية',
+    'Set Up Finance': 'إعداد المالية',
+    'Could not set up Finance for this client': 'تعذّر إعداد المالية لهذا العميل',
+    'Set Finance up on a client first': 'أعدّ المالية على أحد العملاء أولاً',
+    'No contracts, invoices or change requests are tracked for this client yet.':
+      'لا توجد عقود أو فواتير أو طلبات تغيير مسجّلة لهذا العميل بعد.',
+    'No minutes of meeting are recorded for this client yet.':
+      'لا توجد محاضر اجتماعات مسجّلة لهذا العميل بعد.',
+    'No financial records match your search.': 'لا توجد سجلات مالية تطابق بحثك.',
+    'No meetings match your search.': 'لا توجد اجتماعات تطابق بحثك.',
+  });
+
   Object.assign(ar, {
     'Finance': 'المالية',
     'Search clients…': 'البحث في العملاء…', 'New Client': 'عميل جديد', 'Edit Client': 'تعديل العميل',
     'Add Client': 'إضافة عميل',
-    'No Finance clients yet — click': 'لا يوجد عملاء Finance بعد — انقر',
+    'No Finance clients yet — click': 'لا يوجد عملاء في المالية بعد — انقر',
     'No clients match your search': 'لا يوجد عملاء يطابقون بحثك',
     'Outstanding': 'المستحق', 'Code': 'الرمز',
     'Contact Name': 'اسم جهة الاتصال', 'Contact Email': 'البريد الإلكتروني لجهة الاتصال',
@@ -538,7 +870,7 @@
     'No additional contact details recorded.': 'لا توجد تفاصيل اتصال إضافية مسجّلة.',
     'Contracts': 'العقود', 'Active Contracts': 'العقود النشطة', 'Final Contract Value': 'القيمة النهائية للعقد',
     'Invoiced': 'المفوتر', 'Paid': 'المدفوع', 'Change Requests': 'طلبات التغيير',
-    'Invoices': 'الفواتير', 'Minutes': 'محاضر الاجتماعات', 'Setup': 'الإعداد',
+    'Invoices': 'الفواتير', 'Meeting Minutes': 'محاضر الاجتماعات', 'Setup': 'الإعداد',
     'New Contract': 'عقد جديد', 'Edit Contract': 'تعديل العقد', 'Add Contract': 'إضافة عقد',
     'No contracts yet for this client.': 'لا توجد عقود لهذا العميل بعد.',
     'Versions': 'الإصدارات', 'Add Version': 'إضافة إصدار', 'No versions yet.': 'لا توجد إصدارات بعد.',
@@ -552,7 +884,7 @@
     'Sequence #': 'الرقم التسلسلي', 'Amount': 'المبلغ', 'Milestone': 'مرحلة الإنجاز', 'Due Date': 'تاريخ الاستحقاق',
     'Not Invoiced': 'غير مفوتر', 'Partially Invoiced': 'مفوتر جزئياً',
     'Finance’s own catalog, separate from the app’s shared lookups. Add, relabel, reorder, or disable values here.':
-      'كتالوج Finance الخاص به، منفصل عن القوائم المشتركة للتطبيق. أضف القيم أو أعد تسميتها أو رتّبها أو عطّلها هنا.',
+      'كتالوج المالية الخاص، منفصل عن القوائم المشتركة للتطبيق. أضف القيم أو أعد تسميتها أو رتّبها أو عطّلها هنا.',
     'Contract Status': 'حالة العقد', 'Change Request Status': 'حالة طلب التغيير', 'Invoice Status': 'حالة الفاتورة',
     'Payment Method': 'طريقة الدفع', 'Save Catalog': 'حفظ الكتالوج', 'Catalog saved': 'تم حفظ الكتالوج',
     '+ New Client': '+ عميل جديد', 'Reference': 'المرجع', 'Start Date': 'تاريخ البدء',
@@ -631,16 +963,54 @@
       'يُصدِّر كل عقد وطلب تغيير وفاتورة محمّلة حالياً لهذا العميل إلى ملف Excel واحد.',
   });
 
+  // Finance leftovers found by a 2026-08 sweep of the module's runtime-built
+  // DOM — toasts, fallbacks, and the aria-label on the detail tab strip. None
+  // of these are static markup, so the coverage smoke test never saw them.
+  Object.assign(ar, {
+    'Untitled': 'بدون اسم', 'Finance client workspace': 'مساحة عمل عميل المالية',
+    // The installment badge is sentence-case in the source; 'Partially
+    // Invoiced' above is the title-case sibling used elsewhere. Both spellings
+    // exist in the UI, so both need an entry.
+    'Partially invoiced': 'مفوتر جزئياً',
+    '— No status —': '— بلا حالة —',
+    'Unsaved changes': 'تغييرات غير محفوظة',
+    'Client saved': 'تم حفظ العميل', 'Client deleted': 'تم حذف العميل',
+    'Contract saved': 'تم حفظ العقد', 'Contract created': 'تم إنشاء العقد',
+    'Contract deleted': 'تم حذف العقد',
+    'Version saved': 'تم حفظ الإصدار', 'Version created': 'تم إنشاء الإصدار',
+    'Version deleted': 'تم حذف الإصدار',
+    'Installment saved': 'تم حفظ الدفعة', 'Installment created': 'تم إنشاء الدفعة',
+    'Installment deleted': 'تم حذف الدفعة',
+    'File restored': 'تمت استعادة الملف',
+    // Export payload strings: these leave the DOM for the workbook/PDF, so
+    // finance.js resolves them through t() rather than the DOM observer.
+    'Finance Report': 'تقرير المالية',
+    'Finance — {client} Report': 'المالية — تقرير {client}',
+  });
+
   const uiNounsAr = {
-    clients: 'العملاء', 'company documents': 'مستندات الشركة', department: 'القسم', departments: 'الأقسام',
+    clients: 'العملاء', companies: 'الشركات', systems: 'الأنظمة',
+    'company documents': 'مستندات الشركة', department: 'القسم', departments: 'الأقسام',
     'Knowledge Hub': 'مركز المعرفة', 'knowledge item': 'عنصر المعرفة', projects: 'المشاريع', records: 'السجلات',
     task: 'المهمة', tasks: 'المهام', document: 'المستند', file: 'الملف', group: 'المجموعة',
     'internal system': 'النظام الداخلي', item: 'العنصر', project: 'المشروع', server: 'الخادم',
     meeting: 'الاجتماع', meetings: 'الاجتماعات', 'action item': 'بند العمل',
+    // Lowercased secret labels, shared by the reveal/copy tooltips and the
+    // "Could not copy …" failure toast.
+    password: 'كلمة المرور', 'secret key': 'المفتاح السري',
     session: 'الجلسة', settings: 'الإعدادات', sources: 'المصادر', subscriptions: 'الاشتراكات',
     'the record': 'السجل', 'the session': 'الجلسة', 'the task': 'المهمة', 'VPN connection': 'اتصال VPN',
     merge: 'الدمج'
   };
+  // Module ids as they appear in the Needs Attention meta line ("Renews ·
+  // subscriptions"), which the renderer emits raw alongside the row kind.
+  const attentionModuleAr = {
+    subscriptions: 'الاشتراكات', companydocs: 'مستندات الشركة', clients: 'العملاء',
+    finance: 'المالية', knowledge: 'مركز المعرفة', timesheet: 'سجل الدوام'
+  };
+  // Indefinite accusative forms, for the "pick a real <kind>" placeholder hint
+  // only — kept out of uiNounsAr, whose entries are definite ("تعذر تحميل …").
+  const pickKindNounAr = { system: 'نظاماً', role: 'دوراً', environment: 'بيئة' };
   const orphanFolderNounAr = {
     'project folder': 'مجلد مشروع', 'company document folder': 'مجلد مستند شركة',
     'Knowledge Hub folder': 'مجلد مركز معرفة'
@@ -682,6 +1052,71 @@
     [/^(\d+) items?$/s, m => `${m[1]} عنصر`],
     [/^(-?\d+)% of total$/s, m => `${m[1]}٪ من الإجمالي`],
     [/^(\d+) active days?$/s, m => `${m[1]} يوم نشط`],
+    // Month view: the summary line's tail after a <b>hours</b> node, and each
+    // day cell's record count.
+    [/^across (\d+) active days?$/s, m => `موزعة على ${m[1]} يوم نشط`],
+    [/^(\d+) rec$/s, m => `${m[1]} سجل`],
+    // Timesheet filter counter.
+    [/^(\d+) of (\d+) shown$/s, m => `معروض ${m[1]} من ${m[2]}`],
+    // Finance invariants 3–5, whose messages name the link target and the
+    // remaining headroom (finance-db.js).
+    [/^Invoice and (installment|change request) currencies do not match$/s,
+      m => `عملة الفاتورة و${m[1] === 'installment' ? 'الدفعة' : 'طلب التغيير'} غير متطابقتين`],
+    [/^This would over-allocate the (installment|change request) \(only (.+) remaining\)$/s,
+      m => `سيتجاوز هذا تخصيص ${m[1] === 'installment' ? 'الدفعة' : 'طلب التغيير'} (المتبقي ${m[2]} فقط)`],
+    [/^This would over-pay the invoice \(only (.+) remaining\)$/s,
+      m => `سيتجاوز هذا سداد الفاتورة (المتبقي ${m[1]} فقط)`],
+    // Upload validation, shared by db.js and finance-db.js.
+    [/^Unsupported file type \((\..*?|\.\?)\)\. Allowed: (.+)$/s,
+      m => `نوع الملف غير مدعوم (${m[1]}). المسموح: ${m[2]}`],
+    [/^Unsupported file type \((.+)\)$/s, m => `نوع الملف غير مدعوم (${m[1]})`],
+    [/^Could not record the file: (.+)$/s, m => `تعذّر تسجيل الملف: ${m[1]}`],
+    // Backup/restore failures that append the underlying cause (db.js).
+    [/^Backup could not be validated: (.+)$/s, m => `تعذّر التحقق من النسخة الاحتياطية: ${m[1]}`],
+    [/^Backup manifest could not be read: (.+)$/s, m => `تعذّرت قراءة بيان المحتويات: ${m[1]}`],
+    [/^Backup is missing required table: (.+)$/s, m => `تفتقد النسخة الاحتياطية جدولاً مطلوباً: ${m[1]}`],
+    [/^Backup file is missing: (.+)$/s, m => `ملف النسخة الاحتياطية مفقود: ${m[1]}`],
+    [/^Backup file failed checksum validation: (.+)$/s, m => `فشل التحقق من بصمة ملف النسخة الاحتياطية: ${m[1]}`],
+    [/^Backup attachment references could not be validated: (.+)$/s,
+      m => `تعذّر التحقق من مراجع مرفقات النسخة الاحتياطية: ${m[1]}`],
+    [/^Full restore could not be staged: (.+)$/s, m => `تعذّر تجهيز الاستعادة الكاملة: ${m[1]}`],
+    [/^Full restore failed and the previous data was put back: (.+)$/s,
+      m => `فشلت الاستعادة الكاملة وأُعيدت البيانات السابقة: ${m[1]}`],
+    [/^Company code (.+) is already in use$/s, m => `رمز الشركة ${m[1]} مستخدم بالفعل`],
+    [/^Backup database contains an unsafe file path in (.+)$/s,
+      m => `تحتوي قاعدة بيانات النسخة الاحتياطية على مسار ملف غير آمن في ${m[1]}`],
+    [/^Backup is missing a file referenced by (.+): (.+)$/s,
+      m => `تفتقد النسخة الاحتياطية ملفاً يشير إليه ${m[1]}: ${m[2]}`],
+    [/^Invalid lookup code for (.+)$/s, m => `رمز قائمة غير صالح للفئة ${m[1]}`],
+    // Login throttling (auth.js). Lockout is 30 s, but the message counts down.
+    [/^Too many attempts\. Try again in (\d+) seconds\.$/s,
+      m => `محاولات كثيرة جداً. أعد المحاولة خلال ${m[1]} ثانية.`],
+    // Needs Attention meta line: "<row kind> · <module id>". Both halves are
+    // application wording, so translate them together.
+    [new RegExp(`^(.+) · (${Object.keys(attentionModuleAr).join('|')})$`, 's'),
+      m => `${arabicTranslation(m[1])} · ${attentionModuleAr[m[2]]}`],
+    // Finance client card footer.
+    [/^(\d+) contracts?$/s, m => `${m[1]} عقد`],
+    [/^Outstanding ([\d.]+)$/s, m => `المستحق ${m[1]}`],
+    // Overview stat-tile footers and chart subtitles.
+    [/^(\d+) invoices? overdue$/s, m => `${m[1]} فاتورة متأخرة`],
+    [/^(\d+) active contracts?$/s, m => `${m[1]} عقد نشط`],
+    [/^(\d+) types$/s, m => `${m[1]} نوع`],
+    [/^(\d+) files$/s, m => `${m[1]} ملف`],
+    [/^(\d+)d overdue$/s, m => `متأخر ${m[1]} يوم`],
+    [/^Time breakdown, ([\d.]+) total hours$/s, m => `توزيع الوقت، ${m[1]} ساعة إجمالاً`],
+    // Chart point/heat-cell tooltips: "Aug 1 · 3.5h", "2026-08-25 · 3.5h".
+    [/^(.+) · ([\d.]+)h$/s, m => `${arabicTranslation(m[1])} · ${m[2]} ساعة`],
+    // Browse placeholder and the analytics bar-row deep links.
+    // Neutral phrasing: the captured noun's gender varies, so avoid a
+    // possessive suffix that would have to agree with it.
+    [/^Select a (.+) to view its records$/s, m => `اختر ${arabicTranslation(m[1])} لعرض السجلات`],
+    [/^Open Internal Work filtered to (.+)$/s, m => `فتح العمل الداخلي مُصفّى على ${m[1]}`],
+    // Knowledge Hub document history.
+    [/^Show (\d+) previous versions?$/s, m => `عرض ${m[1]} إصدار سابق`],
+    [/^Latest (.+) · (.+) · (.+)$/s, m => `الأحدث ${m[1]} · ${m[2]} · ${m[3]}`],
+    [/^(.+) · (.+) · Added (.+)$/s, m => `${m[1]} · ${m[2]} · أُضيف ${m[3]}`],
+    [/^(.+) \(Archived\)$/s, m => `${m[1]} (مؤرشف)`],
     [/^(\d+) of (\d+) done$/s, m => `${m[1]} من ${m[2]} مكتمل`],
     // Analytics trend-chart aria-label carries a "; peak N hours, average N
     // hours" suffix the greedy plain-title rule below would otherwise leave
@@ -699,6 +1134,29 @@
     [/^Server Information \((\d+)\)$/s, m => `معلومات الخوادم (${m[1]})`],
     [/^Internal Systems \((\d+)\)$/s, m => `الأنظمة الداخلية (${m[1]})`],
     [/^Minutes of Meeting \((\d+)\)$/s, m => `محاضر الاجتماعات (${m[1]})`],
+    // Finance section headers, allocation labels and pickers. Each of these is
+    // one text node built by string concatenation in finance.js, so only a rule
+    // can translate the wording while leaving the record's own data alone.
+    [/^Contracts \((\d+)\)$/s, m => `العقود (${m[1]})`],
+    [/^Change Requests \((\d+)\)$/s, m => `طلبات التغيير (${m[1]})`],
+    [/^Invoices \((\d+)\)$/s, m => `الفواتير (${m[1]})`],
+    [/^(Hide|Show) (\d+) earlier versions?$/s,
+      m => `${m[1] === 'Hide' ? 'إخفاء' : 'عرض'} ${m[2]} إصدار سابق`],
+    [/^Go to invoice (.+)$/s, m => `الانتقال إلى الفاتورة ${m[1]}`],
+    // Fallback panel for a Finance tab with no renderer yet; the captured tab
+    // label is itself a dictionary key.
+    [/^(.+) is coming in a later phase of Finance\.$/s,
+      m => `${arabicTranslation(m[1])} قادم في مرحلة لاحقة من المالية.`],
+    // Invoice link targets: "Installment #3", "Installment #3 — Kickoff (Contract A)".
+    [/^Installment #(\d+)(?: — (.+))? \((.+)\)$/s,
+      m => `الدفعة رقم ${m[1]}${m[2] ? ` — ${m[2]}` : ''} (${m[3]})`],
+    [/^Installment #(\d+)$/s, m => `الدفعة رقم ${m[1]}`],
+    [/^CR — (.+)$/s, m => `طلب تغيير — ${m[1]}`],
+    [/^Change Request #(\d+)$/s, m => `طلب التغيير رقم ${m[1]}`],
+    // Allocation/link <option> labels — the trailing "(outstanding N)" and
+    // "— outstanding N" suffixes are the only translatable part.
+    [/^(.+) \(outstanding ([\d.]+)\)$/s, m => `${m[1]} (المستحق ${m[2]})`],
+    [/^(.+) — outstanding ([\d.]+)$/s, m => `${m[1]} — المستحق ${m[2]}`],
     // Client card footer: "N auth · N servers · N internal · N projects".
     [/^(\d+) auth · (\d+) servers? · (\d+) internal · (\d+) projects?$/s,
       m => `${m[1]} وصول · ${m[2]} خادم · ${m[3]} نظام داخلي · ${m[4]} مشروع`],
@@ -706,8 +1164,59 @@
       const verbs = { load: 'تحميل', save: 'حفظ', delete: 'حذف', restore: 'استعادة', open: 'فتح', remove: 'إزالة', download: 'تنزيل', upload: 'رفع', create: 'إنشاء', add: 'إضافة', update: 'تحديث', link: 'ربط', unlink: 'إلغاء ربط', merge: 'دمج', copy: 'نسخ', mark: 'تحديد', undo: 'التراجع عن', duplicate: 'تكرار' };
       return `تعذر ${verbs[m[1]]} ${uiNounsAr[m[2]] || m[2]}`;
     }],
-    [/^History — (.+)$/s, m => `السجل — ${m[1]}`], [/^Browse all work for (.+)$/s, m => `تصفح كل العمل الخاص بـ ${m[1]}`],
+    // Suffixes appended to a record's own name — translate the suffix, keep
+    // the name. A disabled lookup still selected on a record reads "(removed)";
+    // the signed-in account's own card reads "(you)".
+    [/^(.+) \(removed\)$/s, m => `${m[1]} (محذوف)`],
+    [/^(.+) \(you\)$/s, m => `${m[1]} (أنت)`],
+    // Settings save feedback: the skip reasons inside the parentheses are
+    // themselves dictionary keys, so translate each one in place.
+    [/^Saved — (\d+) not saved$/s, m => `تم الحفظ — لم يُحفظ ${m[1]}`],
+    [/^Settings saved — (\d+) (?:entry was|entries were) not saved: (.+)$/s,
+      m => `تم حفظ الإعدادات — لم يُحفظ ${m[1]} قيد: ${m[2].replace(/\(([^()]+)\)/g, (_, reason) => `(${arabicTranslation(reason)})`)}`],
+    // Client-side account validation, mirroring auth.js's own bounds.
+    [/^Username must be (\d+)–(\d+) characters\.$/s, m => `يجب أن يكون اسم المستخدم من ${m[1]} إلى ${m[2]} حرفاً.`],
+    [/^Password must be at least (\d+) characters\.$/s, m => `يجب ألا تقل كلمة المرور عن ${m[1]} حروف.`],
+    [/^Password must be at most (\d+) UTF-8 bytes\.$/s, m => `يجب ألا تزيد كلمة المرور عن ${m[1]} بايت UTF-8.`],
+    // Settings → Maintenance diagnostics values.
+    [/^(\d+) checked · (\d+) missing$/s, m => `${m[1]} تم فحصه · ${m[2]} مفقود`],
+    [/^(\d+) valid of (\d+)$/s, m => `${m[1]} صالحة من ${m[2]}`],
+    // The history modal falls back to the literal "record"/"session" when a row
+    // has no title, so translate the captured subject too.
+    [/^History — (.+)$/s, m => `السجل — ${uiNounsAr[m[1]] || arabicTranslation(m[1])}`],
+    // Task-domain conversion confirmations and the merge warning — the task's
+    // own name is the leading quoted part.
+    [/^"(.*)" will become internal work: its Company, System, and Project link \(if any\) will be cleared\.$/s,
+      m => `«${arabicTranslation(m[1])}» ستصبح عملاً داخلياً: ستُمسح الشركة والنظام ورابط المشروع (إن وُجد).`],
+    [/^"(.*)" will become client work: its Department link will be cleared\.$/s,
+      m => `«${arabicTranslation(m[1])}» ستصبح عمل عميل: سيُمسح رابط القسم.`],
+    [/^(.+) will be deleted once its sessions move\.$/s,
+      m => `${arabicTranslation(m[1])} ستُحذف بمجرد نقل جلساتها.`],
+    [/^Merged into (.+)$/s, m => `تم الدمج في ${arabicTranslation(m[1])}`],
+    [/^Project restored, but couldn't relink: (.+)$/s, m => `تمت استعادة المشروع، لكن تعذّرت إعادة الربط: ${m[1]}`],
+    // Task-card footer: "Acme · Billing  ·  3 sessions  ·  90 min (1.50 h)".
+    [/^(?:(.+?)  ·  )?(\d+) sessions?(?:  ·  (\d+) min \(([\d.]+) h\))?$/s, m => {
+      const parts = [];
+      if (m[1]) parts.push(m[1]);
+      parts.push(`${m[2]} جلسة`);
+      if (m[3]) parts.push(`${m[3]} دقيقة (${m[4]} ساعة)`);
+      return parts.join('  ·  ');
+    }],
+    [/^Browse all work for (.+)$/s, m => `تصفح كل العمل الخاص بـ ${m[1]}`],
+    // Credential reveal/copy controls on the Clients page.
+    [/^Show (.+) for 15 seconds$/s, m => `إظهار ${uiNounsAr[m[1]] || m[1]} لمدة 15 ثانية`],
+    [/^Copy (.+) \(clipboard clears in 30 seconds\)$/s,
+      m => `نسخ ${uiNounsAr[m[1]] || m[1]} (تُمسح الحافظة خلال 30 ثانية)`],
+    [/^(.+) copied — clipboard clears in 30 seconds$/s,
+      m => `تم نسخ ${arabicTranslation(m[1])} — تُمسح الحافظة خلال 30 ثانية`],
+    // A record still pointing at a disabled lookup keeps its value as a
+    // placeholder <option> until someone picks a live one.
+    [/^(.+) — placeholder, pick a real (.+)$/s,
+      m => `${m[1]} — قيمة مؤقتة، اختر ${pickKindNounAr[m[2]] || m[2]} من القائمة`],
     [/^Open project: (.+)$/s, m => `فتح المشروع: ${m[1]}`], [/^Open department: (.+)$/s, m => `فتح القسم: ${m[1]}`],
+    // Must precede the catch-all Open rule, which would otherwise swallow the
+    // trailing English into its captured group.
+    [/^Open (.+) in the Timesheet$/s, m => `فتح ${m[1]} في سجل الدوام`],
     [/^Open (.+)$/s, m => `فتح ${m[1]}`], [/^Remove filter (.+)$/s, m => `إزالة عامل التصفية ${m[1]}`],
     [/^Remove tag (.+)$/s, m => `إزالة الوسم ${m[1]}`], [/^Moved to (.+)$/s, m => `تم النقل إلى ${m[1]}`],
     [/^Session logged to (.+)$/s, m => `تم تسجيل الجلسة في ${m[1]}`], [/^Role: (.+)$/s, m => `الدور: ${m[1]}`],
@@ -723,6 +1232,7 @@
     [/^Renews (.+)$/s, m => `يتجدد ${m[1]}`], [/^Expires soon — (.+)$/s, m => `تنتهي الصلاحية قريباً — ${m[1]}`],
     [/^Expires (.+)$/s, m => `تنتهي الصلاحية ${m[1]}`], [/^in “(.+)”$/s, m => `ضمن «${m[1]}»`],
     [/^Full backup failed: (.+)$/s, m => `فشل النسخ الاحتياطي الكامل: ${m[1]}`],
+    [/^Backup failed: (.+)$/s, m => `فشل النسخ الاحتياطي: ${m[1]}`],
     [/^Full restore stopped: (.+)$/s, m => `توقفت الاستعادة الكاملة: ${m[1]}`],
     // Settings → Maintenance panel: merge-picker label, palette settings-tab
     // items, and the orphan-file-sweep footer (Milestone 6 tooling).
@@ -744,7 +1254,14 @@
         return mm ? `${mm[1]} ${orphanFolderNounAr[mm[2]]} غير مرتبط` : seg;
       });
       return `آخر تشغيل (${m[1]}) أزال ${parts.join(' و')}.`;
-    }]
+    }],
+    // Last-resort "<label> (N)" — the shape every tab strip and section header
+    // uses. Must stay at the END of this array so the specific rules above keep
+    // their own wording. The label is resolved through the dictionary, so a
+    // record's own name passes through untouched while a new tab is covered
+    // automatically — the Clients page's Finance tab shipped English because
+    // it was the one tab without a hand-written rule.
+    [/^(.+) \((\d+)\)$/s, m => `${arabicTranslation(m[1])} (${m[2]})`]
   ];
 
   let language = readLanguage();

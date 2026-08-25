@@ -6,7 +6,7 @@ function setBrowseKind(kind) {
     b.classList.toggle('active', b.dataset.kind === kind));
   document.getElementById('browse-body-companies').style.display = kind === 'companies' ? '' : 'none';
   document.getElementById('browse-body-systems').style.display  = kind === 'systems'  ? '' : 'none';
-  window.api.setTitle('Office ONE — Browse — ' + (kind === 'companies' ? 'Companies' : 'Systems'));
+  setAppTitle('Browse', window.ctI18n?.t?.(kind === 'companies' ? 'Companies' : 'Systems'));
   openCatPage(kind);
   uiState.filters.browse = { kind, selected: cpState[kind].selected };
   saveUiStateDebounced();
@@ -198,7 +198,10 @@ function applyCatFilter(kind) {
     const td = document.createElement('td'); td.colSpan = 11; td.className = 'cp-records-empty';
     td.textContent = st.entries.length
       ? (window.ctI18n?.t?.('No records match the current filters') || 'No records match the current filters')
-      : (window.ctI18n?.t?.('No records for this {noun}', { noun: CP_DEF[kind].noun }) || ('No records for this ' + CP_DEF[kind].noun));
+      // The noun is itself a dictionary key, so translate it before it is
+      // interpolated — otherwise the Arabic sentence ends in "company".
+      : (window.ctI18n?.t?.('No records for this {noun}', { noun: window.ctI18n.t(CP_DEF[kind].noun) })
+         || ('No records for this ' + CP_DEF[kind].noun));
     tr.appendChild(td); tbody.appendChild(tr); return;
   }
   rows.forEach((r, i) => tbody.appendChild(buildReadonlyRow(r, i)));
@@ -297,12 +300,15 @@ function applySubFilter() { subFilter = document.getElementById('sub-filter').va
 // remains a mirror so renderer/bootstrap.js can paint the right theme
 // synchronously before login (when no account is known yet), but once a user
 // is signed in their own DB-stored value is authoritative and overrides it.
+// The standalone sidebar toggle is gone — light/dark is the Appearance choice
+// inside View & Comfort — so "applying the theme" means syncing those two choice
+// buttons' pressed state, exactly like every other workspace choice.
 function applyThemeLabel() {
   const dark = document.documentElement.getAttribute('data-theme') === 'dark';
-  const icon = document.getElementById('theme-icon');
-  const label = document.getElementById('theme-label');
-  if (icon)  { icon.innerHTML = dark ? ic('sun') : ic('moon'); icon.dataset.iced = '1'; }
-  if (label) label.textContent = dark ? 'Light Mode' : 'Dark Mode';
+  const active = 'theme:' + (dark ? 'dark' : 'light');
+  document.querySelectorAll('[data-workspace-choice^="theme:"]').forEach(btn => {
+    btn.setAttribute('aria-pressed', String(btn.dataset.workspaceChoice === active));
+  });
 }
 function applyLoadedTheme(theme) {
   if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
@@ -310,10 +316,16 @@ function applyLoadedTheme(theme) {
   try { localStorage.setItem('ct-theme', theme === 'dark' ? 'dark' : 'light'); } catch (e) {}
   applyThemeLabel();
 }
+function setWorkspaceTheme(theme) {
+  if (theme !== 'light' && theme !== 'dark') return;
+  applyLoadedTheme(theme);
+  saveUserPreference('theme', theme);
+}
+// Still the command palette's entry point (one keystroke, no picker), and the
+// only caller that needs the current value flipped rather than named.
 function toggleTheme() {
   const dark = document.documentElement.getAttribute('data-theme') === 'dark';
-  applyLoadedTheme(dark ? 'light' : 'dark');
-  saveUserPreference('theme', dark ? 'light' : 'dark');
+  setWorkspaceTheme(dark ? 'light' : 'dark');
 }
 
 // ── Calm Workspace preferences ──
@@ -337,10 +349,11 @@ function applyWorkspaceViewPreferences() {
   document.body.classList.toggle('workspace-calm', workspaceViewPrefs.canvas === 'calm');
   document.body.classList.toggle('workspace-structured', workspaceViewPrefs.canvas === 'structured');
   document.body.classList.toggle('workspace-reduced-motion', workspaceViewPrefs.motion === 'reduced');
-  document.querySelectorAll('[data-workspace-choice]').forEach(btn => {
+  document.querySelectorAll('[data-workspace-choice]:not([data-workspace-choice^="theme:"])').forEach(btn => {
     const [key, value] = btn.dataset.workspaceChoice.split(':');
     btn.setAttribute('aria-pressed', String(workspaceViewPrefs[key] === value));
   });
+  applyThemeLabel();
 }
 function setWorkspaceView(key, value) {
   const allowed = {
@@ -484,7 +497,8 @@ async function renderOverview() {
         ? `${overdue} invoice${overdue === 1 ? '' : 's'} overdue`
         : `${finance.activeContracts || 0} active contract${finance.activeContracts === 1 ? '' : 's'}`,
       cls: overdue ? 'warn' : '',
-      go: 'finance',
+      // Finance is not a page any more — the money lives on each client.
+      go: 'clients',
     });
   }
   document.getElementById('dash-stats').innerHTML = stats.map(s => `
@@ -517,11 +531,16 @@ async function renderOverview() {
     attEl.querySelectorAll('.dash-att-item').forEach(el => {
       const a = attention[Number(el.dataset.attIdx)];
       el.addEventListener('click', () => {
+        // A finance item is a client record now, so it navigates to Clients
+        // like any other one — `module` stays 'finance' only as the label the
+        // row shows and the bucket the badge counts.
+        const isFinance = a.module === 'finance';
+        if (isFinance) {
+          openClientFinance(a.companyId, a.type === 'financeInvoice' ? 'invoices' : 'contracts');
+          return;
+        }
         switchModule(a.module);
-        // companyId deep-links into a Clients record; clientId is Finance's own
-        // roster id, so the two cannot share a branch.
         if (a.companyId != null) openClientDetail(a.companyId, a.title);
-        else if (a.clientId != null) openFinanceClientDetail(a.clientId);
         else if (a.type === 'subscription') scrollToAndHighlight('[data-sub-id="' + a.id + '"]');
         else if (a.type === 'companyDocument') scrollToAndHighlight('[data-doc-id="' + a.id + '"]');
       });
@@ -533,8 +552,7 @@ async function renderOverview() {
   const urgent = m => attention.filter(a => a.module === m && a.days <= 7).length;
   setNavBadge('subscriptions', urgent('subscriptions'));
   setNavBadge('companydocs', urgent('companydocs'));
-  setNavBadge('clients', urgent('clients'));
-  setNavBadge('finance', urgent('finance'));
+  setNavBadge('clients', urgent('clients') + urgent('finance'));
 
 }
 
@@ -994,28 +1012,10 @@ async function exportAnalyticsPDF() {
   else if (res && res.error) toast('PDF failed: ' + res.error);
 }
 
-// ── Backup Data choice menu (sidebar 💾) ──
-// The sidebar button now opens a small choice — a full backup (Milestone 8,
-// everything the app owns) or the original database-only save-dialog flow —
-// instead of jumping straight to one of them. Rendered once at boot.
-function renderBackupChoiceMenu() {
-  const menu = document.getElementById('backup-choice-menu');
-  if (!menu) return;
-  menu.innerHTML = '';
-  const full = document.createElement('button');
-  full.innerHTML = '<span>Full backup to Desktop</span>';
-  full.addEventListener('click', () => { menu.classList.remove('open'); runFullBackup(); });
-  const dbOnly = document.createElement('button');
-  dbOnly.innerHTML = '<span>Database only…</span>';
-  dbOnly.addEventListener('click', () => { menu.classList.remove('open'); backupDatabase(); });
-  menu.appendChild(full);
-  menu.appendChild(dbOnly);
-}
-
 // ── Full Backup (Milestone 8) ──
 // Captures the DB + projects/ + company_documents/ + knowledge_hub/ + backups/ into one new
-// timestamped Desktop folder. Shared by the sidebar menu and the Settings ->
-// Maintenance card; `btnId` lets each caller show its own loading state.
+// timestamped Desktop folder. Shared by Settings -> Backup Data and the command
+// palette; `btnId` lets each caller show its own loading state.
 async function runFullBackup(btnId) {
   const btn = btnId ? document.getElementById(btnId) : null;
   const orig = btn ? btn.textContent : null;
@@ -1103,15 +1103,21 @@ async function chooseFullBackupForRestore(btnId) {
 }
 
 // ── Database backup ──
+// Reached from Settings -> Backup Data and from the command palette, so the
+// outcome has to land somewhere that exists in both cases: a toast, with the
+// Settings button showing the in-flight state when it happens to be on screen.
+// This used to repaint the sidebar's Backup Data button, which is gone.
 async function backupDatabase() {
-  const btn = document.getElementById('backup-btn');
-  const orig = btn.innerHTML;
+  const btn = document.getElementById('backup-dbonly-btn');
+  const orig = btn ? btn.textContent : null;
+  if (btn) { btn.disabled = true; btn.textContent = 'Backing up…'; }
   let res;
   try { res = await window.api.backupDatabase(); } catch { res = { ok: false, error: 'failed' }; }
-  if (res?.ok) btn.innerHTML = '<span class="nav-icon">' + ic('circle-check') + '</span>Backed up';
-  else if (res?.error) btn.innerHTML = '<span class="nav-icon">' + ic('triangle-alert') + '</span>Failed';
-  else return;   // user canceled the save dialog
-  setTimeout(() => { btn.innerHTML = orig; }, 2200);
+  if (btn) { btn.disabled = false; btn.textContent = orig; }
+  // Neither ok nor error means the user canceled the save dialog — stay quiet.
+  if (res?.ok) toast('Database backed up');
+  else if (res?.error) toast('Backup failed: ' + res.error);
+  return res;
 }
 
 // ── Subscriptions: helpers ──

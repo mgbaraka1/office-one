@@ -56,6 +56,12 @@
     <span data-ic="plus"></span><span class="nav-label">Create New</span>
   </button>
   <nav class="sidebar-nav" aria-label="Primary navigation">
+    <!-- Overview is the default landing page and the surface every other module
+         eventually reports back into, so it sits above the sectioned list rather
+         than inside Review. -->
+    <button class="nav-item active" data-module="analytics" data-onclick="switchModule('analytics')" title="Overview">
+      <span class="nav-icon" data-ic="layout-dashboard"></span><span class="nav-label">Overview</span>
+    </button>
     <div class="nav-section">Track</div>
     <button class="nav-item" data-module="timesheet" data-onclick="switchModule('timesheet')" title="Today — Timesheet">
       <span class="nav-icon" data-ic="clock"></span><span class="nav-label">Today</span>
@@ -67,14 +73,11 @@
     <button class="nav-item" data-module="internal-tasks" data-onclick="switchModule('internal-tasks')" title="Internal Work">
       <span class="nav-icon" data-ic="building"></span><span class="nav-label">Internal Work</span>
     </button>
-    <!-- Finance is its own section, not a member of Internal. Internal Work is
-         explicitly NON-client work (migration 053); contracts and invoices are
-         the most client-facing data in the app, so the module sat in the one
-         section it contradicted. -->
-    <div class="nav-section">Finance</div>
-    <button class="nav-item" data-module="finance" data-onclick="switchModule('finance')" title="Finance — contracts, invoices, and minutes">
-      <span class="nav-icon" data-ic="credit-card"></span><span class="nav-label">Finance</span><span class="nav-badge" id="nav-badge-finance"></span>
-    </button>
+    <!-- Finance deliberately has NO sidebar entry. Contracts and invoices are the
+         most client-facing data in the app, so the module is reached from a
+         client's Finance tab (and Quick Find) — the same deep-link-only shape
+         'projects' and 'browse' already have. Its attention badge folds into
+         Clients, since that is now the only nav item that owns it. -->
     <div class="nav-section">Clients &amp; Assets</div>
     <button class="nav-item" data-module="clients" data-onclick="switchModule('clients')" title="Clients">
       <span class="nav-icon" data-ic="layers"></span><span class="nav-label">Clients</span><span class="nav-badge" id="nav-badge-clients"></span>
@@ -89,30 +92,22 @@
       <span class="nav-icon" data-ic="book-open"></span><span class="nav-label">Knowledge Hub</span><span class="nav-badge" id="nav-badge-knowledge"></span>
     </button>
     <div class="nav-section">Review</div>
-    <button class="nav-item active" data-module="analytics" data-onclick="switchModule('analytics')" title="Overview">
-      <span class="nav-icon" data-ic="layout-dashboard"></span><span class="nav-label">Overview</span>
-    </button>
     <button class="nav-item" data-module="reports" data-onclick="switchModule('reports')" title="Reports">
       <span class="nav-icon" data-ic="file-text"></span><span class="nav-label">Reports</span>
     </button>
-    <div class="nav-section">Administration</div>
+  </nav>
+  <div class="sidebar-footer">
+    <!-- Settings sits in the static footer rather than the scrolling module list:
+         it configures the app instead of being a place work happens, so it belongs
+         with the other always-present controls. Backup Data used to live here too
+         and is now a page inside Settings (tab "backup"); the standalone theme
+         toggle is now the Appearance choice inside View & Comfort. -->
     <button class="nav-item" data-module="settings" data-onclick="switchModule('settings')" title="Settings">
       <span class="nav-icon" data-ic="settings"></span><span class="nav-label">Settings</span>
     </button>
-  </nav>
-  <div class="sidebar-footer">
-    <button id="workspace-view-btn" class="nav-item" data-onclick="openWorkspaceView()" title="Workspace view and eye comfort">
+    <button id="workspace-view-btn" class="nav-item" data-onclick="openWorkspaceView()" title="Theme, workspace view, and eye comfort">
       <span class="nav-icon" data-ic="eye"></span><span class="nav-label">View &amp; Comfort</span>
     </button>
-    <button id="theme-toggle" class="nav-item" data-onclick="toggleTheme()" title="Switch between light and dark mode">
-      <span class="nav-icon" id="theme-icon" data-ic="moon"></span><span id="theme-label" class="nav-label">Dark Mode</span>
-    </button>
-    <div class="backup-btn-wrap admin-only">
-      <button id="backup-btn" class="nav-item" data-onclick="toggleTopMenu(event,'backup-choice-menu')" title="Back up your data — a full backup or just the database">
-        <span class="nav-icon" data-ic="save"></span><span class="nav-label">Backup Data</span>
-      </button>
-      <div class="top-menu" id="backup-choice-menu"></div>
-    </div>
     <div class="sidebar-user" id="sidebar-user" aria-label="Signed-in account">
       <div class="sidebar-user-avatar" id="sidebar-user-avatar" aria-hidden="true"></div>
       <div class="sidebar-user-copy">
@@ -909,18 +904,62 @@
       <input type="text" id="clients-records-filter" class="cl-records-search-input"
              placeholder="Search all client records… e.g. “VPN” or “Amana Visa”" data-oninput="applyClientRecordFilter()">
     </div>
+    <!-- Roster actions. The client roster IS the COMPANY lookup catalog, so
+         this is the one place it is created, archived and reordered. -->
+    <div class="cl-list-actions">
+      <button type="button" class="btn" id="clients-archived-btn" data-onclick="toggleClientsShowArchived()"><span data-ic="eye"></span>Show archived</button>
+      <button type="button" class="btn" id="clients-arrange-btn" data-onclick="toggleClientsArrange()"><span data-ic="rows-3"></span>Arrange</button>
+      <button type="button" class="btn primary" data-onclick="openClientCreateModal()"><span data-ic="plus"></span>New Client</button>
+    </div>
     <div class="pj-grid" id="clients-grid"></div>
     <div id="clients-search-results" style="display:none"></div>
     <div id="clients-empty-state" class="empty-state" hidden>
       <div class="empty-state-inner">
         <span data-ic="layers"></span>
-        <p>No companies yet — add one in <strong>Settings → Companies</strong></p>
+        <p>No clients yet — click <strong>+ New Client</strong> to add one</p>
       </div>
     </div>
   </div>
 
   <!-- Detail view: Auth + Server Information (built by JS) -->
   <div id="clients-detail-view" class="pj-detail-scroll" style="display:none"></div>
+</div>
+
+<!-- ══ NEW CLIENT MODAL ══
+     Create only — there is no edit twin. Names are edited inline on the
+     client's own Overview tab, and the company code is never editable at all:
+     it is the stable business identity every task, project, invoice and
+     infrastructure row is filed under. -->
+<div id="client-create-modal-overlay" class="modal-overlay" data-onclick="clientCreateOverlayClick(event)">
+  <div id="client-create-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title">New Client</span>
+      <button class="modal-close" data-onclick="closeClientCreateModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Company Code</label>
+          <input id="cl-new-code" type="text" placeholder="e.g. ACME or 105" data-oninput="normalizeClientCodeInput(this)" />
+          <span class="modal-hint">Permanent — a company code cannot be changed after the client is created.</span>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>English Name</label>
+          <input id="cl-new-name-en" type="text" placeholder="English company name" />
+        </div>
+        <div class="form-group">
+          <label>Arabic Name</label>
+          <input id="cl-new-name-ar" type="text" dir="rtl" placeholder="اسم الشركة بالعربية" />
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-onclick="closeClientCreateModal()">Cancel</button>
+      <button class="btn primary" data-onclick="submitClientCreateModal()">Create Client</button>
+    </div>
+  </div>
 </div>
 
 <!-- ══ CLIENT AUTH CONNECTION ADD/EDIT MODAL (VPN, PAM, etc.) ══ -->
@@ -1273,32 +1312,12 @@
   </div>
 </div>
 
-<!-- ══ Finance MODULE — standalone financial record-keeping for Finance IT
-     (clients, contracts with versions, change requests, invoices, minutes of
-     meeting, reports). Deliberately isolated from the rest of the app — its
-     own client roster, its own finance_lookups catalog, its own stylesheet
-     (renderer/finance.css, .gi- prefixed). See AGENTS.md's Finance section. ══ -->
-<div id="module-finance" class="app-module">
-  <div id="finance-list-view">
-    <div id="finance-topbar" class="page-header">
-      <span class="page-title"><span class="ti-ic" data-ic="briefcase"></span>Finance</span>
-      <div class="topbar-right">
-        <input type="text" id="finance-clients-filter" class="mod-search" placeholder="Search clients…" data-oninput="applyFinanceClientFilter()">
-        <button class="btn primary" data-onclick="openFinanceClientModal()"><span data-ic="plus"></span>New Client</button>
-      </div>
-    </div>
-    <div class="pj-scroll">
-      <div class="fin-grid" id="finance-clients-grid"></div>
-      <div id="finance-clients-empty-state" class="empty-state" hidden>
-        <div class="empty-state-inner">
-          <span data-ic="briefcase"></span>
-          <p>No Finance clients yet — click <strong>+ New Client</strong> to add one</p>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div id="finance-detail-view" class="pj-scroll" style="display:none"></div>
-</div>
+<!-- There is no Finance module. A contract, a change request and an invoice are
+     client records, so they render inside the Clients page — see the Finance
+     and Meetings tabs in renderer/features/clients.js — and the finance_lookups
+     catalog editor is Settings → Finance. Only the modals below are shared
+     markup; every surface that used to live here moved onto the client.
+     See AGENTS.md's Finance section. -->
 
 <!-- ══ Finance CLIENT ADD/EDIT MODAL ══ -->
 <!-- ══ FINANCE CLIENT PICKER (Create Hub entry points) ══
@@ -1342,7 +1361,7 @@
             <span id="fin-client-identity-name" data-user-content></span>
             <span id="fin-client-identity-code" class="client-code-badge" data-user-content></span>
           </div>
-          <span class="modal-hint">Rename this client in Settings → Companies</span>
+          <span class="modal-hint">Rename this client on the Clients page</span>
         </div>
       </div>
       <div class="form-row">
@@ -2100,7 +2119,8 @@
       <button class="stab active" data-tab="general" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="sliders-horizontal"></span> General</button>
       <button class="stab" data-tab="users" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="building"></span> User Management</button>
       <div class="settings-group-label admin-only">Catalogs</div>
-      <button class="stab" data-tab="companies"     data-onclick="switchTab(this)"><span class="stab-icon" data-ic="building-2"></span> Companies</button>
+      <!-- No Companies tab: the client roster IS the COMPANY catalog, and it is
+           created/renamed/archived/reordered on the Clients page instead. -->
       <button class="stab" data-tab="systems"       data-onclick="switchTab(this)"><span class="stab-icon" data-ic="folder"></span> Systems</button>
       <button class="stab" data-tab="natural"       data-onclick="switchTab(this)"><span class="stab-icon" data-ic="tag"></span> Natural</button>
       <button class="stab" data-tab="timeType"      data-onclick="switchTab(this)"><span class="stab-icon" data-ic="alarm-clock"></span> Time Type</button>
@@ -2114,7 +2134,16 @@
       <button class="stab" data-tab="department"    data-onclick="switchTab(this)"><span class="stab-icon" data-ic="building"></span> Department</button>
       <button class="stab" data-tab="taskSourceType" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="external-link"></span> Task Source Types</button>
       <button class="stab" data-tab="serverRole"    data-onclick="switchTab(this)"><span class="stab-icon" data-ic="server"></span> Server Roles</button>
+      <!-- Finance's catalog is finance_lookups, not lookup_codes, so this tab is
+           hand-authored rather than generated from settings-registry.js — the
+           same exception Backup Data is. It used to be a Setup tab inside the
+           Finance module; app settings belong in app Settings. -->
+      <button class="stab" data-tab="finance"       data-onclick="switchTab(this)"><span class="stab-icon" data-ic="credit-card"></span> Finance</button>
       <div class="settings-group-label admin-only">Data &amp; Recovery</div>
+      <!-- Backup Data used to be a sidebar button with a two-item dropdown; it is
+           a full Settings page now, and it owns everything that produces or
+           consumes a backup. Maintenance keeps the read-only audits and repairs. -->
+      <button class="stab" data-tab="backup" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="save"></span> Backup Data</button>
       <button class="stab admin-only" data-tab="maintenance" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="wrench"></span> Maintenance</button>
     </div>
     <!-- Panels -->
@@ -2197,7 +2226,6 @@
           </div>
         </div>
       </div>
-      <div class="settings-panel" id="tab-companies"></div>
       <div class="settings-panel" id="tab-systems"></div>
       <div class="settings-panel" id="tab-natural"></div>
       <div class="settings-panel" id="tab-timeType"></div>
@@ -2211,7 +2239,13 @@
       <div class="settings-panel" id="tab-department"></div>
       <div class="settings-panel" id="tab-taskSourceType"></div>
       <div class="settings-panel" id="tab-serverRole"></div>
-      <div class="settings-panel" id="tab-maintenance">
+      <!-- Rendered by renderFinanceSetupTab() in renderer/features/finance.js.
+           It has its own Save Catalog button, so syncSettingsSaveButton() hides
+           the shared one here exactly as it does for Backup and Maintenance. -->
+      <div class="settings-panel" id="tab-finance">
+        <div id="finance-setup-host"></div>
+      </div>
+      <div class="settings-panel" id="tab-backup">
         <div class="maint-section">
           <div class="maint-section-head">
             <span data-ic="database"></span><span>Full Backup</span>
@@ -2233,12 +2267,12 @@
 
         <div class="maint-section">
           <div class="maint-section-head">
-            <span data-ic="activity"></span><span>Recovery Readiness</span>
-            <button class="btn" style="margin-left:auto" data-onclick="runSystemDiagnostics()">Run Audit</button>
+            <span data-ic="save"></span><span>Database Only</span>
+            <button class="btn" id="backup-dbonly-btn" style="margin-left:auto" data-onclick="backupDatabase()">Save a Copy of the Database…</button>
           </div>
-          <p class="general-hint">Checks the live database, every rotating snapshot, referenced document files,
-            search index, disk headroom, schema version, and credential portability. Read-only and safe to run.</p>
-          <div id="maint-diagnostics-result"></div>
+          <p class="general-hint">Writes just the SQLite file wherever you choose. Quick, but it carries none of the
+            uploaded project, company document, Knowledge Hub, or Finance files — use Full Backup for a complete
+            recovery point.</p>
         </div>
 
         <div class="maint-section">
@@ -2249,6 +2283,17 @@
           <p class="general-hint">Auto-rotated snapshots taken on launch (newest 5 kept). Restoring replaces the
             live database and restarts the app — a safety copy of the current data is always taken first.</p>
           <div id="maint-backups-list"></div>
+        </div>
+      </div>
+      <div class="settings-panel" id="tab-maintenance">
+        <div class="maint-section">
+          <div class="maint-section-head">
+            <span data-ic="activity"></span><span>Recovery Readiness</span>
+            <button class="btn" style="margin-left:auto" data-onclick="runSystemDiagnostics()">Run Audit</button>
+          </div>
+          <p class="general-hint">Checks the live database, every rotating snapshot, referenced document files,
+            search index, disk headroom, schema version, and credential portability. Read-only and safe to run.</p>
+          <div id="maint-diagnostics-result"></div>
         </div>
 
         <div class="maint-section">
@@ -2473,7 +2518,14 @@
       <button class="modal-close" data-onclick="closeWorkspaceView()" data-ic="x"></button>
     </div>
     <div class="modal-body">
-      <p class="workspace-view-intro">Tune the visual rhythm for your eyes and your task. These preferences stay on this device and never change your records.</p>
+      <p class="workspace-view-intro">Tune the visual rhythm for your eyes and your task. These preferences follow your account and never change your records.</p>
+      <div class="workspace-view-section">
+        <div class="workspace-view-label">Appearance<small>Choose the overall light level of the interface.</small></div>
+        <div class="workspace-choice-group two" role="group" aria-label="Workspace appearance">
+          <button class="workspace-choice" type="button" data-workspace-choice="theme:light" data-onclick="setWorkspaceTheme('light')"><strong>Light Mode</strong><span>Bright, high-contrast surfaces</span></button>
+          <button class="workspace-choice" type="button" data-workspace-choice="theme:dark" data-onclick="setWorkspaceTheme('dark')"><strong>Dark Mode</strong><span>Dimmed surfaces for low light</span></button>
+        </div>
+      </div>
       <div class="workspace-view-section">
         <div class="workspace-view-label">Density<small>Choose how much information fits on screen.</small></div>
         <div class="workspace-choice-group" role="group" aria-label="Workspace density">
