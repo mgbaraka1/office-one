@@ -144,14 +144,23 @@ function finLkFields(statusId) {
   const r = conn().prepare('SELECT code, label_en, label_ar FROM finance_lookups WHERE id = ?').get(statusId);
   return r ? { status: r.code, statusLabelEn: r.label_en, statusLabelAr: r.label_ar } : { status: '', statusLabelEn: '', statusLabelAr: '' };
 }
-// Currency is stored as a plain code (not an FK id) — Finance's own small,
-// fixed CURRENCY list, unrelated to the app-wide CURRENCY lookup subscriptions
-// use. An unknown/blank code resolves to '' (unset) rather than storing junk.
+// Currency is stored as a plain code, not an FK id. Accepted from EITHER the
+// app-wide CURRENCY catalog (which the dropdown now offers — plan §8) or
+// Finance's own legacy CURRENCY list, so that:
+//   - re-sourcing the dropdown needed no migration and no data change, and
+//   - every code already stored by the old, Finance-only list stays valid.
+// Validating against only one of the two would silently blank the currency on
+// the next save of a record picked from the other. An unknown or blank code
+// still resolves to '' (unset) rather than storing junk.
 function resolveFinanceCurrency(userId, code) {
   const c = String(code ?? '').trim().toUpperCase();
   if (!c) return '';
-  const row = conn().prepare('SELECT 1 FROM finance_lookups WHERE user_id = ? AND category = ? AND code = ?').get(userId, 'CURRENCY', c);
-  return row ? c : '';
+  const shared = conn().prepare(
+    "SELECT 1 FROM lookup_codes WHERE category = 'CURRENCY' AND code = ? COLLATE NOCASE"
+  ).get(c);
+  if (shared) return c;
+  const own = conn().prepare('SELECT 1 FROM finance_lookups WHERE user_id = ? AND category = ? AND code = ?').get(userId, 'CURRENCY', c);
+  return own ? c : '';
 }
 
 function listFinanceLookups(userId) {

@@ -644,6 +644,32 @@ try {
   record('Profile: an unknown company is refused',
     db.saveCompanyProfile(userId, 999999, { taxNumber: 'x' }).ok === false);
 
+
+  // ── Currency now comes from the shared catalog (plan §8) ──────────────────
+  // No migration was involved: currency_code is a string, so the only thing
+  // that had to change was which list is accepted. Validating against one
+  // catalog only would silently blank a currency picked from the other.
+  const curClient = financeDb.createFinanceClient(userId, { companyId: newCompany('Currency Co') }).client;
+  const sharedCurrency = (db.getLookupsByCategory('CURRENCY', false)[0] || {}).code;
+  const sharedContract = financeDb.createFinanceContract(userId, curClient.id, {
+    title: 'Shared currency', currencyCode: sharedCurrency,
+  });
+  record('Currency: a code from the app-wide CURRENCY catalog is accepted',
+    !!sharedCurrency && sharedContract.ok && sharedContract.contract.currencyCode === sharedCurrency,
+    JSON.stringify({ sharedCurrency, stored: sharedContract.contract?.currencyCode }));
+
+  const ownContract = financeDb.createFinanceContract(userId, curClient.id, {
+    title: 'Legacy finance currency', currencyCode: 'SAR',
+  });
+  record("Currency: a code from Finance's own legacy list still works",
+    ownContract.ok && ownContract.contract.currencyCode === 'SAR', JSON.stringify(ownContract.contract?.currencyCode));
+
+  const junkContract = financeDb.createFinanceContract(userId, curClient.id, {
+    title: 'Junk currency', currencyCode: 'NOTACURRENCY',
+  });
+  record('Currency: an unknown code still resolves to unset rather than storing junk',
+    junkContract.ok && junkContract.contract.currencyCode === '', JSON.stringify(junkContract.contract?.currencyCode));
+
 } catch (err) {
   exitCode = 1;
   console.error('FATAL:', err);

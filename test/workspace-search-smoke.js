@@ -50,8 +50,43 @@ try {
     connectionName: `${marker} other-user access`, vpnType: 'VPN', endpoint: 'private.invalid',
   });
 
+  // Finance entities (migration 057). Quick Find could not reach anything
+  // financial before this — contracts, invoices, change requests and meeting
+  // minutes were the app's only unsearchable records.
+  const financeDb = require('../finance-db');
+  const financeClient = financeDb.createFinanceClient(userId, { companyId: company.id }).client;
+  const financeContract = financeDb.createFinanceContract(userId, financeClient.id, {
+    title: `${marker} support contract`, ref: 'CT-1', status: 'ACTIVE',
+  }).contract;
+  const financeInvoice = financeDb.createFinanceInvoice(userId, financeClient.id, {
+    number: `${marker}-INV-1`, amountMinor: 25000, status: 'ISSUED',
+  }).invoice;
+
   const hits = db.searchWorkspace(userId, marker.toLowerCase(), 50);
   const keys = new Set(hits.map(hit => `${hit.kind}:${hit.id}`));
+  check('FTS reaches Finance contracts and invoices',
+    keys.has(`finance-contract:${financeClient.id}:${financeContract.id}`)
+      && keys.has(`finance-invoice:${financeClient.id}:${financeInvoice.id}`),
+    JSON.stringify(hits.filter(h => String(h.kind).startsWith('finance-'))));
+
+  // The composite id is what lets a result deep-link back into Finance's
+  // detail view; a bare record id would be unroutable.
+  check('Finance results carry a clientId:recordId entity id',
+    hits.filter(h => String(h.kind).startsWith('finance-'))
+      .every(h => /^\d+:\d+$/.test(String(h.id))));
+
+  financeDb.updateFinanceContract(userId, financeContract.id, {
+    title: `${marker} renamed contract`, status: 'ACTIVE',
+  });
+  const renamedHits = db.searchWorkspace(userId, 'renamed contract', 50)
+    .filter(h => h.kind === 'finance-contract');
+  check('Finance update triggers replace the indexed row rather than duplicating it',
+    renamedHits.length === 1 && renamedHits[0].title.includes('renamed'), JSON.stringify(renamedHits));
+
+  financeDb.deleteFinanceContract(userId, financeContract.id);
+  check('Finance delete triggers remove the result',
+    db.searchWorkspace(userId, 'renamed contract', 50).every(h => h.kind !== 'finance-contract'));
+
   check('FTS finds all five indexed workspace domains',
     keys.has(`task:${task.id}`)
       && keys.has(`project:${project.id}`)

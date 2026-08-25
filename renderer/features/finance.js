@@ -1285,12 +1285,38 @@ function populateFinanceLookupSelect(selectId, category, currentVal, noneLabel) 
   });
   if (!currentVal) none.selected = true;
 }
+// Currency comes from the app-wide CURRENCY catalog — the same list
+// Subscriptions uses — rather than Finance's own parallel copy. Two currency
+// lists in one app is exactly the kind of split this integration exists to
+// remove (plan §8).
+//
+// No migration was needed: finance_* rows store `currency_code` as a STRING,
+// not a lookup FK, so every existing value stays valid whichever catalog the
+// dropdown is built from. Finance's own CURRENCY rows are left in
+// finance_lookups untouched (nothing is deleted) and are still used as the
+// fallback if the shared catalog has no currencies — which is the state a
+// fresh install starts in, since migration 003 seeds CURRENCY from a hardcoded
+// list but the Setup tab is where a Finance user would have added theirs.
+function financeCurrencyOptions(currentVal) {
+  const shared = (typeof lkOptions === 'function' ? lkOptions('CURRENCY') : [])
+    .map(o => ({ code: o.code, labelEn: o.nameEn || o.label || o.code, labelAr: o.nameAr || '' }));
+  if (shared.length) return shared;
+  return (financeLookups?.categories.CURRENCY || [])
+    .filter(o => o.isActive || o.code === currentVal)
+    .map(o => ({ code: o.code, labelEn: o.labelEn, labelAr: o.labelAr }));
+}
+
 function populateFinanceCurrencySelect(selectId, currentVal) {
   const el = document.getElementById(selectId);
   el.innerHTML = '';
   const none = document.createElement('option'); none.value = ''; none.textContent = '— No currency —';
   el.appendChild(none);
-  const opts = (financeLookups?.categories.CURRENCY || []).filter(o => o.isActive || o.code === currentVal);
+  const opts = financeCurrencyOptions(currentVal);
+  // A stored currency whose catalog row has since been retired must still be
+  // selectable, or opening an old invoice would silently blank its currency.
+  if (currentVal && !opts.some(o => o.code === currentVal)) {
+    opts.push({ code: currentVal, labelEn: currentVal, labelAr: '' });
+  }
   opts.forEach(o => {
     const opt = document.createElement('option');
     opt.value = o.code;
