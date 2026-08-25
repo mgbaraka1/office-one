@@ -44,16 +44,35 @@
 <!-- ══ SIDEBAR ══ -->
 <div id="sidebar">
   <div class="sidebar-brand-row">
-    <div class="sidebar-brand"><span class="brand-full">Office ONE</span><span class="brand-compact">O1</span></div>
+    <div class="sidebar-brand">
+      <!-- The app icon itself, inline so it stays crisp and theme-independent.
+           Same artwork as build/icon.svg — keep the two in step if either changes. -->
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 256 256" focusable="false">
+          <defs>
+            <linearGradient id="brand-tile" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#251E17"/>
+              <stop offset="1" stop-color="#12100C"/>
+            </linearGradient>
+            <linearGradient id="brand-ring" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#E89A72"/>
+              <stop offset="1" stop-color="#C96442"/>
+            </linearGradient>
+          </defs>
+          <rect x="0" y="0" width="256" height="256" rx="56" fill="url(#brand-tile)"/>
+          <circle cx="128" cy="128" r="73" fill="none" stroke="url(#brand-ring)" stroke-width="25"/>
+          <path d="M106 107 L130 85 L130 171" fill="none" stroke="#F7EFE6"
+                stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <span class="brand-full">Office ONE</span><span class="brand-compact">O1</span>
+    </div>
     <button id="sidebar-collapse" class="sidebar-collapse" type="button" data-onclick="toggleSidebar()" title="Collapse navigation" aria-pressed="false">
       <span data-ic="panel-left-close"></span>
     </button>
   </div>
   <button class="sidebar-quickfind" type="button" data-onclick="openPalette()" title="Quick Find (Ctrl+K)" aria-keyshortcuts="Control+K">
     <span data-ic="search"></span><span class="nav-label">Quick Find</span><span class="quickfind-key" aria-hidden="true">Ctrl K</span>
-  </button>
-  <button class="sidebar-create" type="button" data-onclick="openCreateHub()" title="Create new (Ctrl+Shift+N)" aria-keyshortcuts="Control+Shift+N">
-    <span data-ic="plus"></span><span class="nav-label">Create New</span>
   </button>
   <nav class="sidebar-nav" aria-label="Primary navigation">
     <!-- Overview is the default landing page and the surface every other module
@@ -152,8 +171,7 @@
     </div>
     <div class="dash-launchpad" aria-label="Start a workflow">
       <span class="dash-launchpad-label"><span data-ic="zap"></span>Quick actions</span>
-      <button class="dash-launch primary" data-onclick="runCreateFlow('session')"><span data-ic="clock"></span>Log Work</button>
-      <button class="dash-launch" data-onclick="openCreateHub()"><span data-ic="plus"></span>Create New</button>
+      <button class="dash-launch primary" data-onclick="startWorkLogEntry()"><span data-ic="clock"></span>Log Work</button>
       <button class="dash-launch" data-onclick="openPalette()"><span data-ic="search"></span>Find Anything</button>
     </div>
     <div class="dash-stats" id="dash-stats"></div>
@@ -1320,23 +1338,6 @@
      See AGENTS.md's Finance section. -->
 
 <!-- ══ Finance CLIENT ADD/EDIT MODAL ══ -->
-<!-- ══ FINANCE CLIENT PICKER (Create Hub entry points) ══
-     Only shown when the Create Hub asks for a contract or invoice while more
-     than one Finance client exists — with exactly one client the flow skips
-     straight past this. Rows are built in JS so a client name can never break
-     out of an attribute string. -->
-<div id="finance-picker-modal-overlay" class="modal-overlay" data-onclick="financePickerOverlayClick(event)">
-  <div id="finance-picker-modal" class="modal-box">
-    <div class="modal-header">
-      <span class="modal-title" id="finance-picker-modal-title">Pick a client</span>
-      <button class="modal-close" data-onclick="closeFinanceClientPicker()" data-ic="x"></button>
-    </div>
-    <div class="modal-body">
-      <div id="finance-picker-list" class="fin-picker-list"></div>
-    </div>
-  </div>
-</div>
-
 <div id="finance-client-modal-overlay" class="modal-overlay" data-onclick="financeClientOverlayClick(event)">
   <div id="finance-client-modal" class="modal-box">
     <div class="modal-header">
@@ -2564,80 +2565,6 @@
   <span data-ic="eye"></span><span>Exit Focus</span>
 </button>
 
-<!-- ══ UNIVERSAL CREATE HUB ══ -->
-<div id="create-hub-overlay" class="modal-overlay" data-onclick="createHubOverlayClick(event)">
-  <div id="create-hub" class="modal-box">
-    <div class="modal-header">
-      <span class="modal-title"><span data-ic="zap"></span>Create something</span>
-      <button class="modal-close" data-onclick="closeCreateHub()" data-ic="x"></button>
-    </div>
-    <div class="modal-body">
-      <p class="create-hub-intro">Start any core workflow from one place. Nothing is written until you complete and save the existing form.</p>
-      <div class="create-hub-grid">
-        <button class="create-flow" data-onclick="runCreateFlow('session')">
-          <span class="create-flow-icon" data-ic="clock"></span>
-          <span class="create-flow-copy"><span class="create-flow-title">Log work</span><span class="create-flow-desc">Add a session to today’s Timesheet</span></span>
-          <span class="create-flow-arrow" data-ic="arrow-right"></span>
-        </button>
-        <button class="create-flow" data-onclick="runCreateFlow('task')">
-          <span class="create-flow-icon" data-ic="list"></span>
-          <span class="create-flow-copy"><span class="create-flow-title">Create client task</span><span class="create-flow-desc">Plan work for a client, optionally linked to a project</span></span>
-          <span class="create-flow-arrow" data-ic="arrow-right"></span>
-        </button>
-        <button class="create-flow" data-onclick="runCreateFlow('internal-task')">
-          <span class="create-flow-icon" data-ic="building"></span>
-          <span class="create-flow-copy"><span class="create-flow-title">Create internal task</span><span class="create-flow-desc">Plan work for your own organisation, by department</span></span>
-          <span class="create-flow-arrow" data-ic="arrow-right"></span>
-        </button>
-        <button class="create-flow" data-onclick="runCreateFlow('project')">
-          <span class="create-flow-icon" data-ic="clipboard-list"></span>
-          <span class="create-flow-copy"><span class="create-flow-title">Create project</span><span class="create-flow-desc">Connect clients, systems, documents, and tasks</span></span>
-          <span class="create-flow-arrow" data-ic="arrow-right"></span>
-        </button>
-        <button class="create-flow" data-onclick="runCreateFlow('knowledge')">
-          <span class="create-flow-icon" data-ic="book-open"></span>
-          <span class="create-flow-copy"><span class="create-flow-title">Write knowledge</span><span class="create-flow-desc">Capture a manual, procedure, or technical note</span></span>
-          <span class="create-flow-arrow" data-ic="arrow-right"></span>
-        </button>
-        <button class="create-flow" data-onclick="runCreateFlow('knowledge-document')">
-          <span class="create-flow-icon" data-ic="upload"></span>
-          <span class="create-flow-copy"><span class="create-flow-title">Add knowledge document</span><span class="create-flow-desc">Start a versioned document library item</span></span>
-          <span class="create-flow-arrow" data-ic="arrow-right"></span>
-        </button>
-        <button class="create-flow" data-onclick="runCreateFlow('company-document')">
-          <span class="create-flow-icon" data-ic="calendar-check"></span>
-          <span class="create-flow-copy"><span class="create-flow-title">Add company document</span><span class="create-flow-desc">Track a company record and renewal date</span></span>
-          <span class="create-flow-arrow" data-ic="arrow-right"></span>
-        </button>
-        <button class="create-flow" data-onclick="runCreateFlow('subscription')">
-          <span class="create-flow-icon" data-ic="credit-card"></span>
-          <span class="create-flow-copy"><span class="create-flow-title">Add subscription</span><span class="create-flow-desc">Track recurring cost and renewal timing</span></span>
-          <span class="create-flow-arrow" data-ic="arrow-right"></span>
-        </button>
-        <button class="create-flow" data-onclick="runCreateFlow('finance-contract')">
-          <span class="create-flow-icon" data-ic="file-text"></span>
-          <span class="create-flow-copy"><span class="create-flow-title">Create contract</span><span class="create-flow-desc">Record a client contract, its versions and installments</span></span>
-          <span class="create-flow-arrow" data-ic="arrow-right"></span>
-        </button>
-        <button class="create-flow" data-onclick="runCreateFlow('finance-invoice')">
-          <span class="create-flow-icon" data-ic="credit-card"></span>
-          <span class="create-flow-copy"><span class="create-flow-title">Raise invoice</span><span class="create-flow-desc">Invoice a client and allocate it against contract work</span></span>
-          <span class="create-flow-arrow" data-ic="arrow-right"></span>
-        </button>
-        <button class="create-flow" data-onclick="runCreateFlow('quick-find')">
-          <span class="create-flow-icon" data-ic="search"></span>
-          <span class="create-flow-copy"><span class="create-flow-title">Find existing work</span><span class="create-flow-desc">Jump to a task, client, project, document, or date</span></span>
-          <span class="create-flow-arrow" data-ic="arrow-right"></span>
-        </button>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <span class="modal-hint" style="margin-right:auto">Shortcut: Ctrl + Shift + N</span>
-      <button class="btn" data-onclick="closeCreateHub()">Close</button>
-    </div>
-  </div>
-</div>
-
 <!-- ══ COMMAND PALETTE (Ctrl+K) ══ -->
 <div id="palette-overlay" class="modal-overlay" aria-label="Quick Find" data-onclick="paletteOverlayClick(event)">
   <div id="palette" data-onclick="event.stopPropagation()">
@@ -2667,12 +2594,11 @@
     <div class="modal-body">
       <div class="shortcuts-list">
         <div class="shortcuts-row"><kbd>Ctrl</kbd> + <kbd>K</kbd><span>Open the command palette</span></div>
-        <div class="shortcuts-row"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>N</kbd><span>Open the universal Create Hub</span></div>
         <div class="shortcuts-row"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd><span>Enter or exit Focus Mode</span></div>
         <div class="shortcuts-row"><kbd>?</kbd><span>Show this shortcuts list</span></div>
         <div class="shortcuts-row"><kbd>Esc</kbd><span>Close the open modal / palette / menu</span></div>
         <div class="shortcuts-row"><kbd>Ctrl</kbd> + <kbd>Enter</kbd><span>Save the open Add/Edit modal</span></div>
-        <div class="shortcuts-row"><kbd>Ctrl</kbd> + <kbd>N</kbd><span>Add new (Timesheet record, Subscription, Project, Company Document — context-dependent)</span></div>
+        <div class="shortcuts-row"><kbd>Ctrl</kbd> + <kbd>N</kbd><span>Add new (context-dependent: Timesheet record, task, project, subscription, document, or knowledge item)</span></div>
         <div class="shortcuts-row"><kbd>Ctrl</kbd> + <kbd>←</kbd> / <kbd>→</kbd><span>Previous / next saved day (Timesheet)</span></div>
         <div class="shortcuts-row"><kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd><span>Cycle focus within the open modal</span></div>
       </div>

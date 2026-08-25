@@ -1519,51 +1519,12 @@ function focusFirstError(scope) {
   document.querySelector(scope + ' .field-error')?.focus();
 }
 
-// ── Universal Create Hub ──
-// This is orchestration only: every choice routes into an existing creation
-// form, so validation, ownership scoping, confirmation, and undo behavior stay
-// exactly where the mature application already enforces them.
-function openCreateHub() {
-  document.getElementById('create-hub-overlay').classList.add('open');
-}
-function closeCreateHub() {
-  document.getElementById('create-hub-overlay').classList.remove('open');
-}
-function createHubOverlayClick(e) {
-  if (e.target === document.getElementById('create-hub-overlay')) closeCreateHub();
-}
-function runCreateFlow(kind) {
-  closeCreateHub();
-  if (kind === 'quick-find') { openPalette(); return; }
-  if (kind === 'session') {
-    switchModule('timesheet'); openModal(); return;
-  }
-  if (kind === 'task') {
-    switchModule('all-tasks'); openBacklogModal(); return;
-  }
-  if (kind === 'internal-task') {
-    switchModule('internal-tasks'); openInternalTaskModal(); return;
-  }
-  if (kind === 'project') {
-    switchModule('clients'); openProjectModal(); return;
-  }
-  if (kind === 'knowledge' || kind === 'knowledge-document') {
-    switchModule('knowledge');
-    startKnowledgeCreation(kind === 'knowledge-document' ? 'DOCUMENT' : 'ARTICLE');
-    return;
-  }
-  if (kind === 'company-document') {
-    switchModule('companydocs'); openCompanyDocModal(); return;
-  }
-  if (kind === 'subscription') {
-    switchModule('subscriptions'); openSubModal();
-    return;
-  }
-  // Both resolve a Finance client first — these modals assume one is already
-  // open, which is not true when the Create Hub fires from another module.
-  if (kind === 'finance-contract' || kind === 'finance-invoice') {
-    startFinanceCreation(kind === 'finance-invoice' ? 'invoice' : 'contract');
-  }
+// ── Log work from anywhere ──
+// The Overview launchpad can fire while another module is showing, so it
+// walks to the Timesheet first; the session form itself does the rest.
+function startWorkLogEntry() {
+  switchModule('timesheet');
+  openModal();
 }
 
 // ── Keyboard shortcuts ──
@@ -1597,7 +1558,7 @@ document.addEventListener('keydown', e => {
     closeClientRecordInfoModal(); cancelClientEditConfirm(); closeClientHistoryModal();
     closeSessionModal(); closeWlHistoryModal(); closeMergeModal(); closeShortcutsOverlay(); closeHowThinksOverlay();
     closeKnowledgeEditor(); closeKnowledgeGroupEditor(); closeKnowledgeDocumentModal(); toggleKnowledgeCreateMenu(false);
-    closeCreateHub(); closeWorkspaceView();
+    closeWorkspaceView();
     document.querySelectorAll('.top-menu.open').forEach(m => m.classList.remove('open'));
   }
   // "?" opens the keyboard-shortcuts overlay — only when not typing in a field
@@ -1628,11 +1589,6 @@ document.addEventListener('keydown', e => {
     if (activeModule === 'settings' && settingsDirty) saveSettings();
   }
   if (!anyOpen && !inputFocused) {
-    if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'n') {
-      e.preventDefault();
-      openCreateHub();
-      return;
-    }
     if (e.ctrlKey && !e.shiftKey && e.key === 'n') {
       e.preventDefault();
       if      (activeModule === 'subscriptions') openSubModal();
@@ -1640,7 +1596,8 @@ document.addEventListener('keydown', e => {
       else if (activeModule === 'clients' || activeModule === 'projects') openProjectModal();
       else if (activeModule === 'companydocs')   openCompanyDocModal();
       else if (activeModule === 'knowledge')     openKnowledgeEditor();
-      else openCreateHub();
+      else if (activeModule === 'all-tasks')     openBacklogModal();
+      else if (activeModule === 'internal-tasks') openInternalTaskModal();
     }
     // Day navigation: Ctrl+Left = earlier day, Ctrl+Right = later day
     if (e.ctrlKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
