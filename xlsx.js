@@ -171,9 +171,9 @@ function createTimesheetWorkbook(input) {
 // ── Finance client report ─────────────────────────────────────────────────
 // A second, independent report shape sharing this file's OpenXML primitives
 // (zip/xml/textCell/numberCell/safeSheetName/etc.) — the "reusable xlsx.js
-// writer" Finance's isolation rules call out by name. Row shaping (which
+// writer" Finance's original isolation rules called out by name. Row shaping (which
 // contracts/CRs/invoices, in what order) happens in renderer/features/
-// finance-it.js, exactly like createTimesheetWorkbook's reportData is shaped in
+// finance.js, exactly like createTimesheetWorkbook's reportData is shaped in
 // renderer/features/reports.js; this function only lays cells out. One
 // worksheet with stacked sections, not one sheet per section — same "keep
 // the surface small" philosophy as the timesheet writer above.
@@ -196,7 +196,7 @@ function createFinanceReportWorkbook(input) {
 
   const sheetRows = [];
   let r = 1;
-  sheetRows.push(`<row r="${r}" ht="28" customHeight="1">${textCell(`A${r}`, input.title || 'Finance — Client Report', 1)}</row>`); r++;
+  sheetRows.push(`<row r="${r}" ht="28" customHeight="1">${textCell(`A${r}`, input.title || 'Office ONE — Client Report', 1)}</row>`); r++;
   sheetRows.push(`<row r="${r}">${textCell(`A${r}`, 'Client', 11)}${textCell(`B${r}`, input.clientName || '', 0)}${textCell(`D${r}`, 'Generated', 11)}${textCell(`E${r}`, input.generatedAt || '', 0)}</row>`); r++;
   r++; // blank
 

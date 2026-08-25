@@ -17,7 +17,14 @@ const renderer = [html, ...fs.readdirSync(path.join(root, 'renderer', 'features'
   .filter(name => name.endsWith('.js'))
   .map(name => read(path.join('renderer', 'features', name)))].join('\n');
 
-assert.equal(pkg.name, 'timesheet', 'package name protects the production data path');
+// `name` is what Electron derives the per-user data folder from, so it defines
+// where the production database lives. The 2026-08 rebrand moved it from
+// `timesheet` to `office-one`; the pair below is the guard that the rename can
+// never happen again WITHOUT the one-time carry-over that follows the data
+// across — changing one without the other silently orphans every install.
+assert.equal(pkg.name, 'office-one', 'package name determines the production data path');
+assert.match(mainJs, /LEGACY_USER_DATA_DIRNAME = 'timesheet'/, 'the pre-rebrand data folder must still be found');
+assert.match(mainJs, /migrateLegacyUserDataDir\(\);\s*\n\s*db\.openConnection\(/, 'the legacy data carry-over must run before the DB opens');
 assert.match(pkg.engines?.node || '', />=24/, 'development runtime must match node:sqlite/CI');
 assert.doesNotMatch(html, /script-src[^;]*'unsafe-inline'/, 'renderer scripts must not allow inline execution');
 assert.doesNotMatch(renderer, /\son(?:click|change|input|submit)=/, 'inline event handlers must stay removed');
