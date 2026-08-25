@@ -40,6 +40,7 @@
       "main.js",
       "db.js",
       "finance-seed.js",
+      "finance-db.js",
       "auth.js",
       "xlsx.js",
       "ipc-contracts.js",

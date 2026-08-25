@@ -89,9 +89,14 @@ try {
       && !activity.some(item => item.title.includes('other-user')),
     JSON.stringify(activity));
   const diagnostics = db.getSystemDiagnostics();
+  // Compared against the live migration head rather than a literal: this gate
+  // used to hardcode the head of the day, so every new migration broke a test
+  // that has nothing to do with migrations. Matching full-backup-smoke.js's
+  // Gate 5c, which already reads the real head.
+  const liveHead = Number(db.getConnection().prepare('SELECT MAX(version) AS v FROM schema_migrations').get()?.v || 0);
   check('Recovery diagnostics cover integrity, schema, files, search, and storage',
     diagnostics.integrity.ok
-      && diagnostics.schemaHead === 54
+      && diagnostics.schemaHead === liveHead
       && diagnostics.workspaceSearchRows >= 1
       && Array.isArray(diagnostics.missingFiles)
       && Object.hasOwn(diagnostics, 'freeBytes')

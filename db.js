@@ -166,7 +166,7 @@ function uniqueCode(category, base) {
 // They are deliberately separate so each can fail/log independently and so the
 // boot order is obvious at the call site rather than buried inside one function.
 
-// Exposes the live connection to finance-seed.js (the Finance module's own,
+// Exposes the live connection to finance-db.js (the Finance module's own,
 // deliberately isolated data layer — see AGENTS.md) so it shares this same
 // file, transaction, backup, and integrity check instead of opening a second
 // connection. A function, not a snapshot: `db` is reassigned by
@@ -241,6 +241,11 @@ function runMaintenance() {
     sanitizeLegacyCredentialBackups();
   }
   catch (err) { console.error('[security] credential maintenance failed:', String(err?.message || err)); }
+  // Must precede the snapshot below: migration 055 repointed every stored
+  // attachment path at finance/, so until the files actually move they are all
+  // "missing", and a snapshot taken in that window would preserve the split.
+  try { migrateFinanceUploadDir(); }
+  catch (err) { console.error('[finance] upload directory migration failed:', String(err?.message || err)); }
   const backup = !dbWasNew ? rotateBackups() : { ok: true, skipped: true };
   const projectIds = sweepOrphanProjectFiles();        // drop file folders for projects that no longer exist
   const companyDocumentIds = sweepOrphanCompanyDocumentFiles(); // same, for company_documents/{id}/ folders
@@ -249,6 +254,51 @@ function runMaintenance() {
   _lastOrphanSweepReport = { projectIds, companyDocumentIds, knowledgeItemIds, financeFiles, backup, ranAt: new Date().toISOString() };
   return _lastOrphanSweepReport;
 }
+// Migration 055 renamed the module's uploads from <userData>/finance_it/ to
+// <userData>/finance/ in the database. Moving the files is done here rather
+// than inside the migration on purpose: a migration is one transaction over
+// SQLite, but a directory move is not transactional, so a crash mid-move would
+// leave a half-migrated tree that the migration could never retry (it is
+// recorded as applied). Modelled on encryptAllPendingCredentials(): idempotent,
+// resumable, never throws, and re-run on every boot so an interrupted move
+// simply finishes next time.
+//
+// Files are moved individually and the source is only removed once it is empty,
+// so an interruption always leaves every file readable at exactly one of the
+// two paths. A file already present at the destination is left alone and its
+// source copy dropped — the destination is the one the database points at.
+function migrateFinanceUploadDir() {
+  const legacyRoot = path.join(userDataDir, 'finance_it');
+  const financeRoot = path.join(userDataDir, 'finance');
+  if (!fs.existsSync(legacyRoot)) return { moved: 0, skipped: true };
+
+  let moved = 0;
+  const walk = (dir) => {
+    for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, ent.name);
+      if (ent.isDirectory()) { walk(abs); continue; }
+      const target = path.join(financeRoot, path.relative(legacyRoot, abs));
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      if (fs.existsSync(target)) { fs.rmSync(abs, { force: true }); continue; }
+      fs.renameSync(abs, target);
+      moved += 1;
+    }
+  };
+  walk(legacyRoot);
+
+  // Prune the drained tree depth-first. Anything still holding a file is left
+  // in place rather than force-removed, so nothing is ever destroyed here.
+  const prune = (dir) => {
+    for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (ent.isDirectory()) prune(path.join(dir, ent.name));
+    }
+    if (fs.readdirSync(dir).length === 0) fs.rmdirSync(dir);
+  };
+  prune(legacyRoot);
+  if (moved) console.log(`[finance] moved ${moved} upload(s) from finance_it/ to finance/`);
+  return { moved };
+}
+
 // A lookup with no access rows is global. Once any access row exists it is
 // private and only the listed users may resolve or select it.
 function canAccessLookup(userId, id) {
@@ -351,17 +401,17 @@ function sweepOrphanKnowledgeFiles() {
 
 // Unlike the three sweeps above (one flat {id}/ level, compared against a
 // single table's live ids), finance_attachments is a two-level polymorphic tree
-// — finance_it/{entity_type}/{entity_id}/{file} — with no single owning table to
-// diff against. Instead this walks every file under finance_it/ and removes any
+// — finance/{entity_type}/{entity_id}/{file} — with no single owning table to
+// diff against. Instead this walks every file under finance/ and removes any
 // whose relative path (exactly what finance_attachments.file_path stores) isn't
 // referenced by a live row, then prunes the now-empty directories left behind.
-// finance-seed.js's own delete paths already purge attachments immediately on a
+// finance-db.js's own delete paths already purge attachments immediately on a
 // contract-version/CR/invoice/meeting/client delete; this is the safety net
 // for whatever that best-effort cleanup missed (e.g. the app closing mid-purge).
 function sweepOrphanFinanceFiles() {
   const removed = [];
   try {
-    const root = path.join(userDataDir, 'finance_it');
+    const root = path.join(userDataDir, 'finance');
     if (!fs.existsSync(root)) return removed;
     const live = new Set(db.prepare('SELECT file_path FROM finance_attachments').all().map(r => r.file_path));
     const walk = (dir) => {
@@ -3469,7 +3519,7 @@ function fullBackup(desktopDir) {
     ['projects', projectsRootDir()],
     ['company_documents', companyDocumentsRootDir()],
     ['knowledge_hub', knowledgeRootDir()],
-    ['finance_it', path.join(userDataDir, 'finance_it')],
+    ['finance', path.join(userDataDir, 'finance')],
     ['backups', path.join(userDataDir, 'backups')],
   ]) {
     const destDir = path.join(destRoot, key);
@@ -3506,7 +3556,28 @@ function fullBackup(desktopDir) {
   return { ok: true, path: destRoot, manifest };
 }
 
-const FULL_BACKUP_DIRS = ['projects', 'company_documents', 'knowledge_hub', 'finance_it', 'backups'];
+const FULL_BACKUP_DIRS = ['projects', 'company_documents', 'knowledge_hub', 'finance', 'backups'];
+
+// Folder names older bundles used for a directory that has since been renamed.
+// A backup taken before migration 055 carries the module's uploads as finance_it/,
+// and copyDirRecursive() silently no-ops on a missing source — so without this
+// map a Full Restore of an older bundle would succeed while quietly dropping
+// every financial attachment. Same spirit as FULL_BACKUP_PREFIXES accepting the
+// pre-rebrand folder prefix: old backups must keep restoring.
+const FULL_BACKUP_LEGACY_DIRS = { finance: 'finance_it' };
+
+// The directory inside `bundleDir` that holds `dir`'s content — the current
+// name when present, otherwise the legacy name if that is what this bundle has.
+function resolveBackupSourceDir(bundleDir, dir) {
+  const current = path.join(bundleDir, dir);
+  if (fs.existsSync(current)) return current;
+  const legacy = FULL_BACKUP_LEGACY_DIRS[dir];
+  if (legacy) {
+    const legacyPath = path.join(bundleDir, legacy);
+    if (fs.existsSync(legacyPath)) return legacyPath;
+  }
+  return current;
+}
 
 function inspectFullBackup(bundleDir) {
   const root = path.resolve(String(bundleDir || ''));
@@ -3634,7 +3705,9 @@ function restoreFullBackup(bundleDir) {
   try {
     fs.copyFileSync(path.join(sourceRoot, 'cooperation-tools.db'), path.join(stageRoot, 'cooperation-tools.db'));
     for (const dir of FULL_BACKUP_DIRS) {
-      const source = path.join(sourceRoot, dir);
+      // Reads the legacy folder name when that is what this bundle carries, so
+      // a pre-055 backup restores its attachments under the current name.
+      const source = resolveBackupSourceDir(sourceRoot, dir);
       const target = path.join(stageRoot, dir);
       copyDirRecursive(source, target);
       fs.mkdirSync(target, { recursive: true });
@@ -3649,8 +3722,14 @@ function restoreFullBackup(bundleDir) {
   const installed = [];
   const movedAside = [];
   const targets = ['cooperation-tools.db', ...FULL_BACKUP_DIRS];
+  // Only current names are installed from the stage, but a live directory can
+  // still be sitting under its legacy name — runMaintenance() moves finance_it/ to
+  // finance/ lazily, and a restore can happen before that pass has run. Move
+  // those aside too, or the stale tree would survive the restore and its files
+  // would look like orphans afterwards.
+  const moveAside = [...targets, ...Object.values(FULL_BACKUP_LEGACY_DIRS)];
   try {
-    for (const name of targets) {
+    for (const name of moveAside) {
       const live = path.join(userDataDir, name);
       if (fs.existsSync(live)) {
         fs.renameSync(live, path.join(rollbackRoot, name));
