@@ -12,7 +12,7 @@ const auth = require('../auth');
 // test-bootstrap.js.
 require('./test-bootstrap');
 
-const sourceDir = path.join(os.homedir(), 'AppData', 'Roaming', 'timesheet');
+const sourceDir = path.join(os.homedir(), 'AppData', 'Roaming', 'office-one');
 const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'security-hardening-smoke-'));
 for (const suffix of ['', '-wal', '-shm']) {
   const src = path.join(sourceDir, 'cooperation-tools.db' + suffix);

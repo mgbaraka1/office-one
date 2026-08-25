@@ -14,7 +14,7 @@ const db = require('../db');
 // test-bootstrap.js.
 require('./test-bootstrap');
 
-const source = path.join(os.homedir(), 'AppData', 'Roaming', 'timesheet', 'cooperation-tools.db');
+const source = path.join(os.homedir(), 'AppData', 'Roaming', 'office-one', 'cooperation-tools.db');
 const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bilingual-lookups-smoke-'));
 fs.copyFileSync(source, path.join(workDir, 'cooperation-tools.db'));
 

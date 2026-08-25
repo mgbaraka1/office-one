@@ -11,9 +11,9 @@ const path = require('node:path');
 const bcrypt = require('bcryptjs');
 const db = require('../db');
 
-module.exports = function buildFixtureHome(prefix = 'cooperation-tools-test-home-') {
+module.exports = function buildFixtureHome(prefix = 'office-one-test-home-') {
   const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-  const fixtureDir = path.join(fakeHome, 'AppData', 'Roaming', 'timesheet');
+  const fixtureDir = path.join(fakeHome, 'AppData', 'Roaming', 'office-one');
   fs.mkdirSync(fixtureDir, { recursive: true });
 
   db.openConnection(fixtureDir);

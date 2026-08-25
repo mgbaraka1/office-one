@@ -37,7 +37,7 @@ Thumbs.db
 !.env.example
 
 # SQLite database files must never be committed. The live store lives under
-# %APPDATA%\timesheet (outside the repo); these patterns are a safety net in case
+# %APPDATA%\office-one (outside the repo); these patterns are a safety net in case
 # a copy is ever placed in the working tree.
 *.db
 *.db-wal
@@ -46,5 +46,5 @@ Thumbs.db
 *.sqlite3
 backups/
 
-# Local app data is stored under %APPDATA%\timesheet (outside the repo) and is
+# Local app data is stored under %APPDATA%\office-one (outside the repo) and is
 # never committed — listed here only as a reminder.

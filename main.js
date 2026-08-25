@@ -7,7 +7,9 @@ const auth   = require('./auth');
 const { validateIpcArgs } = require('./ipc-contracts');
 const { createTimesheetWorkbook, createFinanceReportWorkbook } = require('./xlsx');
 
-const e2ePort = !app.isPackaged ? Number(process.env.COOPERATION_TOOLS_E2E_PORT) : 0;
+const e2ePort = !app.isPackaged
+  ? Number(process.env.OFFICE_ONE_E2E_PORT)
+  : 0;
 const isE2ERun = Number.isInteger(e2ePort) && e2ePort > 0 && e2ePort <= 65535;
 if (isE2ERun) app.commandLine.appendSwitch('remote-debugging-port', String(e2ePort));
 
@@ -32,8 +34,12 @@ app.commandLine.appendSwitch('lang', 'en-US');
 // app.whenReady() for exactly this reason; nothing reads app.getPath()
 // before this runs.
 loadDotEnv();
-if (process.env.COOPERATION_TOOLS_DATA_DIR) {
-  app.setPath('userData', process.env.COOPERATION_TOOLS_DATA_DIR);
+// OFFICE_ONE_DATA_DIR is the current name; COOPERATION_TOOLS_DATA_DIR is still
+// honoured so an existing .env or CI runner keeps working after the rebrand.
+const dataDirOverride =
+  process.env.OFFICE_ONE_DATA_DIR || process.env.COOPERATION_TOOLS_DATA_DIR || '';
+if (dataDirOverride) {
+  app.setPath('userData', dataDirOverride);
 }
 
 // Stop a second process from ever opening the same live cooperation-tools.db
@@ -617,7 +623,7 @@ ipcMain.handle('finance:report-export-excel', authed(async (_e, reportData, defa
       return { ok: false, error: 'Excel report content is empty or too large' };
     }
     const safeDefaultName = path.basename(String(defaultName || 'finance-report.xlsx')).slice(0, 180) || 'finance-report.xlsx';
-    const e2eXlsxPath = isE2ERun ? process.env.COOPERATION_TOOLS_E2E_XLSX_PATH : null;
+    const e2eXlsxPath = isE2ERun ? process.env.OFFICE_ONE_E2E_XLSX_PATH : null;
     const { canceled, filePath } = e2eXlsxPath
       ? { canceled: false, filePath: e2eXlsxPath }
       : await dialog.showSaveDialog(win, {
@@ -652,7 +658,7 @@ ipcMain.handle('db:backup', authed(async () => {
   const stamp = new Date().toISOString().slice(0, 10);
   const { canceled, filePath } = await dialog.showSaveDialog(win, {
     title: 'Back up database',
-    defaultPath: `cooperation-tools-backup-${stamp}.db`,
+    defaultPath: `OfficeONE-Database-${stamp}.db`,
     filters: [{ name: 'SQLite database', extensions: ['db'] }],
   });
   if (canceled || !filePath) return { ok: false };
@@ -690,7 +696,7 @@ ipcMain.handle('maintenance:fullBackup', authed(() => {
 }));
 ipcMain.handle('maintenance:selectFullBackup', authed(async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog(win, {
-    title: 'Choose a Office ONE full backup folder',
+    title: 'Choose an Office ONE full backup folder',
     properties: ['openDirectory'],
   });
   if (canceled || !filePaths[0]) return { ok: false, canceled: true };
@@ -736,7 +742,7 @@ ipcMain.handle('report:exportPDF', authed(async (_e, html, defaultName) => {
     // E2E-only: the native save dialog can't be driven over CDP, so the
     // Electron E2E harness (isE2ERun, never true in a packaged build) may
     // point this at a disposable path instead of showing a real dialog.
-    const e2ePdfPath = isE2ERun ? process.env.COOPERATION_TOOLS_E2E_PDF_PATH : null;
+    const e2ePdfPath = isE2ERun ? process.env.OFFICE_ONE_E2E_PDF_PATH : null;
     const { canceled, filePath } = e2ePdfPath
       ? { canceled: false, filePath: e2ePdfPath }
       : await dialog.showSaveDialog(win, {
@@ -790,7 +796,7 @@ ipcMain.handle('report:exportExcel', authed(async (_e, reportData, defaultName) 
       return { ok: false, error: 'Excel report content is empty or too large' };
     }
     const safeDefaultName = path.basename(String(defaultName || 'timesheet.xlsx')).slice(0, 180) || 'timesheet.xlsx';
-    const e2eXlsxPath = isE2ERun ? process.env.COOPERATION_TOOLS_E2E_XLSX_PATH : null;
+    const e2eXlsxPath = isE2ERun ? process.env.OFFICE_ONE_E2E_XLSX_PATH : null;
     const { canceled, filePath } = e2eXlsxPath
       ? { canceled: false, filePath: e2eXlsxPath }
       : await dialog.showSaveDialog(win, {
@@ -895,6 +901,41 @@ function loadDotEnv() {
   } catch { /* non-critical */ }
 }
 
+// ── One-time data carry-over for the Office ONE rename ─────────────────────
+// Electron derives the per-user data folder from package.json's `name`, so
+// renaming that from `timesheet` to `office-one` also moves the directory it
+// hands us. Without this, an existing install would boot into a brand-new empty
+// folder while its real database, uploads and snapshots sat untouched in the old
+// one — the app would look like a fresh install and the user's data would appear
+// to be gone.
+//
+// The copy itself lives in db.carryOverLegacyUserData() — beside the entry list
+// and the code that creates those directories, and reachable under plain Node so
+// test/userdata-carryover-smoke.js can exercise it. This half is only the
+// Electron-specific part: resolve the two paths and decide whether to try.
+//
+// Never throws: failing to carry the data over must not stop the app from
+// booting, because the legacy folder is still intact and recoverable by hand.
+const LEGACY_USER_DATA_DIRNAME = 'timesheet';
+
+function migrateLegacyUserDataDir() {
+  try {
+    // An explicit override means the caller pointed us at a specific directory
+    // (dev, a portable install, the E2E harness). Never second-guess it.
+    if (dataDirOverride) return;
+
+    const currentDir = app.getPath('userData');
+    const legacyDir  = path.join(path.dirname(currentDir), LEGACY_USER_DATA_DIRNAME);
+    const result = db.carryOverLegacyUserData(currentDir, legacyDir);
+    if (!result.ok) return;
+
+    console.log(`[rebrand] carried ${result.copied.length} entr(ies) over from ${legacyDir} to ${currentDir}`);
+    console.log('[rebrand] the legacy folder was left in place as a recovery point.');
+  } catch (err) {
+    console.error('[rebrand] could not carry the legacy data folder over:', err);
+  }
+}
+
 app.whenReady().then(() => {
   // The optional data-directory override (see .env.example) is resolved
   // earlier now, before the single-instance lock request above — see that
@@ -914,6 +955,9 @@ app.whenReady().then(() => {
     if (!db.isCredentialEncryptionAvailable()) {
       console.warn('[security] safeStorage unavailable — saving client passwords and secret keys is blocked.');
     }
+    // Must run before the connection opens: it is what puts an existing
+    // database under the post-rebrand userData path in the first place.
+    migrateLegacyUserDataDir();
     db.openConnection(app.getPath('userData'));
     // Path verification (Phase 1): confirm the project-files root shares the same
     // userData root as the live DB BEFORE any file is ever written. Logged once at

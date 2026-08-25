@@ -1457,17 +1457,14 @@ async function undoDeleteProject() {
 }
 
 // ── Link an existing task ──
-// Which container the Link Task modal is currently linking into — 'project'
-// (default, backward-compatible with the zero-arg Projects call site) or
-// 'department' (Internal Tasks). Shared by renderLinkList/doLinkTask below.
-let _linkCtx = { kind: 'project', containerId: null };
+// Which project the Link Task modal is currently linking into. Internal Work
+// has no equivalent: departments::link-task retired with the db.js functions
+// behind it, so a task joins a department by conversion, not by linking.
+let _linkProjectId = null;
 
-async function openLinkModal(kind = 'project', containerId = null) {
-  _linkCtx = { kind, containerId: containerId ?? (kind === 'department' ? currentDept?.id : currentProject?.id) };
-  try {
-    linkableTasks = kind === 'department' ? await window.api.listLinkableTasksForDept()
-      : await window.api.listLinkableTasks();
-  }
+async function openLinkModal() {
+  _linkProjectId = currentProject?.id ?? null;
+  try { linkableTasks = await window.api.listLinkableTasks(); }
   catch { toast('Could not load tasks'); return; }
   if (!Array.isArray(linkableTasks)) linkableTasks = [];
   document.getElementById('link-task-filter').value = '';
@@ -1516,19 +1513,15 @@ function renderLinkList() {
 }
 async function doLinkTask(taskId) {
   let res;
-  try {
-    res = _linkCtx.kind === 'department' ? await window.api.linkDepartmentTask(taskId, _linkCtx.containerId)
-      : await window.api.linkProjectTask(_linkCtx.containerId, taskId);
-  }
+  try { res = await window.api.linkProjectTask(_linkProjectId, taskId); }
   catch { toast('Could not link task'); return; }
-  // Project/Department are mutually exclusive — the picker already excludes
-  // the other kind, but check ok anyway rather than assuming success.
+  // The picker already excludes internal tasks, but check ok anyway rather
+  // than assuming success.
   if (res && res.ok === false) { toast(res.error || 'Could not link task'); return; }
-  // Drop the just-linked task from the picker source, refresh both views.
+  // Drop the just-linked task from the picker source, refresh the view.
   linkableTasks = (linkableTasks || []).filter(t => t.id !== taskId);
   renderLinkList();
-  if (_linkCtx.kind === 'department') await reloadCurrentDept();
-  else await reloadCurrentProject();
+  await reloadCurrentProject();
   toast('Task linked');
 }
 async function doUnlinkTask(taskId) {

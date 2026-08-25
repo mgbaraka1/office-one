@@ -174,10 +174,62 @@ function uniqueCode(category, base) {
 // rather than caching the returned value.
 function getConnection() { return db; }
 
+// The database filename is frozen at `cooperation-tools.db` and must stay that
+// way through the Office ONE rebrand — it is the file every existing install,
+// every rotating snapshot and every Full Backup manifest already names.
+const DB_FILENAME = 'cooperation-tools.db';
+
+// Everything under the userData directory that belongs to the APP rather than
+// to Chromium. Chromium's own Cache/, GPUCache/, Local Storage/ and friends are
+// disposable and must never be carried between installs — copying a stale cache
+// across is how a rebranded build inherits a corrupt one. The one-time rename
+// carry-over below copies exactly this list, so a new upload root is declared
+// right next to the code that creates it.
+const USER_DATA_ENTRIES = [
+  DB_FILENAME, DB_FILENAME + '-wal', DB_FILENAME + '-shm',
+  'backups', 'projects', 'company_documents', 'knowledge_hub', 'finance',
+  'finance_it',                 // pre-055 uploads; runMaintenance() relocates these
+  'pre-migration-backup', 'pre-restore-backup', 'pre-full-restore-backup',
+  'pre-encryption-backup',
+];
+
+// One-time carry-over for the 2026-08-25 rename of package.json's `name` from
+// `timesheet` to `office-one`. Electron derives the per-user data folder from
+// that name, so the rename moves the directory it hands us — without this an
+// existing install boots into an empty folder and looks like a fresh one, while
+// its real database sits untouched next door.
+//
+// Lives here rather than in main.js so it is exercisable under plain Node (see
+// test/userdata-carryover-smoke.js) and so it sits beside USER_DATA_ENTRIES and
+// the code that creates those directories. main.js owns only the Electron half
+// — resolving the two paths and deciding whether an override suppresses it.
+//
+// COPIES, never moves: the legacy folder is left exactly as it was, so it is
+// both an automatic pre-rebrand recovery point and a working rollback target for
+// an older build. Refuses rather than merges when the destination already holds
+// a database, which is what makes it idempotent and safe to call on every boot.
+function carryOverLegacyUserData(currentDir, legacyDir) {
+  if (!currentDir || !legacyDir) return { ok: false, reason: 'missing-path', copied: [] };
+  const same = path.resolve(currentDir).toLowerCase() === path.resolve(legacyDir).toLowerCase();
+  if (same)                                                    return { ok: false, reason: 'same-directory',       copied: [] };
+  if (!fs.existsSync(path.join(legacyDir, DB_FILENAME)))       return { ok: false, reason: 'no-legacy-data',      copied: [] };
+  if (fs.existsSync(path.join(currentDir, DB_FILENAME)))       return { ok: false, reason: 'already-carried-over', copied: [] };
+
+  fs.mkdirSync(currentDir, { recursive: true });
+  const copied = [];
+  for (const entry of USER_DATA_ENTRIES) {
+    const from = path.join(legacyDir, entry);
+    if (!fs.existsSync(from)) continue;
+    fs.cpSync(from, path.join(currentDir, entry), { recursive: true, force: false, errorOnExist: false });
+    copied.push(entry);
+  }
+  return { ok: true, reason: 'copied', copied };
+}
+
 // Step 1 — open (or create) the database file and apply connection-level PRAGMAs.
 function openConnection(dir) {
   userDataDir = dir;
-  const file = path.join(dir, 'cooperation-tools.db');
+  const file = path.join(dir, DB_FILENAME);
   dbWasNew = !fs.existsSync(file);
 
   db = new DatabaseSync(file);            // auto-creates the file if missing
@@ -4763,6 +4815,7 @@ function assignClientInternalGroup(userId, companyId, recordIds, groupName) {
 
 module.exports = {
   LOOKUP_CATEGORIES, LOOKUP_MERGE_TARGETS,
+  DB_FILENAME, USER_DATA_ENTRIES, carryOverLegacyUserData,
   openConnection, applyMigrations, runMaintenance, getConnection,
   close, backup, dbPath,
   projectsRootDir, knowledgeRootDir,

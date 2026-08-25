@@ -56,7 +56,7 @@ function record(flow, pass, details) { results.push({ flow, pass, details }); }
 // test-bootstrap.js.
 require('./test-bootstrap');
 
-const prodDir = path.join(os.homedir(), 'AppData', 'Roaming', 'timesheet');
+const prodDir = path.join(os.homedir(), 'AppData', 'Roaming', 'office-one');
 const prodDb  = path.join(prodDir, 'cooperation-tools.db');
 if (!fs.existsSync(prodDb)) {
   console.error('FATAL: production DB not found at ' + prodDb);

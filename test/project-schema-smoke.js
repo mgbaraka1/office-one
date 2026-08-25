@@ -17,7 +17,7 @@ function record(name, pass, details = '') { results.push({ name, pass: !!pass, d
 // test-bootstrap.js.
 require('./test-bootstrap');
 
-const sourceDir = path.join(os.homedir(), 'AppData', 'Roaming', 'timesheet');
+const sourceDir = path.join(os.homedir(), 'AppData', 'Roaming', 'office-one');
 const sourceDb = path.join(sourceDir, 'cooperation-tools.db');
 if (!fs.existsSync(sourceDb)) {
   console.error('FATAL: fixture DB not found at ' + sourceDb);
