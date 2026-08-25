@@ -491,6 +491,16 @@ function countActiveAdmins() {
   return db.prepare('SELECT COUNT(*) AS n FROM users WHERE is_active = 1 AND is_admin = 1').get().n;
 }
 
+// The last-account invariant. With roles removed there is no "last administrator"
+// left to count, but there is still a last usable account — and this app has no
+// network password reset, so deactivating it would mean editing password_hash by
+// hand with bcryptjs and node:sqlite to get back in. Treated as an integrity
+// rule, not a permission check: it is the one thing here that survives the
+// removal of the admin concept.
+function countActiveUsers() {
+  return db.prepare("SELECT COUNT(*) AS n FROM users WHERE is_active = 1 AND username != '__unclaimed__'").get().n;
+}
+
 // Insert a new account and return its generated id. Caller supplies an already
 // hashed password. Throws on a duplicate username (UNIQUE constraint).
 function createUser(username, passwordHash, isAdmin = false, nameEn = '', nameAr = '', mustChangePassword = false) {
@@ -908,6 +918,47 @@ function loadLookups(userId) {
 // rows are richer client profiles: their user-facing business code and bilingual
 // names are editable, while lookup_codes.id remains the immutable FK identity so
 // linked tasks/projects/infrastructure cannot be detached by a profile rename.
+// Append-only audit for the shared catalog (migration 058). Written on both
+// update and insert; a soft-disable shows up as is_active 1 -> 0 like any other
+// field change. `userId` is the ACTOR, not an owner — lookup_codes is global.
+const LOOKUP_HISTORY_FIELDS = [
+  ['code',      'Code'],
+  ['label',     'Label'],
+  ['name_en',   'English Name'],
+  ['name_ar',   'Arabic Name'],
+  ['is_active', 'Active'],
+];
+const LOOKUP_SNAPSHOT_SQL = 'SELECT code, label, name_en, name_ar, is_active FROM lookup_codes WHERE id = ?';
+
+function recordLookupHistory(userId, lookupId, category, before, after) {
+  const now = new Date().toISOString();
+  const ins = db.prepare(
+    `INSERT INTO lookup_code_history(user_id, lookup_id, category, field_name, old_value, new_value, changed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  );
+  for (const [column, label] of LOOKUP_HISTORY_FIELDS) {
+    // Booleans read far better as Yes/No than 1/0 in an audit view.
+    const fmt = v => (column === 'is_active' ? (Number(v) ? 'Yes' : 'No') : String(v ?? ''));
+    const oldVal = before ? fmt(before[column]) : '';
+    const newVal = fmt(after[column]);
+    if (oldVal === newVal) continue;
+    ins.run(userId, lookupId, category, label, oldVal, newVal, now);
+  }
+}
+
+// Read-only, newest first. NOT user-scoped: the catalog is shared, so seeing
+// who changed it is the whole purpose. Joins the acting account's username.
+function getLookupCodeHistory(lookupId) {
+  return db.prepare(
+    `SELECT h.id, h.field_name AS fieldName, h.old_value AS oldValue, h.new_value AS newValue,
+            h.changed_at AS changedAt, COALESCE(u.username, 'unknown') AS changedBy
+       FROM lookup_code_history h
+       LEFT JOIN users u ON u.id = h.user_id
+      WHERE h.lookup_id = ?
+      ORDER BY h.changed_at DESC, h.id DESC`
+  ).all(Number(lookupId));
+}
+
 function saveLookups(userId, data) {
   const skipped = [];
   tx(() => {
@@ -945,6 +996,7 @@ function saveLookups(userId, data) {
           const sort   = Number.isInteger(item.sortOrder) ? item.sortOrder : i;
           const active = item.isActive === false ? 0 : 1;
           if (itemId != null && lk().idTo.has(itemId)) {
+            const beforeRow = db.prepare(LOOKUP_SNAPSHOT_SQL).get(itemId);
             if (cat === 'COMPANY') {
               const businessCode = String(item.code || '').trim().toUpperCase();
               if (!/^[A-Z0-9][A-Z0-9_-]{0,63}$/.test(businessCode)) throw new Error('A client needs a valid unique company code');
@@ -952,6 +1004,9 @@ function saveLookups(userId, data) {
               if (conflict) throw new Error(`Company code ${businessCode} is already in use`);
               updCompany.run(businessCode, nameEn, nameEn, nameAr, sort, active, itemId);
             } else upd.run(label, nameEn, nameAr, sort, active, itemId);
+            // sort_order is deliberately not audited — reordering a dropdown is
+            // presentation, not a change to what the value means.
+            recordLookupHistory(userId, itemId, cat, beforeRow, db.prepare(LOOKUP_SNAPSHOT_SQL).get(itemId));
             usedLabels.set(key, itemId);
           } else {
             const requestedCode = String(item.code || '').trim().toUpperCase();
@@ -965,6 +1020,7 @@ function saveLookups(userId, data) {
             }
             const code = cat === 'COMPANY' ? baseCode : uniqueCode(cat, baseCode);
             const newId = Number(ins.run(cat, code, label, nameEn, nameAr, sort, active, now).lastInsertRowid);
+            recordLookupHistory(userId, newId, cat, null, db.prepare(LOOKUP_SNAPSHOT_SQL).get(newId));
             usedLabels.set(key, newId);
           }
         });
@@ -4557,7 +4613,7 @@ module.exports = {
   openConnection, applyMigrations, runMaintenance, getConnection,
   close, backup, dbPath,
   projectsRootDir, knowledgeRootDir,
-  countUsers, getUserByUsername, getUserById, listUsers, countActiveAdmins,
+  countUsers, getUserByUsername, getUserById, listUsers, countActiveAdmins, countActiveUsers,
   createUser, updateUserAccount, getUnclaimedUser, claimUser,
   listDays, loadDaysRange,
   listCompanies, listSystems, companyEntries, systemEntries, getFilteredWorkLogs,
@@ -4589,7 +4645,7 @@ module.exports = {
   createClientVpn, updateClientVpn, deleteClientVpn,
   createClientServer, updateClientServer, deleteClientServer, renameClientServerSystemGroup, assignClientServerGroup,
   createClientInternalSystem, updateClientInternalSystem, deleteClientInternalSystem, renameClientInternalSystemGroup, assignClientInternalGroup,
-  loadLookups, saveLookups, getLookupsByCategory, canAccessLookup,
+  loadLookups, saveLookups, getLookupsByCategory, canAccessLookup, getLookupCodeHistory,
   getCompanyProfile, saveCompanyProfile, getCompanyProfileHistory,
   getUserDisplayName, setUserDisplayName,
   loadSubscriptions, saveSubscriptions,

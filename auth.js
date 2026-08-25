@@ -164,11 +164,13 @@ function currentUser() {
   return { id: session.userId, username: session.username, isAdmin: !!session.isAdmin, nameEn: names.nameEn, nameAr: names.nameAr };
 }
 
-function requireAdmin() {
-  if (!session) throw new Error('Not authenticated');
-  if (!session.isAdmin) throw new Error('Administrator access required');
-  return session.userId;
-}
+// The admin concept was removed: any authenticated account may perform any
+// action, and changes are attributed rather than gated. `users.is_admin` is
+// retained as an inert column (never deleted) and `session.isAdmin` still
+// reflects it, but nothing reads either to decide whether an action is allowed.
+//
+// What replaced permission is attribution — see db.js's client_field_history
+// and lookup_code_history, which record WHO made every shared-data change.
 
 function userToApi(user) {
   if (!user) return null;
@@ -183,14 +185,14 @@ function userToApi(user) {
   };
 }
 
+// Every account, to every account. Previously a non-admin saw only itself.
 function listUsers() {
   const userId = requireUserId();
-  const rows = session.isAdmin ? db.listUsers() : [db.getUserById(userId)].filter(Boolean);
-  return rows.map(user => ({ ...userToApi(user), isCurrent: Number(user.id) === userId }));
+  return db.listUsers().map(user => ({ ...userToApi(user), isCurrent: Number(user.id) === userId }));
 }
 
 function addUser(username, password, isAdmin = false, nameEn = '', nameAr = '') {
-  requireAdmin();
+  requireUserId();
   const uErr = validateUsername(username);
   if (uErr) return { ok: false, error: uErr };
   const pErr = validatePassword(password);
@@ -212,25 +214,29 @@ function updateUser(id, data) {
   const target = Number.isInteger(targetId) ? db.getUserById(targetId) : null;
   if (!target || target.username === '__unclaimed__') return { ok: false, error: 'Account not found.' };
   const isSelf = targetId === actorId;
-  if (!session.isAdmin && !isSelf) return { ok: false, error: 'Administrator access required.' };
 
   const username = String(data?.username ?? target.username).trim();
   const uErr = validateUsername(username);
   if (uErr) return { ok: false, error: uErr };
 
-  const isAdmin = session.isAdmin && typeof data?.isAdmin === 'boolean' ? data.isAdmin : !!target.is_admin;
-  const isActive = session.isAdmin && typeof data?.isActive === 'boolean' ? data.isActive : !!target.is_active;
+  const isAdmin = typeof data?.isAdmin === 'boolean' ? data.isAdmin : !!target.is_admin;
+  const isActive = typeof data?.isActive === 'boolean' ? data.isActive : !!target.is_active;
   if (isSelf && !isActive) return { ok: false, error: 'You cannot deactivate your current account.' };
-  if (target.is_active && target.is_admin && (!isAdmin || !isActive) && db.countActiveAdmins() <= 1) {
-    return { ok: false, error: 'At least one active administrator is required.' };
+  // Integrity rule, not a permission check — see db.js's countActiveUsers().
+  // There is no network password reset, so emptying the last active account
+  // would lock everyone out of production with no in-app way back.
+  if (target.is_active && !isActive && db.countActiveUsers() <= 1) {
+    return { ok: false, error: 'At least one active account is required.' };
   }
 
   const password = String(data?.password || '');
   const rolePrivilegeChanged = isAdmin !== !!target.is_admin || isActive !== !!target.is_active;
-  // An admin acting on someone ELSE's account, to reset their password or
-  // change their role/active status, must re-prove it's really them at the
-  // keyboard — not just that an admin session happens to still be open.
-  if (!isSelf && session.isAdmin && (password || rolePrivilegeChanged)) {
+  // Re-authentication, NOT a permission gate — deliberately kept, and now more
+  // important than before: with the admin concept gone, *any* account can reset
+  // another account's password or deactivate it. Proving it is really the owner
+  // at the keyboard, rather than just an unlocked session someone walked up to,
+  // is the control that replaces the role check that used to stand here.
+  if (!isSelf && (password || rolePrivilegeChanged)) {
     const actor = db.getUserById(actorId);
     if (!actor || !bcrypt.compareSync(String(data?.actorPassword || ''), actor.password_hash)) {
       return { ok: false, error: 'Your current password is required to make this change.' };
@@ -248,11 +254,9 @@ function updateUser(id, data) {
       }
       // Chosen by its own owner — no further rotation required.
       mustChangePassword = false;
-    } else if (!session.isAdmin) {
-      return { ok: false, error: 'Administrator access required.' };
     } else {
-      // An admin-assigned password on someone else's account — same as at
-      // account creation, its new owner must replace it on next login.
+      // A password assigned to someone else's account — same as at account
+      // creation, its new owner must replace it on next login.
       mustChangePassword = true;
     }
     passwordHash = bcrypt.hashSync(password, SALT_ROUNDS);
@@ -288,5 +292,5 @@ function isAuthenticated() {
 
 module.exports = {
   status, setup, login, logout, currentUser, listUsers, addUser, updateUser,
-  requireUserId, requireAdmin, isAuthenticated,
+  requireUserId, isAuthenticated,
 };

@@ -1079,7 +1079,7 @@ async function initSettingsModule() {
     const savedBtn = document.querySelector('#module-settings .stab[data-tab="' + savedTab + '"]');
     if (savedBtn && !savedBtn.hidden) switchTab(savedBtn);
   }
-  if (_currentUser?.isAdmin) SETTINGS_TABS.forEach(renderLookupPanel);
+  SETTINGS_TABS.forEach(renderLookupPanel);
   document.querySelectorAll('#setting-startonlastpage-ctl .seg-btn').forEach(b =>
     b.classList.toggle('active', (b.dataset.val === 'last') === !!uiState.startOnLastPage));
   const orgNameInput = document.getElementById('s-org-name');
@@ -1141,7 +1141,7 @@ async function saveSettings() {
       .filter(o => o.label || o.nameAr || o.id != null);
   }
   const payload = {};
-  if (_currentUser?.isAdmin) payload.categories = categories;
+  payload.categories = categories;
   let result;
   try {
     result = await window.api.saveLookups(payload);
@@ -1199,7 +1199,6 @@ async function renderUserManagement() {
     name.title = user.username;
     main.appendChild(name);
     const meta = pjMk('div', 'user-card-meta');
-    meta.appendChild(pjMk('span', 'user-role-badge', user.isAdmin ? 'Administrator' : 'Standard User'));
     meta.appendChild(pjMk('span', 'user-status-badge' + (user.isActive ? '' : ' inactive'), user.isActive ? 'Active' : 'Inactive'));
     if (user.mustChangePassword) {
       meta.appendChild(pjMk('span', 'user-status-badge pending', 'Must change password'));
@@ -1218,7 +1217,7 @@ async function renderUserManagement() {
   });
   if (!managedUsers.length) host.innerHTML = '<div class="maint-empty">No users found.</div>';
   const addBtn = document.getElementById('user-add-btn');
-  if (addBtn) addBtn.hidden = !_currentUser?.isAdmin;
+  if (addBtn) addBtn.hidden = false;
 }
 
 function openUserEditor(id = null) {
@@ -1231,15 +1230,14 @@ function openUserEditor(id = null) {
   document.getElementById('user-edit-username').value = user?.username || '';
   document.getElementById('user-edit-name-en').value = user?.nameEn || '';
   document.getElementById('user-edit-name-ar').value = user?.nameAr || '';
-  document.getElementById('user-edit-role').value = user?.isAdmin ? 'admin' : 'standard';
   const active = document.getElementById('user-edit-active');
   active.checked = creating || !!user?.isActive;
   active.disabled = isSelf;
-  document.querySelectorAll('#user-editor .user-admin-control').forEach(el => { el.hidden = !_currentUser?.isAdmin; });
+  document.querySelectorAll('#user-editor .user-admin-control').forEach(el => { el.hidden = false; });
   // An admin resetting someone ELSE's password or changing their role/status
   // must re-prove it's really them at the keyboard, not just that an admin
   // session happens to still be open — reuses this same field, relabeled.
-  const showCurrentPassword = isSelf || (!creating && _currentUser?.isAdmin && !isSelf);
+  const showCurrentPassword = isSelf || !creating;
   document.getElementById('user-current-password-field').hidden = !showCurrentPassword;
   document.getElementById('user-current-password-label').textContent = isSelf ? 'Current password' : 'Your admin password';
   document.getElementById('user-current-password-hint').textContent = isSelf
@@ -1303,13 +1301,14 @@ async function saveManagedUser() {
   let result;
   try {
     if (creating) {
-      result = await window.api.authAddUser(username, password, document.getElementById('user-edit-role').value === 'admin', nameEn, nameAr);
+      // isAdmin is passed false: the role concept is gone and users.is_admin is
+      // an inert column kept only so existing rows are not rewritten.
+      result = await window.api.authAddUser(username, password, false, nameEn, nameAr);
     } else {
       result = await window.api.authUpdateUser(managedUserId, {
         username,
         nameEn,
         nameAr,
-        isAdmin: document.getElementById('user-edit-role').value === 'admin',
         isActive: document.getElementById('user-edit-active').checked,
         // Same field, two meanings depending on who's being edited: the
         // acting user's own current password, whether confirming their own
@@ -1597,15 +1596,16 @@ function filterSettingsTabs() {
   const controlMatches = q ? SETTINGS_SEARCH_INDEX.filter(entry => entry.terms.includes(q)) : [];
   const controlMatchTabs = new Set(controlMatches.map(entry => entry.tab));
   tabs.forEach(btn => {
-    const permitted = _currentUser?.isAdmin || btn.dataset.tab === 'general' || btn.dataset.tab === 'users';
+    const permitted = true;
     const labelMatches = !q || btn.textContent.toLowerCase().includes(q);
     btn.hidden = !permitted || (!!q && !labelMatches && !controlMatchTabs.has(btn.dataset.tab));
   });
-  // A group header hides while searching, but an admin-only header must stay
+  // A group header hides while searching. The admin-only class is inert now
+  // (no roles), but the markup hook is left in place rather than stripped.
   // hidden for a standard user even once the search box is cleared — it must
   // never reappear over a section whose tabs are all permission-hidden.
   document.querySelectorAll('#module-settings .settings-group-label').forEach(label => {
-    label.hidden = !!q || (label.classList.contains('admin-only') && !_currentUser?.isAdmin);
+    label.hidden = !!q;
   });
   const active = document.querySelector('#module-settings .stab.active');
   if (active?.hidden) {
