@@ -10,7 +10,7 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const electron = require('electron');
 
-const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cooperation-tools-e2e-'));
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'office-one-e2e-'));
 let child;
 let socket;
 let nextId = 0;
@@ -78,15 +78,15 @@ async function run() {
   // no BrowserWindow or DevTools target can ever appear.
   delete electronEnv.ELECTRON_RUN_AS_NODE;
   const pdfPath = path.join(root, 'e2e-exported-report.pdf');
-  const xlsxPath = path.join(root, 'e2e-exported-timesheet.xlsx');
+  const xlsxPath = path.join(root, 'e2e-exported-office-one.xlsx');
   child = spawn(electron, ['.'], {
     cwd: path.join(__dirname, '..'),
     env: {
       ...electronEnv,
-      COOPERATION_TOOLS_DATA_DIR: root,
-      COOPERATION_TOOLS_E2E_PORT: String(port),
-      COOPERATION_TOOLS_E2E_PDF_PATH: pdfPath,
-      COOPERATION_TOOLS_E2E_XLSX_PATH: xlsxPath,
+      OFFICE_ONE_DATA_DIR: root,
+      OFFICE_ONE_E2E_PORT: String(port),
+      OFFICE_ONE_E2E_PDF_PATH: pdfPath,
+      OFFICE_ONE_E2E_XLSX_PATH: xlsxPath,
       ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -508,7 +508,7 @@ async function run() {
     throw new Error(`Exported Excel workbook is invalid or suspiciously small (${xlsxBytes.length} bytes)`);
   }
 
-  const screenshotPath = process.env.COOPERATION_TOOLS_E2E_SCREENSHOT;
+  const screenshotPath = process.env.OFFICE_ONE_E2E_SCREENSHOT;
   if (screenshotPath) {
     await evaluate(`closePalette(); true`);
     await command('Page.enable');

@@ -11,7 +11,7 @@ const db = require('../db');
 // test-bootstrap.js.
 require('./test-bootstrap');
 
-const sourceDir = path.join(os.homedir(), 'AppData', 'Roaming', 'timesheet');
+const sourceDir = path.join(os.homedir(), 'AppData', 'Roaming', 'office-one');
 const sourceDb = path.join(sourceDir, 'cooperation-tools.db');
 const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'database-invariants-smoke-'));
 for (const suffix of ['', '-wal', '-shm']) {

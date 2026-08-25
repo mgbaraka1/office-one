@@ -15,7 +15,7 @@ function record(name, pass, details = '') { results.push({ name, pass: !!pass, d
 // test-bootstrap.js.
 require('./test-bootstrap');
 
-const source = path.join(os.homedir(), 'AppData', 'Roaming', 'timesheet', 'cooperation-tools.db');
+const source = path.join(os.homedir(), 'AppData', 'Roaming', 'office-one', 'cooperation-tools.db');
 const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'knowledge-smoke-'));
 for (const suffix of ['', '-wal', '-shm']) if (fs.existsSync(source + suffix)) fs.copyFileSync(source + suffix, path.join(workDir, 'cooperation-tools.db' + suffix));
 

@@ -28,7 +28,7 @@ const childEnv = {
   // required directly by individual smoke tests as a standalone-run safety
   // net) that HOME/USERPROFILE are already pointed at a fixture profile, so
   // it doesn't build a second, different one out from under this one.
-  COOPERATION_TOOLS_TEST_HOME: fakeHome,
+  OFFICE_ONE_TEST_HOME: fakeHome,
   NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --require=${bootstrapOption}`.trim(),
 };
 

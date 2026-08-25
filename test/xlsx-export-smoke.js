@@ -62,11 +62,11 @@ console.log('PASS  dates/numbers are typed, summaries are formula-driven, and Ar
 // ── Finance report writer — shares this file's OpenXML primitives, second
 // exported function, own layout (one sheet, stacked sections). ────────────
 const financeWorkbook = createFinanceReportWorkbook({
-  title: 'Finance — Acme Report', sheetName: 'Acme / invalid: name',
+  title: 'Office ONE — Acme Report', sheetName: 'Acme / invalid: name',
   clientName: 'Acme Corp — شركة أكمي', generatedAt: '2026-08-17 12:00:00', rtl: true,
   summary: { contractCount: 2, activeContractCount: 1, finalContractValueMinor: 1_000_000, invoicedMinor: 500_000, paidMinor: 300_000, outstandingMinor: 200_000, changeRequestCount: 1 },
-  contracts: [{ ref: 'FINANCE-C-001', title: 'Support Agreement', status: 'Active', currencyCode: 'SAR', finalValueMinor: 1_000_000, startDate: '2026-01-01', endDate: '2026-12-31' }],
-  changeRequests: [{ ref: 'CR-001', title: 'إضافة وحدة', status: 'Approved', amountMinor: 30_000, currencyCode: 'SAR', contractLabel: 'FINANCE-C-001' }],
+  contracts: [{ ref: 'FIN-C-001', title: 'Support Agreement', status: 'Active', currencyCode: 'SAR', finalValueMinor: 1_000_000, startDate: '2026-01-01', endDate: '2026-12-31' }],
+  changeRequests: [{ ref: 'CR-001', title: 'إضافة وحدة', status: 'Approved', amountMinor: 30_000, currencyCode: 'SAR', contractLabel: 'FIN-C-001' }],
   invoices: [{ number: 'INV-0001', status: 'Issued', currencyCode: 'SAR', totalMinor: 500_000, paidMinor: 300_000, outstandingMinor: 200_000, issueDate: '2026-02-01', dueDate: '2026-03-01' }],
 });
 assert.ok(Buffer.isBuffer(financeWorkbook) && financeWorkbook.length > 3000, 'Finance writer returns a non-trivial workbook buffer');
@@ -82,7 +82,7 @@ assert.match(financeSheet, /Contracts \(1\)/, 'section headers include live coun
 assert.match(financeSheet, /Change Requests \(1\)/);
 assert.match(financeSheet, /Invoices \(1\)/);
 assert.match(financeSheet, /<c r="C5"[^>]*><v>10000<\/v><\/c>/, 'minor-unit money is converted to decimal (1,000,000 minor -> 10000.00)');
-assert.match(financeSheet, /FINANCE-C-001/, 'contract row data is present');
+assert.match(financeSheet, /FIN-C-001/, 'contract row data is present');
 assert.match(financeSheet, /INV-0001/, 'invoice row data is present');
 const financeWorkbookXml = financeEntries.get('xl/workbook.xml');
 assert.match(financeWorkbookXml, /name="Acme invalid name"/, 'invalid worksheet-name characters are sanitized');

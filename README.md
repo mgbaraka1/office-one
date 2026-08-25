@@ -1,6 +1,6 @@
 # Office ONE
 
-An offline, multi-user Electron desktop app for timesheets, client tasks, internal/department work, client projects and infrastructure, subscriptions, company documents, a WYSIWYG Knowledge Hub, financial record-keeping (Finance), analytics, and exportable reports.
+An offline, multi-user Electron desktop app for timesheets, client tasks, internal/department work, client projects and infrastructure, subscriptions, company documents, a WYSIWYG Knowledge Hub, financial record-keeping, analytics, and exportable reports.
 
 Everything runs on the device. There is no application server, no cloud sync, and no network calls — one embedded SQLite database holds all data, and the renderer's Content-Security-Policy sets `connect-src 'none'`. Each account logs in separately and owns its own data; every business query is scoped in the main process to the session's user id, and the renderer can never supply a trusted `user_id`.
 
@@ -21,7 +21,7 @@ Everything runs on the device. There is no application server, no cloud sync, an
 
 **Knowledge & records**
 - Knowledge Hub with a real WYSIWYG editor (vendored Quill), groups, tags, attachments, versioned documents, and a strict HTML sanitizer allowlist.
-- Finance: a deliberately isolated financial module — its own client roster, contracts with versions and installments, change requests, invoices with allocation and payment tracking, and minutes of meeting. Money is stored in integer minor units, and six cross-entity invariants are enforced server-side.
+- Finance: contracts with versions and installments, change requests, invoices with allocation and payment tracking, and minutes of meeting — all rendered on the client that owns them, under the Clients page's Finance and Meetings tabs. Money is stored in integer minor units, and six cross-entity invariants are enforced server-side.
 
 **Review & output**
 - Overview dashboard leading with attention items, period comparisons, and accessible chart data tables.
@@ -30,7 +30,7 @@ Everything runs on the device. There is no application server, no cloud sync, an
 
 **Platform**
 - SQLite FTS5 Quick Find (`Ctrl+K`) across tasks, projects, Knowledge Hub, company documents and subscriptions.
-- Multi-user accounts with administrator/standard roles, a User Management page, and forced password rotation for admin-assigned passwords.
+- Multi-user accounts with a User Management page and forced password rotation for assigned passwords. There is no administrator tier: any authenticated account may act, and shared-data changes are recorded against the acting account instead.
 - Full English/Arabic interface with a complete right-to-left layout and localized PDF reports.
 - Per-account comfort preferences (theme, density, canvas, motion, sidebar, timesheet view) stored per user, not per machine.
 - Rotating database snapshots, validated restore, integrity checks, and checksum-verified full backup/restore bundles covering the database and every uploaded-file tree.
@@ -57,11 +57,11 @@ Everything runs on the device. There is no application server, no cloud sync, an
 ```bash
 npm install
 npm start        # launch the app
-npm test         # 36 headless smoke suites
+npm test         # 38 headless smoke suites
 npm run test:e2e # real Electron end-to-end run
 ```
 
-`npm test` builds a synthetic user profile and fixture database under the OS temporary directory; it never reads or copies real data from `%APPDATA%\timesheet\`. `npm run test:e2e` launches a hidden real Electron instance against a disposable data directory and drives the renderer over the Chromium DevTools protocol.
+`npm test` builds a synthetic user profile and fixture database under the OS temporary directory; it never reads or copies real data from `%APPDATA%\office-one\`. `npm run test:e2e` launches a hidden real Electron instance against a disposable data directory and drives the renderer over the Chromium DevTools protocol.
 
 Build:
 
@@ -79,14 +79,16 @@ Windows CI runs `npm audit --omit=dev --audit-level=high`, the full smoke suite,
 
 | Data | Windows location |
 |---|---|
-| Database | `%APPDATA%\timesheet\cooperation-tools.db` (plus `-wal`/`-shm` while open) |
-| Project files | `%APPDATA%\timesheet\projects\` |
-| Company-document files | `%APPDATA%\timesheet\company_documents\` |
-| Knowledge Hub attachments | `%APPDATA%\timesheet\knowledge_hub\` |
-| Finance attachments | `%APPDATA%\timesheet\finance_it\` |
-| Rotating snapshots | `%APPDATA%\timesheet\backups\` (newest five) |
+| Database | `%APPDATA%\office-one\cooperation-tools.db` (plus `-wal`/`-shm` while open) |
+| Project files | `%APPDATA%\office-one\projects\` |
+| Company-document files | `%APPDATA%\office-one\company_documents\` |
+| Knowledge Hub attachments | `%APPDATA%\office-one\knowledge_hub\` |
+| Finance attachments | `%APPDATA%\office-one\finance\` |
+| Rotating snapshots | `%APPDATA%\office-one\backups\` (newest five) |
 
-The package name must remain `timesheet` — Electron derives the production data-folder name from it, so renaming it would orphan every existing installation's data. For development or a portable install, override the location with `COOPERATION_TOOLS_DATA_DIR` (see [.env.example](.env.example)); packaged builds ignore `.env`.
+Electron derives that folder name from `package.json`'s `name`, so changing `name` moves where the app looks for its data. The rebrand from `timesheet` to `office-one` therefore ships with a one-time carry-over in `main.js` (`migrateLegacyUserDataDir`): on first launch it **copies** the database, uploads and snapshots out of a pre-rebrand `%APPDATA%\timesheet\` and leaves the original in place as a recovery point. Two static-quality assertions keep the package name and that carry-over from ever drifting apart. The database filename itself stays `cooperation-tools.db` — it is the name every existing install, rotating snapshot and full-backup manifest already records.
+
+For development or a portable install, override the location with `OFFICE_ONE_DATA_DIR` (see [.env.example](.env.example)); the former `COOPERATION_TOOLS_DATA_DIR` is still honoured. Packaged builds ignore `.env`.
 
 Full backups are written **outside** the live data directory, to a timestamped Desktop folder, and include the database, every uploaded-file tree, the rotating snapshots, and a SHA-256 file inventory. Settings → Maintenance validates and restores a complete bundle: it first creates a separate full recovery point, then stages every replacement file before closing SQLite. Ordinary data and files are portable across machines, but DPAPI-encrypted client secrets require the same Windows account or must be re-entered. Deleting or replacing an uploaded document offers a five-second Undo.
 
@@ -98,12 +100,12 @@ Full backups are written **outside** the live data directory, to a timestamped D
 - Login failures are rate-limited (five wrong attempts → 30-second lockout) and the lockout is persisted, so restarting the app is not a way around it.
 - Client passwords and secret keys are encrypted at rest with Electron `safeStorage` (Windows DPAPI), transparently to every caller. Secret writes **fail closed** if secure storage is unavailable rather than falling back to plaintext.
 - Renderer isolation: `contextIsolation`, Chromium `sandbox`, no Node integration, a narrow preload bridge, and a strict CSP with `script-src 'self'` and `connect-src 'none'`. Markup carries no inline handlers — a tiny delegated-event parser accepts only a named global function and a fixed argument grammar (no `eval`, no `new Function`).
-- Every IPC channel passes an executable, fail-closed argument contract before its authentication wrapper runs, then a trusted-sender/origin check, then `authed`/`admin` gating. A channel added without a contract fails closed and is caught by CI.
+- Every IPC channel passes an executable, fail-closed argument contract before its authentication wrapper runs, then a trusted-sender/origin check, then `authed` gating. A channel added without a contract fails closed and is caught by CI.
 - Permission requests are denied, renderer-created windows are denied, and navigation away from the app page is blocked.
 - Uploaded files are ownership-checked, path-contained inside the data directory, capped at 100 MB, and validated by both extension and file-signature magic bytes.
 - Database restore accepts only a listed snapshot and validates SQLite integrity, foreign keys, required tables and schema compatibility. Full Restore additionally validates its manifest, SHA-256 checksums, and every database-referenced attachment before touching live data.
 - Knowledge Hub article HTML is sanitized through a fixed DOMPurify allowlist both before persisting and before rendering.
-- There is deliberately **no** email or token password-reset flow — the app has no network layer. If the sole administrator forgets their password, recovery is a manual local procedure: generate a bcrypt hash with the app's own `bcryptjs` dependency and write it into `users.password_hash` directly via `node:sqlite`.
+- There is deliberately **no** email or token password-reset flow — the app has no network layer. If the last active account forgets its password, recovery is a manual local procedure: generate a bcrypt hash with the app's own `bcryptjs` dependency and write it into `users.password_hash` directly via `node:sqlite`. This is also why the last active account can never be deactivated.
 
 ---
 
@@ -111,17 +113,17 @@ Full backups are written **outside** the live data directory, to a timestamped D
 
 | Path | Role |
 |---|---|
-| `main.js` | Electron lifecycle, window, IPC registration and the trusted/authed/admin boundaries, native dialogs, printing, OS integration |
+| `main.js` | Electron lifecycle, window, IPC registration and the trusted/authed boundaries, native dialogs, printing, OS integration |
 | `auth.js` | bcrypt validation, login throttling, account administration, the in-memory session |
 | `db.js` | SQLite connection, migration runner, maintenance/backups, ownership-scoped CRUD, validation, analytics |
-| `finance-seed.js` | Finance's own data layer — shares the connection, owns all of its own SQL |
+| `finance-db.js` | Finance's own data layer — shares the connection, owns all of its own SQL |
 | `xlsx.js` | Dependency-free OpenXML workbook writer for Excel exports |
 | `ipc-contracts.js` | Executable, fail-closed argument contracts for every renderer→main channel |
 | `ipc-types.js` | Documentation-only JSDoc shapes for the IPC boundary |
 | `preload.js` | The context-isolated `window.api` façade |
 | `index.html` | All renderer markup and module containers |
 | `renderer/` | Shared CSS, boot/core logic, i18n runtime, and per-domain feature modules |
-| `migrations/` | Append-only numbered migrations `000` … `054` |
+| `migrations/` | Append-only numbered migrations `000` … `058` |
 | `test/` | Headless smoke suites plus the real Electron E2E harness |
 | `.github/workflows/` | Windows verification and signed-release automation |
 
