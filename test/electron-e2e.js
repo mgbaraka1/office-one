@@ -225,7 +225,6 @@ async function run() {
         const reportDocument = buildReportDoc(dailyReport, 'Report');
         switchModule('settings');
         await new Promise(resolve => setTimeout(resolve, 100));
-        const companiesPanel = document.getElementById('tab-companies')?.textContent || '';
         const statusPanel = document.getElementById('tab-status');
         const openRow = [...(statusPanel?.querySelectorAll('.bilingual-lookup-item') || [])].find(row =>
           row.querySelector('input[dir="ltr"]')?.value === 'Open');
@@ -234,10 +233,13 @@ async function run() {
           && statusPanel.textContent.includes('التسمية بالإنجليزية')
           && statusPanel.textContent.includes('التسمية بالعربية');
         const settingsLocalized = document.getElementById('settings-search')?.placeholder === 'البحث عن إعداد…'
-          && companiesPanel.includes('رمز الشركة')
-          && companiesPanel.includes('الاسم بالإنجليزية')
-          && companiesPanel.includes('الاسم بالعربية')
           && document.getElementById('settings-save-btn')?.textContent === 'حفظ تغييرات الكتالوج';
+        // Settings has no Companies tab — the client roster IS the COMPANY
+        // catalog and is managed on the Clients page instead, so neither the
+        // tab button nor its panel may exist, and the palette must not offer it.
+        const noCompaniesSettingsTab = !document.querySelector('.stab[data-tab="companies"]')
+          && !document.getElementById('tab-companies')
+          && !PAL_SETTINGS_TABS.some(t => t.key === 'companies');
         // Reordering (Phase 4, S6): the up/down buttons swap two catalog rows'
         // positions in the draft, which is otherwise invisible until a full
         // save+reload — read the ordered English-label inputs before/after
@@ -254,13 +256,15 @@ async function run() {
           && reorderAfter[openIndexBefore] === reorderBefore[openIndexBefore + 1]
           && reorderAfter[openIndexBefore + 1] === 'Open';
         // Settings search (Phase 4, S9): a term that only matches a control
-        // inside Maintenance (not any tab's own name) should jump there and
+        // inside another tab (not any tab's own name) should jump there and
         // flash the matched button — not just silently filter the tab list.
+        // "integrity" is a Maintenance-only control term; "backup" would now
+        // also match the Backup Data tab's own label, which is a different path.
         const searchInput = document.getElementById('settings-search');
-        searchInput.value = 'backup';
+        searchInput.value = 'integrity';
         searchInput.dispatchEvent(new Event('input', { bubbles: true }));
         const searchJumpWorks = document.querySelector('.stab[data-tab="maintenance"]')?.classList.contains('active')
-          && document.getElementById('maint-fullbackup-btn')?.classList.contains('deep-link-highlight');
+          && document.querySelector('#tab-maintenance button[data-onclick="runMaintenanceIntegrityCheck()"]')?.classList.contains('deep-link-highlight');
         searchInput.value = ''; searchInput.dispatchEvent(new Event('input', { bubbles: true }));
         // Tablist keyboard navigation (Phase 5, S8): ArrowDown from a focused
         // tab moves focus to AND activates the next visible tab — the
@@ -279,11 +283,11 @@ async function run() {
         // tabs persists through the same per-account uiState save/load path
         // other module filters already use — no new IPC surface, so this
         // proves the round trip actually reaches the DB and back.
-        const companiesTab = document.querySelector('.stab[data-tab="companies"]');
-        switchTab(companiesTab);
+        const systemsTab = document.querySelector('.stab[data-tab="systems"]');
+        switchTab(systemsTab);
         await new Promise(resolve => setTimeout(resolve, 400)); // clear saveUiStateDebounced()'s 300ms timer
         const reloadedUiState = await window.api.getUiState();
-        const rememberedTabWorks = reloadedUiState?.filters?.settings?.tab === 'companies';
+        const rememberedTabWorks = reloadedUiState?.filters?.settings?.tab === 'systems';
         const arabic = {
           language: document.documentElement.lang,
           direction: document.documentElement.dir,
@@ -298,13 +302,74 @@ async function run() {
           reorderWorks,
           searchJumpWorks,
           arrowNavWorks,
-          rememberedTabWorks
+          rememberedTabWorks,
+          noCompaniesSettingsTab
         };
         chooseLoginLanguage('en');
         arabic.loginLanguageLocked = document.documentElement.lang === 'ar';
         arabic.noAuthenticatedLanguageControls = !document.getElementById('language-toggle')
           && !document.getElementById('setting-language-ctl');
         return arabic;
+      })(),
+      clientRoster: await (async () => {
+        // The Clients page owns the COMPANY catalog now, so the create /
+        // rename / archive flow is driven through the page's real DOM and its
+        // real handler functions — not by calling window.api directly, which
+        // would prove only that the IPC works and nothing about the UI.
+        switchModule('clients');
+        await new Promise(resolve => setTimeout(resolve, 150));
+
+        const code = 'E2E_ROSTER_' + Date.now();
+        openClientCreateModal();
+        const modalOpen = document.getElementById('client-create-modal-overlay').classList.contains('open');
+        // Type into the code field through its real input handler, so the
+        // upper-case/space-stripping normalization is exercised too.
+        const codeInput = document.getElementById('cl-new-code');
+        codeInput.value = code.toLowerCase() + ' x';
+        normalizeClientCodeInput(codeInput);
+        const codeNormalized = codeInput.value === code + '_X';
+        codeInput.value = code;
+        document.getElementById('cl-new-name-en').value = 'E2E Roster Client';
+        document.getElementById('cl-new-name-ar').value = 'عميل الاختبار الآلي';
+        await submitClientCreateModal();
+        await new Promise(resolve => setTimeout(resolve, 250));
+
+        const created = (await window.api.listClients()).find(c => c.code === code);
+        const detailOpen = currentClient?.id === created?.id;
+
+        // The identity editor: names are inputs, the code is not — and it is
+        // shown in Arabic, since this whole block runs with the UI in Arabic.
+        const identity = document.querySelector('#clients-detail-view .client-profile-summary');
+        const identityLocalized = !!identity && identity.textContent.includes('رمز الشركة')
+          && identity.textContent.includes('الاسم بالإنجليزية')
+          && identity.textContent.includes('الاسم بالعربية');
+        const codeIsNotEditable = !!document.querySelector('#clients-detail-view .cl-identity-locked b')
+          && document.querySelectorAll('#clients-detail-view input.cl-identity-input').length === 2
+          && ![...document.querySelectorAll('#clients-detail-view input')]
+            .some(input => input.value === code);
+
+        // Rename through the real debounced input handler.
+        const enInput = document.getElementById('cl-identity-name-en');
+        enInput.value = 'E2E Roster Renamed';
+        enInput.dispatchEvent(new Event('input', { bubbles: true }));
+        await new Promise(resolve => setTimeout(resolve, 500)); // 300ms debounce + the write
+        const afterRename = (await window.api.listClients()).find(c => c.id === created?.id);
+
+        // Archive, then restore, through the page's own handler.
+        await setClientArchived(created.id, false, { silent: true });
+        const goneFromRoster = !(await window.api.listClients()).some(c => c.id === created.id);
+        const visibleWhenArchivedShown = (await window.api.listClients(true))
+          .some(c => c.id === created.id && c.isActive === false);
+        await setClientArchived(created.id, true, { silent: true });
+        const backInRoster = (await window.api.listClients()).some(c => c.id === created.id);
+
+        switchModule('analytics');
+        return {
+          modalOpen, codeNormalized, detailOpen, identityLocalized, codeIsNotEditable,
+          createdCode: created?.code,
+          renamedTo: afterRename?.nameEn, codeAfterRename: afterRename?.code,
+          goneFromRoster, visibleWhenArchivedShown, backInRoster,
+        };
       })(),
       passwordRotation: await (async () => {
         // Forced password rotation: an
@@ -379,6 +444,31 @@ async function run() {
   if (!result.localization.searchJumpWorks) throw new Error('Settings search did not jump to and highlight a matched control');
   if (!result.localization.arrowNavWorks) throw new Error('Settings tablist ArrowDown did not move focus and activate the next tab');
   if (!result.localization.rememberedTabWorks) throw new Error('The last-used Settings tab was not persisted to the per-account ui_state');
+  if (!result.localization.noCompaniesSettingsTab) {
+    throw new Error('Settings still exposes a Companies tab — the Clients page owns the client roster');
+  }
+
+  // The Clients page owns the COMPANY catalog: create, rename, archive and
+  // restore all have to work from that page, and the company code has to be
+  // unreachable once set.
+  const roster = result.clientRoster;
+  if (!roster.modalOpen) throw new Error('New Client modal did not open');
+  if (!roster.codeNormalized) throw new Error(`Company code input did not normalize: ${JSON.stringify(roster)}`);
+  if (!roster.createdCode) throw new Error(`New Client was not created: ${JSON.stringify(roster)}`);
+  if (!roster.detailOpen) throw new Error('Creating a client did not open its detail page');
+  if (!roster.identityLocalized) throw new Error('The client identity editor is not localized into Arabic');
+  if (!roster.codeIsNotEditable) {
+    throw new Error(`The company code is editable on the Clients page: ${JSON.stringify(roster)}`);
+  }
+  if (roster.renamedTo !== 'E2E Roster Renamed') {
+    throw new Error(`Inline client rename did not persist: ${JSON.stringify(roster)}`);
+  }
+  if (roster.codeAfterRename !== roster.createdCode) {
+    throw new Error(`A rename changed the company code: ${JSON.stringify(roster)}`);
+  }
+  if (!roster.goneFromRoster || !roster.visibleWhenArchivedShown || !roster.backInRoster) {
+    throw new Error(`Client archive/restore round trip failed: ${JSON.stringify(roster)}`);
+  }
 
   const rotation = result.passwordRotation;
   if (!rotation.ipcFlagsCreation) throw new Error('An admin-created account was not flagged to change its password on next login');
@@ -435,12 +525,17 @@ async function run() {
   console.log('PASS  Quick Find rendered the FTS result');
   console.log('PASS  Client profile code and English/Arabic names flow into a linked task');
   console.log('PASS  Arabic login choice drives RTL, preserves user content, and localizes report/PDF output');
-  console.log('PASS  Settings, including dynamic client-profile controls, are localized');
+  console.log('PASS  Settings chrome and its dynamically built catalog controls are localized');
   console.log('PASS  Managed Settings catalogs expose and render English/Arabic labels');
   console.log('PASS  Settings catalog rows can be reordered with the move up/down controls');
   console.log('PASS  Settings search jumps to and highlights a matched control outside the active tab');
   console.log('PASS  Settings tab strip supports standard tablist arrow-key navigation');
   console.log('PASS  The last-used Settings tab is remembered per account across a reload');
+  console.log('PASS  Settings exposes no Companies tab — the Clients page owns the roster');
+  console.log('PASS  A client is created from the Clients page, with a normalized company code');
+  console.log('PASS  The client identity editor is localized and keeps the company code read-only');
+  console.log('PASS  An inline client rename persists without touching the company code');
+  console.log('PASS  A client survives an archive/restore round trip from the Clients page');
   console.log('PASS  An admin-created account is forced to replace its admin-assigned password on next login');
   console.log('PASS  Runtime accessibility invariants cover names, unique ids, language/direction, and live regions');
   console.log(`PASS  report:exportPDF produces a real PDF file (${pdfBytes.length} bytes)`);

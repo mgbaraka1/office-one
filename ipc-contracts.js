@@ -8,7 +8,7 @@ const NO_ARGS = new Set([
   'lookups:get', 'subscriptions:list', 'tasks:list', 'tasks:index',
   'projects:list', 'projects:linkable-tasks', 'departments:list',
   'internal:list', 'companydocs:list', 'knowledge:list',
-  'knowledge:groups-list', 'clients:list', 'ui:getState', 'db:backup',
+  'knowledge:groups-list', 'ui:getState', 'db:backup',
   'finance:lookups-list', 'finance:clients-list',
   'ui:getKnowledgeDraft', 'ui:clearKnowledgeDraft', 'preferences:get',
   'maintenance:listBackups', 'maintenance:integrityCheck',
@@ -98,7 +98,14 @@ const SIGNATURES = {
   'knowledge:restore-attachment': ['id', 'object'],
   'knowledge:purge-attachment': ['id', 'string'],
   'knowledge:purge-files': ['id'],
+  // Zero required args — the optional flag is the Clients page's "Show
+  // archived" toggle, so existing no-arg callers stay valid.
+  'clients:list': ['boolean?'],
   'clients:get': ['id'],
+  'clients:create': ['object'],
+  'clients:rename': ['id', 'object'],
+  'clients:set-active': ['id', 'boolean'],
+  'clients:reorder': ['array'],
   'clients:vpn-create': ['id', 'object'],
   'clients:vpn-update': ['id', 'object'],
   'clients:vpn-delete': ['id'],

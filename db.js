@@ -914,10 +914,14 @@ function loadLookups(userId) {
   };
 }
 // Persist edits from the Settings catalog editor. Existing rows are updated in
-// place and entries are NEVER hard-deleted — disable via isActive:false. COMPANY
-// rows are richer client profiles: their user-facing business code and bilingual
-// names are editable, while lookup_codes.id remains the immutable FK identity so
-// linked tasks/projects/infrastructure cannot be detached by a profile rename.
+// place and entries are NEVER hard-deleted — disable via isActive:false. No
+// update path here touches `code` for ANY category: a code is set once, at
+// insert, and is then unreachable. That used to be false for COMPANY, whose
+// business code was editable after the fact; it is the stable business identity
+// (migration 056 matched Finance clients on it, Finance still falls back to it
+// for an unlinked row, and it appears on cards, exports and reports), so it is
+// now write-once. lookup_codes.id remains the immutable FK identity, so linked
+// tasks/projects/infrastructure cannot be detached by a rename either way.
 // Append-only audit for the shared catalog (migration 058). Written on both
 // update and insert; a soft-disable shows up as is_active 1 -> 0 like any other
 // field change. `userId` is the ACTOR, not an owner — lookup_codes is global.
@@ -929,6 +933,22 @@ const LOOKUP_HISTORY_FIELDS = [
   ['is_active', 'Active'],
 ];
 const LOOKUP_SNAPSHOT_SQL = 'SELECT code, label, name_en, name_ar, is_active FROM lookup_codes WHERE id = ?';
+
+// The one definition of "these two labels are the same label". Deliberately a
+// JS fold rather than SQL's COLLATE NOCASE, which is ASCII-only and so would
+// disagree with itself the moment a label carries a non-ASCII character.
+// Shared by saveLookups' batch map and lookupLabelCollides so the Settings
+// catalog editor and the Clients page cannot drift into two different rules.
+const lookupLabelKey = s => String(s ?? '').trim().toLowerCase();
+
+// Does `label` already belong to another row in this category? `exceptId` is
+// the row being edited, which never collides with itself.
+function lookupLabelCollides(category, label, exceptId = null) {
+  const key = lookupLabelKey(label);
+  if (!key) return false;
+  return db.prepare('SELECT id, label FROM lookup_codes WHERE category = ?').all(category)
+    .some(r => r.id !== exceptId && lookupLabelKey(r.label) === key);
+}
 
 function recordLookupHistory(userId, lookupId, category, before, after) {
   const now = new Date().toISOString();
@@ -965,7 +985,6 @@ function saveLookups(userId, data) {
     if (data?.categories) {
       const now = new Date().toISOString();
       const upd = db.prepare('UPDATE lookup_codes SET label = ?, name_en = ?, name_ar = ?, sort_order = ?, is_active = ? WHERE id = ?');
-      const updCompany = db.prepare('UPDATE lookup_codes SET code = ?, label = ?, name_en = ?, name_ar = ?, sort_order = ?, is_active = ? WHERE id = ? AND category = \'COMPANY\'');
       const ins = db.prepare('INSERT INTO lookup_codes(category, code, label, name_en, name_ar, sort_order, is_active, created_at) VALUES(?,?,?,?,?,?,?,?)');
       for (const [cat, list] of Object.entries(data.categories)) {
         if (!LOOKUP_CATEGORIES.includes(cat) || !Array.isArray(list)) continue;
@@ -978,7 +997,7 @@ function saveLookups(userId, data) {
         // rather than silently producing a second code for the same value.
         const usedLabels = new Map(
           db.prepare('SELECT id, label FROM lookup_codes WHERE category = ?').all(cat)
-            .map(r => [r.label.trim().toLowerCase(), r.id])
+            .map(r => [lookupLabelKey(r.label), r.id])
         );
         list.forEach((item, i) => {
           const nameEn = String(item.nameEn ?? item.label ?? '').trim();
@@ -989,7 +1008,7 @@ function saveLookups(userId, data) {
           // matches the numeric ids lk().idTo/usedLabels are keyed by, instead of
           // silently falling through to the insert branch and creating a duplicate row.
           const itemId = (item.id != null && Number.isFinite(Number(item.id))) ? Number(item.id) : null;
-          const key = label.toLowerCase();
+          const key = lookupLabelKey(label);
           const owner = usedLabels.get(key);
           if (owner != null && owner !== itemId) { skipped.push({ category: cat, label, reason: 'duplicate-label' }); return; }
           if (itemId != null && !canAccessLookup(userId, itemId)) { skipped.push({ category: cat, label, reason: 'no-access' }); return; }
@@ -997,13 +1016,11 @@ function saveLookups(userId, data) {
           const active = item.isActive === false ? 0 : 1;
           if (itemId != null && lk().idTo.has(itemId)) {
             const beforeRow = db.prepare(LOOKUP_SNAPSHOT_SQL).get(itemId);
-            if (cat === 'COMPANY') {
-              const businessCode = String(item.code || '').trim().toUpperCase();
-              if (!/^[A-Z0-9][A-Z0-9_-]{0,63}$/.test(businessCode)) throw new Error('A client needs a valid unique company code');
-              const conflict = db.prepare('SELECT id FROM lookup_codes WHERE category = \'COMPANY\' AND code = ? COLLATE NOCASE AND id != ?').get(businessCode, itemId);
-              if (conflict) throw new Error(`Company code ${businessCode} is already in use`);
-              updCompany.run(businessCode, nameEn, nameEn, nameAr, sort, active, itemId);
-            } else upd.run(label, nameEn, nameAr, sort, active, itemId);
+            // `item.code` is deliberately ignored on an existing row, for every
+            // category including COMPANY. Codes are write-once (see the header
+            // comment); a caller that sends a changed one is not an error, it
+            // just has no effect.
+            upd.run(label, nameEn, nameAr, sort, active, itemId);
             // sort_order is deliberately not audited — reordering a dropdown is
             // presentation, not a change to what the value means.
             recordLookupHistory(userId, itemId, cat, beforeRow, db.prepare(LOOKUP_SNAPSHOT_SQL).get(itemId));
@@ -3933,8 +3950,9 @@ function knowledgeItemDir(id) {
 // ── Clients (Auth + Server Information + Databases + External Services +
 // Internal Systems, per COMPANY lookup) ───────────────────────────────────────
 // There is no standalone "clients" table — the client roster IS the active
-// COMPANY lookup catalog (managed from Settings → Companies, same place every
-// other company dropdown in the app is sourced from). These five child tables
+// COMPANY lookup catalog (managed from the Clients page itself, and the same
+// catalog every other company dropdown in the app is sourced from; see
+// createClient/renameClient/setClientActive/reorderClients). These five child tables
 // hold small, per-user reference records keyed to a COMPANY lookup id, the
 // same shape `project_companies` uses to link a project to its clients.
 
@@ -4299,8 +4317,11 @@ function groupClientRows(rows, toRecord) {
   return { counts, records };
 }
 
-function listClients(userId) {
-  const companies = getLookupsByCategory('COMPANY');
+// `includeArchived` surfaces soft-disabled (is_active = 0) clients too, for the
+// Clients page's "Show archived" toggle. Default false, so every existing
+// caller keeps seeing the active roster only.
+function listClients(userId, includeArchived = false) {
+  const companies = getLookupsByCategory('COMPANY', !!includeArchived);
   const vpn = groupClientRows(
     db.prepare('SELECT id, company_id, connection_name, vpn_type, endpoint FROM client_vpn_connections WHERE user_id = ?').all(userId),
     r => ({
@@ -4329,6 +4350,7 @@ function listClients(userId) {
   );
   return companies.map(c => ({
     id: c.id, code: c.code, label: c.label, nameEn: c.nameEn || c.label, nameAr: c.nameAr || '',
+    isActive: c.isActive, sortOrder: c.sortOrder,
     vpnCount: vpn.counts.get(c.id) || 0, serverCount: srv.counts.get(c.id) || 0,
     internalSystemCount: int_.counts.get(c.id) || 0,
     records: [
@@ -4336,6 +4358,133 @@ function listClients(userId) {
       ...(int_.records.get(c.id) || []),
     ],
   }));
+}
+
+// ── Client roster CRUD ────────────────────────────────────────────────────────
+// The roster IS the COMPANY lookup catalog, so these four write straight to
+// lookup_codes. They live here rather than being folded into saveLookups
+// because the Clients page acts on one client at a time, and because a code
+// must be settable at creation while staying unreachable afterwards — a shape
+// the catalog editor's whole-category batch save cannot express.
+//
+// Like every other write on the shared catalog, `userId` is the ACTOR, not an
+// owner: lookup_codes is global and the safeguard is attribution, so each of
+// these records into lookup_code_history (migration 058). All return
+// { ok, ... } rather than throwing, so a refusal is never a partial write.
+const COMPANY_CODE_RE = /^[A-Z0-9][A-Z0-9_-]{0,63}$/;
+
+// One client, in the same shape listClients returns, for handing straight back
+// to the renderer after a write.
+function clientById(userId, companyId) {
+  return listClients(userId, true).find(c => c.id === Number(companyId)) || null;
+}
+
+function createClient(userId, data) {
+  const code   = String(data?.code   ?? '').trim().toUpperCase();
+  const nameEn = String(data?.nameEn ?? '').trim();
+  const nameAr = String(data?.nameAr ?? '').trim();
+
+  if (!nameEn) return { ok: false, error: 'A client needs an English name' };
+  if (!COMPANY_CODE_RE.test(code)) {
+    return { ok: false, error: 'A company code must start with a letter or digit and use only letters, digits, _ and -' };
+  }
+
+  // tx() does not forward its callback's return value, so the refusal travels
+  // out in a closure variable and the callback returns early — committing an
+  // empty transaction rather than writing a partial row.
+  let error = null;
+  let id = null;
+  tx(() => {
+    if (db.prepare('SELECT 1 FROM lookup_codes WHERE category = \'COMPANY\' AND code = ? COLLATE NOCASE').get(code)) {
+      error = `Company code ${code} is already in use`; return;
+    }
+    if (lookupLabelCollides('COMPANY', nameEn)) { error = `A client named ${nameEn} already exists`; return; }
+    const sort = (db.prepare('SELECT MAX(sort_order) AS n FROM lookup_codes WHERE category = \'COMPANY\'').get().n ?? -1) + 1;
+    id = Number(db.prepare(
+      `INSERT INTO lookup_codes(category, code, label, name_en, name_ar, sort_order, is_active, created_at)
+       VALUES('COMPANY', ?, ?, ?, ?, ?, 1, ?)`
+    ).run(code, nameEn, nameEn, nameAr, sort, new Date().toISOString()).lastInsertRowid);
+    recordLookupHistory(userId, id, 'COMPANY', null, db.prepare(LOOKUP_SNAPSHOT_SQL).get(id));
+  });
+  if (error) return { ok: false, error };
+
+  lkInvalidate();
+  return { ok: true, client: clientById(userId, id) };
+}
+
+// Names only. `code` is not a parameter and is not read from `data` — that is
+// the whole point: once created, a client's business code is permanent, so the
+// links every task, project, invoice and infrastructure row depend on cannot be
+// pulled out from under them.
+function renameClient(userId, companyId, data) {
+  const id = Number(companyId);
+  if (!isLookupId('COMPANY', id)) return { ok: false, error: 'Unknown client' };
+  if (!canAccessLookup(userId, id)) return { ok: false, error: 'Unknown client' };
+
+  const nameEn = String(data?.nameEn ?? '').trim();
+  const nameAr = String(data?.nameAr ?? '').trim();
+  if (!nameEn) return { ok: false, error: 'A client needs an English name' };
+
+  let error = null;
+  tx(() => {
+    if (lookupLabelCollides('COMPANY', nameEn, id)) { error = `A client named ${nameEn} already exists`; return; }
+    const before = db.prepare(LOOKUP_SNAPSHOT_SQL).get(id);
+    db.prepare('UPDATE lookup_codes SET label = ?, name_en = ?, name_ar = ? WHERE id = ?')
+      .run(nameEn, nameEn, nameAr, id);
+    recordLookupHistory(userId, id, 'COMPANY', before, db.prepare(LOOKUP_SNAPSHOT_SQL).get(id));
+  });
+  if (error) return { ok: false, error };
+
+  lkInvalidate();
+  return { ok: true, client: clientById(userId, id) };
+}
+
+// Archive / restore. A soft-disable, never a delete: historical tasks, projects
+// and invoices keep pointing at the row, it just stops appearing in the roster
+// and in company dropdowns.
+function setClientActive(userId, companyId, isActive) {
+  const id = Number(companyId);
+  if (!isLookupId('COMPANY', id)) return { ok: false, error: 'Unknown client' };
+  if (!canAccessLookup(userId, id)) return { ok: false, error: 'Unknown client' };
+
+  tx(() => {
+    const before = db.prepare(LOOKUP_SNAPSHOT_SQL).get(id);
+    db.prepare('UPDATE lookup_codes SET is_active = ? WHERE id = ?').run(isActive ? 1 : 0, id);
+    recordLookupHistory(userId, id, 'COMPANY', before, db.prepare(LOOKUP_SNAPSHOT_SQL).get(id));
+  });
+
+  lkInvalidate();
+  return { ok: true, client: clientById(userId, id) };
+}
+
+// Rewrites sort_order from the given id order — this is what decides the order
+// of every company dropdown in the app. Ids that aren't COMPANY rows are
+// skipped rather than rejected, so a stale list from an open tab reorders what
+// it validly can. Not audited: like the catalog editor's own reorder, position
+// is presentation, not a change to what the value means.
+function reorderClients(userId, orderedIds) {
+  if (!Array.isArray(orderedIds)) return { ok: false, error: 'Invalid client order' };
+  const ids = orderedIds
+    .map(Number)
+    .filter(id => isLookupId('COMPANY', id) && canAccessLookup(userId, id));
+  if (!ids.length) return { ok: true };
+  tx(() => {
+    // Reassign only the sort_order slots these rows ALREADY occupy, rather than
+    // renumbering the category 0..n. The Clients page can be arranged while
+    // archived clients are hidden, and a plain renumber would collapse those
+    // hidden rows' positions into the same range — so restoring one later would
+    // drop it at an arbitrary spot. Reusing the existing slots means anything
+    // not named here keeps its exact position.
+    const slots = db.prepare(
+      `SELECT sort_order FROM lookup_codes
+        WHERE category = 'COMPANY' AND id IN (${ids.map(() => '?').join(',')})
+        ORDER BY sort_order, id`
+    ).all(...ids).map(r => r.sort_order);
+    const upd = db.prepare('UPDATE lookup_codes SET sort_order = ? WHERE id = ? AND category = \'COMPANY\'');
+    ids.forEach((id, i) => upd.run(slots[i], id));
+  });
+  lkInvalidate();
+  return { ok: true };
 }
 
 // One client's detail: the COMPANY lookup's label + its auth connections,
@@ -4356,6 +4505,10 @@ function getClient(userId, companyId) {
   return {
     id: Number(companyId), code: profile.companyCode, label: profile.companyNameEn,
     nameEn: profile.companyNameEn, nameAr: profile.companyNameAr,
+    // An archived client is still openable by deep link (and from the roster's
+    // "Show archived" view), so the detail page needs to know to offer Restore
+    // rather than Archive.
+    isActive: isLookupActive(companyId),
     vpnConnections, servers, internalSystems,
   };
 }
@@ -4639,6 +4792,7 @@ module.exports = {
   purgeKnowledgeAttachment, purgeKnowledgeFiles,
   listKnowledgeGroups, createKnowledgeGroup, updateKnowledgeGroup, deleteKnowledgeGroup,
   listClients, getClient, getClientFieldHistory,
+  createClient, renameClient, setClientActive, reorderClients,
   configureCredentialEncryption, allowPlaintextCredentialsForTests, disallowPlaintextCredentialsForTests,
   isCredentialEncryptionAvailable,
   encryptAllPendingCredentials, sanitizeLegacyCredentialBackups,
