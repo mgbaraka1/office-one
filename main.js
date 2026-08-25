@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, shell, dialog, safeStorage, clipboard } = r
 const fs = require('node:fs');
 const path = require('node:path');
 const db     = require('./db');
-const financeDb = require('./finance-seed');
+const financeDb = require('./finance-db');
 const auth   = require('./auth');
 const { validateIpcArgs } = require('./ipc-contracts');
 const { createTimesheetWorkbook, createFinanceReportWorkbook } = require('./xlsx');
@@ -486,7 +486,7 @@ ipcMain.handle('clients:field-history', authed((_e, recordType, recordId) => db.
 
 // ── Finance (standalone financial record-keeping module — deliberately
 // isolated from the rest of the app; see AGENTS.md's Finance section. Every
-// handler delegates straight to finance-seed.js, Finance's own data layer) ──
+// handler delegates straight to finance-db.js, Finance's own data layer) ──
 ipcMain.handle('finance:lookups-list', authed(()             => financeDb.listFinanceLookups(auth.requireUserId())));
 ipcMain.handle('finance:lookups-save', authed((_e, data)     => financeDb.saveFinanceLookups(auth.requireUserId(), data)));
 ipcMain.handle('finance:clients-list', authed(()             => financeDb.listFinanceClients(auth.requireUserId())));
@@ -578,7 +578,7 @@ ipcMain.handle('finance:action-delete', authed((_e, id)               => finance
 // ── Finance Reports (Excel export) ──
 // Mirrors report:exportExcel's shape exactly (size guard, save dialog,
 // write) but calls createFinanceReportWorkbook — the report DATA is shaped in
-// renderer/features/finance-it.js from state it already has loaded, the same
+// renderer/features/finance.js from state it already has loaded, the same
 // division of responsibility the Timesheet export already uses.
 ipcMain.handle('finance:report-export-excel', authed(async (_e, reportData, defaultName) => {
   try {
@@ -586,7 +586,7 @@ ipcMain.handle('finance:report-export-excel', authed(async (_e, reportData, defa
     if (!reportData || serializedBytes > 10 * 1024 * 1024) {
       return { ok: false, error: 'Excel report content is empty or too large' };
     }
-    const safeDefaultName = path.basename(String(defaultName || 'finance-it-report.xlsx')).slice(0, 180) || 'finance-it-report.xlsx';
+    const safeDefaultName = path.basename(String(defaultName || 'finance-report.xlsx')).slice(0, 180) || 'finance-report.xlsx';
     const e2eXlsxPath = isE2ERun ? process.env.COOPERATION_TOOLS_E2E_XLSX_PATH : null;
     const { canceled, filePath } = e2eXlsxPath
       ? { canceled: false, filePath: e2eXlsxPath }

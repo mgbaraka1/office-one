@@ -8,7 +8,7 @@
   <script src="renderer/i18n.js"></script>
   <link rel="stylesheet" href="renderer/vendor/quill/quill.snow.css">
   <link rel="stylesheet" href="renderer/app.css">
-  <link rel="stylesheet" href="renderer/finance-it.css">
+  <link rel="stylesheet" href="renderer/finance.css">
 </head>
 <body>
 
@@ -67,8 +67,13 @@
     <button class="nav-item" data-module="internal-tasks" data-onclick="switchModule('internal-tasks')" title="Internal Work">
       <span class="nav-icon" data-ic="building"></span><span class="nav-label">Internal Work</span>
     </button>
-    <button class="nav-item" data-module="finance-it" data-onclick="switchModule('finance-it')" title="Finance">
-      <span class="nav-icon" data-ic="briefcase"></span><span class="nav-label">Finance</span>
+    <!-- Finance is its own section, not a member of Internal. Internal Work is
+         explicitly NON-client work (migration 053); contracts and invoices are
+         the most client-facing data in the app, so the module sat in the one
+         section it contradicted. -->
+    <div class="nav-section">Finance</div>
+    <button class="nav-item" data-module="finance" data-onclick="switchModule('finance')" title="Finance — contracts, invoices, and minutes">
+      <span class="nav-icon" data-ic="credit-card"></span><span class="nav-label">Finance</span>
     </button>
     <div class="nav-section">Clients &amp; Assets</div>
     <button class="nav-item" data-module="clients" data-onclick="switchModule('clients')" title="Clients">
@@ -1268,12 +1273,12 @@
   </div>
 </div>
 
-<!-- ══ Finance MODULE — standalone financial record-keeping for Finance
+<!-- ══ Finance MODULE — standalone financial record-keeping for Finance IT
      (clients, contracts with versions, change requests, invoices, minutes of
      meeting, reports). Deliberately isolated from the rest of the app — its
      own client roster, its own finance_lookups catalog, its own stylesheet
-     (renderer/finance-it.css, .gi- prefixed). See AGENTS.md's Finance section. ══ -->
-<div id="module-finance-it" class="app-module">
+     (renderer/finance.css, .gi- prefixed). See AGENTS.md's Finance section. ══ -->
+<div id="module-finance" class="app-module">
   <div id="finance-list-view">
     <div id="finance-topbar" class="page-header">
       <span class="page-title"><span class="ti-ic" data-ic="briefcase"></span>Finance</span>
@@ -1283,7 +1288,7 @@
       </div>
     </div>
     <div class="pj-scroll">
-      <div class="gi-grid" id="finance-clients-grid"></div>
+      <div class="fin-grid" id="finance-clients-grid"></div>
       <div id="finance-clients-empty-state" class="empty-state" hidden>
         <div class="empty-state-inner">
           <span data-ic="briefcase"></span>
@@ -1306,49 +1311,49 @@
       <div class="form-row">
         <div class="form-group">
           <label>English Name</label>
-          <input id="gi-client-name" type="text" placeholder="e.g. Acme Corporation" />
+          <input id="fin-client-name" type="text" placeholder="e.g. Acme Corporation" />
         </div>
         <div class="form-group">
           <label>Arabic Name <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional</span></label>
-          <input id="gi-client-name-ar" type="text" dir="rtl" placeholder="اسم العميل بالعربية" />
+          <input id="fin-client-name-ar" type="text" dir="rtl" placeholder="اسم العميل بالعربية" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Code <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional</span></label>
-          <input id="gi-client-code" type="text" placeholder="e.g. ACME" />
+          <input id="fin-client-code" type="text" placeholder="e.g. ACME" />
         </div>
         <div class="form-group">
           <label>Contact Name</label>
-          <input id="gi-client-contact-name" type="text" />
+          <input id="fin-client-contact-name" type="text" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Contact Email</label>
-          <input id="gi-client-contact-email" type="email" />
+          <input id="fin-client-contact-email" type="email" />
         </div>
         <div class="form-group">
           <label>Contact Phone</label>
-          <input id="gi-client-contact-phone" type="text" />
+          <input id="fin-client-contact-phone" type="text" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group full">
           <label>Address</label>
-          <input id="gi-client-address" type="text" />
+          <input id="fin-client-address" type="text" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Tax Number</label>
-          <input id="gi-client-tax-number" type="text" />
+          <input id="fin-client-tax-number" type="text" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group full">
           <label>Notes</label>
-          <textarea id="gi-client-notes"></textarea>
+          <textarea id="fin-client-notes"></textarea>
         </div>
       </div>
     </div>
@@ -1370,45 +1375,45 @@
       <div class="form-row">
         <div class="form-group full">
           <label>Title</label>
-          <input id="gi-contract-title" type="text" placeholder="e.g. Support Agreement 2026" />
+          <input id="fin-contract-title" type="text" placeholder="e.g. Support Agreement 2026" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Reference</label>
-          <input id="gi-contract-ref" type="text" />
+          <input id="fin-contract-ref" type="text" />
         </div>
         <div class="form-group">
           <label>Status</label>
-          <select id="gi-contract-status"></select>
+          <select id="fin-contract-status"></select>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Currency</label>
-          <select id="gi-contract-currency"></select>
+          <select id="fin-contract-currency"></select>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Start Date</label>
-          <input id="gi-contract-start" type="date" />
+          <input id="fin-contract-start" type="date" />
         </div>
         <div class="form-group">
           <label>End Date</label>
-          <input id="gi-contract-end" type="date" />
+          <input id="fin-contract-end" type="date" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group full">
           <label>Description</label>
-          <textarea id="gi-contract-description"></textarea>
+          <textarea id="fin-contract-description"></textarea>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group full">
           <label>Notes</label>
-          <textarea id="gi-contract-notes"></textarea>
+          <textarea id="fin-contract-notes"></textarea>
         </div>
       </div>
     </div>
@@ -1430,32 +1435,32 @@
       <div class="form-row">
         <div class="form-group">
           <label>Version Label</label>
-          <input id="gi-version-label" type="text" placeholder="e.g. v1.0" />
+          <input id="fin-version-label" type="text" placeholder="e.g. v1.0" />
         </div>
         <div class="form-group">
           <label>Value</label>
-          <input id="gi-version-value" type="number" step="0.01" min="0" />
+          <input id="fin-version-value" type="number" step="0.01" min="0" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Signed Date</label>
-          <input id="gi-version-signed" type="date" />
+          <input id="fin-version-signed" type="date" />
         </div>
         <div class="form-group">
           <label>Effective Date</label>
-          <input id="gi-version-effective" type="date" />
+          <input id="fin-version-effective" type="date" />
         </div>
       </div>
-      <div class="form-row" id="gi-version-final-row">
+      <div class="form-row" id="fin-version-final-row">
         <div class="form-group full">
-          <label class="gi-check"><input id="gi-version-final" type="checkbox" /> Mark as the final version</label>
+          <label class="fin-check"><input id="fin-version-final" type="checkbox" /> Mark as the final version</label>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group full">
           <label>Notes</label>
-          <textarea id="gi-version-notes"></textarea>
+          <textarea id="fin-version-notes"></textarea>
         </div>
       </div>
     </div>
@@ -1477,33 +1482,33 @@
       <div class="form-row">
         <div class="form-group">
           <label>Sequence #</label>
-          <input id="gi-installment-seq" type="number" min="1" step="1" placeholder="auto" />
+          <input id="fin-installment-seq" type="number" min="1" step="1" placeholder="auto" />
         </div>
         <div class="form-group">
           <label>Amount</label>
-          <input id="gi-installment-amount" type="number" step="0.01" min="0" />
+          <input id="fin-installment-amount" type="number" step="0.01" min="0" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group full">
           <label>Title</label>
-          <input id="gi-installment-title" type="text" placeholder="e.g. Kickoff" />
+          <input id="fin-installment-title" type="text" placeholder="e.g. Kickoff" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Milestone</label>
-          <input id="gi-installment-milestone" type="text" />
+          <input id="fin-installment-milestone" type="text" />
         </div>
         <div class="form-group">
           <label>Due Date</label>
-          <input id="gi-installment-due" type="date" />
+          <input id="fin-installment-due" type="date" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group full">
           <label>Notes</label>
-          <textarea id="gi-installment-notes"></textarea>
+          <textarea id="fin-installment-notes"></textarea>
         </div>
       </div>
     </div>
@@ -1525,55 +1530,55 @@
       <div class="form-row">
         <div class="form-group full">
           <label>Title</label>
-          <input id="gi-cr-title" type="text" placeholder="e.g. Add reporting module" />
+          <input id="fin-cr-title" type="text" placeholder="e.g. Add reporting module" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Reference</label>
-          <input id="gi-cr-ref" type="text" />
+          <input id="fin-cr-ref" type="text" />
         </div>
         <div class="form-group">
           <label>Status</label>
-          <select id="gi-cr-status"></select>
+          <select id="fin-cr-status"></select>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Contract <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional</span></label>
-          <select id="gi-cr-contract"></select>
+          <select id="fin-cr-contract"></select>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Amount</label>
-          <input id="gi-cr-amount" type="number" step="0.01" min="0" />
+          <input id="fin-cr-amount" type="number" step="0.01" min="0" />
         </div>
         <div class="form-group">
           <label>Currency</label>
-          <select id="gi-cr-currency"></select>
+          <select id="fin-cr-currency"></select>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Requested Date</label>
-          <input id="gi-cr-requested" type="date" />
+          <input id="fin-cr-requested" type="date" />
         </div>
         <div class="form-group">
           <label>Approved Date</label>
-          <input id="gi-cr-approved" type="date" />
+          <input id="fin-cr-approved" type="date" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group full">
           <label>Description</label>
-          <textarea id="gi-cr-description"></textarea>
+          <textarea id="fin-cr-description"></textarea>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group full">
           <label>Notes</label>
-          <textarea id="gi-cr-notes"></textarea>
+          <textarea id="fin-cr-notes"></textarea>
         </div>
       </div>
     </div>
@@ -1595,43 +1600,43 @@
       <div class="form-row">
         <div class="form-group">
           <label>Invoice Number</label>
-          <input id="gi-invoice-number" type="text" placeholder="e.g. INV-0001" />
+          <input id="fin-invoice-number" type="text" placeholder="e.g. INV-0001" />
         </div>
         <div class="form-group">
           <label>Status</label>
-          <select id="gi-invoice-status"></select>
+          <select id="fin-invoice-status"></select>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Amount</label>
-          <input id="gi-invoice-amount" type="number" step="0.01" min="0" />
+          <input id="fin-invoice-amount" type="number" step="0.01" min="0" />
         </div>
         <div class="form-group">
           <label>Tax</label>
-          <input id="gi-invoice-tax" type="number" step="0.01" min="0" />
+          <input id="fin-invoice-tax" type="number" step="0.01" min="0" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Currency</label>
-          <select id="gi-invoice-currency"></select>
+          <select id="fin-invoice-currency"></select>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Issue Date</label>
-          <input id="gi-invoice-issue" type="date" />
+          <input id="fin-invoice-issue" type="date" />
         </div>
         <div class="form-group">
           <label>Due Date</label>
-          <input id="gi-invoice-due" type="date" />
+          <input id="fin-invoice-due" type="date" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group full">
           <label>Notes</label>
-          <textarea id="gi-invoice-notes"></textarea>
+          <textarea id="fin-invoice-notes"></textarea>
         </div>
       </div>
     </div>
@@ -1652,20 +1657,20 @@
     <div class="modal-body">
       <div class="form-row">
         <div class="form-group full">
-          <label class="gi-check"><input type="radio" name="gi-link-type" id="gi-link-type-installment" checked data-onchange="renderFinanceLinkTargetOptions()" /> Installment</label>
-          <label class="gi-check"><input type="radio" name="gi-link-type" id="gi-link-type-cr" data-onchange="renderFinanceLinkTargetOptions()" /> Change Request</label>
+          <label class="fin-check"><input type="radio" name="fin-link-type" id="fin-link-type-installment" checked data-onchange="renderFinanceLinkTargetOptions()" /> Installment</label>
+          <label class="fin-check"><input type="radio" name="fin-link-type" id="fin-link-type-cr" data-onchange="renderFinanceLinkTargetOptions()" /> Change Request</label>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group full">
           <label>Target</label>
-          <select id="gi-link-target"></select>
+          <select id="fin-link-target"></select>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Allocated Amount</label>
-          <input id="gi-link-amount" type="number" step="0.01" min="0" />
+          <input id="fin-link-amount" type="number" step="0.01" min="0" />
         </div>
       </div>
     </div>
@@ -1687,19 +1692,19 @@
       <div class="form-row">
         <div class="form-group full">
           <label>Target</label>
-          <div id="gi-reverse-link-target-label" class="gi-empty-sm"></div>
+          <div id="fin-reverse-link-target-label" class="fin-empty-sm"></div>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group full">
           <label>Invoice</label>
-          <select id="gi-reverse-link-invoice"></select>
+          <select id="fin-reverse-link-invoice"></select>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Allocated Amount</label>
-          <input id="gi-reverse-link-amount" type="number" step="0.01" min="0" />
+          <input id="fin-reverse-link-amount" type="number" step="0.01" min="0" />
         </div>
       </div>
     </div>
@@ -1721,27 +1726,27 @@
       <div class="form-row">
         <div class="form-group">
           <label>Amount</label>
-          <input id="gi-payment-amount" type="number" step="0.01" min="0" />
+          <input id="fin-payment-amount" type="number" step="0.01" min="0" />
         </div>
         <div class="form-group">
           <label>Paid Date</label>
-          <input id="gi-payment-date" type="date" />
+          <input id="fin-payment-date" type="date" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Method</label>
-          <select id="gi-payment-method"></select>
+          <select id="fin-payment-method"></select>
         </div>
         <div class="form-group">
           <label>Reference</label>
-          <input id="gi-payment-reference" type="text" />
+          <input id="fin-payment-reference" type="text" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group full">
           <label>Notes</label>
-          <textarea id="gi-payment-notes"></textarea>
+          <textarea id="fin-payment-notes"></textarea>
         </div>
       </div>
     </div>
@@ -1763,43 +1768,43 @@
       <div class="form-row">
         <div class="form-group full">
           <label>Title</label>
-          <input id="gi-meeting-title" type="text" placeholder="e.g. Kickoff meeting" />
+          <input id="fin-meeting-title" type="text" placeholder="e.g. Kickoff meeting" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Date</label>
-          <input id="gi-meeting-date" type="date" />
+          <input id="fin-meeting-date" type="date" />
         </div>
         <div class="form-group">
           <label>Location</label>
-          <input id="gi-meeting-location" type="text" />
+          <input id="fin-meeting-location" type="text" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Contract <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional</span></label>
-          <select id="gi-meeting-contract"></select>
+          <select id="fin-meeting-contract"></select>
         </div>
         <div class="form-group">
           <label>Change Request <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional</span></label>
-          <select id="gi-meeting-cr"></select>
+          <select id="fin-meeting-cr"></select>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group full">
           <label>Attendees</label>
-          <input id="gi-meeting-attendees" type="text" placeholder="Comma-separated names" />
+          <input id="fin-meeting-attendees" type="text" placeholder="Comma-separated names" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group full">
           <label>Agenda</label>
-          <textarea id="gi-meeting-agenda"></textarea>
+          <textarea id="fin-meeting-agenda"></textarea>
         </div>
       </div>
       <div class="form-group full"><label>Minutes</label>
-        <div class="gi-editor-pane"><div id="gi-meeting-content-editor"></div></div>
+        <div class="fin-editor-pane"><div id="fin-meeting-content-editor"></div></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -1820,17 +1825,17 @@
       <div class="form-row">
         <div class="form-group full">
           <label>Description</label>
-          <textarea id="gi-action-description"></textarea>
+          <textarea id="fin-action-description"></textarea>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Owner</label>
-          <input id="gi-action-owner" type="text" />
+          <input id="fin-action-owner" type="text" />
         </div>
         <div class="form-group">
           <label>Due Date</label>
-          <input id="gi-action-due" type="date" />
+          <input id="fin-action-due" type="date" />
         </div>
       </div>
     </div>
@@ -2680,7 +2685,7 @@
 <script src="renderer/features/knowledge.js"></script>
 <script src="renderer/features/company-documents.js"></script>
 <script src="renderer/features/clients.js"></script>
-<script src="renderer/features/finance-it.js"></script>
+<script src="renderer/features/finance.js"></script>
 <script src="renderer/features/shell.js"></script>
 <div id="app-toast" class="app-toast" role="status" aria-live="polite"></div>
 </body>

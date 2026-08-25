@@ -2805,6 +2805,11 @@ function switchModule(name) {
     browseKind = kind;
     name = 'browse';
   }
+  // Finance became Finance (migration 055). The migration rewrites the saved
+  // lastModule, but this alias is permanent and deliberately belt-and-braces:
+  // it covers a ui-state blob the migration could not parse, and any older
+  // deep link that still names the module by its previous id.
+  if (name === 'finance-it') name = 'finance';
   if (activeModule === name) {
     if (name === 'browse') setBrowseKind(browseKind);
     else if (name === 'clients') backToClientsList();
@@ -2865,8 +2870,8 @@ function switchModule(name) {
   } else if (name === 'clients') {
     window.api.setTitle('Office ONE — Clients');
     initClientsModule();
-  } else if (name === 'finance-it') {
+  } else if (name === 'finance') {
     window.api.setTitle('Office ONE — Finance');
-    initFinanceItModule();
+    initFinanceModule();
   }
 }

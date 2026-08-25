@@ -5,7 +5,7 @@
 // section. Phase 1: clients, contracts, contract versions, installments, and
 // the Setup tab's catalog editor. Phase 2: Change Requests, Invoices,
 // invoice-to-installment/CR allocations, and payments — with the six
-// cross-entity invariants enforced server-side in finance-seed.js. Minutes /
+// cross-entity invariants enforced server-side in finance-db.js. Minutes /
 // Reports tabs are still shells — a later phase fills them in.
 let financeClients = [];
 let financeClientsLoaded = false;
@@ -57,7 +57,7 @@ const GI_STATUS_PILL_WEIGHT = {
   SUBMITTED: 'warn', APPROVED: 'good', REJECTED: 'bad', DELIVERED: 'good',
   ISSUED: 'warn', PARTIALLY_PAID: 'warn', PAID: 'good', CANCELLED: 'bad',
 };
-function finStatusPillClass(code) { return 'gi-pill-' + (GI_STATUS_PILL_WEIGHT[code] || 'muted'); }
+function finStatusPillClass(code) { return 'fin-pill-' + (GI_STATUS_PILL_WEIGHT[code] || 'muted'); }
 
 const FINANCE_DETAIL_TABS = [
   { key: 'overview',  label: 'Overview' },
@@ -126,20 +126,20 @@ function showFinanceDetailView() {
 }
 
 function buildFinanceClientCard(c) {
-  const card = finMk('div', 'gi-card');
+  const card = finMk('div', 'fin-card');
   card.dataset.financeClientId = c.id;
   card.addEventListener('click', () => openFinanceClientDetail(c.id));
 
-  const head = finMk('div', 'gi-card-head');
-  const identity = finMk('div', 'gi-card-identity');
-  identity.appendChild(finMk('div', 'gi-card-name', finClientName(c) || 'Untitled'));
-  if (c.code) identity.appendChild(finMk('span', 'gi-code-badge', c.code));
+  const head = finMk('div', 'fin-card-head');
+  const identity = finMk('div', 'fin-card-identity');
+  identity.appendChild(finMk('div', 'fin-card-name', finClientName(c) || 'Untitled'));
+  if (c.code) identity.appendChild(finMk('span', 'fin-code-badge', c.code));
   head.appendChild(identity);
-  const headIcons = finMk('div', 'gi-card-icons');
-  const editBtn = finMk('button', 'gi-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit';
+  const headIcons = finMk('div', 'fin-card-icons');
+  const editBtn = finMk('button', 'fin-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit';
   editBtn.addEventListener('click', e => { e.stopPropagation(); openFinanceClientModal(c); });
   headIcons.appendChild(editBtn);
-  const delBtn = finMk('button', 'gi-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete';
+  const delBtn = finMk('button', 'fin-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete';
   delBtn.addEventListener('click', e => {
     e.stopPropagation();
     showDeleteConfirm(headIcons, () => deleteFinanceClientFlow(c.id), () => renderFinanceClientsList());
@@ -148,12 +148,12 @@ function buildFinanceClientCard(c) {
   head.appendChild(headIcons);
   card.appendChild(head);
 
-  const foot = finMk('div', 'gi-card-foot');
-  const count = finMk('span', 'gi-card-count');
+  const foot = finMk('div', 'fin-card-foot');
+  const count = finMk('span', 'fin-card-count');
   count.innerHTML = ic('briefcase');
   count.appendChild(document.createTextNode(' ' + c.contractCount + ' contract' + (c.contractCount === 1 ? '' : 's')));
   foot.appendChild(count);
-  foot.appendChild(finMk('span', 'gi-card-outstanding' + (c.outstandingMinor > 0 ? ' has-balance' : ''),
+  foot.appendChild(finMk('span', 'fin-card-outstanding' + (c.outstandingMinor > 0 ? ' has-balance' : ''),
     'Outstanding ' + finMinorToStr(c.outstandingMinor)));
   const open = finMk('span', 'pj-card-open', 'Open');
   open.insertAdjacentHTML('beforeend', ic('chevron-right'));
@@ -265,11 +265,11 @@ function renderFinanceClientDetail() {
   host.appendChild(crumbs);
 
   const head = finMk('div', 'pj-detail-head');
-  const titleBlock = finMk('div', 'gi-detail-identity');
+  const titleBlock = finMk('div', 'fin-detail-identity');
   titleBlock.appendChild(finMk('div', 'pj-detail-title', finClientName(c) || 'Untitled'));
-  if (c.code) titleBlock.appendChild(finMk('div', 'gi-detail-alt', c.code));
+  if (c.code) titleBlock.appendChild(finMk('div', 'fin-detail-alt', c.code));
   head.appendChild(titleBlock);
-  const headActions = finMk('div', 'gi-detail-actions');
+  const headActions = finMk('div', 'fin-detail-actions');
   const editBtn = finMk('button', 'btn');
   editBtn.innerHTML = ic('pencil') + ' Edit';
   editBtn.addEventListener('click', () => openFinanceClientModal(c));
@@ -280,7 +280,7 @@ function renderFinanceClientDetail() {
   // Kept outside the re-rendered sections container so tab switching never
   // rebuilds the toolbar itself — the Clients page's .cl-detail-toolbar
   // pattern is the model this copies.
-  const toolbar = finMk('div', 'gi-detail-toolbar');
+  const toolbar = finMk('div', 'fin-detail-toolbar');
   const tabs = finMk('div', 'seg-ctl workspace-tabs');
   tabs.setAttribute('aria-label', 'Finance client workspace');
   FINANCE_DETAIL_TABS.forEach(t => {
@@ -292,7 +292,7 @@ function renderFinanceClientDetail() {
   toolbar.appendChild(tabs);
   host.appendChild(toolbar);
 
-  const sectionsHost = finMk('div', 'gi-detail-sections');
+  const sectionsHost = finMk('div', 'fin-detail-sections');
   sectionsHost.id = 'finance-detail-sections';
   host.appendChild(sectionsHost);
 
@@ -319,7 +319,7 @@ function renderFinanceDetailSections() {
   else renderFinanceComingSoonSection(host, FINANCE_DETAIL_TABS.find(t => t.key === financeDetailTab)?.label || '');
 }
 function renderFinanceComingSoonSection(host, label) {
-  host.appendChild(finMk('div', 'gi-empty', label + ' is coming in a later phase of Finance.'));
+  host.appendChild(finMk('div', 'fin-empty', label + ' is coming in a later phase of Finance.'));
 }
 
 // ── Overview tab ──────────────────────────────────────────────────────────────
@@ -329,11 +329,11 @@ function renderFinanceOverviewSection(host) {
     contractCount: c.contractCount, activeContractCount: 0, finalContractValueMinor: 0,
     invoicedMinor: 0, paidMinor: 0, outstandingMinor: c.outstandingMinor, changeRequestCount: 0,
   };
-  const grid = finMk('div', 'gi-stat-grid');
+  const grid = finMk('div', 'fin-stat-grid');
   const stat = (label, value) => {
-    const box = finMk('div', 'gi-stat');
-    box.appendChild(finMk('div', 'gi-stat-label', label));
-    box.appendChild(finMk('div', 'gi-stat-value', value));
+    const box = finMk('div', 'fin-stat');
+    box.appendChild(finMk('div', 'fin-stat-label', label));
+    box.appendChild(finMk('div', 'fin-stat-value', value));
     return box;
   };
   grid.appendChild(stat('Contracts', String(s.contractCount)));
@@ -345,7 +345,7 @@ function renderFinanceOverviewSection(host) {
   grid.appendChild(stat('Change Requests', String(s.changeRequestCount)));
   host.appendChild(grid);
 
-  const info = finMk('div', 'gi-section');
+  const info = finMk('div', 'fin-section');
   const infoHead = finMk('div', 'pj-section-title');
   infoHead.innerHTML = ic('file-text');
   infoHead.appendChild(document.createTextNode('Client Details'));
@@ -355,12 +355,12 @@ function renderFinanceOverviewSection(host) {
     ['Address', c.address], ['Tax Number', c.taxNumber], ['Notes', c.notes],
   ].filter(([, v]) => v);
   if (rows.length === 0) {
-    info.appendChild(finMk('div', 'gi-empty-sm', 'No additional contact details recorded.'));
+    info.appendChild(finMk('div', 'fin-empty-sm', 'No additional contact details recorded.'));
   } else {
     rows.forEach(([label, value]) => {
-      const row = finMk('div', 'gi-info-row');
-      row.appendChild(finMk('span', 'gi-info-label', label));
-      row.appendChild(finMk('span', 'gi-info-value', value));
+      const row = finMk('div', 'fin-info-row');
+      row.appendChild(finMk('span', 'fin-info-label', label));
+      row.appendChild(finMk('span', 'fin-info-value', value));
       info.appendChild(row);
     });
   }
@@ -386,9 +386,9 @@ function renderFinanceContractsSection(host) {
   sec.appendChild(secHead);
 
   if (financeContracts.length === 0) {
-    sec.appendChild(finMk('div', 'gi-empty', 'No contracts yet for this client.'));
+    sec.appendChild(finMk('div', 'fin-empty', 'No contracts yet for this client.'));
   } else {
-    const list = finMk('div', 'gi-contract-list');
+    const list = finMk('div', 'fin-contract-list');
     financeContracts.forEach(k => list.appendChild(buildFinanceContractCard(k)));
     sec.appendChild(list);
   }
@@ -408,25 +408,25 @@ function toggleFinanceVersionHistory(contractId) {
 
 function buildFinanceContractCard(k) {
   const expanded = financeExpandedContracts.has(k.id);
-  const card = finMk('div', 'gi-contract-card' + (expanded ? ' expanded' : ''));
+  const card = finMk('div', 'fin-contract-card' + (expanded ? ' expanded' : ''));
 
-  const head = finMk('div', 'gi-contract-head');
+  const head = finMk('div', 'fin-contract-head');
   head.addEventListener('click', () => toggleFinanceContractExpanded(k.id));
-  const titleWrap = finMk('div', 'gi-contract-title-wrap');
-  titleWrap.appendChild(finMk('div', 'gi-contract-title', k.title));
+  const titleWrap = finMk('div', 'fin-contract-title-wrap');
+  titleWrap.appendChild(finMk('div', 'fin-contract-title', k.title));
   const metaBits = [k.ref, finStatusLabel(k), k.currencyCode].filter(Boolean);
-  titleWrap.appendChild(finMk('div', 'gi-contract-meta', metaBits.join(' · ')));
+  titleWrap.appendChild(finMk('div', 'fin-contract-meta', metaBits.join(' · ')));
   head.appendChild(titleWrap);
-  const chev = finMk('span', 'gi-contract-chevron');
+  const chev = finMk('span', 'fin-contract-chevron');
   chev.innerHTML = ic(expanded ? 'chevron-up' : 'chevron-down');
   head.appendChild(chev);
   card.appendChild(head);
 
-  const headActions = finMk('div', 'gi-contract-actions');
-  const editBtn = finMk('button', 'gi-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit contract';
+  const headActions = finMk('div', 'fin-contract-actions');
+  const editBtn = finMk('button', 'fin-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit contract';
   editBtn.addEventListener('click', e => { e.stopPropagation(); openFinanceContractModal(k); });
   headActions.appendChild(editBtn);
-  const delBtn = finMk('button', 'gi-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete contract';
+  const delBtn = finMk('button', 'fin-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete contract';
   delBtn.addEventListener('click', e => {
     e.stopPropagation();
     showDeleteConfirm(headActions, () => deleteFinanceContractFlow(k.id), () => renderFinanceDetailSections());
@@ -439,26 +439,26 @@ function buildFinanceContractCard(k) {
 }
 
 function buildFinanceContractBody(k) {
-  const body = finMk('div', 'gi-contract-body');
+  const body = finMk('div', 'fin-contract-body');
 
   // Versions — the final version promoted and badged; earlier versions collapsed.
-  const vSec = finMk('div', 'gi-subsection');
-  const vHead = finMk('div', 'gi-subsection-head');
-  vHead.appendChild(finMk('span', 'gi-subsection-title', 'Versions'));
-  const vAdd = finMk('button', 'gi-mini-btn'); vAdd.innerHTML = ic('plus') + ' Add Version';
+  const vSec = finMk('div', 'fin-subsection');
+  const vHead = finMk('div', 'fin-subsection-head');
+  vHead.appendChild(finMk('span', 'fin-subsection-title', 'Versions'));
+  const vAdd = finMk('button', 'fin-mini-btn'); vAdd.innerHTML = ic('plus') + ' Add Version';
   vAdd.addEventListener('click', () => openFinanceVersionModal(k.id, null));
   vHead.appendChild(vAdd);
   vSec.appendChild(vHead);
   const finalV = k.versions.find(v => v.isFinal);
   const otherV = k.versions.filter(v => !v.isFinal);
   if (!k.versions.length) {
-    vSec.appendChild(finMk('div', 'gi-empty-sm', 'No versions yet.'));
+    vSec.appendChild(finMk('div', 'fin-empty-sm', 'No versions yet.'));
   } else {
     if (finalV) vSec.appendChild(buildFinanceVersionRow(finalV, k, true));
     if (otherV.length) {
       const historyOpen = !finalV || financeExpandedVersionHistory.has(k.id);
       if (finalV) {
-        const toggleBtn = finMk('button', 'gi-mini-link',
+        const toggleBtn = finMk('button', 'fin-mini-link',
           (historyOpen ? 'Hide' : 'Show') + ' ' + otherV.length + ' earlier version' + (otherV.length === 1 ? '' : 's'));
         toggleBtn.addEventListener('click', () => toggleFinanceVersionHistory(k.id));
         vSec.appendChild(toggleBtn);
@@ -469,18 +469,18 @@ function buildFinanceContractBody(k) {
   body.appendChild(vSec);
 
   // Installments — schedule with a per-row invoiced/outstanding indicator.
-  const iSec = finMk('div', 'gi-subsection');
-  const iHead = finMk('div', 'gi-subsection-head');
-  iHead.appendChild(finMk('span', 'gi-subsection-title', 'Installment Schedule'));
-  const iAdd = finMk('button', 'gi-mini-btn'); iAdd.innerHTML = ic('plus') + ' Add Installment';
+  const iSec = finMk('div', 'fin-subsection');
+  const iHead = finMk('div', 'fin-subsection-head');
+  iHead.appendChild(finMk('span', 'fin-subsection-title', 'Installment Schedule'));
+  const iAdd = finMk('button', 'fin-mini-btn'); iAdd.innerHTML = ic('plus') + ' Add Installment';
   iAdd.addEventListener('click', () => openFinanceInstallmentModal(k.id, null));
   iHead.appendChild(iAdd);
   iSec.appendChild(iHead);
   if (!k.installments.length) {
-    iSec.appendChild(finMk('div', 'gi-empty-sm', 'No installments yet.'));
+    iSec.appendChild(finMk('div', 'fin-empty-sm', 'No installments yet.'));
   } else {
     const table = document.createElement('table');
-    table.className = 'gi-installment-table';
+    table.className = 'fin-installment-table';
     table.innerHTML = '<thead><tr><th>#</th><th>Title</th><th>Due</th><th>Amount</th><th>Status</th><th></th></tr></thead>';
     const tbody = document.createElement('tbody');
     k.installments.forEach(inst => tbody.appendChild(buildFinanceInstallmentRow(inst, k)));
@@ -494,31 +494,31 @@ function buildFinanceContractBody(k) {
 
 function buildFinanceVersionRow(v, k, promoted) {
   const filesOpen = financeExpandedVersionFiles.has(v.id);
-  const wrap = finMk('div', 'gi-version-wrap');
-  const row = finMk('div', 'gi-version-row' + (promoted ? ' promoted' : ''));
-  const main = finMk('div', 'gi-version-main');
-  main.appendChild(finMk('span', 'gi-version-label', v.versionLabel));
-  if (v.isFinal) main.appendChild(finMk('span', 'gi-final-badge', 'Final'));
+  const wrap = finMk('div', 'fin-version-wrap');
+  const row = finMk('div', 'fin-version-row' + (promoted ? ' promoted' : ''));
+  const main = finMk('div', 'fin-version-main');
+  main.appendChild(finMk('span', 'fin-version-label', v.versionLabel));
+  if (v.isFinal) main.appendChild(finMk('span', 'fin-final-badge', 'Final'));
   row.appendChild(main);
-  row.appendChild(finMk('span', 'gi-version-value', finMoney(v.valueMinor, k.currencyCode)));
-  row.appendChild(finMk('span', 'gi-version-dates', [v.signedDate, v.effectiveDate].filter(Boolean).join(' · ')));
-  const actions = finMk('div', 'gi-version-actions');
+  row.appendChild(finMk('span', 'fin-version-value', finMoney(v.valueMinor, k.currencyCode)));
+  row.appendChild(finMk('span', 'fin-version-dates', [v.signedDate, v.effectiveDate].filter(Boolean).join(' · ')));
+  const actions = finMk('div', 'fin-version-actions');
   if (!v.isFinal) {
-    const finalBtn = finMk('button', 'gi-mini-link', 'Mark Final');
+    const finalBtn = finMk('button', 'fin-mini-link', 'Mark Final');
     finalBtn.addEventListener('click', () => setFinanceVersionFinal(v.id));
     actions.appendChild(finalBtn);
   }
-  const filesBtn = finMk('button', 'gi-icon-btn' + (filesOpen ? ' active' : '')); filesBtn.innerHTML = ic('file-text'); filesBtn.title = 'Files';
+  const filesBtn = finMk('button', 'fin-icon-btn' + (filesOpen ? ' active' : '')); filesBtn.innerHTML = ic('file-text'); filesBtn.title = 'Files';
   filesBtn.addEventListener('click', () => {
     if (financeExpandedVersionFiles.has(v.id)) financeExpandedVersionFiles.delete(v.id);
     else financeExpandedVersionFiles.add(v.id);
     renderFinanceDetailSections();
   });
   actions.appendChild(filesBtn);
-  const editBtn = finMk('button', 'gi-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit version';
+  const editBtn = finMk('button', 'fin-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit version';
   editBtn.addEventListener('click', () => openFinanceVersionModal(k.id, v));
   actions.appendChild(editBtn);
-  const delBtn = finMk('button', 'gi-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete version';
+  const delBtn = finMk('button', 'fin-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete version';
   delBtn.addEventListener('click', () =>
     showDeleteConfirm(actions, () => deleteFinanceVersionFlow(v.id, k.id), () => renderFinanceDetailSections()));
   actions.appendChild(delBtn);
@@ -534,31 +534,31 @@ function buildFinanceInstallmentRow(inst, k) {
   const tdSeq = document.createElement('td'); tdSeq.textContent = String(inst.seq); tr.appendChild(tdSeq);
   const tdTitle = document.createElement('td');
   tdTitle.appendChild(document.createTextNode(inst.title || '—'));
-  if (inst.milestone) tdTitle.appendChild(finMk('div', 'gi-installment-milestone', inst.milestone));
+  if (inst.milestone) tdTitle.appendChild(finMk('div', 'fin-installment-milestone', inst.milestone));
   tr.appendChild(tdTitle);
   const tdDue = document.createElement('td'); tdDue.textContent = inst.dueDate || '—'; tr.appendChild(tdDue);
   const tdAmount = document.createElement('td'); tdAmount.textContent = finMoney(inst.amountMinor, k.currencyCode); tr.appendChild(tdAmount);
   const tdStatus = document.createElement('td');
   if (links.length) {
-    const chips = finMk('div', 'gi-invoice-link-chips');
+    const chips = finMk('div', 'fin-invoice-link-chips');
     links.forEach(({ invoice, link }) => chips.appendChild(buildFinanceInvoiceLinkChip(invoice, link)));
     tdStatus.appendChild(chips);
-    if (inst.outstandingMinor > 0) tdStatus.appendChild(finMk('div', 'gi-inst-status gi-inst-status-partially-invoiced', 'Partially invoiced'));
+    if (inst.outstandingMinor > 0) tdStatus.appendChild(finMk('div', 'fin-inst-status fin-inst-status-partially-invoiced', 'Partially invoiced'));
   } else {
-    tdStatus.appendChild(finMk('span', 'gi-inst-status gi-inst-status-not-invoiced', 'Not Invoiced'));
+    tdStatus.appendChild(finMk('span', 'fin-inst-status fin-inst-status-not-invoiced', 'Not Invoiced'));
   }
   tr.appendChild(tdStatus);
   const tdActions = document.createElement('td');
-  const actions = finMk('div', 'gi-row-actions');
+  const actions = finMk('div', 'fin-row-actions');
   if (inst.outstandingMinor > 0) {
-    const linkBtn = finMk('button', 'gi-icon-btn'); linkBtn.innerHTML = ic('plug'); linkBtn.title = 'Link to invoice';
+    const linkBtn = finMk('button', 'fin-icon-btn'); linkBtn.innerHTML = ic('plug'); linkBtn.title = 'Link to invoice';
     linkBtn.addEventListener('click', () => openFinanceReverseLinkModal('installment', inst.id));
     actions.appendChild(linkBtn);
   }
-  const editBtn = finMk('button', 'gi-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit installment';
+  const editBtn = finMk('button', 'fin-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit installment';
   editBtn.addEventListener('click', () => openFinanceInstallmentModal(k.id, inst));
   actions.appendChild(editBtn);
-  const delBtn = finMk('button', 'gi-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete installment';
+  const delBtn = finMk('button', 'fin-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete installment';
   delBtn.addEventListener('click', () =>
     showDeleteConfirm(actions, () => deleteFinanceInstallmentFlow(inst.id, k.id), () => renderFinanceDetailSections()));
   actions.appendChild(delBtn);
@@ -583,7 +583,7 @@ function financeJumpToInvoice(invoiceId) {
   setFinanceDetailTab('invoices');
 }
 function buildFinanceInvoiceLinkChip(invoice, link) {
-  const chip = finMk('button', 'gi-invoice-link-chip', invoice.number + ' · ' + finMinorToStr(link.allocatedMinor));
+  const chip = finMk('button', 'fin-invoice-link-chip', invoice.number + ' · ' + finMinorToStr(link.allocatedMinor));
   chip.type = 'button';
   chip.title = 'Go to invoice ' + invoice.number;
   chip.addEventListener('click', e => { e.stopPropagation(); financeJumpToInvoice(invoice.id); });
@@ -611,9 +611,9 @@ function renderFinanceCrsSection(host) {
   sec.appendChild(secHead);
 
   if (financeChangeRequests.length === 0) {
-    sec.appendChild(finMk('div', 'gi-empty', 'No change requests yet for this client.'));
+    sec.appendChild(finMk('div', 'fin-empty', 'No change requests yet for this client.'));
   } else {
-    const list = finMk('div', 'gi-cr-list');
+    const list = finMk('div', 'fin-cr-list');
     financeChangeRequests.forEach(cr => list.appendChild(buildFinanceCrRow(cr)));
     sec.appendChild(list);
   }
@@ -621,34 +621,34 @@ function renderFinanceCrsSection(host) {
 }
 function buildFinanceCrRow(cr) {
   const expanded = financeExpandedCrs.has(cr.id);
-  const wrap = finMk('div', 'gi-cr-row' + (expanded ? ' expanded' : ''));
-  const head = finMk('div', 'gi-cr-head');
+  const wrap = finMk('div', 'fin-cr-row' + (expanded ? ' expanded' : ''));
+  const head = finMk('div', 'fin-cr-head');
   head.addEventListener('click', () => {
     if (financeExpandedCrs.has(cr.id)) financeExpandedCrs.delete(cr.id); else financeExpandedCrs.add(cr.id);
     renderFinanceDetailSections();
   });
-  const main = finMk('div', 'gi-cr-main');
-  main.appendChild(finMk('span', 'gi-cr-title', cr.title));
-  main.appendChild(finMk('span', 'gi-pill ' + finStatusPillClass(cr.status), finStatusLabel(cr) || '—'));
+  const main = finMk('div', 'fin-cr-main');
+  main.appendChild(finMk('span', 'fin-cr-title', cr.title));
+  main.appendChild(finMk('span', 'fin-pill ' + finStatusPillClass(cr.status), finStatusLabel(cr) || '—'));
   head.appendChild(main);
   const metaBits = [cr.ref, cr.contractId ? financeContractLabel(cr.contractId) : ''].filter(Boolean);
-  head.appendChild(finMk('span', 'gi-cr-meta', metaBits.join(' · ')));
-  head.appendChild(finMk('span', 'gi-cr-value', finMoney(cr.amountMinor, cr.currencyCode)));
+  head.appendChild(finMk('span', 'fin-cr-meta', metaBits.join(' · ')));
+  head.appendChild(finMk('span', 'fin-cr-value', finMoney(cr.amountMinor, cr.currencyCode)));
   const links = financeInvoicesLinkedTo('cr', cr.id);
-  const linkWrap = finMk('div', 'gi-invoice-link-chips');
+  const linkWrap = finMk('div', 'fin-invoice-link-chips');
   if (links.length) links.forEach(({ invoice, link }) => linkWrap.appendChild(buildFinanceInvoiceLinkChip(invoice, link)));
-  else linkWrap.appendChild(finMk('span', 'gi-inst-status gi-inst-status-not-invoiced', 'Not Invoiced'));
+  else linkWrap.appendChild(finMk('span', 'fin-inst-status fin-inst-status-not-invoiced', 'Not Invoiced'));
   head.appendChild(linkWrap);
-  const actions = finMk('div', 'gi-cr-actions');
+  const actions = finMk('div', 'fin-cr-actions');
   if (cr.outstandingMinor > 0) {
-    const linkBtn = finMk('button', 'gi-icon-btn'); linkBtn.innerHTML = ic('plug'); linkBtn.title = 'Link to invoice';
+    const linkBtn = finMk('button', 'fin-icon-btn'); linkBtn.innerHTML = ic('plug'); linkBtn.title = 'Link to invoice';
     linkBtn.addEventListener('click', e => { e.stopPropagation(); openFinanceReverseLinkModal('cr', cr.id); });
     actions.appendChild(linkBtn);
   }
-  const editBtn = finMk('button', 'gi-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit change request';
+  const editBtn = finMk('button', 'fin-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit change request';
   editBtn.addEventListener('click', e => { e.stopPropagation(); openFinanceCrModal(cr); });
   actions.appendChild(editBtn);
-  const delBtn = finMk('button', 'gi-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete change request';
+  const delBtn = finMk('button', 'fin-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete change request';
   delBtn.addEventListener('click', e => {
     e.stopPropagation();
     showDeleteConfirm(actions, () => deleteFinanceCrFlow(cr.id), () => renderFinanceDetailSections());
@@ -677,9 +677,9 @@ function renderFinanceInvoicesSection(host) {
   sec.appendChild(secHead);
 
   if (financeInvoices.length === 0) {
-    sec.appendChild(finMk('div', 'gi-empty', 'No invoices yet for this client.'));
+    sec.appendChild(finMk('div', 'fin-empty', 'No invoices yet for this client.'));
   } else {
-    const list = finMk('div', 'gi-invoice-list');
+    const list = finMk('div', 'fin-invoice-list');
     financeInvoices.forEach(inv => list.appendChild(buildFinanceInvoiceCard(inv)));
     sec.appendChild(list);
   }
@@ -692,13 +692,13 @@ function toggleFinanceInvoiceExpanded(id) {
 }
 function buildFinanceInvoiceCard(inv) {
   const expanded = financeExpandedInvoices.has(inv.id);
-  const card = finMk('div', 'gi-invoice-card' + (expanded ? ' expanded' : ''));
+  const card = finMk('div', 'fin-invoice-card' + (expanded ? ' expanded' : ''));
 
-  const head = finMk('div', 'gi-invoice-head');
+  const head = finMk('div', 'fin-invoice-head');
   head.addEventListener('click', () => toggleFinanceInvoiceExpanded(inv.id));
-  const titleWrap = finMk('div', 'gi-invoice-title-wrap');
-  const titleRow = finMk('div', 'gi-invoice-title', inv.number + ' ');
-  titleRow.appendChild(finMk('span', 'gi-pill ' + finStatusPillClass(inv.status), finStatusLabel(inv) || '—'));
+  const titleWrap = finMk('div', 'fin-invoice-title-wrap');
+  const titleRow = finMk('div', 'fin-invoice-title', inv.number + ' ');
+  titleRow.appendChild(finMk('span', 'fin-pill ' + finStatusPillClass(inv.status), finStatusLabel(inv) || '—'));
   titleWrap.appendChild(titleRow);
   const metaBits = [
     finMoney(inv.totalMinor, inv.currencyCode) + ' total',
@@ -706,18 +706,18 @@ function buildFinanceInvoiceCard(inv) {
     inv.outstandingMinor > 0 ? 'Outstanding ' + finMinorToStr(inv.outstandingMinor) : 'Fully paid',
     inv.dueDate ? ('Due ' + inv.dueDate) : '',
   ].filter(Boolean);
-  titleWrap.appendChild(finMk('div', 'gi-invoice-meta', metaBits.join(' · ')));
+  titleWrap.appendChild(finMk('div', 'fin-invoice-meta', metaBits.join(' · ')));
   head.appendChild(titleWrap);
-  const chev = finMk('span', 'gi-invoice-chevron');
+  const chev = finMk('span', 'fin-invoice-chevron');
   chev.innerHTML = ic(expanded ? 'chevron-up' : 'chevron-down');
   head.appendChild(chev);
   card.appendChild(head);
 
-  const headActions = finMk('div', 'gi-invoice-actions');
-  const editBtn = finMk('button', 'gi-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit invoice';
+  const headActions = finMk('div', 'fin-invoice-actions');
+  const editBtn = finMk('button', 'fin-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit invoice';
   editBtn.addEventListener('click', e => { e.stopPropagation(); openFinanceInvoiceModal(inv); });
   headActions.appendChild(editBtn);
-  const delBtn = finMk('button', 'gi-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete invoice';
+  const delBtn = finMk('button', 'fin-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete invoice';
   delBtn.addEventListener('click', e => {
     e.stopPropagation();
     showDeleteConfirm(headActions, () => deleteFinanceInvoiceFlow(inv.id), () => renderFinanceDetailSections());
@@ -740,22 +740,22 @@ function financeLinkTargetLabel(link) {
   return cr ? ('CR — ' + cr.title) : ('Change Request #' + link.crId);
 }
 function buildFinanceInvoiceBody(inv) {
-  const body = finMk('div', 'gi-invoice-body');
+  const body = finMk('div', 'fin-invoice-body');
 
   // Allocations — invoice-to-installment/CR links. Add-only from this tab;
   // removing one is the only "edit", via delete + undo.
-  const lSec = finMk('div', 'gi-subsection');
-  const lHead = finMk('div', 'gi-subsection-head');
-  lHead.appendChild(finMk('span', 'gi-subsection-title', 'Allocations'));
-  const lAdd = finMk('button', 'gi-mini-btn'); lAdd.innerHTML = ic('plus') + ' Add Allocation';
+  const lSec = finMk('div', 'fin-subsection');
+  const lHead = finMk('div', 'fin-subsection-head');
+  lHead.appendChild(finMk('span', 'fin-subsection-title', 'Allocations'));
+  const lAdd = finMk('button', 'fin-mini-btn'); lAdd.innerHTML = ic('plus') + ' Add Allocation';
   lAdd.addEventListener('click', () => openFinanceLinkModal(inv.id));
   lHead.appendChild(lAdd);
   lSec.appendChild(lHead);
   if (!inv.links.length) {
-    lSec.appendChild(finMk('div', 'gi-empty-sm', 'No allocations yet.'));
+    lSec.appendChild(finMk('div', 'fin-empty-sm', 'No allocations yet.'));
   } else {
     const table = document.createElement('table');
-    table.className = 'gi-mini-table';
+    table.className = 'fin-mini-table';
     table.innerHTML = '<thead><tr><th>Linked To</th><th>Allocated</th><th></th></tr></thead>';
     const tbody = document.createElement('tbody');
     inv.links.forEach(l => tbody.appendChild(buildFinanceLinkRow(l, inv)));
@@ -765,18 +765,18 @@ function buildFinanceInvoiceBody(inv) {
   body.appendChild(lSec);
 
   // Payments
-  const pSec = finMk('div', 'gi-subsection');
-  const pHead = finMk('div', 'gi-subsection-head');
-  pHead.appendChild(finMk('span', 'gi-subsection-title', 'Payments'));
-  const pAdd = finMk('button', 'gi-mini-btn'); pAdd.innerHTML = ic('plus') + ' Add Payment';
+  const pSec = finMk('div', 'fin-subsection');
+  const pHead = finMk('div', 'fin-subsection-head');
+  pHead.appendChild(finMk('span', 'fin-subsection-title', 'Payments'));
+  const pAdd = finMk('button', 'fin-mini-btn'); pAdd.innerHTML = ic('plus') + ' Add Payment';
   pAdd.addEventListener('click', () => openFinancePaymentModal(inv.id, null));
   pHead.appendChild(pAdd);
   pSec.appendChild(pHead);
   if (!inv.payments.length) {
-    pSec.appendChild(finMk('div', 'gi-empty-sm', 'No payments recorded yet.'));
+    pSec.appendChild(finMk('div', 'fin-empty-sm', 'No payments recorded yet.'));
   } else {
     const table = document.createElement('table');
-    table.className = 'gi-mini-table';
+    table.className = 'fin-mini-table';
     table.innerHTML = '<thead><tr><th>Date</th><th>Amount</th><th>Method</th><th>Reference</th><th></th></tr></thead>';
     const tbody = document.createElement('tbody');
     inv.payments.forEach(p => tbody.appendChild(buildFinancePaymentRow(p, inv)));
@@ -794,8 +794,8 @@ function buildFinanceLinkRow(l, inv) {
   const tdTarget = document.createElement('td'); tdTarget.textContent = financeLinkTargetLabel(l); tr.appendChild(tdTarget);
   const tdAmt = document.createElement('td'); tdAmt.textContent = finMoney(l.allocatedMinor, inv.currencyCode); tr.appendChild(tdAmt);
   const tdActions = document.createElement('td');
-  const actions = finMk('div', 'gi-row-actions');
-  const delBtn = finMk('button', 'gi-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Remove allocation';
+  const actions = finMk('div', 'fin-row-actions');
+  const delBtn = finMk('button', 'fin-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Remove allocation';
   delBtn.addEventListener('click', () =>
     showDeleteConfirm(actions, () => deleteFinanceInvoiceLinkFlow(l.id, inv.id), () => renderFinanceDetailSections()));
   actions.appendChild(delBtn);
@@ -812,11 +812,11 @@ function buildFinancePaymentRow(p, inv) {
   tr.appendChild(tdMethod);
   const tdRef = document.createElement('td'); tdRef.textContent = p.reference || '—'; tr.appendChild(tdRef);
   const tdActions = document.createElement('td');
-  const actions = finMk('div', 'gi-row-actions');
-  const editBtn = finMk('button', 'gi-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit payment';
+  const actions = finMk('div', 'fin-row-actions');
+  const editBtn = finMk('button', 'fin-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit payment';
   editBtn.addEventListener('click', () => openFinancePaymentModal(inv.id, p));
   actions.appendChild(editBtn);
-  const delBtn = finMk('button', 'gi-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete payment';
+  const delBtn = finMk('button', 'fin-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete payment';
   delBtn.addEventListener('click', () =>
     showDeleteConfirm(actions, () => deleteFinancePaymentFlow(p.id, inv.id), () => renderFinanceDetailSections()));
   actions.appendChild(delBtn);
@@ -843,9 +843,9 @@ function renderFinanceMinutesSection(host) {
   sec.appendChild(secHead);
 
   if (financeMeetings.length === 0) {
-    sec.appendChild(finMk('div', 'gi-empty', 'No meetings recorded yet for this client.'));
+    sec.appendChild(finMk('div', 'fin-empty', 'No meetings recorded yet for this client.'));
   } else {
-    const list = finMk('div', 'gi-meeting-list');
+    const list = finMk('div', 'fin-meeting-list');
     financeMeetings.forEach(m => list.appendChild(buildFinanceMeetingCard(m)));
     sec.appendChild(list);
   }
@@ -858,25 +858,25 @@ function toggleFinanceMeetingExpanded(id) {
 }
 function buildFinanceMeetingCard(m) {
   const expanded = financeExpandedMeetings.has(m.id);
-  const card = finMk('div', 'gi-meeting-card' + (expanded ? ' expanded' : ''));
+  const card = finMk('div', 'fin-meeting-card' + (expanded ? ' expanded' : ''));
 
-  const head = finMk('div', 'gi-meeting-head');
+  const head = finMk('div', 'fin-meeting-head');
   head.addEventListener('click', () => toggleFinanceMeetingExpanded(m.id));
-  const titleWrap = finMk('div', 'gi-meeting-title-wrap');
-  titleWrap.appendChild(finMk('div', 'gi-meeting-title', m.title));
+  const titleWrap = finMk('div', 'fin-meeting-title-wrap');
+  titleWrap.appendChild(finMk('div', 'fin-meeting-title', m.title));
   const metaBits = [m.meetingDate, m.location, m.contractId ? financeContractLabel(m.contractId) : ''].filter(Boolean);
-  titleWrap.appendChild(finMk('div', 'gi-meeting-meta', metaBits.join(' · ')));
+  titleWrap.appendChild(finMk('div', 'fin-meeting-meta', metaBits.join(' · ')));
   head.appendChild(titleWrap);
-  const chev = finMk('span', 'gi-meeting-chevron');
+  const chev = finMk('span', 'fin-meeting-chevron');
   chev.innerHTML = ic(expanded ? 'chevron-up' : 'chevron-down');
   head.appendChild(chev);
   card.appendChild(head);
 
-  const headActions = finMk('div', 'gi-meeting-actions-bar');
-  const editBtn = finMk('button', 'gi-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit meeting';
+  const headActions = finMk('div', 'fin-meeting-actions-bar');
+  const editBtn = finMk('button', 'fin-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit meeting';
   editBtn.addEventListener('click', e => { e.stopPropagation(); openFinanceMeetingModal(m); });
   headActions.appendChild(editBtn);
-  const delBtn = finMk('button', 'gi-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete meeting';
+  const delBtn = finMk('button', 'fin-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete meeting';
   delBtn.addEventListener('click', e => {
     e.stopPropagation();
     showDeleteConfirm(headActions, () => deleteFinanceMeetingFlow(m.id), () => renderFinanceDetailSections());
@@ -888,38 +888,38 @@ function buildFinanceMeetingCard(m) {
   return card;
 }
 function buildFinanceMeetingBody(m) {
-  const body = finMk('div', 'gi-meeting-body');
+  const body = finMk('div', 'fin-meeting-body');
   if (m.attendees) {
-    const row = finMk('div', 'gi-info-row');
-    row.appendChild(finMk('span', 'gi-info-label', 'Attendees'));
-    row.appendChild(finMk('span', 'gi-info-value', m.attendees));
+    const row = finMk('div', 'fin-info-row');
+    row.appendChild(finMk('span', 'fin-info-label', 'Attendees'));
+    row.appendChild(finMk('span', 'fin-info-value', m.attendees));
     body.appendChild(row);
   }
   if (m.agenda) {
-    const row = finMk('div', 'gi-info-row');
-    row.appendChild(finMk('span', 'gi-info-label', 'Agenda'));
-    row.appendChild(finMk('span', 'gi-info-value', m.agenda));
+    const row = finMk('div', 'fin-info-row');
+    row.appendChild(finMk('span', 'fin-info-label', 'Agenda'));
+    row.appendChild(finMk('span', 'fin-info-value', m.agenda));
     body.appendChild(row);
   }
-  const contentHost = finMk('div', 'gi-meeting-content');
+  const contentHost = finMk('div', 'fin-meeting-content');
   const safeContent = (m.content || '').trim() ? sanitizeKnowledgeHtml(m.content) : '';
   if (safeContent) contentHost.innerHTML = safeContent;
-  else contentHost.appendChild(finMk('div', 'gi-empty-sm', 'No minutes recorded yet.'));
+  else contentHost.appendChild(finMk('div', 'fin-empty-sm', 'No minutes recorded yet.'));
   body.appendChild(contentHost);
 
   // Action items
-  const aSec = finMk('div', 'gi-subsection');
-  const aHead = finMk('div', 'gi-subsection-head');
-  aHead.appendChild(finMk('span', 'gi-subsection-title', 'Action Items'));
-  const aAdd = finMk('button', 'gi-mini-btn'); aAdd.innerHTML = ic('plus') + ' Add Action Item';
+  const aSec = finMk('div', 'fin-subsection');
+  const aHead = finMk('div', 'fin-subsection-head');
+  aHead.appendChild(finMk('span', 'fin-subsection-title', 'Action Items'));
+  const aAdd = finMk('button', 'fin-mini-btn'); aAdd.innerHTML = ic('plus') + ' Add Action Item';
   aAdd.addEventListener('click', () => openFinanceMeetingActionModal(m.id, null));
   aHead.appendChild(aAdd);
   aSec.appendChild(aHead);
   if (!m.actions.length) {
-    aSec.appendChild(finMk('div', 'gi-empty-sm', 'No action items yet.'));
+    aSec.appendChild(finMk('div', 'fin-empty-sm', 'No action items yet.'));
   } else {
     const table = document.createElement('table');
-    table.className = 'gi-mini-table';
+    table.className = 'fin-mini-table';
     table.innerHTML = '<thead><tr><th></th><th>Description</th><th>Owner</th><th>Due</th><th></th></tr></thead>';
     const tbody = document.createElement('tbody');
     m.actions.forEach(a => tbody.appendChild(buildFinanceMeetingActionRow(a, m)));
@@ -933,9 +933,9 @@ function buildFinanceMeetingBody(m) {
 }
 function buildFinanceMeetingActionRow(a, m) {
   const tr = document.createElement('tr');
-  tr.className = a.status === 'DONE' ? 'gi-action-done' : '';
+  tr.className = a.status === 'DONE' ? 'fin-action-done' : '';
   const tdStatus = document.createElement('td');
-  const statusBtn = finMk('button', 'gi-icon-btn');
+  const statusBtn = finMk('button', 'fin-icon-btn');
   statusBtn.innerHTML = ic(a.status === 'DONE' ? 'circle-check' : 'circle');
   statusBtn.title = a.status === 'DONE' ? 'Mark open' : 'Mark done';
   statusBtn.addEventListener('click', () => toggleFinanceMeetingActionFlow(a.id));
@@ -945,11 +945,11 @@ function buildFinanceMeetingActionRow(a, m) {
   const tdOwner = document.createElement('td'); tdOwner.textContent = a.owner || '—'; tr.appendChild(tdOwner);
   const tdDue = document.createElement('td'); tdDue.textContent = a.dueDate || '—'; tr.appendChild(tdDue);
   const tdActions = document.createElement('td');
-  const actions = finMk('div', 'gi-row-actions');
-  const editBtn = finMk('button', 'gi-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit action item';
+  const actions = finMk('div', 'fin-row-actions');
+  const editBtn = finMk('button', 'fin-icon-btn'); editBtn.innerHTML = ic('pencil'); editBtn.title = 'Edit action item';
   editBtn.addEventListener('click', () => openFinanceMeetingActionModal(m.id, a));
   actions.appendChild(editBtn);
-  const delBtn = finMk('button', 'gi-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete action item';
+  const delBtn = finMk('button', 'fin-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete action item';
   delBtn.addEventListener('click', () =>
     showDeleteConfirm(actions, () => deleteFinanceMeetingActionFlow(a.id, m.id), () => renderFinanceDetailSections()));
   actions.appendChild(delBtn);
@@ -983,11 +983,11 @@ function renderFinanceReportsSection(host) {
   secHead.appendChild(actions);
   sec.appendChild(secHead);
 
-  const grid = finMk('div', 'gi-stat-grid');
+  const grid = finMk('div', 'fin-stat-grid');
   const stat = (label, value) => {
-    const box = finMk('div', 'gi-stat');
-    box.appendChild(finMk('div', 'gi-stat-label', label));
-    box.appendChild(finMk('div', 'gi-stat-value', value));
+    const box = finMk('div', 'fin-stat');
+    box.appendChild(finMk('div', 'fin-stat-label', label));
+    box.appendChild(finMk('div', 'fin-stat-value', value));
     return box;
   };
   grid.appendChild(stat('Contracts', String(s.contractCount)));
@@ -998,7 +998,7 @@ function renderFinanceReportsSection(host) {
   grid.appendChild(stat('Outstanding', finMinorToStr(s.outstandingMinor)));
   grid.appendChild(stat('Change Requests', String(s.changeRequestCount)));
   sec.appendChild(grid);
-  sec.appendChild(finMk('p', 'gi-empty-sm',
+  sec.appendChild(finMk('p', 'fin-empty-sm',
     'Exports every contract, change request, and invoice currently loaded for this client into one Excel workbook.'));
   host.appendChild(sec);
 }
@@ -1065,15 +1065,15 @@ async function loadFinanceAttachments(entityType, entityId) {
 // generic for entities that might appear more than once in the DOM).
 function buildFinanceAttachmentsWidget(entityType, entityId) {
   const key = finAttachKey(entityType, entityId);
-  const wrap = finMk('div', 'gi-subsection gi-attachments');
-  const head = finMk('div', 'gi-subsection-head');
-  head.appendChild(finMk('span', 'gi-subsection-title', 'Attachments'));
-  const addBtn = finMk('button', 'gi-mini-btn'); addBtn.innerHTML = ic('upload') + ' Attach File';
+  const wrap = finMk('div', 'fin-subsection fin-attachments');
+  const head = finMk('div', 'fin-subsection-head');
+  head.appendChild(finMk('span', 'fin-subsection-title', 'Attachments'));
+  const addBtn = finMk('button', 'fin-mini-btn'); addBtn.innerHTML = ic('upload') + ' Attach File';
   addBtn.addEventListener('click', () => uploadFinanceAttachmentFlow(entityType, entityId));
   head.appendChild(addBtn);
   wrap.appendChild(head);
 
-  const listHost = finMk('div', 'gi-attachment-list');
+  const listHost = finMk('div', 'fin-attachment-list');
   listHost.dataset.financeAttachKey = key;
   wrap.appendChild(listHost);
 
@@ -1081,7 +1081,7 @@ function buildFinanceAttachmentsWidget(entityType, entityId) {
   if (cached) {
     renderFinanceAttachmentList(listHost, entityType, entityId, cached);
   } else {
-    listHost.appendChild(finMk('div', 'gi-empty-sm', 'Loading…'));
+    listHost.appendChild(finMk('div', 'fin-empty-sm', 'Loading…'));
     loadFinanceAttachments(entityType, entityId).then(list => {
       if (document.body.contains(listHost)) renderFinanceAttachmentList(listHost, entityType, entityId, list);
     });
@@ -1090,31 +1090,31 @@ function buildFinanceAttachmentsWidget(entityType, entityId) {
 }
 function renderFinanceAttachmentList(host, entityType, entityId, list) {
   host.innerHTML = '';
-  if (!list.length) { host.appendChild(finMk('div', 'gi-empty-sm', 'No files attached.')); return; }
+  if (!list.length) { host.appendChild(finMk('div', 'fin-empty-sm', 'No files attached.')); return; }
   list.forEach(a => host.appendChild(buildFinanceAttachmentRow(a, entityType, entityId)));
 }
 function buildFinanceAttachmentRow(a, entityType, entityId) {
-  const row = finMk('div', 'gi-attachment-row');
-  const name = finMk('span', 'gi-attachment-name');
+  const row = finMk('div', 'fin-attachment-row');
+  const name = finMk('span', 'fin-attachment-name');
   name.innerHTML = ic('file-text');
   name.appendChild(document.createTextNode(' ' + a.originalName));
   row.appendChild(name);
-  row.appendChild(finMk('span', 'gi-attachment-meta', finAttachmentSizeLabel(a.fileSize)));
-  const actions = finMk('div', 'gi-row-actions');
-  const openBtn = finMk('button', 'gi-icon-btn'); openBtn.innerHTML = ic('external-link'); openBtn.title = 'Open';
+  row.appendChild(finMk('span', 'fin-attachment-meta', finAttachmentSizeLabel(a.fileSize)));
+  const actions = finMk('div', 'fin-row-actions');
+  const openBtn = finMk('button', 'fin-icon-btn'); openBtn.innerHTML = ic('external-link'); openBtn.title = 'Open';
   openBtn.addEventListener('click', async () => {
     let r; try { r = await window.api.openFinanceAttachment(a.id); } catch { toast('Could not open file'); return; }
     if (!r.ok) toast(r.error || 'Could not open file');
   });
   actions.appendChild(openBtn);
-  const dlBtn = finMk('button', 'gi-icon-btn'); dlBtn.innerHTML = ic('download'); dlBtn.title = 'Download';
+  const dlBtn = finMk('button', 'fin-icon-btn'); dlBtn.innerHTML = ic('download'); dlBtn.title = 'Download';
   dlBtn.addEventListener('click', async () => {
     let r; try { r = await window.api.downloadFinanceAttachment(a.id); } catch { toast('Could not download file'); return; }
     if (!r.ok && !r.canceled) toast(r.error || 'Could not download file');
     else if (r.ok) toast('File saved');
   });
   actions.appendChild(dlBtn);
-  const delBtn = finMk('button', 'gi-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete';
+  const delBtn = finMk('button', 'fin-icon-btn danger'); delBtn.innerHTML = ic('trash-2'); delBtn.title = 'Delete';
   delBtn.addEventListener('click', () =>
     showDeleteConfirm(actions, () => deleteFinanceAttachmentFlow(a.id, entityType, entityId), () => refreshFinanceAttachmentsWidget(entityType, entityId)));
   actions.appendChild(delBtn);
@@ -1133,7 +1133,7 @@ async function uploadFinanceAttachmentFlow(entityType, entityId) {
 async function refreshFinanceAttachmentsWidget(entityType, entityId) {
   const key = finAttachKey(entityType, entityId);
   const list = await loadFinanceAttachments(entityType, entityId);
-  document.querySelectorAll('.gi-attachment-list[data-finance-attach-key="' + CSS.escape(key) + '"]')
+  document.querySelectorAll('.fin-attachment-list[data-finance-attach-key="' + CSS.escape(key) + '"]')
     .forEach(host => renderFinanceAttachmentList(host, entityType, entityId, list));
 }
 // The file itself stays on disk until the undo window lapses with no
@@ -1163,18 +1163,18 @@ function openFinanceClientModal(c) {
   financeClientEditId = c ? c.id : null;
   document.getElementById('finance-client-modal-title').textContent = c ? 'Edit Client' : 'New Client';
   document.getElementById('finance-client-modal-submit').textContent = c ? 'Save Changes' : 'Add Client';
-  document.getElementById('gi-client-name').value = c ? (c.name || '') : '';
-  document.getElementById('gi-client-name-ar').value = c ? (c.nameAr || '') : '';
-  document.getElementById('gi-client-code').value = c ? (c.code || '') : '';
-  document.getElementById('gi-client-contact-name').value = c ? (c.contactName || '') : '';
-  document.getElementById('gi-client-contact-email').value = c ? (c.contactEmail || '') : '';
-  document.getElementById('gi-client-contact-phone').value = c ? (c.contactPhone || '') : '';
-  document.getElementById('gi-client-address').value = c ? (c.address || '') : '';
-  document.getElementById('gi-client-tax-number').value = c ? (c.taxNumber || '') : '';
-  document.getElementById('gi-client-notes').value = c ? (c.notes || '') : '';
+  document.getElementById('fin-client-name').value = c ? (c.name || '') : '';
+  document.getElementById('fin-client-name-ar').value = c ? (c.nameAr || '') : '';
+  document.getElementById('fin-client-code').value = c ? (c.code || '') : '';
+  document.getElementById('fin-client-contact-name').value = c ? (c.contactName || '') : '';
+  document.getElementById('fin-client-contact-email').value = c ? (c.contactEmail || '') : '';
+  document.getElementById('fin-client-contact-phone').value = c ? (c.contactPhone || '') : '';
+  document.getElementById('fin-client-address').value = c ? (c.address || '') : '';
+  document.getElementById('fin-client-tax-number').value = c ? (c.taxNumber || '') : '';
+  document.getElementById('fin-client-notes').value = c ? (c.notes || '') : '';
   clearErrorsIn('#finance-client-modal');
   document.getElementById('finance-client-modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById('gi-client-name').focus(), 80);
+  setTimeout(() => document.getElementById('fin-client-name').focus(), 80);
 }
 function closeFinanceClientModal() {
   document.getElementById('finance-client-modal-overlay').classList.remove('open');
@@ -1185,17 +1185,17 @@ function financeClientOverlayClick(e) {
 }
 async function submitFinanceClientModal() {
   clearErrorsIn('#finance-client-modal');
-  const name = document.getElementById('gi-client-name').value.trim();
-  if (!name) { markError('gi-client-name'); return; }
+  const name = document.getElementById('fin-client-name').value.trim();
+  if (!name) { markError('fin-client-name'); return; }
   const data = {
-    name, nameAr: document.getElementById('gi-client-name-ar').value.trim(),
-    code: document.getElementById('gi-client-code').value.trim().toUpperCase(),
-    contactName: document.getElementById('gi-client-contact-name').value.trim(),
-    contactEmail: document.getElementById('gi-client-contact-email').value.trim(),
-    contactPhone: document.getElementById('gi-client-contact-phone').value.trim(),
-    address: document.getElementById('gi-client-address').value.trim(),
-    taxNumber: document.getElementById('gi-client-tax-number').value.trim(),
-    notes: document.getElementById('gi-client-notes').value.trim(),
+    name, nameAr: document.getElementById('fin-client-name-ar').value.trim(),
+    code: document.getElementById('fin-client-code').value.trim().toUpperCase(),
+    contactName: document.getElementById('fin-client-contact-name').value.trim(),
+    contactEmail: document.getElementById('fin-client-contact-email').value.trim(),
+    contactPhone: document.getElementById('fin-client-contact-phone').value.trim(),
+    address: document.getElementById('fin-client-address').value.trim(),
+    taxNumber: document.getElementById('fin-client-tax-number').value.trim(),
+    notes: document.getElementById('fin-client-notes').value.trim(),
   };
   let res;
   try {
@@ -1287,17 +1287,17 @@ function openFinanceContractModal(k) {
   financeContractEditId = k ? k.id : null;
   document.getElementById('finance-contract-modal-title').textContent = k ? 'Edit Contract' : 'New Contract';
   document.getElementById('finance-contract-modal-submit').textContent = k ? 'Save Changes' : 'Add Contract';
-  document.getElementById('gi-contract-title').value = k ? (k.title || '') : '';
-  document.getElementById('gi-contract-ref').value = k ? (k.ref || '') : '';
-  document.getElementById('gi-contract-description').value = k ? (k.description || '') : '';
-  document.getElementById('gi-contract-start').value = k ? (k.startDate || '') : '';
-  document.getElementById('gi-contract-end').value = k ? (k.endDate || '') : '';
-  document.getElementById('gi-contract-notes').value = k ? (k.notes || '') : '';
-  populateFinanceLookupSelect('gi-contract-status', 'CONTRACT_STATUS', k ? k.status : '', '— No status —');
-  populateFinanceCurrencySelect('gi-contract-currency', k ? k.currencyCode : '');
+  document.getElementById('fin-contract-title').value = k ? (k.title || '') : '';
+  document.getElementById('fin-contract-ref').value = k ? (k.ref || '') : '';
+  document.getElementById('fin-contract-description').value = k ? (k.description || '') : '';
+  document.getElementById('fin-contract-start').value = k ? (k.startDate || '') : '';
+  document.getElementById('fin-contract-end').value = k ? (k.endDate || '') : '';
+  document.getElementById('fin-contract-notes').value = k ? (k.notes || '') : '';
+  populateFinanceLookupSelect('fin-contract-status', 'CONTRACT_STATUS', k ? k.status : '', '— No status —');
+  populateFinanceCurrencySelect('fin-contract-currency', k ? k.currencyCode : '');
   clearErrorsIn('#finance-contract-modal');
   document.getElementById('finance-contract-modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById('gi-contract-title').focus(), 80);
+  setTimeout(() => document.getElementById('fin-contract-title').focus(), 80);
 }
 function closeFinanceContractModal() {
   document.getElementById('finance-contract-modal-overlay').classList.remove('open');
@@ -1308,16 +1308,16 @@ function financeContractOverlayClick(e) {
 }
 async function submitFinanceContractModal() {
   clearErrorsIn('#finance-contract-modal');
-  const title = document.getElementById('gi-contract-title').value.trim();
-  if (!title) { markError('gi-contract-title'); return; }
+  const title = document.getElementById('fin-contract-title').value.trim();
+  if (!title) { markError('fin-contract-title'); return; }
   const data = {
-    title, ref: document.getElementById('gi-contract-ref').value.trim(),
-    description: document.getElementById('gi-contract-description').value.trim(),
-    status: document.getElementById('gi-contract-status').value,
-    currencyCode: document.getElementById('gi-contract-currency').value,
-    startDate: document.getElementById('gi-contract-start').value,
-    endDate: document.getElementById('gi-contract-end').value,
-    notes: document.getElementById('gi-contract-notes').value.trim(),
+    title, ref: document.getElementById('fin-contract-ref').value.trim(),
+    description: document.getElementById('fin-contract-description').value.trim(),
+    status: document.getElementById('fin-contract-status').value,
+    currencyCode: document.getElementById('fin-contract-currency').value,
+    startDate: document.getElementById('fin-contract-start').value,
+    endDate: document.getElementById('fin-contract-end').value,
+    notes: document.getElementById('fin-contract-notes').value.trim(),
   };
   let res;
   try {
@@ -1383,18 +1383,18 @@ function openFinanceVersionModal(contractId, v) {
   financeVersionEditId = v ? v.id : null;
   document.getElementById('finance-version-modal-title').textContent = v ? 'Edit Version' : 'New Version';
   document.getElementById('finance-version-modal-submit').textContent = v ? 'Save Changes' : 'Add Version';
-  document.getElementById('gi-version-label').value = v ? (v.versionLabel || '') : '';
-  document.getElementById('gi-version-value').value = v ? finMinorToStr(v.valueMinor) : '';
-  document.getElementById('gi-version-signed').value = v ? (v.signedDate || '') : '';
-  document.getElementById('gi-version-effective').value = v ? (v.effectiveDate || '') : '';
-  document.getElementById('gi-version-notes').value = v ? (v.notes || '') : '';
+  document.getElementById('fin-version-label').value = v ? (v.versionLabel || '') : '';
+  document.getElementById('fin-version-value').value = v ? finMinorToStr(v.valueMinor) : '';
+  document.getElementById('fin-version-signed').value = v ? (v.signedDate || '') : '';
+  document.getElementById('fin-version-effective').value = v ? (v.effectiveDate || '') : '';
+  document.getElementById('fin-version-notes').value = v ? (v.notes || '') : '';
   // isFinal is only offered at creation — an existing version's final flag is
   // changed only through the dedicated "Mark Final" action.
-  document.getElementById('gi-version-final-row').style.display = v ? 'none' : '';
-  document.getElementById('gi-version-final').checked = false;
+  document.getElementById('fin-version-final-row').style.display = v ? 'none' : '';
+  document.getElementById('fin-version-final').checked = false;
   clearErrorsIn('#finance-version-modal');
   document.getElementById('finance-version-modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById('gi-version-label').focus(), 80);
+  setTimeout(() => document.getElementById('fin-version-label').focus(), 80);
 }
 function closeFinanceVersionModal() {
   document.getElementById('finance-version-modal-overlay').classList.remove('open');
@@ -1405,14 +1405,14 @@ function financeVersionOverlayClick(e) {
 }
 async function submitFinanceVersionModal() {
   clearErrorsIn('#finance-version-modal');
-  const versionLabel = document.getElementById('gi-version-label').value.trim();
-  if (!versionLabel) { markError('gi-version-label'); return; }
+  const versionLabel = document.getElementById('fin-version-label').value.trim();
+  if (!versionLabel) { markError('fin-version-label'); return; }
   const data = {
-    versionLabel, valueMinor: finStrToMinor(document.getElementById('gi-version-value').value),
-    signedDate: document.getElementById('gi-version-signed').value,
-    effectiveDate: document.getElementById('gi-version-effective').value,
-    notes: document.getElementById('gi-version-notes').value.trim(),
-    isFinal: document.getElementById('gi-version-final').checked,
+    versionLabel, valueMinor: finStrToMinor(document.getElementById('fin-version-value').value),
+    signedDate: document.getElementById('fin-version-signed').value,
+    effectiveDate: document.getElementById('fin-version-effective').value,
+    notes: document.getElementById('fin-version-notes').value.trim(),
+    isFinal: document.getElementById('fin-version-final').checked,
   };
   let res;
   try {
@@ -1463,15 +1463,15 @@ function openFinanceInstallmentModal(contractId, inst) {
   financeInstallmentEditId = inst ? inst.id : null;
   document.getElementById('finance-installment-modal-title').textContent = inst ? 'Edit Installment' : 'New Installment';
   document.getElementById('finance-installment-modal-submit').textContent = inst ? 'Save Changes' : 'Add Installment';
-  document.getElementById('gi-installment-seq').value = inst ? inst.seq : '';
-  document.getElementById('gi-installment-title').value = inst ? (inst.title || '') : '';
-  document.getElementById('gi-installment-milestone').value = inst ? (inst.milestone || '') : '';
-  document.getElementById('gi-installment-due').value = inst ? (inst.dueDate || '') : '';
-  document.getElementById('gi-installment-amount').value = inst ? finMinorToStr(inst.amountMinor) : '';
-  document.getElementById('gi-installment-notes').value = inst ? (inst.notes || '') : '';
+  document.getElementById('fin-installment-seq').value = inst ? inst.seq : '';
+  document.getElementById('fin-installment-title').value = inst ? (inst.title || '') : '';
+  document.getElementById('fin-installment-milestone').value = inst ? (inst.milestone || '') : '';
+  document.getElementById('fin-installment-due').value = inst ? (inst.dueDate || '') : '';
+  document.getElementById('fin-installment-amount').value = inst ? finMinorToStr(inst.amountMinor) : '';
+  document.getElementById('fin-installment-notes').value = inst ? (inst.notes || '') : '';
   clearErrorsIn('#finance-installment-modal');
   document.getElementById('finance-installment-modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById('gi-installment-title').focus(), 80);
+  setTimeout(() => document.getElementById('fin-installment-title').focus(), 80);
 }
 function closeFinanceInstallmentModal() {
   document.getElementById('finance-installment-modal-overlay').classList.remove('open');
@@ -1482,15 +1482,15 @@ function financeInstallmentOverlayClick(e) {
 }
 async function submitFinanceInstallmentModal() {
   clearErrorsIn('#finance-installment-modal');
-  const seqVal = document.getElementById('gi-installment-seq').value.trim();
-  if (financeInstallmentEditId != null && !seqVal) { markError('gi-installment-seq'); return; }
+  const seqVal = document.getElementById('fin-installment-seq').value.trim();
+  if (financeInstallmentEditId != null && !seqVal) { markError('fin-installment-seq'); return; }
   const data = {
     seq: seqVal ? Number(seqVal) : undefined,
-    title: document.getElementById('gi-installment-title').value.trim(),
-    milestone: document.getElementById('gi-installment-milestone').value.trim(),
-    dueDate: document.getElementById('gi-installment-due').value,
-    amountMinor: finStrToMinor(document.getElementById('gi-installment-amount').value),
-    notes: document.getElementById('gi-installment-notes').value.trim(),
+    title: document.getElementById('fin-installment-title').value.trim(),
+    milestone: document.getElementById('fin-installment-milestone').value.trim(),
+    dueDate: document.getElementById('fin-installment-due').value,
+    amountMinor: finStrToMinor(document.getElementById('fin-installment-amount').value),
+    notes: document.getElementById('fin-installment-notes').value.trim(),
   };
   let res;
   try {
@@ -1531,19 +1531,19 @@ function openFinanceCrModal(cr) {
   financeCrEditId = cr ? cr.id : null;
   document.getElementById('finance-cr-modal-title').textContent = cr ? 'Edit Change Request' : 'New Change Request';
   document.getElementById('finance-cr-modal-submit').textContent = cr ? 'Save Changes' : 'Add Change Request';
-  document.getElementById('gi-cr-title').value = cr ? (cr.title || '') : '';
-  document.getElementById('gi-cr-ref').value = cr ? (cr.ref || '') : '';
-  document.getElementById('gi-cr-amount').value = cr ? finMinorToStr(cr.amountMinor) : '';
-  document.getElementById('gi-cr-requested').value = cr ? (cr.requestedDate || '') : '';
-  document.getElementById('gi-cr-approved').value = cr ? (cr.approvedDate || '') : '';
-  document.getElementById('gi-cr-description').value = cr ? (cr.description || '') : '';
-  document.getElementById('gi-cr-notes').value = cr ? (cr.notes || '') : '';
-  populateFinanceLookupSelect('gi-cr-status', 'CR_STATUS', cr ? cr.status : '', '— No status —');
-  populateFinanceCurrencySelect('gi-cr-currency', cr ? cr.currencyCode : '');
-  populateFinanceContractSelect('gi-cr-contract', cr ? cr.contractId : '');
+  document.getElementById('fin-cr-title').value = cr ? (cr.title || '') : '';
+  document.getElementById('fin-cr-ref').value = cr ? (cr.ref || '') : '';
+  document.getElementById('fin-cr-amount').value = cr ? finMinorToStr(cr.amountMinor) : '';
+  document.getElementById('fin-cr-requested').value = cr ? (cr.requestedDate || '') : '';
+  document.getElementById('fin-cr-approved').value = cr ? (cr.approvedDate || '') : '';
+  document.getElementById('fin-cr-description').value = cr ? (cr.description || '') : '';
+  document.getElementById('fin-cr-notes').value = cr ? (cr.notes || '') : '';
+  populateFinanceLookupSelect('fin-cr-status', 'CR_STATUS', cr ? cr.status : '', '— No status —');
+  populateFinanceCurrencySelect('fin-cr-currency', cr ? cr.currencyCode : '');
+  populateFinanceContractSelect('fin-cr-contract', cr ? cr.contractId : '');
   clearErrorsIn('#finance-cr-modal');
   document.getElementById('finance-cr-modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById('gi-cr-title').focus(), 80);
+  setTimeout(() => document.getElementById('fin-cr-title').focus(), 80);
 }
 function closeFinanceCrModal() {
   document.getElementById('finance-cr-modal-overlay').classList.remove('open');
@@ -1554,19 +1554,19 @@ function financeCrOverlayClick(e) {
 }
 async function submitFinanceCrModal() {
   clearErrorsIn('#finance-cr-modal');
-  const title = document.getElementById('gi-cr-title').value.trim();
-  if (!title) { markError('gi-cr-title'); return; }
-  const contractVal = document.getElementById('gi-cr-contract').value;
+  const title = document.getElementById('fin-cr-title').value.trim();
+  if (!title) { markError('fin-cr-title'); return; }
+  const contractVal = document.getElementById('fin-cr-contract').value;
   const data = {
-    title, ref: document.getElementById('gi-cr-ref').value.trim(),
-    description: document.getElementById('gi-cr-description').value.trim(),
-    status: document.getElementById('gi-cr-status').value,
+    title, ref: document.getElementById('fin-cr-ref').value.trim(),
+    description: document.getElementById('fin-cr-description').value.trim(),
+    status: document.getElementById('fin-cr-status').value,
     contractId: contractVal ? Number(contractVal) : null,
-    amountMinor: finStrToMinor(document.getElementById('gi-cr-amount').value),
-    currencyCode: document.getElementById('gi-cr-currency').value,
-    requestedDate: document.getElementById('gi-cr-requested').value,
-    approvedDate: document.getElementById('gi-cr-approved').value,
-    notes: document.getElementById('gi-cr-notes').value.trim(),
+    amountMinor: finStrToMinor(document.getElementById('fin-cr-amount').value),
+    currencyCode: document.getElementById('fin-cr-currency').value,
+    requestedDate: document.getElementById('fin-cr-requested').value,
+    approvedDate: document.getElementById('fin-cr-approved').value,
+    notes: document.getElementById('fin-cr-notes').value.trim(),
   };
   let res;
   try {
@@ -1612,17 +1612,17 @@ function openFinanceInvoiceModal(inv) {
   financeInvoiceEditId = inv ? inv.id : null;
   document.getElementById('finance-invoice-modal-title').textContent = inv ? 'Edit Invoice' : 'New Invoice';
   document.getElementById('finance-invoice-modal-submit').textContent = inv ? 'Save Changes' : 'Add Invoice';
-  document.getElementById('gi-invoice-number').value = inv ? (inv.number || '') : '';
-  document.getElementById('gi-invoice-amount').value = inv ? finMinorToStr(inv.amountMinor) : '';
-  document.getElementById('gi-invoice-tax').value = inv ? finMinorToStr(inv.taxMinor) : '';
-  document.getElementById('gi-invoice-issue').value = inv ? (inv.issueDate || '') : '';
-  document.getElementById('gi-invoice-due').value = inv ? (inv.dueDate || '') : '';
-  document.getElementById('gi-invoice-notes').value = inv ? (inv.notes || '') : '';
-  populateFinanceLookupSelect('gi-invoice-status', 'INVOICE_STATUS', inv ? inv.status : '', '— No status —');
-  populateFinanceCurrencySelect('gi-invoice-currency', inv ? inv.currencyCode : '');
+  document.getElementById('fin-invoice-number').value = inv ? (inv.number || '') : '';
+  document.getElementById('fin-invoice-amount').value = inv ? finMinorToStr(inv.amountMinor) : '';
+  document.getElementById('fin-invoice-tax').value = inv ? finMinorToStr(inv.taxMinor) : '';
+  document.getElementById('fin-invoice-issue').value = inv ? (inv.issueDate || '') : '';
+  document.getElementById('fin-invoice-due').value = inv ? (inv.dueDate || '') : '';
+  document.getElementById('fin-invoice-notes').value = inv ? (inv.notes || '') : '';
+  populateFinanceLookupSelect('fin-invoice-status', 'INVOICE_STATUS', inv ? inv.status : '', '— No status —');
+  populateFinanceCurrencySelect('fin-invoice-currency', inv ? inv.currencyCode : '');
   clearErrorsIn('#finance-invoice-modal');
   document.getElementById('finance-invoice-modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById('gi-invoice-number').focus(), 80);
+  setTimeout(() => document.getElementById('fin-invoice-number').focus(), 80);
 }
 function closeFinanceInvoiceModal() {
   document.getElementById('finance-invoice-modal-overlay').classList.remove('open');
@@ -1633,16 +1633,16 @@ function financeInvoiceOverlayClick(e) {
 }
 async function submitFinanceInvoiceModal() {
   clearErrorsIn('#finance-invoice-modal');
-  const number = document.getElementById('gi-invoice-number').value.trim();
-  if (!number) { markError('gi-invoice-number'); return; }
+  const number = document.getElementById('fin-invoice-number').value.trim();
+  if (!number) { markError('fin-invoice-number'); return; }
   const data = {
-    number, amountMinor: finStrToMinor(document.getElementById('gi-invoice-amount').value),
-    taxMinor: finStrToMinor(document.getElementById('gi-invoice-tax').value),
-    currencyCode: document.getElementById('gi-invoice-currency').value,
-    status: document.getElementById('gi-invoice-status').value,
-    issueDate: document.getElementById('gi-invoice-issue').value,
-    dueDate: document.getElementById('gi-invoice-due').value,
-    notes: document.getElementById('gi-invoice-notes').value.trim(),
+    number, amountMinor: finStrToMinor(document.getElementById('fin-invoice-amount').value),
+    taxMinor: finStrToMinor(document.getElementById('fin-invoice-tax').value),
+    currencyCode: document.getElementById('fin-invoice-currency').value,
+    status: document.getElementById('fin-invoice-status').value,
+    issueDate: document.getElementById('fin-invoice-issue').value,
+    dueDate: document.getElementById('fin-invoice-due').value,
+    notes: document.getElementById('fin-invoice-notes').value.trim(),
   };
   let res;
   try {
@@ -1722,8 +1722,8 @@ function openFinanceReverseLinkModal(kind, id) {
     const cr = financeChangeRequests.find(c => c.id === id);
     if (cr) { label = 'CR — ' + cr.title; outstanding = cr.outstandingMinor; }
   }
-  document.getElementById('gi-reverse-link-target-label').textContent = label;
-  document.getElementById('gi-reverse-link-amount').value = outstanding > 0 ? finMinorToStr(outstanding) : '';
+  document.getElementById('fin-reverse-link-target-label').textContent = label;
+  document.getElementById('fin-reverse-link-amount').value = outstanding > 0 ? finMinorToStr(outstanding) : '';
   renderFinanceReverseLinkInvoiceOptions();
   clearErrorsIn('#finance-reverse-link-modal');
   document.getElementById('finance-reverse-link-modal-overlay').classList.add('open');
@@ -1736,7 +1736,7 @@ function financeReverseLinkOverlayClick(e) {
   if (e.target === document.getElementById('finance-reverse-link-modal-overlay')) closeFinanceReverseLinkModal();
 }
 function renderFinanceReverseLinkInvoiceOptions() {
-  const select = document.getElementById('gi-reverse-link-invoice');
+  const select = document.getElementById('fin-reverse-link-invoice');
   select.innerHTML = '';
   if (!financeInvoices.length) {
     const opt = document.createElement('option'); opt.value = ''; opt.textContent = 'No invoices for this client yet';
@@ -1752,10 +1752,10 @@ function renderFinanceReverseLinkInvoiceOptions() {
 }
 async function submitFinanceReverseLinkModal() {
   clearErrorsIn('#finance-reverse-link-modal');
-  const invoiceId = Number(document.getElementById('gi-reverse-link-invoice').value);
-  if (!invoiceId) { markError('gi-reverse-link-invoice'); return; }
-  const amountMinor = finStrToMinor(document.getElementById('gi-reverse-link-amount').value);
-  if (amountMinor <= 0) { markError('gi-reverse-link-amount'); return; }
+  const invoiceId = Number(document.getElementById('fin-reverse-link-invoice').value);
+  if (!invoiceId) { markError('fin-reverse-link-invoice'); return; }
+  const amountMinor = finStrToMinor(document.getElementById('fin-reverse-link-amount').value);
+  if (amountMinor <= 0) { markError('fin-reverse-link-amount'); return; }
   const data = { allocatedMinor: amountMinor };
   if (financeReverseLinkKind === 'installment') data.installmentId = financeReverseLinkTargetId; else data.crId = financeReverseLinkTargetId;
   let res;
@@ -1770,8 +1770,8 @@ async function submitFinanceReverseLinkModal() {
 // ── Invoice Link ("Add Allocation") modal ────────────────────────────────────
 function openFinanceLinkModal(invoiceId) {
   financeLinkModalInvoiceId = invoiceId;
-  document.getElementById('gi-link-type-installment').checked = true;
-  document.getElementById('gi-link-amount').value = '';
+  document.getElementById('fin-link-type-installment').checked = true;
+  document.getElementById('fin-link-amount').value = '';
   renderFinanceLinkTargetOptions();
   clearErrorsIn('#finance-link-modal');
   document.getElementById('finance-link-modal-overlay').classList.add('open');
@@ -1784,8 +1784,8 @@ function financeLinkOverlayClick(e) {
   if (e.target === document.getElementById('finance-link-modal-overlay')) closeFinanceLinkModal();
 }
 function renderFinanceLinkTargetOptions() {
-  const isInstallment = document.getElementById('gi-link-type-installment').checked;
-  const select = document.getElementById('gi-link-target');
+  const isInstallment = document.getElementById('fin-link-type-installment').checked;
+  const select = document.getElementById('fin-link-target');
   select.innerHTML = '';
   if (isInstallment) {
     const items = [];
@@ -1818,11 +1818,11 @@ function renderFinanceLinkTargetOptions() {
 }
 async function submitFinanceLinkModal() {
   clearErrorsIn('#finance-link-modal');
-  const targetVal = document.getElementById('gi-link-target').value;
-  if (!targetVal) { markError('gi-link-target'); return; }
+  const targetVal = document.getElementById('fin-link-target').value;
+  if (!targetVal) { markError('fin-link-target'); return; }
   const [kind, idStr] = targetVal.split(':');
-  const amountMinor = finStrToMinor(document.getElementById('gi-link-amount').value);
-  if (amountMinor <= 0) { markError('gi-link-amount'); return; }
+  const amountMinor = finStrToMinor(document.getElementById('fin-link-amount').value);
+  if (amountMinor <= 0) { markError('fin-link-amount'); return; }
   const data = { allocatedMinor: amountMinor };
   if (kind === 'installment') data.installmentId = Number(idStr); else data.crId = Number(idStr);
   let res;
@@ -1858,14 +1858,14 @@ function openFinancePaymentModal(invoiceId, p) {
   financePaymentEditId = p ? p.id : null;
   document.getElementById('finance-payment-modal-title').textContent = p ? 'Edit Payment' : 'New Payment';
   document.getElementById('finance-payment-modal-submit').textContent = p ? 'Save Changes' : 'Add Payment';
-  document.getElementById('gi-payment-amount').value = p ? finMinorToStr(p.amountMinor) : '';
-  document.getElementById('gi-payment-date').value = p ? (p.paidDate || '') : '';
-  document.getElementById('gi-payment-reference').value = p ? (p.reference || '') : '';
-  document.getElementById('gi-payment-notes').value = p ? (p.notes || '') : '';
-  populateFinanceLookupSelect('gi-payment-method', 'PAYMENT_METHOD', p ? p.method : '', '— No method —');
+  document.getElementById('fin-payment-amount').value = p ? finMinorToStr(p.amountMinor) : '';
+  document.getElementById('fin-payment-date').value = p ? (p.paidDate || '') : '';
+  document.getElementById('fin-payment-reference').value = p ? (p.reference || '') : '';
+  document.getElementById('fin-payment-notes').value = p ? (p.notes || '') : '';
+  populateFinanceLookupSelect('fin-payment-method', 'PAYMENT_METHOD', p ? p.method : '', '— No method —');
   clearErrorsIn('#finance-payment-modal');
   document.getElementById('finance-payment-modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById('gi-payment-amount').focus(), 80);
+  setTimeout(() => document.getElementById('fin-payment-amount').focus(), 80);
 }
 function closeFinancePaymentModal() {
   document.getElementById('finance-payment-modal-overlay').classList.remove('open');
@@ -1876,13 +1876,13 @@ function financePaymentOverlayClick(e) {
 }
 async function submitFinancePaymentModal() {
   clearErrorsIn('#finance-payment-modal');
-  const amountMinor = finStrToMinor(document.getElementById('gi-payment-amount').value);
-  if (amountMinor <= 0) { markError('gi-payment-amount'); return; }
+  const amountMinor = finStrToMinor(document.getElementById('fin-payment-amount').value);
+  if (amountMinor <= 0) { markError('fin-payment-amount'); return; }
   const data = {
-    amountMinor, paidDate: document.getElementById('gi-payment-date').value,
-    method: document.getElementById('gi-payment-method').value,
-    reference: document.getElementById('gi-payment-reference').value.trim(),
-    notes: document.getElementById('gi-payment-notes').value.trim(),
+    amountMinor, paidDate: document.getElementById('fin-payment-date').value,
+    method: document.getElementById('fin-payment-method').value,
+    reference: document.getElementById('fin-payment-reference').value.trim(),
+    notes: document.getElementById('fin-payment-notes').value.trim(),
   };
   let res;
   try {
@@ -1939,7 +1939,7 @@ function financeMeetingQuillPlaceholder() {
 }
 function ensureFinanceMeetingQuill() {
   if (financeMeetingQuill) return financeMeetingQuill;
-  financeMeetingQuill = new Quill('#gi-meeting-content-editor', {
+  financeMeetingQuill = new Quill('#fin-meeting-content-editor', {
     theme: 'snow',
     placeholder: financeMeetingQuillPlaceholder(),
     modules: {
@@ -1967,17 +1967,17 @@ function openFinanceMeetingModal(m) {
   financeMeetingEditId = m ? m.id : null;
   document.getElementById('finance-meeting-modal-title').textContent = m ? 'Edit Meeting' : 'New Meeting';
   document.getElementById('finance-meeting-modal-submit').textContent = m ? 'Save Changes' : 'Add Meeting';
-  document.getElementById('gi-meeting-title').value = m ? (m.title || '') : '';
-  document.getElementById('gi-meeting-date').value = m ? (m.meetingDate || '') : '';
-  document.getElementById('gi-meeting-location').value = m ? (m.location || '') : '';
-  document.getElementById('gi-meeting-attendees').value = m ? (m.attendees || '') : '';
-  document.getElementById('gi-meeting-agenda').value = m ? (m.agenda || '') : '';
-  populateFinanceContractSelect('gi-meeting-contract', m ? m.contractId : '');
-  populateFinanceCrSelect('gi-meeting-cr', m ? m.crId : '');
+  document.getElementById('fin-meeting-title').value = m ? (m.title || '') : '';
+  document.getElementById('fin-meeting-date').value = m ? (m.meetingDate || '') : '';
+  document.getElementById('fin-meeting-location').value = m ? (m.location || '') : '';
+  document.getElementById('fin-meeting-attendees').value = m ? (m.attendees || '') : '';
+  document.getElementById('fin-meeting-agenda').value = m ? (m.agenda || '') : '';
+  populateFinanceContractSelect('fin-meeting-contract', m ? m.contractId : '');
+  populateFinanceCrSelect('fin-meeting-cr', m ? m.crId : '');
   setFinanceMeetingEditorContent(m ? m.content : '');
   clearErrorsIn('#finance-meeting-modal');
   document.getElementById('finance-meeting-modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById('gi-meeting-title').focus(), 80);
+  setTimeout(() => document.getElementById('fin-meeting-title').focus(), 80);
 }
 function closeFinanceMeetingModal() {
   document.getElementById('finance-meeting-modal-overlay').classList.remove('open');
@@ -1988,15 +1988,15 @@ function financeMeetingOverlayClick(e) {
 }
 async function submitFinanceMeetingModal() {
   clearErrorsIn('#finance-meeting-modal');
-  const title = document.getElementById('gi-meeting-title').value.trim();
-  if (!title) { markError('gi-meeting-title'); return; }
-  const contractVal = document.getElementById('gi-meeting-contract').value;
-  const crVal = document.getElementById('gi-meeting-cr').value;
+  const title = document.getElementById('fin-meeting-title').value.trim();
+  if (!title) { markError('fin-meeting-title'); return; }
+  const contractVal = document.getElementById('fin-meeting-contract').value;
+  const crVal = document.getElementById('fin-meeting-cr').value;
   const data = {
-    title, meetingDate: document.getElementById('gi-meeting-date').value,
-    location: document.getElementById('gi-meeting-location').value.trim(),
-    attendees: document.getElementById('gi-meeting-attendees').value.trim(),
-    agenda: document.getElementById('gi-meeting-agenda').value.trim(),
+    title, meetingDate: document.getElementById('fin-meeting-date').value,
+    location: document.getElementById('fin-meeting-location').value.trim(),
+    attendees: document.getElementById('fin-meeting-attendees').value.trim(),
+    agenda: document.getElementById('fin-meeting-agenda').value.trim(),
     contractId: contractVal ? Number(contractVal) : null,
     crId: crVal ? Number(crVal) : null,
     content: getFinanceMeetingEditorContent(),
@@ -2024,7 +2024,7 @@ async function deleteFinanceMeetingFlow(id) {
   const snapshot = res.snapshot;
   const clientId = currentFinanceClient?.id;
   // Attachments on this meeting were already purged server-side (see
-  // finance-seed.js's purgeFinanceAttachmentsForEntities) — restoring the meeting
+  // finance-db.js's purgeFinanceAttachmentsForEntities) — restoring the meeting
   // row does not bring its files back, a deliberate scope limit.
   showGenericUndo('Meeting deleted', async () => {
     try {
@@ -2051,12 +2051,12 @@ function openFinanceMeetingActionModal(meetingId, a) {
   financeMeetingActionEditId = a ? a.id : null;
   document.getElementById('finance-meeting-action-modal-title').textContent = a ? 'Edit Action Item' : 'New Action Item';
   document.getElementById('finance-meeting-action-modal-submit').textContent = a ? 'Save Changes' : 'Add Action Item';
-  document.getElementById('gi-action-description').value = a ? (a.description || '') : '';
-  document.getElementById('gi-action-owner').value = a ? (a.owner || '') : '';
-  document.getElementById('gi-action-due').value = a ? (a.dueDate || '') : '';
+  document.getElementById('fin-action-description').value = a ? (a.description || '') : '';
+  document.getElementById('fin-action-owner').value = a ? (a.owner || '') : '';
+  document.getElementById('fin-action-due').value = a ? (a.dueDate || '') : '';
   clearErrorsIn('#finance-meeting-action-modal');
   document.getElementById('finance-meeting-action-modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById('gi-action-description').focus(), 80);
+  setTimeout(() => document.getElementById('fin-action-description').focus(), 80);
 }
 function closeFinanceMeetingActionModal() {
   document.getElementById('finance-meeting-action-modal-overlay').classList.remove('open');
@@ -2067,11 +2067,11 @@ function financeMeetingActionOverlayClick(e) {
 }
 async function submitFinanceMeetingActionModal() {
   clearErrorsIn('#finance-meeting-action-modal');
-  const description = document.getElementById('gi-action-description').value.trim();
-  if (!description) { markError('gi-action-description'); return; }
+  const description = document.getElementById('fin-action-description').value.trim();
+  if (!description) { markError('fin-action-description'); return; }
   const data = {
-    description, owner: document.getElementById('gi-action-owner').value.trim(),
-    dueDate: document.getElementById('gi-action-due').value,
+    description, owner: document.getElementById('fin-action-owner').value.trim(),
+    dueDate: document.getElementById('fin-action-due').value,
   };
   let res;
   try {
@@ -2135,18 +2135,18 @@ function finMoveDraftEntry(arr, i, delta) {
 function renderFinanceSetupSection(host) {
   if (!financeLookupsDraft) financeLookupsDraft = JSON.parse(JSON.stringify(financeLookups?.categories || {}));
 
-  const wrap = finMk('div', 'gi-setup');
-  wrap.appendChild(finMk('p', 'gi-setup-intro',
+  const wrap = finMk('div', 'fin-setup');
+  wrap.appendChild(finMk('p', 'fin-setup-intro',
     'Finance’s own catalog, separate from the app’s shared lookups. Add, relabel, reorder, or disable values here.'));
 
   Object.keys(FINANCE_SETUP_CATEGORY_LABELS).forEach(cat => {
-    const panel = finMk('div', 'gi-setup-panel');
-    panel.appendChild(finMk('div', 'gi-setup-panel-title', FINANCE_SETUP_CATEGORY_LABELS[cat]));
-    const list = finMk('div', 'gi-setup-list');
+    const panel = finMk('div', 'fin-setup-panel');
+    panel.appendChild(finMk('div', 'fin-setup-panel-title', FINANCE_SETUP_CATEGORY_LABELS[cat]));
+    const list = finMk('div', 'fin-setup-list');
     const arr = financeLookupsDraft[cat] || (financeLookupsDraft[cat] = []);
     arr.forEach((opt, i) => list.appendChild(buildFinanceSetupRow(arr, i)));
     panel.appendChild(list);
-    const addBtn = finMk('button', 'gi-mini-btn'); addBtn.innerHTML = ic('plus') + ' Add Entry';
+    const addBtn = finMk('button', 'fin-mini-btn'); addBtn.innerHTML = ic('plus') + ' Add Entry';
     addBtn.addEventListener('click', () => {
       arr.push({ labelEn: '', labelAr: '', isActive: true, sortOrder: arr.length });
       financeSetupDirty = true;
@@ -2156,13 +2156,13 @@ function renderFinanceSetupSection(host) {
     wrap.appendChild(panel);
   });
 
-  const footer = finMk('div', 'gi-setup-footer');
+  const footer = finMk('div', 'fin-setup-footer');
   const saveBtn = finMk('button', 'btn primary', 'Save Catalog');
   saveBtn.id = 'finance-setup-save-btn';
   saveBtn.disabled = !financeSetupDirty;
   saveBtn.addEventListener('click', saveFinanceSetupCatalog);
   footer.appendChild(saveBtn);
-  const unsavedLabel = finMk('span', 'gi-setup-unsaved', 'Unsaved changes');
+  const unsavedLabel = finMk('span', 'fin-setup-unsaved', 'Unsaved changes');
   unsavedLabel.id = 'finance-setup-unsaved-label';
   unsavedLabel.hidden = !financeSetupDirty;
   footer.appendChild(unsavedLabel);
@@ -2183,7 +2183,7 @@ function finMarkFinanceSetupDirty() {
 }
 function buildFinanceSetupRow(arr, i) {
   const opt = arr[i];
-  const row = finMk('div', 'gi-setup-row' + (opt.isActive === false ? ' inactive' : ''));
+  const row = finMk('div', 'fin-setup-row' + (opt.isActive === false ? ' inactive' : ''));
   const enInput = document.createElement('input');
   enInput.type = 'text'; enInput.placeholder = 'English label'; enInput.value = opt.labelEn || ''; enInput.dir = 'ltr';
   enInput.addEventListener('input', e => { opt.labelEn = e.target.value; finMarkFinanceSetupDirty(); });
@@ -2192,17 +2192,17 @@ function buildFinanceSetupRow(arr, i) {
   arInput.type = 'text'; arInput.placeholder = 'التسمية بالعربية'; arInput.value = opt.labelAr || ''; arInput.dir = 'rtl';
   arInput.addEventListener('input', e => { opt.labelAr = e.target.value; finMarkFinanceSetupDirty(); });
   row.appendChild(arInput);
-  row.appendChild(finMk('span', 'gi-setup-code', opt.code || 'new'));
+  row.appendChild(finMk('span', 'fin-setup-code', opt.code || 'new'));
 
-  const reorder = finMk('div', 'gi-setup-reorder');
-  const up = finMk('button', 'gi-icon-btn'); up.type = 'button'; up.innerHTML = ic('chevron-up'); up.title = 'Move up'; up.disabled = i === 0;
+  const reorder = finMk('div', 'fin-setup-reorder');
+  const up = finMk('button', 'fin-icon-btn'); up.type = 'button'; up.innerHTML = ic('chevron-up'); up.title = 'Move up'; up.disabled = i === 0;
   up.addEventListener('click', () => { finMoveDraftEntry(arr, i, -1); financeSetupDirty = true; renderFinanceDetailSections(); });
-  const down = finMk('button', 'gi-icon-btn'); down.type = 'button'; down.innerHTML = ic('chevron-down'); down.title = 'Move down'; down.disabled = i === arr.length - 1;
+  const down = finMk('button', 'fin-icon-btn'); down.type = 'button'; down.innerHTML = ic('chevron-down'); down.title = 'Move down'; down.disabled = i === arr.length - 1;
   down.addEventListener('click', () => { finMoveDraftEntry(arr, i, 1); financeSetupDirty = true; renderFinanceDetailSections(); });
   reorder.appendChild(up); reorder.appendChild(down);
   row.appendChild(reorder);
 
-  const toggleBtn = finMk('button', 'gi-icon-btn' + (opt.isActive === false ? '' : ' danger'));
+  const toggleBtn = finMk('button', 'fin-icon-btn' + (opt.isActive === false ? '' : ' danger'));
   toggleBtn.type = 'button';
   toggleBtn.innerHTML = ic(opt.isActive === false ? 'circle-check' : 'ban');
   toggleBtn.title = opt.isActive === false ? 'Re-enable' : 'Disable (hide from dropdowns)';
