@@ -446,6 +446,9 @@ async function renderOverview() {
     companyDocument:  { icon: ic('calendar-check'), kind: 'Renews' },
     clientVpn:        { icon: ic('layers'),          kind: 'Auth expires' },
     clientInternal:   { icon: ic('layers'),          kind: 'Internal System expires' },
+    financeInvoice:     { icon: ic('credit-card'), kind: 'Invoice due' },
+    financeInstallment: { icon: ic('credit-card'), kind: 'Installment due' },
+    financeContract:    { icon: ic('credit-card'), kind: 'Contract ends' },
   };
   let rawAttention = [];
   try { rawAttention = await window.api.getAttentionItems(); } catch { rawAttention = []; }
@@ -456,7 +459,7 @@ async function renderOverview() {
     const d = daysUntil(a.date);
     if (d === null || d > 30) return;
     const meta = ATTENTION_META[a.type] || { icon: ic('bell'), kind: 'Due' };
-    attention.push({ icon: meta.icon, title: a.title, days: d, module: a.module, kind: meta.kind, companyId: a.companyId ?? null, id: a.id, type: a.type });
+    attention.push({ icon: meta.icon, title: a.title, days: d, module: a.module, kind: meta.kind, companyId: a.companyId ?? null, clientId: a.clientId ?? null, id: a.id, type: a.type });
   });
   attention.sort((a, b) => a.days - b.days);
 
@@ -496,7 +499,10 @@ async function renderOverview() {
       const a = attention[Number(el.dataset.attIdx)];
       el.addEventListener('click', () => {
         switchModule(a.module);
+        // companyId deep-links into a Clients record; clientId is Finance's own
+        // roster id, so the two cannot share a branch.
         if (a.companyId != null) openClientDetail(a.companyId, a.title);
+        else if (a.clientId != null) openFinanceClientDetail(a.clientId);
         else if (a.type === 'subscription') scrollToAndHighlight('[data-sub-id="' + a.id + '"]');
         else if (a.type === 'companyDocument') scrollToAndHighlight('[data-doc-id="' + a.id + '"]');
       });
@@ -509,6 +515,7 @@ async function renderOverview() {
   setNavBadge('subscriptions', urgent('subscriptions'));
   setNavBadge('companydocs', urgent('companydocs'));
   setNavBadge('clients', urgent('clients'));
+  setNavBadge('finance', urgent('finance'));
 
 }
 

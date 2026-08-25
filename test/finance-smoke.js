@@ -501,6 +501,69 @@ try {
   record('Summary: contract counts computed for a client', summary.contractCount === 1 && summary.activeContractCount === 1
     && summary.invoicedMinor === 0 && summary.outstandingMinor === 0, JSON.stringify(summary));
 
+
+  // ── Cross-module feeds (Attention Center / Recent Activity) ───────────────
+  // These are what put Finance on the Overview page. The filtering rules carry
+  // the risk: an item that should have dropped out sits in the Attention list
+  // forever, and one that should appear never does.
+  const feedClient = financeDb.createFinanceClient(userId, { name: 'Feed Client', code: 'FEED' }).client;
+  const feedContract = financeDb.createFinanceContract(userId, feedClient.id, {
+    title: 'Feed Contract', status: 'ACTIVE', endDate: '2026-12-31',
+  }).contract;
+
+  const attentionOf = (type) => financeDb.getFinanceAttentionItems(userId).filter(a => a.type === type);
+
+  record('Attention: an active contract with an end date is surfaced',
+    attentionOf('financeContract').some(a => a.id === feedContract.id && a.date === '2026-12-31'),
+    JSON.stringify(attentionOf('financeContract')));
+
+  financeDb.updateFinanceContract(userId, feedContract.id, {
+    title: 'Feed Contract', status: 'TERMINATED', endDate: '2026-12-31',
+  });
+  record('Attention: a TERMINATED contract drops out',
+    !attentionOf('financeContract').some(a => a.id === feedContract.id));
+
+  const noDate = financeDb.createFinanceContract(userId, feedClient.id, { title: 'No End Date', status: 'ACTIVE' }).contract;
+  record('Attention: a contract with no end date is never surfaced',
+    !attentionOf('financeContract').some(a => a.id === noDate.id));
+
+  const feedInvoice = financeDb.createFinanceInvoice(userId, feedClient.id, {
+    number: 'INV-FEED-1', dueDate: '2026-11-30', amountMinor: 50000, status: 'ISSUED',
+  }).invoice;
+  record('Attention: an unpaid issued invoice is surfaced with its due date',
+    attentionOf('financeInvoice').some(a => a.id === feedInvoice.id && a.date === '2026-11-30'),
+    JSON.stringify(attentionOf('financeInvoice')));
+
+  record('Attention: rows carry a Finance clientId for deep-linking, not a companyId',
+    attentionOf('financeInvoice').every(a => a.clientId === feedClient.id && a.module === 'finance'
+      && !Object.hasOwn(a, 'companyId')));
+
+  financeDb.createFinancePayment(userId, feedInvoice.id, { amountMinor: 50000, paidDate: '2026-11-01' });
+  record('Attention: a fully paid invoice drops out even while its status says ISSUED',
+    !attentionOf('financeInvoice').some(a => a.id === feedInvoice.id));
+
+  const cancelled = financeDb.createFinanceInvoice(userId, feedClient.id, {
+    number: 'INV-FEED-2', dueDate: '2026-11-30', amountMinor: 9900, status: 'CANCELLED',
+  }).invoice;
+  record('Attention: a cancelled invoice is never surfaced',
+    !attentionOf('financeInvoice').some(a => a.id === cancelled.id));
+
+  const otherUserAttention = financeDb.getFinanceAttentionItems(secondUserId);
+  record('Attention: never leaks across accounts',
+    !otherUserAttention.some(a => a.clientId === feedClient.id), JSON.stringify(otherUserAttention));
+
+  const activity = financeDb.getFinanceRecentActivity(userId, 20);
+  record('Activity: contracts and invoices appear with a finance module target',
+    activity.some(a => a.kind === 'finance-contract' && a.id === feedContract.id)
+      && activity.some(a => a.kind === 'finance-invoice' && a.id === feedInvoice.id)
+      && activity.every(a => a.module === 'finance'),
+    JSON.stringify(activity.slice(0, 4)));
+  record('Activity: newest first and obeys its limit',
+    financeDb.getFinanceRecentActivity(userId, 2).length <= 2
+      && activity.every((a, i) => i === 0 || activity[i - 1].changedAt >= a.changedAt));
+  record('Activity: never leaks across accounts',
+    !financeDb.getFinanceRecentActivity(secondUserId, 20).some(a => a.parentId === feedClient.id));
+
 } catch (err) {
   exitCode = 1;
   console.error('FATAL:', err);
