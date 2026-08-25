@@ -1,12 +1,21 @@
-// ══ CLIENTS — VPN Connectivity + Server Information per COMPANY lookup ═════
-// No standalone clients table: the roster IS the active COMPANY lookup
-// catalog (Settings → Companies). This module only adds two small per-user
-// child record types (VPN connections, servers) keyed to a company id, shown
-// via a Projects-style list+detail view (list = card grid, detail = two
-// editable sub-list sections).
+// ══ CLIENTS — the client roster + VPN/Server/System records per COMPANY lookup ═
+// No standalone clients table: the roster IS the COMPANY lookup catalog. This
+// page owns that catalog end to end — creating, renaming, archiving and
+// reordering clients all happen here, not in Settings (there is no Companies
+// tab; see renderer/settings-registry.js). On top of the roster it adds three
+// small per-user child record types (VPN connections, servers, internal
+// systems) keyed to a company id, shown via a Projects-style list+detail view
+// (list = card grid, detail = editable sub-list sections).
+//
+// A client's `code` is deliberately never editable anywhere in this file. It is
+// set once by the New Client modal and is unreachable afterwards, in the UI and
+// in db.js alike, because it is the stable business identity linked records are
+// filed under.
 let clientsList = [];
 let clientsLoaded = false;
 let clientRecordFilter = '';  // matches within each client's own records (auth/servers/internal)
+let clientsShowArchived = false;  // "Show archived" — includes soft-disabled (is_active = 0) clients
+let clientsArrangeMode = false;   // "Arrange" — reveals per-card move up/down controls
 let currentClient = null;       // Client (from clients:get) shown in the detail view
 let clientVpnEditId = null;      // null = create mode in the Auth modal
 let clientServerEditId = null;   // null = create mode in the Server modal
@@ -19,24 +28,30 @@ let clientNewGroupKind = null;       // 'server' | 'internal' — which section'
 // + one active workspace tab. Reset per client on open; preserved across an
 // in-place reload (post-CRUD refresh of the same client).
 let clientDetailSearch = '';
-// This client's Finance profile + summary, or null when it has none. Loaded on
-// demand (the Finance tab is the only thing that needs it) and cleared whenever
-// a different client is opened.
+// This client's Finance profile, or null when it has none. Finance's records
+// themselves live in finance.js's module state (currentFinanceClient and the
+// arrays beside it) — this only marks which client that state belongs to, and
+// is cleared whenever a different client is opened.
 let clientFinance = null;
 let clientFinanceLoadedFor = null;
 const CLIENT_DETAIL_TYPES = [
   { key: 'overview',  label: 'Overview' },
   { key: 'projects',  label: 'Projects' },
   { key: 'finance',   label: 'Finance' },
+  // Minutes of meeting are a record of what was agreed with the client, not a
+  // financial document — they get a tab of their own beside Finance rather
+  // than sitting inside it.
+  { key: 'meetings',  label: 'Meetings' },
   { key: 'auth',      label: 'Access' },
   { key: 'servers',   label: 'Servers' },
   { key: 'internal',  label: 'Systems' },
 ];
 let clientDetailTab = 'overview';
 
-// Every active COMPANY lookup is automatically a Client. Settings can change
-// that catalog while this module is not visible, so discard the cached roster
-// after a catalog save and let the next Clients visit load the current list.
+// Every active COMPANY lookup is automatically a Client. A catalog merge from
+// Settings → Maintenance can change that catalog while this module is not
+// visible, so discard the cached roster and let the next Clients visit load the
+// current list.
 function invalidateClientsCatalog() {
   clientsList = [];
   clientsLoaded = false;
@@ -45,6 +60,7 @@ function invalidateClientsCatalog() {
 
 function initClientsModule() {
   showClientsListView();
+  syncClientsToolbarState();
   // Projects are shown inside each client's detail (and counted on the list
   // cards) since the Clients Projects page was merged in — make sure the shared
   // projectsList is loaded; loadProjectsList() re-renders this view when it lands.
@@ -57,7 +73,7 @@ async function loadClientsList() {
   const grid = document.getElementById('clients-grid');
   if (!grid.childElementCount) { grid.style.display = ''; showSkeleton(grid, 'cards', 3); }
   let list;
-  try { list = await window.api.listClients(); }
+  try { list = await window.api.listClients(clientsShowArchived); }
   catch { toast('Could not load clients'); return; }
   clientsList = Array.isArray(list) ? list : [];
   clientsLoaded = true;
@@ -69,6 +85,200 @@ function applyClientRecordFilter() {
   renderClientsList();
 }
 
+// ── Roster management ─────────────────────────────────────────────────────────
+// Create / rename / archive / reorder. These write the shared COMPANY lookup
+// catalog, so after every one of them the renderer's own copy of that catalog
+// (LK) has to be refreshed or company dropdowns across Timesheet, Tasks,
+// Projects and Browse keep showing the pre-change list until a restart.
+async function refreshCompanyCatalog() {
+  try { LK = await window.api.loadLookups(); }
+  catch { toast('Saved — reopen the app to refresh company lists'); }
+}
+
+function syncClientsToolbarState() {
+  const archivedBtn = document.getElementById('clients-archived-btn');
+  const arrangeBtn = document.getElementById('clients-arrange-btn');
+  if (archivedBtn) {
+    archivedBtn.classList.toggle('active', clientsShowArchived);
+    archivedBtn.setAttribute('aria-pressed', String(clientsShowArchived));
+  }
+  if (arrangeBtn) {
+    arrangeBtn.classList.toggle('active', clientsArrangeMode);
+    arrangeBtn.setAttribute('aria-pressed', String(clientsArrangeMode));
+  }
+}
+
+function toggleClientsShowArchived() {
+  clientsShowArchived = !clientsShowArchived;
+  syncClientsToolbarState();
+  loadClientsList();
+}
+
+function toggleClientsArrange() {
+  clientsArrangeMode = !clientsArrangeMode;
+  syncClientsToolbarState();
+  renderClientsList();
+}
+
+// Move up / move down, mirroring the catalog editor's own reorder controls.
+// Reordering is what sets the order of every company dropdown in the app.
+function buildClientReorderControls(index, total) {
+  const wrap = pjMk('div', 'cl-card-reorder');
+  // The card itself opens the client on click, so every control inside it has
+  // to stop propagation or arranging would navigate away mid-arrange.
+  const button = (icon, title, disabled, delta) => {
+    const btn = pjMk('button', 'lookup-item-reorder-btn');
+    btn.type = 'button';
+    btn.innerHTML = ic(icon);
+    btn.title = title;
+    btn.disabled = disabled;
+    btn.addEventListener('click', e => { e.stopPropagation(); moveClientInOrder(index, delta); });
+    return btn;
+  };
+  wrap.addEventListener('click', e => e.stopPropagation());
+  wrap.appendChild(button('chevron-up', 'Move up', index === 0, -1));
+  wrap.appendChild(button('chevron-down', 'Move down', index === total - 1, 1));
+  return wrap;
+}
+
+async function moveClientInOrder(index, delta) {
+  const target = index + delta;
+  if (target < 0 || target >= clientsList.length) return;
+  // Reorder the local list first and repaint, so arranging feels immediate;
+  // the server call then persists exactly what is on screen.
+  const next = clientsList.slice();
+  [next[index], next[target]] = [next[target], next[index]];
+  clientsList = next;
+  renderClientsList();
+
+  let res;
+  try { res = await window.api.reorderClients(clientsList.map(c => c.id)); }
+  catch { res = null; }
+  if (!res?.ok) {
+    toast(res?.error || 'Could not save the new order');
+    loadClientsList();   // resync from the server rather than leave a lie on screen
+    return;
+  }
+  refreshCompanyCatalog();
+}
+
+// Archive / restore. A soft-disable, never a delete — every historical task,
+// project and invoice keeps pointing at the client; it just leaves the roster
+// and the company dropdowns.
+async function setClientArchived(companyId, isActive, { silent = false } = {}) {
+  let res;
+  try { res = await window.api.setClientActive(companyId, isActive); }
+  catch { res = null; }
+  if (!res?.ok) { toast(res?.error || 'Could not update this client'); return false; }
+
+  await refreshCompanyCatalog();
+  clientsLoaded = false;
+  await loadClientsList();
+  if (currentClient && currentClient.id === companyId) openClientDetail(companyId);
+  if (!silent) {
+    toast(isActive ? 'Client restored' : 'Client archived', {
+      actionLabel: 'Undo',
+      onAction: () => setClientArchived(companyId, !isActive, { silent: true }),
+    });
+  }
+  return true;
+}
+
+// Inline rename from the client's own Overview tab, on the app-wide 300 ms
+// auto-save debounce. Names only — `code` is not sent and the channel would
+// ignore it if it were.
+let _clientRenameTimer = null;
+function saveClientNamesDebounced(companyId) {
+  clearTimeout(_clientRenameTimer);
+  _clientRenameTimer = setTimeout(() => saveClientNames(companyId), 300);
+}
+
+async function saveClientNames(companyId) {
+  const enInput = document.getElementById('cl-identity-name-en');
+  const arInput = document.getElementById('cl-identity-name-ar');
+  // The tab may have been switched (or another client opened) while the
+  // debounce was pending — there is nothing to read, so there is nothing to save.
+  if (!enInput || !arInput || !currentClient || currentClient.id !== companyId) return;
+
+  const nameEn = enInput.value.trim();
+  const nameAr = arInput.value.trim();
+  if (!nameEn) { markError('cl-identity-name-en'); return; }
+  if (nameEn === (currentClient.nameEn || '') && nameAr === (currentClient.nameAr || '')) return;
+
+  let res;
+  try { res = await window.api.renameClient(companyId, { nameEn, nameAr }); }
+  catch { toast('Could not save the client name'); return; }
+  if (!res?.ok) { markError('cl-identity-name-en'); toast(res?.error || 'Could not save the client name'); return; }
+
+  clearErrorsIn('#clients-detail-view');
+  currentClient.nameEn = res.client.nameEn;
+  currentClient.nameAr = res.client.nameAr;
+  currentClient.label  = res.client.label;
+  // Patch the two places the name is already painted rather than re-rendering
+  // the detail view, which would blow away focus and the caret mid-typing.
+  const shown = companyDisplayName(currentClient, false) || 'Untitled';
+  const title = document.querySelector('#clients-detail-view .pj-detail-title');
+  if (title) title.textContent = shown;
+  const crumb = document.querySelector('#clients-detail-view .pj-crumb-here');
+  if (crumb) crumb.textContent = shown;
+  // Every company dropdown in the app reads LK, so it has to hear about this too.
+  await refreshCompanyCatalog();
+  clientsLoaded = false;
+}
+
+// ── New Client modal ──────────────────────────────────────────────────────────
+// Create only. The company code is set here and nowhere else, ever.
+function openClientCreateModal() {
+  document.getElementById('cl-new-code').value = '';
+  document.getElementById('cl-new-name-en').value = '';
+  document.getElementById('cl-new-name-ar').value = '';
+  clearErrorsIn('#client-create-modal');
+  document.getElementById('client-create-modal-overlay').classList.add('open');
+}
+function closeClientCreateModal() {
+  document.getElementById('client-create-modal-overlay').classList.remove('open');
+}
+function clientCreateOverlayClick(e) {
+  if (e.target === document.getElementById('client-create-modal-overlay')) closeClientCreateModal();
+}
+
+// Codes are upper-case and space-free by construction, so the field shapes what
+// is typed instead of rejecting it after the fact. Matches the pattern db.js
+// validates against (COMPANY_CODE_RE).
+function normalizeClientCodeInput(el) {
+  const caretAtEnd = el.selectionStart === el.value.length;
+  el.value = el.value.toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_-]/g, '');
+  if (caretAtEnd) el.setSelectionRange(el.value.length, el.value.length);
+}
+
+async function submitClientCreateModal() {
+  clearErrorsIn('#client-create-modal');
+  const code   = document.getElementById('cl-new-code').value.trim().toUpperCase();
+  const nameEn = document.getElementById('cl-new-name-en').value.trim();
+  const nameAr = document.getElementById('cl-new-name-ar').value.trim();
+
+  if (!code) { markError('cl-new-code'); toast('A client needs a company code'); return; }
+  if (!nameEn) { markError('cl-new-name-en'); toast('A client needs an English name'); return; }
+
+  let res;
+  try { res = await window.api.createClient({ code, nameEn, nameAr }); }
+  catch { toast('Could not create the client'); return; }
+  if (!res?.ok) {
+    // The server distinguishes a code clash from a name clash; point the error
+    // at whichever field the user actually has to change.
+    markError(/code/i.test(res?.error || '') ? 'cl-new-code' : 'cl-new-name-en');
+    toast(res?.error || 'Could not create the client');
+    return;
+  }
+
+  closeClientCreateModal();
+  await refreshCompanyCatalog();
+  clientsLoaded = false;
+  await loadClientsList();
+  toast('Client created');
+  openClientDetail(res.client.id);
+}
+
 function showClientsListView() {
   document.getElementById('clients-detail-view').style.display = 'none';
   document.getElementById('clients-list-view').style.display = '';
@@ -78,8 +288,12 @@ function showClientDetailView() {
   document.getElementById('clients-detail-view').style.display = '';
 }
 
-function buildClientCard(c, projectCount) {
-  const card = pjMk('div', 'pj-card');
+// `index`/`total` position the card within the roster, for Arrange mode's
+// move up/down buttons. Both are omitted when the card isn't in the ordered
+// grid (e.g. a search-results context), which simply hides those controls.
+function buildClientCard(c, projectCount, index, total) {
+  const archived = c.isActive === false;
+  const card = pjMk('div', 'pj-card' + (archived ? ' cl-card-archived' : ''));
   card.addEventListener('click', () => openClientDetail(c.id));
 
   const head = pjMk('div', 'pj-card-head');
@@ -87,6 +301,7 @@ function buildClientCard(c, projectCount) {
   identity.appendChild(pjMk('div', 'pj-card-name', companyDisplayName(c, false) || 'Untitled'));
   head.appendChild(identity);
   if (c.code) head.appendChild(pjMk('span', 'client-code-badge', c.code));
+  if (archived) head.appendChild(pjMk('span', 'cl-archived-badge', 'Archived'));
   card.appendChild(head);
 
   const foot = pjMk('div', 'pj-card-foot');
@@ -97,10 +312,25 @@ function buildClientCard(c, projectCount) {
     + ' · ' + c.internalSystemCount + ' internal'
     + ' · ' + (projectCount || 0) + ' project' + (projectCount === 1 ? '' : 's')));
   foot.appendChild(count);
-  const open = pjMk('span', 'pj-card-open', 'Open');
-  open.insertAdjacentHTML('beforeend', ic('chevron-right'));
-  foot.appendChild(open);
+
+  // An archived client's primary action is getting it back, so Restore takes
+  // the slot "Open" normally holds. Opening it still works via the card body.
+  if (archived) {
+    const restore = pjMk('button', 'btn cl-card-restore');
+    restore.type = 'button';
+    restore.innerHTML = ic('rotate-ccw') + 'Restore';
+    restore.addEventListener('click', e => { e.stopPropagation(); setClientArchived(c.id, false); });
+    foot.appendChild(restore);
+  } else {
+    const open = pjMk('span', 'pj-card-open', 'Open');
+    open.insertAdjacentHTML('beforeend', ic('chevron-right'));
+    foot.appendChild(open);
+  }
   card.appendChild(foot);
+
+  if (clientsArrangeMode && Number.isInteger(index) && Number.isInteger(total)) {
+    card.appendChild(buildClientReorderControls(index, total));
+  }
 
   return card;
 }
@@ -131,7 +361,9 @@ function renderClientsList() {
     grid.style.display = 'none';
     results.style.display = 'none';
     empty.hidden = false;
-    empty.querySelector('p').innerHTML = 'No companies yet — add one in <strong>Settings → Companies</strong>';
+    empty.querySelector('p').innerHTML = clientsShowArchived
+      ? 'No clients yet — click <strong>+ New Client</strong> to add one'
+      : 'No active clients — click <strong>+ New Client</strong> to add one, or <strong>Show archived</strong>';
     return;
   }
 
@@ -141,7 +373,8 @@ function renderClientsList() {
     grid.style.display = '';
     empty.hidden = true;
     const projCounts = clientProjectCounts();
-    clientsList.forEach(c => grid.appendChild(buildClientCard(c, projCounts.get(c.id) || 0)));
+    clientsList.forEach((c, i) =>
+      grid.appendChild(buildClientCard(c, projCounts.get(c.id) || 0, i, clientsList.length)));
     return;
   }
 
@@ -218,15 +451,22 @@ function renderClientSearchResults(matches, q) {
 // `presetSearch`, when given (drilling in from the list view's records-search
 // results table), seeds the detail view's own search box with the same query
 // instead of resetting it, so the matched record is already visible/highlighted.
-async function openClientDetail(companyId, presetSearch) {
+// `tab`, when given, wins over both the preset search and the remembered tab —
+// it is how a deep link into a contract, an invoice or a meeting lands on the
+// right part of the client's page.
+async function openClientDetail(companyId, presetSearch, tab) {
   let client;
   try { client = await window.api.getClient(companyId); }
   catch { toast('Could not open client'); return; }
   if (!client) { toast('Client not found'); return; }
   currentClient = client;
-  if (clientFinanceLoadedFor !== client.id) { clientFinance = null; clientFinanceLoadedFor = null; }
-  clientDetailSearch = presetSearch || '';
-  clientDetailTab = presetSearch ? 'overview' : (uiState.filters.clients?.tab || 'overview');
+  if (clientFinanceLoadedFor !== client.id) {
+    clientFinance = null;
+    clientFinanceLoadedFor = null;
+    clearFinanceClientRecords();
+  }
+  clientDetailSearch = tab ? '' : (presetSearch || '');
+  clientDetailTab = tab || (presetSearch ? 'overview' : (uiState.filters.clients?.tab || 'overview'));
   if (!CLIENT_DETAIL_TYPES.some(t => t.key === clientDetailTab)) clientDetailTab = 'overview';
   showClientDetailView();
   renderClientDetail(client);
@@ -400,23 +640,19 @@ function renderClientDetail(c) {
   searchInput.addEventListener('input', applyClientDetailSearch);
   toolbar.appendChild(searchInput);
   const typeChips = pjMk('div', 'seg-ctl workspace-tabs');
+  typeChips.id = 'client-detail-tabs';
   typeChips.setAttribute('aria-label', 'Client workspace');
-  const projectCount = projectsList.filter(p => cpjPrimaryCompany(p)?.id === c.id).length;
-  const counts = {
-    projects: projectCount,
-    auth: Array.isArray(c.vpnConnections) ? c.vpnConnections.length : 0,
-    servers: Array.isArray(c.servers) ? c.servers.length : 0,
-    internal: Array.isArray(c.internalSystems) ? c.internalSystems.length : 0,
-  };
   CLIENT_DETAIL_TYPES.forEach(t => {
-    const count = t.key === 'overview' ? '' : ` (${counts[t.key] || 0})`;
-    const btn = pjMk('button', 'seg-btn' + (clientDetailTab === t.key ? ' active' : ''), t.label + count);
+    const btn = pjMk('button', 'seg-btn' + (clientDetailTab === t.key ? ' active' : ''), t.label);
     btn.type = 'button';
+    btn.dataset.clientTab = t.key;
+    btn.dataset.tabLabel = t.label;
     btn.addEventListener('click', () => setClientDetailTab(t.key));
     typeChips.appendChild(btn);
   });
   toolbar.appendChild(typeChips);
   host.appendChild(toolbar);
+  updateClientDetailTabCounts();
 
   const sectionsHost = pjMk('div', 'cl-detail-sections');
   sectionsHost.id = 'client-detail-sections';
@@ -425,32 +661,135 @@ function renderClientDetail(c) {
   renderClientDetailSections(c);
 }
 
+// The tab strip's "(N)" suffixes, rewritten in place. Finance and Meetings
+// count records that arrive asynchronously — rebuilding the whole toolbar for
+// them would steal focus out of the search box beside it, and not rewriting
+// them at all is why the Finance tab used to read "(0)" next to a client that
+// plainly had a contract.
+function clientDetailTabCounts(c) {
+  const financeReady = clientFinanceLoadedFor === c.id && !!clientFinance;
+  return {
+    projects: projectsList.filter(p => cpjPrimaryCompany(p)?.id === c.id).length,
+    finance: financeReady ? financeContracts.length : 0,
+    meetings: financeReady ? financeMeetings.length : 0,
+    auth: Array.isArray(c.vpnConnections) ? c.vpnConnections.length : 0,
+    servers: Array.isArray(c.servers) ? c.servers.length : 0,
+    internal: Array.isArray(c.internalSystems) ? c.internalSystems.length : 0,
+  };
+}
+function updateClientDetailTabCounts() {
+  if (!currentClient) return;
+  const counts = clientDetailTabCounts(currentClient);
+  document.querySelectorAll('#client-detail-tabs .seg-btn').forEach(btn => {
+    const key = btn.dataset.clientTab;
+    btn.textContent = btn.dataset.tabLabel + (key === 'overview' ? '' : ' (' + (counts[key] || 0) + ')');
+  });
+}
+// finance.js calls this after every write, because its records now render on
+// this page and nowhere else.
+function renderClientDetailAfterFinanceChange() {
+  if (!currentClient) return;
+  updateClientDetailTabCounts();
+  renderClientDetailSections(currentClient);
+}
+
+// Finance's records for the open client, fetched once per client. Finance
+// keeps a per-user profile keyed to a company id (migration 056), so a client
+// that has never been invoiced simply has no profile — not an error, just a
+// Finance tab that offers to start one.
+async function loadClientFinance(companyId) {
+  if (clientFinanceLoadedFor === companyId) return;
+  clientFinanceLoadedFor = companyId;
+  clientFinance = null;
+  clearFinanceClientRecords();
+  await ensureFinanceClientsCache();
+  const match = financeClientForCompany(companyId);
+  if (match && await loadFinanceClientRecords(match.id)) clientFinance = { client: currentFinanceClient };
+  if (currentClient && currentClient.id === companyId) renderClientDetailAfterFinanceChange();
+}
+// Turns Finance on for a client that has never had it. The company is already
+// known, so there is nothing to ask — that is the whole point of the two
+// rosters having become one.
+async function startClientFinance(companyId) {
+  if (!(await enableFinanceForCompany(companyId))) return;
+  clientFinanceLoadedFor = null;
+  await loadClientFinance(companyId);
+}
+
+// A titled wrapper for the states where the Finance/Meetings tabs cannot show
+// the real workspace — still loading, not set up yet, or filtered by a search.
+function buildClientFinanceShell(title, body) {
+  const sec = pjMk('div', 'pj-section');
+  const head = pjMk('div', 'pj-section-head');
+  const heading = pjMk('div', 'pj-section-title');
+  heading.innerHTML = ic(title === 'Meetings' ? 'book-open' : 'credit-card');
+  heading.appendChild(document.createTextNode(title));
+  head.appendChild(heading);
+  sec.appendChild(head);
+  sec.appendChild(body);
+  return sec;
+}
+function buildClientFinanceStartPrompt(c, message) {
+  const wrap = pjMk('div', 'cl-finance-start');
+  wrap.appendChild(pjMk('div', 'cp-records-empty', message));
+  const btn = pjMk('button', 'btn primary');
+  btn.type = 'button';
+  btn.innerHTML = ic('plus') + ' Set Up Finance';
+  btn.addEventListener('click', () => startClientFinance(c.id));
+  wrap.appendChild(btn);
+  return wrap;
+}
+function buildClientFinanceSearchResults(q) {
+  const wrap = pjMk('div', 'cl-finance-hits');
+  const contracts = financeContracts.filter(k => textMatch([k.title, k.ref, k.statusLabelEn], q));
+  const invoices = financeInvoices.filter(i => textMatch([i.number, i.statusLabelEn], q));
+  if (!contracts.length && !invoices.length) {
+    wrap.appendChild(pjMk('div', 'cp-records-empty', 'No financial records match your search.'));
+    return wrap;
+  }
+  contracts.forEach(k => wrap.appendChild(buildClientFinanceHit(
+    k.title || 'Untitled',
+    [k.ref, k.statusLabelEn || k.status, k.endDate ? 'ends ' + k.endDate : ''].filter(Boolean).join(' · '),
+    'contracts')));
+  invoices.forEach(i => wrap.appendChild(buildClientFinanceHit(
+    i.number || 'Invoice',
+    [i.statusLabelEn || i.status, i.dueDate ? 'due ' + i.dueDate : ''].filter(Boolean).join(' · '),
+    'invoices')));
+  return wrap;
+}
+function buildClientMeetingSearchResults(q) {
+  const wrap = pjMk('div', 'cl-finance-hits');
+  const meetings = financeMeetings.filter(m => textMatch([m.title, m.location, m.attendees], q));
+  if (!meetings.length) {
+    wrap.appendChild(pjMk('div', 'cp-records-empty', 'No meetings match your search.'));
+    return wrap;
+  }
+  meetings.forEach(m => wrap.appendChild(buildClientFinanceHit(
+    m.title || 'Untitled', [m.meetingDate, m.location].filter(Boolean).join(' · '), 'meetings')));
+  return wrap;
+}
+// Clearing the search is what reveals the full workspace, so a hit's job is to
+// drop the query and land on the tab that owns the record.
+function buildClientFinanceHit(title, meta, subTab) {
+  const row = pjMk('div', 'cl-item-card');
+  const main = pjMk('div', 'cl-item-main');
+  const name = pjMk('div', 'cl-item-title', title);
+  name.dataset.userContent = '';
+  main.appendChild(name);
+  main.appendChild(pjMk('div', 'cl-item-meta', meta));
+  row.appendChild(main);
+  row.addEventListener('click', () => {
+    if (subTab !== 'meetings') setFinanceDetailTab(subTab);
+    setClientDetailTab(subTab === 'meetings' ? 'meetings' : 'finance');
+  });
+  return row;
+}
+
 // Rebuilds only the record sections (not the toolbar/search input above),
 // filtered by `clientDetailSearch` (human-identifying fields only — never
 // password/secretKey, per the no-credential-search rule) and the active detail tab.
 // Called on every search keystroke / workspace-tab switch, and once from
 // renderClientDetail on open/reload.
-// Finance data for the open client, fetched once per client. Finance keeps its
-// own per-user roster keyed to a company id (migration 056), so a client that
-// has never been invoiced simply has no row — not an error.
-async function loadClientFinance(companyId) {
-  if (clientFinanceLoadedFor === companyId) return;
-  clientFinanceLoadedFor = companyId;
-  clientFinance = null;
-  try {
-    const clients = await window.api.listFinanceClients();
-    const match = (clients || []).find(fc => fc.companyId === companyId);
-    if (!match) return;
-    const [summary, contracts, invoices] = await Promise.all([
-      window.api.getFinanceClientSummary(match.id),
-      window.api.listFinanceContracts(match.id),
-      window.api.listFinanceInvoices(match.id),
-    ]);
-    clientFinance = { client: match, summary, contracts, invoices };
-  } catch { clientFinance = null; }
-  if (currentClient && currentClient.id === companyId) renderClientDetailSections(currentClient);
-}
-
 function renderClientDetailSections(c) {
   const host = document.getElementById('client-detail-sections');
   if (!host) return;
@@ -467,73 +806,41 @@ function renderClientDetailSections(c) {
   }
   const showSection = key => !!q || clientDetailTab === key;
 
-  // ── Finance section (this client's contracts and invoices, from the Finance
-  // module's own data layer). Read-only here: it is a window into Finance, not
-  // a second place to edit it, so every action routes into the module itself. ──
+  // ── Finance and Meetings ──────────────────────────────────────────────────
+  // This page IS Finance now. Contracts, change requests, invoices and the
+  // report export render right here, in full, and opening one never leaves the
+  // client — there is no Finance page left to leave for. Meetings render the
+  // same way one tab over.
+  //
+  // Under an active search both fall back to a flat list of matching records:
+  // the workspace's own sub-tabs would hide most of the hits behind a tab the
+  // searcher never clicked.
   if (showSection('finance')) {
-    const finSec = pjMk('div', 'pj-section');
-    const finHead = pjMk('div', 'pj-section-head');
-    const finTitle = pjMk('div', 'pj-section-title');
-    finTitle.innerHTML = ic('credit-card');
-    finTitle.appendChild(document.createTextNode('Finance'));
-    finHead.appendChild(finTitle);
-    const finActions = pjMk('div', 'pj-section-actions');
-    const openBtn = pjMk('button', 'btn');
-    openBtn.innerHTML = ic('arrow-right') + ' Open in Finance';
-    openBtn.addEventListener('click', () => {
-      switchModule('finance');
-      if (clientFinance) openFinanceClientDetail(clientFinance.client.id);
-    });
-    finActions.appendChild(openBtn);
-    finHead.appendChild(finActions);
-    finSec.appendChild(finHead);
-
     if (clientFinanceLoadedFor !== c.id) {
-      finSec.appendChild(pjMk('div', 'cp-records-empty', 'Loading…'));
+      host.appendChild(buildClientFinanceShell('Finance', pjMk('div', 'cp-records-empty', 'Loading…')));
       loadClientFinance(c.id);
     } else if (!clientFinance) {
-      finSec.appendChild(pjMk('div', 'cp-records-empty', 'This client has no financial records yet.'));
+      host.appendChild(buildClientFinanceShell('Finance', buildClientFinanceStartPrompt(c,
+        'No contracts, invoices or change requests are tracked for this client yet.')));
+    } else if (q) {
+      host.appendChild(buildClientFinanceShell('Finance', buildClientFinanceSearchResults(q)));
     } else {
-      // Reuses the Overview tab's own stat-card grid rather than a parallel
-      // set of Finance-only classes, so the two tabs stay visually identical.
-      const sum = clientFinance.summary || {};
-      const grid = pjMk('div', 'client-overview-grid');
-      [
-        ['Contracts', String(sum.contractCount || 0)],
-        ['Invoiced', finMoney(sum.invoicedMinor)],
-        ['Paid', finMoney(sum.paidMinor)],
-        ['Outstanding', finMoney(sum.outstandingMinor)],
-      ].forEach(([label, value]) => {
-        const card = pjMk('div', 'client-overview-card');
-        card.appendChild(pjMk('b', '', value));
-        card.appendChild(pjMk('span', '', label));
-        grid.appendChild(card);
-      });
-      finSec.appendChild(grid);
-
-      const contracts = (clientFinance.contracts || []).filter(k => textMatch([k.title, k.ref, k.status], q));
-      if (!contracts.length) {
-        finSec.appendChild(pjMk('div', 'cp-records-empty',
-          clientFinance.contracts.length ? 'No contracts match your search.' : 'No contracts yet.'));
-      } else {
-        contracts.forEach(k => {
-          const row = pjMk('div', 'cl-item-card');
-          const main = pjMk('div', 'cl-item-main');
-          const name = pjMk('div', 'cl-item-title', k.title || 'Untitled');
-          name.dataset.userContent = '';
-          main.appendChild(name);
-          main.appendChild(pjMk('div', 'cl-item-meta',
-            [k.ref, k.statusLabelEn || k.status, k.endDate ? 'ends ' + k.endDate : ''].filter(Boolean).join(' · ')));
-          row.appendChild(main);
-          row.addEventListener('click', () => {
-            switchModule('finance');
-            openFinanceClientDetail(clientFinance.client.id);
-          });
-          finSec.appendChild(row);
-        });
-      }
+      renderClientFinanceWorkspace(host);
     }
-    host.appendChild(finSec);
+  }
+
+  if (showSection('meetings')) {
+    if (clientFinanceLoadedFor !== c.id) {
+      host.appendChild(buildClientFinanceShell('Meetings', pjMk('div', 'cp-records-empty', 'Loading…')));
+      loadClientFinance(c.id);
+    } else if (!clientFinance) {
+      host.appendChild(buildClientFinanceShell('Meetings', buildClientFinanceStartPrompt(c,
+        'No minutes of meeting are recorded for this client yet.')));
+    } else if (q) {
+      host.appendChild(buildClientFinanceShell('Meetings', buildClientMeetingSearchResults(q)));
+    } else {
+      renderClientMeetingsWorkspace(host);
+    }
   }
 
   // ── Projects section (this client's own projects — merged in from the retired
@@ -665,21 +972,52 @@ function renderClientDetailSections(c) {
   }
 }
 
-function renderClientOverview(host, c, servers, internalSystems, vpns) {
-  // Show only the active interface language's name (plus the language-neutral
-  // code) — never both languages at once. Both stored names remain editable in
-  // the Client Profile form under Settings.
+// The client's identity block: the permanent code, plus both names as live
+// inputs. Unlike the rest of the Overview tab this shows BOTH languages at
+// once, because here they are the fields being edited rather than a label
+// being displayed — you cannot maintain an Arabic name you cannot see.
+function buildClientIdentityEditor(c) {
   const profile = pjMk('div', 'client-profile-summary');
-  [
-    ['Company Code', c.code || '—'],
-    ['Name', companyDisplayName(c, false) || c.label || '—'],
-  ].forEach(([label, value]) => {
+
+  // Code first, and deliberately not an input. Nothing in this app can change
+  // a company code after creation — it is what every task, project, invoice and
+  // server record is filed under.
+  const codeField = pjMk('div', 'client-profile-summary-field cl-identity-locked');
+  const codeCaption = pjMk('span', '');
+  codeCaption.appendChild(document.createTextNode('Company Code'));
+  codeCaption.insertAdjacentHTML('beforeend', ic('lock'));
+  codeField.appendChild(codeCaption);
+  const codeValue = pjMk('b', '', c.code || '—');
+  codeValue.dataset.userContent = '';
+  codeField.appendChild(codeValue);
+  codeField.title = 'A company code is permanent — it keeps tasks, projects, invoices and infrastructure linked.';
+  profile.appendChild(codeField);
+
+  const nameField = (caption, value, id, dir) => {
     const field = pjMk('div', 'client-profile-summary-field');
-    field.appendChild(pjMk('span', '', label));
-    const val = pjMk('b', '', value); val.dataset.userContent = ''; field.appendChild(val);
-    profile.appendChild(field);
-  });
-  host.appendChild(profile);
+    const label = document.createElement('label');
+    label.textContent = caption;
+    label.setAttribute('for', id);
+    field.appendChild(label);
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = id;
+    input.className = 'cl-identity-input';
+    input.value = value || '';
+    input.dir = dir;
+    input.dataset.userContent = '';
+    input.addEventListener('input', () => saveClientNamesDebounced(c.id));
+    field.appendChild(input);
+    return field;
+  };
+  profile.appendChild(nameField('English Name', c.nameEn || c.label, 'cl-identity-name-en', 'ltr'));
+  profile.appendChild(nameField('Arabic Name', c.nameAr, 'cl-identity-name-ar', 'rtl'));
+
+  return profile;
+}
+
+function renderClientOverview(host, c, servers, internalSystems, vpns) {
+  host.appendChild(buildClientIdentityEditor(c));
 
   const projects = projectsList.filter(p => cpjPrimaryCompany(p)?.id === c.id);
   const grid = pjMk('div', 'client-overview-grid');
@@ -707,6 +1045,31 @@ function renderClientOverview(host, c, servers, internalSystems, vpns) {
     btn.type = 'button'; btn.innerHTML = ic(icon) + label; btn.addEventListener('click', run);
     actions.appendChild(btn);
   });
+
+  // Archive sits apart from the "add something" buttons, and confirms inline
+  // before acting (plus the undo toast setClientArchived raises). Restoring an
+  // already-archived client needs neither.
+  const archiveSlot = pjMk('div', 'cl-archive-slot');
+  const renderArchiveAction = () => {
+    archiveSlot.innerHTML = '';
+    if (c.isActive === false) {
+      const restore = pjMk('button', 'btn');
+      restore.type = 'button';
+      restore.innerHTML = ic('rotate-ccw') + 'Restore Client';
+      restore.addEventListener('click', () => setClientArchived(c.id, true));
+      archiveSlot.appendChild(restore);
+      return;
+    }
+    const archive = pjMk('button', 'btn');
+    archive.type = 'button';
+    archive.innerHTML = ic('ban') + 'Archive Client';
+    archive.title = 'Hide this client from the roster and from company dropdowns. Nothing is deleted.';
+    archive.addEventListener('click', () =>
+      showDeleteConfirm(archiveSlot, () => setClientArchived(c.id, false), renderArchiveAction, 'Archive this client?'));
+    archiveSlot.appendChild(archive);
+  };
+  renderArchiveAction();
+  actions.appendChild(archiveSlot);
   host.appendChild(actions);
 
   const note = pjMk('div', 'pj-section');

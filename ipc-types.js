@@ -584,6 +584,12 @@
  * @typedef {Object} ClientListItem
  * @property {number} id          The COMPANY lookup_codes id.
  * @property {string} label
+ * @property {string} code        Permanent business code, set once at creation.
+ * @property {string} nameEn      English company name.
+ * @property {string} nameAr      Arabic company name (may be empty for migrated records).
+ * @property {boolean} isActive   false = archived; only present in the list when
+ *   `clients:list` was called with includeArchived = true.
+ * @property {number} sortOrder   Position in every company dropdown app-wide.
  * @property {number} vpnCount
  * @property {number} serverCount
  * @property {number} internalSystemCount
@@ -611,13 +617,26 @@
  * servers, databases, external services, and internal systems.
  * @typedef {Object} Client
  * @property {number} id     The COMPANY lookup_codes id.
- * @property {string} code   Editable, unique business code shown across linked records.
+ * @property {string} code   Unique business code shown across linked records.
+ *   Write-once: set by `clients:create` and settable by nothing else.
  * @property {string} label
  * @property {string} nameEn English company name.
  * @property {string} nameAr Arabic company name (may be empty for migrated records).
+ * @property {boolean} isActive false = archived (soft-disabled); still openable.
  * @property {ClientVpnConnection[]} vpnConnections
  * @property {ClientServer[]} servers
  * @property {ClientInternalSystem[]} internalSystems
+ */
+
+/**
+ * What the client roster's write channels return. Never throws — a refusal
+ * comes back as `{ ok: false, error }` and is never a partial write.
+ * `clients:create` takes { code, nameEn, nameAr }; `clients:rename` and
+ * `clients:set-active` cannot change a code, and no other channel can either.
+ * @typedef {Object} ClientWriteResult
+ * @property {boolean} ok
+ * @property {string} [error]           Human-readable refusal, shown via toast().
+ * @property {ClientListItem} [client]  The written row, on success.
  */
 
 /**

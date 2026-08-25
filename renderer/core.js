@@ -66,6 +66,7 @@ const ICONS = {
   "eye": "<path d=\"M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0\" /><circle cx=\"12\" cy=\"12\" r=\"3\" />",
   "circle": "<circle cx=\"12\" cy=\"12\" r=\"10\" />",
   "ban": "<circle cx=\"12\" cy=\"12\" r=\"10\" /><path d=\"m4.9 4.9 14.2 14.2\" />",
+  "lock": "<rect width=\"18\" height=\"11\" x=\"3\" y=\"11\" rx=\"2\" ry=\"2\" /><path d=\"M7 11V7a5 5 0 0 1 10 0v4\" />",
   "briefcase": "<path d=\"M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16\" /><rect width=\"20\" height=\"14\" x=\"2\" y=\"6\" rx=\"2\" />",
   "activity": "<path d=\"M22 12h-4l-3 9L9 3l-3 9H2\" />",
   "calendar-range": "<path d=\"M8 2v4\" /><path d=\"M16 2v4\" /><rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\" /><path d=\"M3 10h18\" /><path d=\"M17 14h-6\" /><path d=\"M13 18H7\" /><path d=\"M7 14h.01\" /><path d=\"M17 18h.01\" />",
@@ -567,6 +568,15 @@ function showTableSkeleton(tbody, colSpan, rows = 3) {
 function esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// The window title is OS chrome, so the i18n MutationObserver never sees it —
+// every setTitle call goes through here instead. "Office ONE" is a Latin brand
+// in both languages; only the page name is translated. `detail` is record data
+// (a date, a project name) and is passed through untouched.
+function setAppTitle(pageName, detail) {
+  const name = window.ctI18n?.t?.(pageName) || pageName;
+  window.api.setTitle('Office ONE — ' + name + (detail ? ' — ' + detail : ''));
+}
 function isURL(s) {
   return /^https?:\/\//i.test(s || '');
 }
@@ -1056,7 +1066,11 @@ function buildTaskSearchSelect(host, tasks, initialId, placeholder, onChange) {
 // The tabs edit a working copy of the catalog (lookupsDraft, keyed by category).
 // Existing entries are relabeled / reordered / soft-disabled in place; new entries
 // get a server-generated stable code on save. Codes are never edited or deleted.
-const SETTINGS_TABS = SETTINGS_CATALOG_TABS.map(t => t.key);
+// Only the categories that actually have a Settings panel. COMPANY is in the
+// registry (LK_CAT and the merge list still need it) but is managed on the
+// Clients page, so it is filtered out here — which also keeps it out of
+// saveSettings()'s payload, since that iterates this list.
+const SETTINGS_TABS = SETTINGS_CATALOG_TABS.filter(t => t.settingsTab !== false).map(t => t.key);
 
 // Settings is a nav page (not a modal): switchModule('settings') calls this to
 // (re)load a working copy of the catalog and render the editors fresh each visit.
@@ -1234,15 +1248,16 @@ function openUserEditor(id = null) {
   active.checked = creating || !!user?.isActive;
   active.disabled = isSelf;
   document.querySelectorAll('#user-editor .user-admin-control').forEach(el => { el.hidden = false; });
-  // An admin resetting someone ELSE's password or changing their role/status
-  // must re-prove it's really them at the keyboard, not just that an admin
-  // session happens to still be open — reuses this same field, relabeled.
+  // Acting on someone ELSE's password or active status means re-proving it's
+  // really you at the keyboard, not just that a session happens to still be
+  // open — reuses this same field, relabeled. With roles retired this is the
+  // only thing standing between an unattended session and another account.
   const showCurrentPassword = isSelf || !creating;
   document.getElementById('user-current-password-field').hidden = !showCurrentPassword;
-  document.getElementById('user-current-password-label').textContent = isSelf ? 'Current password' : 'Your admin password';
+  document.getElementById('user-current-password-label').textContent = isSelf ? 'Current password' : 'Your password';
   document.getElementById('user-current-password-hint').textContent = isSelf
     ? 'Required only when changing your own password.'
-    : 'Required to reset this user’s password or change their role or status.';
+    : 'Required to reset this user’s password or change their active status.';
   document.getElementById('user-edit-password-label').textContent = creating ? 'Temporary password' : 'New password (optional)';
   ['user-edit-current-password', 'user-edit-password', 'user-edit-confirm'].forEach(key => { document.getElementById(key).value = ''; });
   document.getElementById('user-form-status').textContent = '';
@@ -1327,13 +1342,20 @@ async function saveManagedUser() {
   toast(creating ? 'User created' : 'User updated');
 }
 
+// ══ BACKUP DATA TAB ═══════════════════════════════════════════════════════════
+// Full backup/restore, the database-only export the sidebar button used to own,
+// and the rotating snapshot list. Rendered fresh on every visit, since the
+// snapshot set changes on each launch.
+function renderBackupTab() {
+  refreshMaintenanceBackups();
+}
+
 // ══ MAINTENANCE TAB (Milestone 6) ═════════════════════════════════════════════
-// Backup list + restore, integrity check, lookup-duplicate audit + merge, and
+// Integrity check, recovery-readiness audit, lookup-duplicate audit + merge, and
 // the most recent boot's orphan-file sweep report — all previously invisible.
-// Rendered fresh each time the tab is switched to (not cached), since backups/
+// Rendered fresh each time the tab is switched to (not cached), since
 // duplicates can change between visits.
 function renderMaintenanceTab() {
-  refreshMaintenanceBackups();
   document.getElementById('maint-integrity-result').innerHTML = '';
   document.getElementById('maint-diagnostics-result').innerHTML = '';
   document.getElementById('maint-duplicates-list').innerHTML = '';
@@ -1534,6 +1556,8 @@ function switchTab(btn) {
   document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
   syncSettingsSaveButton(btn.dataset.tab);
   syncControlSemantics(document.getElementById('module-settings'));
+  if (btn.dataset.tab === 'backup') renderBackupTab();
+  if (btn.dataset.tab === 'finance') renderFinanceSetupTab();
   if (btn.dataset.tab === 'maintenance') renderMaintenanceTab();
   if (btn.dataset.tab === 'users') renderUserManagement();
   uiState.filters.settings = { tab: btn.dataset.tab };
@@ -1543,7 +1567,10 @@ function switchTab(btn) {
 function syncSettingsSaveButton(tab) {
   const btn = document.getElementById('settings-save-btn');
   if (!btn) return;
-  btn.hidden = tab === 'maintenance' || tab === 'general' || tab === 'users';
+  // Finance is excluded for the same reason Backup and Maintenance are: its
+  // panel carries its own Save Catalog button, over a different catalog table.
+  btn.hidden = tab === 'maintenance' || tab === 'backup' || tab === 'finance'
+    || tab === 'general' || tab === 'users';
   btn.textContent = 'Save Catalog Changes';
   document.getElementById('settings-save-status').textContent = '';
   const discardBtn = document.getElementById('settings-discard-btn');
@@ -1581,10 +1608,12 @@ const SETTINGS_SEARCH_INDEX = [
   { tab: 'general', selector: '#tab-general button[data-onclick="openHowThinksOverlay()"]', terms: 'how this app thinks help guide explainer onboarding' },
   { tab: 'users', selector: '#user-add-btn', terms: 'add user new user create account invite' },
   { tab: 'users', selector: '#user-list', terms: 'users accounts password permissions role administrator standard' },
-  { tab: 'maintenance', selector: '#maint-fullbackup-btn', terms: 'backup full backup desktop everything export' },
-  { tab: 'maintenance', selector: '#maint-fullrestore-btn', terms: 'restore recovery full restore import' },
+  { tab: 'finance', selector: '#finance-setup-host', terms: 'finance catalog contract status change request status invoice status payment method' },
+  { tab: 'backup', selector: '#maint-fullbackup-btn', terms: 'backup full backup desktop everything export' },
+  { tab: 'backup', selector: '#maint-fullrestore-btn', terms: 'restore recovery full restore import' },
+  { tab: 'backup', selector: '#backup-dbonly-btn', terms: 'database only copy sqlite save file' },
+  { tab: 'backup', selector: 'button[data-onclick="refreshMaintenanceBackups()"]', terms: 'backups rotating snapshots refresh' },
   { tab: 'maintenance', selector: 'button[data-onclick="runSystemDiagnostics()"]', terms: 'diagnostics audit readiness recovery checks health' },
-  { tab: 'maintenance', selector: 'button[data-onclick="refreshMaintenanceBackups()"]', terms: 'backups rotating snapshots refresh' },
   { tab: 'maintenance', selector: 'button[data-onclick="runMaintenanceIntegrityCheck()"]', terms: 'integrity check corruption database' },
   { tab: 'maintenance', selector: 'button[data-onclick="runMaintenanceLookupScan()"]', terms: 'duplicates merge lookup scan dedupe' },
   { tab: 'maintenance', selector: '#maint-orphan-report', terms: 'orphan file sweep cleanup leftover' },
@@ -1652,7 +1681,6 @@ function renderLookupPanel(uiKey) {
   const panel = document.getElementById('tab-' + uiKey);
   panel.innerHTML = '';
   const arr = lookupsDraft[category] || (lookupsDraft[category] = []);
-  if (category === 'COMPANY') { renderCompanyProfilePanel(panel, arr); return; }
 
   const intro = document.createElement('p');
   intro.className = 'general-hint lookup-bilingual-intro';
@@ -1714,46 +1742,3 @@ function renderLookupPanel(uiKey) {
   panel.appendChild(addBtn);
 }
 
-function renderCompanyProfilePanel(panel, arr) {
-  const intro = document.createElement('p');
-  intro.className = 'general-hint client-profile-intro';
-  intro.textContent = 'Each client profile has a unique business code plus English and Arabic names. Tasks, projects, and infrastructure stay linked when these values change.';
-  panel.appendChild(intro);
-
-  const list = document.createElement('div');
-  list.className = 'lookup-list client-profile-list';
-  const redraw = () => renderLookupPanel('companies');
-  arr.forEach((opt, i) => {
-    const item = document.createElement('div');
-    item.className = 'lookup-item client-profile-item' + (opt.isActive === false ? ' lookup-item-inactive' : '');
-    const field = (label, value, placeholder, onInput, className = '') => {
-      const wrap = document.createElement('label'); wrap.className = 'client-profile-field ' + className;
-      const caption = document.createElement('span'); caption.textContent = label; wrap.appendChild(caption);
-      const input = document.createElement('input'); input.type = 'text'; input.value = value || ''; input.placeholder = placeholder;
-      input.addEventListener('input', e => { onInput(e.target.value); markSettingsDirty(); }); wrap.appendChild(input); return wrap;
-    };
-    item.appendChild(field('Company Code', opt.code, 'e.g. ACME or 105', v => { opt.code = v.toUpperCase().replace(/\s+/g, '_'); }, 'client-code-field'));
-    item.appendChild(field('English Name', opt.nameEn || opt.label, 'English company name', v => { opt.nameEn = v; opt.label = v; }));
-    const arField = field('Arabic Name', opt.nameAr, 'اسم الشركة بالعربية', v => { opt.nameAr = v; });
-    arField.querySelector('input').dir = 'rtl'; item.appendChild(arField);
-
-    item.appendChild(buildReorderControls(arr, i, redraw));
-
-    const del = document.createElement('button'); del.type = 'button'; del.className = 'lookup-item-del';
-    del.innerHTML = opt.isActive === false ? ic('rotate-ccw') : ic('x');
-    del.title = opt.id == null ? 'Remove' : (opt.isActive === false ? 'Re-enable' : 'Disable (hide from dropdowns)');
-    del.addEventListener('click', () => { if (opt.id == null) arr.splice(i, 1); else opt.isActive = opt.isActive === false; markSettingsDirty(); redraw(); });
-    item.appendChild(del); list.appendChild(item);
-  });
-  panel.appendChild(list);
-
-  const addBtn = document.createElement('button'); addBtn.type = 'button'; addBtn.className = 'btn';
-  addBtn.innerHTML = ic('plus') + ' Add Client Profile';
-  addBtn.addEventListener('click', () => {
-    arr.push({ id: null, code: '', label: '', nameEn: '', nameAr: '', sortOrder: arr.length, isActive: true });
-    markSettingsDirty();
-    redraw();
-    panel.querySelector('.client-profile-item:last-child input')?.focus();
-  });
-  panel.appendChild(addBtn);
-}

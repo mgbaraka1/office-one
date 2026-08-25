@@ -478,8 +478,15 @@ ipcMain.handle('knowledge:purge-attachment', authed((_e, itemId, relPath) => db.
 ipcMain.handle('knowledge:purge-files', authed((_e, itemId) => db.purgeKnowledgeFiles(auth.requireUserId(), itemId)));
 
 // ── Clients (Auth + Server Information + Databases per COMPANY lookup) ──
-ipcMain.handle('clients:list', authed(()               => db.listClients(auth.requireUserId())));
+ipcMain.handle('clients:list', authed((_e, includeArchived) => db.listClients(auth.requireUserId(), includeArchived)));
 ipcMain.handle('clients:get',  authed((_e, companyId)  => db.getClient(auth.requireUserId(), companyId)));
+// The client roster IS the COMPANY lookup catalog, so these four write to the
+// shared, global lookup_codes table. Ungated like every other catalog write —
+// the safeguard is attribution (lookup_code_history), not permission.
+ipcMain.handle('clients:create',     authed((_e, data)       => db.createClient(auth.requireUserId(), data)));
+ipcMain.handle('clients:rename',     authed((_e, id, data)   => db.renameClient(auth.requireUserId(), id, data)));
+ipcMain.handle('clients:set-active', authed((_e, id, active) => db.setClientActive(auth.requireUserId(), id, active)));
+ipcMain.handle('clients:reorder',    authed((_e, ids)        => db.reorderClients(auth.requireUserId(), ids)));
 ipcMain.handle('clients:vpn-create', authed((_e, companyId, data) => db.createClientVpn(auth.requireUserId(), companyId, data)));
 ipcMain.handle('clients:vpn-update', authed((_e, id, data)        => db.updateClientVpn(auth.requireUserId(), id, data)));
 ipcMain.handle('clients:vpn-delete', authed((_e, id)              => db.deleteClientVpn(auth.requireUserId(), id)));

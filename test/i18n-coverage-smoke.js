@@ -26,7 +26,7 @@ for (const match of html.matchAll(/(?:title|placeholder|aria-label)="([^"]+)"/g)
   if (/[A-Za-z]/.test(value) && !neutral.test(value) && !keys.has(value)) failures.push(`index attribute: ${value}`);
 }
 
-const dynamic = /^(?:Could not |Browse all work for |Open |Remove filter |Remove tag |Moved to |Session logged to |History — |Role: |Credential location: |Type "|Tasks \(|Client Tasks \(|Internal Tasks \(|Sessions \(|Documents \(|PDF failed: |Full backup failed: |Full restore stopped: |Updated |Overdue — |Renews |Expires |in “|Go to invoice )/;
+const dynamic = /^(?:Could not |Browse all work for |Open |Remove filter |Remove tag |Moved to |Session logged to |History — |Role: |Credential location: |Type "|Tasks \(|Client Tasks \(|Internal Tasks \(|Sessions \(|Documents \(|PDF failed: |Full backup failed: |Backup failed: |Full restore stopped: |Updated |Overdue — |Renews |Expires |in “|Go to invoice )/;
 const files = [path.join(root, 'renderer', 'core.js'), ...fs.readdirSync(path.join(root, 'renderer', 'features'))
   .filter(name => name.endsWith('.js')).map(name => path.join(root, 'renderer', 'features', name))];
 const patterns = [

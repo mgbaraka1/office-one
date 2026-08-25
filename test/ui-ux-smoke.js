@@ -179,6 +179,50 @@ gate('account controls live on a dedicated User Management page',
   && !html.includes('<h3>Account Security</h3>')
   && !html.includes('<h3>Add Account</h3>'));
 gate('Analytics offers accessible data tables and labelled SVG charts', html.includes('class="an-data-details"') && html.includes('role="img" aria-label="Daily hours trend'));
+
+// Finance stopped being a module (FINANCE_INTEGRATION_PLAN.md §13): its records
+// are client records and render on the client that owns them. These gates are
+// what stops a standalone Finance page growing back — the module container, the
+// client-card list view and the palette entry must all stay gone, and the three
+// surfaces that replaced them must stay wired.
+const financeJs = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'features', 'finance.js'), 'utf8');
+const indexHtml = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const shellJs = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'features', 'shell.js'), 'utf8');
+const clientsJs = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'features', 'clients.js'), 'utf8');
+gate('there is no Finance page to navigate to',
+  !indexHtml.includes('id="module-finance"')
+  && !indexHtml.includes('id="finance-list-view"')
+  && !indexHtml.includes('id="finance-clients-grid"')
+  && !/label: 'Finance',\s*go: 'finance'/.test(shellJs)
+  && html.includes("if (name === 'finance') name = 'clients';"));
+gate('Finance renders on the client that owns the records',
+  clientsJs.includes("{ key: 'finance',   label: 'Finance' },")
+  && clientsJs.includes("{ key: 'meetings',  label: 'Meetings' },")
+  && clientsJs.includes('renderClientFinanceWorkspace(host)')
+  && clientsJs.includes('renderClientMeetingsWorkspace(host)')
+  && financeJs.includes("sectionsHost.id = 'finance-detail-sections'")
+  && financeJs.includes("sectionsHost.id = 'finance-meetings-sections'"));
+// The tab counts must be written in place, not by rebuilding the toolbar: the
+// Finance count arrives asynchronously, and rebuilding would steal focus from
+// the search input beside it. Its absence is why Finance once read "(0)".
+gate('client tab counts are refreshed in place after Finance loads',
+  clientsJs.includes('function updateClientDetailTabCounts()')
+  && clientsJs.includes('function renderClientDetailAfterFinanceChange()')
+  && financeJs.includes('function refreshFinanceHostPage()'));
+gate("Finance's catalog editor moved into app Settings",
+  indexHtml.includes('data-tab="finance"')
+  && indexHtml.includes('id="finance-setup-host"')
+  && html.includes("if (btn.dataset.tab === 'finance') renderFinanceSetupTab();")
+  && html.includes("tab === 'finance'")
+  && !financeJs.includes("{ key: 'setup',"));
+// Deep links carry a Finance client id; the page that shows the record is keyed
+// by company. Nothing may navigate to a Finance module that no longer exists.
+gate('Finance deep links resolve to the owning client',
+  financeJs.includes('async function openClientFinance(companyId, subTab)')
+  && financeJs.includes('async function openFinanceRecordByClientId(financeClientId, subTab)')
+  && shellJs.includes('openFinanceRecordByClientId(clientId, tab)')
+  && !html.includes("switchModule('finance')")
+  && !financeJs.includes("switchModule('finance')"));
 // The admin/role concept was removed (FINANCE_INTEGRATION_PLAN.md §9): any
 // authenticated account may perform any action, and shared-data changes are
 // attributed rather than gated. This gate is what stops a role check quietly

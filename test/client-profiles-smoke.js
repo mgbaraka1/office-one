@@ -49,27 +49,43 @@ try {
     system: '', source: '',
   });
   const originalId = created.id;
+
+  // A company code is WRITE-ONCE. saveLookups used to run a COMPANY-specific
+  // UPDATE that included `code`, so an existing client's business code could be
+  // rewritten after the fact. It no longer can: no update path in db.js touches
+  // lookup_codes.code for any category. A caller that sends a changed code is
+  // not an error — the field is simply ignored, while the names still save.
   db.saveLookups(user.id, { categories: { COMPANY: [{
     ...created, code: 'CLIENT_047_RENAMED', label: 'Renamed Client',
     nameEn: 'Renamed Client', nameAr: 'العميل بعد التعديل',
   }] } });
 
   const updated = db.getTask(user.id, task.id);
-  check('code/name edits preserve the task relationship',
-    updated.companyCode === 'CLIENT_047_RENAMED'
+  check('a name edit reaches the linked task, and the code does not change',
+    updated.companyCode === 'CLIENT_047_TEST'
       && updated.companyNameEn === 'Renamed Client'
       && updated.companyNameAr === 'العميل بعد التعديل',
-    `task=${task.id}, companyId=${originalId}`);
+    `task=${task.id}, companyId=${originalId}, code=${updated.companyCode}`);
   const client = db.listClients(user.id).find(c => c.id === originalId);
-  check('Clients exposes code plus both names',
-    client?.code === 'CLIENT_047_RENAMED'
+  check('Clients exposes the unchanged code plus both names',
+    client?.code === 'CLIENT_047_TEST'
       && client?.nameEn === 'Renamed Client'
       && client?.nameAr === 'العميل بعد التعديل');
+
+  // The same guarantee through the Clients page's own rename channel, which
+  // does not even accept a code — passing one must have no effect.
+  const renamed = db.renameClient(user.id, originalId, {
+    nameEn: 'Renamed Again', nameAr: 'مرة أخرى', code: 'CLIENT_047_HIJACK',
+  });
+  check('renameClient updates both names', renamed.ok
+    && renamed.client.nameEn === 'Renamed Again' && renamed.client.nameAr === 'مرة أخرى');
+  check('renameClient cannot change the company code',
+    renamed.client.code === 'CLIENT_047_TEST', `code=${renamed.client?.code}`);
 
   let duplicateRejected = false;
   try {
     db.saveLookups(user.id, { categories: { COMPANY: [{
-      code: 'CLIENT_047_RENAMED', label: 'Duplicate Code', nameEn: 'Duplicate Code',
+      code: 'CLIENT_047_TEST', label: 'Duplicate Code', nameEn: 'Duplicate Code',
       nameAr: '', isActive: true,
     }] } });
   } catch (error) {

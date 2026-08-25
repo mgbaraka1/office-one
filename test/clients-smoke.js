@@ -132,6 +132,105 @@ try {
   const bogusClient = db.getClient(userId, 999999999);
   record('getClient: rejects a non-COMPANY id (no standalone clients table)', bogusClient === null, String(bogusClient));
 
+  // ── Roster CRUD (the Clients page owns the COMPANY catalog) ─────────────────
+  // Settings has no Companies tab: creating, renaming, archiving and reordering
+  // a client all run through these four. Every one returns { ok, ... } instead
+  // of throwing, so a refusal is never a partial write.
+  const stamp = Date.now();
+  const newCode = 'ROSTER_' + stamp;
+  const created = db.createClient(userId, { code: newCode, nameEn: 'Roster Smoke ' + stamp, nameAr: 'عميل الاختبار' });
+  record('createClient: creates an active client with both names',
+    created.ok && created.client.code === newCode
+      && created.client.nameEn === 'Roster Smoke ' + stamp
+      && created.client.nameAr === 'عميل الاختبار'
+      && created.client.isActive === true,
+    JSON.stringify(created));
+  const newClientId = created.client?.id;
+
+  record('createClient: the new client is immediately a Client in the roster',
+    db.listClients(userId).some(c => c.id === newClientId));
+
+  // Refusals. Each must leave the catalog exactly as it was.
+  const countBeforeRefusals = db.getLookupsByCategory('COMPANY', true).length;
+  const badCode = db.createClient(userId, { code: 'has spaces!', nameEn: 'Bad Code ' + stamp });
+  record('createClient: rejects a malformed company code', badCode.ok === false && !!badCode.error, badCode.error);
+  const dupCode = db.createClient(userId, { code: newCode, nameEn: 'Different Name ' + stamp });
+  record('createClient: rejects a duplicate company code',
+    dupCode.ok === false && /already in use/i.test(dupCode.error || ''), dupCode.error);
+  const dupCodeCase = db.createClient(userId, { code: newCode.toLowerCase(), nameEn: 'Case Clash ' + stamp });
+  record('createClient: duplicate code detection is case-insensitive',
+    dupCodeCase.ok === false && /already in use/i.test(dupCodeCase.error || ''), dupCodeCase.error);
+  const blankName = db.createClient(userId, { code: 'BLANK_' + stamp, nameEn: '   ' });
+  record('createClient: rejects a blank English name', blankName.ok === false && !!blankName.error, blankName.error);
+  const dupLabel = db.createClient(userId, { code: 'OTHER_' + stamp, nameEn: 'ROSTER SMOKE ' + stamp });
+  record('createClient: rejects a case-insensitively colliding name',
+    dupLabel.ok === false && /already exists/i.test(dupLabel.error || ''), dupLabel.error);
+  record('createClient: every refusal left the catalog unchanged',
+    db.getLookupsByCategory('COMPANY', true).length === countBeforeRefusals);
+
+  // Rename: names change, code never does — the point of the whole exercise.
+  const renamed = db.renameClient(userId, newClientId, { nameEn: 'Roster Renamed ' + stamp, nameAr: 'الاسم الجديد' });
+  record('renameClient: updates both names and leaves the code alone',
+    renamed.ok && renamed.client.nameEn === 'Roster Renamed ' + stamp
+      && renamed.client.nameAr === 'الاسم الجديد' && renamed.client.code === newCode,
+    JSON.stringify(renamed.client));
+  const renameBlank = db.renameClient(userId, newClientId, { nameEn: '' });
+  record('renameClient: rejects a blank English name', renameBlank.ok === false, renameBlank.error);
+  const renameUnknown = db.renameClient(userId, 999999999, { nameEn: 'Nope' });
+  record('renameClient: rejects a non-COMPANY id', renameUnknown.ok === false, renameUnknown.error);
+
+  // Archive / restore round trip. Archiving is a soft-disable, so the row is
+  // still there — it just leaves the default roster and the company dropdowns.
+  const archived = db.setClientActive(userId, newClientId, false);
+  record('setClientActive: archiving hides the client from the default roster',
+    archived.ok && !db.listClients(userId).some(c => c.id === newClientId));
+  record('setClientActive: an archived client still exists, via includeArchived',
+    db.listClients(userId, true).some(c => c.id === newClientId && c.isActive === false));
+  record('getClient: reports an archived client as inactive but still returns it',
+    db.getClient(userId, newClientId)?.isActive === false);
+  const restored = db.setClientActive(userId, newClientId, true);
+  record('setClientActive: restoring puts the client back in the roster',
+    restored.ok && db.listClients(userId).some(c => c.id === newClientId));
+
+  // Reorder decides the order of every company dropdown in the app.
+  const rosterIds = db.listClients(userId).map(c => c.id);
+  if (rosterIds.length >= 2) {
+    const reversed = rosterIds.slice().reverse();
+    const reorder = db.reorderClients(userId, reversed);
+    record('reorderClients: the roster comes back in the requested order',
+      reorder.ok && JSON.stringify(db.listClients(userId).map(c => c.id)) === JSON.stringify(reversed),
+      JSON.stringify(db.listClients(userId).map(c => c.id)));
+    // A stale list from an open tab must not be able to wedge the catalog.
+    const withJunk = db.reorderClients(userId, [999999999, ...rosterIds]);
+    record('reorderClients: skips ids that are not COMPANY rows',
+      withJunk.ok && JSON.stringify(db.listClients(userId).map(c => c.id)) === JSON.stringify(rosterIds));
+
+    // Arranging happens with archived clients hidden, so a reorder that names
+    // only the visible rows must not disturb where the hidden ones sit — it
+    // reuses the named rows' own sort_order slots instead of renumbering 0..n.
+    db.setClientActive(userId, newClientId, false);
+    const hiddenSortBefore = db.getLookupsByCategory('COMPANY', true)
+      .find(c => c.id === newClientId)?.sortOrder;
+    const visibleIds = db.listClients(userId).map(c => c.id);
+    db.reorderClients(userId, visibleIds.slice().reverse());
+    const hiddenSortAfter = db.getLookupsByCategory('COMPANY', true)
+      .find(c => c.id === newClientId)?.sortOrder;
+    record('reorderClients: leaves an archived client\'s position untouched',
+      hiddenSortBefore === hiddenSortAfter, `before=${hiddenSortBefore} after=${hiddenSortAfter}`);
+    record('reorderClients: still reorders the visible rows it was given',
+      JSON.stringify(db.listClients(userId).map(c => c.id)) === JSON.stringify(visibleIds.slice().reverse()));
+    db.setClientActive(userId, newClientId, true);
+  } else {
+    record('reorderClients: skipped (fewer than two clients in this DB)', true, '');
+  }
+  record('reorderClients: rejects a non-array order', db.reorderClients(userId, 'nope').ok === false);
+
+  // The code column must be unreachable by every update path, not just by the
+  // ones that decline to offer it.
+  const codeAfterEverything = db.listClients(userId, true).find(c => c.id === newClientId)?.code;
+  record('a company code survives rename, archive, restore and reorder untouched',
+    codeAfterEverything === newCode, `code=${codeAfterEverything}`);
+
   // ── VPN CRUD ─────────────────────────────────────────────────────────────────
   const vpn = db.createClientVpn(userId, companyA, {
     connectionName: 'HQ Site-to-Site', vpnType: 'WireGuard', endpoint: 'vpn.acme.com',

@@ -22,7 +22,7 @@ const PAL_PAGES = [
   { icon: 'list',             label: 'Client Tasks',   go: 'all-tasks' },
   { icon: 'building',         label: 'Internal Work',  go: 'internal-tasks' },
   { icon: 'layers',           label: 'Clients',       go: 'clients' },
-  { icon: 'credit-card',      label: 'Finance',       go: 'finance' },
+
   { icon: 'credit-card',      label: 'Subscriptions', go: 'subscriptions' },
   { icon: 'calendar-check',   label: 'Company Documents', go: 'companydocs' },
   { icon: 'book-open',        label: 'Knowledge Hub', go: 'knowledge' },
@@ -38,7 +38,11 @@ const PAL_PAGES = [
 const PAL_SETTINGS_TABS = [
   { key: 'general', label: 'General' },
   { key: 'users', label: 'User Management' },
-  ...SETTINGS_CATALOG_TABS.map(t => ({ key: t.key, label: t.label })),
+  // settingsTab: false entries have no panel to jump to (COMPANY is managed on
+  // the Clients page), so the palette must not offer them.
+  ...SETTINGS_CATALOG_TABS.filter(t => t.settingsTab !== false).map(t => ({ key: t.key, label: t.label })),
+  { key: 'backup', label: 'Backup Data' },
+  { key: 'finance', label: 'Finance' },
   { key: 'maintenance', label: 'Maintenance' },
 ];
 
@@ -232,14 +236,14 @@ function renderPalette() {
         } else if (result.kind.startsWith('finance-')) {
           // Same composite entity_id convention as the client-* kinds
           // (migration 049), but the leading id is Finance's own client id,
-          // not a COMPANY lookup id — the two id spaces are unrelated.
+          // not a COMPANY lookup id — the two id spaces are unrelated, so
+          // openFinanceRecordByClientId resolves one to the other before
+          // walking to the client page that now owns the record.
           const clientId = Number(String(result.id).split(':', 1)[0]);
           if (Number.isInteger(clientId) && clientId > 0) {
-            switchModule('finance');
-            await openFinanceClientDetail(clientId);
             const tab = { 'finance-contract': 'contracts', 'finance-cr': 'crs',
-              'finance-invoice': 'invoices', 'finance-meeting': 'minutes' }[result.kind];
-            if (tab) setFinanceDetailTab(tab);
+              'finance-invoice': 'invoices', 'finance-meeting': 'meetings' }[result.kind];
+            await openFinanceRecordByClientId(clientId, tab);
           }
         }
       },
@@ -361,7 +365,6 @@ async function init() {
   calYear  = t.getFullYear();
   calMonth = t.getMonth();
 
-  renderBackupChoiceMenu();
   await loadUiStateFromMain();
   await loadKnowledgeDraftFromMain();
   await loadUserPreferencesFromMain();
