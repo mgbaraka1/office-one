@@ -82,6 +82,59 @@ try {
   const afterClean = db.getLookupsByCategory('ENTRY_STATUS', true).find(item => item.id === target.id);
   check('a normal edit is actually persisted', afterClean.nameEn === 'Reopened');
 
+// ── Catalog audit trail (migration 058) ─────────────────────────────────────
+// lookup_codes had no history of any kind. That was survivable while the
+// catalog editor was administrator-only; it is not, now that the admin concept
+// is gone and any account can rename a company — a rename that propagates to
+// every task, project, report and invoice referencing it.
+try {
+  const histUser = user.id;
+  const second = db.createUser('hist-second', 'x', false);
+
+  db.saveLookups(histUser, { categories: { COMPANY: [
+    ...db.getLookupsByCategory('COMPANY', true).map(r => ({ ...r })),
+    { code: 'AUDITCO', label: 'Audit Co', nameEn: 'Audit Co', nameAr: '', isActive: true },
+  ] } });
+  const created = db.getLookupsByCategory('COMPANY', true).find(r => r.code === 'AUDITCO');
+  const afterCreate = db.getLookupCodeHistory(created.id);
+  check('a newly added catalog value is recorded',
+    afterCreate.some(h => h.fieldName === 'English Name' && h.newValue === 'Audit Co'),
+    JSON.stringify(afterCreate.map(h => h.fieldName)));
+
+  // A rename by a DIFFERENT account — attribution is the whole point.
+  db.saveLookups(second, { categories: { COMPANY: db.getLookupsByCategory('COMPANY', true)
+    .map(r => (r.id === created.id ? { ...r, nameEn: 'Audit Company', label: 'Audit Company' } : { ...r })) } });
+  const afterRename = db.getLookupCodeHistory(created.id);
+  const renameRow = afterRename.find(h => h.fieldName === 'English Name' && h.newValue === 'Audit Company');
+  check('a rename records old value, new value and the acting account',
+    !!renameRow && renameRow.oldValue === 'Audit Co' && !!renameRow.changedBy,
+    JSON.stringify(renameRow));
+  check('history spans accounts rather than being user-scoped',
+    new Set(afterRename.map(h => h.changedBy)).size >= 2,
+    JSON.stringify([...new Set(afterRename.map(h => h.changedBy))]));
+
+  // Soft-disable is the app's stand-in for deletion, so it must be auditable.
+  db.saveLookups(histUser, { categories: { COMPANY: db.getLookupsByCategory('COMPANY', true)
+    .map(r => (r.id === created.id ? { ...r, isActive: false } : { ...r })) } });
+  const afterDisable = db.getLookupCodeHistory(created.id);
+  check('a soft-disable is recorded as an Active change',
+    afterDisable.some(h => h.fieldName === 'Active' && h.oldValue === 'Yes' && h.newValue === 'No'),
+    JSON.stringify(afterDisable.filter(h => h.fieldName === 'Active')));
+
+  // Reordering is presentation, not meaning — it must not spam the audit log.
+  const beforeReorder = db.getLookupCodeHistory(created.id).length;
+  db.saveLookups(histUser, { categories: { COMPANY: db.getLookupsByCategory('COMPANY', true)
+    .map((r, i) => ({ ...r, sortOrder: 100 - i })) } });
+  check('reordering the catalog writes no history rows',
+    db.getLookupCodeHistory(created.id).length === beforeReorder,
+    beforeReorder + ' -> ' + db.getLookupCodeHistory(created.id).length);
+
+  check('newest change comes first',
+    afterDisable.length > 1 && afterDisable[0].changedAt >= afterDisable[afterDisable.length - 1].changedAt);
+} catch (error) {
+  check('catalog audit trail', false, String(error && error.message));
+}
+
   db.close();
 } catch (error) {
   console.error(error);

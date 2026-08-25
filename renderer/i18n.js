@@ -182,6 +182,8 @@
     'Link an Existing Task': 'ربط مهمة موجودة', 'Merge Task': 'دمج المهمة',
     'Move every session from': 'نقل جميع الجلسات من', 'Merge into': 'الدمج في',
     'Find a setting': 'البحث عن إعداد', 'Required only when changing your own password.': 'مطلوبة فقط عند تغيير كلمة مرورك.',
+    'Required when changing your own password, or when changing another account.':
+      'مطلوبة عند تغيير كلمة مرورك، أو عند تغيير حساب آخر.',
     'Moving to another PC or Windows account?': 'هل تنتقل إلى جهاز أو حساب Windows آخر؟',
     'Choose how much information fits on screen.': 'اختر مقدار المعلومات التي تظهر على الشاشة.',
     'Scan more at once': 'عرض المزيد في وقت واحد', 'Everyday comfort': 'راحة يومية', 'More breathing room': 'مساحة أوسع',

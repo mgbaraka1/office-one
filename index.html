@@ -2173,20 +2173,13 @@
             </div>
             <p class="general-hint full">Shown as your greeting name in the app, in whichever language is active — falls back to your username if left blank.</p>
             <div class="general-field user-admin-control">
-              <label for="user-edit-role">Permissions</label>
-              <select id="user-edit-role">
-                <option value="standard">Standard User — own data and preferences</option>
-                <option value="admin">Administrator — full settings, backup and user access</option>
-              </select>
-            </div>
-            <div class="general-field user-admin-control">
               <label>Account status</label>
               <label class="user-check"><input id="user-edit-active" type="checkbox" /> Active — can sign in</label>
             </div>
             <div class="general-field full" id="user-current-password-field">
               <label for="user-edit-current-password" id="user-current-password-label">Current password</label>
               <input id="user-edit-current-password" type="password" autocomplete="current-password" />
-              <span class="general-hint" id="user-current-password-hint">Required only when changing your own password.</span>
+              <span class="general-hint" id="user-current-password-hint">Required when changing your own password, or when changing another account.</span>
             </div>
             <div class="general-field">
               <label for="user-edit-password" id="user-edit-password-label">New password</label>

@@ -167,7 +167,6 @@ function renderPalette() {
 
   // Settings tabs (jump straight to a lookup category editor)
   const settingsTabs = q ? PAL_SETTINGS_TABS
-    .filter(t => _currentUser?.isAdmin || t.key === 'general' || t.key === 'users')
     .filter(t => t.label.toLowerCase().includes(q) || ('settings ' + t.label.toLowerCase()).includes(q))
     .map(t => ({
       icon: 'settings', label: 'Settings — ' + t.label, hint: 'Go to',
@@ -530,7 +529,7 @@ async function submitAuth(e) {
 async function startApp(user) {
   _currentUser = user || null;
   const username = user?.username || '';
-  const role = user?.isAdmin ? 'Administrator' : 'Standard User';
+  const role = 'Account';
   const userCard = document.getElementById('sidebar-user');
   const usernameEl = document.getElementById('sidebar-username');
   if (usernameEl) { usernameEl.dataset.userContent = ''; usernameEl.textContent = username; usernameEl.title = username; }
@@ -552,9 +551,9 @@ async function startApp(user) {
       versionEl.textContent = version ? 'Office ONE\nversion ' + version : '';
     } catch { versionEl.textContent = ''; }
   }
-  document.querySelectorAll('.admin-only').forEach(el => { el.hidden = !user?.isAdmin; });
+  document.querySelectorAll('.admin-only').forEach(el => { el.hidden = false; });
   document.querySelectorAll('.settings-tabs .stab').forEach(el => {
-    if (el.dataset.tab !== 'general' && el.dataset.tab !== 'users') el.hidden = !user?.isAdmin;
+    el.hidden = false;
   });
   if (_appBooted) return;
   _appBooted = true;

@@ -103,13 +103,6 @@ function trusted(handler) {
   };
 }
 
-function admin(handler) {
-  return authed((event, ...args) => {
-    auth.requireAdmin();
-    return handler(event, ...args);
-  });
-}
-
 function assertTrustedSender(event) {
   if (!win || win.isDestroyed() || event.sender !== win.webContents) throw new Error('Untrusted IPC sender');
   const senderUrl = event.senderFrame?.url || event.sender.getURL();
@@ -212,7 +205,7 @@ ipcMain.handle('auth:logout', trusted(() => {
   return auth.logout();
 }));
 ipcMain.handle('auth:listUsers',   authed(()                            => auth.listUsers()));
-ipcMain.handle('auth:addUser',     admin((_e, username, pass, isAdmin, nameEn, nameAr) => auth.addUser(username, pass, isAdmin, nameEn, nameAr)));
+ipcMain.handle('auth:addUser',     authed((_e, username, pass, isAdmin, nameEn, nameAr) => auth.addUser(username, pass, isAdmin, nameEn, nameAr)));
 ipcMain.handle('auth:updateUser',  authed((_e, id, data)               => auth.updateUser(id, data)));
 
 // ── App metadata (read-only) ──
@@ -257,11 +250,13 @@ ipcMain.handle('activity:list', authed(() => {
 
 // ── Lookups (normalized catalog — shared app config) ──
 ipcMain.handle('lookups:get',         authed(()                              => db.loadLookups(auth.requireUserId())));
-ipcMain.handle('lookups:save', authed((_e, data) => {
-  const user = auth.currentUser();
-  if (data?.categories && !user?.isAdmin) throw new Error('Administrator access required');
-  return db.saveLookups(auth.requireUserId(), data);
-}));
+// Not user-scoped: the catalog is shared, so every account can see who changed it.
+ipcMain.handle('lookups:history',     authed((_e, lookupId)                  => db.getLookupCodeHistory(lookupId)));
+// Catalog edits used to require an administrator. The admin concept has been
+// removed: any authenticated account may edit the shared catalog, and the
+// safeguard is attribution instead — saveLookups() records every add, relabel,
+// reorder and soft-disable in lookup_code_history against the acting account.
+ipcMain.handle('lookups:save', authed((_e, data) => db.saveLookups(auth.requireUserId(), data)));
 
 // ── Subscriptions ──
 ipcMain.handle('subscriptions:list', authed(()         => db.loadSubscriptions(auth.requireUserId())));
@@ -646,7 +641,7 @@ ipcMain.handle('preferences:get', authed(() => db.getUserPreferences(auth.requir
 ipcMain.handle('preferences:set', authed((_e, key, value) => db.setUserPreference(auth.requireUserId(), key, value)));
 
 // ── Backup ──
-ipcMain.handle('db:backup', admin(async () => {
+ipcMain.handle('db:backup', authed(async () => {
   const stamp = new Date().toISOString().slice(0, 10);
   const { canceled, filePath } = await dialog.showSaveDialog(win, {
     title: 'Back up database',
@@ -659,34 +654,34 @@ ipcMain.handle('db:backup', admin(async () => {
 }));
 
 // ── Maintenance panel (Milestone 6) ──
-ipcMain.handle('maintenance:listBackups', admin(() => db.listBackups()));
+ipcMain.handle('maintenance:listBackups', authed(() => db.listBackups()));
 // The single riskiest handler in the app: replaces the live DB file, then
 // relaunches. db.restoreBackup() already validates the filename against the
 // real backups/ listing and takes a forced pre-restore backup before touching
 // anything; if it reports ok, the app MUST restart for a fresh
 // db.openConnection() to pick up the restored file — there is no safe way to
 // keep running against the connection that was just closed out from under it.
-ipcMain.handle('maintenance:restoreBackup', admin((_e, filename) => {
+ipcMain.handle('maintenance:restoreBackup', authed((_e, filename) => {
   const res = db.restoreBackup(filename);
   if (res.ok) { app.relaunch(); app.exit(0); }
   return res;
 }));
-ipcMain.handle('maintenance:integrityCheck', admin(() => db.checkIntegrity()));
-ipcMain.handle('maintenance:diagnostics', admin(() => db.getSystemDiagnostics()));
-ipcMain.handle('maintenance:lookupDuplicates', admin(() => db.findLookupDuplicates()));
-ipcMain.handle('maintenance:mergeLookups', admin((_e, category, targetId, sourceId) => db.mergeLookupDuplicate(category, targetId, sourceId)));
-ipcMain.handle('maintenance:orphanSweepReport', admin(() => db.getOrphanSweepReport()));
+ipcMain.handle('maintenance:integrityCheck', authed(() => db.checkIntegrity()));
+ipcMain.handle('maintenance:diagnostics', authed(() => db.getSystemDiagnostics()));
+ipcMain.handle('maintenance:lookupDuplicates', authed(() => db.findLookupDuplicates()));
+ipcMain.handle('maintenance:mergeLookups', authed((_e, category, targetId, sourceId) => db.mergeLookupDuplicate(category, targetId, sourceId)));
+ipcMain.handle('maintenance:orphanSweepReport', authed(() => db.getOrphanSweepReport()));
 
 // One-click Full Backup (Milestone 8) — captures the DB, projects/ and
 // company_documents/ and knowledge_hub/ file trees, and the rotating backups/ snapshots into a
 // single new timestamped folder on the Desktop. db.fullBackup() never imports
 // electron, so it's handed the resolved Desktop path here (same separation
 // configureCredentialEncryption() already established).
-ipcMain.handle('maintenance:fullBackup', admin(() => {
+ipcMain.handle('maintenance:fullBackup', authed(() => {
   try { return db.fullBackup(app.getPath('desktop')); }
   catch (err) { return { ok: false, error: String(err?.message || err) }; }
 }));
-ipcMain.handle('maintenance:selectFullBackup', admin(async () => {
+ipcMain.handle('maintenance:selectFullBackup', authed(async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog(win, {
     title: 'Choose a Office ONE full backup folder',
     properties: ['openDirectory'],
@@ -696,7 +691,7 @@ ipcMain.handle('maintenance:selectFullBackup', admin(async () => {
   selectedFullBackup = inspection.ok ? inspection.path : null;
   return inspection;
 }));
-ipcMain.handle('maintenance:restoreSelectedFullBackup', admin(() => {
+ipcMain.handle('maintenance:restoreSelectedFullBackup', authed(() => {
   if (!selectedFullBackup) return { ok: false, error: 'No validated full backup is selected' };
   const selected = selectedFullBackup;
   selectedFullBackup = null;
@@ -709,7 +704,7 @@ ipcMain.handle('maintenance:restoreSelectedFullBackup', admin(() => {
 // whose name matches one of the prefixes db.fullBackup()/db.inspectFullBackup()
 // themselves recognize (db.FULL_BACKUP_PREFIXES) is allowed through to
 // shell.openPath.
-ipcMain.handle('maintenance:openBackupFolder', admin((_e, folderPath) => {
+ipcMain.handle('maintenance:openBackupFolder', authed((_e, folderPath) => {
   const desktop = app.getPath('desktop');
   const resolved = path.resolve(String(folderPath || ''));
   const base = path.basename(resolved);
