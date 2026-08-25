@@ -1361,9 +1361,56 @@ function getFinanceRecentActivity(userId, requestedLimit = 16) {
   }));
 }
 
+// Whole-account financial position for the Overview page — one aggregate read
+// across every client, rather than the Overview fanning out per client.
+// Cancelled invoices are excluded everywhere: they are not money owed.
+function getFinanceOverview(userId) {
+  const totals = conn().prepare(
+    `SELECT
+       COALESCE(SUM(i.amount_minor + i.tax_minor), 0) AS invoiced,
+       COALESCE(SUM(COALESCE(p.paid, 0)), 0) AS paid
+     FROM finance_invoices i
+     LEFT JOIN (SELECT invoice_id, SUM(amount_minor) AS paid FROM finance_invoice_payments GROUP BY invoice_id) p
+       ON p.invoice_id = i.id
+     LEFT JOIN finance_lookups st ON st.id = i.status_id
+     WHERE i.user_id = ? AND (st.code IS NULL OR st.code != 'CANCELLED')`
+  ).get(userId);
+
+  // "Overdue" is due-date-based, not status-based: an invoice whose status was
+  // never advanced past ISSUED is still overdue if its date has passed.
+  const today = new Date().toISOString().slice(0, 10);
+  const overdue = conn().prepare(
+    `SELECT COUNT(*) AS n FROM (
+       SELECT i.id, i.amount_minor + i.tax_minor - COALESCE(p.paid, 0) AS outstanding
+         FROM finance_invoices i
+         LEFT JOIN (SELECT invoice_id, SUM(amount_minor) AS paid FROM finance_invoice_payments GROUP BY invoice_id) p
+           ON p.invoice_id = i.id
+         LEFT JOIN finance_lookups st ON st.id = i.status_id
+        WHERE i.user_id = ? AND (st.code IS NULL OR st.code != 'CANCELLED')
+          AND i.due_date IS NOT NULL AND i.due_date != '' AND i.due_date < ?
+     ) WHERE outstanding > 0`
+  ).get(userId, today).n;
+
+  const clientCount = conn().prepare('SELECT COUNT(*) AS n FROM finance_clients WHERE user_id = ?').get(userId).n;
+  const activeContracts = conn().prepare(
+    `SELECT COUNT(*) AS n FROM finance_contracts k
+       LEFT JOIN finance_lookups st ON st.id = k.status_id
+      WHERE k.user_id = ? AND (st.code IS NULL OR st.code NOT IN ('TERMINATED', 'EXPIRED'))`
+  ).get(userId).n;
+
+  const invoiced = totals.invoiced || 0;
+  const paid = totals.paid || 0;
+  return {
+    clientCount, activeContracts,
+    invoicedMinor: invoiced, paidMinor: paid,
+    outstandingMinor: Math.max(0, invoiced - paid),
+    overdueInvoiceCount: overdue,
+  };
+}
+
 module.exports = {
   FINANCE_LOOKUP_CATEGORIES, FINANCE_LOOKUP_SEED, seedLookupsIfMissing,
-  getFinanceAttentionItems, getFinanceRecentActivity,
+  getFinanceAttentionItems, getFinanceRecentActivity, getFinanceOverview,
   listFinanceLookups, saveFinanceLookups,
   listFinanceClients, getFinanceClient, createFinanceClient, updateFinanceClient, deleteFinanceClient,
   listFinanceCandidateCompanies,

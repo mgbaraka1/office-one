@@ -463,11 +463,30 @@ async function renderOverview() {
   });
   attention.sort((a, b) => a.days - b.days);
 
+  // Finance position — one aggregate read across every client. Only shown when
+  // Finance is actually in use, so an account that never opens it sees the same
+  // Overview it always did instead of a permanent pair of zeroes.
+  let finance = null;
+  try { finance = await window.api.getFinanceOverview(); } catch { finance = null; }
+
   // Stat cards
   const stats = [
     { label: ic('clock') + ' Today',      value: (todayMin / 60).toFixed(1), unit: 'h', foot: `${todayRecs} record${todayRecs === 1 ? '' : 's'}`, cls: 'accent', go: 'timesheet' },
     { label: ic('calendar') + ' This Month', value: (monthMin / 60).toFixed(1), unit: 'h', foot: `${daysLogged} day${daysLogged === 1 ? '' : 's'} logged`, cls: '', go: 'timesheet' },
   ];
+  if (finance && finance.clientCount > 0) {
+    const overdue = finance.overdueInvoiceCount || 0;
+    stats.push({
+      label: ic('credit-card') + ' Outstanding',
+      value: ((finance.outstandingMinor || 0) / 100).toFixed(2),
+      unit: '',
+      foot: overdue
+        ? `${overdue} invoice${overdue === 1 ? '' : 's'} overdue`
+        : `${finance.activeContracts || 0} active contract${finance.activeContracts === 1 ? '' : 's'}`,
+      cls: overdue ? 'warn' : '',
+      go: 'finance',
+    });
+  }
   document.getElementById('dash-stats').innerHTML = stats.map(s => `
     <div class="dash-stat ${s.cls}" ${s.go ? `data-onclick="switchModule('${s.go}')"` : ''}>
       <span class="ds-label">${s.label}</span>
