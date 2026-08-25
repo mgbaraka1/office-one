@@ -22,6 +22,7 @@ const PAL_PAGES = [
   { icon: 'list',             label: 'Client Tasks',   go: 'all-tasks' },
   { icon: 'building',         label: 'Internal Work',  go: 'internal-tasks' },
   { icon: 'layers',           label: 'Clients',       go: 'clients' },
+  { icon: 'credit-card',      label: 'Finance',       go: 'finance' },
   { icon: 'credit-card',      label: 'Subscriptions', go: 'subscriptions' },
   { icon: 'calendar-check',   label: 'Company Documents', go: 'companydocs' },
   { icon: 'book-open',        label: 'Knowledge Hub', go: 'knowledge' },

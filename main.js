@@ -236,8 +236,24 @@ ipcMain.handle('systems:entries',   authed((_e, name) => db.systemEntries(auth.r
 // ── Analytics (aggregation done in SQL, not in the renderer) ──
 ipcMain.handle('analytics:summary',  authed((_e, from, to, spanFrom, spanTo) => db.getAnalytics(auth.requireUserId(), from, to, spanFrom, spanTo)));
 ipcMain.handle('analytics:overview', authed((_e, today, monthStart)          => db.getOverviewStats(auth.requireUserId(), today, monthStart)));
-ipcMain.handle('attention:list', authed(() => db.getAttentionItems(auth.requireUserId())));
-ipcMain.handle('activity:list', authed(() => db.getRecentActivity(auth.requireUserId())));
+// Both feeds are unions across every module that has something to contribute,
+// and Finance owns its own SQL — so its rows are produced by finance-db.js and
+// concatenated here rather than inside db.js. Merging at this layer also keeps
+// the require graph acyclic: finance-db.js already requires db.js for the
+// shared connection, so db.js must not require it back.
+ipcMain.handle('attention:list', authed(() => {
+  const userId = auth.requireUserId();
+  return [...db.getAttentionItems(userId), ...financeDb.getFinanceAttentionItems(userId)];
+}));
+ipcMain.handle('activity:list', authed(() => {
+  const userId = auth.requireUserId();
+  // Each side already applies the same limit, so re-sort the union and trim
+  // again — otherwise a busy Finance module could crowd out every other source.
+  const limit = 16;
+  return [...db.getRecentActivity(userId, limit), ...financeDb.getFinanceRecentActivity(userId, limit)]
+    .sort((a, b) => String(b.changedAt).localeCompare(String(a.changedAt)))
+    .slice(0, limit);
+}));
 
 // ── Lookups (normalized catalog — shared app config) ──
 ipcMain.handle('lookups:get',         authed(()                              => db.loadLookups(auth.requireUserId())));
