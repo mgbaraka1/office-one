@@ -165,6 +165,30 @@ try {
   check('every delegated handler argument is one the dispatcher accepts', badArgs.length === 0,
     badArgs.join(' | '));
 
+  // ── Module dispatch ────────────────────────────────────────────────────────
+  // switchModule() reaches its per-page initialiser by a DIRECT call, not a
+  // data-on* attribute, so nothing above covers it — and a dangling name there
+  // is worse than a dead button: the ReferenceError escapes switchModule, the
+  // page never initialises, and the user gets a blank module body under the
+  // generic crash-safety toast. That is exactly how the Phase 1 rename shipped
+  // `initFinanceModule()` against a definition still called
+  // `initFinanceItModule` — green tests, blank Finance page.
+  const initCalls = new Map();
+  for (const rel of scripts) {
+    const src = fs.readFileSync(path.join(root, rel), 'utf8');
+    src.split('\n').forEach((line, i) => {
+      for (const m of line.matchAll(/(?<![\w$.])(init[A-Za-z0-9_$]*Module)\s*\(/g)) {
+        if (!initCalls.has(m[1])) initCalls.set(m[1], `${rel}:${i + 1}`);
+      }
+    });
+  }
+  const danglingInits = [...initCalls]
+    .filter(([name]) => !globals.has(name))
+    .map(([name, where]) => `${name}() at ${where}`);
+  check('every init*Module() call resolves to a defined renderer global',
+    danglingInits.length === 0,
+    danglingInits.length ? danglingInits.join(' | ') : `${initCalls.size} initialiser(s) checked`);
+
   const uniqueNames = new Set(
     handlers
       .filter(h => !h.unterminated && h.expression !== 'event.stopPropagation()' && !FOCUS_RE.test(h.expression))
