@@ -287,6 +287,7 @@
     '• List': '• قائمة', '1. List': '1. قائمة',
     'Collapse navigation': 'طي شريط التنقل', 'Quick Find (Ctrl+K)': 'البحث السريع (Ctrl+K)',
     'Create new (Ctrl+Shift+N)': 'إنشاء جديد (Ctrl+Shift+N)', 'Today — Timesheet': 'اليوم — سجل الدوام',
+    'Finance — contracts, invoices, and minutes': 'المالية — العقود والفواتير والمحاضر',
     'Workspace view and eye comfort': 'عرض مساحة العمل وراحة العين', 'Switch between light and dark mode': 'التبديل بين الوضع الفاتح والداكن',
     'Back up your data — a full backup or just the database': 'نسخ بياناتك احتياطياً — نسخة كاملة أو قاعدة البيانات فقط',
     'Log out of this session': 'تسجيل الخروج من هذه الجلسة', 'Application version': 'إصدار التطبيق',
@@ -504,7 +505,7 @@
   // is a Latin brand shown identically in both languages, the same convention
   // as 'Office ONE' above.
   Object.assign(ar, {
-    'Finance': 'Finance',
+    'Finance': 'المالية',
     'Search clients…': 'البحث في العملاء…', 'New Client': 'عميل جديد', 'Edit Client': 'تعديل العميل',
     'Add Client': 'إضافة عميل',
     'No Finance clients yet — click': 'لا يوجد عملاء Finance بعد — انقر',

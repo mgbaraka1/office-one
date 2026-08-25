@@ -2,13 +2,13 @@
 // Finance — headless data-layer smoke test (Phase 1: clients, contracts,
 // contract versions, installments, the Setup-tab catalog).
 //
-// Boots the app's data layer (db.js) + finance-seed.js DIRECTLY — no Electron, no
+// Boots the app's data layer (db.js) + finance-db.js DIRECTLY — no Electron, no
 // IPC, no renderer. SAFETY: never touches production. Copies the (fixture,
 // under run-all.js — see test-bootstrap.js) DB into a throwaway temp dir and
 // runs everything there; the temp dir is deleted at the end regardless of
 // outcome.
 //
-// Run:  node test/finance-it-smoke.js
+// Run:  node test/finance-smoke.js
 // ─────────────────────────────────────────────────────────────────────────────
 
 const fs   = require('node:fs');
@@ -17,7 +17,7 @@ const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 
 const db = require('../db');
-const financeDb = require('../finance-seed');
+const financeDb = require('../finance-db');
 
 const results = [];
 function record(flow, pass, details) { results.push({ flow, pass, details }); }
@@ -32,7 +32,7 @@ if (!fs.existsSync(prodDb)) {
   console.error('FATAL: production DB not found at ' + prodDb);
   process.exit(2);
 }
-const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'finance-it-smoke-'));
+const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'finance-smoke-'));
 for (const suffix of ['', '-wal', '-shm']) {
   const src = prodDb + suffix;
   if (fs.existsSync(src)) fs.copyFileSync(src, path.join(workDir, 'cooperation-tools.db' + suffix));
