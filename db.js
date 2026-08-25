@@ -4128,6 +4128,100 @@ function getClientFieldHistory(userId, recordType, recordId) {
   ).all(userId, recordType, Number(recordId));
 }
 
+// ── Shared company profile (migration 056) ──────────────────────────────────
+// Contact details, address and tax number, promoted out of finance_clients so
+// they describe the company once instead of once per module. GLOBAL: no
+// user_id, because a registered address is a fact about the organisation, not
+// one account's private note — a deliberate exception to the per-user rule,
+// of the same class as lookup_codes itself.
+//
+// Any authenticated user may write it. That is a decision, not an oversight:
+// the app has no admin concept for this data. The safeguard is attribution
+// rather than permission — every change lands in client_field_history under
+// record_type 'profile', so a shared edit is always traceable to an account.
+const COMPANY_PROFILE_FIELDS = [
+  ['contact_name',  'Contact Name'],
+  ['contact_email', 'Contact Email'],
+  ['contact_phone', 'Contact Phone'],
+  ['address',       'Address'],
+  ['tax_number',    'Tax Number'],
+  ['notes',         'Notes'],
+];
+
+function companyProfileToApi(row) {
+  return {
+    contactName:  row?.contact_name  || '',
+    contactEmail: row?.contact_email || '',
+    contactPhone: row?.contact_phone || '',
+    address:      row?.address       || '',
+    taxNumber:    row?.tax_number    || '',
+    notes:        row?.notes         || '',
+    updatedAt:    row?.updated_at    || '',
+  };
+}
+
+// Returns a blank profile rather than null for a company that has none yet, so
+// every caller renders the same shape and "missing" and "blank" stay identical.
+function getCompanyProfile(companyId) {
+  if (!isLookupId('COMPANY', Number(companyId))) return null;
+  const row = db.prepare('SELECT * FROM company_profiles WHERE company_id = ?').get(Number(companyId));
+  return companyProfileToApi(row);
+}
+
+function saveCompanyProfile(userId, companyId, data) {
+  const id = Number(companyId);
+  if (!isLookupId('COMPANY', id)) return { ok: false, error: 'Unknown client' };
+  if (!canAccessLookup(userId, id)) return { ok: false, error: 'Unknown client' };
+
+  const next = {
+    contact_name:  String(data?.contactName  ?? '').trim(),
+    contact_email: String(data?.contactEmail ?? '').trim(),
+    contact_phone: String(data?.contactPhone ?? '').trim(),
+    address:       String(data?.address      ?? '').trim(),
+    tax_number:    String(data?.taxNumber    ?? '').trim(),
+    notes:         String(data?.notes        ?? '').trim(),
+  };
+
+  tx(() => {
+    const before = db.prepare('SELECT * FROM company_profiles WHERE company_id = ?').get(id) || {};
+    const now = new Date().toISOString();
+    if (before.id != null) {
+      db.prepare(
+        `UPDATE company_profiles SET contact_name = ?, contact_email = ?, contact_phone = ?,
+           address = ?, tax_number = ?, notes = ?, updated_at = ? WHERE company_id = ?`
+      ).run(next.contact_name, next.contact_email, next.contact_phone, next.address,
+            next.tax_number, next.notes, now, id);
+    } else {
+      db.prepare(
+        `INSERT INTO company_profiles(company_id, contact_name, contact_email, contact_phone,
+           address, tax_number, notes, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?)`
+      ).run(id, next.contact_name, next.contact_email, next.contact_phone, next.address,
+            next.tax_number, next.notes, now, now);
+    }
+    // record_id is the COMPANY lookup id — the profile's own row id is an
+    // implementation detail and would change if a profile were ever recreated.
+    recordClientFieldHistory(userId, 'profile', id, before, next,
+      COMPANY_PROFILE_FIELDS.map(([column, label]) => [column, label, false, null]));
+  });
+
+  return { ok: true, profile: getCompanyProfile(id) };
+}
+
+// Deliberately NOT user-scoped, unlike getClientFieldHistory: this record is
+// shared and writable by anyone, so the whole point of its history is seeing
+// who changed it. Joins the username for exactly that reason.
+function getCompanyProfileHistory(companyId) {
+  if (!isLookupId('COMPANY', Number(companyId))) return [];
+  return db.prepare(
+    `SELECT h.id, h.field_name AS fieldName, h.old_value AS oldValue, h.new_value AS newValue,
+            h.changed_at AS changedAt, COALESCE(u.username, 'unknown') AS changedBy
+       FROM client_field_history h
+       LEFT JOIN users u ON u.id = h.user_id
+      WHERE h.record_type = 'profile' AND h.record_id = ?
+      ORDER BY h.changed_at DESC, h.id DESC`
+  ).all(Number(companyId));
+}
+
 // The Clients list page: every active COMPANY lookup, each with its auth/
 // server/database/external-service/internal-system counts for this user
 // (zero-activity companies still show — this is the catalog roster, not a
@@ -4495,7 +4589,8 @@ module.exports = {
   createClientVpn, updateClientVpn, deleteClientVpn,
   createClientServer, updateClientServer, deleteClientServer, renameClientServerSystemGroup, assignClientServerGroup,
   createClientInternalSystem, updateClientInternalSystem, deleteClientInternalSystem, renameClientInternalSystemGroup, assignClientInternalGroup,
-  loadLookups, saveLookups, getLookupsByCategory,
+  loadLookups, saveLookups, getLookupsByCategory, canAccessLookup,
+  getCompanyProfile, saveCompanyProfile, getCompanyProfileHistory,
   getUserDisplayName, setUserDisplayName,
   loadSubscriptions, saveSubscriptions,
   loadPrefs, savePrefs,

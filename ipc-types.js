@@ -495,6 +495,52 @@
  */
 
 /**
+ * The shared company profile (`clients:profile-get` / `clients:profile-save`,
+ * migration 056). Contact details, address and tax number, promoted out of
+ * finance_clients so they describe the company once instead of once per module.
+ *
+ * GLOBAL, not per-user — a registered address is a fact about the organisation,
+ * not one account's note — and writable by any authenticated user, because this
+ * data has no admin concept. The safeguard is attribution, not permission: every
+ * write lands in client_field_history under record_type 'profile'.
+ *
+ * A company with no profile yet reads back as this shape with empty strings, so
+ * callers never have to distinguish "missing" from "blank".
+ * @typedef {Object} CompanyProfile
+ * @property {string} contactName
+ * @property {string} contactEmail
+ * @property {string} contactPhone
+ * @property {string} address
+ * @property {string} taxNumber
+ * @property {string} notes
+ * @property {string} updatedAt   '' when no profile row exists yet.
+ */
+
+/**
+ * One audit row for a shared-profile edit (`clients:profile-history`).
+ * Deliberately NOT user-scoped, unlike ClientFieldHistoryEntry: the record is
+ * shared and writable by anyone, so seeing who changed it is the entire point.
+ * @typedef {Object} CompanyProfileHistoryEntry
+ * @property {number} id
+ * @property {string} fieldName
+ * @property {string} oldValue
+ * @property {string} newValue
+ * @property {string} changedAt
+ * @property {string} changedBy  Username of the account that made the change, or 'unknown'.
+ */
+
+/**
+ * A company from the shared roster that is not in Finance yet
+ * (`finance:candidate-companies`) — what the "add a client to Finance" picker
+ * offers. Excludes soft-disabled rows and lookups this account cannot access.
+ * @typedef {Object} FinanceCandidateCompany
+ * @property {number} id      The COMPANY lookup_codes id.
+ * @property {string} code
+ * @property {string} name
+ * @property {string} nameAr
+ */
+
+/**
  * One client on the Clients list page — a COMPANY lookup row + its record
  * counts. There is no standalone clients table; the roster IS the active
  * COMPANY lookup catalog.

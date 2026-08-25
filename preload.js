@@ -217,6 +217,10 @@ contextBridge.exposeInMainWorld('api', {
   assignClientInternalGroup: (companyId, recordIds, groupName) => ipcRenderer.invoke('clients:internal-assign-group', companyId, recordIds, groupName),
   /** @returns {Promise<import('./ipc-types').ClientFieldHistoryEntry[]>} */
   getClientFieldHistory: (recordType, recordId) => ipcRenderer.invoke('clients:field-history', recordType, recordId),
+  getCompanyProfile: (companyId) => ipcRenderer.invoke('clients:profile-get', companyId),
+  saveCompanyProfile: (companyId, data) => ipcRenderer.invoke('clients:profile-save', companyId, data),
+  getCompanyProfileHistory: (companyId) => ipcRenderer.invoke('clients:profile-history', companyId),
+  listFinanceCandidateCompanies: () => ipcRenderer.invoke('finance:candidate-companies'),
 
   // ── Finance (standalone financial record-keeping module) ──
   listFinanceLookups: ()          => ipcRenderer.invoke('finance:lookups-list'),

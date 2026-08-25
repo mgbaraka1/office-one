@@ -213,6 +213,9 @@ function ownsFinanceClient(userId, id) {
 // gets both without a second round trip.
 const FINANCE_CLIENT_SELECT = `
   c.*,
+  co.code    AS company_code,
+  co.name_en AS company_name_en,
+  co.name_ar AS company_name_ar,
   (SELECT COUNT(*) FROM finance_contracts k WHERE k.client_id = c.id) AS contract_count,
   COALESCE((
     SELECT SUM(i.amount_minor + i.tax_minor - COALESCE(pay.paid, 0))
@@ -224,9 +227,19 @@ const FINANCE_CLIENT_SELECT = `
   ), 0) AS outstanding_minor
 `;
 
+// Identity comes from the linked COMPANY row (migration 056) — a Finance client
+// IS a company now, and its name is edited in Settings -> Companies like every
+// other client's. The local name/code columns survive as the pre-merge audit
+// trail and as the fallback for a row that is somehow still unlinked, so a
+// half-migrated database still renders something meaningful instead of blanks.
 function financeClientToApi(r) {
+  const linked = r.company_id != null && r.company_name_en != null;
   return {
-    id: r.id, name: r.name, nameAr: r.name_ar || '', code: r.code || '',
+    id: r.id,
+    companyId: r.company_id ?? null,
+    name: linked ? r.company_name_en : r.name,
+    nameAr: (linked ? r.company_name_ar : r.name_ar) || '',
+    code: (linked ? r.company_code : r.code) || '',
     contactName: r.contact_name || '', contactEmail: r.contact_email || '', contactPhone: r.contact_phone || '',
     address: r.address || '', taxNumber: r.tax_number || '', notes: r.notes || '',
     isActive: !!r.is_active, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
@@ -235,47 +248,80 @@ function financeClientToApi(r) {
 }
 
 function listFinanceClients(userId) {
-  return conn().prepare(`SELECT ${FINANCE_CLIENT_SELECT} FROM finance_clients c WHERE c.user_id = ? ORDER BY c.sort_order, c.id`)
+  return conn().prepare(`SELECT ${FINANCE_CLIENT_SELECT} FROM finance_clients c LEFT JOIN lookup_codes co ON co.id = c.company_id AND co.category = 'COMPANY'
+     WHERE c.user_id = ? ORDER BY c.sort_order, c.id`)
     .all(userId).map(financeClientToApi);
 }
 function getFinanceClient(userId, id) {
-  const r = conn().prepare(`SELECT ${FINANCE_CLIENT_SELECT} FROM finance_clients c WHERE c.id = ? AND c.user_id = ?`).get(id, userId);
+  const r = conn().prepare(`SELECT ${FINANCE_CLIENT_SELECT} FROM finance_clients c LEFT JOIN lookup_codes co ON co.id = c.company_id AND co.category = 'COMPANY'
+     WHERE c.id = ? AND c.user_id = ?`).get(id, userId);
   return r ? financeClientToApi(r) : null;
 }
+// A Finance client is now a *finance profile of a company* (migration 056), so
+// creating one means picking a company from the shared roster rather than
+// typing a name Finance alone would know about. `companyId` is required and
+// must be a real, live COMPANY lookup the caller can see — a private lookup
+// (migration 041) must not become visible through Finance.
+//
+// The local name/code columns are still written for a new row: they are the
+// pre-merge audit trail's forward continuation and the fallback that keeps a
+// row readable if its company is ever soft-disabled out from under it.
+function companyForFinance(userId, companyId) {
+  const id = Number(companyId);
+  if (!Number.isInteger(id)) return null;
+  const row = conn().prepare(
+    "SELECT id, code, name_en, name_ar, is_active FROM lookup_codes WHERE id = ? AND category = 'COMPANY'"
+  ).get(id);
+  if (!row || !row.is_active) return null;
+  return appDb.canAccessLookup(userId, id) ? row : null;
+}
+
 function createFinanceClient(userId, data) {
-  const name = String(data?.name ?? '').trim();
-  if (!name) return { ok: false, error: 'Client name is required' };
-  const code = String(data?.code ?? '').trim();
-  if (code) {
-    const conflict = conn().prepare('SELECT 1 FROM finance_clients WHERE user_id = ? AND code = ?').get(userId, code);
-    if (conflict) return { ok: false, error: `Client code ${code} is already in use` };
-  }
+  const company = companyForFinance(userId, data?.companyId);
+  if (!company) return { ok: false, error: 'Pick a client from the company list' };
+  const existing = conn().prepare('SELECT id FROM finance_clients WHERE user_id = ? AND company_id = ?')
+    .get(userId, company.id);
+  if (existing) return { ok: false, error: 'That client is already in Finance' };
+
   const now = nowIso();
   const maxSort = conn().prepare('SELECT COALESCE(MAX(sort_order), -1) AS m FROM finance_clients WHERE user_id = ?').get(userId).m;
   const id = Number(conn().prepare(
-    `INSERT INTO finance_clients(user_id, name, name_ar, code, contact_name, contact_email, contact_phone, address, tax_number, notes, is_active, sort_order, created_at, updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,1,?,?,?)`
-  ).run(userId, name, String(data?.nameAr ?? '').trim(), code, String(data?.contactName ?? '').trim(),
+    `INSERT INTO finance_clients(user_id, company_id, name, name_ar, code, contact_name, contact_email, contact_phone, address, tax_number, notes, is_active, sort_order, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,1,?,?,?)`
+  ).run(userId, company.id, company.name_en || '', company.name_ar || '', company.code || '',
+        String(data?.contactName ?? '').trim(),
         String(data?.contactEmail ?? '').trim(), String(data?.contactPhone ?? '').trim(), String(data?.address ?? '').trim(),
         String(data?.taxNumber ?? '').trim(), String(data?.notes ?? '').trim(), maxSort + 1, now, now).lastInsertRowid);
   return { ok: true, client: getFinanceClient(userId, id) };
 }
+
+// Only the finance-owned fields are editable here. Name, Arabic name and code
+// belong to the company and are edited in Settings -> Companies, so that a
+// rename lands everywhere at once instead of Finance drifting from the roster.
 function updateFinanceClient(userId, id, data) {
   if (!ownsFinanceClient(userId, id)) return { ok: false, error: 'Client not found' };
-  const name = String(data?.name ?? '').trim();
-  if (!name) return { ok: false, error: 'Client name is required' };
-  const code = String(data?.code ?? '').trim();
-  if (code) {
-    const conflict = conn().prepare('SELECT 1 FROM finance_clients WHERE user_id = ? AND code = ? AND id != ?').get(userId, code, id);
-    if (conflict) return { ok: false, error: `Client code ${code} is already in use` };
-  }
   conn().prepare(
-    `UPDATE finance_clients SET name = ?, name_ar = ?, code = ?, contact_name = ?, contact_email = ?, contact_phone = ?,
+    `UPDATE finance_clients SET contact_name = ?, contact_email = ?, contact_phone = ?,
        address = ?, tax_number = ?, notes = ?, updated_at = ? WHERE id = ? AND user_id = ?`
-  ).run(name, String(data?.nameAr ?? '').trim(), code, String(data?.contactName ?? '').trim(),
+  ).run(String(data?.contactName ?? '').trim(),
         String(data?.contactEmail ?? '').trim(), String(data?.contactPhone ?? '').trim(), String(data?.address ?? '').trim(),
         String(data?.taxNumber ?? '').trim(), String(data?.notes ?? '').trim(), nowIso(), id, userId);
   return { ok: true, client: getFinanceClient(userId, id) };
+}
+
+// Companies not yet in Finance — what the "add a client" picker offers. Excludes
+// soft-disabled rows and anything this account cannot access.
+function listFinanceCandidateCompanies(userId) {
+  const taken = new Set(
+    conn().prepare('SELECT company_id FROM finance_clients WHERE user_id = ? AND company_id IS NOT NULL')
+      .all(userId).map(r => r.company_id)
+  );
+  return conn().prepare(
+    `SELECT id, code, name_en, name_ar FROM lookup_codes
+      WHERE category = 'COMPANY' AND is_active = 1 ORDER BY sort_order, id`
+  ).all()
+    .filter(r => !taken.has(r.id) && appDb.canAccessLookup(userId, r.id))
+    .map(r => ({ id: r.id, code: r.code || '', name: r.name_en || '', nameAr: r.name_ar || '' }));
 }
 // Refuses while the client still owns any contract, change request, invoice,
 // or meeting, rather than a cascading delete-with-undo across all of them —
@@ -1311,6 +1357,7 @@ module.exports = {
   getFinanceAttentionItems, getFinanceRecentActivity,
   listFinanceLookups, saveFinanceLookups,
   listFinanceClients, getFinanceClient, createFinanceClient, updateFinanceClient, deleteFinanceClient,
+  listFinanceCandidateCompanies,
   listFinanceContracts, getFinanceContract, createFinanceContract, updateFinanceContract, deleteFinanceContract,
   createFinanceContractVersion, updateFinanceContractVersion, deleteFinanceContractVersion, setFinalFinanceContractVersion,
   createFinanceInstallment, updateFinanceInstallment, deleteFinanceInstallment,

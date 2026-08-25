@@ -119,20 +119,56 @@ try {
     && relabeled.labelEn === 'Cash Payment' && relabeled.isActive === false && relabeled.code === 'CASH'
     && added && /^[A-Z0-9_]+$/.test(added.code), JSON.stringify({ relabeled, added }));
 
-  // ── Clients: CRUD + ownership ────────────────────────────────────────────────
-  const clientRes = financeDb.createFinanceClient(userId, { name: 'Acme Corp', code: 'ACME', contactEmail: 'ap@acme.test' });
-  record('Client: create', clientRes.ok && clientRes.client.name === 'Acme Corp' && clientRes.client.contractCount === 0,
-    JSON.stringify(clientRes));
+  // ── Clients: now a finance profile of a shared COMPANY (migration 056) ──────
+  // Helper: adds a company to the shared roster and returns its lookup id, so
+  // each gate below can claim its own company rather than fighting over one.
+  let companySeq = 0;
+  function newCompany(nameEn, code) {
+    companySeq += 1;
+    const c = code || ('FINTEST' + companySeq);
+    db.saveLookups(userId, { categories: { COMPANY: [
+      ...db.getLookupsByCategory('COMPANY', true).map(r => ({ ...r })),
+      { code: c, label: nameEn, nameEn, nameAr: '', isActive: true },
+    ] } });
+    return db.getLookupsByCategory('COMPANY', true).find(r => r.code === c).id;
+  }
+
+  const acmeCompanyId = newCompany('Acme Corp', 'ACME');
+  const clientRes = financeDb.createFinanceClient(userId, { companyId: acmeCompanyId, contactEmail: 'ap@acme.test' });
+  record('Client: created by picking a company from the shared roster',
+    clientRes.ok && clientRes.client.name === 'Acme Corp' && clientRes.client.companyId === acmeCompanyId
+      && clientRes.client.contractCount === 0, JSON.stringify(clientRes));
   const clientId = clientRes.client.id;
 
-  const dupCode = financeDb.createFinanceClient(userId, { name: 'Acme Two', code: 'ACME' });
-  record('Client: duplicate code within the same user is rejected', dupCode.ok === false, JSON.stringify(dupCode));
+  const dupCompany = financeDb.createFinanceClient(userId, { companyId: acmeCompanyId });
+  record('Client: the same company cannot be added to Finance twice',
+    dupCompany.ok === false, JSON.stringify(dupCompany));
+
+  const noCompany = financeDb.createFinanceClient(userId, { contactEmail: 'x@y.test' });
+  record('Client: a create without a company is refused', noCompany.ok === false, JSON.stringify(noCompany));
+
+  const bogusCompany = financeDb.createFinanceClient(userId, { companyId: 99999 });
+  record('Client: a create against an unknown company id is refused',
+    bogusCompany.ok === false, JSON.stringify(bogusCompany));
+
+  const candidates = financeDb.listFinanceCandidateCompanies(userId);
+  record('Client: the picker excludes companies already in Finance',
+    !candidates.some(c => c.id === acmeCompanyId) && candidates.length > 0, 'count=' + candidates.length);
 
   const listedClients = financeDb.listFinanceClients(userId);
   record('Client: list includes the created client', listedClients.some(c => c.id === clientId), 'count=' + listedClients.length);
 
-  const updRes = financeDb.updateFinanceClient(userId, clientId, { name: 'Acme Corporation', code: 'ACME' });
-  record('Client: update in place', updRes.ok && updRes.client.name === 'Acme Corporation', JSON.stringify(updRes));
+  // Identity now comes from the company, so renaming there must show up here.
+  db.saveLookups(userId, { categories: { COMPANY: db.getLookupsByCategory('COMPANY', true)
+    .map(r => (r.id === acmeCompanyId ? { ...r, nameEn: 'Acme Corporation', label: 'Acme Corporation' } : { ...r })) } });
+  record('Client: a rename in the shared catalog flows through to Finance',
+    financeDb.getFinanceClient(userId, clientId).name === 'Acme Corporation',
+    financeDb.getFinanceClient(userId, clientId).name);
+
+  const updRes = financeDb.updateFinanceClient(userId, clientId, { contactEmail: 'billing@acme.test', taxNumber: '300123' });
+  record('Client: update edits only the finance-owned fields',
+    updRes.ok && updRes.client.contactEmail === 'billing@acme.test' && updRes.client.taxNumber === '300123'
+      && updRes.client.name === 'Acme Corporation', JSON.stringify(updRes));
 
   const otherUserRow = new DatabaseSync(path.join(workDir, 'cooperation-tools.db'))
     .prepare('SELECT id FROM users WHERE id != ? LIMIT 1').get(userId);
@@ -305,7 +341,7 @@ try {
   record('Client: delete allowed once contract-free', clientDeleteAllowed.ok === true, JSON.stringify(clientDeleteAllowed));
 
   // ── Phase 3: Attachments ─────────────────────────────────────────────────────
-  const p3Client = financeDb.createFinanceClient(userId, { name: 'Phase 3 Client' }).client;
+  const p3Client = financeDb.createFinanceClient(userId, { companyId: newCompany('Phase 3 Client') }).client;
   const p3ContractRes = financeDb.createFinanceContract(userId, p3Client.id, { title: 'Phase 3 Contract', status: 'ACTIVE' });
   const p3VersionRes = financeDb.createFinanceContractVersion(userId, p3ContractRes.contract.id, { versionLabel: 'v1.0', valueMinor: 1_000_00, isFinal: true });
   const p3VersionId = p3VersionRes.contract.versions[0].id;
@@ -437,7 +473,7 @@ try {
   // A client can carry change requests, invoices, and meetings directly (all
   // three have a nullable contract_id/cr_id), so a client-delete guard that
   // only checked contractCount would let ON DELETE CASCADE silently wipe them.
-  const p3bClient = financeDb.createFinanceClient(userId, { name: 'Cascade Guard Client' }).client;
+  const p3bClient = financeDb.createFinanceClient(userId, { companyId: newCompany('Cascade Guard Client') }).client;
 
   const p3bCr = financeDb.createFinanceChangeRequest(userId, p3bClient.id, { title: 'Standalone CR', amountMinor: 100_00 });
   const crRefusal = financeDb.deleteFinanceClient(userId, p3bClient.id);
@@ -462,7 +498,7 @@ try {
   // cancelled invoice that still held a link would otherwise permanently block
   // deleting the installment/contract with a raw SQLite FK error — updateFinanceInvoice
   // must actually drop the link rows on cancel, not just exclude them from sums.
-  const cxClient = financeDb.createFinanceClient(userId, { name: 'Cancel Test Client' }).client;
+  const cxClient = financeDb.createFinanceClient(userId, { companyId: newCompany('Cancel Test Client') }).client;
   const cxContract = financeDb.createFinanceContract(userId, cxClient.id, { title: 'Cancel Test Contract', status: 'ACTIVE' }).contract;
   financeDb.createFinanceInstallment(userId, cxContract.id, { title: 'Only', amountMinor: 1_000_00 });
   const cxInstId = financeDb.getFinanceContract(userId, cxContract.id).installments[0].id;
@@ -495,7 +531,7 @@ try {
   financeDb.deleteFinanceClient(userId, cxClient.id);
 
   // ── Summary ───────────────────────────────────────────────────────────────
-  const summaryClient = financeDb.createFinanceClient(userId, { name: 'Summary Test Client' }).client;
+  const summaryClient = financeDb.createFinanceClient(userId, { companyId: newCompany('Summary Test Client') }).client;
   financeDb.createFinanceContract(userId, summaryClient.id, { title: 'C1', status: 'ACTIVE' });
   const summary = financeDb.getFinanceClientSummary(userId, summaryClient.id);
   record('Summary: contract counts computed for a client', summary.contractCount === 1 && summary.activeContractCount === 1
@@ -506,7 +542,7 @@ try {
   // These are what put Finance on the Overview page. The filtering rules carry
   // the risk: an item that should have dropped out sits in the Attention list
   // forever, and one that should appear never does.
-  const feedClient = financeDb.createFinanceClient(userId, { name: 'Feed Client', code: 'FEED' }).client;
+  const feedClient = financeDb.createFinanceClient(userId, { companyId: newCompany('Feed Client', 'FEED') }).client;
   const feedContract = financeDb.createFinanceContract(userId, feedClient.id, {
     title: 'Feed Contract', status: 'ACTIVE', endDate: '2026-12-31',
   }).contract;
@@ -563,6 +599,50 @@ try {
       && activity.every((a, i) => i === 0 || activity[i - 1].changedAt >= a.changedAt));
   record('Activity: never leaks across accounts',
     !financeDb.getFinanceRecentActivity(secondUserId, 20).some(a => a.parentId === feedClient.id));
+
+
+  // ── Shared company profile (migration 056) ────────────────────────────────
+  // Global, not per-user, and writable by any authenticated account — so the
+  // gates that matter are: it is genuinely shared, and every write is
+  // attributable, since attribution is what replaces permission here.
+  const profileCompanyId = newCompany('Profile Co', 'PROFCO');
+  record('Profile: a company with no profile reads back blank, not null',
+    JSON.stringify(db.getCompanyProfile(profileCompanyId)) ===
+      JSON.stringify({ contactName: '', contactEmail: '', contactPhone: '', address: '', taxNumber: '', notes: '', updatedAt: '' }),
+    JSON.stringify(db.getCompanyProfile(profileCompanyId)));
+
+  const savedProfile = db.saveCompanyProfile(userId, profileCompanyId, {
+    contactName: 'Dana', contactEmail: 'ap@profco.test', taxNumber: '310999', address: 'Riyadh',
+  });
+  record('Profile: saved and read back', savedProfile.ok
+    && db.getCompanyProfile(profileCompanyId).taxNumber === '310999'
+    && db.getCompanyProfile(profileCompanyId).contactName === 'Dana', JSON.stringify(savedProfile));
+
+  record('Profile: another account sees the same shared values',
+    db.getCompanyProfile(profileCompanyId).taxNumber === '310999');
+
+  const secondSave = db.saveCompanyProfile(secondUserId, profileCompanyId, {
+    contactName: 'Dana', contactEmail: 'ap@profco.test', taxNumber: '310111', address: 'Riyadh',
+  });
+  record('Profile: a second account may edit it (no admin concept)', secondSave.ok
+    && db.getCompanyProfile(profileCompanyId).taxNumber === '310111', JSON.stringify(secondSave));
+
+  const history = db.getCompanyProfileHistory(profileCompanyId);
+  record('Profile: every change is attributed to the account that made it',
+    history.some(h => h.fieldName === 'Tax Number' && h.oldValue === '310999'
+      && h.newValue === '310111' && !!h.changedBy),
+    JSON.stringify(history.slice(0, 3)));
+  record('Profile: history spans accounts rather than being user-scoped',
+    new Set(history.map(h => h.changedBy)).size >= 2,
+    JSON.stringify([...new Set(history.map(h => h.changedBy))]));
+  // Address was set once (blank -> 'Riyadh') and passed through unchanged on the
+  // second save, so exactly one row — a second would mean history records writes
+  // rather than changes.
+  record('Profile: an unchanged field writes no second history row',
+    history.filter(h => h.fieldName === 'Address').length === 1,
+    JSON.stringify(history.map(h => h.fieldName)));
+  record('Profile: an unknown company is refused',
+    db.saveCompanyProfile(userId, 999999, { taxNumber: 'x' }).ok === false);
 
 } catch (err) {
   exitCode = 1;
