@@ -25,8 +25,6 @@ function gate(name, pass) { results.push({ name, pass: !!pass }); }
 function count(pattern) { return (html.match(pattern) || []).length; }
 
 const totals = html.match(/<div id="totals-bar">([\s\S]*?)<\/div>\s*\n\s*<!-- Filter bar -->/)?.[1] || '';
-const createHubCode = html.match(/\/\/ ── Universal Create Hub ──([\s\S]*?)\/\/ ── Keyboard shortcuts/)?.[1] || '';
-const createHubMarkup = html.match(/<!-- ══ UNIVERSAL CREATE HUB ══ -->([\s\S]*?)<!-- ══ COMMAND PALETTE/)?.[1] || '';
 const workspaceViewCode = html.match(/const WORKSPACE_VIEW_DEFAULTS([\s\S]*?)function applySidebarPreference/)?.[1] || '';
 gate('compact daily summary has exactly three visible stat cards', (totals.match(/class="total-chip/g) || []).length === 3);
 gate('responsive Timesheet forces grouped mode at narrow widths', html.includes('const tsNarrow = () => window.innerWidth <= 1100') && html.includes("const grouped = tsNarrow() || tsView === 'grouped'"));
@@ -87,19 +85,18 @@ gate('precision workspace shell has a persistent user-controlled navigation rail
   && html.includes('body.sidebar-collapsed #sidebar')
   && html.includes('VISION 2026 — PRECISION WORKSPACE')
   && html.includes(`data-module="clients" data-onclick="switchModule('clients')" title="Clients"`));
-gate('universal Create Hub exposes every core creation workflow safely',
-  html.includes('id="create-hub-overlay"')
-  && html.includes('data-onclick="openCreateHub()"')
-  && html.includes('aria-keyshortcuts="Control+Shift+N"')
-  && (createHubMarkup.match(/data-onclick="runCreateFlow\('/g) || []).length === 11
-  && html.includes("e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'n'")
-  && createHubCode.includes("switchModule('timesheet'); openModal()")
-  && createHubCode.includes("switchModule('all-tasks'); openBacklogModal()")
-  && createHubCode.includes("switchModule('internal-tasks'); openInternalTaskModal()")
-  // Finance flows resolve a client before opening their modal, so they route
-  // through startFinanceCreation() rather than switchModule+open directly.
-  && createHubCode.includes("startFinanceCreation(")
-  && !createHubCode.includes('window.api.'));
+// The universal Create Hub was removed: creation starts on the page that owns
+// the record. Ctrl+N stays the context-aware "new" for the active module, so
+// every module that can create something must still name its own opener here
+// rather than falling back to a shared launcher.
+gate('creation starts on its own page, with no universal Create Hub',
+  !html.includes('create-hub')
+  && !html.includes('openCreateHub')
+  && !html.includes('runCreateFlow')
+  && !html.includes(`class="sidebar-create"`)
+  && !html.includes("e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'n'")
+  && html.includes("else if (activeModule === 'all-tasks')     openBacklogModal();")
+  && html.includes("else if (activeModule === 'internal-tasks') openInternalTaskModal();"));
 gate('primary workspace headers use concise direct titles',
   html.includes('<span class="page-title"><span class="ti-ic" data-ic="clock"></span>Timesheet</span>')
   && html.includes('<span class="page-title"><span class="ti-ic" data-ic="layers"></span>Clients</span>')
@@ -114,8 +111,7 @@ gate('page headers keep dropdowns above backdrop-filtered workspace cards',
   && html.includes('z-index: 500;'));
 gate('Overview is an active workflow launchpad, not only a reporting surface',
   html.includes('class="dash-launchpad" aria-label="Start a workflow"')
-  && html.includes(`class="dash-launch primary" data-onclick="runCreateFlow('session')"`)
-  && html.includes(`class="dash-launch" data-onclick="openCreateHub()"`)
+  && html.includes(`class="dash-launch primary" data-onclick="startWorkLogEntry()"`)
   && html.includes(`class="dash-launch" data-onclick="openPalette()"`));
 gate('Calm Workspace exposes persistent eye-comfort controls without data APIs',
   html.includes('id="workspace-view-overlay"')

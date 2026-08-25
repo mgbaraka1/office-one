@@ -107,10 +107,9 @@ function finStatusLabel(row) {
 // ── Roster cache ─────────────────────────────────────────────────────────────
 // Finance has no client list of its own any more — the Clients page IS the
 // roster (migration 056 made finance_clients a per-client finance profile
-// keyed to a COMPANY lookup). This cache survives only because two callers
-// still need to go the other way, from a finance client id back to a company:
-// the Create Hub picker and the deep links in Quick Find / the Overview
-// attention list.
+// keyed to a COMPANY lookup). This cache survives only because callers still
+// need to go the other way, from a finance client id back to a company:
+// the deep links in Quick Find and the Overview attention list.
 async function ensureFinanceClientsCache(force) {
   if (financeClientsLoaded && !force) return financeClients;
   try {
@@ -2296,38 +2295,8 @@ async function saveFinanceSetupCatalog() {
   renderFinanceDetailSections();
 }
 
-// ── Create Hub entry points (Ctrl+Shift+N) ──────────────────────────────────
-// The contract/invoice modals assume currentFinanceClient is already set,
-// because normally you reach them from inside a client's Finance tab. The
-// Create Hub can fire from anywhere, so these resolve a client first, walk to
-// that client's page, and only then open the modal.
-//
-// One client: skip the question entirely and go straight there. Several: reuse
-// the command palette's own picker rather than inventing a second one. None:
-// say so, because "New Contract" with no client to hang it on is a dead end.
-async function startFinanceCreation(kind) {
-  await ensureFinanceClientsCache();
-
-  if (!financeClients.length) {
-    switchModule('clients');
-    toast('Set Finance up on a client first');
-    return;
-  }
-
-  const open = async (clientId) => {
-    const fc = financeClients.find(c => c.id === clientId);
-    if (!fc || fc.companyId == null) { toast('Could not open client'); return; }
-    await openClientFinance(fc.companyId, kind === 'invoice' ? 'invoices' : 'contracts');
-    if (kind === 'invoice') openFinanceInvoiceModal();
-    else openFinanceContractModal();
-  };
-
-  if (financeClients.length === 1) { await open(financeClients[0].id); return; }
-  openFinanceClientPicker(kind, open);
-}
-
 // The one way into a client's financial records from anywhere else in the app
-// — the Create Hub, Quick Find, and the Overview attention list all land here.
+// — Quick Find and the Overview attention list both land here.
 // There is no Finance page to switch to: this walks to the client instead.
 async function openClientFinance(companyId, subTab) {
   // A finance profile with no company link should not exist after migration
@@ -2346,25 +2315,3 @@ async function openFinanceRecordByClientId(financeClientId, subTab) {
   await openClientFinance(fc.companyId, subTab);
 }
 
-// Lightweight inline picker built on the shared modal shell, so it inherits the
-// focus trap, Escape handling and initial focus from watchModalFocusTraps().
-function openFinanceClientPicker(kind, onPick) {
-  const overlay = document.getElementById('finance-picker-modal-overlay');
-  const list = document.getElementById('finance-picker-list');
-  document.getElementById('finance-picker-modal-title').textContent =
-    kind === 'invoice' ? 'New Invoice — pick a client' : 'New Contract — pick a client';
-  list.innerHTML = '';
-  financeClients.forEach(c => {
-    const btn = finMk('button', 'fin-picker-row', finClientName(c));
-    btn.type = 'button';
-    btn.addEventListener('click', () => { closeFinanceClientPicker(); onPick(c.id); });
-    list.appendChild(btn);
-  });
-  overlay.classList.add('open');
-}
-function closeFinanceClientPicker() {
-  document.getElementById('finance-picker-modal-overlay').classList.remove('open');
-}
-function financePickerOverlayClick(e) {
-  if (e.target === document.getElementById('finance-picker-modal-overlay')) closeFinanceClientPicker();
-}

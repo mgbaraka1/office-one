@@ -153,11 +153,10 @@ function renderPalette() {
 
   // Quick actions
   const acts = [
-    { icon: 'zap',           label: 'Create something…',            match: 'create new add start hub',              run: openCreateHub },
     { icon: 'eye',           label: 'Workspace view & comfort',     match: 'view comfort density calm focus motion eye appearance', run: openWorkspaceView },
     { icon: 'plus',          label: 'Add record — log work',      match: 'add record log work session new', run: () => { switchModule('timesheet'); openModal(); } },
-    { icon: 'list',          label: 'Create client task',         match: 'new client task create',          run: () => runCreateFlow('task') },
-    { icon: 'building',      label: 'Create internal task',       match: 'new internal task create department', run: () => runCreateFlow('internal-task') },
+    { icon: 'list',          label: 'Create client task',         match: 'new client task create',          run: () => { switchModule('all-tasks'); openBacklogModal(); } },
+    { icon: 'building',      label: 'Create internal task',       match: 'new internal task create department', run: () => { switchModule('internal-tasks'); openInternalTaskModal(); } },
     { icon: 'clipboard-list',label: 'New project',                match: 'new project create',              run: () => { switchModule('clients'); openProjectModal(); } },
     { icon: 'book-open',     label: 'New knowledge item',         match: 'new knowledge manual guide article create', run: () => { switchModule('knowledge'); openKnowledgeEditor(); } },
     { icon: 'calendar-check',label: 'Go to today',                match: 'today now current day',           run: () => { switchModule('timesheet'); goToday(); } },
