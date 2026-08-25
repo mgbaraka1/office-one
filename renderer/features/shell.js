@@ -192,6 +192,10 @@ function renderPalette() {
     'client-auth': ['shield', 'Open client access'],
     'client-server': ['server', 'Open client server'],
     'client-system': ['monitor', 'Open client system'],
+    'finance-contract': ['file-text', 'Open contract'],
+    'finance-cr': ['file-text', 'Open change request'],
+    'finance-invoice': ['credit-card', 'Open invoice'],
+    'finance-meeting': ['book-open', 'Open meeting minutes'],
   };
   const workspaceItems = _palWorkspace.map(result => {
     const [icon, fallbackHint] = kindInfo[result.kind] || ['search', 'Open'];
@@ -225,6 +229,18 @@ function renderPalette() {
           if (Number.isInteger(companyId) && companyId > 0) {
             switchModule('clients');
             openClientDetail(companyId);
+          }
+        } else if (result.kind.startsWith('finance-')) {
+          // Same composite entity_id convention as the client-* kinds
+          // (migration 049), but the leading id is Finance's own client id,
+          // not a COMPANY lookup id — the two id spaces are unrelated.
+          const clientId = Number(String(result.id).split(':', 1)[0]);
+          if (Number.isInteger(clientId) && clientId > 0) {
+            switchModule('finance');
+            await openFinanceClientDetail(clientId);
+            const tab = { 'finance-contract': 'contracts', 'finance-cr': 'crs',
+              'finance-invoice': 'invoices', 'finance-meeting': 'minutes' }[result.kind];
+            if (tab) setFinanceDetailTab(tab);
           }
         }
       },
