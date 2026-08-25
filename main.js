@@ -515,6 +515,9 @@ ipcMain.handle('finance:clients-list', authed(()             => financeDb.listFi
 // The shared roster's companies that are not in Finance yet — what the "add a
 // client" picker offers, now that Finance no longer invents its own names.
 ipcMain.handle('finance:candidate-companies', authed(() => financeDb.listFinanceCandidateCompanies(auth.requireUserId())));
+// Whole-account financial position for the Overview strip — one aggregate read
+// rather than the Overview fanning out per client.
+ipcMain.handle('finance:overview', authed(() => financeDb.getFinanceOverview(auth.requireUserId())));
 ipcMain.handle('finance:client-get',   authed((_e, id)       => financeDb.getFinanceClient(auth.requireUserId(), id)));
 ipcMain.handle('finance:client-create', authed((_e, data)    => financeDb.createFinanceClient(auth.requireUserId(), data)));
 ipcMain.handle('finance:client-update', authed((_e, id, data) => financeDb.updateFinanceClient(auth.requireUserId(), id, data)));

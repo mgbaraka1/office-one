@@ -117,6 +117,7 @@ const SIGNATURES = {
   'clients:profile-save': ['id', 'object'],
   'clients:profile-history': ['id'],
   'finance:candidate-companies': [],
+  'finance:overview': [],
   'finance:lookups-save': ['object'],
   'finance:client-get': ['id'],
   'finance:client-create': ['object'],

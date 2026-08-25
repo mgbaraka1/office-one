@@ -221,6 +221,7 @@ contextBridge.exposeInMainWorld('api', {
   saveCompanyProfile: (companyId, data) => ipcRenderer.invoke('clients:profile-save', companyId, data),
   getCompanyProfileHistory: (companyId) => ipcRenderer.invoke('clients:profile-history', companyId),
   listFinanceCandidateCompanies: () => ipcRenderer.invoke('finance:candidate-companies'),
+  getFinanceOverview: () => ipcRenderer.invoke('finance:overview'),
 
   // ── Finance (standalone financial record-keeping module) ──
   listFinanceLookups: ()          => ipcRenderer.invoke('finance:lookups-list'),

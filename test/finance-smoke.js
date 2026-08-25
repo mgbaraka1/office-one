@@ -670,6 +670,34 @@ try {
   record('Currency: an unknown code still resolves to unset rather than storing junk',
     junkContract.ok && junkContract.contract.currencyCode === '', JSON.stringify(junkContract.contract?.currencyCode));
 
+
+  // ── Overview aggregate (plan §8) ──────────────────────────────────────────
+  const ovClient = financeDb.createFinanceClient(userId, { companyId: newCompany('Overview Co') }).client;
+  financeDb.createFinanceContract(userId, ovClient.id, { title: 'Live', status: 'ACTIVE' });
+  const ovPaid = financeDb.createFinanceInvoice(userId, ovClient.id, {
+    number: 'OV-PAID', amountMinor: 10000, dueDate: '2020-01-01', status: 'ISSUED',
+  }).invoice;
+  financeDb.createFinancePayment(userId, ovPaid.id, { amountMinor: 10000, paidDate: '2020-01-02' });
+  financeDb.createFinanceInvoice(userId, ovClient.id, {
+    number: 'OV-OVERDUE', amountMinor: 40000, dueDate: '2020-01-01', status: 'ISSUED',
+  });
+  financeDb.createFinanceInvoice(userId, ovClient.id, {
+    number: 'OV-CANCELLED', amountMinor: 99900, dueDate: '2020-01-01', status: 'CANCELLED',
+  });
+
+  const ov = financeDb.getFinanceOverview(userId);
+  record('Overview: a cancelled invoice counts toward neither invoiced nor outstanding',
+    ov.invoicedMinor >= 50000 && !String(ov.invoicedMinor).includes('999'), JSON.stringify(ov));
+  record('Overview: outstanding is invoiced minus paid',
+    ov.outstandingMinor === Math.max(0, ov.invoicedMinor - ov.paidMinor), JSON.stringify(ov));
+  // Overdue is due-date-based, not status-based: OV-PAID is past its due date
+  // but settled, and OV-CANCELLED is past its due date but void — neither counts.
+  record('Overview: overdue counts only past-due invoices that still owe money',
+    ov.overdueInvoiceCount === 1, JSON.stringify(ov));
+  record('Overview: never leaks across accounts',
+    financeDb.getFinanceOverview(secondUserId).invoicedMinor === 0,
+    JSON.stringify(financeDb.getFinanceOverview(secondUserId)));
+
 } catch (err) {
   exitCode = 1;
   console.error('FATAL:', err);
