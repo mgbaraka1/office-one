@@ -238,3 +238,16 @@
   .fin-contract-actions { position: static; opacity: 1; }
   .fin-meeting-actions-bar { position: static; opacity: 1; }
 }
+
+/* ── Create Hub client picker ──
+   A plain vertical list of choices inside the shared modal shell; only shown
+   when a Create Hub flow needs a client and more than one exists. */
+.fin-picker-list { display: flex; flex-direction: column; gap: var(--space-1); }
+.fin-picker-row {
+  display: block; width: 100%; text-align: start;
+  padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text); font: inherit; cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.fin-picker-row:hover { background: var(--surface-2); border-color: var(--accent); }
+.fin-picker-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

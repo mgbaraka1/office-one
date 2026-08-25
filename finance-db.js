@@ -1199,8 +1199,116 @@ function getFinanceClientSummary(userId, clientId) {
   };
 }
 
+// ── Cross-module feeds (Attention Center / Recent Activity) ─────────────────
+// The rest of the app's date-urgent sources live in db.js's getAttentionItems(),
+// but Finance owns 100% of its own SQL, so it contributes its rows from here and
+// main.js concatenates the two. Merging in main.js rather than calling this from
+// db.js also avoids a circular require — finance-db.js already requires db.js
+// for the shared connection.
+//
+// Returns raw dates plus a deep-link target, matching getAttentionItems()'s
+// contract exactly: the renderer already owns daysUntil()/renewClass()/
+// renewLabel() and applies the same day-math to these rows.
+function getFinanceAttentionItems(userId) {
+  const items = [];
+
+  // Unpaid/partly-paid invoices only. A settled or cancelled invoice is not
+  // something to act on, and would otherwise sit in the Attention list forever.
+  const invoices = conn().prepare(
+    `SELECT i.id, i.number, i.due_date, i.client_id, i.amount_minor, i.tax_minor,
+            COALESCE(p.paid, 0) AS paid, st.code AS status_code
+       FROM finance_invoices i
+       LEFT JOIN (SELECT invoice_id, SUM(amount_minor) AS paid FROM finance_invoice_payments GROUP BY invoice_id) p
+         ON p.invoice_id = i.id
+       LEFT JOIN finance_lookups st ON st.id = i.status_id
+      WHERE i.user_id = ? AND i.due_date IS NOT NULL AND i.due_date != ''`
+  ).all(userId);
+  for (const r of invoices) {
+    if (r.status_code === 'CANCELLED' || r.status_code === 'PAID') continue;
+    if (r.amount_minor + r.tax_minor - r.paid <= 0) continue;
+    items.push({
+      type: 'financeInvoice', id: r.id, title: r.number || 'Invoice',
+      date: r.due_date, module: 'finance', clientId: r.client_id,
+    });
+  }
+
+  const installments = conn().prepare(
+    `SELECT n.id, n.title, n.seq, n.due_date, k.client_id,
+            n.amount_minor, COALESCE(l.allocated, 0) AS allocated
+       FROM finance_contract_installments n
+       JOIN finance_contracts k ON k.id = n.contract_id
+       LEFT JOIN (
+         SELECT il.installment_id, SUM(il.allocated_minor) AS allocated
+           FROM finance_invoice_links il
+           JOIN finance_invoices iv ON iv.id = il.invoice_id
+           LEFT JOIN finance_lookups s ON s.id = iv.status_id
+          WHERE il.installment_id IS NOT NULL AND (s.code IS NULL OR s.code != 'CANCELLED')
+          GROUP BY il.installment_id
+       ) l ON l.installment_id = n.id
+      WHERE n.user_id = ? AND n.due_date IS NOT NULL AND n.due_date != ''`
+  ).all(userId);
+  for (const r of installments) {
+    // Fully invoiced already — the invoice's own due date takes over from here.
+    if (r.allocated >= r.amount_minor) continue;
+    items.push({
+      type: 'financeInstallment', id: r.id,
+      title: r.title || `Installment ${r.seq}`,
+      date: r.due_date, module: 'finance', clientId: r.client_id,
+    });
+  }
+
+  const contracts = conn().prepare(
+    `SELECT k.id, k.title, k.end_date, k.client_id, st.code AS status_code
+       FROM finance_contracts k
+       LEFT JOIN finance_lookups st ON st.id = k.status_id
+      WHERE k.user_id = ? AND k.end_date IS NOT NULL AND k.end_date != ''`
+  ).all(userId);
+  for (const r of contracts) {
+    if (r.status_code === 'TERMINATED' || r.status_code === 'EXPIRED') continue;
+    items.push({
+      type: 'financeContract', id: r.id, title: r.title || 'Contract',
+      date: r.end_date, module: 'finance', clientId: r.client_id,
+    });
+  }
+
+  return items;
+}
+
+// Finance's slice of the Overview activity stream. Same row shape as db.js's
+// getRecentActivity(); main.js merges and re-sorts. Amounts are deliberately
+// left out — this is a "what changed" feed, not a financial report.
+function getFinanceRecentActivity(userId, requestedLimit = 16) {
+  const limit = Math.max(1, Math.min(50, Number(requestedLimit) || 16));
+  return conn().prepare(
+    `SELECT kind, entityId, parentId, title, detail, changedAt, module FROM (
+       SELECT 'finance-contract' AS kind, k.id AS entityId, k.client_id AS parentId,
+              k.title AS title, 'Contract updated' AS detail, k.updated_at AS changedAt,
+              'finance' AS module
+         FROM finance_contracts k WHERE k.user_id = ?
+       UNION ALL
+       SELECT 'finance-invoice', i.id, i.client_id, i.number, 'Invoice updated', i.updated_at, 'finance'
+         FROM finance_invoices i WHERE i.user_id = ?
+       UNION ALL
+       SELECT 'finance-cr', c.id, c.client_id, c.title, 'Change request updated', c.updated_at, 'finance'
+         FROM finance_change_requests c WHERE c.user_id = ?
+       UNION ALL
+       SELECT 'finance-meeting', m.id, m.client_id, m.title, 'Meeting updated', m.updated_at, 'finance'
+         FROM finance_meetings m WHERE m.user_id = ?
+     ) ORDER BY changedAt DESC LIMIT ?`
+  ).all(userId, userId, userId, userId, limit).map(row => ({
+    kind: row.kind,
+    id: row.entityId,
+    parentId: row.parentId ?? null,
+    title: row.title || '',
+    detail: row.detail || '',
+    changedAt: row.changedAt || '',
+    module: row.module,
+  }));
+}
+
 module.exports = {
   FINANCE_LOOKUP_CATEGORIES, FINANCE_LOOKUP_SEED, seedLookupsIfMissing,
+  getFinanceAttentionItems, getFinanceRecentActivity,
   listFinanceLookups, saveFinanceLookups,
   listFinanceClients, getFinanceClient, createFinanceClient, updateFinanceClient, deleteFinanceClient,
   listFinanceContracts, getFinanceContract, createFinanceContract, updateFinanceContract, deleteFinanceContract,

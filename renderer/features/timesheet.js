@@ -1557,6 +1557,12 @@ function runCreateFlow(kind) {
   }
   if (kind === 'subscription') {
     switchModule('subscriptions'); openSubModal();
+    return;
+  }
+  // Both resolve a Finance client first — these modals assume one is already
+  // open, which is not true when the Create Hub fires from another module.
+  if (kind === 'finance-contract' || kind === 'finance-invoice') {
+    startFinanceCreation(kind === 'finance-invoice' ? 'invoice' : 'contract');
   }
 }
 

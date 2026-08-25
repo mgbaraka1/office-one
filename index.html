@@ -73,7 +73,7 @@
          section it contradicted. -->
     <div class="nav-section">Finance</div>
     <button class="nav-item" data-module="finance" data-onclick="switchModule('finance')" title="Finance — contracts, invoices, and minutes">
-      <span class="nav-icon" data-ic="credit-card"></span><span class="nav-label">Finance</span>
+      <span class="nav-icon" data-ic="credit-card"></span><span class="nav-label">Finance</span><span class="nav-badge" id="nav-badge-finance"></span>
     </button>
     <div class="nav-section">Clients &amp; Assets</div>
     <button class="nav-item" data-module="clients" data-onclick="switchModule('clients')" title="Clients">
@@ -1301,6 +1301,23 @@
 </div>
 
 <!-- ══ Finance CLIENT ADD/EDIT MODAL ══ -->
+<!-- ══ FINANCE CLIENT PICKER (Create Hub entry points) ══
+     Only shown when the Create Hub asks for a contract or invoice while more
+     than one Finance client exists — with exactly one client the flow skips
+     straight past this. Rows are built in JS so a client name can never break
+     out of an attribute string. -->
+<div id="finance-picker-modal-overlay" class="modal-overlay" data-onclick="financePickerOverlayClick(event)">
+  <div id="finance-picker-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="finance-picker-modal-title">Pick a client</span>
+      <button class="modal-close" data-onclick="closeFinanceClientPicker()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div id="finance-picker-list" class="fin-picker-list"></div>
+    </div>
+  </div>
+</div>
+
 <div id="finance-client-modal-overlay" class="modal-overlay" data-onclick="financeClientOverlayClick(event)">
   <div id="finance-client-modal" class="modal-box">
     <div class="modal-header">
@@ -2544,6 +2561,16 @@
         <button class="create-flow" data-onclick="runCreateFlow('subscription')">
           <span class="create-flow-icon" data-ic="credit-card"></span>
           <span class="create-flow-copy"><span class="create-flow-title">Add subscription</span><span class="create-flow-desc">Track recurring cost and renewal timing</span></span>
+          <span class="create-flow-arrow" data-ic="arrow-right"></span>
+        </button>
+        <button class="create-flow" data-onclick="runCreateFlow('finance-contract')">
+          <span class="create-flow-icon" data-ic="file-text"></span>
+          <span class="create-flow-copy"><span class="create-flow-title">Create contract</span><span class="create-flow-desc">Record a client contract, its versions and installments</span></span>
+          <span class="create-flow-arrow" data-ic="arrow-right"></span>
+        </button>
+        <button class="create-flow" data-onclick="runCreateFlow('finance-invoice')">
+          <span class="create-flow-icon" data-ic="credit-card"></span>
+          <span class="create-flow-copy"><span class="create-flow-title">Raise invoice</span><span class="create-flow-desc">Invoice a client and allocate it against contract work</span></span>
           <span class="create-flow-arrow" data-ic="arrow-right"></span>
         </button>
         <button class="create-flow" data-onclick="runCreateFlow('quick-find')">
