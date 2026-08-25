@@ -94,7 +94,7 @@ function finStatusLabel(row) {
   return finLang() === 'ar' ? (row.statusLabelAr || row.statusLabelEn) : row.statusLabelEn;
 }
 
-function initFinanceItModule() {
+function initFinanceModule() {
   showFinanceListView();
   if (!financeLookups) window.api.listFinanceLookups().then(l => { financeLookups = l; }).catch(() => {});
   if (!financeClientsLoaded) loadFinanceClientsList();
