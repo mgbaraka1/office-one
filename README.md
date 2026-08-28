@@ -6,6 +6,30 @@ Everything runs on the device. There is no application server, no cloud sync, an
 
 ---
 
+## Screenshots
+
+![The Overview dashboard](docs/screenshots/01-overview.png)
+
+<table>
+  <tr>
+    <td width="50%"><a href="docs/screenshots/02-timesheet.png"><img src="docs/screenshots/02-timesheet.png" alt="The Today timesheet, grouped by task"></a><br><sub><b>Today</b> — sessions grouped by task, with hours, over time and status in the header.</sub></td>
+    <td width="50%"><a href="docs/screenshots/03-client-tasks.png"><img src="docs/screenshots/03-client-tasks.png" alt="The Client Tasks list with expanded work logs"></a><br><sub><b>Client Tasks</b> — every task with its dated work logs, filterable by company, system and project.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><a href="docs/screenshots/04-clients.png"><img src="docs/screenshots/04-clients.png" alt="A client detail page with its record tabs"></a><br><sub><b>Clients</b> — a client's projects, access records, servers, internal systems, Finance and Meetings. The company code is permanent and read-only.</sub></td>
+    <td width="50%"><a href="docs/screenshots/05-knowledge-hub.png"><img src="docs/screenshots/05-knowledge-hub.png" alt="The Knowledge Hub article list"></a><br><sub><b>Knowledge Hub</b> — WYSIWYG articles with groups, tags, attachments and versioned documents.</sub></td>
+  </tr>
+</table>
+
+The whole interface is bilingual, including a full right-to-left layout. The same Overview in Arabic:
+
+![The Overview dashboard in Arabic, laid out right to left](docs/screenshots/06-arabic-rtl.png)
+
+> Screenshots are captured from a throwaway account seeded with fictional demo
+> data — no real client, credential or figure appears in them.
+
+---
+
 ## Features
 
 **Time tracking**
