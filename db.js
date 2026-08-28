@@ -193,6 +193,26 @@ const USER_DATA_ENTRIES = [
   'pre-encryption-backup',
 ];
 
+// Chromium's own file, and the one exception to "we carry only our own entries".
+//
+// `safeStorage` does not encrypt with DPAPI directly: it encrypts with an
+// AES-256-GCM key that Chromium keeps, DPAPI-wrapped, in `Local State` INSIDE
+// the userData folder. So this file is not a disposable cache — it is the only
+// key that can open every `enc:v1:` credential in the database sitting beside
+// it. Leave it behind and Electron mints a fresh key on first launch, and every
+// stored VPN, server and internal-system password becomes undecryptable while
+// looking perfectly intact.
+//
+// That is not hypothetical: it is exactly what the 2026-08-25 rename did to the
+// first install that took it, and it cost 73 credentials until the old file was
+// copied over by hand.
+//
+// Carried only onto a destination that has no `Local State` of its own — see
+// carryOverLegacyUserData(), which refuses outright once the destination holds a
+// database. Overwriting a key that is already in use would cause the very
+// failure this exists to prevent.
+const USER_DATA_KEY_ENTRY = 'Local State';
+
 // One-time carry-over for the 2026-08-25 rename of package.json's `name` from
 // `timesheet` to `office-one`. Electron derives the per-user data folder from
 // that name, so the rename moves the directory it hands us — without this an
@@ -223,7 +243,19 @@ function carryOverLegacyUserData(currentDir, legacyDir) {
     fs.cpSync(from, path.join(currentDir, entry), { recursive: true, force: false, errorOnExist: false });
     copied.push(entry);
   }
-  return { ok: true, reason: 'copied', copied };
+
+  // The credential key travels with the credentials it opens — see
+  // USER_DATA_KEY_ENTRY. Never overwrites: if this profile already has a
+  // `Local State`, Electron has already minted a key here and something may
+  // already be encrypted under it, so the legacy one is left alone and the
+  // mismatch is reported instead of silently swapped.
+  const keyFrom = path.join(legacyDir, USER_DATA_KEY_ENTRY);
+  const keyTo = path.join(currentDir, USER_DATA_KEY_ENTRY);
+  if (fs.existsSync(keyFrom) && !fs.existsSync(keyTo)) {
+    fs.copyFileSync(keyFrom, keyTo);
+    copied.push(USER_DATA_KEY_ENTRY);
+  }
+  return { ok: true, reason: 'copied', copied, carriedKey: copied.includes(USER_DATA_KEY_ENTRY) };
 }
 
 // Step 1 — open (or create) the database file and apply connection-level PRAGMAs.
@@ -3580,7 +3612,13 @@ function getSystemDiagnostics() {
       invalid: backupResults.filter(item => !item.ok).map(item => ({ name: item.name, error: item.error })),
     },
     credentialEncryptionAvailable: isCredentialEncryptionAvailable(),
-    credentialPortability: 'Encrypted client passwords and secret keys are tied to the Windows account that created them.',
+    credentialPortability: 'Encrypted client passwords and secret keys are tied to the Windows account that created them. '
+      + 'Take a Full Backup with a passphrase to move them to another account or computer.',
+    // Credentials this install holds the wrong key for. Normally 0. A non-zero
+    // count is the readable form of "this database came from somewhere else" —
+    // the data is intact, but these need unlocking from a passphrase-protected
+    // backup or re-entering.
+    unreadableCredentials: countUnreadableCredentials(),
   };
 }
 
@@ -3630,14 +3668,33 @@ function getAppVersion() {
 // the two can never drift apart again.
 const FULL_BACKUP_PREFIXES = ['OfficeONE-Backup-', 'CooperationTools-Backup-'];
 
-function fullBackup(desktopDir) {
+// `options.passphrase` makes the bundle portable: every credential in the
+// bundle's copy of the database is re-wrapped from this machine's key to a
+// passphrase-derived one, so the backup can be restored on another machine or
+// under another Windows account. Without it the bundle is same-machine only —
+// see the PORTABLE_MARKER block. Internal recovery points never pass one.
+function fullBackup(desktopDir, options = {}) {
   if (!db) throw new Error('database not open');
+  const passphrase = options.passphrase || '';
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '');
   const destRoot = path.join(desktopDir, `${FULL_BACKUP_PREFIXES[0]}${stamp}`);
   fs.mkdirSync(destRoot, { recursive: true });
 
   // Checkpointed DB copy — self-contained, no -wal/-shm needed (mirrors db:backup).
   backup(path.join(destRoot, 'cooperation-tools.db'));
+
+  // Re-wrap the COPY's credentials before anything measures or checksums it, so
+  // the manifest describes the file the bundle actually ships. The live database
+  // is never touched.
+  let credentialEnvelope = null;
+  if (passphrase) {
+    const portable = exportPortableCredentials(path.join(destRoot, 'cooperation-tools.db'), passphrase);
+    if (!portable.ok) {
+      fs.rmSync(destRoot, { recursive: true, force: true });
+      return { ok: false, error: portable.error };
+    }
+    credentialEnvelope = portable.envelope;
+  }
 
   const folders = {};
   for (const [key, srcDir] of [
@@ -3674,6 +3731,10 @@ function fullBackup(desktopDir) {
     folders,
     totalFileCount,
     totalByteCount,
+    // Present only on a passphrase-protected bundle. Carries the KDF parameters
+    // and salt (not the key, and not the passphrase) plus a verifier blob that
+    // lets a restore reject a wrong passphrase before it swaps any file in.
+    credentialEnvelope,
     fileInventory: buildBackupFileInventory(destRoot),
   };
   fs.writeFileSync(path.join(destRoot, 'manifest.json'), JSON.stringify(manifest, null, 2));
@@ -3810,13 +3871,47 @@ function inspectFullBackup(bundleDir) {
       totalFileCount: Number(manifest.totalFileCount) || 0,
       totalByteCount: Number(manifest.totalByteCount) || 0,
     },
+    // Whether this bundle's credentials are passphrase-protected, so the UI can
+    // ask for one before restoring. The envelope itself is deliberately not
+    // returned to the renderer — restore reads it from the manifest itself.
+    credentialsPortable: !!(manifest.credentialEnvelope && manifest.credentialEnvelope.salt),
     warnings,
   };
 }
 
-function restoreFullBackup(bundleDir) {
+// The envelope, read straight from a bundle's manifest. Kept main-process side:
+// restoreFullBackup() needs it, the renderer only needs to know one exists.
+function readBackupCredentialEnvelope(bundleDir) {
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(path.resolve(String(bundleDir || '')), 'manifest.json'), 'utf8'));
+    const env = manifest.credentialEnvelope;
+    return env && env.salt ? env : null;
+  } catch { return null; }
+}
+
+// `options.passphrase` unlocks a portable bundle (see PORTABLE_MARKER). It is
+// checked against the manifest's verifier BEFORE anything is staged or swapped,
+// so a typo costs nothing — the alternative is discovering it once the database
+// has already been replaced.
+//
+// A portable bundle restored WITHOUT a passphrase still restores: the data is
+// all there and the credentials stay in their `enc:p1:` form, which
+// readCredential() reports as unreadable rather than rendering. The result says
+// so, and importPortableCredentials() can finish the job later.
+function restoreFullBackup(bundleDir, options = {}) {
   const inspection = inspectFullBackup(bundleDir);
   if (!inspection.ok) return inspection;
+
+  const envelope = readBackupCredentialEnvelope(bundleDir);
+  const passphrase = options.passphrase || '';
+  if (envelope && passphrase) {
+    let key;
+    try { key = derivePortableKey(passphrase, envelope.salt, envelope.kdf || PORTABLE_KDF); }
+    catch (err) { return { ok: false, error: String(err?.message || err) }; }
+    if (envelope.verifier && !portableVerifierMatches(key, envelope.verifier)) {
+      return { ok: false, error: 'That passphrase does not match this backup. Nothing was changed.' };
+    }
+  }
 
   const sourceRoot = inspection.path;
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -3840,6 +3935,26 @@ function restoreFullBackup(bundleDir) {
   } catch (err) {
     fs.rmSync(stageRoot, { recursive: true, force: true });
     return { ok: false, error: 'Full restore could not be staged: ' + String(err?.message || err) };
+  }
+
+  // Unlock portable credentials while the restored database is still only a
+  // staged file. Doing it here rather than after installation is what makes a
+  // failure free: nothing live has been touched yet, so we can simply abort.
+  let credentialsUnlocked = 0;
+  let credentialNotice = '';
+  if (envelope && passphrase) {
+    const unlocked = importPortableCredentials(path.join(stageRoot, 'cooperation-tools.db'), passphrase, envelope);
+    if (!unlocked.ok) {
+      fs.rmSync(stageRoot, { recursive: true, force: true });
+      return { ok: false, error: unlocked.error + ' Nothing was changed.' };
+    }
+    credentialsUnlocked = unlocked.converted;
+  } else if (envelope) {
+    // Restoring a portable bundle without its passphrase is allowed — the data
+    // is what matters and it is all here. Say plainly that the credentials are
+    // not, rather than letting them surface later as unreadable mysteries.
+    credentialNotice = 'This backup\'s credentials are passphrase-protected and were left locked. '
+                     + 'Restore it again with the passphrase to recover them, or re-enter them in Clients.';
   }
 
   close();
@@ -3868,7 +3983,7 @@ function restoreFullBackup(bundleDir) {
     }
     fs.rmSync(stageRoot, { recursive: true, force: true });
     fs.rmSync(rollbackRoot, { recursive: true, force: true });
-    return { ok: true, recoveryPath: recovery.path };
+    return { ok: true, recoveryPath: recovery.path, credentialsUnlocked, credentialNotice };
   } catch (err) {
     for (const name of installed.reverse()) {
       const live = path.join(userDataDir, name);
@@ -4054,11 +4169,80 @@ function encryptCredentialValue(plain) {
   catch (err) { throw new Error('Credential encryption failed; the secret was not saved', { cause: err }); }
 }
 function decryptCredentialValue(stored) {
-  if (stored == null || stored === '') return stored ?? '';
-  if (typeof stored !== 'string' || !stored.startsWith(CREDENTIAL_MARKER)) return stored; // legacy/plain passthrough
-  if (!isCredentialEncryptionAvailable()) return stored; // can't decrypt without the cipher — return ciphertext, don't throw
-  try { return _credentialCipher.decryptString(Buffer.from(stored.slice(CREDENTIAL_MARKER.length), 'base64')); }
-  catch { return stored; }
+  return readCredential(stored).value;
+}
+
+// Reading a credential can fail for a reason that is nobody's fault and is
+// usually recoverable — and that failure must never be mistaken for the secret.
+//
+// safeStorage's key is per-Windows-account and per-machine, and lives in the
+// userData folder's `Local State` (see USER_DATA_KEY_ENTRY). So a database can
+// be perfectly intact and still be unopenable here: it arrived in a Full Backup
+// restored on another machine, or its folder was renamed and the key was left
+// behind. The stored bytes are fine; this install just has the wrong key.
+//
+// decryptCredentialValue() used to answer that case by returning the stored
+// value — so the Clients page rendered the raw `enc:v1:…` blob under a reveal
+// button as though it were the password. Everything that displays a credential
+// goes through readCredential() instead, which separates "the secret" from
+// "could not be read", so the UI can say which and offer re-entry.
+//
+//   { value, unreadable, reason }
+//     reason 'unavailable' — safeStorage is not working on this machine at all
+//     reason 'foreign-key' — encrypted by a different Windows account/machine
+//     reason 'portable'    — an `enc:p1:` blob from a Full Backup that was never
+//                            unlocked with its passphrase (see PORTABLE_MARKER)
+function readCredential(stored) {
+  if (stored == null || stored === '') return { value: '', unreadable: false };
+  if (typeof stored !== 'string') return { value: stored, unreadable: false };
+  if (stored.startsWith(PORTABLE_MARKER)) return { value: '', unreadable: true, reason: 'portable' };
+  if (!stored.startsWith(CREDENTIAL_MARKER)) return { value: stored, unreadable: false }; // legacy plaintext
+  if (!isCredentialEncryptionAvailable()) return { value: '', unreadable: true, reason: 'unavailable' };
+  try {
+    return {
+      value: _credentialCipher.decryptString(Buffer.from(stored.slice(CREDENTIAL_MARKER.length), 'base64')),
+      unreadable: false,
+    };
+  } catch {
+    return { value: '', unreadable: true, reason: 'foreign-key' };
+  }
+}
+
+// What to store for a credential column on an UPDATE — preserve, don't destroy.
+//
+// readCredential() hands the renderer an empty string for a credential this
+// machine cannot open, which is right for display and dangerous on save: an
+// edit that never touched the password (renaming a server, fixing a note) would
+// round-trip that empty string back and overwrite ciphertext that is still
+// perfectly good on the machine that wrote it — or still unlockable from a
+// backup passphrase. One bad key would turn into permanent data loss on the
+// next unrelated save.
+//
+// So an empty incoming value leaves an UNREADABLE stored value exactly as it
+// is. Clearing a credential you CAN read still works normally, because that
+// case is not ambiguous.
+function nextCredentialValue(storedRaw, incoming) {
+  const supplied = incoming ?? '';
+  if (supplied !== '') return encryptCredentialValue(supplied);
+  return readCredential(storedRaw).unreadable ? storedRaw : encryptCredentialValue('');
+}
+
+// How many stored credentials this install cannot open, by table/column. Drives
+// the Settings banner and the post-restore report — the honest answer to "what
+// did I just lose?", which is "nothing, but these need re-entering".
+function countUnreadableCredentials() {
+  const byTable = {};
+  let total = 0;
+  for (const [table, columns] of CREDENTIAL_COLUMNS) {
+    for (const column of columns) {
+      let rows;
+      try { rows = db.prepare(`SELECT ${column} AS v FROM ${table} WHERE ${column} IS NOT NULL AND ${column} != ''`).all(); }
+      catch { continue; }
+      const n = rows.filter(r => readCredential(r.v).unreadable).length;
+      if (n) { byTable[table] = (byTable[table] || 0) + n; total += n; }
+    }
+  }
+  return { total, byTable };
 }
 
 const CREDENTIAL_COLUMNS = [
@@ -4097,6 +4281,190 @@ function encryptAllPendingCredentials() {
     });
   });
   return { encrypted };
+}
+
+// ── Portable credentials: making a Full Backup restorable on another machine ──
+//
+// `enc:v1:` is bound to one Windows account on one machine. That is the right
+// default for data at rest, and the wrong thing to put in a backup you intend to
+// carry somewhere — restore it elsewhere and every credential is intact, correct,
+// and permanently unopenable.
+//
+// A Full Backup may therefore be taken WITH A PASSPHRASE. Every credential in
+// the bundle's copy of the database is rewritten from `enc:v1:` to `enc:p1:`:
+// same AES-256-GCM, but under a key derived from the passphrase instead of from
+// the machine. Restore asks for the passphrase and converts them straight back
+// to `enc:v1:` under the receiving machine's own key, so the portable form only
+// ever exists inside the bundle — never in a live database.
+//
+// The live database is untouched by any of this: the rewrite happens on the
+// already-copied file, before the manifest's checksums are computed over it.
+//
+// Without a passphrase a backup behaves exactly as it always did — same-machine
+// restores work, other-machine restores report the credentials as unreadable
+// (readCredential's 'foreign-key') rather than pretending.
+const PORTABLE_MARKER = 'enc:p1:';
+// scrypt N=2^15 costs ~100ms and ~32MB per derivation. Derived ONCE per backup
+// or restore, never per credential, so the cost is paid once and the parameters
+// can stay honest. They are recorded in the manifest rather than hardcoded at
+// the read end, so raising them later cannot strand an existing bundle.
+const PORTABLE_KDF = { name: 'scrypt', N: 32768, r: 8, p: 1, keyLen: 32 };
+const PORTABLE_VERIFIER_PLAINTEXT = 'office-one/portable-credentials/v1';
+
+function derivePortableKey(passphrase, saltB64, params = PORTABLE_KDF) {
+  if (typeof passphrase !== 'string' || passphrase === '') throw new Error('A passphrase is required');
+  if (params.name !== 'scrypt') throw new Error('Unsupported key-derivation function: ' + params.name);
+  return crypto.scryptSync(
+    Buffer.from(passphrase, 'utf8'),
+    Buffer.from(saltB64, 'base64'),
+    params.keyLen,
+    // scrypt's default maxmem (32MB) is exactly at N=2^15's requirement; give it
+    // room or Node throws before deriving anything.
+    { N: params.N, r: params.r, p: params.p, maxmem: 256 * 1024 * 1024 }
+  );
+}
+
+function portableEncrypt(key, plain) {
+  const iv = crypto.randomBytes(12);
+  const c = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const body = Buffer.concat([c.update(String(plain), 'utf8'), c.final()]);
+  return PORTABLE_MARKER + Buffer.concat([iv, body, c.getAuthTag()]).toString('base64');
+}
+
+// Throws on a wrong key — GCM's auth tag is what makes a bad passphrase a clean
+// failure rather than silent garbage.
+function portableDecrypt(key, stored) {
+  const buf = Buffer.from(String(stored).slice(PORTABLE_MARKER.length), 'base64');
+  if (buf.length < 12 + 16) throw new Error('Portable credential blob is malformed');
+  const d = crypto.createDecipheriv('aes-256-gcm', key, buf.subarray(0, 12));
+  d.setAuthTag(buf.subarray(buf.length - 16));
+  return Buffer.concat([d.update(buf.subarray(12, buf.length - 16)), d.final()]).toString('utf8');
+}
+
+// A known plaintext sealed under the same key, stored in the manifest. Lets a
+// restore reject a wrong passphrase up front, instead of discovering it after
+// the database has already been swapped in.
+function portableVerifierFor(key) { return portableEncrypt(key, PORTABLE_VERIFIER_PLAINTEXT); }
+function portableVerifierMatches(key, verifier) {
+  try { return portableDecrypt(key, verifier) === PORTABLE_VERIFIER_PLAINTEXT; }
+  catch { return false; }
+}
+
+// Rewrite every credential in `dbFile` from machine-bound to passphrase-bound.
+// Runs against the BUNDLE'S COPY of the database, never the live one.
+//
+// Refuses rather than half-converts: a credential this machine cannot read
+// cannot be made portable, and silently dropping it would put a backup on the
+// desktop that quietly lacks the passwords its owner believes are in it.
+function exportPortableCredentials(dbFile, passphrase) {
+  const salt = crypto.randomBytes(16).toString('base64');
+  const key = derivePortableKey(passphrase, salt);
+  const target = new DatabaseSync(dbFile);
+  try {
+    target.exec('PRAGMA busy_timeout = 5000');
+    const unreadable = [];
+    const pending = [];
+    for (const [table, columns] of CREDENTIAL_COLUMNS) {
+      const exists = target.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table);
+      if (!exists) continue;
+      for (const column of columns) {
+        const rows = target.prepare(`SELECT id, ${column} AS v FROM ${table} WHERE ${column} IS NOT NULL AND ${column} != ''`).all();
+        for (const row of rows) {
+          const read = readCredential(row.v);
+          if (read.unreadable) { unreadable.push(`${table}.${column}#${row.id}`); continue; }
+          if (read.value === '') continue;
+          pending.push([table, column, row.id, portableEncrypt(key, read.value)]);
+        }
+      }
+    }
+    if (unreadable.length) {
+      return {
+        ok: false,
+        error: `${unreadable.length} credential(s) cannot be read on this machine, so they cannot be made portable. `
+             + 'Re-enter them in Clients first, or take the backup without a passphrase.',
+        unreadable: unreadable.length,
+      };
+    }
+    target.exec('BEGIN IMMEDIATE');
+    try {
+      for (const [table, column, id, value] of pending) {
+        target.prepare(`UPDATE ${table} SET ${column} = ? WHERE id = ?`).run(value, id);
+      }
+      target.exec('COMMIT');
+    } catch (err) {
+      try { target.exec('ROLLBACK'); } catch {}
+      throw err;
+    }
+    return {
+      ok: true,
+      converted: pending.length,
+      envelope: { version: 1, kdf: PORTABLE_KDF, salt, verifier: portableVerifierFor(key) },
+    };
+  } finally {
+    try { target.close(); } catch {}
+  }
+}
+
+// The receiving half: convert every `enc:p1:` in `dbFile` to this machine's
+// `enc:v1:`.
+//
+// Operates on a FILE, not the live connection, because a Full Restore relaunches
+// the app the moment it succeeds — there is no "after" in which to run this. So
+// it runs against the staged copy while that is still just a file on disk,
+// before anything is swapped in. A failure there costs nothing: the live data
+// has not been touched yet.
+//
+// Idempotent — `enc:v1:` rows are already home and are skipped by the LIKE.
+function importPortableCredentials(dbFile, passphrase, envelope) {
+  if (!envelope || !envelope.salt) return { ok: false, error: 'This backup carries no portable credentials.' };
+  if (!isCredentialEncryptionAvailable()) {
+    return { ok: false, error: 'Secure credential storage is unavailable on this machine, so credentials cannot be unlocked.' };
+  }
+  let key;
+  try { key = derivePortableKey(passphrase, envelope.salt, envelope.kdf || PORTABLE_KDF); }
+  catch (err) { return { ok: false, error: String(err?.message || err) }; }
+  if (envelope.verifier && !portableVerifierMatches(key, envelope.verifier)) {
+    return { ok: false, error: 'That passphrase does not match this backup.' };
+  }
+
+  const target = new DatabaseSync(dbFile);
+  try {
+    target.exec('PRAGMA busy_timeout = 5000');
+    const pending = [];
+    let failed = 0;
+    for (const [table, columns] of CREDENTIAL_COLUMNS) {
+      const exists = target.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table);
+      if (!exists) continue;
+      for (const column of columns) {
+        // PORTABLE_MARKER is a fixed literal with no LIKE wildcards in it, so a
+        // plain prefix match needs no ESCAPE clause.
+        const rows = target.prepare(
+          `SELECT id, ${column} AS v FROM ${table} WHERE ${column} LIKE ?`
+        ).all(PORTABLE_MARKER + '%');
+        for (const row of rows) {
+          let plain;
+          try { plain = portableDecrypt(key, row.v); } catch { failed++; continue; }
+          pending.push([table, column, row.id, encryptCredentialValue(plain)]);
+        }
+      }
+    }
+    if (failed) return { ok: false, error: `${failed} credential(s) could not be unlocked with that passphrase.`, failed };
+    target.exec('BEGIN IMMEDIATE');
+    try {
+      for (const [table, column, id, value] of pending) {
+        target.prepare(`UPDATE ${table} SET ${column} = ? WHERE id = ?`).run(value, id);
+      }
+      target.exec('COMMIT');
+    } catch (err) {
+      try { target.exec('ROLLBACK'); } catch {}
+      throw err;
+    }
+    return { ok: true, converted: pending.length };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err) };
+  } finally {
+    try { target.close(); } catch {}
+  }
 }
 
 // Migration 032 originally copied the database before encrypting credentials.
@@ -4144,9 +4512,11 @@ function sanitizeLegacyCredentialBackups() {
 }
 
 function clientVpnToApi(r) {
+  const pw = readCredential(r.password);
   return {
     id: r.id, companyId: r.company_id, connectionName: r.connection_name, vpnType: r.vpn_type,
-    endpoint: r.endpoint, port: r.port, username: r.username, password: decryptCredentialValue(r.password),
+    endpoint: r.endpoint, port: r.port, username: r.username,
+    password: pw.value, passwordUnreadable: pw.unreadable,
     expiryDate: r.expiry_date || '', credentialLocation: r.credential_location || '',
     notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
   };
@@ -4161,9 +4531,11 @@ function clientVpnToApi(r) {
 // are the pre-lookup free text — read-only, never written again, kept so a
 // mapped value's original wording stays visible.
 function clientServerToApi(r) {
+  const pw = readCredential(r.password);
   return {
     id: r.id, companyId: r.company_id, host: r.host, environment: r.environment,
-    os: r.os, hostname: r.hostname, username: r.username, password: decryptCredentialValue(r.password),
+    os: r.os, hostname: r.hostname, username: r.username,
+    password: pw.value, passwordUnreadable: pw.unreadable,
     systemId: r.system_id, systemName: lkLabel(r.system_id), systemActive: isLookupActive(r.system_id),
     legacySystemName: r.system_name || '',
     role: lkCode(r.role_id), roleLabel: lkLabel(r.role_id), roleActive: isLookupActive(r.role_id),
@@ -4177,9 +4549,13 @@ function clientServerToApi(r) {
   };
 }
 function clientInternalSystemToApi(r) {
+  const pw = readCredential(r.password);
+  const sk = readCredential(r.secret_key);
   return {
-    id: r.id, companyId: r.company_id, name: r.name, url: r.url, username: r.username, password: decryptCredentialValue(r.password),
-    systemName: r.system_name, environment: r.environment, companyCode: r.company_code, secretKey: decryptCredentialValue(r.secret_key),
+    id: r.id, companyId: r.company_id, name: r.name, url: r.url, username: r.username,
+    password: pw.value, passwordUnreadable: pw.unreadable,
+    systemName: r.system_name, environment: r.environment, companyCode: r.company_code,
+    secretKey: sk.value, secretKeyUnreadable: sk.unreadable,
     expiryDate: r.expiry_date || '', role: r.role || '',
     subServices: safeParse(r.sub_services, []),
     notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
@@ -4591,7 +4967,8 @@ function updateClientVpn(userId, id, data) {
       `UPDATE client_vpn_connections SET connection_name = ?, vpn_type = ?, endpoint = ?, port = ?, username = ?, password = ?,
          expiry_date = ?, credential_location = ?, notes = ?, updated_at = ?
         WHERE id = ? AND user_id = ?`
-    ).run(next.connection_name, next.vpn_type, next.endpoint, next.port, next.username, encryptCredentialValue(next.password),
+    ).run(next.connection_name, next.vpn_type, next.endpoint, next.port, next.username,
+          nextCredentialValue(beforeRaw.password, next.password),
           next.expiry_date, next.credential_location, next.notes, new Date().toISOString(), id, userId);
   });
   return clientVpnToApi(db.prepare('SELECT * FROM client_vpn_connections WHERE id = ?').get(id));
@@ -4671,7 +5048,8 @@ function updateClientServer(userId, id, data) {
       `UPDATE client_servers SET host = ?, environment = ?, os = ?, hostname = ?, username = ?, password = ?,
          system_id = ?, role_id = ?, notes = ?, updated_at = ?
         WHERE id = ? AND user_id = ?`
-    ).run(next.host, next.environment, next.os, next.hostname, next.username, encryptCredentialValue(next.password),
+    ).run(next.host, next.environment, next.os, next.hostname, next.username,
+          nextCredentialValue(beforeRaw.password, next.password),
           next.system_id, next.role_id, next.notes, new Date().toISOString(), id, userId);
   });
   return clientServerToApi(db.prepare('SELECT * FROM client_servers WHERE id = ?').get(id));
@@ -4778,8 +5156,10 @@ function updateClientInternalSystem(userId, id, data) {
       `UPDATE client_internal_systems SET name = ?, url = ?, username = ?, password = ?, system_name = ?, environment = ?,
          company_code = ?, secret_key = ?, expiry_date = ?, role = ?, sub_services = ?, notes = ?, updated_at = ?
         WHERE id = ? AND user_id = ?`
-    ).run(next.name, next.url, next.username, encryptCredentialValue(next.password), next.system_name, next.environment,
-          next.company_code, encryptCredentialValue(next.secret_key), next.expiry_date, next.role, next.sub_services, next.notes,
+    ).run(next.name, next.url, next.username,
+          nextCredentialValue(beforeRaw.password, next.password), next.system_name, next.environment,
+          next.company_code, nextCredentialValue(beforeRaw.secret_key, next.secret_key),
+          next.expiry_date, next.role, next.sub_services, next.notes,
           new Date().toISOString(), id, userId);
   });
   return clientInternalSystemToApi(db.prepare('SELECT * FROM client_internal_systems WHERE id = ?').get(id));
@@ -4815,7 +5195,7 @@ function assignClientInternalGroup(userId, companyId, recordIds, groupName) {
 
 module.exports = {
   LOOKUP_CATEGORIES, LOOKUP_MERGE_TARGETS,
-  DB_FILENAME, USER_DATA_ENTRIES, carryOverLegacyUserData,
+  DB_FILENAME, USER_DATA_ENTRIES, USER_DATA_KEY_ENTRY, carryOverLegacyUserData,
   openConnection, applyMigrations, runMaintenance, getConnection,
   close, backup, dbPath,
   projectsRootDir, knowledgeRootDir,
@@ -4849,6 +5229,8 @@ module.exports = {
   configureCredentialEncryption, allowPlaintextCredentialsForTests, disallowPlaintextCredentialsForTests,
   isCredentialEncryptionAvailable,
   encryptAllPendingCredentials, sanitizeLegacyCredentialBackups,
+  readCredential, countUnreadableCredentials,
+  exportPortableCredentials, importPortableCredentials, readBackupCredentialEnvelope,
   createClientVpn, updateClientVpn, deleteClientVpn,
   createClientServer, updateClientServer, deleteClientServer, renameClientServerSystemGroup, assignClientServerGroup,
   createClientInternalSystem, updateClientInternalSystem, deleteClientInternalSystem, renameClientInternalSystemGroup, assignClientInternalGroup,

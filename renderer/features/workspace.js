@@ -1016,12 +1016,58 @@ async function exportAnalyticsPDF() {
 // Captures the DB + projects/ + company_documents/ + knowledge_hub/ + backups/ into one new
 // timestamped Desktop folder. Shared by Settings -> Backup Data and the command
 // palette; `btnId` lets each caller show its own loading state.
-async function runFullBackup(btnId) {
+// Asks for the optional portability passphrase first, then backs up. The
+// passphrase never leaves this call: it goes straight to the main process and is
+// neither stored nor echoed anywhere.
+let _pendingBackupBtnId = null;
+function runFullBackup(btnId) {
+  _pendingBackupBtnId = btnId || null;
+  const pass = document.getElementById('backup-passphrase');
+  const confirm = document.getElementById('backup-passphrase-confirm');
+  if (pass) pass.value = '';
+  if (confirm) confirm.value = '';
+  syncBackupPassphrase();
+  document.getElementById('backup-passphrase-overlay').classList.add('open');
+}
+function closeBackupPassphrase() {
+  document.getElementById('backup-passphrase-overlay').classList.remove('open');
+  // Never leave a passphrase sitting in a DOM node after the dialog closes.
+  const pass = document.getElementById('backup-passphrase');
+  const confirm = document.getElementById('backup-passphrase-confirm');
+  if (pass) pass.value = '';
+  if (confirm) confirm.value = '';
+}
+function backupPassphraseOverlayClick(e) {
+  if (e.target === document.getElementById('backup-passphrase-overlay')) closeBackupPassphrase();
+}
+// An empty passphrase is a valid choice (a this-computer-only backup); a
+// mismatched one is not, because the passphrase is unrecoverable and a typo
+// would lock the credentials away for good.
+function syncBackupPassphrase() {
+  const pass = document.getElementById('backup-passphrase');
+  const confirm = document.getElementById('backup-passphrase-confirm');
+  const warn = document.getElementById('backup-passphrase-warning');
+  const go = document.getElementById('backup-passphrase-go');
+  if (!pass || !confirm || !warn || !go) return;
+  const mismatch = pass.value !== '' && pass.value !== confirm.value;
+  warn.style.display = mismatch ? '' : 'none';
+  warn.textContent = mismatch ? 'The two passphrases do not match.' : '';
+  go.disabled = mismatch;
+  go.textContent = pass.value === '' ? 'Back Up (this computer only)' : 'Back Up (portable)';
+}
+async function confirmBackupPassphrase() {
+  const pass = document.getElementById('backup-passphrase');
+  const passphrase = pass ? pass.value : '';
+  closeBackupPassphrase();
+  return performFullBackup(_pendingBackupBtnId, passphrase);
+}
+
+async function performFullBackup(btnId, passphrase) {
   const btn = btnId ? document.getElementById(btnId) : null;
   const orig = btn ? btn.textContent : null;
   if (btn) { btn.disabled = true; btn.textContent = 'Backing up…'; }
   let res;
-  try { res = await window.api.fullBackup(); }
+  try { res = await window.api.fullBackup(passphrase || ''); }
   catch { res = { ok: false, error: 'failed' }; }
   if (btn) { btn.disabled = false; btn.textContent = orig; }
   if (res && res.ok) {
@@ -1066,6 +1112,19 @@ async function chooseFullBackupForRestore(btnId) {
   (selected.warnings || []).forEach(warning =>
     summary.appendChild(pjMk('div', 'maint-result-bad', warning)));
 
+  // A portable bundle's credentials are sealed with a passphrase rather than
+  // this machine's key. Restoring without it still restores everything else, so
+  // this is offered, not demanded — but say plainly what leaving it empty costs.
+  let passInput = null;
+  if (selected.credentialsPortable) {
+    summary.appendChild(pjMk('div', 'maint-row-meta',
+      "This backup's credentials are passphrase-protected. Enter it to restore them to this computer; leave it empty to restore everything else and re-enter the credentials later."));
+    passInput = document.createElement('input');
+    passInput.type = 'password';
+    passInput.autocomplete = 'off';
+    passInput.placeholder = 'Backup passphrase (optional)';
+  }
+
   const input = document.createElement('input');
   input.type = 'text';
   input.placeholder = 'Type "' + selected.name + '" to confirm';
@@ -1080,11 +1139,15 @@ async function chooseFullBackupForRestore(btnId) {
     restoreBtn.textContent = 'Creating safety backup…';
     try {
       await flushPending();
-      const res = await window.api.restoreSelectedFullBackup();
+      const res = await window.api.restoreSelectedFullBackup(passInput ? passInput.value : '');
       if (!res?.ok) {
         toast(res?.error || 'Full restore failed');
         restoreBtn.disabled = false;
         restoreBtn.textContent = 'Restore Everything Now';
+        // A wrong passphrase changed nothing and the selection is still valid,
+        // so leave the box up for another try rather than making them re-pick
+        // the folder.
+        if (passInput && /passphrase/i.test(res?.error || '')) passInput.focus();
         return;
       }
       toast('Restoring all data and restarting…');
@@ -1095,6 +1158,7 @@ async function chooseFullBackupForRestore(btnId) {
     }
   });
   box.appendChild(summary);
+  if (passInput) box.appendChild(passInput);
   box.appendChild(input);
   box.appendChild(restoreBtn);
   box.appendChild(cancelBtn);
