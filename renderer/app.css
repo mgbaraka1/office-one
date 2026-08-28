@@ -989,6 +989,13 @@
     .cl-pw-wrap { display: inline-flex; align-items: center; gap: 4px; }
     .cl-pw-toggle { width: 20px; height: 20px; padding: 2px; }
     .cl-pw-toggle svg { width: 13px; height: 13px; }
+    /* A stored credential this device holds no key for. Warning-coloured, not
+       error-coloured: the value is intact and recoverable, just not here. */
+    .cl-pw-locked {
+      display: inline-flex; align-items: center; gap: 5px;
+      color: var(--warn); font-style: italic; cursor: help;
+    }
+    .cl-pw-locked svg { width: 13px; height: 13px; flex: none; }
     .cl-system-group {
       border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 12px;
       background: color-mix(in srgb, var(--accent) 4%, transparent);

@@ -14,8 +14,8 @@ const NO_ARGS = new Set([
   'maintenance:listBackups', 'maintenance:integrityCheck',
   'maintenance:diagnostics',
   'maintenance:lookupDuplicates', 'maintenance:orphanSweepReport',
-  'maintenance:fullBackup', 'maintenance:selectFullBackup',
-  'maintenance:restoreSelectedFullBackup', 'app:flushComplete',
+  'maintenance:selectFullBackup',
+  'app:flushComplete',
   'app:cancelClose', 'security:credentialEncryptionStatus',
 ]);
 
@@ -178,6 +178,11 @@ const SIGNATURES = {
   'finance:report-export-excel': ['object', 'string'],
   'ui:setState': ['object'],
   'maintenance:restoreBackup': ['string'],
+  // The optional argument is the portable-credential passphrase (see db.js's
+  // PORTABLE_MARKER block). Omitted means a same-machine bundle, which is the
+  // behaviour both channels had before they took an argument at all.
+  'maintenance:fullBackup': ['string?'],
+  'maintenance:restoreSelectedFullBackup': ['string?'],
   'maintenance:mergeLookups': ['string', 'id', 'id'],
   'maintenance:openBackupFolder': ['string'],
   'report:exportPDF': ['report', 'string'],

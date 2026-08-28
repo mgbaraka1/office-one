@@ -40,7 +40,7 @@ gate('Task Detail surfaces its metadata audit history',
   && html.includes('getTaskHistory(taskId)')
   && html.includes('View task history'));
 gate('client credentials use timed reveal and clipboard auto-clear',
-  html.includes('function buildClientSecretControl(label, value)')
+  html.includes('function buildClientSecretControl(label, value, unreadable)')
   && html.includes('clipboard clears in 30 seconds')
   && main.includes("ipcMain.handle('security:copySecret'")
   && preload.includes('copySecret: (value)'));
@@ -332,8 +332,27 @@ gate('Maintenance exposes validated full-bundle restore with typed confirmation'
   html.includes('id="maint-fullrestore-btn"')
   && html.includes('function chooseFullBackupForRestore(btnId)')
   && html.includes('window.api.selectFullBackup()')
-  && html.includes('window.api.restoreSelectedFullBackup()')
+  && html.includes('window.api.restoreSelectedFullBackup(')
   && html.includes("input.value !== selected.name"));
+// A backup whose credentials are sealed to one machine is not a backup of those
+// credentials at all — restoring it elsewhere yields records that are intact and
+// permanently unopenable. Both halves of the passphrase path must stay wired:
+// the dialog that offers one on the way out, and the field that accepts one on
+// the way back in.
+gate('Full Backup can be made portable with a passphrase, and restore can unlock it',
+  html.includes('id="backup-passphrase-overlay"')
+  && html.includes('id="backup-passphrase-confirm"')
+  && html.includes('function confirmBackupPassphrase()')
+  && html.includes('window.api.fullBackup(passphrase')
+  && html.includes('selected.credentialsPortable'));
+// The regression that started all of this: a failed decrypt used to be rendered
+// as the password. The reveal control must refuse to show anything at all when
+// the value could not be read.
+gate('an unreadable credential is reported, never rendered as the secret',
+  html.includes('function buildClientSecretControl(label, value, unreadable)')
+  && html.includes("if (unreadable) {")
+  && html.includes('Cannot be read on this device')
+  && html.includes('v.passwordUnreadable'));
 gate('Maintenance exposes recovery readiness and Windows credential portability guidance',
   html.includes('id="maint-diagnostics-result"')
   && html.includes('window.api.getSystemDiagnostics()')

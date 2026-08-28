@@ -319,12 +319,22 @@ contextBridge.exposeInMainWorld('api', {
   mergeLookups:      (category, targetId, sourceId) => ipcRenderer.invoke('maintenance:mergeLookups', category, targetId, sourceId),
   /** @returns {Promise<import('./ipc-types').OrphanSweepReport>} */
   getOrphanSweepReport: ()        => ipcRenderer.invoke('maintenance:orphanSweepReport'),
-  /** @returns {Promise<import('./ipc-types').FullBackupResult>} */
-  fullBackup:        ()           => ipcRenderer.invoke('maintenance:fullBackup'),
+  /**
+   * @param {string} [passphrase] Makes the bundle portable across machines by
+   *   re-wrapping its credentials under a passphrase-derived key. Omit for a
+   *   same-machine backup.
+   * @returns {Promise<import('./ipc-types').FullBackupResult>}
+   */
+  fullBackup:        (passphrase) => ipcRenderer.invoke('maintenance:fullBackup', passphrase),
   /** Opens a native folder picker and validates the selected full-backup bundle. */
   selectFullBackup:  ()           => ipcRenderer.invoke('maintenance:selectFullBackup'),
-  /** Restores the last main-process-validated full-backup bundle, then relaunches the app. */
-  restoreSelectedFullBackup: ()   => ipcRenderer.invoke('maintenance:restoreSelectedFullBackup'),
+  /**
+   * Restores the last main-process-validated full-backup bundle, then relaunches
+   * the app. `passphrase` unlocks a portable bundle; a wrong one is refused
+   * before anything is changed, and the selection survives so it can be retried.
+   * @param {string} [passphrase]
+   */
+  restoreSelectedFullBackup: (passphrase) => ipcRenderer.invoke('maintenance:restoreSelectedFullBackup', passphrase),
   /** @returns {Promise<{ok: boolean, error?: string}>} */
   openBackupFolder:  (folderPath) => ipcRenderer.invoke('maintenance:openBackupFolder', folderPath),
   /** @returns {Promise<import('./ipc-types').FileResult>} */

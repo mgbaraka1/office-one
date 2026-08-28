@@ -57,7 +57,7 @@ Everything runs on the device. There is no application server, no cloud sync, an
 ```bash
 npm install
 npm start        # launch the app
-npm test         # 38 headless smoke suites
+npm test         # 39 headless smoke suites
 npm run test:e2e # real Electron end-to-end run
 ```
 
@@ -86,11 +86,24 @@ Windows CI runs `npm audit --omit=dev --audit-level=high`, the full smoke suite,
 | Finance attachments | `%APPDATA%\office-one\finance\` |
 | Rotating snapshots | `%APPDATA%\office-one\backups\` (newest five) |
 
-Electron derives that folder name from `package.json`'s `name`, so changing `name` moves where the app looks for its data. The rebrand from `timesheet` to `office-one` therefore ships with a one-time carry-over in `main.js` (`migrateLegacyUserDataDir`): on first launch it **copies** the database, uploads and snapshots out of a pre-rebrand `%APPDATA%\timesheet\` and leaves the original in place as a recovery point. Two static-quality assertions keep the package name and that carry-over from ever drifting apart. The database filename itself stays `cooperation-tools.db` — it is the name every existing install, rotating snapshot and full-backup manifest already records.
+Electron derives that folder name from `package.json`'s `name`, so changing `name` moves where the app looks for its data. The rebrand from `timesheet` to `office-one` therefore ships with a one-time carry-over in `main.js` (`migrateLegacyUserDataDir`): on first launch it **copies** the database, uploads and snapshots out of a pre-rebrand `%APPDATA%\timesheet\` and leaves the original in place as a recovery point. It also carries across Chromium's `Local State`, which is emphatically not a disposable cache: it holds the key `safeStorage` encrypts every stored credential with, so a database that moves without it arrives intact and permanently unopenable. Two static-quality assertions keep the package name and that carry-over from ever drifting apart. The database filename itself stays `cooperation-tools.db` — it is the name every existing install, rotating snapshot and full-backup manifest already records.
 
 For development or a portable install, override the location with `OFFICE_ONE_DATA_DIR` (see [.env.example](.env.example)); the former `COOPERATION_TOOLS_DATA_DIR` is still honoured. Packaged builds ignore `.env`.
 
-Full backups are written **outside** the live data directory, to a timestamped Desktop folder, and include the database, every uploaded-file tree, the rotating snapshots, and a SHA-256 file inventory. Settings → Maintenance validates and restores a complete bundle: it first creates a separate full recovery point, then stages every replacement file before closing SQLite. Ordinary data and files are portable across machines, but DPAPI-encrypted client secrets require the same Windows account or must be re-entered. Deleting or replacing an uploaded document offers a five-second Undo.
+Full backups are written **outside** the live data directory, to a timestamped Desktop folder, and include the database, every uploaded-file tree, the rotating snapshots, and a SHA-256 file inventory. Settings → Backup Data validates and restores a complete bundle: it first creates a separate full recovery point, then stages every replacement file before closing SQLite. Deleting or replacing an uploaded document offers a five-second Undo.
+
+### Moving a backup to another computer
+
+Client passwords and secret keys are encrypted with a key belonging to one Windows account on one machine, so a plain backup restores them only where it was made — everywhere else they are intact and unopenable.
+
+Give the backup a **passphrase** and they become portable: every credential in the bundle's copy of the database is re-wrapped under a key derived from the passphrase (scrypt, then AES-256-GCM), and the restore converts them straight back to the receiving machine's own key. The portable form exists only inside the bundle, never in a live database, and the live database is never touched while a backup is taken.
+
+- The passphrase is never stored, logged, or written into the bundle. The manifest carries only the KDF parameters, the salt, and a verifier blob.
+- A wrong passphrase is rejected against that verifier **before** anything is staged or replaced, so a typo costs nothing and can simply be retried.
+- A portable bundle restored *without* its passphrase still restores everything else; the credentials stay locked and the app says so.
+- A backup will not be written at all if some credential cannot be read on the machine taking it — better to refuse than to hand someone a bundle quietly missing the passwords they believe are in it.
+
+A credential this machine holds no key for is shown as *"Cannot be read on this device"*, never as a value, and an unrelated edit to the same record leaves it untouched rather than overwriting it.
 
 ---
 
