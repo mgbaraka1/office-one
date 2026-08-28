@@ -3,8 +3,8 @@
 //
 // Internal (department) work belongs to the user's own organisation, never a
 // client. Before this migration, internal tasks still carried a client
-// Company/System — a pre-existing modelling gap where the employer
-// ("Elm Almaknanah") was misused as a COMPANY lookup row so the old New/Edit
+// Company/System — a pre-existing modelling gap where the employer's own
+// organisation was misused as a COMPANY lookup row so the old New/Edit
 // Task modal's required Company field could be satisfied. The app layer
 // (db.js's internalTaskWriteFields/updateInternalTask/convertTaskToInternal,
 // and updateTaskMeta's domain guard) now keeps every WRITE from
