@@ -4,8 +4,10 @@ Thanks for taking an interest. Office ONE is a small, opinionated desktop app
 with a deliberately narrow set of dependencies, so the fastest way to get a
 change merged is to understand the constraints before writing code.
 
-[CLAUDE.md](CLAUDE.md) is the full developer reference — architecture, database
-model, security boundaries and conventions. This file covers the workflow.
+This file covers the workflow and the invariants. For architecture and the
+database model, the code is the reference: `db.js` owns the schema and every
+query, `migrations/` records how the schema got there in order, and the smoke
+suites in `test/` encode the rules a change has to keep.
 
 ---
 

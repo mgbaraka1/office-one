@@ -164,7 +164,7 @@ A credential this machine holds no key for is shown as *"Cannot be read on this 
 | `test/` | Headless smoke suites plus the real Electron E2E harness |
 | `.github/workflows/` | Windows verification and signed-release automation |
 
-Developer and data-safety reference: [CLAUDE.md](CLAUDE.md).
+Contributor guide and the invariants a change has to keep: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 

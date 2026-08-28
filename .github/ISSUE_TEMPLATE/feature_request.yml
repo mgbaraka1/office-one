@@ -8,7 +8,7 @@ body:
         Office ONE is deliberately offline, single-file, and dependency-light —
         one runtime dependency, no bundler, no server. Proposals that require a
         network service, a cloud account, or a native module are very unlikely
-        to be accepted. See the design constraints in CLAUDE.md.
+        to be accepted. See the design constraints in CONTRIBUTING.md.
 
   - type: textarea
     id: problem
