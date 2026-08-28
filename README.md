@@ -136,7 +136,7 @@ A credential this machine holds no key for is shown as *"Cannot be read on this 
 | `preload.js` | The context-isolated `window.api` façade |
 | `index.html` | All renderer markup and module containers |
 | `renderer/` | Shared CSS, boot/core logic, i18n runtime, and per-domain feature modules |
-| `migrations/` | Append-only numbered migrations `000` … `058` |
+| `migrations/` | Append-only numbered migrations `000` … `059` |
 | `test/` | Headless smoke suites plus the real Electron E2E harness |
 | `.github/workflows/` | Windows verification and signed-release automation |
 
