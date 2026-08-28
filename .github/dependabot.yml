@@ -1,0 +1,30 @@
+version: 2
+
+updates:
+  # The workflows pin every action to a commit SHA with the tag in a trailing
+  # comment. Dependabot understands that form and bumps both together, which is
+  # the only practical way to keep SHA pins from going stale.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+
+  # bcryptjs is the sole runtime dependency; everything else here is Electron
+  # and electron-builder. Grouped so a routine toolchain bump is one PR rather
+  # than three, and kept weekly because a desktop app has no deploy cadence to
+  # keep up with.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+      prefix-development: chore
+    groups:
+      build-toolchain:
+        patterns:
+          - electron
+          - electron-builder

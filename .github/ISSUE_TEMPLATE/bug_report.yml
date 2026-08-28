@@ -1,0 +1,74 @@
+name: Bug report
+description: Something in the app behaves incorrectly.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        **Never attach your database, a backup bundle, or a screenshot showing
+        real client data.** Office ONE stores live client credentials, and a
+        `.db` file or Full Backup carries all of them. If a reproduction needs
+        data, describe the shape of it or create a throwaway account instead.
+
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Shown at the foot of the sidebar, under the signed-in account.
+      placeholder: "10.0.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How is it installed?
+      options:
+        - NSIS installer
+        - Portable build
+        - Running from source (npm start)
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Windows version
+      placeholder: "Windows 11 Pro 24H2"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The page you were on, what you clicked, and what you expected instead.
+      placeholder: |
+        1. Open Clients → a client → the Finance tab
+        2. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What actually happened
+    validations:
+      required: true
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Console output
+      description: >-
+        Optional. Ctrl+Shift+I opens DevTools; the Console tab shows renderer
+        errors. Redact anything naming a real client before pasting.
+      render: text
+
+  - type: checkboxes
+    id: language
+    attributes:
+      label: Interface language
+      options:
+        - label: It also happens in English (if you were using Arabic)
+        - label: It only happens in Arabic / RTL
