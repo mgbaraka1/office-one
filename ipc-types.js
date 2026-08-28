@@ -877,7 +877,12 @@
  * @property {string} [error]
  * @property {Object} [manifest]  Same content written to manifest.json (appVersion, createdAt,
  *                                schemaHead, tableRowCounts, folders, totalFileCount, totalByteCount,
- *                                and fileInventory with SHA-256 per copied file).
+ *                                credentialEnvelope, and fileInventory with SHA-256 per copied file).
+ *
+ * `manifest.credentialEnvelope` is present only when the backup was taken with a
+ * passphrase. It carries the KDF parameters, the salt and a verifier blob —
+ * never the passphrase and never the derived key. Its presence is what makes the
+ * bundle restorable on a machine other than the one that wrote it.
  */
 
 /**
@@ -890,7 +895,23 @@
  * @property {string} [name]
  * @property {string} [error]
  * @property {string[]} [warnings]
+ * @property {boolean} [credentialsPortable]  True when this bundle's credentials are
+ *   passphrase-protected, so the UI must ask for one before restoring. The envelope
+ *   itself stays main-process side.
  * @property {{appVersion:string,createdAt:string,schemaHead:number,totalFileCount:number,totalByteCount:number}} [manifest]
+ */
+
+/**
+ * Result of `maintenance:restoreSelectedFullBackup`. On success the app
+ * relaunches immediately, so the renderer generally never sees it.
+ * @typedef {Object} FullRestoreResult
+ * @property {boolean} ok
+ * @property {string} [error]
+ * @property {string} [recoveryPath]        Where the pre-restore recovery point was written.
+ * @property {number} [credentialsUnlocked] How many portable credentials were re-wrapped
+ *   under this machine's key.
+ * @property {string} [credentialNotice]    Set when a portable bundle was restored WITHOUT its
+ *   passphrase: the data is all there, the credentials stay locked.
  */
 
 /**

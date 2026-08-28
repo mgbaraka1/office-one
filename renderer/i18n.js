@@ -970,6 +970,32 @@
     'Finance — {client} Report': 'المالية — تقرير {client}',
   });
 
+  // Portable credentials — the Full Backup passphrase dialog, the restore
+  // prompt, and the "this device holds the wrong key" state on a client record.
+  // See db.js's PORTABLE_MARKER block for what these actually describe.
+  Object.assign(ar, {
+    'Back Up Everything': 'نسخ كل البيانات احتياطياً',
+    'Back Up': 'نسخ احتياطي',
+    'Back Up (portable)': 'نسخ احتياطي (قابل للنقل)',
+    'Back Up (this computer only)': 'نسخ احتياطي (هذا الجهاز فقط)',
+    'Passphrase': 'عبارة المرور',
+    '(optional)': '(اختياري)',
+    'Confirm passphrase': 'تأكيد عبارة المرور',
+    'Backup passphrase (optional)': 'عبارة مرور النسخة الاحتياطية (اختياري)',
+    'Leave empty for a this-computer-only backup': 'اتركها فارغة لنسخة احتياطية خاصة بهذا الجهاز فقط',
+    'The two passphrases do not match.': 'عبارتا المرور غير متطابقتين.',
+    'That passphrase does not match this backup.': 'عبارة المرور لا تطابق هذه النسخة الاحتياطية.',
+    'Cannot be read on this device': 'يتعذّر قراءتها على هذا الجهاز',
+    'Client passwords and secret keys are encrypted with a key that belongs to this Windows account on this computer. A plain backup restores them only here. Set a passphrase to make them portable, and this backup can be restored on another computer or under another Windows account.':
+      'تُشفَّر كلمات مرور العملاء والمفاتيح السرية بمفتاح يخص حساب Windows هذا على هذا الجهاز، فالنسخة العادية تستعيدها هنا فقط. عيّن عبارة مرور لجعلها قابلة للنقل، فتصبح هذه النسخة قابلة للاستعادة على جهاز آخر أو تحت حساب Windows آخر.',
+    'There is no way to recover a forgotten passphrase. The backup\'s other data still restores without it — only the credentials stay locked.':
+      'لا توجد أي طريقة لاستعادة عبارة مرور منسية. تبقى بقية بيانات النسخة الاحتياطية قابلة للاستعادة بدونها — وتظل بيانات الاعتماد وحدها مقفلة.',
+    'This backup\'s credentials are passphrase-protected. Enter it to restore them to this computer; leave it empty to restore everything else and re-enter the credentials later.':
+      'بيانات اعتماد هذه النسخة محمية بعبارة مرور. أدخلها لاستعادتها إلى هذا الجهاز، أو اتركها فارغة لاستعادة كل ما عداها وإدخال بيانات الاعتماد لاحقاً.',
+    'This credential was saved by a different Windows account or on a different computer, so its key is not available here. The stored value is intact — restore the backup with its passphrase, or re-enter the credential to replace it.':
+      'حُفظت بيانات الاعتماد هذه بحساب Windows آخر أو على جهاز آخر، لذا مفتاحها غير متوفر هنا. القيمة المخزّنة سليمة — استعد النسخة الاحتياطية بعبارة مرورها، أو أعد إدخال بيانات الاعتماد لاستبدالها.',
+  });
+
   const uiNounsAr = {
     clients: 'العملاء', companies: 'الشركات', systems: 'الأنظمة',
     'company documents': 'مستندات الشركة', department: 'القسم', departments: 'الأقسام',

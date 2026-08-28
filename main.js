@@ -690,8 +690,12 @@ ipcMain.handle('maintenance:orphanSweepReport', authed(() => db.getOrphanSweepRe
 // single new timestamped folder on the Desktop. db.fullBackup() never imports
 // electron, so it's handed the resolved Desktop path here (same separation
 // configureCredentialEncryption() already established).
-ipcMain.handle('maintenance:fullBackup', authed(() => {
-  try { return db.fullBackup(app.getPath('desktop')); }
+// An optional passphrase makes the bundle portable — its credentials are
+// re-wrapped from this machine's safeStorage key to a passphrase-derived one, so
+// the backup can be restored on another machine or Windows account. Never
+// logged, never stored, never written into the bundle.
+ipcMain.handle('maintenance:fullBackup', authed((_e, passphrase) => {
+  try { return db.fullBackup(app.getPath('desktop'), { passphrase: passphrase || '' }); }
   catch (err) { return { ok: false, error: String(err?.message || err) }; }
 }));
 ipcMain.handle('maintenance:selectFullBackup', authed(async () => {
@@ -704,11 +708,15 @@ ipcMain.handle('maintenance:selectFullBackup', authed(async () => {
   selectedFullBackup = inspection.ok ? inspection.path : null;
   return inspection;
 }));
-ipcMain.handle('maintenance:restoreSelectedFullBackup', authed(() => {
+ipcMain.handle('maintenance:restoreSelectedFullBackup', authed((_e, passphrase) => {
   if (!selectedFullBackup) return { ok: false, error: 'No validated full backup is selected' };
   const selected = selectedFullBackup;
+  const res = db.restoreFullBackup(selected, { passphrase: passphrase || '' });
+  // A wrong passphrase is a retry, not a failed restore: nothing was touched, so
+  // keep the validated selection so the user can simply type it again. Any other
+  // outcome consumes it, exactly as before.
+  if (!res.ok && /passphrase/i.test(res.error || '')) return res;
   selectedFullBackup = null;
-  const res = db.restoreFullBackup(selected);
   if (res.ok) { app.relaunch(); app.exit(0); }
   return res;
 }));

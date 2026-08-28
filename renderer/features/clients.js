@@ -533,10 +533,14 @@ async function openClientRecordInfoModal(record, presetSearch) {
   list.innerHTML = '';
   (CLIENT_RECORD_INFO_FIELDS[record.type] || []).forEach(([key, label, sensitive]) => {
     const value = full[key];
+    // A credential this device holds no key for reads back empty — say so,
+    // rather than letting it pass as '(empty)', which would mean "never set".
+    const locked = sensitive && !value && full[key + 'Unreadable'];
     const row = pjMk('div', 'cl-info-row' + (value ? '' : ' not-copyable'));
     const main = pjMk('div', 'cl-info-main');
     main.appendChild(pjMk('div', 'cl-info-label', label));
-    main.appendChild(pjMk('div', 'cl-info-value' + (value ? '' : ' empty'), value ? (sensitive ? '••••••••' : value) : '(empty)'));
+    main.appendChild(pjMk('div', 'cl-info-value' + (value ? '' : ' empty'),
+      locked ? 'Cannot be read on this device' : value ? (sensitive ? '••••••••' : value) : '(empty)'));
     row.appendChild(main);
     if (value) {
       row.appendChild(pjMk('div', 'cl-info-copy-hint', 'Click to copy'));
@@ -1401,8 +1405,27 @@ function clientHistoryOverlayClick(e) {
   if (e.target === document.getElementById('client-history-overlay')) closeClientHistoryModal();
 }
 
-function buildClientSecretControl(label, value) {
+// `unreadable` means the stored credential exists and is intact, but this
+// machine holds the wrong key for it — safeStorage's key is per-Windows-account
+// and per-machine (see db.js's readCredential). That is emphatically NOT the
+// same as "no password", and it must never be shown as one.
+//
+// It used to be shown as something far worse: the read path answered a failed
+// decrypt by returning the stored value, so this control cheerfully revealed the
+// raw `enc:v1:…` blob as though it were the secret. Now the reveal and copy
+// buttons are withheld — there is nothing to reveal or copy — and the row says
+// what happened and what to do about it.
+function buildClientSecretControl(label, value, unreadable) {
   const wrap = pjMk('span', 'cl-pw-wrap');
+  if (unreadable) {
+    wrap.appendChild(document.createTextNode(label + ': '));
+    const warn = pjMk('span', 'cl-pw-locked');
+    warn.innerHTML = ic('lock');
+    warn.appendChild(document.createTextNode('Cannot be read on this device'));
+    warn.title = 'This credential was saved by a different Windows account or on a different computer, so its key is not available here. The stored value is intact — restore the backup with its passphrase, or re-enter the credential to replace it.';
+    wrap.appendChild(warn);
+    return wrap;
+  }
   const text = pjMk('span', 'cl-pw-text', '••••••••');
   let masked = true;
   let revealTimer = null;
@@ -1442,11 +1465,13 @@ function buildClientVpnCard(v) {
   main.appendChild(pjMk('div', 'cl-item-title', v.connectionName || '(unnamed connection)'));
   const metaBits = [v.vpnType, v.endpoint, v.port ? ('Port ' + v.port) : ''].filter(Boolean).join(' · ');
   if (metaBits) main.appendChild(pjMk('div', 'cl-item-meta', metaBits));
-  if (v.username || v.password) {
+  if (v.username || v.password || v.passwordUnreadable) {
     const cred = pjMk('div', 'cl-item-meta cl-item-cred');
     if (v.username) cred.appendChild(pjMk('span', null, 'User: ' + v.username));
-    if (v.password) {
-      cred.appendChild(buildClientSecretControl('Password', v.password));
+    // An unreadable credential is empty in `password` but still very much there —
+    // render on the flag too, or it would silently disappear from the card.
+    if (v.password || v.passwordUnreadable) {
+      cred.appendChild(buildClientSecretControl('Password', v.password, v.passwordUnreadable));
     }
     main.appendChild(cred);
   }
@@ -1530,11 +1555,11 @@ function buildClientServerCard(s) {
   main.appendChild(buildServerIdentityLine(s));
   const metaBits = [s.host, s.hostname, s.os].filter(Boolean).join(' · ');
   if (metaBits) main.appendChild(pjMk('div', 'cl-item-meta', metaBits));
-  if (s.username || s.password) {
+  if (s.username || s.password || s.passwordUnreadable) {
     const cred = pjMk('div', 'cl-item-meta cl-item-cred');
     if (s.username) cred.appendChild(pjMk('span', null, 'User: ' + s.username));
-    if (s.password) {
-      cred.appendChild(buildClientSecretControl('Password', s.password));
+    if (s.password || s.passwordUnreadable) {
+      cred.appendChild(buildClientSecretControl('Password', s.password, s.passwordUnreadable));
     }
     main.appendChild(cred);
   }
@@ -1804,19 +1829,19 @@ function buildClientInternalSystemCard(s) {
   }
   main.appendChild(title);
   if (s.url) main.appendChild(pjMk('div', 'cl-item-meta', s.url));
-  if (s.username || s.password) {
+  if (s.username || s.password || s.passwordUnreadable) {
     const cred = pjMk('div', 'cl-item-meta cl-item-cred');
     if (s.username) cred.appendChild(pjMk('span', null, 'User: ' + s.username));
-    if (s.password) {
-      cred.appendChild(buildClientSecretControl('Password', s.password));
+    if (s.password || s.passwordUnreadable) {
+      cred.appendChild(buildClientSecretControl('Password', s.password, s.passwordUnreadable));
     }
     main.appendChild(cred);
   }
-  if (s.companyCode || s.secretKey) {
+  if (s.companyCode || s.secretKey || s.secretKeyUnreadable) {
     const svcCred = pjMk('div', 'cl-item-meta cl-item-cred');
     if (s.companyCode) svcCred.appendChild(pjMk('span', null, 'Company Code: ' + s.companyCode));
-    if (s.secretKey) {
-      svcCred.appendChild(buildClientSecretControl('Secret Key', s.secretKey));
+    if (s.secretKey || s.secretKeyUnreadable) {
+      svcCred.appendChild(buildClientSecretControl('Secret Key', s.secretKey, s.secretKeyUnreadable));
     }
     main.appendChild(svcCred);
   }

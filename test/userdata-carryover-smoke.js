@@ -46,6 +46,10 @@ function seedLegacy(dir) {
   fs.writeFileSync(path.join(dir, 'backups', 'cooperation-tools-2026-08-01.db'), 'SNAPSHOT');
   fs.mkdirSync(path.join(dir, 'Cache'), { recursive: true });      // Chromium's, disposable
   fs.writeFileSync(path.join(dir, 'Cache', 'data_0'), 'CHROMIUM');
+  // Chromium's too, but NOT disposable: it holds the DPAPI-wrapped AES key that
+  // safeStorage encrypts every stored credential with. Leaving it behind is what
+  // silently orphaned 73 credentials on the first install to take the rename.
+  fs.writeFileSync(path.join(dir, db.USER_DATA_KEY_ENTRY), '{"os_crypt":{"encrypted_key":"LEGACY-KEY"}}');
 }
 
 const read = p => (fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null);
@@ -117,6 +121,34 @@ const read = p => (fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null);
   check('a missing path declines rather than throwing', !blank.ok, blank.reason);
 }
 
+// ── 3b. The credential key travels with the credentials it opens ────────────
+// safeStorage's key lives in the userData folder's `Local State`. Carry the
+// database without it and every credential is intact and permanently
+// unopenable — the app cannot tell that from data loss, and neither can the
+// user. This is the single gate that would have caught the 2026-08-25 rename.
+{
+  const { legacy, current } = scratch();
+  seedLegacy(legacy);
+  const result = db.carryOverLegacyUserData(current, legacy);
+
+  check('the credential key is carried over with the database',
+    read(path.join(current, db.USER_DATA_KEY_ENTRY)) === '{"os_crypt":{"encrypted_key":"LEGACY-KEY"}}',
+    db.USER_DATA_KEY_ENTRY);
+  check('the carry-over reports that it moved the key', result.carriedKey === true);
+  check('the disposable Chromium cache is still left behind',
+    !fs.existsSync(path.join(current, 'Cache')));
+
+  // A destination that already has its own key has already encrypted something
+  // under it. Overwriting would cause the very failure this prevents.
+  const { legacy: legacy2, current: current2 } = scratch();
+  seedLegacy(legacy2);
+  fs.mkdirSync(current2, { recursive: true });
+  fs.writeFileSync(path.join(current2, db.USER_DATA_KEY_ENTRY), 'DESTINATION-OWN-KEY');
+  db.carryOverLegacyUserData(current2, legacy2);
+  check('an existing destination key is never overwritten',
+    read(path.join(current2, db.USER_DATA_KEY_ENTRY)) === 'DESTINATION-OWN-KEY');
+}
+
 // ── 4. The entry list must stay in step with the directories db.js creates ──
 {
   for (const required of [DB, 'backups', 'projects', 'company_documents', 'knowledge_hub', 'finance']) {
@@ -126,6 +158,10 @@ const read = p => (fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null);
   // have these, and runMaintenance() only relocates them if they arrived.
   check('USER_DATA_ENTRIES still covers the pre-055 finance_it/ upload tree',
     db.USER_DATA_ENTRIES.includes('finance_it'));
+  // Deliberately NOT in USER_DATA_ENTRIES: it is Chromium's file, copied by its
+  // own never-overwrite rule rather than the bulk loop.
+  check('the credential key is named and is not in the bulk entry list',
+    db.USER_DATA_KEY_ENTRY === 'Local State' && !db.USER_DATA_ENTRIES.includes(db.USER_DATA_KEY_ENTRY));
 }
 
 const failed = results.filter(r => !r.pass);
