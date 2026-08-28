@@ -1,0 +1,32 @@
+name: Feature request
+description: Suggest a change to how the app works.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Office ONE is deliberately offline, single-file, and dependency-light —
+        one runtime dependency, no bundler, no server. Proposals that require a
+        network service, a cloud account, or a native module are very unlikely
+        to be accepted. See the design constraints in CLAUDE.md.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the situation, not the solution you have in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What do you do today instead?
+      description: Existing workarounds, and why they fall short.

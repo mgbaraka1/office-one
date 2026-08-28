@@ -1,0 +1,7 @@
+# Every issue goes through one of the two templates.
+blank_issues_enabled: false
+
+# No contact_links entry for security on purpose: with SECURITY.md committed and
+# private vulnerability reporting enabled in Settings → Code security, GitHub
+# adds its own "Report a vulnerability" link to this chooser, pointed at the
+# right URL for whatever owner/name the repository ends up with.
