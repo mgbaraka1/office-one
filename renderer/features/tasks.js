@@ -5,7 +5,7 @@
 // only now); which channel — and which field set — is correct now depends on
 // t.kind, so every such site goes through these two helpers instead of five
 // independent literals that could silently drift out of sync with each other
-// (see AGENTS.md's task_field_history note for the exact bug shape this
+// (see ARCHITECTURE.md's task_field_history note for the exact bug shape this
 // guards against: a payload that forgets a field the write path still acts on).
 function taskRestorePayload(t) {
   return t.kind === 'INTERNAL'

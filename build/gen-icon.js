@@ -1,7 +1,7 @@
 // One-off icon generator. Renders build/icon.svg in an offscreen Electron
 // window, then writes build/icon.ico (multi-size, PNG-compressed entries) and
 // build/icon.png (256). Run with: npx electron build/gen-icon.js
-const { app, BrowserWindow, nativeImage } = require('electron');
+const { app, BrowserWindow } = require('electron');
 const fs = require('fs');
 const path = require('path');
 

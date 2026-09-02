@@ -36,7 +36,7 @@ function safeText(value) {
 }
 
 function safeSheetName(value) {
-  const name = safeText(value || 'Timesheet').replace(/[\\/\?\*\[\]:]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 31);
+  const name = safeText(value || 'Timesheet').replace(/[\\/?*[\]:]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 31);
   return name || 'Timesheet';
 }
 

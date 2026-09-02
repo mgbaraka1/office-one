@@ -312,7 +312,7 @@ try {
     Array.isArray(int.subServices) && int.subServices.length === 0, JSON.stringify(int.subServices));
 
   const intWithSub = db.createClientInternalSystem(userId, companyA, {
-    name: 'ACME Travel Portal - Production', url: 'https://travel.example.com', systemName: 'Travel Cover',
+    name: 'ACME Travel Portal - Production', url: 'https://travel.example.com', systemName: 'Travel',
     environment: 'PRODUCTION', companyCode: '105', secretKey: 'portal-secret',
     subServices: [{ label: 'Bookings', url: 'https://travel.example.com/Bookings' },
                   { label: 'Reports', url: 'https://travel.example.com/Reports' },

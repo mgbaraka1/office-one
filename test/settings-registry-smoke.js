@@ -12,7 +12,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const assert = require('node:assert/strict');
 const db = require('../db');
 
 require('./test-bootstrap');
@@ -69,11 +68,20 @@ try {
   check('every externally-managed entry declares editor: "external"',
     externallyManaged.every(t => t.editor === 'external'),
     `keys=${JSON.stringify(externallyManaged.map(t => t.key))}`);
-  // COMPANY is the one such category today: managed on the Clients page, but
-  // still a real lookup category and still merge-eligible from Maintenance.
-  // Both of those are exactly why its registry entry could not simply be deleted.
+  // Two groups are externally managed today, and each needs its registry entry
+  // for a different reason:
+  //   • COMPANY  — the roster IS this catalog and it is managed on the Clients
+  //     page, but it is still a real lookup category and still merge-eligible
+  //     from Maintenance. Both are why the entry could not simply be deleted.
+  //   • The four Finance categories — folded into lookup_codes by migration 060,
+  //     but edited in Settings → Finance rather than gaining four shared tabs.
+  // Anything else appearing here is a drift worth failing on.
+  const EXPECTED_EXTERNAL = ['COMPANY', 'CONTRACT_STATUS', 'CR_STATUS', 'INVOICE_STATUS', 'PAYMENT_METHOD'];
+  check('exactly the known categories are externally managed',
+    JSON.stringify(externallyManaged.map(t => t.category).sort()) === JSON.stringify([...EXPECTED_EXTERNAL].sort()),
+    `externallyManaged=${JSON.stringify(externallyManaged.map(t => t.category))}`);
   check('COMPANY is externally managed (the Clients page owns the roster)',
-    externallyManaged.length === 1 && externallyManaged[0].category === 'COMPANY',
+    externallyManaged.some(t => t.category === 'COMPANY'),
     `externallyManaged=${JSON.stringify(externallyManaged.map(t => t.category))}`);
   check('COMPANY is still a db.js lookup category', dbCategories.has('COMPANY'));
   check('COMPANY is still merge-eligible from Maintenance', dbMergeable.has('COMPANY'));

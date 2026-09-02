@@ -5,6 +5,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "lint": "eslint .",
     "test": "node test/run-all.js",
     "test:e2e": "node test/electron-e2e.js",
     "build": "electron-builder",
@@ -30,8 +31,10 @@
     "node": ">=24"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
     "electron": "^42.7.0",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "eslint": "10.9.1"
   },
   "build": {
     "appId": "com.mostafa.officeone",
@@ -39,8 +42,6 @@
     "files": [
       "main.js",
       "db.js",
-      "finance-seed.js",
-      "finance-db.js",
       "auth.js",
       "xlsx.js",
       "ipc-contracts.js",

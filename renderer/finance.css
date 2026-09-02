@@ -3,7 +3,7 @@
    shared chrome (.btn/.modal-overlay/.pj-card-open/.seg-ctl/.form-row/etc.)
    intentionally comes from renderer/app.css, the same shared UI primitives
    every other module already uses — nothing Finance-domain-specific lives
-   there. See AGENTS.md's Finance section.
+   there. See ARCHITECTURE.md's Finance section.
 
    Finance has no page of its own, so there is no list view here any more: the
    Clients page hosts these sections, and the client card grid it used to have

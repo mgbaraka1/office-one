@@ -40,4 +40,14 @@ const SETTINGS_CATALOG_TABS = [
   { key: 'department', category: 'DEPARTMENT', valueField: 'label', label: 'Department', icon: 'building', editor: 'lookup' },
   { key: 'taskSourceType', category: 'TASK_SOURCE_TYPE', valueField: 'code', label: 'Task Source Types', icon: 'external-link', editor: 'lookup' },
   { key: 'serverRole', category: 'SERVER_ROLE', valueField: 'code', label: 'Server Roles', icon: 'server', editor: 'lookup' },
+
+  // Finance's statuses and payment methods. Migration 060 folded them out of
+  // Finance's own catalog table into lookup_codes, so they are ordinary catalog
+  // categories now — but they keep their dedicated editor in Settings → Finance
+  // rather than gaining four more shared tabs, which is what settingsTab: false
+  // means here (the same shape COMPANY uses for the Clients page).
+  { key: 'contractStatus', category: 'CONTRACT_STATUS', valueField: 'code', label: 'Contract Status', icon: 'file-text', editor: 'external', settingsTab: false },
+  { key: 'crStatus', category: 'CR_STATUS', valueField: 'code', label: 'Change Request Status', icon: 'clipboard-list', editor: 'external', settingsTab: false },
+  { key: 'invoiceStatus', category: 'INVOICE_STATUS', valueField: 'code', label: 'Invoice Status', icon: 'credit-card', editor: 'external', settingsTab: false },
+  { key: 'paymentMethod', category: 'PAYMENT_METHOD', valueField: 'code', label: 'Payment Method', icon: 'credit-card', editor: 'external', settingsTab: false },
 ];

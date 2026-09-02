@@ -1,8 +1,8 @@
 // Migration 025 — Internal Systems gain a structured Sub-Services list.
 //
 // Some Internal Systems are really one logical service exposed as several
-// sibling endpoints (e.g. a government API with Bookings/Reports/
-// Admin* sub-services sharing one company code/secret key). This
+// sibling endpoints (e.g. one API exposing Bookings/Reports/Admin sub-services
+// that share a single company code and secret key). This
 // adds `sub_services`, a JSON array of `{label, url}` pairs, so those can be
 // recorded as structured data on a single record instead of one record per
 // endpoint or free text crammed into notes.

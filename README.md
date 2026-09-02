@@ -152,18 +152,18 @@ A credential this machine holds no key for is shown as *"Cannot be read on this 
 |---|---|
 | `main.js` | Electron lifecycle, window, IPC registration and the trusted/authed boundaries, native dialogs, printing, OS integration |
 | `auth.js` | bcrypt validation, login throttling, account administration, the in-memory session |
-| `db.js` | SQLite connection, migration runner, maintenance/backups, ownership-scoped CRUD, validation, analytics |
-| `finance-db.js` | Finance's own data layer — shares the connection, owns all of its own SQL |
+| `db.js` | SQLite connection, migration runner, maintenance/backups, ownership-scoped CRUD, validation, analytics, and the Finance data layer |
 | `xlsx.js` | Dependency-free OpenXML workbook writer for Excel exports |
 | `ipc-contracts.js` | Executable, fail-closed argument contracts for every renderer→main channel |
 | `ipc-types.js` | Documentation-only JSDoc shapes for the IPC boundary |
 | `preload.js` | The context-isolated `window.api` façade |
 | `index.html` | All renderer markup and module containers |
 | `renderer/` | Shared CSS, boot/core logic, i18n runtime, and per-domain feature modules |
-| `migrations/` | Append-only numbered migrations `000` … `059` |
+| `migrations/` | Append-only numbered migrations `000` … `060` |
 | `test/` | Headless smoke suites plus the real Electron E2E harness |
 | `.github/workflows/` | Windows verification and signed-release automation |
 
+How the pieces fit together and why, in depth: [ARCHITECTURE.md](ARCHITECTURE.md).
 Contributor guide and the invariants a change has to keep: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
