@@ -543,18 +543,48 @@ async function run() {
   console.log(`PASS  Extracted renderer modules loaded (app v${result.version})`);
 }
 
+// `root` reaches the app as OFFICE_ONE_DATA_DIR, which main.js feeds straight
+// into app.setPath('userData'), so Chromium's GPUCache and network store sit in
+// it alongside the database's -wal/-shm. kill() signals only Electron's main
+// process; the GPU and renderer helpers hold those files open a little longer,
+// and Windows refuses to delete a file that is still open.
+async function stopElectron() {
+  if (!child || child.exitCode != null) return;
+  const exited = new Promise(resolve => child.once('exit', () => resolve(true)));
+  const deadline = ms => new Promise(resolve => setTimeout(() => resolve(false), ms));
+  child.kill();
+  if (await Promise.race([exited, deadline(15_000)])) return;
+  try { child.kill('SIGKILL'); } catch {}
+  await Promise.race([exited, deadline(2_000)]);
+}
+
+// Retry, then give up quietly. rmSync does NOT retry by default (maxRetries is
+// 0), so the single attempt this used to make raced the handles above and threw
+// EPERM on the slower CI runner — turning a run where all 25 gates passed into a
+// red build. A directory left behind under the OS temp folder is not a test
+// failure, so it is reported and not thrown.
+async function removeDataDir(dir) {
+  for (let attempt = 1; attempt <= 10; attempt++) {
+    try {
+      fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+      return;
+    }
+    catch (error) {
+      if (attempt === 10) {
+        console.warn(`WARN  left ${dir} in place (${error.code || error.message})`);
+        return;
+      }
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+  }
+}
+
 run().catch(error => {
   console.error('FAIL  Electron E2E smoke');
   console.error(error.stack || String(error));
   process.exitCode = 1;
 }).finally(async () => {
   try { socket?.close(); } catch {}
-  if (child && child.exitCode == null) {
-    child.kill();
-    await Promise.race([
-      new Promise(resolve => child.once('exit', resolve)),
-      new Promise(resolve => setTimeout(resolve, 3000)),
-    ]);
-  }
-  fs.rmSync(root, { recursive: true, force: true });
+  await stopElectron();
+  await removeDataDir(root);
 });
