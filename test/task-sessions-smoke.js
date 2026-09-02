@@ -85,7 +85,6 @@ try {
   });
 
   // ── FLOW 1 — Add Session (Task Detail's compact create-mode modal) ──────────
-  let sessionTaskId, sessionTaskMeta;
   {
     const t = db.createTask(userId, newTaskPayload('TS flow1 add-session target'));
     const first = db.addWorkLog(userId, t.id, { date: DAY_A, description: 'flow1 first session', minutes: 30, time: 'WORK_TIME', natural: naturalLabel });
@@ -99,12 +98,10 @@ try {
     const pass = first.ok && second.ok && after.logCount === 2 && metaUnchanged && !!added;
     record('1. Add Session from Task Detail lands on the right task/date, metadata untouched', pass,
       `taskId=${t.id} logCount=${after.logCount} metaUnchanged=${metaUnchanged} landedOn=${added ? added.date : 'MISSING'}`);
-    sessionTaskId = t.id;
-    sessionTaskMeta = taskMeta(after);
   }
 
   // ── FLOW 2 — Merge: source's sessions move onto target; target untouched ────
-  let mergeSourceId, mergeTargetId, movedIds, sourceSnapshotForUndo;
+  let mergeTargetId, movedIds, sourceSnapshotForUndo;
   {
     const source = db.createTask(userId, newTaskPayload('TS merge source', 'OPEN'));
     db.addWorkLog(userId, source.id, { date: DAY_A, description: 'src session 1', minutes: 15, time: 'WORK_TIME', natural: naturalLabel });
@@ -131,7 +128,6 @@ try {
     record('2. Merge moves all sessions onto target, deletes source, target metadata untouched', pass,
       `sourceGone=${sourceGone} targetLogCount=${targetAfter.logCount} targetMetaUnchanged=${targetMetaUnchanged} movedCount=${res.movedWorkLogIds && res.movedWorkLogIds.length} historyRecorded=${eachMoveHasTaskHistory}`);
 
-    mergeSourceId = source.id;
     mergeTargetId = target.id;
     movedIds = res.movedWorkLogIds || [];
   }

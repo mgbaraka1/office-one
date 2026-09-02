@@ -23,7 +23,7 @@
 //
 //   3. One genuine pre-existing collision is resolved: two fully-filled rows in
 //      the first client both read Webshop / Application Server / Production. The
-//      second is "Approval Portal - Application Server" — an Webshop-mistagged
+//      second is "Approval Portal - Application Server" — a Webshop-mistagged
 //      Approval Portal box — so its System becomes "Approval Portal". Guarded
 //      by a name+system match, so it's a no-op on any other database.
 //

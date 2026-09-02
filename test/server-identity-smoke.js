@@ -177,7 +177,7 @@ try {
     // The confirmed consolidations must actually have happened.
     const mapped = new Map(rows.map(r => [String(r.legacy || '').toLowerCase(), r.label]));
     const expected = { 'webshop': 'Online Platform', 'agggregators': 'Aggregators', 'paygate': 'Payment Gateway',
-                       'visa insurance': 'Visa', 'visa insurance servers': 'Visa' };
+                       'travel cover': 'Travel', 'travel cover servers': 'Travel' };
     const wrong = Object.entries(expected)
       .filter(([from, to]) => mapped.has(from) && mapped.get(from) !== to)
       .map(([from, to]) => from + ' -> ' + mapped.get(from) + ' (want ' + to + ')');

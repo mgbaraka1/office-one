@@ -29,6 +29,7 @@ jobs:
           }
       - run: npm ci
       - run: npm audit --omit=dev --audit-level=high
+      - run: npm run lint
       - run: npm test
       - run: npm run test:e2e
       - run: npm run build:win -- --publish never

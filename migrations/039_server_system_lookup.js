@@ -11,15 +11,15 @@
 // The mapping is NOT guessed — each ambiguous case was confirmed with the user
 // against the real data, because SYSTEM is shared with the rest of the app and a
 // wrong merge would silently re-label their infrastructure records:
-//   Webshop (14)                  -> Online Platform   (their name for it)
+//   Webshop (14)                 -> Online Platform   (their name for it)
 //   Agggregators (5)             -> Aggregators       (typo, 3 g's)
-//   PAYGATE (2)                  -> Payment Gateway
-//   Travel Cover (2)           -> Visa
-//   Travel Cover Servers (4)   -> Visa              ("Servers" is not a system)
-//   Uploader / BILLING / Visa  -> the identical existing codes
-//   Approval Portal (1)         -> created (no equivalent existed)
+//   PayGate (2)                  -> Payment Gateway
+//   Travel Cover (2)             -> Travel
+//   Travel Cover Servers (4)     -> Travel            ("Servers" is not a system)
+//   Uploader / Billing / Travel  -> the identical existing codes
+//   Approval Portal (1)          -> created (no equivalent existed)
 // Consolidating systems can collide the identity triple, so this was dry-run
-// first (none collide — distinct nullN roles keep the merged Visa rows apart)
+// first (none collide — distinct nullN roles keep the merged Travel rows apart)
 // and is re-asserted below, so the migration can never commit a broken state.
 //
 // nullN system placeholders (migration 038's, for rows that never had a system)
@@ -63,8 +63,8 @@ module.exports = {
       'webshop': 'Online Platform',
       'agggregators': 'Aggregators',
       'paygate': 'Payment Gateway',
-      'visa insurance': 'Visa',
-      'visa insurance servers': 'Visa',
+      'travel cover': 'Travel',
+      'travel cover servers': 'Travel',
     };
     ensure('Approval Portal', true);   // no equivalent existed; a real system
 

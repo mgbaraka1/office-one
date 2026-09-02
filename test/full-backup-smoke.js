@@ -116,7 +116,7 @@ try {
   const copiedTaskCount = copiedDb.prepare('SELECT COUNT(*) AS c FROM tasks').get().c;
   copiedDb.close();
   record('Gate 2: the copied DB opens standalone and passes integrity_check',
-    copiedOk, JSON.stringify(integrityRows).slice(0, 150));
+    copiedOk, `tasks=${copiedTaskCount} ` + JSON.stringify(integrityRows).slice(0, 150));
 
   // ── Gate 3 — seeded files copied recursively with correct nesting ───────
   const copiedProjectFile = path.join(destRoot, 'projects', '999999', 'documents', 'quote.pdf');

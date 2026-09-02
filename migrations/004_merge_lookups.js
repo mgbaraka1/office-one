@@ -8,12 +8,17 @@
 // category FK is moved; nothing but the redundant catalog row is removed.
 //
 // Merges (target ← sources):
-//   COMPANY  ACME_GROUP ← ACME
-//   PROJECT  BILLING            ← BILLING_WEB, BILLING_LEGACY
-//   PROJECT  QA_2025 ← QA_PILOT
-//   PROJECT  DR               ← SQL_DR
-//   PROJECT  CLIENT_PORTAL    ← B2B_PORTAL
-//   PROJECT  MANAGEMENT       ← MGMT_LEGACY
+//   COMPANY  ACME_GROUP    ← ACME
+//   PROJECT  BILLING       ← BILLING_WEB, BILLING_LEGACY
+//   PROJECT  QA_2025       ← QA_PILOT
+//   PROJECT  DR            ← SQL_DR
+//   PROJECT  CLIENT_PORTAL ← B2B_PORTAL
+//   PROJECT  MANAGEMENT    ← MGMT_LEGACY
+//
+// The identifiers above and below were genericised before this repository was
+// published; the originals were one operator's internal codes. Every database
+// this migration could reach is already past version 4, and a fresh install has
+// an empty catalog, so every merge here is a no-op in both directions.
 module.exports = {
   version: 4,
   name: 'merge_lookups',
@@ -26,12 +31,12 @@ module.exports = {
 
     // [category, targetCode, [...sourceCodes]]
     const MERGES = [
-      ['COMPANY', 'ACME_GROUP', ['ACME']],
-      ['PROJECT', 'BILLING',            ['BILLING_WEB', 'BILLING_LEGACY']],
-      ['PROJECT', 'QA_2025', ['QA_PILOT']],
-      ['PROJECT', 'DR',               ['SQL_DR']],
-      ['PROJECT', 'CLIENT_PORTAL',    ['B2B_PORTAL']],
-      ['PROJECT', 'MANAGEMENT',       ['MGMT_LEGACY']],
+      ['COMPANY', 'ACME_GROUP',    ['ACME']],
+      ['PROJECT', 'BILLING',       ['BILLING_WEB', 'BILLING_LEGACY']],
+      ['PROJECT', 'QA_2025',       ['QA_PILOT']],
+      ['PROJECT', 'DR',            ['SQL_DR']],
+      ['PROJECT', 'CLIENT_PORTAL', ['B2B_PORTAL']],
+      ['PROJECT', 'MANAGEMENT',    ['MGMT_LEGACY']],
     ];
 
     const idOf = (category, code) => {

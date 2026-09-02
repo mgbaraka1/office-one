@@ -1698,10 +1698,8 @@ function buildDailyReportHTML(srcRows, date, name, sourcesByTaskId) {
 
   const workMin  = byType['WORK_TIME'] || 0;
   const otMin    = byType['OVERTIME'] || 0;
-  const otherMin = Math.max(0, totalMin - workMin - otMin);   // Training/Leave/Holiday/etc.
   const workHrs  = (workMin / 60).toFixed(2);
   const otHrs    = (otMin / 60).toFixed(2);
-  const otherHrs = (otherMin / 60).toFixed(2);
 
   // Group the day's work sessions by their task (two-level model): a task header
   // row (company + system/project label + task title + subtotal) followed by each session's
@@ -1725,7 +1723,7 @@ function buildDailyReportHTML(srcRows, date, name, sourcesByTaskId) {
   const rowsHTML = groups.length ? groups.map((g, gi) => {
     // Daily report task titles use COMPANY - PROJECT/SYSTEM - TASK. Historical
     // task names often already begin with the System value (for example,
-    // "Payment Gateway - Check..."); strip that prefix so it is not printed twice.
+    // "Billing Portal - Check..."); strip that prefix so it is not printed twice.
     // An internal group has no company/system —
     // print INTERNAL - DEPARTMENT - TASK instead, rather than a blank company.
     const isInternalGroup = g.departmentId != null;
@@ -2768,11 +2766,6 @@ function switchModule(name) {
     browseKind = kind;
     name = 'browse';
   }
-  // Finance became Finance (migration 055). The migration rewrites the saved
-  // lastModule, but this alias is permanent and deliberately belt-and-braces:
-  // it covers a ui-state blob the migration could not parse, and any older
-  // deep link that still names the module by its previous id.
-  if (name === 'finance-it') name = 'finance';
   // Finance stopped being a module of its own — contracts, invoices and
   // meetings are client records now. A remembered "last module" of finance (or
   // a stale deep link) lands on Clients, which is where they live.
