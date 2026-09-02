@@ -26,6 +26,14 @@
   ],
   "author": "Moustafa Baraka",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mgbaraka1/office-one.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mgbaraka1/office-one/issues"
+  },
+  "homepage": "https://github.com/mgbaraka1/office-one#readme",
   "type": "commonjs",
   "engines": {
     "node": ">=24"
