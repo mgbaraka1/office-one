@@ -732,7 +732,7 @@ async function renderAnalytics() {
     .filter(([, v]) => v > 0)
     .sort((a, b) => b[1] - a[1])
     .map(([k, v], i) => ({ label: k === 'OTHER' ? 'Other' : lkLabel('TIME_TYPE', k), value: v, color: AN_TYPE_COLORS[k] || AN_FALLBACK[i % AN_FALLBACK.length] }));
-  document.getElementById('an-type').innerHTML = anDonut(typeSegs, totalMin);
+  document.getElementById('an-type').innerHTML = anDonut(typeSegs);
   document.getElementById('an-type-sub').textContent = typeSegs.length ? `${typeSegs.length} types` : '';
 
   // ── Activity donut (by natural: Ticket / Task / Meeting / Call) ──
@@ -740,7 +740,7 @@ async function renderAnalytics() {
     .filter(([, v]) => v > 0)
     .sort((a, b) => b[1] - a[1])
     .map(([k, v], i) => ({ label: lkLabel('ACTIVITY_TYPE', k), value: v, color: AN_FALLBACK[i % AN_FALLBACK.length] }));
-  document.getElementById('an-activity').innerHTML = anDonut(natSegs, totalMin);
+  document.getElementById('an-activity').innerHTML = anDonut(natSegs);
   document.getElementById('an-activity-sub').textContent = natSegs.length ? `${natSegs.length} types` : '';
 
   // ── Heatmap: This Year ──
@@ -806,7 +806,7 @@ function openAllTasksForDepartment(label) {
 }
 
 // SVG donut from [{label, value, color}] segments.
-function anDonut(segments, totalMin) {
+function anDonut(segments) {
   if (!segments.length) return `<div class="an-empty">No tracked time in this period.</div>`;
   const total = segments.reduce((s, x) => s + x.value, 0) || 1;
   const r = 52, C = 2 * Math.PI * r;

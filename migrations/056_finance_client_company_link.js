@@ -27,8 +27,8 @@ module.exports = {
     const hasTable = name => !!db.prepare(
       "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?"
     ).get(name);
-    // 055 renames finance_* -> finance_*; if that has not happened there is
-    // nothing here to link yet.
+    // Migration 054 creates the Finance tables; if that has not happened
+    // there is nothing here to link yet.
     if (!hasTable('finance_clients')) return;
 
     const columns = db.prepare('PRAGMA table_info(finance_clients)').all().map(c => c.name);

@@ -83,14 +83,14 @@ try {
     defaultCurrency: 'USD',
   });
 
-  const doc = db.createCompanyDocument(userId, { name: 'ATTN test document', category: '', renewalDate: '2099-02-02', notes: '' });
-  const noDateDoc = db.createCompanyDocument(userId, { name: 'ATTN doc with no renewal date', category: '', renewalDate: '', notes: '' });
+  db.createCompanyDocument(userId, { name: 'ATTN test document', category: '', renewalDate: '2099-02-02', notes: '' });
+  db.createCompanyDocument(userId, { name: 'ATTN doc with no renewal date', category: '', renewalDate: '', notes: '' });
 
-  const vpn = db.createClientVpn(userId, companyId, { connectionName: 'ATTN test vpn', password: '', expiryDate: '2099-03-03' });
-  const int_ = db.createClientInternalSystem(userId, companyId, { name: 'ATTN test internal', password: '', secretKey: '', expiryDate: '2099-05-05' });
+  db.createClientVpn(userId, companyId, { connectionName: 'ATTN test vpn', password: '', expiryDate: '2099-03-03' });
+  db.createClientInternalSystem(userId, companyId, { name: 'ATTN test internal', password: '', secretKey: '', expiryDate: '2099-05-05' });
   // No-expiry-date controls on the two tables that DO have the column and a UI,
   // plus client_servers, which has no expiry_date column at all.
-  const vpnNoDate = db.createClientVpn(userId, companyId, { connectionName: 'ATTN vpn no expiry', password: '' });
+  db.createClientVpn(userId, companyId, { connectionName: 'ATTN vpn no expiry', password: '' });
   // A server IS its (System, Role, Environment) triple since migrations 038/039 —
   // all three required — so seeding one needs a real SYSTEM this client has no
   // server under, or the create is (correctly) refused and this gate would pass

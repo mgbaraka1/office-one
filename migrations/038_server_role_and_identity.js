@@ -23,7 +23,7 @@
 //
 //   3. One genuine pre-existing collision is resolved: two fully-filled rows in
 //      the first client both read Storefront / Application Server / Production. The
-//      second is "Review Portal - Application Server" — an Storefront-mistagged
+//      second is "Review Portal - Application Server" — a Storefront-mistagged
 //      Review Portal box — so its System becomes "Review Portal". Guarded
 //      by a name+system match, so it's a no-op on any other database.
 //

@@ -98,7 +98,7 @@
     'Add Server': 'إضافة خادم', 'Add Internal System': 'إضافة نظام داخلي', 'Add Connection': 'إضافة اتصال',
     'Add Auth Connection': 'إضافة اتصال مصادقة', 'Connection Name': 'اسم الاتصال', 'Environment': 'البيئة',
     'Production': 'الإنتاج', 'UAT': 'اختبار القبول', 'IP Address': 'عنوان IP', 'Hostname': 'اسم المضيف',
-    'Port': 'المنفذ', 'Operating System': 'نظام التشغيل', 'Role': 'الدور', 'Password': 'كلمة المرور',
+    'Port': 'المنفذ', 'Operating System': 'نظام التشغيل', 'Role': 'الدور',
     'Endpoint / URL': 'نقطة الاتصال / الرابط', 'Expiry Date (optional)': 'تاريخ الانتهاء (اختياري)',
     'Credential Location (optional)': 'موقع بيانات الدخول (اختياري)', 'Secret Key (optional)': 'المفتاح السري (اختياري)',
     'Company Code (optional)': 'رمز الشركة (اختياري)',
@@ -120,7 +120,7 @@
     'Start on': 'البدء عند', 'Last page': 'آخر صفحة', 'Analytics': 'التحليلات',
     'User Management': 'إدارة المستخدمين', 'Add User': 'إضافة مستخدم', 'Edit User': 'تعديل المستخدم',
     'Permissions': 'الصلاحيات', 'Account status': 'حالة الحساب', 'Active — can sign in': 'نشط — يمكنه تسجيل الدخول',
-    'Current password': 'كلمة المرور الحالية', 'New password': 'كلمة المرور الجديدة', 'Save User': 'حفظ المستخدم',
+    'Current password': 'كلمة المرور الحالية', 'Save User': 'حفظ المستخدم',
     'Display name (English)': 'الاسم المعروض (إنجليزي)', 'Display name (Arabic)': 'الاسم المعروض (عربي)',
     'Shown as your greeting name in the app, in whichever language is active — falls back to your username if left blank.':
       'يُعرض كاسم الترحيب بك في التطبيق، بأي لغة كانت نشطة — ويعود إلى اسم المستخدم إذا تُرك فارغاً.',
@@ -128,7 +128,7 @@
     'Standard User': 'مستخدم عادي', 'Administrator': 'مسؤول',
     'Standard User — own data and preferences': 'مستخدم عادي — بياناته وتفضيلاته فقط',
     'Administrator — full settings, backup and user access': 'مسؤول — وصول كامل إلى الإعدادات والنسخ الاحتياطي والمستخدمين',
-    'Companies': 'الشركات', 'Company Doc Categories': 'فئات مستندات الشركة', 'Knowledge Types': 'أنواع المعرفة',
+    'Company Doc Categories': 'فئات مستندات الشركة', 'Knowledge Types': 'أنواع المعرفة',
     'Task Source Types': 'أنواع مصادر المهام', 'Server Roles': 'أدوار الخوادم', 'Maintenance': 'الصيانة',
     'Save Catalog Changes': 'حفظ تغييرات الكتالوج', 'Discard Changes': 'تجاهل التغييرات',
     'Changes discarded': 'تم تجاهل التغييرات',
@@ -229,8 +229,8 @@
     'Daily Work Report': 'تقرير العمل اليومي', 'Total Hours': 'إجمالي الساعات', 'Total Minutes': 'إجمالي الدقائق',
     'Weekly Work Report': 'تقرير العمل الأسبوعي', 'Monthly Work Report': 'تقرير العمل الشهري',
     'Period': 'الفترة', 'Week': 'الأسبوع', 'Active Days': 'أيام العمل',
-    'Work Time': 'وقت العمل', 'Description / Source': 'الوصف / المصدر', 'sessions grouped by task': 'الجلسات مجمعة حسب المهمة',
-    'Min': 'دقيقة', 'Hrs': 'ساعة', 'Total': 'الإجمالي', 'Sources': 'المصادر', 'Source': 'المصدر',
+    'Description / Source': 'الوصف / المصدر', 'sessions grouped by task': 'الجلسات مجمعة حسب المهمة',
+    'Min': 'دقيقة', 'Hrs': 'ساعة', 'Total': 'الإجمالي', 'Source': 'المصدر',
     'No work recorded on this day.': 'لا يوجد عمل مسجل في هذا اليوم.', 'Printed {date}': 'طُبع في {date}',
     'Over-Time Request': 'طلب وقت إضافي', 'Total Over-Time': 'إجمالي الوقت الإضافي', 'Entries': 'الإدخالات',
     'Days': 'الأيام', 'Employee': 'الموظف', 'Approved by': 'اعتمد بواسطة',
@@ -250,7 +250,7 @@
     'No subscriptions yet — showing an empty report': 'لا توجد اشتراكات بعد — سيُعرض تقرير فارغ',
     'Could not load subscriptions': 'تعذر تحميل الاشتراكات',
     'Analytics — {label}': 'التحليلات — {label}', 'generated {date}': 'أُنشئ في {date}',
-    'Today': 'اليوم', 'in {days} days': 'خلال {days} يوم', 'Overdue by {days} days': 'متأخر منذ {days} يوم',
+    'in {days} days': 'خلال {days} يوم', 'Overdue by {days} days': 'متأخر منذ {days} يوم',
     'minutes': 'دقائق', 'on the selected day': 'في اليوم المحدد', 'Flat': 'مسطح',
     '— defaults to the description': '— يستخدم الوصف افتراضياً', '— Project link, Sources': '— رابط المشروع والمصادر',
     '— optional, link this task to a project': '— اختياري، اربط هذه المهمة بمشروع',
@@ -667,7 +667,7 @@
   });
 
   // ── Main-process error messages ────────────────────────────────────────────
-  // auth.js / db.js / finance-db.js / main.js return these as `{ ok:false,
+  // auth.js / db.js / main.js return these as `{ ok:false,
   // error }` and the renderer drops them straight into the DOM, so the observer
   // translates them like any other UI string — but the coverage smoke test only
   // reads renderer sources, so nothing here was ever flagged.
@@ -688,7 +688,7 @@
     'Could not save the user.': 'تعذّر حفظ المستخدم.',
   });
 
-  // finance-db.js — every refusal the Finance module can surface as a toast or
+  // db.js's Finance section — every refusal Finance can surface as a toast or
   // an inline modal error. All six cross-entity invariants live here.
   Object.assign(ar, {
     'Pick a client from the company list': 'اختر عميلاً من قائمة الشركات',
@@ -729,7 +729,7 @@
     'Meeting not found': 'لم يُعثر على الاجتماع',
     'Action item description is required': 'وصف بند العمل مطلوب',
     'Action item not found': 'لم يُعثر على بند العمل',
-    // Shared by db.js and finance-db.js upload validation.
+    // Shared by the app-wide and Finance upload validation in db.js.
     'Could not read the selected file': 'تعذّرت قراءة الملف المحدد',
     'File must be between 1 byte and 100 MB': 'يجب أن يكون حجم الملف بين 1 بايت و100 ميجابايت',
     'The file contents do not match its extension': 'محتوى الملف لا يطابق امتداده',
@@ -1067,14 +1067,14 @@
     // Timesheet filter counter.
     [/^(\d+) of (\d+) shown$/s, m => `معروض ${m[1]} من ${m[2]}`],
     // Finance invariants 3–5, whose messages name the link target and the
-    // remaining headroom (finance-db.js).
+    // remaining headroom (db.js, Finance section).
     [/^Invoice and (installment|change request) currencies do not match$/s,
       m => `عملة الفاتورة و${m[1] === 'installment' ? 'الدفعة' : 'طلب التغيير'} غير متطابقتين`],
     [/^This would over-allocate the (installment|change request) \(only (.+) remaining\)$/s,
       m => `سيتجاوز هذا تخصيص ${m[1] === 'installment' ? 'الدفعة' : 'طلب التغيير'} (المتبقي ${m[2]} فقط)`],
     [/^This would over-pay the invoice \(only (.+) remaining\)$/s,
       m => `سيتجاوز هذا سداد الفاتورة (المتبقي ${m[1]} فقط)`],
-    // Upload validation, shared by db.js and finance-db.js.
+    // Upload validation, shared by the app-wide and Finance paths in db.js.
     [/^Unsupported file type \((\..*?|\.\?)\)\. Allowed: (.+)$/s,
       m => `نوع الملف غير مدعوم (${m[1]}). المسموح: ${m[2]}`],
     [/^Unsupported file type \((.+)\)$/s, m => `نوع الملف غير مدعوم (${m[1]})`],
@@ -1203,7 +1203,7 @@
     [/^Merged into (.+)$/s, m => `تم الدمج في ${arabicTranslation(m[1])}`],
     [/^Project restored, but couldn't relink: (.+)$/s, m => `تمت استعادة المشروع، لكن تعذّرت إعادة الربط: ${m[1]}`],
     // Task-card footer: "Acme · Billing  ·  3 sessions  ·  90 min (1.50 h)".
-    [/^(?:(.+?)  ·  )?(\d+) sessions?(?:  ·  (\d+) min \(([\d.]+) h\))?$/s, m => {
+    [/^(?:(.+?) {2}· {2})?(\d+) sessions?(?: {2}· {2}(\d+) min \(([\d.]+) h\))?$/s, m => {
       const parts = [];
       if (m[1]) parts.push(m[1]);
       parts.push(`${m[2]} جلسة`);

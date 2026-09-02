@@ -210,7 +210,7 @@
 /**
  * One edit recorded against a tasks row (tasks:history →
  * db.getTaskFieldHistory), newest first. Mirrors WorkLogHistoryEntry's shape;
- * see task_field_history in AGENTS.md — name/status/company/system/project/
+ * see task_field_history in ARCHITECTURE.md — name/status/company/system/project/
  * department/source fields, each diffed by its human-facing value (lookup
  * code for status, lookup label for company/system/department, linked
  * project's name for project), not the raw FK id.
@@ -278,8 +278,6 @@
  * @property {string} status               A PROJECT_STATUS lookup code (e.g. 'ACTIVE').
  * @property {string} createdAt
  * @property {number} taskCount            Number of tasks linked to the project.
- * @property {number} subProjectCount      Retired (migration 035's Sub-Projects) — always 0 now, no UI ever creates one.
- * @property {number} supportYearCount     Retired (migration 035's Annual Support) — always 0 now, no UI ever creates one.
  */
 
 /**
@@ -472,7 +470,7 @@
  * @property {string} secretKey   Since migration 024 — stored in plain text (no encryption layer in this app).
  * @property {string} expiryDate Since migration 026 — YYYY-MM-DD or '' (unset), e.g. a credential/contract expiry. Display only, no reminders.
  * @property {string} role       Since migration 026 — free text purpose/description of this system.
- * @property {{label: string, url: string}[]} subServices Since migration 025 — structured sibling endpoints of one logical service (e.g. a government API's Bookings/Reports/Admin* endpoints sharing this record's companyCode/secretKey). Empty array when unused.
+ * @property {{label: string, url: string}[]} subServices Since migration 025 — structured sibling endpoints of one logical service (e.g. one API's Bookings/Reports/Admin endpoints sharing this record's companyCode/secretKey). Empty array when unused.
  * @property {string} notes
  * @property {number} sortOrder
  * @property {string} createdAt

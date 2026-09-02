@@ -9,7 +9,6 @@
 //
 // Run standalone with: node test/userdata-carryover-smoke.js
 
-const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -154,10 +153,6 @@ const read = p => (fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null);
   for (const required of [DB, 'backups', 'projects', 'company_documents', 'knowledge_hub', 'finance']) {
     check(`USER_DATA_ENTRIES covers ${required}`, db.USER_DATA_ENTRIES.includes(required));
   }
-  // Pre-055 Finance uploads: a database restored from an old backup can still
-  // have these, and runMaintenance() only relocates them if they arrived.
-  check('USER_DATA_ENTRIES still covers the pre-055 finance_it/ upload tree',
-    db.USER_DATA_ENTRIES.includes('finance_it'));
   // Deliberately NOT in USER_DATA_ENTRIES: it is Chromium's file, copied by its
   // own never-overwrite rule rather than the bulk loop.
   check('the credential key is named and is not in the bulk entry list',

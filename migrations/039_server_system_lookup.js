@@ -11,13 +11,13 @@
 // The mapping is NOT guessed — each ambiguous case was confirmed with the user
 // against the real data, because SYSTEM is shared with the rest of the app and a
 // wrong merge would silently re-label their infrastructure records:
-//   Storefront                       -> Web Portal   (their name for it)
+//   Storefront                      -> Web Portal   (their name for it)
 //   Connnectors                 -> Connectors       (typo, 3 g's)
-//   PAYHUB                      -> Payment Service
-//   Booking Hub               -> Bookings
-//   Booking Hub Servers       -> Bookings              ("Servers" is not a system)
-//   Importer / BILLING / Bookings  -> the identical existing codes
-//   Review Portal             -> created (no equivalent existed)
+//   PayHub                      -> Payment Service
+//   Booking Hub                 -> Bookings
+//   Booking Hub Servers         -> Bookings            ("Servers" is not a system)
+//   Importer / Billing / Bookings  -> the identical existing codes
+//   Review Portal              -> created (no equivalent existed)
 // Consolidating systems can collide the identity triple, so this was dry-run
 // first (none collide — distinct nullN roles keep the merged Bookings rows apart)
 // and is re-asserted below, so the migration can never commit a broken state.

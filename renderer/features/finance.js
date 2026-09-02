@@ -3,10 +3,10 @@
 // invoice are all *client* records, so they render inside the Clients page —
 // in the open client's Finance tab — and minutes of meeting render in that
 // same client's Meetings tab. The finance_lookups catalog editor lives in
-// Settings → Finance, next to every other catalog. See AGENTS.md's Finance
+// Settings → Finance, next to every other catalog. See ARCHITECTURE.md's Finance
 // section.
 //
-// What did NOT change: finance-db.js is still the only thing that writes
+// What did NOT change: db.js's Finance section is still the only thing that writes
 // these tables, finance_lookups is still Finance's own catalog (never
 // lookup_codes), and every cross-entity invariant is still enforced
 // server-side. Only the surfaces moved.
@@ -2069,7 +2069,7 @@ async function deleteFinanceMeetingFlow(id) {
   const snapshot = res.snapshot;
   const clientId = currentFinanceClient?.id;
   // Attachments on this meeting were already purged server-side (see
-  // finance-db.js's purgeFinanceAttachmentsForEntities) — restoring the meeting
+  // db.js's purgeFinanceAttachmentsForEntities) — restoring the meeting
   // row does not bring its files back, a deliberate scope limit.
   showGenericUndo('Meeting deleted', async () => {
     try {

@@ -1,37 +1,38 @@
-// Migration 054 — Finance.
+// Migration 054 — the Finance module.
 //
-// Finance is a standalone financial record-keeping module for Finance
-// (clients, contracts with versions, change requests, invoices with payment
-// tracking, minutes of meeting). It is deliberately ISOLATED from the rest of
-// the app — see AGENTS.md's Finance section for the full rationale. In this
-// schema that isolation means:
-//   - its own client roster (finance_clients), never the shared COMPANY lookup
-//     that backs the Clients/Projects/Browse/Analytics pages
-//   - its own catalog table (finance_lookups), never lookup_codes — so it is
-//     never gated by db.js's LOOKUP_CATEGORIES and never touches the shared
-//     Settings page
-//   - its own currency list (finance_lookups category CURRENCY), never the
-//     app-wide CURRENCY lookup subscriptions.js uses
-// Every table is prefixed finance_ and user_id-scoped, so the whole module can
-// later be removed by dropping its own files plus one migration.
+// Finance is a record-keeping module for money owed and paid: clients,
+// contracts with versions, change requests, invoices with payment tracking,
+// and minutes of meeting. Every table is prefixed finance_ and user_id-scoped.
 //
-// Money is stored as INTEGER MINOR UNITS (halalas/cents) on every amount
-// column here, NOT REAL. This deliberately differs from subscriptions.cost
-// REAL: invoice-to-installment reconciliation (partial payments, allocation
-// across several installments/CRs) needs exact integer arithmetic — a REAL
-// column would risk float drift across many partial allocations.
+// As first written this module was deliberately isolated from the rest of the
+// app — its own client roster (finance_clients) rather than the shared COMPANY
+// lookup, and its own catalog (finance_lookups) rather than lookup_codes, so it
+// was never gated by db.js's LOOKUP_CATEGORIES. Migration 056 later linked the
+// roster to the shared COMPANY catalog; see ARCHITECTURE.md for where that
+// stands today.
+//
+// Money is stored as INTEGER MINOR UNITS (halalas/cents) on every amount column
+// here, NOT REAL. This deliberately differs from subscriptions.cost REAL:
+// invoice-to-installment reconciliation (partial payments, allocation across
+// several installments/CRs) needs exact integer arithmetic — a REAL column
+// would risk float drift across many partial allocations.
 //
 // finance_lookups is user_id-scoped (UNIQUE(user_id, category, code)), unlike
-// the shared, global lookup_codes table — each account manages its own FINANCE
-// IT catalog. This migration seeds the five categories for every user that
-// exists at the time it runs; finance-seed.js's seedLookupsIfMissing() (the same
-// function this migration calls) also lazily seeds any user created later,
-// the first time that user's Finance data is touched.
+// the shared, global lookup_codes table — each account manages its own Finance
+// catalog. This migration seeds the five categories for every user that exists
+// at the time it runs; finance-db.js seeds any user created later, lazily, the
+// first time that account's Finance data is touched.
+//
+// NOTE ON HISTORY: this migration originally created the tables under a
+// different prefix, and migration 055 renamed them. The two were folded
+// together before this repository was published, so 054 now creates the final
+// names directly and 055 is a no-op. Every database that recorded 054 is also
+// past 055, so neither can re-run anywhere; a database restored from before
+// 054 lands on exactly the same schema by a shorter route.
 module.exports = {
   version: 54,
-  name: 'finance_it',
+  name: 'finance_module',
   up(db) {
-    const { seedLookupsIfMissing } = require('../finance-seed');
 
     db.exec(`
       CREATE TABLE finance_lookups (
@@ -238,10 +239,55 @@ module.exports = {
       CREATE INDEX idx_finance_attachments_entity ON finance_attachments(entity_type, entity_id);
     `);
 
-    // Seed every existing user's own Finance catalog. A user created after
-    // this migration has already run gets seeded lazily on first use — see
-    // finance-seed.js's seedLookupsIfMissing(), which this calls directly so the
-    // two code paths can never drift apart.
+
+    // Seed every existing account's Finance catalog. Frozen at this migration:
+    // later catalog edits belong in finance-db.js's FINANCE_LOOKUP_SEED, and
+    // divergence between the two is expected — this copy runs once per database.
+    const LOOKUP_SEED = {
+      CONTRACT_STATUS: [
+        ['DRAFT', 'Draft', 'مسودة'],
+        ['ACTIVE', 'Active', 'نشط'],
+        ['EXPIRED', 'Expired', 'منتهي'],
+        ['TERMINATED', 'Terminated', 'مُنهى'],
+      ],
+      CR_STATUS: [
+        ['DRAFT', 'Draft', 'مسودة'],
+        ['SUBMITTED', 'Submitted', 'مُقدَّم'],
+        ['APPROVED', 'Approved', 'مُعتمد'],
+        ['REJECTED', 'Rejected', 'مرفوض'],
+        ['DELIVERED', 'Delivered', 'تم التسليم'],
+      ],
+      INVOICE_STATUS: [
+        ['DRAFT', 'Draft', 'مسودة'],
+        ['ISSUED', 'Issued', 'صادرة'],
+        ['PARTIALLY_PAID', 'Partially Paid', 'مدفوعة جزئياً'],
+        ['PAID', 'Paid', 'مدفوعة'],
+        ['CANCELLED', 'Cancelled', 'ملغاة'],
+      ],
+      CURRENCY: [
+        ['SAR', 'Saudi Riyal', 'ريال سعودي'],
+        ['USD', 'US Dollar', 'دولار أمريكي'],
+        ['EUR', 'Euro', 'يورو'],
+      ],
+      PAYMENT_METHOD: [
+        ['BANK_TRANSFER', 'Bank Transfer', 'تحويل بنكي'],
+        ['CHEQUE', 'Cheque', 'شيك'],
+        ['CASH', 'Cash', 'نقداً'],
+      ],
+    };
+
+    const seedLookupsIfMissing = (c, userId) => {
+      if (c.prepare('SELECT 1 FROM finance_lookups WHERE user_id = ? LIMIT 1').get(userId)) return;
+      const now = new Date().toISOString();
+      const ins = c.prepare(
+        `INSERT INTO finance_lookups(user_id, category, code, label_en, label_ar, sort_order, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`
+      );
+      for (const [category, items] of Object.entries(LOOKUP_SEED)) {
+        items.forEach(([code, labelEn, labelAr], i) => ins.run(userId, category, code, labelEn, labelAr, i, now, now));
+      }
+    };
+    // A user created after this migration runs is seeded lazily on first use.
     const users = db.prepare('SELECT id FROM users').all();
     for (const u of users) seedLookupsIfMissing(db, u.id);
 
