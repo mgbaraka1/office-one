@@ -95,7 +95,7 @@ npm run build:win  # Windows NSIS installer + portable
 npm run pack       # unpacked directory only (fast packaging check)
 ```
 
-Windows CI runs `npm audit --omit=dev --audit-level=high`, the full smoke suite, the E2E run, and `npm run pack` on every push and pull request. Tagged `v*` releases require Windows signing credentials (`WINDOWS_CSC_LINK`, `WINDOWS_CSC_KEY_PASSWORD`), verify the Authenticode signature, and publish the installers with a CycloneDX SBOM and `SHA256SUMS.txt`. Before tagging, also check the current Electron version against [Electron's published security advisories](https://github.com/electron/electron/security/advisories) — a fresh Electron-specific advisory can land between npm audit-database updates.
+Windows CI runs `npm audit --omit=dev --audit-level=high`, the full smoke suite, the E2E run, and `npm run pack` on every push and pull request. Tagged `v*` releases are Authenticode-signed when Windows signing credentials (`WINDOWS_CSC_LINK`, `WINDOWS_CSC_KEY_PASSWORD`) are configured, and the workflow verifies the signature before publishing; without them the release is built unsigned and the run warns instead of failing. Either way it publishes the installers with a CycloneDX SBOM and `SHA256SUMS.txt`. Before tagging, also check the current Electron version against [Electron's published security advisories](https://github.com/electron/electron/security/advisories) — a fresh Electron-specific advisory can land between npm audit-database updates.
 
 ---
 

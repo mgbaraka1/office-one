@@ -31,7 +31,9 @@ assert.doesNotMatch(renderer, /\son(?:click|change|input|submit)=/, 'inline even
 assert.match(html, /renderer\/event-delegation\.js/, 'CSP-safe event delegation must be loaded');
 
 const release = read(path.join('.github', 'workflows', 'release.yml'));
-assert.match(release, /Signed releases are mandatory/);
+// Signing is optional so an unsigned release can still be cut, but whenever
+// credentials are present the signature must still be verified before publish.
+assert.match(release, /steps\.signing\.outputs\.configured/);
 assert.match(release, /Get-AuthenticodeSignature/);
 assert.match(release, /SHA256SUMS\.txt/);
 assert.match(release, /sbom\.cdx\.json/);
