@@ -70,8 +70,11 @@ What this means for reports:
 
 ## Verifying a release
 
-Released installers are Authenticode-signed. Every release publishes
-`SHA256SUMS.txt` and a CycloneDX SBOM. Verify both before installing:
+Released installers are Authenticode-signed once signing credentials are
+configured for the release workflow; until then they are unsigned and Windows
+SmartScreen warns on first run. Every release publishes `SHA256SUMS.txt` and a
+CycloneDX SBOM — check the checksum in all cases, and the signature when the
+release is a signed one:
 
 ```powershell
 Get-ChildItem *.exe | Get-FileHash -Algorithm SHA256

@@ -607,6 +607,7 @@ second bug behind the first fix.
 
 CI (`ci.yml`, windows-latest, Node 24) runs `npm ci` → `npm audit --omit=dev
 --audit-level=high` → `npm run lint` → `npm test` → `npm run test:e2e` →
-`npm run pack`. `release.yml` on `v*` tags requires Windows signing credentials
-and fails without them, generates a CycloneDX SBOM, verifies every Authenticode
-signature, and writes `SHA256SUMS.txt`.
+`npm run pack`. `release.yml` on `v*` tags signs the installers when Windows
+signing credentials are configured — building unsigned with a warning when they
+are not — generates a CycloneDX SBOM, verifies every Authenticode signature when
+the build was signed, and writes `SHA256SUMS.txt`.

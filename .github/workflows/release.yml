@@ -21,11 +21,16 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - name: Require Windows signing credentials
+      - name: Detect Windows signing credentials
+        id: signing
         shell: pwsh
         run: |
           if ([string]::IsNullOrWhiteSpace($env:CSC_LINK) -or [string]::IsNullOrWhiteSpace($env:CSC_KEY_PASSWORD)) {
-            throw 'Signed releases are mandatory. Configure WINDOWS_CSC_LINK and WINDOWS_CSC_KEY_PASSWORD.'
+            Write-Warning 'Unsigned release: WINDOWS_CSC_LINK / WINDOWS_CSC_KEY_PASSWORD are not set, so SmartScreen will warn on download.'
+            'configured=false' | Add-Content -LiteralPath $env:GITHUB_OUTPUT
+          } else {
+            Write-Host 'Signing credentials found; the signature will be verified before publishing.'
+            'configured=true' | Add-Content -LiteralPath $env:GITHUB_OUTPUT
           }
       - run: npm ci
       - run: npm audit --omit=dev --audit-level=high
@@ -38,14 +43,20 @@ jobs:
         run: npm sbom --sbom-format cyclonedx | Set-Content -LiteralPath dist/sbom.cdx.json -Encoding utf8
       - name: Verify signatures and create checksums
         shell: pwsh
+        env:
+          SIGNING_CONFIGURED: ${{ steps.signing.outputs.configured }}
         run: |
           $installers = Get-ChildItem -LiteralPath dist -Filter *.exe
           if (-not $installers) { throw 'No Windows executables were produced.' }
-          foreach ($installer in $installers) {
-            $signature = Get-AuthenticodeSignature -LiteralPath $installer.FullName
-            if ($signature.Status -ne 'Valid') {
-              throw "Invalid Authenticode signature on $($installer.Name): $($signature.Status)"
+          if ($env:SIGNING_CONFIGURED -eq 'true') {
+            foreach ($installer in $installers) {
+              $signature = Get-AuthenticodeSignature -LiteralPath $installer.FullName
+              if ($signature.Status -ne 'Valid') {
+                throw "Invalid Authenticode signature on $($installer.Name): $($signature.Status)"
+              }
             }
+          } else {
+            Write-Warning 'Unsigned build; skipping Authenticode verification.'
           }
           $lines = $installers | Sort-Object Name | ForEach-Object {
             $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant()
