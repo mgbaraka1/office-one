@@ -24,6 +24,7 @@ const fs   = require('node:fs');
 const os   = require('node:os');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
+const { readRow } = require('./raw-db');
 
 const db = require('../db');
 
@@ -85,8 +86,7 @@ try {
     `projects ${before.projects}->${after.projects}, tasks ${before.tasks}->${after.tasks}, ` +
     `work_logs ${before.work_logs}->${after.work_logs}, categories=${lookupCatsAfter.join(',')}`);
 
-  const userRow = new DatabaseSync(path.join(workDir, 'cooperation-tools.db'))
-    .prepare('SELECT id FROM users WHERE is_active = 1 ORDER BY id LIMIT 1').get();
+  const userRow = readRow(path.join(workDir, 'cooperation-tools.db'), 'SELECT id FROM users WHERE is_active = 1 ORDER BY id LIMIT 1');
   if (!userRow) throw new Error('no active user in the copied DB');
   const userId = userRow.id;
   console.log('Using userId=' + userId + '\n');
@@ -121,8 +121,7 @@ try {
     && updated.name === 'VAT Certificate 2027' && updated.category === 'TAX', JSON.stringify(updated));
 
   // Ownership gate: another user's id must not be able to update/read it.
-  const otherUserRow = new DatabaseSync(path.join(workDir, 'cooperation-tools.db'))
-    .prepare('SELECT id FROM users WHERE id != ? LIMIT 1').get(userId);
+  const otherUserRow = readRow(path.join(workDir, 'cooperation-tools.db'), 'SELECT id FROM users WHERE id != ? LIMIT 1', userId);
   if (otherUserRow) {
     const stolen = db.updateCompanyDocument(otherUserRow.id, created.id, { name: 'stolen' });
     record('Ownership: another user cannot update this card', stolen === null, 'result=' + JSON.stringify(stolen));

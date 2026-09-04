@@ -4,9 +4,11 @@
 // tests retain their historic copy-to-temp setup, but HOME/USERPROFILE points
 // at a synthetic profile, so production data is never read or copied.
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const buildFixtureHome = require('./build-fixture-home');
+const { removeTree } = require('./temp-dir');
 
 const dir = __dirname;
 const files = fs.readdirSync(dir).filter(f => f.endsWith('-smoke.js')).sort();
@@ -14,6 +16,18 @@ if (!files.length) {
   console.error('No smoke tests found in ' + dir);
   process.exit(1);
 }
+
+// Give the whole run one temp root and point every child's os.tmpdir() at it
+// (Node reads TEMP/TMP on Windows, TMPDIR elsewhere), so a smoke test that
+// cannot delete its own work directory leaks into a folder this runner removes
+// anyway. That removal happens after the children have exited, so the OS has
+// released their file handles by then and it cannot fail the way an
+// in-process cleanup does. The parent redirects itself too, which puts the
+// fixture profile below inside the root as well — one tree, one delete.
+const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'office-one-test-run-'));
+process.env.TEMP = tempRoot;
+process.env.TMP = tempRoot;
+process.env.TMPDIR = tempRoot;
 
 console.log(`Running ${files.length} test file(s): ${files.join(', ')}\n`);
 const { fakeHome } = buildFixtureHome();
@@ -44,7 +58,9 @@ try {
     }
   }
 } finally {
-  fs.rmSync(fakeHome, { recursive: true, force: true });
+  // fakeHome lives inside tempRoot, so this covers it as well as every work
+  // directory the children left behind.
+  removeTree(tempRoot);
 }
 
 if (failed) process.exit(failed);

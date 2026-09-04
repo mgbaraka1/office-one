@@ -15,6 +15,7 @@ const path = require('node:path');
 
 require('./test-bootstrap');
 
+const { removeTree } = require('./temp-dir');
 const db = require('../db');
 const DB = db.DB_FILENAME;
 
@@ -24,8 +25,16 @@ function check(name, pass, details = '') {
   console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${details ? '  (' + details + ')' : ''}`);
 }
 
+// Each gate below wants a pristine pair of profile directories, so this is
+// called several times per run. Nothing removed them, which made this one file
+// the largest single contributor to the fixture databases piling up in the OS
+// temp folder; they are collected here and dropped when the process exits.
+const scratchRoots = [];
+process.on('exit', () => { for (const root of scratchRoots) removeTree(root); });
+
 function scratch() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'carryover-smoke-'));
+  scratchRoots.push(root);
   return { root, legacy: path.join(root, 'timesheet'), current: path.join(root, 'office-one') };
 }
 
