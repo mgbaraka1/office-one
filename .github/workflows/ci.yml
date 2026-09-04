@@ -23,49 +23,15 @@ jobs:
       - run: npm test
       - run: npm run test:e2e
       - run: npm run pack
-      # Deliberately last, and deliberately not `npm audit` on its own.
-      #
-      # This is the only step that depends on a service outside GitHub, which
-      # makes it the one most likely to fail for reasons that have nothing to
-      # do with the commit. On 2026-09-04 npm's advisories endpoint was
-      # answering 503 and timing out; running second, it failed the build twice
-      # on a good commit and skipped lint, tests, e2e and pack entirely — so
-      # the run reported nothing at all about the code, and a run that looked
-      # like "just the flaky audit" would equally have hidden a real test
-      # failure. Running it last keeps the gate and still gets you that signal.
-      #
-      # Retrying is only safe because the verdict comes from the audit's own
-      # JSON rather than from an exit code: a run that reaches the registry and
-      # reports a high or critical advisory fails on the spot and is never
-      # retried. Exhausting the attempts still fails the build — this is a
-      # security gate, so an audit that could not be performed is not a pass.
+      # Deliberately last: this is the only step that depends on a service
+      # outside GitHub, so it is the one most likely to fail for reasons that
+      # have nothing to do with the commit. On 2026-09-04 npm's advisories
+      # endpoint was answering 503 and timing out; running second, it failed the
+      # build twice on a good commit and skipped lint, tests, e2e and pack
+      # entirely -- so the run reported nothing at all about the code, and a run
+      # that looked like "just the flaky audit" would equally have hidden a real
+      # test failure. Running it last keeps the gate and still gets that signal.
+      # The script is shared with release.yml; see its header for the rest.
       - name: Audit production dependencies
         shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Continue'
-          $PSNativeCommandUseErrorActionPreference = $false
-          $attempts = 3
-          $stderrLog = Join-Path ([System.IO.Path]::GetTempPath()) 'npm-audit-stderr.log'
-          for ($attempt = 1; $attempt -le $attempts; $attempt++) {
-            # --fetch-timeout is well below npm's 300000ms default so a hung
-            # request is retried rather than burning five minutes per attempt.
-            # It is not tight, either: a healthy audit answers in about a
-            # second, but this same call took 73s on the day the retry was
-            # added, so a low ceiling would trip on ordinary registry slowness.
-            $raw = npm audit --omit=dev --audit-level=high --json --fetch-timeout=120000 2>$stderrLog | Out-String
-            $report = $null
-            try { $report = $raw | ConvertFrom-Json } catch { }
-            $counts = $report.metadata.vulnerabilities
-            if ($null -ne $counts) {
-              Write-Host "Audit completed: critical=$($counts.critical) high=$($counts.high) moderate=$($counts.moderate) low=$($counts.low)"
-              if ($counts.critical -gt 0 -or $counts.high -gt 0) {
-                Write-Host $raw
-                throw "npm audit found $($counts.critical) critical and $($counts.high) high advisories in production dependencies."
-              }
-              exit 0
-            }
-            Write-Warning "Attempt $attempt of $attempts produced no usable audit report; the registry did not answer."
-            if (Test-Path $stderrLog) { Get-Content $stderrLog | Write-Host }
-            if ($attempt -lt $attempts) { Start-Sleep -Seconds (15 * $attempt) }
-          }
-          throw "npm audit could not reach the registry in $attempts attempts. Failing closed: an audit that did not run is not a passing audit."
+        run: ./scripts/audit-production-deps.ps1
