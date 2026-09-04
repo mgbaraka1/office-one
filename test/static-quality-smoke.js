@@ -39,21 +39,37 @@ assert.match(release, /SHA256SUMS\.txt/);
 assert.match(release, /sbom\.cdx\.json/);
 
 const ci = read(path.join('.github', 'workflows', 'ci.yml'));
-assert.match(ci, /npm audit --omit=dev --audit-level=high/, 'CI must fail on a high/critical dependency CVE');
-// The audit is retried, because a registry timeout used to fail the build and
-// skip every step after it. Retrying is only sound while the verdict is read
-// out of the audit's own JSON — an advisory must fail on the first attempt
-// rather than being retried away — and while an audit that never completed
-// still fails the build instead of passing by default.
-assert.match(ci, /counts\.critical -gt 0 -or \$counts\.high -gt 0/, 'CI must decide from the reported advisory counts, not an exit code');
-assert.match(ci, /throw "npm audit found/, 'a real advisory must fail the build immediately, not be retried');
-assert.match(ci, /could not reach the registry in \$attempts attempts/, 'an audit that never completed must fail closed, not pass');
+const auditScript = read(path.join('scripts', 'audit-production-deps.ps1'));
+
+// The dependency gate itself. It is retried, because a registry timeout used to
+// fail the build and skip every step after it. Retrying is only sound while the
+// verdict is read out of the audit's own JSON — an advisory must fail on the
+// first attempt rather than being retried away — and while an audit that never
+// completed still fails the build instead of passing by default.
+assert.match(auditScript, /npm audit --omit=dev --audit-level=high/, 'the audit must cover production dependencies at the high/critical level');
+assert.match(auditScript, /counts\.critical -gt 0 -or \$counts\.high -gt 0/, 'the verdict must come from the reported advisory counts, not an exit code');
+assert.match(auditScript, /throw "npm audit found/, 'a real advisory must fail the build immediately, not be retried');
+assert.match(auditScript, /could not reach the registry in \$attempts attempts/, 'an audit that never completed must fail closed, not pass');
+
+// Both workflows run that one script, so a release can never apply a weaker
+// gate than CI — release.yml carried the bare one-liner for a day after CI was
+// hardened, which is exactly the drift this asserts against.
+for (const [name, workflow] of [['ci.yml', ci], ['release.yml', release]]) {
+  assert.match(workflow, /scripts\/audit-production-deps\.ps1/, `${name} must run the shared dependency audit script`);
+  assert.doesNotMatch(workflow, /- run: npm audit/, `${name} must not call npm audit directly, bypassing the shared script's retry and fail-closed handling`);
+}
+
 // The audit depends on a service outside GitHub, so it is the step most likely
-// to fail for reasons unrelated to the commit. It runs last so that an npm
+// to fail for reasons unrelated to the commit. In CI it runs last, so an npm
 // outage can no longer skip lint, tests, e2e and pack and leave the run saying
-// nothing about the code.
-assert.ok(ci.indexOf('npm audit') > ci.indexOf('npm run pack'),
-  'the npm audit step must run after lint/test/e2e/pack, so a registry outage cannot skip them');
+// nothing about the code. In a release it still precedes the build, so nothing
+// is packaged, signed or published on an uncleared dependency tree.
+assert.ok(ci.indexOf('audit-production-deps') > ci.indexOf('npm run pack'),
+  'in CI the audit must run after lint/test/e2e/pack, so a registry outage cannot skip them');
+assert.ok(release.indexOf('audit-production-deps') > release.indexOf('npm run test:e2e'),
+  'in a release the audit must run after the tests');
+assert.ok(release.indexOf('audit-production-deps') < release.indexOf('npm run build:win'),
+  'in a release the audit must still gate the build, not follow it');
 
 // A crash in either process must not fail silently with no window and no
 // message (main) or with no user-visible feedback at all (renderer).
@@ -135,7 +151,7 @@ for (const id of ['companies-search', 'systems-search', 'dept-search']) {
 console.log('PASS  runtime requirement matches CI and built-in SQLite');
 console.log('PASS  CSP blocks inline script execution and markup uses delegated events');
 console.log('PASS  tagged releases require valid signatures and publish checksums plus an SBOM');
-console.log('PASS  CI fails on a high/critical dependency CVE, retries a registry timeout, and fails closed');
+console.log('PASS  CI and release share one dependency gate that retries a registry outage and fails closed');
 console.log('PASS  main process and renderer both handle crashes instead of failing silently');
 console.log('PASS  a single-instance lock stops two processes sharing one database');
 console.log('PASS  every os.homedir()-resolving smoke test guards against a direct standalone run');
