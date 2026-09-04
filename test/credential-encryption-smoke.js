@@ -37,6 +37,7 @@ const fs   = require('node:fs');
 const os   = require('node:os');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
+const { readRow } = require('./raw-db');
 
 const db = require('../db');
 
@@ -102,7 +103,7 @@ try {
     db.isCredentialEncryptionAvailable() === false, 'available=' + db.isCredentialEncryptionAvailable());
 
   const plainVpn = db.createClientVpn(userId, companyId, { connectionName: 'CE plain test', password: 'plain-pw-123', notes: 'no cipher' });
-  const rawPlainRow = new DatabaseSync(dbFilePath).prepare('SELECT password FROM client_vpn_connections WHERE id = ?').get(plainVpn.id);
+  const rawPlainRow = readRow(dbFilePath, 'SELECT password FROM client_vpn_connections WHERE id = ?', plainVpn.id);
   record('Gate 1b: with no cipher, password round-trips unchanged and is stored as literal plain text',
     plainVpn.password === 'plain-pw-123' && rawPlainRow.password === 'plain-pw-123',
     `apiValue="${plainVpn.password}" rawStoredValue="${rawPlainRow.password}"`);
@@ -206,7 +207,7 @@ try {
     rawDowngrade.prepare('UPDATE client_vpn_connections SET password = ? WHERE id = ?').run('downgraded-plain-pw', seeded.vpn.id);
     rawDowngrade.close();
     const res = db.encryptAllPendingCredentials();
-    const rawCheck = new DatabaseSync(dbFilePath).prepare('SELECT password AS v FROM client_vpn_connections WHERE id = ?').get(seeded.vpn.id);
+    const rawCheck = readRow(dbFilePath, 'SELECT password AS v FROM client_vpn_connections WHERE id = ?', seeded.vpn.id);
     record('Gate 3: encryptAllPendingCredentials() catches a manually-downgraded plaintext value on a later call (self-healing, not one-shot)',
       res.encrypted >= 1 && rawCheck.v.startsWith('enc:v1:') && !rawCheck.v.includes('downgraded-plain-pw'),
       `encryptedCount=${res.encrypted} rawValue="${rawCheck.v.slice(0, 20)}..."`);
@@ -234,7 +235,7 @@ try {
 
   // ── Gate 4 — create/update round-trip with the cipher live ──────────────────
   const vpn2 = db.createClientVpn(userId, companyId, { connectionName: 'CE round-trip vpn', password: 'rt-secret-1' });
-  const rawVpn2 = new DatabaseSync(dbFilePath).prepare('SELECT password FROM client_vpn_connections WHERE id = ?').get(vpn2.id);
+  const rawVpn2 = readRow(dbFilePath, 'SELECT password FROM client_vpn_connections WHERE id = ?', vpn2.id);
   const roundTripOk = vpn2.password === 'rt-secret-1' && rawVpn2.password.startsWith('enc:v1:') && !rawVpn2.password.includes('rt-secret-1');
   record('Gate 4a: createClientVpn encrypts on write, getClient/ToApi decrypts on read (round-trip transparent)',
     roundTripOk, `apiPassword="${vpn2.password}" rawStored="${rawVpn2.password.slice(0, 20)}..."`);

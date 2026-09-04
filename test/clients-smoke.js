@@ -24,6 +24,7 @@ const fs   = require('node:fs');
 const os   = require('node:os');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
+const { readRow } = require('./raw-db');
 
 const db = require('../db');
 
@@ -84,8 +85,7 @@ try {
     `projects ${before.projects}->${after.projects}, tasks ${before.tasks}->${after.tasks}, ` +
     `work_logs ${before.work_logs}->${after.work_logs}`);
 
-  const userRow = new DatabaseSync(path.join(workDir, 'cooperation-tools.db'))
-    .prepare('SELECT id FROM users WHERE is_active = 1 ORDER BY id LIMIT 1').get();
+  const userRow = readRow(path.join(workDir, 'cooperation-tools.db'), 'SELECT id FROM users WHERE is_active = 1 ORDER BY id LIMIT 1');
   if (!userRow) throw new Error('no active user in the copied DB');
   const userId = userRow.id;
   console.log('Using userId=' + userId + '\n');
@@ -362,8 +362,7 @@ try {
   }
 
   // ── Ownership gate ───────────────────────────────────────────────────────────
-  const otherUserRow = new DatabaseSync(path.join(workDir, 'cooperation-tools.db'))
-    .prepare('SELECT id FROM users WHERE id != ? LIMIT 1').get(userId);
+  const otherUserRow = readRow(path.join(workDir, 'cooperation-tools.db'), 'SELECT id FROM users WHERE id != ? LIMIT 1', userId);
   if (otherUserRow) {
     const stolenVpn = db.updateClientVpn(otherUserRow.id, vpn.id, { connectionName: 'stolen' });
     record('Ownership: another user cannot update this VPN connection', stolenVpn === null, JSON.stringify(stolenVpn));

@@ -64,7 +64,7 @@ renderer/
                      knowledge-sanitize.js, company-documents.js, finance.js, shell.js
   vendor/            quill/, dompurify/
 migrations/          000_baseline.js … 060_unify_finance_catalog.js (append-only)
-test/                40 *-smoke.js suites + run-all.js + electron-e2e.js
+test/                40 *-smoke.js suites + run-all.js + electron-e2e.js + helpers
 ```
 
 Renderer scripts are **ordered classic scripts**, not modules — load order in
@@ -598,6 +598,17 @@ loads `test/test-bootstrap.js` via `NODE_OPTIONS --require`, so production data 
 never read or copied. Individual suites also `require` the bootstrap directly, as
 a safety net for standalone runs — which is why files must require it **before**
 computing any `os.homedir()`-based path.
+
+It also gives the run its own temp root and points every child's `os.tmpdir()`
+at it, then deletes that root once the children have exited. Each suite still
+removes its own work directory, but on Windows that in-process attempt loses the
+race against any file handle the OS has not released yet, and every caller
+treats a leftover temp directory as not-a-failure — so the parent's delete is
+what actually guarantees nothing accumulates. Read a row straight off a database
+file with `readRow()` from `test/raw-db.js` rather than an inline
+`new DatabaseSync(...).prepare(...)`: that form never names its handle, so
+nothing closes it and the file stays locked for the rest of the process.
+`static-quality-smoke.js` enforces both.
 
 ⚠️ **`run-all.js` stops at the first failure**, so a single green run can hide a
 second bug behind the first fix.

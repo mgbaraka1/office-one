@@ -22,4 +22,8 @@ if (!process.env.OFFICE_ONE_TEST_HOME) {
   process.env.HOME = fakeHome;
   process.env.USERPROFILE = fakeHome;
   process.env.OFFICE_ONE_TEST_HOME = fakeHome;
+  // run-all.js deletes the fixture profiles it builds, from the parent process
+  // and after the child has exited. A standalone run has no such parent, so it
+  // has to remove its own on the way out or leave one behind on every run.
+  process.on('exit', () => require('./temp-dir').removeTree(fakeHome));
 }
