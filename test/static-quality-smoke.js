@@ -71,6 +71,26 @@ for (const name of fs.readdirSync(testDir).filter(f => f.endsWith('-smoke.js')))
     `${name} resolves a path via os.homedir() but never requires ./test-bootstrap — it would read/copy the real production DB if run directly`);
 }
 
+// A raw node:sqlite handle opened inside the expression that reads from it is
+// never named, so nothing can close it. On Windows it then locks the database
+// file for the rest of the process and the test's own temp-directory cleanup
+// fails with EPERM — silently, because every caller treats a leftover temp
+// directory as not-a-failure. That is what filled %TEMP% with fixture
+// databases. raw-db.js's readRow() does the same read and closes the handle.
+for (const name of fs.readdirSync(testDir).filter(f => f.endsWith('-smoke.js'))) {
+  if (name === 'static-quality-smoke.js') continue; // this file's own literal below is not such a read
+  const src = fs.readFileSync(path.join(testDir, name), 'utf8');
+  assert.doesNotMatch(src, /new DatabaseSync\(.*\)\s*\.prepare\(/,
+    `${name} opens a node:sqlite handle it can never close — use readRow() from ./raw-db`);
+}
+
+// The runner points every child's os.tmpdir() at one disposable root and drops
+// it after the children exit, which is the only cleanup that cannot lose the
+// race against a file handle the OS has not released yet.
+const runAll = read(path.join('test', 'run-all.js'));
+assert.match(runAll, /TEMP = tempRoot/, 'run-all.js must give the run its own temp root');
+assert.match(runAll, /removeTree\(tempRoot\)/, 'run-all.js must remove that temp root after the run');
+
 // The offscreen report/print window disables javascript at the webPreferences
 // level (main.js), but the generated HTML it loads should carry its own CSP
 // too, as defense in depth independent of that setting.
@@ -105,6 +125,7 @@ console.log('PASS  CI fails on a high/critical dependency CVE');
 console.log('PASS  main process and renderer both handle crashes instead of failing silently');
 console.log('PASS  a single-instance lock stops two processes sharing one database');
 console.log('PASS  every os.homedir()-resolving smoke test guards against a direct standalone run');
+console.log('PASS  no smoke test opens an unclosable SQLite handle, and the runner cleans its own temp root');
 console.log('PASS  offscreen report/print templates carry their own CSP meta tag');
 console.log('PASS  Analytics chart palette uses --chart-1…--chart-6 tokens, not hardcoded hex');
 console.log('PASS  Timesheet/Subscriptions/Company Docs/Clients share the promoted rich empty-state pattern');

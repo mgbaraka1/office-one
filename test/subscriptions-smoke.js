@@ -17,7 +17,7 @@
 const fs   = require('node:fs');
 const os   = require('node:os');
 const path = require('node:path');
-const { DatabaseSync } = require('node:sqlite');
+const { readRow } = require('./raw-db');
 
 const db = require('../db');
 
@@ -47,12 +47,10 @@ try {
   db.openConnection(workDir);
   db.applyMigrations();
 
-  const userRow = new DatabaseSync(path.join(workDir, 'cooperation-tools.db'))
-    .prepare('SELECT id FROM users WHERE is_active = 1 ORDER BY id LIMIT 1').get();
+  const userRow = readRow(path.join(workDir, 'cooperation-tools.db'), 'SELECT id FROM users WHERE is_active = 1 ORDER BY id LIMIT 1');
   if (!userRow) throw new Error('no active user in the copied DB');
   const userId = userRow.id;
-  const otherUserRow = new DatabaseSync(path.join(workDir, 'cooperation-tools.db'))
-    .prepare('SELECT id FROM users WHERE id != ? LIMIT 1').get(userId);
+  const otherUserRow = readRow(path.join(workDir, 'cooperation-tools.db'), 'SELECT id FROM users WHERE id != ? LIMIT 1', userId);
   console.log('Using userId=' + userId + '\n');
 
   // ── Create ───────────────────────────────────────────────────────────────

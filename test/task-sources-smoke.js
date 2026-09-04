@@ -28,6 +28,7 @@ const fs   = require('node:fs');
 const os   = require('node:os');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
+const { readRow } = require('./raw-db');
 
 const db = require('../db');
 
@@ -124,8 +125,7 @@ try {
     (alreadyAt033 ? ` (${(ratio * 100).toFixed(1)}%)` : '') + `, alreadyAt033=${alreadyAt033}`);
   rawAfter.close();
 
-  const userRow = new DatabaseSync(path.join(workDir, 'cooperation-tools.db'))
-    .prepare('SELECT id FROM users WHERE is_active = 1 ORDER BY id LIMIT 1').get();
+  const userRow = readRow(path.join(workDir, 'cooperation-tools.db'), 'SELECT id FROM users WHERE is_active = 1 ORDER BY id LIMIT 1');
   if (!userRow) throw new Error('no active user in the copied DB');
   const userId = userRow.id;
   console.log('Using userId=' + userId + '\n');
@@ -184,8 +184,7 @@ try {
   record('ON DELETE CASCADE removes task_sources when the parent task is deleted', orphaned === 0, 'remaining=' + orphaned);
 
   // ── Ownership gating ──────────────────────────────────────────────────────
-  const otherUserRow = new DatabaseSync(path.join(workDir, 'cooperation-tools.db'))
-    .prepare('SELECT id FROM users WHERE id != ? AND is_active = 1 LIMIT 1').get(userId);
+  const otherUserRow = readRow(path.join(workDir, 'cooperation-tools.db'), 'SELECT id FROM users WHERE id != ? AND is_active = 1 LIMIT 1', userId);
   if (otherUserRow) {
     const otherTask = db.createTask(otherUserRow.id, { name: 'Other users task' });
     const crossCreate = db.createTaskSource(userId, otherTask.id, { type: 'OTHER', ref: 'should not work' });
