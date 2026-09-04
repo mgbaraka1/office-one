@@ -616,9 +616,19 @@ second bug behind the first fix.
 `npm test` alone does not prove the Knowledge Hub sanitizer works; run
 `npm run test:e2e` for that.
 
-CI (`ci.yml`, windows-latest, Node 24) runs `npm ci` → `npm audit --omit=dev
---audit-level=high` → `npm run lint` → `npm test` → `npm run test:e2e` →
-`npm run pack`. `release.yml` on `v*` tags signs the installers when Windows
+CI (`ci.yml`, windows-latest, Node 24) runs `npm ci` → `npm run lint` →
+`npm test` → `npm run test:e2e` → `npm run pack` → `npm audit --omit=dev
+--audit-level=high`.
+
+The audit runs **last on purpose**: it is the only step that depends on a
+service outside GitHub, so it is the one most likely to fail for reasons that
+have nothing to do with the commit. Running it earlier means an npm outage
+skips everything after it and the run reports nothing about the code. It also
+retries a registry that does not answer, and reads its verdict out of the
+audit's own JSON rather than an exit code — a reachable registry reporting a
+high or critical advisory fails immediately and is never retried, while an
+audit that could not be performed still fails the build rather than passing by
+default. `release.yml` on `v*` tags signs the installers when Windows
 signing credentials are configured — building unsigned with a warning when they
 are not — generates a CycloneDX SBOM, verifies every Authenticode signature when
 the build was signed, and writes `SHA256SUMS.txt`.
