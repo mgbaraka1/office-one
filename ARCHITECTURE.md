@@ -628,7 +628,12 @@ retries a registry that does not answer, and reads its verdict out of the
 audit's own JSON rather than an exit code — a reachable registry reporting a
 high or critical advisory fails immediately and is never retried, while an
 audit that could not be performed still fails the build rather than passing by
-default. `release.yml` on `v*` tags signs the installers when Windows
+default.
+
+Both workflows run that gate from one file, `scripts/audit-production-deps.ps1`,
+so a release can never apply a weaker check than CI. In `release.yml` it sits
+after the tests but **before** `build:win`, so nothing is packaged, signed or
+published on an uncleared dependency tree. `release.yml` on `v*` tags signs the installers when Windows
 signing credentials are configured — building unsigned with a warning when they
 are not — generates a CycloneDX SBOM, verifies every Authenticode signature when
 the build was signed, and writes `SHA256SUMS.txt`.

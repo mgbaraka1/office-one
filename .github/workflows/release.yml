@@ -33,10 +33,16 @@ jobs:
             'configured=true' | Add-Content -LiteralPath $env:GITHUB_OUTPUT
           }
       - run: npm ci
-      - run: npm audit --omit=dev --audit-level=high
       - run: npm run lint
       - run: npm test
       - run: npm run test:e2e
+      # The same gate CI applies, from the same script so the two cannot drift.
+      # It sits after the tests for the reason given in ci.yml, and before the
+      # build for a reason specific to releasing: nothing is packaged, signed or
+      # published unless the production dependency tree has been cleared.
+      - name: Audit production dependencies
+        shell: pwsh
+        run: ./scripts/audit-production-deps.ps1
       - run: npm run build:win -- --publish never
       - name: Generate software bill of materials
         shell: pwsh
