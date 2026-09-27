@@ -1259,6 +1259,13 @@ function openUserEditor(id = null) {
     ? 'Required only when changing your own password.'
     : 'Required to reset this user’s password or change their active status.';
   document.getElementById('user-edit-password-label').textContent = creating ? 'Temporary password' : 'New password (optional)';
+  // Salary/OT-rate live in user_settings keyed by userId, so there's nothing to
+  // save them against until the account exists — hidden while creating.
+  document.getElementById('user-salary-section').style.display = creating ? 'none' : 'contents';
+  document.getElementById('user-edit-salary').value = user?.salaryMinor ? finMinorToStr(user.salaryMinor) : '';
+  document.getElementById('user-edit-ot-divisor').value = user?.otRateDivisor || 240;
+  document.getElementById('user-edit-ot-multiplier').value = user?.otRateMultiplier || 1.5;
+  populateFinanceCurrencySelect('user-edit-currency', user?.salaryCurrency || '');
   ['user-edit-current-password', 'user-edit-password', 'user-edit-confirm'].forEach(key => { document.getElementById(key).value = ''; });
   document.getElementById('user-form-status').textContent = '';
   document.getElementById('user-save-btn').textContent = creating ? 'Create User' : 'Save User';
@@ -1331,6 +1338,10 @@ async function saveManagedUser() {
         currentPassword: document.getElementById('user-edit-current-password').value,
         actorPassword: document.getElementById('user-edit-current-password').value,
         password,
+        salaryMinor: finStrToMinor(document.getElementById('user-edit-salary').value),
+        salaryCurrency: document.getElementById('user-edit-currency').value,
+        otRateDivisor: parseFloat(document.getElementById('user-edit-ot-divisor').value) || 240,
+        otRateMultiplier: parseFloat(document.getElementById('user-edit-ot-multiplier').value) || 1.5,
       });
     }
   } catch { result = { ok: false, error: 'Could not save the user.' }; }

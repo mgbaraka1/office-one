@@ -581,6 +581,13 @@ function anFmtHrs(mins) {
   return (mins / 60).toFixed(1) + 'h';
 }
 
+// Thousands-grouped money display for the Over-Time Income KPI (e.g. 1,000.00) —
+// scoped to Analytics rather than finMinorToStr, which the rest of the app's
+// money fields (Finance) already render without a separator.
+function anMoney(minor) {
+  return (Number(minor || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 function setAnPeriod(p) {
   anPeriod = p;
   document.querySelectorAll('#an-period .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.period === p));
@@ -702,6 +709,13 @@ async function renderAnalytics() {
     { label: 'Avg / Day',   val: activeDays ? (totalMin / 60 / activeDays).toFixed(1) : '0', unit: 'h', foot: `${activeDays} active day${activeDays === 1 ? '' : 's'}`, cls: '' },
     { label: 'Completion',  val: String(completionRate), unit: '%', foot: `${doneCount} of ${recordCount} done`, cls: '' },
     ...(internalMin > 0 ? [{ label: 'Internal Work', val: (internalMin / 60).toFixed(1), unit: 'h', foot: `${pct(internalMin)}% of total`, cls: '' }] : []),
+    // Only shown once a salary + Over-Time hours are both present for the period —
+    // an otHourlyMinor of 0 means the user has no salary configured yet (db.js's
+    // getAnalytics), so there's nothing meaningful to show.
+    ...(otMin > 0 && an.otHourlyMinor > 0 ? [{
+      label: 'Over-Time Income', val: anMoney(an.otIncomeMinor), unit: an.currencyCode || '',
+      foot: `${(otMin / 60).toFixed(1)}h × ${anMoney(an.otHourlyMinor)}${an.currencyCode ? ' ' + an.currencyCode : ''}/h`, cls: '',
+    }] : []),
   ];
   document.getElementById('an-kpis').innerHTML = kpis.map(k => `
     <div class="an-kpi ${k.cls}">

@@ -2229,6 +2229,27 @@
               <label>Account status</label>
               <label class="user-check"><input id="user-edit-active" type="checkbox" /> Active — can sign in</label>
             </div>
+            <div id="user-salary-section" class="general-field full" style="display:contents">
+              <div class="general-field">
+                <label for="user-edit-salary">Monthly salary</label>
+                <input id="user-edit-salary" type="number" step="0.01" min="0" />
+              </div>
+              <div class="general-field">
+                <label for="user-edit-currency">Currency</label>
+                <select id="user-edit-currency"></select>
+              </div>
+              <div class="general-field">
+                <label for="user-edit-ot-divisor">Over-time rate divisor</label>
+                <input id="user-edit-ot-divisor" type="number" step="1" min="1" placeholder="240" />
+              </div>
+              <div class="general-field">
+                <label for="user-edit-ot-multiplier">Over-time rate multiplier</label>
+                <input id="user-edit-ot-multiplier" type="number" step="0.01" min="0" placeholder="1.5" />
+              </div>
+              <p class="general-hint full">Over-time hourly rate = (Monthly salary ÷ divisor) × multiplier — defaults to the
+                common 240 / 1.5 rule, editable per user. Used to compute the Over-Time income shown in Overview for the
+                searched period.</p>
+            </div>
             <div class="general-field full" id="user-current-password-field">
               <label for="user-edit-current-password" id="user-current-password-label">Current password</label>
               <input id="user-edit-current-password" type="password" autocomplete="current-password" />
