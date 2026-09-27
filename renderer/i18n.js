@@ -125,6 +125,10 @@
     'Shown as your greeting name in the app, in whichever language is active — falls back to your username if left blank.':
       'يُعرض كاسم الترحيب بك في التطبيق، بأي لغة كانت نشطة — ويعود إلى اسم المستخدم إذا تُرك فارغاً.',
     'e.g. Moustafa Baraka': 'مثال: Moustafa Baraka',
+    'Monthly salary': 'الراتب الشهري', 'Over-time rate divisor': 'مقسوم معدل الوقت الإضافي',
+    'Over-time rate multiplier': 'مضاعف معدل الوقت الإضافي',
+    'Over-time hourly rate = (Monthly salary ÷ divisor) × multiplier — defaults to the common 240 / 1.5 rule, editable per user. Used to compute the Over-Time income shown in Overview for the searched period.':
+      'معدل الأجر بالساعة للوقت الإضافي = (الراتب الشهري ÷ المقسوم) × المضاعف — القيمة الافتراضية هي القاعدة الشائعة 240 / 1.5، وقابلة للتعديل لكل مستخدم. تُستخدم لحساب دخل الوقت الإضافي الظاهر في نظرة عامة للفترة المحددة بالبحث.',
     'Standard User': 'مستخدم عادي', 'Administrator': 'مسؤول',
     'Standard User — own data and preferences': 'مستخدم عادي — بياناته وتفضيلاته فقط',
     'Administrator — full settings, backup and user access': 'مسؤول — وصول كامل إلى الإعدادات والنسخ الاحتياطي والمستخدمين',
@@ -415,6 +419,7 @@
   // <option> elements against these keys.
   Object.assign(ar, {
     'Avg / Day': 'المعدل / يوم', 'Completion': 'نسبة الإنجاز', 'Total Hours': 'إجمالي الساعات',
+    'Over-Time Income': 'دخل الوقت الإضافي',
     'All clear — nothing due in the next 30 days.': 'كل شيء على ما يرام — لا يوجد استحقاق خلال 30 يوماً.',
     'no previous activity': 'لا يوجد نشاط سابق', 'No active days': 'لا توجد أيام نشطة',
     'No over-time hours in this period.': 'لا توجد ساعات إضافية في هذه الفترة.',

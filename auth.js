@@ -175,6 +175,7 @@ function currentUser() {
 function userToApi(user) {
   if (!user) return null;
   const names = db.getUserDisplayName(Number(user.id));
+  const salary = db.getUserSalarySettings(Number(user.id));
   return {
     id: Number(user.id), username: user.username,
     nameEn: names.nameEn, nameAr: names.nameAr,
@@ -182,6 +183,8 @@ function userToApi(user) {
     isActive: !!(user.isActive ?? user.is_active),
     createdAt: user.createdAt ?? user.created_at ?? '',
     mustChangePassword: !!(user.mustChangePassword ?? user.must_change_password),
+    salaryMinor: salary.salaryMinor, salaryCurrency: salary.currencyCode,
+    otRateDivisor: salary.otRateDivisor, otRateMultiplier: salary.otRateMultiplier,
   };
 }
 
@@ -274,6 +277,16 @@ function updateUser(id, data) {
       typeof data.nameEn === 'string' ? data.nameEn : current.nameEn,
       typeof data.nameAr === 'string' ? data.nameAr : current.nameAr
     );
+  }
+  if (data?.salaryMinor !== undefined || typeof data?.salaryCurrency === 'string'
+      || data?.otRateDivisor !== undefined || data?.otRateMultiplier !== undefined) {
+    const current = db.getUserSalarySettings(targetId);
+    db.setUserSalarySettings(targetId, {
+      salaryMinor: data.salaryMinor !== undefined ? data.salaryMinor : current.salaryMinor,
+      currencyCode: typeof data.salaryCurrency === 'string' ? data.salaryCurrency : current.currencyCode,
+      otRateDivisor: data.otRateDivisor !== undefined ? data.otRateDivisor : current.otRateDivisor,
+      otRateMultiplier: data.otRateMultiplier !== undefined ? data.otRateMultiplier : current.otRateMultiplier,
+    });
   }
   if (isSelf) session = { userId: actorId, username, isAdmin };
   return { ok: true, user: userToApi(db.getUserById(targetId)), currentUser: currentUser() };

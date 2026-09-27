@@ -821,11 +821,22 @@ function getAnalytics(userId, from, to, spanFrom, spanTo) {
        ${FROM} ${WHERE}`
   ).get(...period);
 
+  // Over-Time income for the period: (salary / divisor) × multiplier gives the
+  // OT hourly rate, applied to the Over-Time minutes already summed in byType.
+  // Zero (no card shown) when the user has no salary configured.
+  const salarySettings = getUserSalarySettings(userId);
+  const otMinForIncome = byType['OVERTIME'] || 0;
+  const otHourlyMinor = salarySettings.salaryMinor > 0
+    ? (salarySettings.salaryMinor / salarySettings.otRateDivisor) * salarySettings.otRateMultiplier
+    : 0;
+  const otIncomeMinor = Math.round((otMinForIncome / 60) * otHourlyMinor);
+
   return {
     totalMin: totals.totalMin, recordCount: totals.recordCount, doneCount: totals.doneCount || 0,
     activeDays, byCompany, bySystem, byNatural, byType, byDepartment,
     clientMin: domainSplit.clientMin, internalMin: domainSplit.internalMin,
     dayMin: perDay(false), dayOtMin: perDay(true),
+    otHourlyMinor: Math.round(otHourlyMinor), otIncomeMinor, currencyCode: salarySettings.currencyCode,
   };
 }
 
@@ -942,6 +953,29 @@ function getUserDisplayName(userId) {
 function setUserDisplayName(userId, nameEn, nameAr) {
   userSet(userId, 'display_name_en', String(nameEn || '').trim());
   userSet(userId, 'display_name_ar', String(nameAr || '').trim());
+}
+
+// Salary + Over-Time hourly-rate formula (Settings → Users) — same
+// user_settings pattern as display name, no schema change. Salary is stored
+// in minor currency units (matches Finance's amountMinor convention, avoiding
+// float rounding on money). The OT hourly rate is (salary / divisor) ×
+// multiplier — the standard "monthly salary ÷ 240 × 1.5" formula, but the
+// divisor/multiplier are per-user so a different labor rule can be entered.
+const OT_RATE_DEFAULT_DIVISOR = 240;
+const OT_RATE_DEFAULT_MULTIPLIER = 1.5;
+function getUserSalarySettings(userId) {
+  return {
+    salaryMinor: Number(userGet(userId, 'salary_minor')) || 0,
+    currencyCode: userGet(userId, 'salary_currency') || '',
+    otRateDivisor: Number(userGet(userId, 'ot_rate_divisor')) || OT_RATE_DEFAULT_DIVISOR,
+    otRateMultiplier: Number(userGet(userId, 'ot_rate_multiplier')) || OT_RATE_DEFAULT_MULTIPLIER,
+  };
+}
+function setUserSalarySettings(userId, { salaryMinor, currencyCode, otRateDivisor, otRateMultiplier } = {}) {
+  userSet(userId, 'salary_minor', String(Math.max(0, Math.round(Number(salaryMinor) || 0))));
+  userSet(userId, 'salary_currency', String(currencyCode || '').trim());
+  userSet(userId, 'ot_rate_divisor', String(Number(otRateDivisor) > 0 ? Number(otRateDivisor) : OT_RATE_DEFAULT_DIVISOR));
+  userSet(userId, 'ot_rate_multiplier', String(Number(otRateMultiplier) > 0 ? Number(otRateMultiplier) : OT_RATE_DEFAULT_MULTIPLIER));
 }
 
 // Full catalog (every category, incl. inactive) + the default employee name —
@@ -6675,7 +6709,8 @@ module.exports = {
   updateClientInternalSystem, deleteClientInternalSystem, renameClientInternalSystemGroup,
   assignClientInternalGroup, loadLookups, saveLookups, getLookupsByCategory,
   canAccessLookup, getLookupCodeHistory, getCompanyProfile, saveCompanyProfile,
-  getCompanyProfileHistory, getUserDisplayName, setUserDisplayName, loadSubscriptions,
+  getCompanyProfileHistory, getUserDisplayName, setUserDisplayName,
+  getUserSalarySettings, setUserSalarySettings, loadSubscriptions,
   saveSubscriptions, loadPrefs, savePrefs, loadLoginFailures, saveLoginFailures,
   loadUiState, saveUiState, loadKnowledgeDraft, saveKnowledgeDraft, getUserPreferences,
   setUserPreference, listBackups, restoreBackup, checkIntegrity, getSystemDiagnostics,
