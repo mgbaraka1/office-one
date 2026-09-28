@@ -240,7 +240,7 @@
     'Days': 'الأيام', 'Employee': 'الموظف', 'Approved by': 'اعتمد بواسطة',
     'No Over-Time recorded in {month}.': 'لا يوجد وقت إضافي مسجل في {month}.',
     'Kindly find below the Over-Time hours logged during {month}, submitted for your review and approval.': 'يرجى الاطلاع أدناه على ساعات الوقت الإضافي المسجلة خلال {month} والمقدمة لمراجعتكم واعتمادكم.',
-    'The total Over-Time for the period is {hours} hours across {dayPhrase}.': 'إجمالي الوقت الإضافي للفترة هو {hours} ساعة موزعة على {dayPhrase}.',
+    'The total Over-Time for the period is {hours} across {dayPhrase}.': 'إجمالي الوقت الإضافي للفترة هو {hours} موزعة على {dayPhrase}.',
     'Subscriptions Report': 'تقرير الاشتراكات', 'Renewing ≤30d': 'تتجدد خلال ≤30 يوماً', 'Overdue': 'متأخرة',
     'No subscriptions recorded.': 'لا توجد اشتراكات مسجلة.', 'Recurring Spend by Currency': 'الإنفاق المتكرر حسب العملة',
     'Monthly': 'شهري', 'Yearly': 'سنوي', 'No subscription costs recorded.': 'لا توجد تكاليف اشتراكات مسجلة.',
@@ -1043,6 +1043,11 @@
   };
   const MONTH = 'January|February|March|April|May|June|July|August|September|October|November|December';
   const MON = 'Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec';
+  // Arabic "hour" agrees in number: 1 → ساعة (singular), anything else → ساعات.
+  // (Classical Arabic also has a dual form for exactly 2, but every other
+  // count in this app already collapses to a singular/plural pair, so the
+  // simplification stays consistent with the rest of the dictionary.)
+  const arHourWord = numStr => parseFloat(numStr) === 1 ? 'ساعة' : 'ساعات';
   const dynamicArabicRules = [
     // Time-of-day greeting — translate the salutation, keep the person's name.
     [/^Good (morning|afternoon|evening), (.+)$/s, m => `${arGreet[m[1]]}، ${m[2]}`],
@@ -1117,9 +1122,13 @@
     [/^(\d+) types$/s, m => `${m[1]} نوع`],
     [/^(\d+) files$/s, m => `${m[1]} ملف`],
     [/^(\d+)d overdue$/s, m => `متأخر ${m[1]} يوم`],
-    [/^Time breakdown, ([\d.]+) total hours$/s, m => `توزيع الوقت، ${m[1]} ساعة إجمالاً`],
-    // Chart point/heat-cell tooltips: "Aug 1 · 3.5h", "2026-08-25 · 3.5h".
-    [/^(.+) · ([\d.]+)h$/s, m => `${arabicTranslation(m[1])} · ${m[2]} ساعة`],
+    [/^Time breakdown, ([\d.]+) total hours?$/s, m => `توزيع الوقت، ${m[1]} ${arHourWord(m[1])} إجمالاً`],
+    // Chart point/heat-cell tooltips: "Aug 1 · 3.5 hours", "2026-08-25 · 1 hour".
+    [/^(.+) · ([\d.]+) hours?$/s, m => `${arabicTranslation(m[1])} · ${m[2]} ${arHourWord(m[2])}`],
+    // Bare hour counts: bar-chart values, hidden data-table cells ("3.5 hours"),
+    // and the legend's "N hours · P%" combined line.
+    [/^([\d.]+) hours? · (-?\d+)%$/s, m => `${m[1]} ${arHourWord(m[1])} · ${m[2]}٪`],
+    [/^([\d.]+) hours?$/s, m => `${m[1]} ${arHourWord(m[1])}`],
     // Browse placeholder and the analytics bar-row deep links.
     // Neutral phrasing: the captured noun's gender varies, so avoid a
     // possessive suffix that would have to agree with it.
@@ -1134,8 +1143,8 @@
     // Analytics trend-chart aria-label carries a "; peak N hours, average N
     // hours" suffix the greedy plain-title rule below would otherwise leave
     // untranslated inside its own captured group — must be tried first.
-    [/^Daily hours trend from (.+) to (.+); peak (.+) hours, average (.+) hours$/s,
-      m => `اتجاه الساعات اليومية من ${m[1]} إلى ${m[2]}؛ الذروة ${m[3]} ساعة، المتوسط ${m[4]} ساعة`],
+    [/^Daily hours trend from (.+) to (.+); peak (.+) hours?, average (.+) hours?$/s,
+      m => `اتجاه الساعات اليومية من ${m[1]} إلى ${m[2]}؛ الذروة ${m[3]} ${arHourWord(m[3])}، المتوسط ${m[4]} ${arHourWord(m[4])}`],
     [/^Daily hours trend from (.+) to (.+)$/s, m => `اتجاه الساعات اليومية من ${m[1]} إلى ${m[2]}`],
     [/^Office ONE version (.+)$/s, m => `Office ONE\nالإصدار ${m[1]}`],
     // Client-detail tab labels and section headers ("<name> (N)").

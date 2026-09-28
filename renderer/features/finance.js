@@ -97,7 +97,9 @@ function finMinorToStr(minor) { return ((Number(minor) || 0) / 100).toFixed(2); 
 function finStrToMinor(str) { const n = parseFloat(str); return Number.isFinite(n) ? Math.round(n * 100) : 0; }
 function finMoney(minor, currencyCode) {
   const amt = finMinorToStr(minor);
-  return currencyCode ? (currencyCode + ' ' + amt) : amt;
+  if (!currencyCode) return amt;
+  const sym = (typeof CURRENCY_SYMBOLS !== 'undefined' && CURRENCY_SYMBOLS[currencyCode]) || currencyCode;
+  return sym + ' ' + amt;
 }
 function finStatusLabel(row) {
   if (!row || !row.status) return '';
