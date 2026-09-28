@@ -1598,6 +1598,7 @@ document.addEventListener('keydown', e => {
       else if (activeModule === 'knowledge')     openKnowledgeEditor();
       else if (activeModule === 'all-tasks')     openBacklogModal();
       else if (activeModule === 'internal-tasks') openInternalTaskModal();
+      else if (activeModule === 'pfm')           openPfmNew('OFFER');
     }
     // Day navigation: Ctrl+Left = earlier day, Ctrl+Right = later day
     if (e.ctrlKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
@@ -2781,6 +2782,7 @@ function switchModule(name) {
   if (activeModule === name) {
     if (name === 'browse') setBrowseKind(browseKind);
     else if (name === 'clients') backToClientsList();
+    else if (name === 'pfm') backToPfmList();
     return;
   }
   activeModule = name;
@@ -2832,6 +2834,9 @@ function switchModule(name) {
   } else if (name === 'companydocs') {
     setAppTitle('Company Documents');
     initCompanyDocsModule();
+  } else if (name === 'pfm') {
+    setAppTitle('Project & Finance');
+    initPfmModule();
   } else if (name === 'knowledge') {
     setAppTitle('Knowledge Hub');
     initKnowledgeModule();

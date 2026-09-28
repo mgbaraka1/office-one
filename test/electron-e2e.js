@@ -79,6 +79,14 @@ async function run() {
   delete electronEnv.ELECTRON_RUN_AS_NODE;
   const pdfPath = path.join(root, 'e2e-exported-report.pdf');
   const xlsxPath = path.join(root, 'e2e-exported-office-one.xlsx');
+  const pfmXlsxPath = path.join(root, 'e2e-exported-offers.xlsx');
+  // Project & Finance "Add files": two good files and one whose bytes do not
+  // match its extension, handed to pfm:files-add in place of the open dialog.
+  const pfmFiles = [
+    ['e2e-offer.pdf', '%PDF-1.4\n% generic e2e offer\n%%EOF\n'],
+    ['e2e-notes.txt', 'Generic e2e notes.\n'],
+    ['e2e-fake.png', 'not really a png'],
+  ].map(([name, body]) => { const p = path.join(root, name); fs.writeFileSync(p, body); return p; });
   child = spawn(electron, ['.'], {
     cwd: path.join(__dirname, '..'),
     env: {
@@ -87,6 +95,8 @@ async function run() {
       OFFICE_ONE_E2E_PORT: String(port),
       OFFICE_ONE_E2E_PDF_PATH: pdfPath,
       OFFICE_ONE_E2E_XLSX_PATH: xlsxPath,
+      OFFICE_ONE_E2E_PFM_FILES: pfmFiles.join(path.delimiter),
+      OFFICE_ONE_E2E_PFM_XLSX_PATH: pfmXlsxPath,
       ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -371,6 +381,165 @@ async function run() {
           goneFromRoster, visibleWhenArchivedShown, backInRoster,
         };
       })(),
+      pfm: await (async () => {
+        // Project & Finance, driven through the page's real DOM and handlers:
+        // create an offer from the modal, move its status with the header
+        // button + stage modal, refuse a duplicate reference, then delete and undo.
+        const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+        switchModule('pfm');
+        await wait(200);
+        const client = (await window.api.listClients())[0];
+        const ref = 'E2E-OFF-' + Date.now();
+
+        openPfmNew('OFFER');
+        const modalOpen = document.getElementById('pfm-modal-overlay').classList.contains('open');
+        document.getElementById('pfm-reference').value = ref;
+        document.getElementById('pfm-title').value = 'E2E generic offer';
+        document.getElementById('pfm-company').value = String(client.id);
+        document.getElementById('pfm-first-member').value = 'E2E Person';
+        await submitPfmModal();
+        await wait(250);
+        const created = pfmCurrent;
+        const detailOpen = created?.reference === ref && document.getElementById('pfm-detail-view').style.display !== 'none';
+        const startStatus = created?.status;
+        const trackSteps = document.querySelectorAll('#pfm-detail-view .pfm-step').length;
+
+        document.querySelector('#pfm-detail-view .pfm-detail-actions .btn.primary').click();
+        const stageModalOpen = document.getElementById('pfm-stage-overlay').classList.contains('open');
+        document.getElementById('pfm-stage-member').value = 'E2E Person Two';
+        await submitPfmStageModal();
+        await wait(250);
+        const movedStatus = pfmCurrent?.status;
+        const movedStage = (pfmCurrent?.stages || []).find(s => s.status === movedStatus);
+
+        const contact = document.getElementById('pfm-contact-name');
+        contact.value = 'E2E Contact';
+        contact.dispatchEvent(new Event('input', { bubbles: true }));
+        await wait(600);
+        const contactSaved = (await window.api.getPfmItem(created.id))?.contactName === 'E2E Contact';
+
+        // Versions + files: v1 from the modal (label pre-filled), three files
+        // of which one is refused, a bad fees value refused, then v2 on top.
+        document.querySelector('#pfm-detail-view .pfm-version-add').click();
+        const versionModalOpen = document.getElementById('pfm-version-overlay').classList.contains('open');
+        const prefilledLabel = document.getElementById('pfm-version-label').value;
+        document.getElementById('pfm-version-fees').value = '12,000';
+        await submitPfmVersionModal();
+        await wait(250);
+        const v1 = pfmCurrent?.versions?.[0];
+        await addPfmFilesUi(v1.id, document.querySelector('#pfm-detail-view .pfm-add-files'));
+        await wait(250);
+        const chipsAfterAdd = document.querySelectorAll('#pfm-detail-view .pfm-file').length;
+        const fileErrorsShown = document.querySelectorAll('#pfm-detail-view .pfm-file-error').length;
+        const storedFiles = (pfmCurrent?.versions?.[0]?.files || []).map(f => f.originalName).sort().join(',');
+
+        document.querySelector('#pfm-detail-view .pfm-version-add').click();
+        document.getElementById('pfm-version-fees').value = 'abc';
+        await submitPfmVersionModal();
+        const badFeesRefused = document.getElementById('pfm-version-fees').classList.contains('field-error')
+          && document.getElementById('pfm-version-overlay').classList.contains('open');
+        document.getElementById('pfm-version-fees').value = '10500.5';
+        await submitPfmVersionModal();
+        await wait(250);
+        const versionLabels = (pfmCurrent?.versions || []).map(v => v.label).join(',');
+        const currentCard = document.querySelector('#pfm-detail-view .pfm-version.current .pfm-version-label')?.textContent;
+        const currentFees = pfmCurrent?.currentVersion?.feesMinor;
+
+        // Remove a file: × → inline "Yes" → gone; Undo → back.
+        document.querySelector('#pfm-detail-view .pfm-version:not(.current) .pfm-file-x').click();
+        document.querySelector('#pfm-detail-view .pfm-file .del-yes').click();
+        await wait(300);
+        const filesAfterRemove = (await window.api.getPfmItem(created.id)).versions[1].files.length;
+        document.querySelector('#app-toast .toast-action-btn').click();
+        await wait(300);
+        const filesAfterUndo = (await window.api.getPfmItem(created.id)).versions[1].files.length;
+
+        // Delete the current version: trash → "Yes" → v1 is current again; Undo → v2 back.
+        document.querySelector('#pfm-detail-view .pfm-version.current .cd-icon-btn.danger').click();
+        document.querySelector('#pfm-detail-view .pfm-version.current .del-yes').click();
+        await wait(300);
+        const currentAfterVersionDelete = (await window.api.getPfmItem(created.id)).currentVersion?.label;
+        document.querySelector('#app-toast .toast-action-btn').click();
+        await wait(300);
+        const currentAfterVersionUndo = (await window.api.getPfmItem(created.id)).currentVersion?.label;
+        await wait(200);
+        const feeChangeText = document.querySelector('#pfm-detail-view .pfm-version.current .pfm-fee-change')?.textContent;
+
+        // Phase 5 — Quick Find opens the offer from its reference.
+        backToPfmList();
+        await wait(200);
+        await openPalette();
+        document.getElementById('palette-input').value = ref;
+        paletteInputChanged();
+        await wait(500);
+        const palHit = [...document.querySelectorAll('#palette-list .pal-item')].find(b => b.textContent.includes(ref));
+        palHit?.click();
+        await wait(300);
+        const quickFindOpened = !!palHit && activeModule === 'pfm' && pfmCurrent?.id === created.id;
+
+        // Excel export of the list view (the save dialog is replaced in E2E runs).
+        backToPfmList();
+        await wait(250);
+        await exportPfmExcel();
+
+        // Ctrl+N on the page opens New Offer.
+        document.activeElement?.blur();
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, bubbles: true }));
+        const ctrlNOpened = document.getElementById('pfm-modal-overlay').classList.contains('open')
+          && document.getElementById('pfm-kind').value === 'OFFER';
+        closePfmModal();
+
+        // The client's "Offers & CRs" tab lists it, counts it, and creates a CR for that client.
+        switchModule('clients');
+        await wait(200);
+        await openClientDetail(client.id, '', 'pfm');
+        await wait(500);
+        const tabCount = Number((document.querySelector('#client-detail-tabs [data-client-tab="pfm"]')?.textContent || '').replace(/[^0-9]/g, ''));
+        const clientTabRow = !!document.querySelector('#client-detail-sections tr[data-pfm-id="' + created.id + '"]');
+        [...document.querySelectorAll('#client-detail-sections .pj-section-actions .btn')].find(b => !b.classList.contains('primary'))?.click();
+        const presetClient = document.getElementById('pfm-company').value === String(client.id)
+          && document.getElementById('pfm-kind').value === 'CR';
+        document.getElementById('pfm-reference').value = ref + '-CR';
+        document.getElementById('pfm-title').value = 'E2E client-tab CR';
+        await submitPfmModal();
+        await wait(500);
+        const clientTabRowsAfterCreate = document.querySelectorAll('#client-detail-sections tr.pfm-row').length;
+        const stayedOnClient = activeModule === 'clients';
+        switchModule('pfm');
+        await wait(200);
+
+        openPfmNew('CR');
+        document.getElementById('pfm-reference').value = ' ' + ref.toLowerCase() + ' ';
+        document.getElementById('pfm-title').value = 'E2E duplicate';
+        document.getElementById('pfm-company').value = String(client.id);
+        await submitPfmModal();
+        await wait(150);
+        const duplicateRefused = document.getElementById('pfm-reference').classList.contains('field-error')
+          && document.getElementById('pfm-modal-overlay').classList.contains('open');
+        closePfmModal();
+
+        backToPfmList();
+        await wait(250);
+        const rowListed = !!document.querySelector('#pfm-tbody tr[data-pfm-id="' + created.id + '"]');
+
+        await deletePfmItemUi(created.id);
+        const goneAfterDelete = !(await window.api.listPfmItems({})).some(i => i.id === created.id);
+        document.querySelector('#app-toast .toast-action-btn').click();
+        await wait(250);
+        const backAfterUndo = (await window.api.listPfmItems({})).some(i => i.id === created.id);
+
+        switchModule('analytics');
+        return {
+          modalOpen, detailOpen, startStatus, trackSteps, stageModalOpen, movedStatus,
+          movedMember: movedStage?.memberName, contactSaved, duplicateRefused, rowListed,
+          goneAfterDelete, backAfterUndo,
+          versionModalOpen, prefilledLabel, v1Fees: v1?.feesMinor, chipsAfterAdd, fileErrorsShown, storedFiles,
+          badFeesRefused, versionLabels, currentCard, currentFees, filesAfterRemove, filesAfterUndo,
+          currentAfterVersionDelete, currentAfterVersionUndo,
+          feeChangeText, quickFindOpened, ctrlNOpened, tabCount, clientTabRow, presetClient,
+          clientTabRowsAfterCreate, stayedOnClient, ref,
+        };
+      })(),
       passwordRotation: await (async () => {
         // Forced password rotation: an
         // admin-created account carries an admin-assigned password, so login
@@ -470,6 +639,47 @@ async function run() {
     throw new Error(`Client archive/restore round trip failed: ${JSON.stringify(roster)}`);
   }
 
+  const pfm = result.pfm;
+  if (!pfm.modalOpen || !pfm.detailOpen || pfm.startStatus !== 'PREPARE' || pfm.trackSteps !== 5) {
+    throw new Error(`Creating an offer from the Project & Finance page failed: ${JSON.stringify(pfm)}`);
+  }
+  if (!pfm.stageModalOpen || pfm.movedStatus !== 'READY' || pfm.movedMember !== 'E2E Person Two') {
+    throw new Error(`Moving an offer's status from its detail page failed: ${JSON.stringify(pfm)}`);
+  }
+  if (!pfm.contactSaved) throw new Error(`The client contact did not auto-save: ${JSON.stringify(pfm)}`);
+  if (!pfm.duplicateRefused) throw new Error(`A duplicate Reference ID was not refused in the modal: ${JSON.stringify(pfm)}`);
+  if (!pfm.rowListed) throw new Error(`The offer is missing from the Project & Finance list: ${JSON.stringify(pfm)}`);
+  if (!pfm.goneAfterDelete || !pfm.backAfterUndo) {
+    throw new Error(`Offer delete/undo round trip failed: ${JSON.stringify(pfm)}`);
+  }
+  if (!pfm.versionModalOpen || pfm.prefilledLabel !== 'v1' || pfm.v1Fees !== 1200000) {
+    throw new Error(`Adding a version with fees from the detail page failed: ${JSON.stringify(pfm)}`);
+  }
+  if (pfm.chipsAfterAdd !== 2 || pfm.fileErrorsShown !== 1 || pfm.storedFiles !== 'e2e-notes.txt,e2e-offer.pdf') {
+    throw new Error(`Adding several files to a version (one refused) failed: ${JSON.stringify(pfm)}`);
+  }
+  if (!pfm.badFeesRefused || pfm.versionLabels !== 'v2,v1' || pfm.currentCard !== 'v2' || pfm.currentFees !== 1050050) {
+    throw new Error(`A second version did not become the current one: ${JSON.stringify(pfm)}`);
+  }
+  if (pfm.filesAfterRemove !== 1 || pfm.filesAfterUndo !== 2) {
+    throw new Error(`Removing a version file with undo failed: ${JSON.stringify(pfm)}`);
+  }
+  if (pfm.currentAfterVersionDelete !== 'v1' || pfm.currentAfterVersionUndo !== 'v2') {
+    throw new Error(`Deleting a version with undo failed: ${JSON.stringify(pfm)}`);
+  }
+  if (pfm.feeChangeText !== '−1,499.50 (−12.5%)') {
+    throw new Error(`The fee change between versions is wrong or missing: ${JSON.stringify(pfm)}`);
+  }
+  if (!pfm.quickFindOpened) throw new Error(`Quick Find did not open the offer from its reference: ${JSON.stringify(pfm)}`);
+  if (!pfm.ctrlNOpened) throw new Error(`Ctrl+N did not open New Offer on the Project & Finance page: ${JSON.stringify(pfm)}`);
+  const pfmXlsx = fs.existsSync(pfmXlsxPath) ? fs.readFileSync(pfmXlsxPath) : Buffer.alloc(0);
+  if (pfmXlsx.readUInt32LE(0) !== 0x04034B50 || !pfmXlsx.includes(pfm.ref)) {
+    throw new Error(`The Project & Finance Excel export was not written with the listed offer (${pfmXlsx.length} bytes)`);
+  }
+  if (pfm.tabCount !== 1 || !pfm.clientTabRow || !pfm.presetClient || pfm.clientTabRowsAfterCreate !== 2 || !pfm.stayedOnClient) {
+    throw new Error(`The client's Offers & CRs tab failed: ${JSON.stringify(pfm)}`);
+  }
+
   const rotation = result.passwordRotation;
   if (!rotation.ipcFlagsCreation) throw new Error('An admin-created account was not flagged to change its password on next login');
   if (!rotation.ipcFlagsLogin) throw new Error('Login did not surface the must-change-password flag over the real IPC bridge');
@@ -536,6 +746,10 @@ async function run() {
   console.log('PASS  The client identity editor is localized and keeps the company code read-only');
   console.log('PASS  An inline client rename persists without touching the company code');
   console.log('PASS  A client survives an archive/restore round trip from the Clients page');
+  console.log('PASS  An offer is created, moved to its next status and auto-saved from the Project & Finance page');
+  console.log('PASS  A duplicate Reference ID is refused in the modal, and delete/undo keeps the offer');
+  console.log('PASS  Versions with fees become current newest-first; files are added (bad ones listed), removed and restored');
+  console.log('PASS  Project & Finance reaches the rest of the app: fee change, Quick Find, Ctrl+N, Excel export, client tab');
   console.log('PASS  An admin-created account is forced to replace its admin-assigned password on next login');
   console.log('PASS  Runtime accessibility invariants cover names, unique ids, language/direction, and live regions');
   console.log(`PASS  report:exportPDF produces a real PDF file (${pdfBytes.length} bytes)`);

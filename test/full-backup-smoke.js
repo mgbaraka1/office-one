@@ -91,7 +91,7 @@ try {
     res.ok === true && res.path.startsWith(fakeDesktopDir), JSON.stringify({ ok: res.ok, path: res.path }));
 
   const destRoot = res.path;
-  const expectedEntries = ['cooperation-tools.db', 'projects', 'company_documents', 'knowledge_hub', 'backups', 'manifest.json'];
+  const expectedEntries = ['cooperation-tools.db', 'projects', 'company_documents', 'knowledge_hub', 'project_finance', 'backups', 'manifest.json'];
   const actualEntries = fs.existsSync(destRoot) ? fs.readdirSync(destRoot) : [];
   record('Gate 1b: backup folder contains db file, all data-tree copies, and manifest.json',
     expectedEntries.every(e => actualEntries.includes(e)), JSON.stringify(actualEntries));

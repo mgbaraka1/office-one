@@ -16,6 +16,7 @@ Office ONE is an offline, multi-user Electron desktop app covering:
 - **Clients** — bilingual client profiles plus VPN connections, servers and internal systems; client **Projects** with tracked documents and linked tasks live under each client.
 - **Subscriptions** and **Company Documents** — recurring spend and renewal-tracked files.
 - **Knowledge Hub** — WYSIWYG articles (Quill), groups, tags, attachments, versioned documents.
+- **Project & Finance** — Offers and Change Requests (CRs): a status stage trail, fee-bearing versions with uploaded files, follow-up/expiry reminders and Excel export.
 - **Overview / Reports** — read-only analytics, PDF/CSV/Excel export.
 
 There is no server and no network access. All data lives in one embedded SQLite
@@ -59,10 +60,10 @@ renderer/
   core.js            Icons, shared state, modals/focus traps, toasts, lookups, pickers
   app.css            All application styling (design tokens in :root)
   features/          timesheet.js, tasks.js, workspace.js, clients.js, knowledge.js,
-                     knowledge-sanitize.js, company-documents.js, shell.js
+                     knowledge-sanitize.js, company-documents.js, pfm.js, shell.js
   vendor/            quill/, dompurify/
-migrations/          000_baseline.js … 061_drop_finance.js (append-only)
-test/                39 *-smoke.js suites + run-all.js + electron-e2e.js + helpers
+migrations/          000_baseline.js … 063_pfm_workspace_search.js (append-only)
+test/                40 *-smoke.js suites + run-all.js + electron-e2e.js + helpers
 ```
 
 Renderer scripts are **ordered classic scripts**, not modules — load order in
@@ -110,10 +111,29 @@ and `client_field_history` — where `password`/`secret_key` are always written 
 
 **Subscriptions**: `subscriptions` (`cost` REAL, `currency_id`, `billing_cycle_id`, `renewal_date`).
 
+**Project & Finance** (migration 062, `pfm_` prefix — shares nothing with the
+retired Finance tables, §5): `pfm_items` (one row per Offer or CR), `pfm_stages`
+(who/when per status), `pfm_versions`, `pfm_version_files`, `pfm_history`.
+
+- Rows are **private per login** (`user_id`), like tasks.
+- `reference` is typed by the user; its folded `reference_key` is unique per
+  login across Offers **and** CRs together. Per login, not install-wide, so one
+  login cannot probe for another's hidden references.
+- The stage person is **free text** (the UI offers a datalist of names already
+  used), not a lookup. Status is the `PFM_STATUS` lookup; stage order is its
+  `sort_order`, and `ACCEPTED`/`REJECTED` are final.
+- Fees are **integer minor units** (never REAL) plus a `CURRENCY` lookup.
+- Items, versions and files are soft-deleted via `deleted_at` — that stamp *is*
+  the undo window; purge (or the next boot's maintenance) removes the row and
+  the bytes. Ids stay stable across an undo.
+- `pfm_history.item_id` is deliberately **not** a foreign key: like
+  `lookup_code_history`, the audit outlives the record.
+
 **Search**: `workspace_search` — a user-scoped, trigger-maintained FTS5 index.
 Credentials and file contents are deliberately excluded. Client-infrastructure
 rows use a composite `entity_id` of `ownerId:recordId` so a result can deep-link
-back to its parent.
+back to its parent. Offers/CRs are kind `pfm` (reference + title + contact name),
+indexed only while not deleted.
 
 ### 4.2 Lookups (`lookup_codes`)
 
@@ -173,6 +193,8 @@ Landmarks worth knowing:
 | 058 | `lookup_code_history` — the shared catalog gains an audit trail |
 | 059 | seeds `TIME_TYPE` and `ACTIVITY_TYPE` on a **fresh** database, guarded on the category being empty |
 | 061 | Finance removed entirely — every `finance_*` table dropped, its four catalog categories removed from `lookup_codes` (see §5) |
+| 062 | Project & Finance (Offers & CRs) — the five `pfm_*` tables, additive only; seeds `PFM_STATUS` behind the 059-style empty-category guard |
+| 063 | Offers & CRs join `workspace_search` — backfill plus three `workspace_search_pfm_items_*` triggers |
 
 **A guarded seed is the right shape for a fresh-install gap.** Migration 003
 seeded some categories from "legacy blob ∪ values already in the data", both
@@ -219,6 +241,12 @@ orphaned on disk unless cleaned up separately.
 If you're reading this while planning the rebuild: don't restore the deleted
 code as a starting point. The whole point of the removal was a clean-slate
 redesign, not a revert.
+
+**The rebuild is Project & Finance** (`pfm`, migrations 062–063,
+`renderer/features/pfm.js`) — a new, narrower design for Offers and CRs only,
+written from scratch (tables in §4.1, page in §7). It has no link to Projects,
+and no contracts, invoices or payments. Its files live under
+`<userData>/project_finance/`, never the old `finance/` folder.
 
 ## 6. Security
 
@@ -338,7 +366,8 @@ localStorage. Lockout recovery is manual and local.
 Uploads are ownership-checked, path-contained through `resolveInside()`, capped at
 `MAX_DOCUMENT_BYTES` (100 MB), and validated by both extension allowlist and
 magic-byte header. Project docs allow PDF/DOC/DOCX/PNG/JPG/GIF/WEBP; Knowledge
-Hub adds XLS/XLSX/TXT.
+Hub adds XLS/XLSX/TXT, and Project & Finance version files use the Knowledge Hub
+list.
 
 ### Backups & restore
 
@@ -364,6 +393,7 @@ list ungrouped — it is the landing page everything else reports into:
 | Clients & Assets | `clients` | **Clients** |
 | | `subscriptions` | **Subscriptions** |
 | | `companydocs` | **Company Docs** |
+| | `pfm` | **Project & Finance** — Offers & CRs |
 | | `knowledge` | **Knowledge Hub** |
 | Review | `reports` | **Reports** |
 
@@ -379,7 +409,15 @@ Companies/Systems roll-ups). `PAL_PAGES` in `shell.js` still lists Browse — th
 command palette is a search surface, not the main menu.
 
 **Client detail tabs** (`CLIENT_DETAIL_TYPES` in `renderer/features/clients.js`):
-Overview / Projects / Access / Servers / Systems.
+Overview / Projects / **Offers & CRs** / Access / Servers / Systems. The Offers &
+CRs tab reuses the Project & Finance list rows, and its New buttons preset the
+client.
+
+**Project & Finance reminders** feed the Overview's Attention list (and the
+sidebar badge) from `pfmAttentionItems()` in `db.js`: an item still **Sent** 7
+days after its Sent date (`PFM_FOLLOW_UP_DAYS`), and a non-final item within 3
+days of its *valid until* date or past it (`PFM_EXPIRY_WARN_DAYS`). Archived and
+deleted items never appear.
 
 - `(N)` counts are written by `updateClientDetailTabCounts()` **in place**
   rather than by rebuilding the toolbar — which would steal focus out of the
@@ -417,10 +455,10 @@ theme is **not** in `workspaceViewPrefs` — it lives on `documentElement[data-t
 
 ## 8. IPC
 
-150 channels, named `domain:action`. Domains: `auth`, `app`, `days`, `companies`,
+174 channels, named `domain:action`. Domains: `auth`, `app`, `days`, `companies`,
 `systems`, `analytics`, `attention`, `activity`, `lookups`, `subscriptions`,
 `tasks`, `search`, `worklogs`, `day`, `projects`, `departments`, `internal`,
-`companydocs`, `knowledge`, `clients`, `ui`, `preferences`, `db`,
+`companydocs`, `knowledge`, `pfm` (24 channels), `clients`, `ui`, `preferences`, `db`,
 `maintenance`, `report`, `security`, `window`, `shell`.
 
 **Adding an IPC handler — all four steps or it fails closed:**

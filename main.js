@@ -4,7 +4,7 @@ const path = require('node:path');
 const db     = require('./db');
 const auth   = require('./auth');
 const { validateIpcArgs } = require('./ipc-contracts');
-const { createTimesheetWorkbook } = require('./xlsx');
+const { createTimesheetWorkbook, createPfmWorkbook } = require('./xlsx');
 
 const e2ePort = !app.isPackaged
   ? Number(process.env.OFFICE_ONE_E2E_PORT)
@@ -466,6 +466,57 @@ ipcMain.handle('knowledge:restore-attachment', authed((_e, itemId, fileMeta) => 
 ipcMain.handle('knowledge:purge-attachment', authed((_e, itemId, relPath) => db.purgeKnowledgeAttachment(auth.requireUserId(), itemId, relPath)));
 ipcMain.handle('knowledge:purge-files', authed((_e, itemId) => db.purgeKnowledgeFiles(auth.requireUserId(), itemId)));
 
+// ── Project & Finance (Offers & CRs) — private per login, like tasks ──
+ipcMain.handle('pfm:list',           authed((_e, filters)        => db.listPfmItems(auth.requireUserId(), filters || {})));
+ipcMain.handle('pfm:get',            authed((_e, id)             => db.getPfmItem(auth.requireUserId(), id)));
+ipcMain.handle('pfm:create',         authed((_e, data)           => db.createPfmItem(auth.requireUserId(), data)));
+ipcMain.handle('pfm:update',         authed((_e, id, data)       => db.updatePfmItem(auth.requireUserId(), id, data)));
+ipcMain.handle('pfm:set-status',     authed((_e, id, data)       => db.setPfmStatus(auth.requireUserId(), id, data)));
+ipcMain.handle('pfm:save-stage',     authed((_e, id, data)       => db.savePfmStage(auth.requireUserId(), id, data)));
+ipcMain.handle('pfm:archive',        authed((_e, id)             => db.archivePfmItem(auth.requireUserId(), id)));
+ipcMain.handle('pfm:unarchive',      authed((_e, id)             => db.unarchivePfmItem(auth.requireUserId(), id)));
+ipcMain.handle('pfm:delete',         authed((_e, id)             => db.deletePfmItem(auth.requireUserId(), id)));
+ipcMain.handle('pfm:restore',        authed((_e, id)             => db.restorePfmItem(auth.requireUserId(), id)));
+ipcMain.handle('pfm:purge',          authed((_e, id)             => db.purgePfmItem(auth.requireUserId(), id)));
+ipcMain.handle('pfm:history',        authed((_e, id)             => db.getPfmHistory(auth.requireUserId(), id)));
+ipcMain.handle('pfm:member-names',   authed(()                   => db.listPfmMemberNames(auth.requireUserId())));
+ipcMain.handle('pfm:version-create', authed((_e, itemId, data)   => db.createPfmVersion(auth.requireUserId(), itemId, data)));
+ipcMain.handle('pfm:version-update', authed((_e, versionId, data) => db.updatePfmVersion(auth.requireUserId(), versionId, data)));
+ipcMain.handle('pfm:version-delete', authed((_e, versionId)      => db.deletePfmVersion(auth.requireUserId(), versionId)));
+ipcMain.handle('pfm:version-restore', authed((_e, versionId)     => db.restorePfmVersion(auth.requireUserId(), versionId)));
+ipcMain.handle('pfm:version-purge',  authed((_e, versionId)      => db.purgePfmVersion(auth.requireUserId(), versionId)));
+// The renderer never supplies a path: main opens the dialog, db validates and
+// copies each chosen file on its own and reports per-file ok/error.
+ipcMain.handle('pfm:files-add', authed(async (_e, versionId) => {
+  // E2E-only, like OFFICE_ONE_E2E_PDF_PATH: the native open dialog can't be
+  // driven over CDP, so the harness (isE2ERun, never a packaged build) may
+  // hand over a path-delimited list of disposable files instead.
+  const e2eFiles = isE2ERun ? process.env.OFFICE_ONE_E2E_PFM_FILES : null;
+  const { canceled, filePaths } = e2eFiles
+    ? { canceled: false, filePaths: e2eFiles.split(path.delimiter).filter(Boolean) }
+    : await dialog.showOpenDialog(win, {
+        title: 'Add files to this version', properties: ['openFile', 'multiSelections'],
+        filters: [
+          { name: 'Supported files', extensions: KNOWLEDGE_UPLOAD_EXTENSIONS },
+          { name: 'PDF', extensions: ['pdf'] }, { name: 'Word', extensions: ['doc', 'docx'] },
+          { name: 'Excel', extensions: ['xls', 'xlsx'] }, { name: 'Text', extensions: ['txt'] },
+          { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },
+        ],
+      });
+  if (canceled || !filePaths?.length) return { ok: false, canceled: true, results: [] };
+  return db.addPfmVersionFiles(auth.requireUserId(), versionId, filePaths);
+}));
+ipcMain.handle('pfm:file-open', authed(async (_e, fileId) => {
+  const r = db.resolvePfmFile(auth.requireUserId(), fileId);
+  if (!r.ok) return r;
+  if (!r.exists) return { ok: false, error: 'The file is missing from disk' };
+  const error = await shell.openPath(r.absPath);
+  return error ? { ok: false, error } : { ok: true };
+}));
+ipcMain.handle('pfm:file-remove',  authed((_e, fileId) => db.removePfmFile(auth.requireUserId(), fileId)));
+ipcMain.handle('pfm:file-restore', authed((_e, fileId) => db.restorePfmFile(auth.requireUserId(), fileId)));
+ipcMain.handle('pfm:file-purge',   authed((_e, fileId) => db.purgePfmFile(auth.requireUserId(), fileId)));
+
 // ── Clients (Auth + Server Information + Databases per COMPANY lookup) ──
 ipcMain.handle('clients:list', authed((_e, includeArchived) => db.listClients(auth.requireUserId(), includeArchived)));
 ipcMain.handle('clients:get',  authed((_e, companyId)  => db.getClient(auth.requireUserId(), companyId)));
@@ -673,6 +724,31 @@ ipcMain.handle('report:exportExcel', authed(async (_e, reportData, defaultName) 
         });
     if (canceled || !filePath) return { ok: false };
     fs.writeFileSync(filePath, createTimesheetWorkbook(reportData));
+    return { ok: true, path: filePath };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err) };
+  }
+}));
+
+// Project & Finance list → Excel (plan E8). The renderer sends the rows its
+// filters currently show, already labelled in the UI language.
+ipcMain.handle('pfm:export-xlsx', authed(async (_e, exportData, defaultName) => {
+  try {
+    const serializedBytes = Buffer.byteLength(JSON.stringify(exportData || {}), 'utf8');
+    if (!exportData || serializedBytes > 10 * 1024 * 1024) {
+      return { ok: false, error: 'Excel export content is empty or too large' };
+    }
+    const safeDefaultName = path.basename(String(defaultName || 'offers-and-crs.xlsx')).slice(0, 180) || 'offers-and-crs.xlsx';
+    const e2eXlsxPath = isE2ERun ? process.env.OFFICE_ONE_E2E_PFM_XLSX_PATH : null;
+    const { canceled, filePath } = e2eXlsxPath
+      ? { canceled: false, filePath: e2eXlsxPath }
+      : await dialog.showSaveDialog(win, {
+          title: 'Save offers and CRs as Excel',
+          defaultPath: safeDefaultName,
+          filters: [{ name: 'Excel workbook', extensions: ['xlsx'] }],
+        });
+    if (canceled || !filePath) return { ok: false };
+    fs.writeFileSync(filePath, createPfmWorkbook(exportData));
     return { ok: true, path: filePath };
   } catch (err) {
     return { ok: false, error: String(err?.message || err) };

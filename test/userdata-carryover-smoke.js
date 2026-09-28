@@ -155,7 +155,7 @@ const read = p => (fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null);
 
 // ── 4. The entry list must stay in step with the directories db.js creates ──
 {
-  for (const required of [DB, 'backups', 'projects', 'company_documents', 'knowledge_hub']) {
+  for (const required of [DB, 'backups', 'projects', 'company_documents', 'knowledge_hub', 'project_finance']) {
     check(`USER_DATA_ENTRIES covers ${required}`, db.USER_DATA_ENTRIES.includes(required));
   }
   // Deliberately NOT in USER_DATA_ENTRIES: it is Chromium's file, copied by its

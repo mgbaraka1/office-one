@@ -1,6 +1,6 @@
 # Office ONE
 
-An offline, multi-user Electron desktop app for timesheets, client tasks, internal/department work, client projects and infrastructure, subscriptions, company documents, a WYSIWYG Knowledge Hub, financial record-keeping, analytics, and exportable reports.
+An offline, multi-user Electron desktop app for timesheets, client tasks, internal/department work, client projects and infrastructure, subscriptions, company documents, a WYSIWYG Knowledge Hub, offer and change-request tracking, analytics, and exportable reports.
 
 Everything runs on the device. There is no application server, no cloud sync, and no network calls — one embedded SQLite database holds all data, and the renderer's Content-Security-Policy sets `connect-src 'none'`. Each account logs in separately and owns its own data; every business query is scoped in the main process to the session's user id, and the renderer can never supply a trusted `user_id`.
 
@@ -42,6 +42,7 @@ The whole interface is bilingual, including a full right-to-left layout. The sam
 - Clients page: bilingual client profiles (business code, English/Arabic names) with VPN connections, servers (system / role / environment identity), internal systems and their sub-services — credentials encrypted at rest.
 - Client projects with tracked uploaded documents and linked tasks, reached from the client's profile.
 - Recurring subscriptions and renewal-tracked company documents.
+- Project & Finance: Offers and Change Requests with a who/when status trail, fee-bearing versions with uploaded files, follow-up and validity reminders on the Overview, a per-client tab, and Excel export.
 
 **Knowledge & records**
 - Knowledge Hub with a real WYSIWYG editor (vendored Quill), groups, tags, attachments, versioned documents, and a strict HTML sanitizer allowlist.
@@ -52,7 +53,7 @@ The whole interface is bilingual, including a full right-to-left layout. The sam
 - Browse views over companies and systems, plus an account-scoped recent-changes feed.
 
 **Platform**
-- SQLite FTS5 Quick Find (`Ctrl+K`) across tasks, projects, Knowledge Hub, company documents and subscriptions.
+- SQLite FTS5 Quick Find (`Ctrl+K`) across tasks, projects, Knowledge Hub, company documents, subscriptions, and offers/CRs.
 - Multi-user accounts with a User Management page and forced password rotation for assigned passwords. There is no administrator tier: any authenticated account may act, and shared-data changes are recorded against the acting account instead.
 - Full English/Arabic interface with a complete right-to-left layout and localized PDF reports.
 - Per-account comfort preferences (theme, density, canvas, motion, sidebar, timesheet view) stored per user, not per machine.
@@ -80,7 +81,7 @@ The whole interface is bilingual, including a full right-to-left layout. The sam
 ```bash
 npm install
 npm start        # launch the app
-npm test         # 39 headless smoke suites
+npm test         # 40 headless smoke suites
 npm run test:e2e # real Electron end-to-end run
 ```
 
@@ -106,6 +107,7 @@ Windows CI runs the full smoke suite, the E2E run, `npm run pack`, and a `npm au
 | Project files | `%APPDATA%\office-one\projects\` |
 | Company-document files | `%APPDATA%\office-one\company_documents\` |
 | Knowledge Hub attachments | `%APPDATA%\office-one\knowledge_hub\` |
+| Offer / CR version files | `%APPDATA%\office-one\project_finance\` |
 | Rotating snapshots | `%APPDATA%\office-one\backups\` (newest five) |
 
 Electron derives that folder name from `package.json`'s `name`, so changing `name` moves where the app looks for its data. The rebrand from `timesheet` to `office-one` therefore ships with a one-time carry-over in `main.js` (`migrateLegacyUserDataDir`): on first launch it **copies** the database, uploads and snapshots out of a pre-rebrand `%APPDATA%\timesheet\` and leaves the original in place as a recovery point. It also carries across Chromium's `Local State`, which is emphatically not a disposable cache: it holds the key `safeStorage` encrypts every stored credential with, so a database that moves without it arrives intact and permanently unopenable. Two static-quality assertions keep the package name and that carry-over from ever drifting apart. The database filename itself stays `cooperation-tools.db` — it is the name every existing install, rotating snapshot and full-backup manifest already records.

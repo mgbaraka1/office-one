@@ -31,6 +31,7 @@ let clientDetailSearch = '';
 const CLIENT_DETAIL_TYPES = [
   { key: 'overview',  label: 'Overview' },
   { key: 'projects',  label: 'Projects' },
+  { key: 'pfm',       label: 'Offers & CRs' },
   { key: 'auth',      label: 'Access' },
   { key: 'servers',   label: 'Servers' },
   { key: 'internal',  label: 'Systems' },
@@ -451,6 +452,7 @@ async function openClientDetail(companyId, presetSearch, tab) {
   clientDetailSearch = tab ? '' : (presetSearch || '');
   clientDetailTab = tab || (presetSearch ? 'overview' : (uiState.filters.clients?.tab || 'overview'));
   if (!CLIENT_DETAIL_TYPES.some(t => t.key === clientDetailTab)) clientDetailTab = 'overview';
+  clientPfmFor = null;   // a fresh open re-reads this client's Offers & CRs
   showClientDetailView();
   renderClientDetail(client);
   // The Projects section reads the shared projectsList; load it if it isn't yet
@@ -640,6 +642,7 @@ function renderClientDetail(c) {
   toolbar.appendChild(typeChips);
   host.appendChild(toolbar);
   updateClientDetailTabCounts();
+  ensureClientPfmRows(c.id);
 
   const sectionsHost = pjMk('div', 'cl-detail-sections');
   sectionsHost.id = 'client-detail-sections';
@@ -652,6 +655,7 @@ function renderClientDetail(c) {
 function clientDetailTabCounts(c) {
   return {
     projects: projectsList.filter(p => cpjPrimaryCompany(p)?.id === c.id).length,
+    pfm: clientPfmCount(c.id),
     auth: Array.isArray(c.vpnConnections) ? c.vpnConnections.length : 0,
     servers: Array.isArray(c.servers) ? c.servers.length : 0,
     internal: Array.isArray(c.internalSystems) ? c.internalSystems.length : 0,
@@ -720,6 +724,9 @@ function renderClientDetailSections(c) {
     }
     host.appendChild(pjSec);
   }
+
+  // ── Offers & CRs (Project & Finance, this client only — built in pfm.js) ──
+  if (showSection('pfm')) host.appendChild(buildClientPfmSection(c, q));
 
   // ── Auth section (VPN, PAM, and other login/connection records) ──
   if (showSection('auth')) {
@@ -867,12 +874,16 @@ function renderClientOverview(host, c, servers, internalSystems, vpns) {
   const grid = pjMk('div', 'client-overview-grid');
   [
     ['Projects', projects.length],
+    // Filled in place by loadClientPfmRows() when its fetch lands.
+    ['Offers & CRs', clientPfmCount(c.id), 'pfm'],
     ['Access records', vpns.length],
     ['Servers', servers.length],
     ['Internal systems', internalSystems.length],
-  ].forEach(([label, count]) => {
+  ].forEach(([label, count, key]) => {
     const card = pjMk('div', 'client-overview-card');
-    card.appendChild(pjMk('b', '', String(count)));
+    const n = pjMk('b', '', String(count));
+    if (key) n.dataset.overviewCount = key;
+    card.appendChild(n);
     card.appendChild(pjMk('span', '', label));
     grid.appendChild(card);
   });
@@ -881,6 +892,7 @@ function renderClientOverview(host, c, servers, internalSystems, vpns) {
   const actions = pjMk('div', 'client-overview-actions');
   [
     ['plus', 'New Project', () => openProjectModal(), 'primary'],
+    ['briefcase', 'New Offer', () => openPfmModal(null, { kind: 'OFFER', companyId: c.id }), ''],
     ['zap', 'Add Access', () => openClientVpnModal(), ''],
     ['server', 'Add Server', () => openClientServerModal(), ''],
     ['layout-dashboard', 'Add System', () => openClientInternalModal(), ''],

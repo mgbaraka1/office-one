@@ -7,7 +7,7 @@ const NO_ARGS = new Set([
   'days:list', 'companies:list', 'systems:list', 'attention:list', 'activity:list',
   'lookups:get', 'subscriptions:list', 'tasks:list', 'tasks:index',
   'projects:list', 'projects:linkable-tasks', 'departments:list',
-  'internal:list', 'companydocs:list', 'knowledge:list',
+  'internal:list', 'companydocs:list', 'knowledge:list', 'pfm:member-names',
   'knowledge:groups-list', 'ui:getState', 'db:backup',
   'ui:getKnowledgeDraft', 'ui:clearKnowledgeDraft', 'preferences:get',
   'maintenance:listBackups', 'maintenance:integrityCheck',
@@ -97,6 +97,29 @@ const SIGNATURES = {
   'knowledge:restore-attachment': ['id', 'object'],
   'knowledge:purge-attachment': ['id', 'string'],
   'knowledge:purge-files': ['id'],
+  'pfm:list': ['object?'],
+  'pfm:get': ['id'],
+  'pfm:create': ['object'],
+  'pfm:update': ['id', 'object'],
+  'pfm:set-status': ['id', 'object'],
+  'pfm:save-stage': ['id', 'object'],
+  'pfm:archive': ['id'],
+  'pfm:unarchive': ['id'],
+  'pfm:delete': ['id'],
+  'pfm:restore': ['id'],
+  'pfm:purge': ['id'],
+  'pfm:history': ['id'],
+  'pfm:version-create': ['id', 'object'],
+  'pfm:version-update': ['id', 'object'],
+  'pfm:version-delete': ['id'],
+  'pfm:version-restore': ['id'],
+  'pfm:version-purge': ['id'],
+  'pfm:files-add': ['id'],
+  'pfm:file-open': ['id'],
+  'pfm:file-remove': ['id'],
+  'pfm:file-restore': ['id'],
+  'pfm:file-purge': ['id'],
+  'pfm:export-xlsx': ['object', 'string'],
   // Zero required args — the optional flag is the Clients page's "Show
   // archived" toggle, so existing no-arg callers stay valid.
   'clients:list': ['boolean?'],
@@ -210,7 +233,7 @@ function validateIpcArgs(channel, args) {
   });
   if (channel === 'report:exportPDF' || channel === 'report:exportCSV' || channel === 'report:print') {
     if (Buffer.byteLength(args[0], 'utf8') > 10 * 1024 * 1024) throw new Error('Report content is too large');
-  } else if (channel === 'report:exportExcel') {
+  } else if (channel === 'report:exportExcel' || channel === 'pfm:export-xlsx') {
     if (Buffer.byteLength(JSON.stringify(args[0]), 'utf8') > 10 * 1024 * 1024) throw new Error('Report content is too large');
   } else {
     for (const arg of args) {

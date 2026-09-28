@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { createTimesheetWorkbook } = require('../xlsx');
+const { createTimesheetWorkbook, createPfmWorkbook } = require('../xlsx');
 
 function readStoredZip(buffer) {
   const entries = new Map();
@@ -58,3 +58,29 @@ assert.throws(() => createTimesheetWorkbook(null), /Invalid Excel report data/);
 
 console.log('PASS  Excel export produces a genuine structured OpenXML workbook');
 console.log('PASS  dates/numbers are typed, summaries are formula-driven, and Arabic/RTL content is preserved');
+
+// Project & Finance list export (plan E8): same package, its own sheet.
+const pfmBook = createPfmWorkbook({
+  title: 'Offers & CRs', sheetName: 'Offers & CRs', filtersLabel: 'Filters', filters: 'Offers · Sent', rtl: false,
+  headers: { reference: 'Reference', fees: 'Fees' },
+  rows: [
+    { reference: 'OFF-001', kind: 'Offer', title: 'Generic offer', client: 'Client A', status: 'Sent',
+      fees: 12500.5, currency: 'SAR', version: 'v2', person: 'Person A', validUntil: '2026-08-03', updated: '2026-08-04' },
+    { reference: 'CR-001', kind: 'CR', title: 'عرض عام', client: 'المؤسسة', status: 'Prepare',
+      fees: null, currency: '', version: '', person: '', validUntil: '', updated: '2026-08-04' },
+  ],
+});
+const pfmEntries = readStoredZip(pfmBook);
+const pfmSheet = pfmEntries.get('xl/worksheets/sheet1.xml');
+assert.ok(pfmEntries.has('xl/styles.xml') && pfmEntries.has('[Content_Types].xml'), 'PFM export is a full workbook package');
+assert.match(pfmSheet, /<c r="F5" s="13"><v>12500.5<\/v><\/c>/, 'fees are numeric cells with a #,##0.00 format, not text');
+assert.match(pfmSheet, /<c r="F6" s="0" t="inlineStr"><is><t><\/t><\/is><\/c>/, 'a version with no fees exports an empty cell');
+assert.match(pfmSheet, /<c r="J5" s="5"><v>46237<\/v><\/c>/, 'valid-until is a typed Excel date');
+assert.match(pfmSheet, /<autoFilter ref="A4:K6"\/>/, 'the exported rows carry an Excel filter');
+assert.match(pfmSheet, /state="frozen"/, 'PFM headers are frozen');
+assert.doesNotMatch(pfmSheet, /rightToLeft/, 'an English export stays left-to-right');
+assert.match(pfmSheet, /المؤسسة/, 'Arabic client names are preserved');
+assert.match(pfmEntries.get('xl/workbook.xml'), /name="Offers &amp; CRs"/, 'the sheet is named after the list');
+assert.match(pfmEntries.get('xl/styles.xml'), /<cellXfs count="14">/, 'the style count matches the number of cell formats');
+assert.throws(() => createPfmWorkbook({}), /Invalid Excel export data/);
+console.log('PASS  Project & Finance export writes typed fees and dates for the filtered rows');

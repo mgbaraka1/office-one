@@ -749,6 +749,125 @@
  */
 
 /**
+ * One stage of an Offer/CR (pfm_stages): who on our side, and when. The person
+ * is free text; an empty doneOn means the stage is planned but has not happened.
+ * @typedef {Object} PfmStage
+ * @property {number} id
+ * @property {string} status       PFM_STATUS code.
+ * @property {string} memberName
+ * @property {string} doneOn       YYYY-MM-DD, or '' when only planned.
+ * @property {string} note
+ * @property {string} updatedAt
+ */
+
+/**
+ * One uploaded file on a version (pfm_version_files). `path` is relative to userData.
+ * @typedef {Object} PfmFile
+ * @property {number} id
+ * @property {number} versionId
+ * @property {string} path
+ * @property {string} originalName
+ * @property {number} size
+ * @property {string} mimeType
+ * @property {number} sortOrder
+ * @property {string} uploadedAt
+ * @property {boolean} exists      Whether the bytes are still on disk.
+ */
+
+/**
+ * One user-labelled version of an Offer/CR (pfm_versions).
+ * @typedef {Object} PfmVersion
+ * @property {number} id
+ * @property {number} itemId
+ * @property {string} label           The user-entered version ID, unique per item (case/space-insensitive).
+ * @property {number|null} feesMinor  Integer minor units (amount × 100); null = no fees entered.
+ * @property {string} currency        CURRENCY code, or ''.
+ * @property {string} date            YYYY-MM-DD, or ''.
+ * @property {string} notes
+ * @property {number} sortOrder       Higher = newer; the highest is the current version.
+ * @property {string} createdAt
+ * @property {string} updatedAt
+ * @property {PfmFile[]} files        Filled by pfm:get; [] on list rows.
+ */
+
+/**
+ * An Offer or CR (pfm_items), private to the login that owns it. pfm:list rows
+ * carry currentVersion + currentMember; pfm:get and every mutation add stages
+ * and versions (newest first).
+ * @typedef {Object} PfmItem
+ * @property {number} id
+ * @property {'OFFER'|'CR'} kind
+ * @property {string} reference       User-entered; unique per login across Offers and CRs.
+ * @property {string} title
+ * @property {number} companyId       COMPANY lookup id.
+ * @property {string} company         COMPANY label.
+ * @property {string} status          PFM_STATUS code of the current status.
+ * @property {boolean} isFinal        True for ACCEPTED / REJECTED.
+ * @property {string} contactName
+ * @property {string} contactEmail
+ * @property {string} contactPhone
+ * @property {string} validUntil      YYYY-MM-DD, or ''.
+ * @property {string} notes
+ * @property {boolean} archived
+ * @property {string} archivedAt
+ * @property {string} createdAt
+ * @property {string} updatedAt
+ * @property {PfmVersion|null} currentVersion
+ * @property {string} [currentMember]  List rows: the person on the current status's stage.
+ * @property {PfmStage[]} [stages]     pfm:get / mutations: ordered by the PFM_STATUS catalog.
+ * @property {PfmVersion[]} [versions] pfm:get / mutations: newest first.
+ */
+
+/**
+ * Result of every pfm:* write. Refusals (duplicate reference, bad date, not
+ * found) come back as ok:false with a readable error rather than a throw.
+ * @typedef {Object} PfmWriteResult
+ * @property {boolean} ok
+ * @property {string} [error]
+ * @property {PfmItem} [item]
+ * @property {PfmVersion} [version]   pfm:version-create only.
+ */
+
+/**
+ * Result of `pfm:files-add` (multi-select). Each chosen file succeeds or fails on its own.
+ * @typedef {Object} PfmFilesAddResult
+ * @property {boolean} ok              True when at least one file was added.
+ * @property {boolean} [canceled]
+ * @property {string} [error]
+ * @property {Array<{name:string, ok:boolean, error:string, fileId:number|null}>} results
+ * @property {PfmItem} [item]
+ */
+
+/**
+ * Payload of `pfm:export-xlsx` (xlsx.js createPfmWorkbook): the rows the list's
+ * filters show, with every label already in the UI language. `fees` is a plain
+ * number (major units, e.g. 12500.5) or null; dates are YYYY-MM-DD.
+ * @typedef {Object} PfmExportData
+ * @property {string} [title]
+ * @property {string} [sheetName]
+ * @property {string} [filtersLabel]
+ * @property {string} [filters]       Human-readable summary of the active filters.
+ * @property {boolean} [rtl]
+ * @property {Object<string,string>} [headers]  Column key → translated header.
+ * @property {Array<{reference:string, kind:string, title:string, client:string, status:string,
+ *   fees:number|null, currency:string, version:string, person:string, validUntil:string, updated:string}>} rows
+ */
+
+/**
+ * One pfm_history row (`pfm:history`), newest first. Values are human-facing
+ * (status and client labels, fees as 0.00), never lookup ids.
+ * @typedef {Object} PfmHistoryEntry
+ * @property {number} id
+ * @property {'item'|'stage'|'version'|'file'} recordType
+ * @property {number|null} recordId
+ * @property {string} field
+ * @property {string} oldValue
+ * @property {string} newValue
+ * @property {string} changedAt
+ * @property {string} changedBy      Username of the acting account.
+ */
+
+/**
  * One date-urgent item from `attention:list` (db.getAttentionItems) — the
  * Milestone 3 aggregation across subscription renewals, Company Document
  * renewals, and the three client_* tables with an expiry_date (Auth/VPN,
@@ -757,11 +876,14 @@
  * renewLabel() and reuses them here instead of duplicating day-math
  * server-side.
  * @typedef {Object} AttentionItem
- * @property {'subscription'|'companyDocument'|'clientVpn'|'clientInternal'} type
- * @property {number} id           The source row's own id (subscription id, company_documents id, or the client_* record id).
- * @property {string} title        Human-facing name (subscription/document name, VPN connection name, etc.).
- * @property {string} date         YYYY-MM-DD renewal_date or expiry_date.
- * @property {'subscriptions'|'companydocs'|'clients'} module  Which nav module to deep-link into.
+ * The two Project & Finance types are filtered server-side instead: pfmFollowUp
+ * appears once an item has sat on SENT for 7 days (date = that follow-up day),
+ * pfmExpiry once `valid_until` is 3 days away or past on a non-final item.
+ * @property {'subscription'|'companyDocument'|'clientVpn'|'clientInternal'|'pfmFollowUp'|'pfmExpiry'} type
+ * @property {number} id           The source row's own id (subscription id, company_documents id, client_* record id, or pfm_items id).
+ * @property {string} title        Human-facing name (subscription/document name, VPN connection name, "REF · title", etc.).
+ * @property {string} date         YYYY-MM-DD renewal_date, expiry_date, follow-up day or valid_until.
+ * @property {'subscriptions'|'companydocs'|'clients'|'pfm'} module  Which nav module to deep-link into.
  * @property {number} [companyId]  Set only for the three 'client*' types — the COMPANY lookup id, for openClientDetail(companyId, title).
  */
 
@@ -832,13 +954,17 @@
  * @property {string[]} projectIds          project ids whose projects/{id}/ folder was removed this boot.
  * @property {string[]} companyDocumentIds   company_documents ids whose folder was removed this boot.
  * @property {string[]} knowledgeItemIds     knowledge_hub ids whose folder was removed this boot.
+ * @property {{items:number, versions:number, files:number}|null} pfmPurged  Project & Finance rows
+ *                                          still marked deleted at boot (their undo window lapsed with the app closed) and purged.
+ * @property {string[]} pfmFiles             project_finance/ item folders, item/version folders, or
+ *                                          item/version/file paths removed this boot because nothing references them.
  * @property {string|null} ranAt            ISO timestamp of the boot that produced this report, or null before first boot.
  */
 
 /**
  * Result of `maintenance:fullBackup` (Milestone 8) — a single new timestamped
  * folder on the Desktop containing the checkpointed DB, full copies of
- * projects/, company_documents/, knowledge_hub/, and the rotating backups/ snapshots, plus
+ * projects/, company_documents/, knowledge_hub/, project_finance/, and the rotating backups/ snapshots, plus
  * a manifest.json summary. Read-only with respect to <userData> — nothing
  * this writes lives under the live data folder.
  * @typedef {Object} FullBackupResult
