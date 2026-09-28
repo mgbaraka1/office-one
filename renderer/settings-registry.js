@@ -40,4 +40,5 @@ const SETTINGS_CATALOG_TABS = [
   { key: 'department', category: 'DEPARTMENT', valueField: 'label', label: 'Department', icon: 'building', editor: 'lookup' },
   { key: 'taskSourceType', category: 'TASK_SOURCE_TYPE', valueField: 'code', label: 'Task Source Types', icon: 'external-link', editor: 'lookup' },
   { key: 'serverRole', category: 'SERVER_ROLE', valueField: 'code', label: 'Server Roles', icon: 'server', editor: 'lookup' },
+  { key: 'pfmStatus', category: 'PFM_STATUS', valueField: 'code', label: 'Offer Status', icon: 'briefcase', editor: 'lookup' },
 ];

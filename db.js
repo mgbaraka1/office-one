@@ -26,7 +26,7 @@ const crypto = require('node:crypto');
 // table under one of these category discriminators. The renderer fetches options
 // per-category and stores a stable `code` (logic fields) or display `label`
 // (company/system/activity) — never a hardcoded string.
-const LOOKUP_CATEGORIES = ['COMPANY', 'SYSTEM', 'ACTIVITY_TYPE', 'TIME_TYPE', 'ENTRY_STATUS', 'CURRENCY', 'BILLING_CYCLE', 'PROJECT_STATUS', 'PROJECT_DOCUMENT', 'COMPANY_DOCUMENT_CATEGORY', 'KNOWLEDGE_TYPE', 'DEPARTMENT', 'TASK_SOURCE_TYPE', 'SERVER_ROLE'];
+const LOOKUP_CATEGORIES = ['COMPANY', 'SYSTEM', 'ACTIVITY_TYPE', 'TIME_TYPE', 'ENTRY_STATUS', 'CURRENCY', 'BILLING_CYCLE', 'PROJECT_STATUS', 'PROJECT_DOCUMENT', 'COMPANY_DOCUMENT_CATEGORY', 'KNOWLEDGE_TYPE', 'DEPARTMENT', 'TASK_SOURCE_TYPE', 'SERVER_ROLE', 'PFM_STATUS'];
 
 let db;          // DatabaseSync instance
 let userDataDir; // resolved userData folder (backups, db file)
@@ -194,7 +194,7 @@ const DB_FILENAME = 'cooperation-tools.db';
 // right next to the code that creates it.
 const USER_DATA_ENTRIES = [
   DB_FILENAME, DB_FILENAME + '-wal', DB_FILENAME + '-shm',
-  'backups', 'projects', 'company_documents', 'knowledge_hub',
+  'backups', 'projects', 'company_documents', 'knowledge_hub', 'project_finance',
   'pre-migration-backup', 'pre-restore-backup', 'pre-full-restore-backup',
   'pre-encryption-backup',
 ];
@@ -335,7 +335,11 @@ function runMaintenance() {
   const projectIds = sweepOrphanProjectFiles();        // drop file folders for projects that no longer exist
   const companyDocumentIds = sweepOrphanCompanyDocumentFiles(); // same, for company_documents/{id}/ folders
   const knowledgeItemIds = sweepOrphanKnowledgeFiles();
-  _lastOrphanSweepReport = { projectIds, companyDocumentIds, knowledgeItemIds, backup, ranAt: new Date().toISOString() };
+  let pfmPurged = null;
+  try { pfmPurged = purgeDeletedPfmRecords(); }
+  catch (err) { console.error('[maintenance] pfm purge failed:', String(err?.message || err)); }
+  const pfmFiles = sweepOrphanPfmFiles(); // after the purge, so purged rows' bytes go too
+  _lastOrphanSweepReport = { projectIds, companyDocumentIds, knowledgeItemIds, pfmPurged, pfmFiles, backup, ranAt: new Date().toISOString() };
   return _lastOrphanSweepReport;
 }
 // A lookup with no access rows is global. Once any access row exists it is
@@ -422,6 +426,38 @@ function rotateBackups(keep = 5) {
   }
 }
 
+// Project & Finance is two folder levels deep, so a live item can still hold
+// a dead version folder or a stray file. Removes, in order: item folders with
+// no item row, version folders with no version row under that item, and files
+// no pfm_version_files row points at. Returns the removed relative names.
+function sweepOrphanPfmFiles() {
+  const removed = [];
+  try {
+    const root = pfmRootDir();
+    if (!fs.existsSync(root)) return removed;
+    const items = new Set(db.prepare('SELECT id FROM pfm_items').all().map(r => String(r.id)));
+    const versionItem = new Map(db.prepare('SELECT id, item_id FROM pfm_versions').all().map(r => [String(r.id), String(r.item_id)]));
+    const known = new Set(db.prepare('SELECT file_path FROM pfm_version_files').all().map(r => path.normalize(r.file_path)));
+    for (const itemName of fs.readdirSync(root)) {
+      if (!/^\d+$/.test(itemName)) continue;
+      const itemDir = path.join(root, itemName);
+      if (!items.has(itemName)) { fs.rmSync(itemDir, { recursive: true, force: true }); removed.push(itemName); continue; }
+      for (const versionName of fs.readdirSync(itemDir)) {
+        if (!/^\d+$/.test(versionName)) continue;
+        const versionDir = path.join(itemDir, versionName);
+        if (versionItem.get(versionName) !== itemName) {
+          fs.rmSync(versionDir, { recursive: true, force: true }); removed.push(`${itemName}/${versionName}`); continue;
+        }
+        for (const fileName of fs.readdirSync(versionDir)) {
+          if (known.has(path.normalize(path.join('project_finance', itemName, versionName, fileName)))) continue;
+          fs.rmSync(path.join(versionDir, fileName), { recursive: true, force: true });
+          removed.push(`${itemName}/${versionName}/${fileName}`);
+        }
+      }
+    }
+  } catch { /* non-critical */ }
+  return removed;
+}
 function sweepOrphanKnowledgeFiles() {
   const removed = [];
   try {
@@ -838,6 +874,47 @@ function getAttentionItems(userId) {
   });
   db.prepare('SELECT id, name, expiry_date, company_id FROM client_internal_systems WHERE user_id = ?').all(userId).forEach(i => {
     if (i.expiry_date) items.push({ type: 'clientInternal', id: i.id, title: i.name || 'Internal System', date: i.expiry_date, module: 'clients', companyId: i.company_id });
+  });
+  pfmAttentionItems(userId).forEach(a => items.push(a));
+  return items;
+}
+
+// Project & Finance (plan E2 + E3). Unlike the sources above, these are
+// filtered here rather than by the renderer's 30-day window, because each has
+// its own trigger point:
+//  - E2 follow-up: still SENT, PFM_FOLLOW_UP_DAYS after the Sent stage's date.
+//    `date` is that follow-up day, so the badge reads "Today" / "Nd overdue".
+//  - E3 validity: `valid_until` is PFM_EXPIRY_WARN_DAYS away or already past,
+//    and the item is not yet Accepted / Rejected.
+// Archived items and items inside their delete-undo window are left out.
+const PFM_FOLLOW_UP_DAYS = 7;
+const PFM_EXPIRY_WARN_DAYS = 3;
+function pfmDayDiff(fromDate, toDate) {
+  const utc = s => { const [y, m, d] = s.split('-').map(Number); return Date.UTC(y, m - 1, d); };
+  return Math.round((utc(toDate) - utc(fromDate)) / 86400000);
+}
+function pfmAddDays(date, days) {
+  const [y, m, d] = date.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+function pfmAttentionItems(userId, today = pfmLocalToday()) {
+  const items = [];
+  db.prepare(
+    `SELECT i.id, i.reference, i.title, i.status_id, i.valid_until, s.done_on AS stage_on
+       FROM pfm_items i
+       LEFT JOIN pfm_stages s ON s.item_id = i.id AND s.status_id = i.status_id
+      WHERE i.user_id = ? AND i.deleted_at IS NULL AND i.archived_at IS NULL`
+  ).all(userId).forEach(r => {
+    const status = lkCode(r.status_id);
+    const title = `${r.reference} · ${r.title}`;
+    if (status === 'SENT' && isValidDateStr(r.stage_on || '')) {
+      const due = pfmAddDays(r.stage_on, PFM_FOLLOW_UP_DAYS);
+      if (pfmDayDiff(due, today) >= 0) items.push({ type: 'pfmFollowUp', id: r.id, title, date: due, module: 'pfm' });
+    }
+    if (!PFM_FINAL_STATUS_CODES.has(status) && isValidDateStr(r.valid_until || '')
+        && pfmDayDiff(today, r.valid_until) <= PFM_EXPIRY_WARN_DAYS) {
+      items.push({ type: 'pfmExpiry', id: r.id, title, date: r.valid_until, module: 'pfm' });
+    }
   });
   return items;
 }
@@ -3503,7 +3580,7 @@ function checkIntegrity() {
 
 // ── Full Backup (Milestone 8) ───────────────────────────────────────────────
 // One action that captures everything the app owns — not just the DB. Copies
-// the checkpointed DB, the projects/, company_documents/, and knowledge_hub/ file trees, and
+// the checkpointed DB, the projects/, company_documents/, knowledge_hub/ and project_finance/ file trees, and
 // the rotating backups/ snapshots into a single new timestamped folder, plus
 // a manifest.json summary. `desktopDir` is passed in by the caller (main.js
 // resolves app.getPath('desktop')) — db.js never imports electron, the same
@@ -3550,6 +3627,7 @@ function getSystemDiagnostics() {
     ['project_documents', 'file_path'],
     ['company_documents', 'file_path'],
     ['knowledge_attachments', 'file_path'],
+    ['pfm_version_files', 'file_path'],
   ]) {
     const rows = db.prepare(`SELECT id, ${column} AS filePath FROM "${table}" WHERE ${column} IS NOT NULL AND ${column} != ''`).all();
     for (const row of rows) {
@@ -3680,6 +3758,7 @@ function fullBackup(desktopDir, options = {}) {
     ['projects', projectsRootDir()],
     ['company_documents', companyDocumentsRootDir()],
     ['knowledge_hub', knowledgeRootDir()],
+    ['project_finance', pfmRootDir()],
     ['backups', path.join(userDataDir, 'backups')],
   ]) {
     const destDir = path.join(destRoot, key);
@@ -3720,7 +3799,7 @@ function fullBackup(desktopDir, options = {}) {
   return { ok: true, path: destRoot, manifest };
 }
 
-const FULL_BACKUP_DIRS = ['projects', 'company_documents', 'knowledge_hub', 'backups'];
+const FULL_BACKUP_DIRS = ['projects', 'company_documents', 'knowledge_hub', 'project_finance', 'backups'];
 
 // Folder names older bundles used for a directory that has since been renamed,
 // as { currentName: legacyName }. copyDirRecursive() silently no-ops on a
@@ -3815,6 +3894,7 @@ function inspectFullBackup(bundleDir) {
       ['project_documents', 'file_path'],
       ['company_documents', 'file_path'],
       ['knowledge_attachments', 'file_path'],
+      ['pfm_version_files', 'file_path'],
     ];
     for (const [table, column] of refs) {
       const exists = candidate.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table);
@@ -4015,6 +4095,7 @@ const LOOKUP_MERGE_TARGETS = {
       // but still listed: a repoint over an empty table is free, and dropping them here
       // would silently leave dangling FKs if a row ever reappeared.
       ['client_databases', 'company_id'], ['client_external_services', 'company_id'], ['client_internal_systems', 'company_id'],
+      ['pfm_items', 'company_id'],
     ],
     junctions: [['project_companies', 'company_id', 'project_id']],
   },
@@ -4091,6 +4172,19 @@ function knowledgeRootDir() {
 }
 function knowledgeItemDir(id) {
   return path.join(knowledgeRootDir(), String(id));
+}
+// Project & Finance files, one folder per item and one per version inside it:
+//   pfmRootDir()                 -> <userData>/project_finance
+//   pfmItemDir(itemId)           -> <userData>/project_finance/{itemId}
+//   pfmVersionDir(itemId, verId) -> <userData>/project_finance/{itemId}/{versionId}
+function pfmRootDir() {
+  return path.join(userDataDir, 'project_finance');
+}
+function pfmItemDir(itemId) {
+  return path.join(pfmRootDir(), String(itemId));
+}
+function pfmVersionDir(itemId, versionId) {
+  return path.join(pfmItemDir(itemId), String(versionId));
 }
 
 // ── Clients (Auth + Server Information + Databases + External Services +
@@ -5172,6 +5266,660 @@ function assignClientInternalGroup(userId, companyId, recordIds, groupName) {
   return { ok: true, count };
 }
 
+// ── Project & Finance (Offers & CRs) — migration 062 ─────────────────────────
+// Offers and Change Requests, each with a user-typed Reference ID, a status
+// that walks the PFM_STATUS catalog, one who/when row per status (the person is
+// free text), and user-labelled versions carrying fees and files.
+//
+// Private per login, like tasks: every function takes the session userId and
+// every query filters on it. Writes return { ok, ... } / { ok:false, error }
+// rather than throwing (the client roster's convention), so a refusal is never
+// a partial write. A delete only stamps `deleted_at`; undo clears it and purge
+// removes the row, so an undo keeps every id, child row and history link.
+// Logic compares status CODES only — ACCEPTED/REJECTED are the final ones.
+const PFM_KINDS = new Set(['OFFER', 'CR']);
+const PFM_FINAL_STATUS_CODES = new Set(['ACCEPTED', 'REJECTED']);
+const PFM_MAX_TEXT = 200;
+const pfmText = v => String(v ?? '').trim();
+
+// Local calendar date (YYYY-MM-DD) — "today" as the user sees it, not UTC.
+function pfmLocalToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+// '' / null → null (unset); anything else must be a real YYYY-MM-DD date.
+function pfmDate(value, label) {
+  const s = pfmText(value);
+  if (!s) return { value: null };
+  return isValidDateStr(s) ? { value: s } : { error: `${label} must be a valid date` };
+}
+// Integer minor units (amount × 100), never REAL. '' / null → no fees yet.
+function pfmFeesMinor(value) {
+  if (value == null || value === '') return { value: null };
+  const n = Number(value);
+  return Number.isSafeInteger(n) && n >= 0 ? { value: n } : { error: 'Fees must be a positive amount' };
+}
+const pfmFeesText = minor => (minor == null ? '' : (minor / 100).toFixed(2));
+function pfmStatusId(code, { activeOnly = true } = {}) {
+  const id = lkId('PFM_STATUS', code);
+  if (id == null || !isLookupId('PFM_STATUS', id)) return null;
+  return !activeOnly || isLookupActive(id) ? id : null;
+}
+function pfmFirstStatusId() {
+  const row = db.prepare(
+    "SELECT id FROM lookup_codes WHERE category = 'PFM_STATUS' AND is_active = 1 ORDER BY sort_order, id LIMIT 1"
+  ).get();
+  return row ? row.id : null;
+}
+
+function pfmOwnedItem(userId, id, { deleted = false } = {}) {
+  return db.prepare(
+    `SELECT * FROM pfm_items WHERE id = ? AND user_id = ? AND deleted_at IS ${deleted ? 'NOT ' : ''}NULL`
+  ).get(Number(id), userId) || null;
+}
+function pfmOwnedVersion(userId, versionId, { deleted = false } = {}) {
+  return db.prepare(
+    `SELECT v.* FROM pfm_versions v JOIN pfm_items i ON i.id = v.item_id
+      WHERE v.id = ? AND i.user_id = ? AND i.deleted_at IS NULL
+        AND v.deleted_at IS ${deleted ? 'NOT ' : ''}NULL`
+  ).get(Number(versionId), userId) || null;
+}
+
+// Append-only audit row, written only when the value actually changed. Values
+// are the human-facing form (labels, not lookup ids). Call inside the same tx()
+// as the write it describes.
+function recordPfmHistory(userId, itemId, recordType, recordId, field, oldValue, newValue, now) {
+  const oldStr = String(oldValue ?? '');
+  const newStr = String(newValue ?? '');
+  if (oldStr === newStr) return;
+  db.prepare(
+    `INSERT INTO pfm_history(item_id, record_type, record_id, field, old_value, new_value, user_id, changed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(itemId, recordType, recordId, field, oldStr, newStr, userId, now);
+}
+function pfmTouchItem(userId, itemId, now) {
+  db.prepare('UPDATE pfm_items SET updated_at = ?, updated_by = ? WHERE id = ?').run(now, userId, itemId);
+}
+
+const PFM_ITEM_HISTORY_FIELDS = [
+  ['kind', 'Type'], ['reference', 'Reference'], ['title', 'Title'], ['company', 'Client'],
+  ['contactName', 'Client Contact Name'], ['contactEmail', 'Client Contact Email'],
+  ['contactPhone', 'Client Contact Phone'], ['validUntil', 'Valid Until'], ['notes', 'Notes'],
+];
+function pfmItemSnapshot(r) {
+  return {
+    kind: r.kind, reference: r.reference, title: r.title, company: lkLabel(r.company_id),
+    contactName: r.client_contact_name, contactEmail: r.client_contact_email,
+    contactPhone: r.client_contact_phone, validUntil: r.valid_until || '', notes: r.notes,
+  };
+}
+
+function pfmStageToApi(s) {
+  return {
+    id: s.id, status: lkCode(s.status_id), memberName: s.member_name || '',
+    doneOn: s.done_on || '', note: s.note || '', updatedAt: s.updated_at,
+  };
+}
+function pfmFileToApi(f) {
+  return {
+    id: f.id, versionId: f.version_id, path: f.file_path, originalName: f.original_name || '',
+    size: f.file_size || 0, mimeType: f.mime_type || '', sortOrder: f.sort_order, uploadedAt: f.uploaded_at,
+    exists: (() => { try { return fs.existsSync(resolveStoredPath(f.file_path)); } catch { return false; } })(),
+  };
+}
+function pfmVersionToApi(v, files = []) {
+  return {
+    id: v.id, itemId: v.item_id, label: v.version_label, feesMinor: v.fees_minor ?? null,
+    currency: lkCode(v.currency_id), date: v.version_date || '', notes: v.notes || '',
+    sortOrder: v.sort_order, createdAt: v.created_at, updatedAt: v.updated_at, files,
+  };
+}
+function pfmItemToApi(r, extra = {}) {
+  const status = lkCode(r.status_id);
+  return {
+    id: r.id, kind: r.kind, reference: r.reference, title: r.title,
+    companyId: r.company_id, company: lkLabel(r.company_id), status,
+    isFinal: PFM_FINAL_STATUS_CODES.has(status),
+    contactName: r.client_contact_name, contactEmail: r.client_contact_email,
+    contactPhone: r.client_contact_phone, validUntil: r.valid_until || '', notes: r.notes,
+    archived: !!r.archived_at, archivedAt: r.archived_at || '',
+    createdAt: r.created_at, updatedAt: r.updated_at, ...extra,
+  };
+}
+// Newest version = highest sort_order (each new version is appended on top).
+function pfmCurrentVersion(itemId) {
+  const v = db.prepare(
+    'SELECT * FROM pfm_versions WHERE item_id = ? AND deleted_at IS NULL ORDER BY sort_order DESC, id DESC LIMIT 1'
+  ).get(itemId);
+  return v ? pfmVersionToApi(v) : null;
+}
+
+// Merges `data` over `before` (a raw row, or null on create) and validates the
+// result. Only keys present in `data` change — an auto-save of one field never
+// blanks another. Returns { fields } (column → value) or { error }.
+function pfmItemWriteFields(userId, data, before) {
+  const has = key => data != null && Object.prototype.hasOwnProperty.call(data, key);
+  const pick = (key, column) => (has(key) ? pfmText(data[key]) : (before ? before[column] : ''));
+
+  const kind = has('kind') ? pfmText(data.kind).toUpperCase() : before?.kind;
+  if (!PFM_KINDS.has(kind)) return { error: 'Choose Offer or CR' };
+  const reference = pick('reference', 'reference');
+  if (!reference) return { error: 'A Reference ID is required' };
+  if (reference.length > PFM_MAX_TEXT) return { error: 'The Reference ID is too long' };
+  const title = pick('title', 'title');
+  if (!title) return { error: 'A title is required' };
+
+  let companyId = before?.company_id ?? null;
+  if (has('companyId')) {
+    const id = Number(data.companyId);
+    const changed = id !== before?.company_id;
+    if (!isLookupId('COMPANY', id) || (changed && !canAccessLookup(userId, id))) return { error: 'Choose a client' };
+    companyId = id;
+  }
+  if (companyId == null) return { error: 'Choose a client' };
+
+  let validUntil = before?.valid_until ?? null;
+  if (has('validUntil')) {
+    const d = pfmDate(data.validUntil, 'Valid until');
+    if (d.error) return { error: d.error };
+    validUntil = d.value;
+  }
+
+  return { fields: {
+    kind, reference, reference_key: lookupLabelKey(reference), title, company_id: companyId,
+    client_contact_name: pick('contactName', 'client_contact_name'),
+    client_contact_email: pick('contactEmail', 'client_contact_email'),
+    client_contact_phone: pick('contactPhone', 'client_contact_phone'),
+    valid_until: validUntil, notes: pick('notes', 'notes'),
+  } };
+}
+// D6: one pool per login across Offers AND CRs, capitals/spaces ignored.
+// Archived and in-undo-window rows still hold their reference.
+function pfmReferenceConflict(userId, referenceKey, exceptId = null) {
+  const row = db.prepare(
+    'SELECT id, archived_at, deleted_at FROM pfm_items WHERE user_id = ? AND reference_key = ? AND id IS NOT ?'
+  ).get(userId, referenceKey, exceptId);
+  if (!row) return null;
+  return row.archived_at && !row.deleted_at
+    ? 'This Reference ID is already used by an archived Offer or CR'
+    : 'This Reference ID is already used by another Offer or CR';
+}
+
+// filters: { kind, companyId, status, search, includeArchived }. Search is a
+// JS fold (like lookupLabelKey) so Arabic text matches the same way Latin does.
+function listPfmItems(userId, filters = {}) {
+  const where = ['i.user_id = ?', 'i.deleted_at IS NULL'];
+  const params = [userId];
+  const kind = pfmText(filters.kind).toUpperCase();
+  if (PFM_KINDS.has(kind)) { where.push('i.kind = ?'); params.push(kind); }
+  if (filters.companyId != null && filters.companyId !== '') { where.push('i.company_id = ?'); params.push(Number(filters.companyId)); }
+  if (filters.status) {
+    const statusId = pfmStatusId(filters.status, { activeOnly: false });
+    if (statusId == null) return [];
+    where.push('i.status_id = ?'); params.push(statusId);
+  }
+  if (!filters.includeArchived) where.push('i.archived_at IS NULL');
+  const stageMember = db.prepare('SELECT member_name FROM pfm_stages WHERE item_id = ? AND status_id = ?');
+  const needle = lookupLabelKey(filters.search);
+  return db.prepare(
+    `SELECT i.* FROM pfm_items i WHERE ${where.join(' AND ')} ORDER BY i.updated_at DESC, i.id DESC`
+  ).all(...params)
+    .filter(r => !needle || [r.reference, r.title, lkLabel(r.company_id), r.client_contact_name]
+      .some(v => lookupLabelKey(v).includes(needle)))
+    .map(r => pfmItemToApi(r, {
+      currentVersion: pfmCurrentVersion(r.id),
+      currentMember: stageMember.get(r.id, r.status_id)?.member_name || '',
+    }));
+}
+
+// Full detail: the item, its stages (in catalog order) and its versions
+// (newest first), each version with its files.
+function getPfmItem(userId, id) {
+  const r = pfmOwnedItem(userId, id);
+  if (!r) return null;
+  const order = id => lk().idTo.get(id)?.sort_order ?? 0;
+  const stages = db.prepare('SELECT * FROM pfm_stages WHERE item_id = ?').all(r.id)
+    .sort((a, b) => order(a.status_id) - order(b.status_id) || a.status_id - b.status_id)
+    .map(pfmStageToApi);
+  const filesOf = db.prepare(
+    'SELECT * FROM pfm_version_files WHERE version_id = ? AND deleted_at IS NULL ORDER BY sort_order, id'
+  );
+  const versions = db.prepare(
+    'SELECT * FROM pfm_versions WHERE item_id = ? AND deleted_at IS NULL ORDER BY sort_order DESC, id DESC'
+  ).all(r.id).map(v => pfmVersionToApi(v, filesOf.all(v.id).map(pfmFileToApi)));
+  return pfmItemToApi(r, { stages, versions, currentVersion: versions[0] || null });
+}
+
+// data: item fields + optional `status` (code; default = the first active
+// status) and `memberName` / `date` for that first stage (date defaults to today).
+function createPfmItem(userId, data) {
+  const w = pfmItemWriteFields(userId, data, null);
+  if (w.error) return { ok: false, error: w.error };
+  const statusId = data?.status ? pfmStatusId(data.status) : pfmFirstStatusId();
+  if (statusId == null) {
+    return { ok: false, error: data?.status ? 'Unknown status' : 'Add at least one Offer Status in Settings first' };
+  }
+  const date = pfmDate(data?.date, 'Date');
+  if (date.error) return { ok: false, error: date.error };
+
+  const f = w.fields;
+  const now = new Date().toISOString();
+  let error = null;
+  const id = tx(() => {
+    error = pfmReferenceConflict(userId, f.reference_key);
+    if (error) return null;
+    const newId = Number(db.prepare(
+      `INSERT INTO pfm_items(user_id, kind, reference, reference_key, title, company_id, status_id,
+         client_contact_name, client_contact_email, client_contact_phone, valid_until, notes,
+         created_by, updated_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(userId, f.kind, f.reference, f.reference_key, f.title, f.company_id, statusId,
+      f.client_contact_name, f.client_contact_email, f.client_contact_phone, f.valid_until, f.notes,
+      userId, userId, now, now).lastInsertRowid);
+    db.prepare(
+      'INSERT INTO pfm_stages(item_id, status_id, member_name, done_on, note, updated_at) VALUES (?, ?, ?, ?, \'\', ?)'
+    ).run(newId, statusId, pfmText(data?.memberName), date.value || pfmLocalToday(), now);
+    recordPfmHistory(userId, newId, 'item', newId, 'Created', '', `${f.kind} ${f.reference}`, now);
+    return newId;
+  });
+  if (error) return { ok: false, error };
+  return { ok: true, item: getPfmItem(userId, id) };
+}
+
+// Profile fields only (not status — that is setPfmStatus). Partial: only the
+// keys present in `data` change.
+function updatePfmItem(userId, id, data) {
+  const before = pfmOwnedItem(userId, id);
+  if (!before) return { ok: false, error: 'Offer or CR not found' };
+  const w = pfmItemWriteFields(userId, data, before);
+  if (w.error) return { ok: false, error: w.error };
+  const f = w.fields;
+  const now = new Date().toISOString();
+  let error = null;
+  tx(() => {
+    error = pfmReferenceConflict(userId, f.reference_key, before.id);
+    if (error) return;
+    const oldSnap = pfmItemSnapshot(before);
+    const newSnap = pfmItemSnapshot(f);
+    PFM_ITEM_HISTORY_FIELDS.forEach(([key, label]) =>
+      recordPfmHistory(userId, before.id, 'item', before.id, label, oldSnap[key], newSnap[key], now));
+    db.prepare(
+      `UPDATE pfm_items SET kind = ?, reference = ?, reference_key = ?, title = ?, company_id = ?,
+         client_contact_name = ?, client_contact_email = ?, client_contact_phone = ?, valid_until = ?,
+         notes = ?, updated_by = ?, updated_at = ?
+       WHERE id = ? AND user_id = ?`
+    ).run(f.kind, f.reference, f.reference_key, f.title, f.company_id, f.client_contact_name,
+      f.client_contact_email, f.client_contact_phone, f.valid_until, f.notes, userId, now, before.id, userId);
+  });
+  if (error) return { ok: false, error };
+  return { ok: true, item: getPfmItem(userId, before.id) };
+}
+
+// Shared by setPfmStatus and savePfmStage: upsert one stage row from the keys
+// present in `data` (memberName, doneOn, note), recording each change.
+function pfmUpsertStage(userId, itemId, statusId, data, now) {
+  const has = key => data != null && Object.prototype.hasOwnProperty.call(data, key);
+  const before = db.prepare('SELECT * FROM pfm_stages WHERE item_id = ? AND status_id = ?').get(itemId, statusId);
+  const next = {
+    member_name: has('memberName') ? pfmText(data.memberName) : (before?.member_name || ''),
+    done_on: has('doneOn') ? data.doneOn : (before?.done_on ?? null),
+    note: has('note') ? pfmText(data.note) : (before?.note || ''),
+  };
+  const statusLabel = lkLabel(statusId);
+  recordPfmHistory(userId, itemId, 'stage', before?.id ?? null, `${statusLabel}: Person`, before?.member_name, next.member_name, now);
+  recordPfmHistory(userId, itemId, 'stage', before?.id ?? null, `${statusLabel}: Date`, before?.done_on, next.done_on, now);
+  recordPfmHistory(userId, itemId, 'stage', before?.id ?? null, `${statusLabel}: Note`, before?.note, next.note, now);
+  db.prepare(
+    `INSERT INTO pfm_stages(item_id, status_id, member_name, done_on, note, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(item_id, status_id) DO UPDATE SET
+       member_name = excluded.member_name, done_on = excluded.done_on, note = excluded.note, updated_at = excluded.updated_at`
+  ).run(itemId, statusId, next.member_name, next.done_on, next.note, now);
+}
+
+// Move an item to `status` and stamp that stage (who / when / note) in one tx.
+// `memberName`/`note` left out keep what was planned; `date` defaults to today.
+function setPfmStatus(userId, id, data) {
+  const before = pfmOwnedItem(userId, id);
+  if (!before) return { ok: false, error: 'Offer or CR not found' };
+  const statusId = pfmStatusId(data?.status);
+  if (statusId == null) return { ok: false, error: 'Unknown status' };
+  const date = pfmDate(data?.date, 'Date');
+  if (date.error) return { ok: false, error: date.error };
+  const now = new Date().toISOString();
+  const stage = { doneOn: date.value || pfmLocalToday() };
+  if (data?.memberName !== undefined) stage.memberName = data.memberName;
+  if (data?.note !== undefined) stage.note = data.note;
+  tx(() => {
+    recordPfmHistory(userId, before.id, 'item', before.id, 'Status', lkLabel(before.status_id), lkLabel(statusId), now);
+    db.prepare('UPDATE pfm_items SET status_id = ?, updated_by = ?, updated_at = ? WHERE id = ? AND user_id = ?')
+      .run(statusId, userId, now, before.id, userId);
+    pfmUpsertStage(userId, before.id, statusId, stage, now);
+  });
+  return { ok: true, item: getPfmItem(userId, before.id) };
+}
+
+// Edit or plan one stage without moving the current status. `doneOn: ''`
+// turns it back into a plan. A stage left with no person, date or note — and
+// that is not the current status — is removed rather than kept as an empty row.
+function savePfmStage(userId, itemId, data) {
+  const item = pfmOwnedItem(userId, itemId);
+  if (!item) return { ok: false, error: 'Offer or CR not found' };
+  const statusId = pfmStatusId(data?.status, { activeOnly: false });
+  if (statusId == null) return { ok: false, error: 'Unknown status' };
+  const stage = {};
+  if (data?.memberName !== undefined) stage.memberName = data.memberName;
+  if (data?.note !== undefined) stage.note = data.note;
+  if (data?.doneOn !== undefined) {
+    const d = pfmDate(data.doneOn, 'Date');
+    if (d.error) return { ok: false, error: d.error };
+    stage.doneOn = d.value;
+  }
+  const now = new Date().toISOString();
+  tx(() => {
+    pfmUpsertStage(userId, item.id, statusId, stage, now);
+    if (statusId !== item.status_id) {
+      db.prepare(
+        `DELETE FROM pfm_stages WHERE item_id = ? AND status_id = ?
+            AND member_name = '' AND done_on IS NULL AND note = ''`
+      ).run(item.id, statusId);
+    }
+    pfmTouchItem(userId, item.id, now);
+  });
+  return { ok: true, item: getPfmItem(userId, item.id) };
+}
+
+function setPfmArchived(userId, id, archived) {
+  const before = pfmOwnedItem(userId, id);
+  if (!before) return { ok: false, error: 'Offer or CR not found' };
+  if (!!before.archived_at === !!archived) return { ok: true, item: getPfmItem(userId, before.id) };
+  const now = new Date().toISOString();
+  tx(() => {
+    recordPfmHistory(userId, before.id, 'item', before.id, 'Archived', before.archived_at ? 'Yes' : 'No', archived ? 'Yes' : 'No', now);
+    db.prepare('UPDATE pfm_items SET archived_at = ?, updated_by = ?, updated_at = ? WHERE id = ? AND user_id = ?')
+      .run(archived ? now : null, userId, now, before.id, userId);
+  });
+  return { ok: true, item: getPfmItem(userId, before.id) };
+}
+const archivePfmItem = (userId, id) => setPfmArchived(userId, id, true);
+const unarchivePfmItem = (userId, id) => setPfmArchived(userId, id, false);
+
+// Delete = stamp deleted_at (the renderer's 5 s undo window). restore clears
+// it; purge removes the row for real, and only ever a row already deleted.
+function deletePfmItem(userId, id) {
+  const before = pfmOwnedItem(userId, id);
+  if (!before) return { ok: false, error: 'Offer or CR not found' };
+  const now = new Date().toISOString();
+  tx(() => {
+    recordPfmHistory(userId, before.id, 'item', before.id, 'Deleted', '', before.reference, now);
+    db.prepare('UPDATE pfm_items SET deleted_at = ? WHERE id = ? AND user_id = ?').run(now, before.id, userId);
+  });
+  return { ok: true };
+}
+function restorePfmItem(userId, id) {
+  const before = pfmOwnedItem(userId, id, { deleted: true });
+  if (!before) return { ok: false, error: 'Offer or CR not found' };
+  const now = new Date().toISOString();
+  tx(() => {
+    recordPfmHistory(userId, before.id, 'item', before.id, 'Restored', '', before.reference, now);
+    db.prepare('UPDATE pfm_items SET deleted_at = NULL WHERE id = ? AND user_id = ?').run(before.id, userId);
+  });
+  return { ok: true, item: getPfmItem(userId, before.id) };
+}
+function purgePfmItem(userId, id) {
+  const changes = db.prepare('DELETE FROM pfm_items WHERE id = ? AND user_id = ? AND deleted_at IS NOT NULL')
+    .run(Number(id), userId).changes;
+  if (changes > 0) { try { fs.rmSync(pfmItemDir(Number(id)), { recursive: true, force: true }); } catch {} }
+  return { ok: changes > 0 };
+}
+
+// Merges `data` over `before` (raw version row, or null on create). Partial.
+function pfmVersionWriteFields(data, before) {
+  const has = key => data != null && Object.prototype.hasOwnProperty.call(data, key);
+  const label = has('label') ? pfmText(data.label) : before?.version_label;
+  if (!label) return { error: 'A version ID is required' };
+  if (label.length > PFM_MAX_TEXT) return { error: 'The version ID is too long' };
+  let feesMinor = before?.fees_minor ?? null;
+  if (has('feesMinor')) {
+    const fees = pfmFeesMinor(data.feesMinor);
+    if (fees.error) return { error: fees.error };
+    feesMinor = fees.value;
+  }
+  let currencyId = before?.currency_id ?? null;
+  if (has('currency')) {
+    const code = pfmText(data.currency);
+    currencyId = code ? lkId('CURRENCY', code) : null;
+    if (code && (currencyId == null || !isLookupId('CURRENCY', currencyId))) return { error: 'Unknown currency' };
+  }
+  let versionDate = before?.version_date ?? null;
+  if (has('date')) {
+    const d = pfmDate(data.date, 'Version date');
+    if (d.error) return { error: d.error };
+    versionDate = d.value;
+  }
+  return { fields: {
+    version_label: label, version_key: lookupLabelKey(label), fees_minor: feesMinor,
+    currency_id: currencyId, version_date: versionDate,
+    notes: has('notes') ? pfmText(data.notes) : (before?.notes || ''),
+  } };
+}
+function pfmVersionConflict(itemId, versionKey, exceptId = null) {
+  return db.prepare('SELECT 1 FROM pfm_versions WHERE item_id = ? AND version_key = ? AND id IS NOT ?')
+    .get(itemId, versionKey, exceptId) ? 'This version ID is already used on this Offer or CR' : null;
+}
+const PFM_VERSION_HISTORY_FIELDS = [
+  ['version_label', 'Version ID'], ['fees_minor', 'Fees', pfmFeesText],
+  ['currency_id', 'Currency', id => lkLabel(id)], ['version_date', 'Version Date'], ['notes', 'Notes'],
+];
+
+// data: { label, feesMinor, currency (CURRENCY code), date, notes }.
+function createPfmVersion(userId, itemId, data) {
+  const item = pfmOwnedItem(userId, itemId);
+  if (!item) return { ok: false, error: 'Offer or CR not found' };
+  const w = pfmVersionWriteFields(data, null);
+  if (w.error) return { ok: false, error: w.error };
+  const f = w.fields;
+  const now = new Date().toISOString();
+  let error = null;
+  const id = tx(() => {
+    error = pfmVersionConflict(item.id, f.version_key);
+    if (error) return null;
+    const sort = (db.prepare('SELECT MAX(sort_order) AS n FROM pfm_versions WHERE item_id = ?').get(item.id).n ?? -1) + 1;
+    const newId = Number(db.prepare(
+      `INSERT INTO pfm_versions(item_id, version_label, version_key, fees_minor, currency_id, version_date,
+         notes, sort_order, created_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(item.id, f.version_label, f.version_key, f.fees_minor, f.currency_id, f.version_date,
+      f.notes, sort, userId, now, now).lastInsertRowid);
+    recordPfmHistory(userId, item.id, 'version', newId, 'Version Added', '', f.version_label, now);
+    pfmTouchItem(userId, item.id, now);
+    return newId;
+  });
+  if (error) return { ok: false, error };
+  return { ok: true, version: pfmVersionToApi(db.prepare('SELECT * FROM pfm_versions WHERE id = ?').get(id)), item: getPfmItem(userId, item.id) };
+}
+function updatePfmVersion(userId, versionId, data) {
+  const before = pfmOwnedVersion(userId, versionId);
+  if (!before) return { ok: false, error: 'Version not found' };
+  const w = pfmVersionWriteFields(data, before);
+  if (w.error) return { ok: false, error: w.error };
+  const f = w.fields;
+  const now = new Date().toISOString();
+  let error = null;
+  tx(() => {
+    error = pfmVersionConflict(before.item_id, f.version_key, before.id);
+    if (error) return;
+    PFM_VERSION_HISTORY_FIELDS.forEach(([column, label, fmt]) => {
+      const show = v => (fmt ? fmt(v) : (v ?? ''));
+      recordPfmHistory(userId, before.item_id, 'version', before.id, `${before.version_label}: ${label}`,
+        show(before[column]), show(f[column]), now);
+    });
+    db.prepare(
+      `UPDATE pfm_versions SET version_label = ?, version_key = ?, fees_minor = ?, currency_id = ?,
+         version_date = ?, notes = ?, updated_at = ? WHERE id = ?`
+    ).run(f.version_label, f.version_key, f.fees_minor, f.currency_id, f.version_date, f.notes, now, before.id);
+    pfmTouchItem(userId, before.item_id, now);
+  });
+  if (error) return { ok: false, error };
+  return { ok: true, item: getPfmItem(userId, before.item_id) };
+}
+function setPfmVersionDeleted(userId, versionId, deleted) {
+  const before = pfmOwnedVersion(userId, versionId, { deleted: !deleted });
+  if (!before) return { ok: false, error: 'Version not found' };
+  const now = new Date().toISOString();
+  tx(() => {
+    recordPfmHistory(userId, before.item_id, 'version', before.id, deleted ? 'Version Deleted' : 'Version Restored', '', before.version_label, now);
+    db.prepare('UPDATE pfm_versions SET deleted_at = ? WHERE id = ?').run(deleted ? now : null, before.id);
+    pfmTouchItem(userId, before.item_id, now);
+  });
+  return { ok: true, item: getPfmItem(userId, before.item_id) };
+}
+const deletePfmVersion = (userId, versionId) => setPfmVersionDeleted(userId, versionId, true);
+const restorePfmVersion = (userId, versionId) => setPfmVersionDeleted(userId, versionId, false);
+function purgePfmVersion(userId, versionId) {
+  const v = pfmOwnedVersion(userId, versionId, { deleted: true });
+  if (!v) return { ok: false };
+  db.prepare('DELETE FROM pfm_versions WHERE id = ? AND deleted_at IS NOT NULL').run(v.id);
+  try { fs.rmSync(pfmVersionDir(v.item_id, v.id), { recursive: true, force: true }); } catch {}
+  return { ok: true };
+}
+
+// ── Project & Finance files ──
+// Bytes live at <userData>/project_finance/{itemId}/{versionId}/{stamp}-{rand}.{ext};
+// only the relative path and metadata are stored. Same extension allowlist,
+// magic-byte check and 100 MB cap as Knowledge Hub attachments. Removing a
+// file only stamps deleted_at, so the bytes survive the undo window; purge
+// deletes the row and the bytes together.
+function pfmOwnedFile(userId, fileId, { deleted = false } = {}) {
+  return db.prepare(
+    `SELECT f.*, v.item_id, v.version_label FROM pfm_version_files f
+       JOIN pfm_versions v ON v.id = f.version_id
+       JOIN pfm_items i ON i.id = v.item_id
+      WHERE f.id = ? AND i.user_id = ? AND i.deleted_at IS NULL AND v.deleted_at IS NULL
+        AND f.deleted_at IS ${deleted ? 'NOT ' : ''}NULL`
+  ).get(Number(fileId), userId) || null;
+}
+// Stored relative path -> absolute, proven to sit inside its own version folder.
+function pfmFileAbsPath(itemId, versionId, relPath) {
+  const abs = resolveStoredPath(relPath);
+  resolveInside(pfmVersionDir(itemId, versionId), abs);
+  return abs;
+}
+
+function addPfmVersionFile(userId, versionId, srcPath) {
+  const v = pfmOwnedVersion(userId, versionId);
+  if (!v) return { ok: false, error: 'Version not found' };
+  const originalName = path.basename(String(srcPath || ''));
+  const ext = fileExt(srcPath);
+  if (!KNOWLEDGE_DOC_EXTENSIONS.includes(ext)) return { ok: false, error: `Unsupported file type (.${ext || '?'})` };
+  let size;
+  try { size = fs.statSync(srcPath).size; } catch { return { ok: false, error: 'Could not read the selected file' }; }
+  if (size <= 0 || size > MAX_DOCUMENT_BYTES) return { ok: false, error: 'File must be between 1 byte and 100 MB' };
+  try { if (!knowledgeUploadHeaderMatches(srcPath, ext)) return { ok: false, error: 'The file contents do not match its extension' }; }
+  catch { return { ok: false, error: 'Could not validate the selected file' }; }
+
+  const relPath = path.join('project_finance', String(v.item_id), String(v.id), `${Date.now()}-${crypto.randomInt(1e9)}.${ext}`);
+  let absPath;
+  try { absPath = pfmFileAbsPath(v.item_id, v.id, relPath); }
+  catch { return { ok: false, error: 'Stored file path is invalid' }; }
+  try { fs.mkdirSync(path.dirname(absPath), { recursive: true }); fs.copyFileSync(srcPath, absPath); }
+  catch (err) { return { ok: false, error: 'Could not save the file: ' + String(err?.message || err) }; }
+  try {
+    const now = new Date().toISOString();
+    const id = tx(() => {
+      const sort = db.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM pfm_version_files WHERE version_id = ?').get(v.id).n;
+      const newId = Number(db.prepare(
+        `INSERT INTO pfm_version_files(version_id, file_path, original_name, file_size, mime_type, sort_order, uploaded_by, uploaded_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(v.id, relPath, originalName, size, KNOWLEDGE_DOC_TYPES[ext], sort, userId, now).lastInsertRowid);
+      recordPfmHistory(userId, v.item_id, 'file', newId, 'File Added', '', `${v.version_label}: ${originalName}`, now);
+      pfmTouchItem(userId, v.item_id, now);
+      return newId;
+    });
+    return { ok: true, file: pfmFileToApi(db.prepare('SELECT * FROM pfm_version_files WHERE id = ?').get(id)) };
+  } catch (err) {
+    try { fs.rmSync(absPath, { force: true }); } catch {}
+    return { ok: false, error: String(err?.message || err) };
+  }
+}
+// Several files at once (the multi-select dialog). Each file succeeds or fails
+// on its own; `results` says which, in the order given.
+function addPfmVersionFiles(userId, versionId, srcPaths) {
+  const v = pfmOwnedVersion(userId, versionId);
+  if (!v) return { ok: false, error: 'Version not found', results: [] };
+  const results = (Array.isArray(srcPaths) ? srcPaths : []).map(p => {
+    const r = addPfmVersionFile(userId, v.id, p);
+    return { name: path.basename(String(p || '')), ok: r.ok, error: r.error || '', fileId: r.file?.id ?? null };
+  });
+  return { ok: results.some(r => r.ok), results, item: getPfmItem(userId, v.item_id) };
+}
+function resolvePfmFile(userId, fileId) {
+  const f = pfmOwnedFile(userId, fileId);
+  if (!f) return { ok: false, error: 'File not found' };
+  let absPath;
+  try { absPath = pfmFileAbsPath(f.item_id, f.version_id, f.file_path); }
+  catch { return { ok: false, error: 'Stored file path is invalid' }; }
+  return { ok: true, absPath, originalName: f.original_name, exists: fs.existsSync(absPath) };
+}
+function setPfmFileDeleted(userId, fileId, deleted) {
+  const f = pfmOwnedFile(userId, fileId, { deleted: !deleted });
+  if (!f) return { ok: false, error: 'File not found' };
+  const now = new Date().toISOString();
+  tx(() => {
+    recordPfmHistory(userId, f.item_id, 'file', f.id, deleted ? 'File Removed' : 'File Restored', '',
+      `${f.version_label}: ${f.original_name}`, now);
+    db.prepare('UPDATE pfm_version_files SET deleted_at = ? WHERE id = ?').run(deleted ? now : null, f.id);
+    pfmTouchItem(userId, f.item_id, now);
+  });
+  return { ok: true, item: getPfmItem(userId, f.item_id) };
+}
+const removePfmFile = (userId, fileId) => setPfmFileDeleted(userId, fileId, true);
+const restorePfmFile = (userId, fileId) => setPfmFileDeleted(userId, fileId, false);
+function purgePfmFile(userId, fileId) {
+  const f = pfmOwnedFile(userId, fileId, { deleted: true });
+  if (!f) return { ok: false };
+  db.prepare('DELETE FROM pfm_version_files WHERE id = ? AND deleted_at IS NOT NULL').run(f.id);
+  try { fs.rmSync(pfmFileAbsPath(f.item_id, f.version_id, f.file_path), { force: true }); } catch {}
+  return { ok: true };
+}
+
+// Newest first, with the acting account's username. Readable while the item
+// exists for this login (archived included); the rows themselves outlive it.
+function getPfmHistory(userId, itemId) {
+  if (!pfmOwnedItem(userId, itemId)) return [];
+  return db.prepare(
+    `SELECT h.id, h.record_type AS recordType, h.record_id AS recordId, h.field,
+            h.old_value AS oldValue, h.new_value AS newValue, h.changed_at AS changedAt,
+            u.username AS changedBy
+       FROM pfm_history h LEFT JOIN users u ON u.id = h.user_id
+      WHERE h.item_id = ? ORDER BY h.changed_at DESC, h.id DESC`
+  ).all(Number(itemId));
+}
+
+// Names already typed on this login's stages — the <datalist> behind the
+// free-text person field (D2). Folded like lookupLabelKey, most recent spelling wins.
+function listPfmMemberNames(userId) {
+  const seen = new Map();
+  db.prepare(
+    `SELECT s.member_name FROM pfm_stages s JOIN pfm_items i ON i.id = s.item_id
+      WHERE i.user_id = ? AND s.member_name <> '' ORDER BY s.updated_at DESC`
+  ).all(userId).forEach(({ member_name: name }) => {
+    const key = lookupLabelKey(name);
+    if (!seen.has(key)) seen.set(key, name);
+  });
+  return [...seen.values()].sort((a, b) => a.localeCompare(b));
+}
+
+// Boot-time safety net: anything still stamped deleted_at was deleted in a
+// session that ended inside its undo window, so the purge never ran. Returns
+// how many rows of each kind were removed.
+function purgeDeletedPfmRecords() {
+  return tx(() => ({
+    items: db.prepare('DELETE FROM pfm_items WHERE deleted_at IS NOT NULL').run().changes,
+    versions: db.prepare('DELETE FROM pfm_versions WHERE deleted_at IS NOT NULL').run().changes,
+    files: db.prepare('DELETE FROM pfm_version_files WHERE deleted_at IS NOT NULL').run().changes,
+  }));
+}
+
 module.exports = {
 
   LOOKUP_CATEGORIES, LOOKUP_MERGE_TARGETS, DB_FILENAME, USER_DATA_ENTRIES,
@@ -5218,4 +5966,9 @@ module.exports = {
   setUserPreference, listBackups, restoreBackup, checkIntegrity, getSystemDiagnostics,
   findLookupDuplicates, mergeLookupDuplicate, getOrphanSweepReport, fullBackup,
   inspectFullBackup, restoreFullBackup, FULL_BACKUP_PREFIXES,
+  listPfmItems, getPfmItem, createPfmItem, updatePfmItem, setPfmStatus, savePfmStage,
+  archivePfmItem, unarchivePfmItem, deletePfmItem, restorePfmItem, purgePfmItem,
+  createPfmVersion, updatePfmVersion, deletePfmVersion, restorePfmVersion, purgePfmVersion,
+  getPfmHistory, listPfmMemberNames, addPfmVersionFiles, resolvePfmFile, removePfmFile,
+  restorePfmFile, purgePfmFile, pfmRootDir, pfmAttentionItems,
 };

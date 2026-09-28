@@ -101,6 +101,9 @@
     <button class="nav-item" data-module="companydocs" data-onclick="switchModule('companydocs')" title="Company Documents">
       <span class="nav-icon" data-ic="calendar-check"></span><span class="nav-label">Company Docs</span><span class="nav-badge" id="nav-badge-companydocs"></span>
     </button>
+    <button class="nav-item" data-module="pfm" data-onclick="switchModule('pfm')" title="Project &amp; Finance">
+      <span class="nav-icon" data-ic="briefcase"></span><span class="nav-label">Project &amp; Finance</span><span class="nav-badge" id="nav-badge-pfm"></span>
+    </button>
     <button class="nav-item" data-module="knowledge" data-onclick="switchModule('knowledge')" title="Knowledge Hub">
       <span class="nav-icon" data-ic="book-open"></span><span class="nav-label">Knowledge Hub</span><span class="nav-badge" id="nav-badge-knowledge"></span>
     </button>
@@ -922,6 +925,190 @@
   <button id="companydoc-undo-toast-btn" data-onclick="undoDeleteCompanyDoc()">Undo</button>
 </div>
 
+<!-- ══ PROJECT & FINANCE MODULE (Offers & CRs) ══ -->
+<div id="module-pfm" class="app-module">
+  <div id="pfm-topbar" class="page-header">
+    <span class="page-title"><span class="ti-ic" data-ic="briefcase"></span>Project &amp; Finance</span>
+    <div class="topbar-right" id="pfm-topbar-actions">
+      <input type="text" id="pfm-search" class="mod-search" placeholder="Search offers and CRs…" data-oninput="applyPfmSearch()">
+      <button class="btn" data-onclick="openPfmNew('CR')"><span data-ic="plus"></span>New CR</button>
+      <button class="btn primary" data-onclick="openPfmNew('OFFER')"><span data-ic="plus"></span>New Offer</button>
+    </div>
+  </div>
+  <!-- List view. Loaded once (archived included) and filtered client-side, so
+       the status chips always count what the other filters leave. -->
+  <div id="pfm-list-view" class="pj-scroll">
+    <div class="pfm-toolbar">
+      <div class="seg-ctl" id="pfm-kind-ctl" aria-label="Type">
+        <button class="seg-btn active" data-kind="" data-onclick="setPfmKind('')" aria-pressed="true">All</button>
+        <button class="seg-btn" data-kind="OFFER" data-onclick="setPfmKind('OFFER')" aria-pressed="false">Offers</button>
+        <button class="seg-btn" data-kind="CR" data-onclick="setPfmKind('CR')" aria-pressed="false">CRs</button>
+      </div>
+      <label class="sr-only" for="pfm-client-filter">Client</label>
+      <select id="pfm-client-filter" class="pfm-client-filter" data-onchange="setPfmClientFilter()"></select>
+      <button type="button" class="btn" id="pfm-archived-btn" data-onclick="togglePfmArchived()" aria-pressed="false"><span data-ic="eye"></span>Show archived</button>
+      <button type="button" class="btn pfm-export-btn" id="pfm-export-btn" data-onclick="exportPfmExcel()" title="Export what the filters show to Excel"><span data-ic="download"></span>Excel</button>
+    </div>
+    <div class="pfm-chips" id="pfm-status-chips" aria-label="Filter by status"></div>
+    <div class="pfm-table-wrap">
+      <table id="pfm-table" class="pfm-table" style="display:none">
+        <thead>
+          <tr>
+            <th>Reference</th>
+            <th>Title</th>
+            <th>Client</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Current Fees</th>
+            <th>Person</th>
+            <th>Updated</th>
+          </tr>
+        </thead>
+        <tbody id="pfm-tbody"></tbody>
+      </table>
+    </div>
+    <div id="pfm-empty-state" class="empty-state" hidden>
+      <div class="empty-state-inner">
+        <span data-ic="briefcase"></span>
+        <p>No offers or CRs yet — click <strong>+ New Offer</strong> to add one</p>
+      </div>
+    </div>
+  </div>
+  <!-- Detail view (built by pfm.js) -->
+  <div id="pfm-detail-view" class="pj-detail-scroll" style="display:none"></div>
+  <datalist id="pfm-member-names"></datalist>
+</div>
+
+<!-- ══ OFFER / CR CREATE + EDIT MODAL ══ -->
+<div id="pfm-modal-overlay" class="modal-overlay" data-onclick="pfmModalOverlayClick(event)">
+  <div id="pfm-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="pfm-modal-title">New Offer</span>
+      <button class="modal-close" data-onclick="closePfmModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="pfm-kind">Type</label>
+          <select id="pfm-kind">
+            <option value="OFFER">Offer</option>
+            <option value="CR">CR</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="pfm-reference">Reference ID</label>
+          <input id="pfm-reference" type="text" maxlength="200" placeholder="e.g. OFF-2026-001" autocomplete="off" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label for="pfm-title">Title</label>
+          <input id="pfm-title" type="text" placeholder="What is this offer or CR about?" autocomplete="off" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="pfm-company">Client</label>
+          <select id="pfm-company"></select>
+        </div>
+        <div class="form-group">
+          <label for="pfm-valid-until">Valid Until (optional)</label>
+          <input id="pfm-valid-until" type="date" />
+        </div>
+      </div>
+      <div class="form-row" id="pfm-first-member-group">
+        <div class="form-group full">
+          <label for="pfm-first-member">Who is preparing it? (optional)</label>
+          <input id="pfm-first-member" type="text" list="pfm-member-names" autocomplete="off" placeholder="Type a name" />
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-onclick="closePfmModal()">Cancel</button>
+      <button class="btn primary" id="pfm-modal-submit" data-onclick="submitPfmModal()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ OFFER / CR STAGE MODAL ("Move to" + "Edit stage") ══ -->
+<div id="pfm-stage-overlay" class="modal-overlay" data-onclick="pfmStageOverlayClick(event)">
+  <div id="pfm-stage-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title"><span id="pfm-stage-verb">Move to</span> <span id="pfm-stage-status" data-user-content></span></span>
+      <button class="modal-close" data-onclick="closePfmStageModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="pfm-stage-member">Person</label>
+          <input id="pfm-stage-member" type="text" list="pfm-member-names" autocomplete="off" placeholder="Type a name" />
+        </div>
+        <div class="form-group">
+          <label for="pfm-stage-date">Date</label>
+          <input id="pfm-stage-date" type="date" />
+        </div>
+      </div>
+      <div class="form-row" id="pfm-stage-planned-group">
+        <div class="form-group full">
+          <label class="pfm-check"><input id="pfm-stage-planned" type="checkbox" data-onchange="syncPfmStagePlanned()" /><span>Planned — has not happened yet</span></label>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label for="pfm-stage-note">Note (optional)</label>
+          <textarea id="pfm-stage-note" placeholder="Anything worth remembering about this step"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-onclick="closePfmStageModal()">Cancel</button>
+      <button class="btn primary" id="pfm-stage-submit" data-onclick="submitPfmStageModal()">Move</button>
+    </div>
+  </div>
+</div>
+
+<!-- Project & Finance — new / edit version (ID, date, fees, currency, notes) -->
+<div id="pfm-version-overlay" class="modal-overlay" data-onclick="pfmVersionOverlayClick(event)">
+  <div id="pfm-version-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="pfm-version-title">New Version</span>
+      <button class="modal-close" data-onclick="closePfmVersionModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="pfm-version-label">Version ID</label>
+          <input id="pfm-version-label" type="text" autocomplete="off" placeholder="e.g. v1" />
+        </div>
+        <div class="form-group">
+          <label for="pfm-version-date">Date</label>
+          <input id="pfm-version-date" type="date" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="pfm-version-fees">Fees</label>
+          <input id="pfm-version-fees" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 12500.00" />
+        </div>
+        <div class="form-group">
+          <label for="pfm-version-currency">Currency</label>
+          <select id="pfm-version-currency"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label for="pfm-version-notes">Notes (optional)</label>
+          <textarea id="pfm-version-notes" placeholder="What changed in this version?"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-onclick="closePfmVersionModal()">Cancel</button>
+      <button class="btn primary" id="pfm-version-submit" data-onclick="submitPfmVersionModal()">Add Version</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ CLIENTS MODULE ══ -->
 <div id="module-clients" class="app-module">
   <div id="clients-topbar" class="page-header">
@@ -1593,6 +1780,7 @@
       <button class="stab" data-tab="department"    data-onclick="switchTab(this)"><span class="stab-icon" data-ic="building"></span> Department</button>
       <button class="stab" data-tab="taskSourceType" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="external-link"></span> Task Source Types</button>
       <button class="stab" data-tab="serverRole"    data-onclick="switchTab(this)"><span class="stab-icon" data-ic="server"></span> Server Roles</button>
+      <button class="stab" data-tab="pfmStatus"     data-onclick="switchTab(this)"><span class="stab-icon" data-ic="briefcase"></span> Offer Status</button>
       <div class="settings-group-label admin-only">Data &amp; Recovery</div>
       <!-- Backup Data used to be a sidebar button with a two-item dropdown; it is
            a full Settings page now, and it owns everything that produces or
@@ -1714,6 +1902,7 @@
       <div class="settings-panel" id="tab-department"></div>
       <div class="settings-panel" id="tab-taskSourceType"></div>
       <div class="settings-panel" id="tab-serverRole"></div>
+      <div class="settings-panel" id="tab-pfmStatus"></div>
       <div class="settings-panel" id="tab-backup">
         <div class="maint-section">
           <div class="maint-section-head">
@@ -2157,6 +2346,7 @@
 <script src="renderer/features/knowledge-sanitize.js"></script>
 <script src="renderer/features/knowledge.js"></script>
 <script src="renderer/features/company-documents.js"></script>
+<script src="renderer/features/pfm.js"></script>
 <script src="renderer/features/clients.js"></script>
 <script src="renderer/features/shell.js"></script>
 <div id="app-toast" class="app-toast" role="status" aria-live="polite"></div>

@@ -459,6 +459,10 @@ async function renderOverview() {
     companyDocument:  { icon: ic('calendar-check'), kind: 'Renews' },
     clientVpn:        { icon: ic('layers'),          kind: 'Auth expires' },
     clientInternal:   { icon: ic('layers'),          kind: 'Internal System expires' },
+    // Project & Finance — already filtered by db.js (follow-up after 7 days on
+    // Sent; validity 3 days before it ends), so the 30-day window below never trims them.
+    pfmFollowUp:      { icon: ic('briefcase'),       kind: 'Sent, no answer — follow up' },
+    pfmExpiry:        { icon: ic('briefcase'),       kind: 'Validity ends' },
   };
   let rawAttention = [];
   try { rawAttention = await window.api.getAttentionItems(); } catch { rawAttention = []; }
@@ -509,7 +513,8 @@ async function renderOverview() {
       const a = attention[Number(el.dataset.attIdx)];
       el.addEventListener('click', () => {
         switchModule(a.module);
-        if (a.companyId != null) openClientDetail(a.companyId, a.title);
+        if (a.module === 'pfm') openPfmDetail(a.id);
+        else if (a.companyId != null) openClientDetail(a.companyId, a.title);
         else if (a.type === 'subscription') scrollToAndHighlight('[data-sub-id="' + a.id + '"]');
         else if (a.type === 'companyDocument') scrollToAndHighlight('[data-doc-id="' + a.id + '"]');
       });
@@ -522,6 +527,7 @@ async function renderOverview() {
   setNavBadge('subscriptions', urgent('subscriptions'));
   setNavBadge('companydocs', urgent('companydocs'));
   setNavBadge('clients', urgent('clients'));
+  setNavBadge('pfm', urgent('pfm'));
 
 }
 

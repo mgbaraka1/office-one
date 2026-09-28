@@ -197,6 +197,32 @@ contextBridge.exposeInMainWorld('api', {
   purgeKnowledgeAttachment:    (itemId, relPath) => ipcRenderer.invoke('knowledge:purge-attachment', itemId, relPath),
   purgeKnowledgeFiles:         (itemId) => ipcRenderer.invoke('knowledge:purge-files', itemId),
 
+  // Project & Finance (Offers & CRs)
+  listPfmItems:       (filters)          => ipcRenderer.invoke('pfm:list', filters),
+  getPfmItem:         (id)               => ipcRenderer.invoke('pfm:get', id),
+  createPfmItem:      (data)             => ipcRenderer.invoke('pfm:create', data),
+  updatePfmItem:      (id, data)         => ipcRenderer.invoke('pfm:update', id, data),
+  setPfmStatus:       (id, data)         => ipcRenderer.invoke('pfm:set-status', id, data),
+  savePfmStage:       (id, data)         => ipcRenderer.invoke('pfm:save-stage', id, data),
+  archivePfmItem:     (id)               => ipcRenderer.invoke('pfm:archive', id),
+  unarchivePfmItem:   (id)               => ipcRenderer.invoke('pfm:unarchive', id),
+  deletePfmItem:      (id)               => ipcRenderer.invoke('pfm:delete', id),
+  restorePfmItem:     (id)               => ipcRenderer.invoke('pfm:restore', id),
+  purgePfmItem:       (id)               => ipcRenderer.invoke('pfm:purge', id),
+  getPfmHistory:      (id)               => ipcRenderer.invoke('pfm:history', id),
+  listPfmMemberNames: ()                 => ipcRenderer.invoke('pfm:member-names'),
+  createPfmVersion:   (itemId, data)     => ipcRenderer.invoke('pfm:version-create', itemId, data),
+  updatePfmVersion:   (versionId, data)  => ipcRenderer.invoke('pfm:version-update', versionId, data),
+  deletePfmVersion:   (versionId)        => ipcRenderer.invoke('pfm:version-delete', versionId),
+  restorePfmVersion:  (versionId)        => ipcRenderer.invoke('pfm:version-restore', versionId),
+  purgePfmVersion:    (versionId)        => ipcRenderer.invoke('pfm:version-purge', versionId),
+  addPfmFiles:        (versionId)        => ipcRenderer.invoke('pfm:files-add', versionId),
+  openPfmFile:        (fileId)           => ipcRenderer.invoke('pfm:file-open', fileId),
+  removePfmFile:      (fileId)           => ipcRenderer.invoke('pfm:file-remove', fileId),
+  restorePfmFile:     (fileId)           => ipcRenderer.invoke('pfm:file-restore', fileId),
+  purgePfmFile:       (fileId)           => ipcRenderer.invoke('pfm:file-purge', fileId),
+  exportPfmExcel:     (data, name)       => ipcRenderer.invoke('pfm:export-xlsx', data, name),
+
   // ── Clients (Auth + Server Information + Databases per COMPANY lookup) ──
   /** @returns {Promise<import('./ipc-types').ClientListItem[]>} */
   listClients: (includeArchived)      => ipcRenderer.invoke('clients:list', includeArchived),

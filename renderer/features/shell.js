@@ -22,6 +22,7 @@ const PAL_PAGES = [
   { icon: 'list',             label: 'Client Tasks',   go: 'all-tasks' },
   { icon: 'building',         label: 'Internal Work',  go: 'internal-tasks' },
   { icon: 'layers',           label: 'Clients',       go: 'clients' },
+  { icon: 'briefcase',        label: 'Project & Finance', go: 'pfm' },
 
   { icon: 'credit-card',      label: 'Subscriptions', go: 'subscriptions' },
   { icon: 'calendar-check',   label: 'Company Documents', go: 'companydocs' },
@@ -157,6 +158,8 @@ function renderPalette() {
     { icon: 'list',          label: 'Create client task',         match: 'new client task create',          run: () => { switchModule('all-tasks'); openBacklogModal(); } },
     { icon: 'building',      label: 'Create internal task',       match: 'new internal task create department', run: () => { switchModule('internal-tasks'); openInternalTaskModal(); } },
     { icon: 'clipboard-list',label: 'New project',                match: 'new project create',              run: () => { switchModule('clients'); openProjectModal(); } },
+    { icon: 'briefcase',     label: 'New offer',                  match: 'new offer create quotation proposal project finance', run: () => { switchModule('pfm'); openPfmNew('OFFER'); } },
+    { icon: 'briefcase',     label: 'New CR',                     match: 'new cr change request create project finance', run: () => { switchModule('pfm'); openPfmNew('CR'); } },
     { icon: 'book-open',     label: 'New knowledge item',         match: 'new knowledge manual guide article create', run: () => { switchModule('knowledge'); openKnowledgeEditor(); } },
     { icon: 'calendar-check',label: 'Go to today',                match: 'today now current day',           run: () => { switchModule('timesheet'); goToday(); } },
     { icon: 'moon',          label: 'Toggle dark / light theme',  match: 'theme dark light mode toggle',    run: toggleTheme },
@@ -193,6 +196,7 @@ function renderPalette() {
     'client-auth': ['shield', 'Open client access'],
     'client-server': ['server', 'Open client server'],
     'client-system': ['monitor', 'Open client system'],
+    pfm: ['briefcase', 'Open offer / CR'],
   };
   const workspaceItems = _palWorkspace.map(result => {
     const [icon, fallbackHint] = kindInfo[result.kind] || ['search', 'Open'];
@@ -221,6 +225,8 @@ function renderPalette() {
         } else if (result.kind === 'subscription') {
           switchModule('subscriptions');
           scrollToAndHighlight('[data-sub-id="' + result.id + '"]');
+        } else if (result.kind === 'pfm') {
+          openPfmDetail(result.id);
         } else if (result.kind.startsWith('client-')) {
           const companyId = Number(String(result.id).split(':', 1)[0]);
           if (Number.isInteger(companyId) && companyId > 0) {
@@ -295,6 +301,7 @@ async function flushPending() {
     tasks.push(window.api.setDayName(activeDate, document.getElementById('hName').value));
   }
   if (subsLoaded)     tasks.push(saveSubscriptionsData());
+  tasks.push(flushPfmPending());
   const results = await Promise.allSettled(tasks);
   const failures = results.filter(r => r.status === 'rejected');
   if (failures.length) {

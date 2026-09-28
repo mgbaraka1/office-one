@@ -1008,6 +1008,169 @@
     .cd-file-warn { color: var(--bad); font-weight: 600; }
     .cd-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 4px; }
 
+    /* ── Project & Finance ── */
+    .pfm-toolbar { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3); }
+    .pfm-client-filter, .pfm-other-status {
+      height: 34px; padding: 0 var(--space-3); border-radius: var(--radius-sm); border: 1px solid var(--border);
+      background: var(--surface2); color: var(--text); font: inherit; font-size: var(--fs-sm); min-width: 180px;
+    }
+    .pfm-other-status { min-width: 150px; }
+    .pfm-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-4); }
+    .pfm-chip {
+      display: inline-flex; align-items: center; gap: var(--space-2); padding: 5px 12px; border-radius: 999px;
+      border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer;
+      font: inherit; font-size: var(--fs-sm); font-weight: 600; transition: border-color var(--speed), background var(--speed);
+    }
+    .pfm-chip:hover { border-color: var(--primary); }
+    .pfm-chip.active { background: var(--primary); border-color: transparent; color: #fff; }
+    .pfm-chip-count { font-size: var(--fs-caption); font-weight: 700; padding: 0 7px; border-radius: 999px; background: var(--chip-bg); color: var(--muted); }
+    .pfm-chip.active .pfm-chip-count { background: color-mix(in srgb, #fff 22%, transparent); color: #fff; }
+    .pfm-table-wrap { overflow-x: auto; }
+    .pfm-table { width: 100%; border-collapse: separate; border-spacing: 0 6px; }
+    .pfm-table thead th {
+      text-align: start; font-size: var(--fs-caption); letter-spacing: var(--ls-caption); text-transform: uppercase;
+      color: var(--muted); font-weight: 700; padding: 6px var(--space-3); white-space: nowrap;
+    }
+    .pfm-table tbody td {
+      padding: 10px var(--space-3); font-size: var(--fs-sm); color: var(--text); vertical-align: middle;
+      background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    }
+    /* Each row is its own card. The generic `tbody tr:first-child td:first-child`
+       corners are physical (top-left…), which land on inner corners in RTL — so
+       reset them here and round with logical corners instead. */
+    .pfm-table tbody tr.pfm-row td { border-radius: 0; }
+    .pfm-table tbody tr.pfm-row td:first-child { border-inline-start: 1px solid var(--border); border-start-start-radius: var(--radius-sm); border-end-start-radius: var(--radius-sm); }
+    .pfm-table tbody tr.pfm-row td:last-child { border-inline-end: 1px solid var(--border); border-start-end-radius: var(--radius-sm); border-end-end-radius: var(--radius-sm); }
+    .pfm-row { cursor: pointer; }
+    .pfm-row:hover td, .pfm-row:focus-visible td {
+      background: color-mix(in srgb, var(--primary) 5%, var(--surface));
+      border-color: color-mix(in srgb, var(--primary) 22%, var(--border));
+    }
+    .pfm-row:focus-visible { outline: none; }
+    .pfm-row.archived td { opacity: .62; }
+    .pfm-ref { font-weight: 700; white-space: nowrap; }
+    .pfm-cell-title { display: inline-block; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+    .pfm-fees { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .pfm-muted { color: var(--muted); }
+    .pfm-dot { color: var(--muted); }
+    .pfm-archived-tag {
+      margin-inline-start: var(--space-2); font-size: var(--fs-caption); font-weight: 700; color: var(--muted);
+      border: 1px solid var(--border); padding: 1px 7px; border-radius: 999px; vertical-align: middle;
+    }
+    .pfm-kind { font-size: var(--fs-caption); font-weight: 700; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
+    .pfm-kind-cr { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 35%, transparent); }
+    .pfm-status { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; background: var(--chip-bg); color: var(--muted); }
+    .pfm-status-ready    { background: var(--open);    color: var(--open-text); }
+    .pfm-status-sent     { background: var(--prog);    color: var(--prog-text); }
+    .pfm-status-accepted { background: var(--done);    color: var(--done-text); }
+    .pfm-status-rejected { background: var(--blocked); color: var(--blocked-text); }
+    .pj-detail-title .pfm-kind, .pj-detail-title .pfm-status { font-size: var(--fs-caption); letter-spacing: 0; }
+    .pfm-ident { min-width: 0; }
+    .pfm-detail-sub { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-1); font-size: var(--fs-body); color: var(--muted); }
+    .pfm-detail-actions { flex-wrap: wrap; align-items: center; }
+    .pfm-del-host { display: inline-flex; }
+    html[dir="rtl"] .pfm-move-btn .lic { transform: scaleX(-1); }
+    /* Wraps rather than scrolls: an overflow-x:auto track around these
+       absolutely-positioned connector lines stopped Chromium from producing
+       frames for the whole detail view (found via e2e screenshots). */
+    .pfm-track { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2) 0; }
+    .pfm-step { flex: 1 1 0; min-width: 110px; position: relative; }
+    .pfm-step::before {
+      content: ""; position: absolute; top: 15px; inset-inline-start: 0; inset-inline-end: 0; height: 2px; background: var(--track);
+    }
+    .pfm-step:first-child::before { inset-inline-start: 50%; }
+    .pfm-step:last-child::before { inset-inline-end: 50%; }
+    .pfm-step-before::before { background: var(--primary); }
+    /* The current step colours only its incoming half; the outgoing half stays a track. */
+    .pfm-step-current:not(:first-child)::after {
+      content: ""; position: absolute; top: 15px; height: 2px; inset-inline-start: 0; inset-inline-end: 50%; background: var(--primary);
+    }
+    .pfm-step-btn {
+      position: relative; z-index: 1; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center;
+      padding: 8px var(--space-2) var(--space-2); background: none; border: 1px solid transparent; border-radius: var(--radius-sm);
+      cursor: pointer; font: inherit; color: var(--text);
+    }
+    .pfm-step-btn:hover, .pfm-step-btn:focus-visible { background: var(--surface2); border-color: var(--border); outline: none; }
+    .pfm-step-dot { width: 16px; height: 16px; border-radius: 50%; background: var(--surface); border: 2px solid var(--track); margin-bottom: var(--space-1); }
+    .pfm-step-done .pfm-step-dot, .pfm-step-before .pfm-step-dot { background: var(--primary); border-color: var(--primary); }
+    .pfm-step-current .pfm-step-dot { background: var(--primary); border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-glow); }
+    .pfm-step-planned .pfm-step-dot { border-style: dashed; border-color: var(--primary); }
+    .pfm-step-other { opacity: .45; }
+    .pfm-step-name { font-size: var(--fs-sm); font-weight: 700; }
+    .pfm-step-current .pfm-step-name { color: var(--primary); }
+    .pfm-step-who { font-size: var(--fs-sm); display: flex; gap: var(--space-1); flex-wrap: wrap; justify-content: center; }
+    .pfm-step-date { font-size: var(--fs-caption); color: var(--muted); }
+    .pfm-step-note { font-size: var(--fs-caption); color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pfm-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3) var(--space-4); }
+    .pfm-form-grid .form-group.full { grid-column: 1 / -1; }
+    .pfm-meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); margin-top: var(--space-4); font-size: var(--fs-sm); }
+    .pfm-meta-item { display: inline-flex; gap: var(--space-2); }
+    .pfm-history summary { cursor: pointer; list-style: none; }
+    .pfm-history summary::-webkit-details-marker { display: none; }
+    .pfm-history[open] summary { margin-bottom: var(--space-3); }
+    .pfm-history-list { display: flex; flex-direction: column; gap: var(--space-2); }
+    .pfm-history-row {
+      display: grid; grid-template-columns: 170px minmax(120px, 200px) 1fr auto; gap: var(--space-3); align-items: baseline;
+      font-size: var(--fs-sm); padding: 6px 0; border-bottom: 1px solid var(--border);
+    }
+    .pfm-history-field { font-weight: 600; }
+    .pfm-history-change { display: flex; flex-wrap: wrap; gap: var(--space-2); min-width: 0; overflow-wrap: anywhere; }
+    .pfm-history-old { text-decoration: line-through; color: var(--muted); }
+    .pfm-check { display: inline-flex !important; align-items: center; gap: var(--space-2); text-transform: none !important; letter-spacing: 0 !important; cursor: pointer; }
+    .pfm-version-list { display: flex; flex-direction: column; gap: var(--space-3); }
+    .pfm-version { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--space-3) var(--space-4); background: var(--surface); }
+    .pfm-version.current { border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); box-shadow: inset 3px 0 0 var(--primary); }
+    html[dir="rtl"] .pfm-version.current { box-shadow: inset -3px 0 0 var(--primary); }
+    .pfm-version-head { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+    .pfm-version-ident { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; flex: 1 1 auto; min-width: 0; font-size: var(--fs-sm); }
+    .pfm-version-label { font-size: var(--fs-body); font-weight: 700; }
+    .pfm-current-tag {
+      font-size: var(--fs-caption); font-weight: 700; padding: 1px 8px; border-radius: 999px;
+      background: color-mix(in srgb, var(--primary) 14%, transparent); color: var(--primary);
+    }
+    .pfm-version-fees { font-size: var(--fs-body); font-weight: 700; }
+    .pfm-export-btn { margin-inline-start: auto; }
+    /* Fee change vs the previous version (E6). Numbers read left-to-right in
+       both languages, so the "−1,500.00 (−12.5%)" run is isolated as LTR. */
+    .pfm-fee-change {
+      font-size: var(--fs-caption); font-weight: 700; padding: 1px 8px; border-radius: 999px; white-space: nowrap;
+      font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate;
+      background: var(--chip-bg); color: var(--muted);
+    }
+    /* Direction only, no good/bad colouring: a lower fee on our own offer is not a win by itself. */
+    .pfm-fee-up { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary); }
+    .pfm-version-icons { display: inline-flex; align-items: center; gap: var(--space-1); }
+    .pfm-version-notes { margin-top: var(--space-2); font-size: var(--fs-sm); color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+    .pfm-files { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-3); }
+    .pfm-file {
+      display: inline-flex; align-items: center; max-width: 100%; border: 1px solid var(--border);
+      border-radius: 999px; background: var(--surface2); font-size: var(--fs-sm);
+    }
+    .pfm-file.missing { border-color: color-mix(in srgb, var(--warn) 45%, var(--border)); color: var(--warn); }
+    .pfm-file-open {
+      display: inline-flex; align-items: center; gap: var(--space-1); min-width: 0; padding-block: 4px; padding-inline: 10px 4px;
+      background: none; border: 0; color: inherit; font: inherit; cursor: pointer; border-radius: 999px;
+    }
+    .pfm-file-open:hover .pfm-file-name, .pfm-file-open:focus-visible .pfm-file-name { color: var(--primary); text-decoration: underline; }
+    .pfm-file-open .lic { width: 14px; height: 14px; flex: none; }
+    .pfm-file-name { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pfm-file-size { color: var(--muted); font-size: var(--fs-caption); white-space: nowrap; direction: ltr; unicode-bidi: isolate; }
+    .pfm-file-x {
+      display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin-inline-end: 3px;
+      border: 0; border-radius: 50%; background: none; color: var(--muted); cursor: pointer;
+    }
+    .pfm-file-x:hover, .pfm-file-x:focus-visible { background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); }
+    .pfm-file-x .lic { width: 13px; height: 13px; }
+    .pfm-file .del-confirm { padding-block: 2px; padding-inline: 10px 6px; }
+    .pfm-file-errors { margin-top: var(--space-2); display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-sm); color: var(--bad); }
+    .pfm-file-error { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+    .pfm-file-error .lic { width: 14px; height: 14px; flex: none; }
+    .pfm-file-error-name { font-weight: 600; }
+    @media (max-width: 900px) {
+      .pfm-form-grid { grid-template-columns: 1fr; }
+      .pfm-history-row { grid-template-columns: 1fr; gap: 2px; }
+    }
+
     /* ══ CLIENTS (Auth + Server Information) ══ */
     .cl-item-card {
       display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
