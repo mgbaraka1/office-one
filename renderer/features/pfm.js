@@ -594,13 +594,19 @@ function buildPfmStageTrack(item) {
   return section;
 }
 
-// ── Client contact + details (auto-saved) ──
+// ── Client contact + channel (auto-saved) ──
+// The channel reference is the email title/subject for Email and the ticket
+// URL for Jira — the same split Task Sources use.
+const PFM_CHANNEL_REF = {
+  EMAIL: { label: 'Email Title / Subject', type: 'text', placeholder: 'e.g. Renewal quote issue' },
+  JIRA:  { label: 'Jira URL', type: 'url', placeholder: 'https://' },
+};
 function buildPfmContactSection(item) {
   const section = pjMk('div', 'pj-section');
   const sh = pjMk('div', 'pj-section-head');
   const st = pjMk('div', 'pj-section-title');
   st.innerHTML = ic('user-plus');
-  st.appendChild(document.createTextNode('Client Contact & Notes'));
+  st.appendChild(document.createTextNode('Client Contact'));
   sh.appendChild(st);
   section.appendChild(sh);
 
@@ -619,9 +625,62 @@ function buildPfmContactSection(item) {
     grid.appendChild(g);
   };
   field('pfm-contact-name', 'Name', item.contactName);
-  field('pfm-contact-email', 'Email', item.contactEmail, 'email');
-  field('pfm-contact-phone', 'Phone', item.contactPhone, 'tel');
-  field('pfm-notes', 'Notes', item.notes, 'textarea', true);
+
+  const cg = pjMk('div', 'form-group');
+  const cl = pjMk('label', '', 'Channel');
+  cl.htmlFor = 'pfm-channel';
+  cg.appendChild(cl);
+  const channel = document.createElement('select');
+  channel.id = 'pfm-channel';
+  [['', '—'], ['EMAIL', 'Email'], ['JIRA', 'Jira']].forEach(([value, label]) => {
+    const o = document.createElement('option');
+    o.value = value;
+    o.textContent = label;
+    channel.appendChild(o);
+  });
+  channel.value = item.channel || '';
+  cg.appendChild(channel);
+  grid.appendChild(cg);
+
+  const rg = pjMk('div', 'form-group');
+  const rl = pjMk('label', '');
+  rl.htmlFor = 'pfm-channel-ref';
+  rg.appendChild(rl);
+  const refRow = pjMk('div', 'pfm-channel-ref-row');
+  const ref = document.createElement('input');
+  ref.id = 'pfm-channel-ref';
+  ref.value = item.channelRef || '';
+  ref.addEventListener('input', () => { syncOpen(); savePfmDetailDebounced(); });
+  refRow.appendChild(ref);
+  const open = pjMk('button', 'cd-icon-btn');
+  open.type = 'button';
+  open.title = 'Open link';
+  open.setAttribute('aria-label', 'Open link');
+  open.innerHTML = ic('external-link');
+  open.addEventListener('click', () => window.api.openExternal(ref.value.trim()));
+  refRow.appendChild(open);
+  rg.appendChild(refRow);
+  grid.appendChild(rg);
+
+  const syncOpen = () => {
+    open.hidden = channel.value !== 'JIRA' || !/^https?:\/\/\S+$/i.test(ref.value.trim());
+  };
+  const syncRef = () => {
+    const cfg = PFM_CHANNEL_REF[channel.value];
+    rg.hidden = !cfg;
+    if (cfg) {
+      rl.textContent = cfg.label;
+      ref.type = cfg.type;
+      ref.placeholder = cfg.placeholder;
+    }
+    syncOpen();
+  };
+  channel.addEventListener('change', () => {
+    ref.value = '';          // a subject is not a URL, and vice versa
+    syncRef();
+    savePfmDetailDebounced();
+  });
+  syncRef();
   section.appendChild(grid);
 
   const meta = pjMk('div', 'pfm-meta');
@@ -650,8 +709,8 @@ async function savePfmDetailFields() {
   const read = id => document.getElementById(id)?.value;
   if (!item || read('pfm-contact-name') == null) return;
   const next = {
-    contactName: read('pfm-contact-name').trim(), contactEmail: read('pfm-contact-email').trim(),
-    contactPhone: read('pfm-contact-phone').trim(), notes: read('pfm-notes').trim(),
+    contactName: read('pfm-contact-name').trim(), channel: read('pfm-channel'),
+    channelRef: read('pfm-channel') ? read('pfm-channel-ref').trim() : '',
   };
   const changed = Object.fromEntries(Object.entries(next).filter(([k, v]) => v !== (item[k] || '')));
   if (!Object.keys(changed).length) return;
@@ -671,7 +730,7 @@ function flushPfmPending() {
 }
 
 // A write re-renders the detail from the server's copy of the item, so any
-// contact/notes edit still waiting on its debounce is saved first.
+// contact/channel edit still waiting on its debounce is saved first.
 async function pfmBeforeWrite() { await flushPfmPending(); }
 
 // ── Versions (newest first; the top one is "Current") + their files ──

@@ -418,6 +418,18 @@ async function run() {
         await wait(600);
         const contactSaved = (await window.api.getPfmItem(created.id))?.contactName === 'E2E Contact';
 
+        const channelSel = document.getElementById('pfm-channel');
+        channelSel.value = 'JIRA';
+        channelSel.dispatchEvent(new Event('change', { bubbles: true }));
+        const channelRef = document.getElementById('pfm-channel-ref');
+        channelRef.value = 'https://jira.example.test/browse/E2E-1';
+        channelRef.dispatchEvent(new Event('input', { bubbles: true }));
+        await wait(600);
+        const savedChannel = await window.api.getPfmItem(created.id);
+        const channelSaved = savedChannel?.channel === 'JIRA'
+          && savedChannel?.channelRef === 'https://jira.example.test/browse/E2E-1'
+          && !document.getElementById('pfm-channel-ref').closest('.form-group').hidden;
+
         // Versions + files: v1 from the modal (label pre-filled), three files
         // of which one is refused, a bad fees value refused, then v2 on top.
         document.querySelector('#pfm-detail-view .pfm-version-add').click();
@@ -531,7 +543,7 @@ async function run() {
         switchModule('analytics');
         return {
           modalOpen, detailOpen, startStatus, trackSteps, stageModalOpen, movedStatus,
-          movedMember: movedStage?.memberName, contactSaved, duplicateRefused, rowListed,
+          movedMember: movedStage?.memberName, contactSaved, channelSaved, duplicateRefused, rowListed,
           goneAfterDelete, backAfterUndo,
           versionModalOpen, prefilledLabel, v1Fees: v1?.feesMinor, chipsAfterAdd, fileErrorsShown, storedFiles,
           badFeesRefused, versionLabels, currentCard, currentFees, filesAfterRemove, filesAfterUndo,
@@ -647,6 +659,7 @@ async function run() {
     throw new Error(`Moving an offer's status from its detail page failed: ${JSON.stringify(pfm)}`);
   }
   if (!pfm.contactSaved) throw new Error(`The client contact did not auto-save: ${JSON.stringify(pfm)}`);
+  if (!pfm.channelSaved) throw new Error(`The client channel did not auto-save: ${JSON.stringify(pfm)}`);
   if (!pfm.duplicateRefused) throw new Error(`A duplicate Reference ID was not refused in the modal: ${JSON.stringify(pfm)}`);
   if (!pfm.rowListed) throw new Error(`The offer is missing from the Project & Finance list: ${JSON.stringify(pfm)}`);
   if (!pfm.goneAfterDelete || !pfm.backAfterUndo) {

@@ -5280,6 +5280,17 @@ function assignClientInternalGroup(userId, companyId, recordIds, groupName) {
 const PFM_KINDS = new Set(['OFFER', 'CR']);
 const PFM_FINAL_STATUS_CODES = new Set(['ACCEPTED', 'REJECTED']);
 const PFM_MAX_TEXT = 200;
+// How the client raised it (migration 064). The reference is the email
+// title/subject for EMAIL and the ticket URL for JIRA.
+const PFM_CHANNELS = new Set(['EMAIL', 'JIRA']);
+function pfmChannelError(channel, ref) {
+  if (channel && !PFM_CHANNELS.has(channel)) return 'Choose Email or Jira';
+  if (ref.length > 2000) return 'The channel reference is too long';
+  if (channel === 'JIRA' && ref && !/^https?:\/\/\S+$/i.test(ref)) {
+    return 'The Jira URL must start with http:// or https://';
+  }
+  return null;
+}
 const pfmText = v => String(v ?? '').trim();
 
 // Local calendar date (YYYY-MM-DD) — "today" as the user sees it, not UTC.
@@ -5337,20 +5348,43 @@ function recordPfmHistory(userId, itemId, recordType, recordId, field, oldValue,
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(itemId, recordType, recordId, field, oldStr, newStr, userId, now);
 }
+// The detail page auto-saves as the user types, so one edit arrives as a run
+// of partial values ("Ale" → "Alex" → "Alexander"). When the item's newest
+// history row is this same field, by this user, within PFM_HISTORY_MERGE_MS,
+// that row's new value is replaced instead of adding another — keeping its
+// original old value. A run that ends back where it started leaves no row.
+const PFM_HISTORY_MERGE_MS = 2 * 60 * 1000;
+function recordPfmItemEdit(userId, itemId, field, oldValue, newValue, now) {
+  const oldStr = String(oldValue ?? '');
+  const newStr = String(newValue ?? '');
+  if (oldStr === newStr) return;
+  const last = db.prepare(
+    'SELECT id, record_type, field, old_value, user_id, changed_at FROM pfm_history WHERE item_id = ? ORDER BY id DESC LIMIT 1'
+  ).get(itemId);
+  const mergeable = last && last.record_type === 'item' && last.field === field && last.user_id === userId
+    && Date.parse(now) - Date.parse(last.changed_at) <= PFM_HISTORY_MERGE_MS;
+  if (!mergeable) {
+    recordPfmHistory(userId, itemId, 'item', itemId, field, oldStr, newStr, now);
+  } else if (last.old_value === newStr) {
+    db.prepare('DELETE FROM pfm_history WHERE id = ?').run(last.id);
+  } else {
+    db.prepare('UPDATE pfm_history SET new_value = ?, changed_at = ? WHERE id = ?').run(newStr, now, last.id);
+  }
+}
 function pfmTouchItem(userId, itemId, now) {
   db.prepare('UPDATE pfm_items SET updated_at = ?, updated_by = ? WHERE id = ?').run(now, userId, itemId);
 }
 
 const PFM_ITEM_HISTORY_FIELDS = [
   ['kind', 'Type'], ['reference', 'Reference'], ['title', 'Title'], ['company', 'Client'],
-  ['contactName', 'Client Contact Name'], ['contactEmail', 'Client Contact Email'],
-  ['contactPhone', 'Client Contact Phone'], ['validUntil', 'Valid Until'], ['notes', 'Notes'],
+  ['contactName', 'Client Contact Name'], ['channel', 'Channel'], ['channelRef', 'Channel Reference'],
+  ['validUntil', 'Valid Until'], ['notes', 'Notes'],
 ];
 function pfmItemSnapshot(r) {
   return {
     kind: r.kind, reference: r.reference, title: r.title, company: lkLabel(r.company_id),
-    contactName: r.client_contact_name, contactEmail: r.client_contact_email,
-    contactPhone: r.client_contact_phone, validUntil: r.valid_until || '', notes: r.notes,
+    contactName: r.client_contact_name, channel: r.client_channel || '',
+    channelRef: r.client_channel_ref || '', validUntil: r.valid_until || '', notes: r.notes,
   };
 }
 
@@ -5380,8 +5414,8 @@ function pfmItemToApi(r, extra = {}) {
     id: r.id, kind: r.kind, reference: r.reference, title: r.title,
     companyId: r.company_id, company: lkLabel(r.company_id), status,
     isFinal: PFM_FINAL_STATUS_CODES.has(status),
-    contactName: r.client_contact_name, contactEmail: r.client_contact_email,
-    contactPhone: r.client_contact_phone, validUntil: r.valid_until || '', notes: r.notes,
+    contactName: r.client_contact_name, channel: r.client_channel || '',
+    channelRef: r.client_channel_ref || '', validUntil: r.valid_until || '', notes: r.notes,
     archived: !!r.archived_at, archivedAt: r.archived_at || '',
     createdAt: r.created_at, updatedAt: r.updated_at, ...extra,
   };
@@ -5425,11 +5459,15 @@ function pfmItemWriteFields(userId, data, before) {
     validUntil = d.value;
   }
 
+  const channel = has('channel') ? pfmText(data.channel).toUpperCase() : (before?.client_channel || '');
+  const channelRef = channel ? pick('channelRef', 'client_channel_ref') : '';
+  const channelError = pfmChannelError(channel, channelRef);
+  if (channelError) return { error: channelError };
+
   return { fields: {
     kind, reference, reference_key: lookupLabelKey(reference), title, company_id: companyId,
     client_contact_name: pick('contactName', 'client_contact_name'),
-    client_contact_email: pick('contactEmail', 'client_contact_email'),
-    client_contact_phone: pick('contactPhone', 'client_contact_phone'),
+    client_channel: channel, client_channel_ref: channelRef,
     valid_until: validUntil, notes: pick('notes', 'notes'),
   } };
 }
@@ -5510,11 +5548,11 @@ function createPfmItem(userId, data) {
     if (error) return null;
     const newId = Number(db.prepare(
       `INSERT INTO pfm_items(user_id, kind, reference, reference_key, title, company_id, status_id,
-         client_contact_name, client_contact_email, client_contact_phone, valid_until, notes,
+         client_contact_name, client_channel, client_channel_ref, valid_until, notes,
          created_by, updated_by, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(userId, f.kind, f.reference, f.reference_key, f.title, f.company_id, statusId,
-      f.client_contact_name, f.client_contact_email, f.client_contact_phone, f.valid_until, f.notes,
+      f.client_contact_name, f.client_channel, f.client_channel_ref, f.valid_until, f.notes,
       userId, userId, now, now).lastInsertRowid);
     db.prepare(
       'INSERT INTO pfm_stages(item_id, status_id, member_name, done_on, note, updated_at) VALUES (?, ?, ?, ?, \'\', ?)'
@@ -5542,14 +5580,14 @@ function updatePfmItem(userId, id, data) {
     const oldSnap = pfmItemSnapshot(before);
     const newSnap = pfmItemSnapshot(f);
     PFM_ITEM_HISTORY_FIELDS.forEach(([key, label]) =>
-      recordPfmHistory(userId, before.id, 'item', before.id, label, oldSnap[key], newSnap[key], now));
+      recordPfmItemEdit(userId, before.id, label, oldSnap[key], newSnap[key], now));
     db.prepare(
       `UPDATE pfm_items SET kind = ?, reference = ?, reference_key = ?, title = ?, company_id = ?,
-         client_contact_name = ?, client_contact_email = ?, client_contact_phone = ?, valid_until = ?,
+         client_contact_name = ?, client_channel = ?, client_channel_ref = ?, valid_until = ?,
          notes = ?, updated_by = ?, updated_at = ?
        WHERE id = ? AND user_id = ?`
     ).run(f.kind, f.reference, f.reference_key, f.title, f.company_id, f.client_contact_name,
-      f.client_contact_email, f.client_contact_phone, f.valid_until, f.notes, userId, now, before.id, userId);
+      f.client_channel, f.client_channel_ref, f.valid_until, f.notes, userId, now, before.id, userId);
   });
   if (error) return { ok: false, error };
   return { ok: true, item: getPfmItem(userId, before.id) };
@@ -5614,10 +5652,18 @@ function savePfmStage(userId, itemId, data) {
     if (d.error) return { ok: false, error: d.error };
     stage.doneOn = d.value;
   }
+  // Giving a LATER stage a date means it happened, so the status follows it —
+  // otherwise the track shows "Ready, done" while the item still says Prepare.
+  // An earlier stage, or a plan (no date), never moves the status.
+  const order = id => lk().idTo.get(id)?.sort_order ?? 0;
+  const advance = !!stage.doneOn && statusId !== item.status_id && order(statusId) > order(item.status_id);
   const now = new Date().toISOString();
   tx(() => {
     pfmUpsertStage(userId, item.id, statusId, stage, now);
-    if (statusId !== item.status_id) {
+    if (advance) {
+      recordPfmHistory(userId, item.id, 'item', item.id, 'Status', lkLabel(item.status_id), lkLabel(statusId), now);
+      db.prepare('UPDATE pfm_items SET status_id = ? WHERE id = ? AND user_id = ?').run(statusId, item.id, userId);
+    } else if (statusId !== item.status_id) {
       db.prepare(
         `DELETE FROM pfm_stages WHERE item_id = ? AND status_id = ?
             AND member_name = '' AND done_on IS NULL AND note = ''`

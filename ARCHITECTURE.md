@@ -62,7 +62,7 @@ renderer/
   features/          timesheet.js, tasks.js, workspace.js, clients.js, knowledge.js,
                      knowledge-sanitize.js, company-documents.js, pfm.js, shell.js
   vendor/            quill/, dompurify/
-migrations/          000_baseline.js … 063_pfm_workspace_search.js (append-only)
+migrations/          000_baseline.js … 065_pfm_status_follows_stages.js (append-only)
 test/                40 *-smoke.js suites + run-all.js + electron-e2e.js + helpers
 ```
 
@@ -122,6 +122,8 @@ retired Finance tables, §5): `pfm_items` (one row per Offer or CR), `pfm_stages
 - The stage person is **free text** (the UI offers a datalist of names already
   used), not a lookup. Status is the `PFM_STATUS` lookup; stage order is its
   `sort_order`, and `ACCEPTED`/`REJECTED` are final.
+- The client contact is a name plus a **channel**: `EMAIL` (reference = title/subject) or
+  `JIRA` (reference = an http(s) URL), the Task Sources split (064).
 - Fees are **integer minor units** (never REAL) plus a `CURRENCY` lookup.
 - Items, versions and files are soft-deleted via `deleted_at` — that stamp *is*
   the undo window; purge (or the next boot's maintenance) removes the row and
@@ -195,6 +197,8 @@ Landmarks worth knowing:
 | 061 | Finance removed entirely — every `finance_*` table dropped, its four catalog categories removed from `lookup_codes` (see §5) |
 | 062 | Project & Finance (Offers & CRs) — the five `pfm_*` tables, additive only; seeds `PFM_STATUS` behind the 059-style empty-category guard |
 | 063 | Offers & CRs join `workspace_search` — backfill plus three `workspace_search_pfm_items_*` triggers |
+| 064 | `pfm_items.client_channel` (EMAIL/JIRA) + `client_channel_ref` (email subject or Jira URL) via ADD COLUMN; the contact email/phone and notes columns stay but are no longer shown |
+| 065 | Repair: an Offer/CR whose status lags its furthest dated stage moves forward to it (history row per move); `savePfmStage` now does this on save |
 
 **A guarded seed is the right shape for a fresh-install gap.** Migration 003
 seeded some categories from "legacy blob ∪ values already in the data", both
@@ -242,7 +246,7 @@ If you're reading this while planning the rebuild: don't restore the deleted
 code as a starting point. The whole point of the removal was a clean-slate
 redesign, not a revert.
 
-**The rebuild is Project & Finance** (`pfm`, migrations 062–063,
+**The rebuild is Project & Finance** (`pfm`, migrations 062–065,
 `renderer/features/pfm.js`) — a new, narrower design for Offers and CRs only,
 written from scratch (tables in §4.1, page in §7). It has no link to Projects,
 and no contracts, invoices or payments. Its files live under

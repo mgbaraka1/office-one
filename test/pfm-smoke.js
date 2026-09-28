@@ -128,13 +128,51 @@ try {
     JSON.stringify(upd.item));
   record('Update: an invalid date is refused', !db.updatePfmItem(userId, offer.id, { validUntil: '2090-02-30' }).ok);
 
+  // ── History: typing is one edit, not one row per pause ─────────────────
+  const nameRows = () => db.getPfmHistory(userId, offer.id).filter(h => h.field === 'Client Contact Name');
+  const nameRowsBefore = nameRows().length;
+  ['Cli', 'Client', 'Client Other'].forEach(v => db.updatePfmItem(userId, offer.id, { contactName: v }));
+  const merged = nameRows();
+  record('History: a run of edits to one field is one row, old → final',
+    merged.length === nameRowsBefore + 1 && merged[0].oldValue === 'Client Person' && merged[0].newValue === 'Client Other',
+    JSON.stringify(merged));
+  db.updatePfmItem(userId, offer.id, { contactName: 'Client Person' });
+  record('History: typing back to the original leaves no row', nameRows().length === nameRowsBefore,
+    JSON.stringify(nameRows()));
+  db.updatePfmItem(userId, offer.id, { contactName: 'Client Other' });
+  db.updatePfmItem(userId, offer.id, { title: 'Generic offer (interim)' });
+  db.updatePfmItem(userId, offer.id, { contactName: 'Client Person' });
+  db.updatePfmItem(userId, offer.id, { title: 'Generic offer (revised)' });
+  record('History: another change in between keeps edits separate', nameRows().length === nameRowsBefore + 2,
+    JSON.stringify(nameRows()));
+
+  // ── Client channel (migration 064) ──────────────────────────────────────
+  const viaEmail = db.updatePfmItem(userId, offer.id, { channel: 'email', channelRef: ' Generic subject ' });
+  record('Channel: Email stores its title/subject', viaEmail.ok && viaEmail.item.channel === 'EMAIL'
+    && viaEmail.item.channelRef === 'Generic subject', JSON.stringify(viaEmail));
+  record('Channel: an unknown channel is refused', !db.updatePfmItem(userId, offer.id, { channel: 'FAX' }).ok);
+  record('Channel: a Jira reference must be an http(s) URL',
+    !db.updatePfmItem(userId, offer.id, { channel: 'JIRA', channelRef: 'ABC-123' }).ok);
+  const viaJira = db.updatePfmItem(userId, offer.id, { channel: 'JIRA', channelRef: 'https://jira.example.test/browse/ABC-1' });
+  record('Channel: Jira stores its URL', viaJira.ok && viaJira.item.channel === 'JIRA'
+    && viaJira.item.channelRef === 'https://jira.example.test/browse/ABC-1', JSON.stringify(viaJira));
+  const noChannel = db.updatePfmItem(userId, offer.id, { channel: '', channelRef: 'ignored' });
+  record('Channel: clearing the channel clears its reference',
+    noChannel.ok && noChannel.item.channel === '' && noChannel.item.channelRef === '', JSON.stringify(noChannel));
+  record('Channel: changes are in the item history',
+    db.getPfmHistory(userId, offer.id).some(h => h.field === 'Channel'));
+
   // ── Status + stages ─────────────────────────────────────────────────────
   const planned = db.savePfmStage(userId, offer.id, { status: 'SENT', memberName: 'Person B' });
   record('Stage: planning a person does not move the status',
     planned.ok && planned.item.status === 'PREPARE'
       && planned.item.stages.some(s => s.status === 'SENT' && s.memberName === 'Person B' && s.doneOn === ''),
     JSON.stringify(planned.item?.stages));
-  const sent = db.setPfmStatus(userId, offer.id, { status: 'SENT', date: '2090-01-05' });
+  const dated = db.savePfmStage(userId, offer.id, { status: 'READY', memberName: 'Person A', doneOn: '2090-01-03' });
+  record('Stage: dating a later stage moves the status to it',
+    dated.ok && dated.item.status === 'READY'
+      && db.getPfmHistory(userId, offer.id).some(h => h.field === 'Status'), JSON.stringify(dated.item?.status));
+  const sent =db.setPfmStatus(userId, offer.id, { status: 'SENT', date: '2090-01-05' });
   const sentStage = sent.item.stages.find(s => s.status === 'SENT');
   record('Status: move keeps the planned person and stamps the date',
     sent.ok && sent.item.status === 'SENT' && sentStage.memberName === 'Person B' && sentStage.doneOn === '2090-01-05',
@@ -142,10 +180,13 @@ try {
   record('Status: an unknown status is refused', !db.setPfmStatus(userId, offer.id, { status: 'NOPE' }).ok);
   const accepted = db.setPfmStatus(userId, offer.id, { status: 'ACCEPTED', memberName: 'person b ', note: 'signed' });
   record('Status: ACCEPTED is final', accepted.ok && accepted.item.isFinal, JSON.stringify(accepted.item?.status));
-  db.savePfmStage(userId, offer.id, { status: 'READY', memberName: 'Temp' });
-  const cleared = db.savePfmStage(userId, offer.id, { status: 'READY', memberName: '' });
+  const redated = db.savePfmStage(userId, offer.id, { status: 'PREPARE', doneOn: '2090-01-01' });
+  record('Stage: dating an earlier stage never moves the status back',
+    redated.ok && redated.item.status === 'ACCEPTED', JSON.stringify(redated.item?.status));
+  db.savePfmStage(userId, offer.id, { status: 'REJECTED', memberName: 'Temp' });
+  const cleared = db.savePfmStage(userId, offer.id, { status: 'REJECTED', memberName: '' });
   record('Stage: a stage emptied of everything is removed',
-    cleared.ok && !cleared.item.stages.some(s => s.status === 'READY'), JSON.stringify(cleared.item?.stages));
+    cleared.ok && !cleared.item.stages.some(s => s.status === 'REJECTED'), JSON.stringify(cleared.item?.stages));
   const names = db.listPfmMemberNames(userId);
   record('Stage: past names are suggested once each (case/space folded)',
     names.filter(n => n.trim().toLowerCase() === 'person b').length === 1 && names.includes('Person A'), JSON.stringify(names));
