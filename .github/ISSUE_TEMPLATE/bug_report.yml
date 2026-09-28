@@ -44,7 +44,7 @@ body:
       label: Steps to reproduce
       description: The page you were on, what you clicked, and what you expected instead.
       placeholder: |
-        1. Open Clients → a client → the Finance tab
+        1. Open Clients → a client → the Access tab
         2. ...
     validations:
       required: true

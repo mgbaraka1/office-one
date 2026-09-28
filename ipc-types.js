@@ -548,34 +548,6 @@
  */
 
 /**
- * Finance's headline figures for the module landing card (`finance:overview`).
- * Scoped to the signed-in account, like every other finance_* read.
- *
- * All amounts are INTEGER MINOR UNITS (halalas/cents), matching every Finance
- * amount column — never a float. Cancelled invoices are excluded from all
- * totals. `overdueInvoiceCount` is DUE-DATE-based rather than status-based: an
- * invoice left at ISSUED is still overdue once its due date has passed.
- * @typedef {Object} FinanceOverview
- * @property {number} clientCount
- * @property {number} activeContracts    Excludes TERMINATED and EXPIRED.
- * @property {number} invoicedMinor      Amount + tax across non-cancelled invoices.
- * @property {number} paidMinor          Sum of recorded payments against those invoices.
- * @property {number} outstandingMinor   invoicedMinor - paidMinor, floored at 0.
- * @property {number} overdueInvoiceCount  Non-cancelled invoices past due with a balance remaining.
- */
-
-/**
- * A company from the shared roster that is not in Finance yet
- * (`finance:candidate-companies`) — what the "add a client to Finance" picker
- * offers. Excludes soft-disabled rows and lookups this account cannot access.
- * @typedef {Object} FinanceCandidateCompany
- * @property {number} id      The COMPANY lookup_codes id.
- * @property {string} code
- * @property {string} name
- * @property {string} nameAr
- */
-
-/**
  * One client on the Clients list page — a COMPANY lookup row + its record
  * counts. There is no standalone clients table; the roster IS the active
  * COMPANY lookup catalog.
