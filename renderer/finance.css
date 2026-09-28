@@ -156,7 +156,7 @@
   flex: 1; min-width: 0; padding: 7px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border);
   background: var(--surface); color: var(--text); font-size: 13px;
 }
-.fin-setup-code { font-size: 10.5px; color: var(--muted); font-family: 'Cascadia Mono', Consolas, monospace; min-width: 70px; text-align: center; }
+.fin-setup-code { font-size: 10.5px; color: var(--muted); font-family: 'Cairo', 'Segoe UI', sans-serif; font-variant-numeric: tabular-nums; min-width: 70px; text-align: center; }
 .fin-setup-reorder { display: flex; gap: 2px; }
 .fin-setup-footer { display: flex; align-items: center; gap: var(--space-3); }
 .fin-setup-unsaved { font-size: 12px; color: var(--warn); font-weight: 600; }

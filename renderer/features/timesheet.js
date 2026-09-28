@@ -1662,6 +1662,15 @@ function rptLanguage() { return window.ctI18n?.getLanguage?.() === 'ar' ? 'ar' :
 function rptLocale() { return rptLanguage() === 'ar' ? 'ar-SA' : 'en-US'; }
 function rptText(key, vars) { return window.ctI18n?.t?.(key, vars) || key; }
 function rptDirection() { return rptLanguage() === 'ar' ? 'rtl' : 'ltr'; }
+// "X.XX hour"/"X.XX hours" (or the Arabic ساعة/ساعات) for the current report
+// language — computed directly rather than left for the DOM-observer's regex
+// translation pass, since this also gets embedded mid-sentence inside other
+// already-localized template strings (see the Over-Time request paragraph),
+// where a later regex pass over the finished sentence would no longer match.
+function rptHours(hrsStr) {
+  const singular = parseFloat(hrsStr) === 1;
+  return rptLanguage() === 'ar' ? `${hrsStr} ${singular ? 'ساعة' : 'ساعات'}` : `${hrsStr} ${singular ? 'hour' : 'hours'}`;
+}
 function rptWrap(html) { return `<div class="rpt-report" lang="${rptLanguage()}" dir="${rptDirection()}">${html}</div>`; }
 function rptRenewLabel(days) {
   if (rptLanguage() !== 'ar') return renewLabel(days);
@@ -1792,10 +1801,10 @@ function buildDailyReportHTML(srcRows, date, name, sourcesByTaskId) {
     </div>
     <div style="font-size:14px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:.5px;padding-bottom:8px;border-bottom:2px solid #111;margin-bottom:16px">${esc(rptText('Daily Work Report'))}</div>
     ${rptSummaryCards([
-      { label: 'Total Hours',   value: `${totalHrs}h` },
+      { label: 'Total Hours',   value: rptHours(totalHrs) },
       { label: 'Total Minutes', value: totalMin },
-      { label: 'Work Time',     value: `${workHrs}h` },
-      { label: 'Over Time',     value: `${otHrs}h`, color: otMin > 0 ? '#b91c1c' : '#111' },
+      { label: 'Work Time',     value: rptHours(workHrs) },
+      { label: 'Over Time',     value: rptHours(otHrs), color: otMin > 0 ? '#b91c1c' : '#111' },
     ])}
 
     <table class="rpt-table">
@@ -1844,11 +1853,12 @@ function buildReportDoc(innerHTML, title) {
   const lang = rptLanguage();
   const dir = rptDirection();
   return `<!DOCTYPE html><html lang="${lang}" dir="${dir}"><head><meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src data:">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src data:; font-src data:">
     <title>${esc(rptText(title || 'Report'))}</title>
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; font-size: 13px; color: #111; padding: 48px 52px; background: #fff; direction:${dir}; text-align:${dir === 'rtl' ? 'right' : 'left'}; }
+      ${window.CAIRO_PRINT_FONT_CSS || ''}
+      body { font-family: 'Cairo', 'Segoe UI', Tahoma, Arial, sans-serif; font-size: 13px; color: #111; padding: 48px 52px; background: #fff; direction:${dir}; text-align:${dir === 'rtl' ? 'right' : 'left'}; }
       table, td, th, tr, tbody, thead, tfoot { background: #fff; color: #111; }
       .rpt-table { width:100%; border-collapse:collapse; font-size:11.5px; border:1.5px solid #111; }
       .rpt-table thead th { padding:7px 8px; text-align:left; font-size:9px; font-weight:700; color:#111; background:#f0f0f0; text-transform:uppercase; letter-spacing:.5px; border:1px solid #bbb; border-bottom:1.5px solid #111; }
@@ -2157,7 +2167,7 @@ function buildPeriodReportHTML(days, kind, periodLabel, name, sourcesByTaskId) {
   return rptWrap(`
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px"><div><div style="font-size:10px;font-weight:800;letter-spacing:3.5px;text-transform:uppercase;color:#111">${esc(rptText('Office ONE'))}</div></div><div style="text-align:right"><div style="font-size:14px;font-weight:700;color:#111">${esc(name)}</div><div style="font-size:11px;color:#555;margin-top:2px">${esc(periodLabel)}</div></div></div>
     <div style="font-size:14px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:.5px;padding-bottom:8px;border-bottom:2px solid #111;margin-bottom:16px">${esc(rptText(title))}</div>
-    ${rptSummaryCards([{ label: 'Total Hours', value: `${(totalMin / 60).toFixed(2)}h` }, { label: 'Active Days', value: days.length }, { label: 'Work Time', value: `${(workMin / 60).toFixed(2)}h` }, { label: 'Over Time', value: `${(otMin / 60).toFixed(2)}h`, color: otMin > 0 ? '#b91c1c' : '#111' }])}
+    ${rptSummaryCards([{ label: 'Total Hours', value: rptHours((totalMin / 60).toFixed(2)) }, { label: 'Active Days', value: days.length }, { label: 'Work Time', value: rptHours((workMin / 60).toFixed(2)) }, { label: 'Over Time', value: rptHours((otMin / 60).toFixed(2)), color: otMin > 0 ? '#b91c1c' : '#111' }])}
     <table class="rpt-table"><thead><tr><th style="width:78px">${esc(rptText('Date'))}</th><th style="width:90px">${esc(rptText('Time'))}</th><th>${esc(rptText('Description / Source'))} <span style="font-weight:500;text-transform:none;letter-spacing:0;color:#888">(${esc(rptText('sessions grouped by task'))})</span></th><th style="width:45px;text-align:right">${esc(rptText('Min'))}</th><th style="width:45px;text-align:right">${esc(rptText('Hrs'))}</th></tr></thead><tbody>${body}</tbody><tfoot><tr><td colspan="3" style="text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;padding:8px;border:1px solid #bbb;border-top:2px solid #111;background:#f0f0f0 !important">${esc(rptText('Total'))}</td><td style="text-align:right;font-size:13px;font-weight:800;padding:8px;border:1px solid #bbb;border-top:2px solid #111;background:#f0f0f0 !important">${totalMin}</td><td style="text-align:right;font-size:13px;font-weight:800;padding:8px;border:1px solid #bbb;border-top:2px solid #111;background:#f0f0f0 !important">${(totalMin / 60).toFixed(2)}</td></tr></tfoot></table>
     <div style="display:flex;justify-content:space-between;margin-top:14px;font-size:9px;color:#999;padding-top:8px;border-top:1px solid #ddd"><span>${esc(rptText('Office ONE'))}</span><span>${esc(rptText('Printed {date}', { date: printedOn }))}</span></div>`);
 }
@@ -2244,10 +2254,10 @@ function buildOvertimeReportHTML(days, monthLabel, name) {
     <div style="font-size:14px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:.5px;padding-bottom:8px;border-bottom:2px solid #111;margin-bottom:16px">${esc(rptText('Over-Time Request'))}</div>
     <p style="font-size:12px;color:#333;margin:0 0 14px;line-height:1.6">
       ${esc(rptText('Kindly find below the Over-Time hours logged during {month}, submitted for your review and approval.', { month: monthLabel }))}
-      ${esc(rptText('The total Over-Time for the period is {hours} hours across {dayPhrase}.', { hours: totalHrs, dayPhrase }))}
+      ${esc(rptText('The total Over-Time for the period is {hours} across {dayPhrase}.', { hours: rptHours(totalHrs), dayPhrase }))}
     </p>
     ${rptSummaryCards([
-      { label: 'Total Over-Time', value: `${totalHrs}h`, color: totalMin > 0 ? '#b91c1c' : '#111' },
+      { label: 'Total Over-Time', value: rptHours(totalHrs), color: totalMin > 0 ? '#b91c1c' : '#111' },
       { label: 'Total Minutes',   value: totalMin },
       { label: 'Entries',         value: otRows.length },
       { label: 'Days',            value: dayCount },
@@ -2749,8 +2759,9 @@ async function renderMonthView() {
     if (rws.length) cell.addEventListener('click', () => { closeMonthView(); switchModule('timesheet'); switchDay(ds); });
     grid.appendChild(cell);
   }
+  const monthHrsDisp = (monthMin / 60).toFixed(1);
   document.getElementById('month-summary').innerHTML =
-    `<b>${(monthMin / 60).toFixed(1)}h</b> across ${activeDays} active day${activeDays === 1 ? '' : 's'}`;
+    `<b>${monthHrsDisp} ${monthHrsDisp === '1.0' ? 'hour' : 'hours'}</b> across ${activeDays} active day${activeDays === 1 ? '' : 's'}`;
 }
 
 // ── Module switching ──

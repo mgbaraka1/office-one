@@ -484,8 +484,8 @@ async function renderOverview() {
 
   // Stat cards
   const stats = [
-    { label: ic('clock') + ' Today',      value: (todayMin / 60).toFixed(1), unit: 'h', foot: `${todayRecs} record${todayRecs === 1 ? '' : 's'}`, cls: 'accent', go: 'timesheet' },
-    { label: ic('calendar') + ' This Month', value: (monthMin / 60).toFixed(1), unit: 'h', foot: `${daysLogged} day${daysLogged === 1 ? '' : 's'} logged`, cls: '', go: 'timesheet' },
+    { label: ic('clock') + ' Today',      value: (todayMin / 60).toFixed(1), unit: hourUnitWord(todayMin / 60), foot: `${todayRecs} record${todayRecs === 1 ? '' : 's'}`, cls: 'accent', go: 'timesheet' },
+    { label: ic('calendar') + ' This Month', value: (monthMin / 60).toFixed(1), unit: hourUnitWord(monthMin / 60), foot: `${daysLogged} day${daysLogged === 1 ? '' : 's'} logged`, cls: '', go: 'timesheet' },
   ];
   if (finance && finance.clientCount > 0) {
     const overdue = finance.overdueInvoiceCount || 0;
@@ -576,9 +576,10 @@ const AN_FALLBACK = ['#a855f7', '#84cc16', '#14b8a6', '#f97316', '#0ea5e9', '#d9
 let _anTrendSeq = 0;   // monotonic id source for per-trend SVG gradients
 
 function anFmtHrs(mins) {
-  if (!mins) return '0h';
+  if (!mins) return '0 hours';
   if (mins < 60) return mins + 'm';
-  return (mins / 60).toFixed(1) + 'h';
+  const disp = (mins / 60).toFixed(1);
+  return disp + ' ' + (disp === '1.0' ? 'hour' : 'hours');
 }
 
 // Thousands-grouped money display for the Over-Time Income KPI (e.g. 1,000.00) —
@@ -703,24 +704,25 @@ async function renderAnalytics() {
   // who never logs internal work doesn't see a permanent "0h" card.
   const internalMin = Number(an.internalMin || 0);
   const kpis = [
-    { label: 'Total Hours', val: (totalMin / 60).toFixed(1), unit: 'h', foot: `${recordCount} record${recordCount === 1 ? '' : 's'} · ${comparison}`, cls: 'accent' },
-    { label: timeTypeLabel('WORK_TIME', 'Work Time'), val: (workMin / 60).toFixed(1),  unit: 'h', foot: `${pct(workMin)}% of total`, cls: '' },
-    { label: timeTypeLabel('OVERTIME', 'Over Time'),  val: (otMin / 60).toFixed(1),    unit: 'h', foot: `${pct(otMin)}% of total`, cls: '' },
-    { label: 'Avg / Day',   val: activeDays ? (totalMin / 60 / activeDays).toFixed(1) : '0', unit: 'h', foot: `${activeDays} active day${activeDays === 1 ? '' : 's'}`, cls: '' },
+    { label: 'Total Hours', val: (totalMin / 60).toFixed(1), unit: hourUnitWord(totalMin / 60), foot: `${recordCount} record${recordCount === 1 ? '' : 's'} · ${comparison}`, cls: 'accent' },
+    { label: timeTypeLabel('WORK_TIME', 'Work Time'), val: (workMin / 60).toFixed(1),  unit: hourUnitWord(workMin / 60), foot: `${pct(workMin)}% of total`, cls: '' },
+    { label: timeTypeLabel('OVERTIME', 'Over Time'),  val: (otMin / 60).toFixed(1),    unit: hourUnitWord(otMin / 60), foot: `${pct(otMin)}% of total`, cls: '' },
+    { label: 'Avg / Day',   val: activeDays ? (totalMin / 60 / activeDays).toFixed(1) : '0', unit: hourUnitWord(activeDays ? totalMin / 60 / activeDays : 0), foot: `${activeDays} active day${activeDays === 1 ? '' : 's'}`, cls: '' },
     { label: 'Completion',  val: String(completionRate), unit: '%', foot: `${doneCount} of ${recordCount} done`, cls: '' },
-    ...(internalMin > 0 ? [{ label: 'Internal Work', val: (internalMin / 60).toFixed(1), unit: 'h', foot: `${pct(internalMin)}% of total`, cls: '' }] : []),
+    ...(internalMin > 0 ? [{ label: 'Internal Work', val: (internalMin / 60).toFixed(1), unit: hourUnitWord(internalMin / 60), foot: `${pct(internalMin)}% of total`, cls: '' }] : []),
     // Only shown once a salary + Over-Time hours are both present for the period —
     // an otHourlyMinor of 0 means the user has no salary configured yet (db.js's
     // getAnalytics), so there's nothing meaningful to show.
     ...(otMin > 0 && an.otHourlyMinor > 0 ? [{
-      label: 'Over-Time Income', val: anMoney(an.otIncomeMinor), unit: an.currencyCode || '',
-      foot: `${(otMin / 60).toFixed(1)}h × ${anMoney(an.otHourlyMinor)}${an.currencyCode ? ' ' + an.currencyCode : ''}/h`, cls: '',
+      label: 'Over-Time Income', val: anMoney(an.otIncomeMinor), unit: (CURRENCY_SYMBOLS[an.currencyCode] || an.currencyCode) || '',
+      foot: `${hoursPhrase(Math.round(otMin / 60 * 10) / 10)} × ${anMoney(an.otHourlyMinor)}${an.currencyCode ? ' ' + (CURRENCY_SYMBOLS[an.currencyCode] || an.currencyCode) : ''}/${window.ctI18n?.getLanguage?.() === 'ar' ? 'ساعة' : 'hour'}`,
+      cls: '',
     }] : []),
   ];
   document.getElementById('an-kpis').innerHTML = kpis.map(k => `
     <div class="an-kpi ${k.cls}">
       <span class="an-kpi-label">${esc(k.label)}</span>
-      <span class="an-kpi-val">${esc(k.val)}<small>${k.unit}</small></span>
+      <span class="an-kpi-val">${esc(k.val)}<small>${k.unit && k.unit !== '%' ? ' ' : ''}${k.unit}</small></span>
       <span class="an-kpi-foot">${k.foot}</span>
     </div>`).join('');
 
@@ -838,10 +840,12 @@ function anDonut(segments) {
       <span class="an-legend-dot" style="background:${s.color}"></span>${esc(s.label)}
       <span class="an-legend-val">${anFmtHrs(s.value)} · ${Math.round((s.value / total) * 100)}%</span>
     </div>`).join('');
+  const totalHrsDisp = (total / 60).toFixed(1);
+  const totalHrsWord = totalHrsDisp === '1.0' ? 'total hour' : 'total hours';
   return `
     <div class="an-donut-wrap">
-      <svg class="an-donut" width="120" height="120" viewBox="0 0 120 120" role="img" aria-label="Time breakdown, ${(total / 60).toFixed(1)} total hours">
-        <title>Time breakdown, ${(total / 60).toFixed(1)} total hours</title>
+      <svg class="an-donut" width="120" height="120" viewBox="0 0 120 120" role="img" aria-label="Time breakdown, ${totalHrsDisp} ${totalHrsWord}">
+        <title>Time breakdown, ${totalHrsDisp} ${totalHrsWord}</title>
         ${circles}
         <text class="an-donut-center" x="60" y="58" text-anchor="middle">${(total / 60).toFixed(1)}h</text>
         <text class="an-donut-center-sub" x="60" y="72" text-anchor="middle">TOTAL</text>
@@ -899,7 +903,8 @@ function anTrend(from, to, dayMin) {
     if (v <= 0) return '';
     const peak = i === peakIdx;
     const lbl = new Date(dates[i] + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    return `<circle class="an-trend-dot${peak ? ' peak' : ''}" cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="${peak ? 4 : 2.5}"><title>${lbl} · ${v.toFixed(1)}h</title></circle>`;
+    const hDisp = v.toFixed(1);
+    return `<circle class="an-trend-dot${peak ? ' peak' : ''}" cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="${peak ? 4 : 2.5}"><title>${lbl} · ${hDisp} ${hDisp === '1.0' ? 'hour' : 'hours'}</title></circle>`;
   }).join('') : '';
   const peakLbl = vals[peakIdx] > 0
     ? `<text class="an-trend-peak-lbl" x="${x(peakIdx).toFixed(1)}" y="${(y(vals[peakIdx]) - 10).toFixed(1)}" text-anchor="middle">${vals[peakIdx].toFixed(1)}h</text>`
@@ -907,8 +912,13 @@ function anTrend(from, to, dayMin) {
 
   // Unique gradient id per call — multiple trends coexist on the page.
   const gradId = 'anTrendGrad' + (++_anTrendSeq);
-  const activeRows = dates.map((date, i) => vals[i] > 0 ? `<tr><td>${date}</td><td>${vals[i].toFixed(1)}h</td></tr>` : '').join('');
-  return `<svg class="an-trend" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Daily hours trend from ${from} to ${to}; peak ${rawMax.toFixed(1)} hours, average ${avg.toFixed(1)} hours">
+  const activeRows = dates.map((date, i) => {
+    if (vals[i] <= 0) return '';
+    const hDisp = vals[i].toFixed(1);
+    return `<tr><td>${date}</td><td>${hDisp} ${hDisp === '1.0' ? 'hour' : 'hours'}</td></tr>`;
+  }).join('');
+  const rawMaxDisp = rawMax.toFixed(1), avgDisp = avg.toFixed(1);
+  return `<svg class="an-trend" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Daily hours trend from ${from} to ${to}; peak ${rawMaxDisp} ${rawMaxDisp === '1.0' ? 'hour' : 'hours'}, average ${avgDisp} ${avgDisp === '1.0' ? 'hour' : 'hours'}">
     <title>Daily hours trend from ${from} to ${to}</title>
     <defs><linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.30"/>
@@ -1010,9 +1020,10 @@ async function exportAnalyticsPDF() {
   const locale = lang === 'ar' ? 'ar-SA' : 'en-US';
   const tr = (key, vars) => window.ctI18n?.t?.(key, vars) || key;
   const html = `<!DOCTYPE html><html lang="${lang}" dir="${dir}"><head><meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src data:">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src data:; font-src data:">
     <style>${css}
-      body { font-family:'Segoe UI',Tahoma,Arial,sans-serif; background:#fff; padding:28px 32px; display:block; direction:${dir}; text-align:${dir === 'rtl' ? 'right' : 'left'}; }
+      ${window.CAIRO_PRINT_FONT_CSS || ''}
+      body { font-family:'Cairo','Segoe UI',Tahoma,Arial,sans-serif; background:#fff; padding:28px 32px; display:block; direction:${dir}; text-align:${dir === 'rtl' ? 'right' : 'left'}; }
       .an-report-title { font-size:20px; font-weight:700; color:#2a2722; margin-bottom:4px; }
       .an-report-sub { font-size:12px; color:#8a857c; margin-bottom:20px; }
     </style></head>

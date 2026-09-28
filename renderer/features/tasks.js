@@ -979,7 +979,8 @@ function renderProjectDetail(p) {
   timeStats.appendChild(timeChip('Sessions', String(allLogs.length)));
   timeStats.appendChild(timeChip('Tasks', String(projTasks.length)));
   Object.keys(byType).forEach(code => {
-    timeStats.appendChild(timeChip(lkLabel('TIME_TYPE', code) || code, (byType[code] / 60).toFixed(2) + 'h'));
+    const hDisp = (byType[code] / 60).toFixed(2);
+    timeStats.appendChild(timeChip(lkLabel('TIME_TYPE', code) || code, hDisp + ' ' + (hDisp === '1.00' ? 'hour' : 'hours')));
   });
   timeSec.appendChild(timeStats);
   if (!allLogs.length) timeSec.appendChild(pjMk('div', 'cp-records-empty', 'No sessions logged on this project yet.'));

@@ -75,20 +75,76 @@
       --chip-bg:    #191510;
       --track:      #211c15;
     }
+    /* App font — Cairo, vendored under vendor/fonts/cairo/ (SIL Open Font
+       License, free to bundle — see that folder's LICENSE/VERSION.md). One
+       variable-weight face per Google Fonts subset, each covering the full
+       200–1000 weight axis, so every font-weight used elsewhere in this file
+       (including odd values like 650) renders as a real interpolated weight
+       instead of a synthesized/faux bold. Covers Arabic and Latin, so it
+       replaces both the old Latin-only 'Segoe UI' default and the Tahoma/
+       Dubai fallback chain that RTL needed before this was vendored. */
+    @font-face {
+      font-family: 'Cairo'; font-style: normal; font-weight: 200 1000; font-display: swap;
+      src: url('vendor/fonts/cairo/cairo-arabic.woff2') format('woff2');
+      unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC, U+102E0-102FB, U+10E60-10E7E, U+10EC2-10EC4, U+10EFC-10EFF, U+1EE00-1EE03, U+1EE05-1EE1F, U+1EE21-1EE22, U+1EE24, U+1EE27, U+1EE29-1EE32, U+1EE34-1EE37, U+1EE39, U+1EE3B, U+1EE42, U+1EE47, U+1EE49, U+1EE4B, U+1EE4D-1EE4F, U+1EE51-1EE52, U+1EE54, U+1EE57, U+1EE59, U+1EE5B, U+1EE5D, U+1EE5F, U+1EE61-1EE62, U+1EE64, U+1EE67-1EE6A, U+1EE6C-1EE72, U+1EE74-1EE77, U+1EE79-1EE7C, U+1EE7E, U+1EE80-1EE89, U+1EE8B-1EE9B, U+1EEA1-1EEA3, U+1EEA5-1EEA9, U+1EEAB-1EEBB, U+1EEF0-1EEF1;
+    }
+    @font-face {
+      font-family: 'Cairo'; font-style: normal; font-weight: 200 1000; font-display: swap;
+      src: url('vendor/fonts/cairo/cairo-latin-ext.woff2') format('woff2');
+      unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+    }
+    @font-face {
+      font-family: 'Cairo'; font-style: normal; font-weight: 200 1000; font-display: swap;
+      src: url('vendor/fonts/cairo/cairo-latin.woff2') format('woff2');
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-20C0, U+20C2-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+    }
+    /* The new Saudi Riyal sign (U+20C1, Unicode 17.0 / Sept 2025) — Cairo itself
+       predates it and has no glyph, so it's carved out of the 'latin' subset's
+       range above and served here from a dedicated OFL-licensed font instead.
+       Same family name ('Cairo') means every existing font-family stack in this
+       file already resolves this character correctly with no further changes.
+       This glyph's own font is a completely different build (2048 units/em,
+       glyph reaches only ~0.62em) from Cairo (1000 units/em, digits reach
+       ~0.66em) — left alone it renders ~8% smaller than the digits next to it
+       and can skew the line box, since browsers never auto-rescale a fallback
+       glyph to match its neighbours. size-adjust corrects the glyph's visual
+       size to match Cairo's digit height; the three *-override descriptors
+       copy Cairo's own ascent/descent/line-gap so this face can't perturb line
+       height when it's the tallest glyph on a line. Figures measured with
+       fontTools — see renderer/vendor/fonts/saudi-riyal/VERSION.md. */
+    @font-face {
+      font-family: 'Cairo'; font-style: normal; font-weight: 400; font-display: swap;
+      src: url('vendor/fonts/saudi-riyal/saudi-riyal-regular.woff2') format('woff2');
+      unicode-range: U+20C1;
+      size-adjust: 108%; ascent-override: 130.3%; descent-override: 57.1%; line-gap-override: 0%;
+    }
+    @font-face {
+      font-family: 'Cairo'; font-style: normal; font-weight: 700; font-display: swap;
+      src: url('vendor/fonts/saudi-riyal/saudi-riyal-bold.woff2') format('woff2');
+      unicode-range: U+20C1;
+      size-adjust: 108%; ascent-override: 130.3%; descent-override: 57.1%; line-gap-override: 0%;
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
     [hidden] { display: none !important; }
     ::selection { background: color-mix(in srgb, var(--primary) 38%, transparent); color: var(--text); }
     :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; box-shadow: none; border-radius: 4px; }
     body {
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-family: 'Cairo', 'Segoe UI', system-ui, -apple-system, sans-serif;
       font-size: 14px; background: var(--bg); color: var(--text);
       height: 100vh; display: flex; overflow: hidden;
       -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
     }
 
     /* Arabic localization — the document direction handles flex/grid order;
-       these overrides cover the few physical-direction rules in the shell. */
-    html[dir="rtl"] body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; }
+       these overrides cover the few physical-direction rules in the shell.
+       Cairo (above) covers Arabic natively, so 'Dubai'/Tahoma only matter if
+       the vendored font ever fails to load.
+       Tracking: the Latin type scale's negative letter-spacing (--ls-display/
+       --ls-title/--ls-caption) fights Arabic's cursive joins, so it's zeroed
+       for the whole rtl subtree rather than patched rule-by-rule. */
+    html[dir="rtl"] { --ls-display: 0; --ls-title: 0; --ls-caption: 0; }
+    html[dir="rtl"] body { font-family: 'Cairo', 'Dubai', 'Segoe UI', Tahoma, Arial, sans-serif; }
     html[dir="rtl"] #sidebar { border-right: 0; border-left: 1px solid var(--border); }
     html[dir="rtl"] .nav-item,
     html[dir="rtl"] .sidebar-quickfind,
@@ -163,7 +219,7 @@
     .quickfind-key {
       margin-left: auto; padding: 2px 6px; border: 1px solid color-mix(in srgb, var(--sidebar-fg) 16%, transparent);
       border-radius: 5px; color: var(--sidebar-muted); background: color-mix(in srgb, var(--sidebar-bg) 60%, transparent);
-      font: 600 10px/1.3 'Cascadia Mono', Consolas, monospace;
+      font: 600 10px/1.3 'Cairo', 'Segoe UI', sans-serif; font-variant-numeric: tabular-nums;
     }
     .sidebar-nav { display: flex; flex-direction: column; gap: 3px; overflow-y: auto; }
     .nav-section {
@@ -405,8 +461,8 @@
     }
     .total-chip .stat-value {
       font-size: 22px; font-weight: 800; color: var(--text);
-      font-family: 'Cascadia Mono', Consolas, monospace; letter-spacing: -.5px;
-      line-height: 1.1;
+      font-family: 'Cairo', 'Segoe UI', sans-serif; letter-spacing: -.5px;
+      font-variant-numeric: tabular-nums; line-height: 1.1;
     }
     .total-chip .summary-meta { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
     #row-count-card:hover { border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); box-shadow: var(--shadow-sm); }
@@ -490,8 +546,8 @@
 
     .min-inline-input {
       width: 60px; background: var(--surface2); border: 1.5px solid var(--primary);
-      border-radius: 6px; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 13px;
-      font-weight: 600; text-align: right; padding: 2px 6px; outline: none;
+      border-radius: 6px; color: var(--text); font-family: 'Cairo', 'Segoe UI', sans-serif; font-size: 13px;
+      font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; padding: 2px 6px; outline: none;
     }
 
     .desc-cell { max-width: 240px; }
@@ -887,7 +943,7 @@
     .pj-doc-card.missing .pj-doc-icon { background: rgba(242,94,107,.16); color: var(--bad); }
     .pj-doc-name { font-size: 14px; font-weight: 700; color: var(--text); }
     .pj-doc-filename { font-size: 12px; font-weight: 600; color: var(--text); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pj-doc-meta { font-size: 11px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+    .pj-doc-meta { font-size: 11px; color: var(--muted); font-family: 'Cairo', 'Segoe UI', sans-serif; font-variant-numeric: tabular-nums; }
     .pj-doc-state { font-size: 12px; font-weight: 600; color: var(--muted); }
     .pj-doc-card.available .pj-doc-state { color: var(--good); }
     .pj-doc-warn { color: var(--bad) !important; }
@@ -959,7 +1015,7 @@
     }
     .cl-item-main { min-width: 0; flex: 1; }
     .cl-item-title { font-size: 14px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    .cl-item-meta { font-size: 12.5px; color: var(--muted); margin-top: 3px; font-family: 'JetBrains Mono', monospace; }
+    .cl-item-meta { font-size: 12.5px; color: var(--muted); margin-top: 3px; font-family: 'Cairo', 'Segoe UI', sans-serif; font-variant-numeric: tabular-nums; }
     .cl-item-notes { font-size: 12.5px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
     .cl-item-actions { display: flex; gap: 4px; flex-shrink: 0; }
     .cl-env-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; padding: 2px 8px; border-radius: 999px; }
@@ -1004,7 +1060,7 @@
     .cl-system-env { margin-bottom: 12px; }
     .cl-system-env:last-child { margin-bottom: 0; }
     .cl-subsvc-list { margin-top: 6px; border-top: 1px dashed var(--border); padding-top: 6px; }
-    .cl-subsvc-row-view { font-size: 12.5px; color: var(--muted); font-family: 'JetBrains Mono', monospace; display: flex; gap: 8px; padding: 2px 0; }
+    .cl-subsvc-row-view { font-size: 12.5px; color: var(--muted); font-family: 'Cairo', 'Segoe UI', sans-serif; font-variant-numeric: tabular-nums; display: flex; gap: 8px; padding: 2px 0; }
     .cl-subsvc-row-view .cl-subsvc-label { color: var(--text); font-weight: 600; flex-shrink: 0; }
     /* Detail-workspace search + tabs */
     .cl-detail-toolbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 14px 0 4px; }
@@ -1064,7 +1120,7 @@
     .cl-history-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
     .cl-history-field { font-size: 13px; font-weight: 700; color: var(--text); }
     .cl-history-when { font-size: 11.5px; color: var(--muted); }
-    .cl-history-diff { font-size: 12.5px; font-family: 'JetBrains Mono', monospace; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .cl-history-diff { font-size: 12.5px; font-family: 'Cairo', 'Segoe UI', sans-serif; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .cl-history-old { color: var(--muted); text-decoration: line-through; }
     .cl-history-new { color: var(--text); font-weight: 600; }
     .cl-history-arrow { color: var(--muted); }
@@ -1556,9 +1612,9 @@
     .kh-content h1, .kh-content h2, .kh-content h3 { color: var(--text); line-height: 1.3; margin: 1.2em 0 .45em; text-transform: none; letter-spacing: 0; }
     .kh-content h1 { font-size: 22px; } .kh-content h2 { font-size: 18px; } .kh-content h3 { font-size: 15px; }
     .kh-content p, .kh-content ul, .kh-content ol, .kh-content pre, .kh-content blockquote { margin: .65em 0; }
-    .kh-content pre { overflow-x: auto; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface2); font: 12px/1.55 'Cascadia Mono', Consolas, monospace; }
+    .kh-content pre { overflow-x: auto; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface2); font: 12px/1.55 'Cairo', Consolas, monospace; }
     .kh-content blockquote { margin-inline-start: 0; padding: 2px 16px; border-inline-start: 3px solid var(--border); color: var(--muted); }
-    .kh-content code { background: var(--surface2); border-radius: 4px; padding: .1em .35em; font: 12px/1.4 'Cascadia Mono', Consolas, monospace; }
+    .kh-content code { background: var(--surface2); border-radius: 4px; padding: .1em .35em; font: 12px/1.4 'Cairo', Consolas, monospace; }
     .kh-content pre code { background: none; padding: 0; }
     .kh-content strong { font-weight: 700; }
     .kh-content a { color: var(--primary); text-decoration: underline; cursor: pointer; }
@@ -1589,6 +1645,8 @@
     .kh-editor-pane { display: flex; flex-direction: column; flex: 1; min-height: 310px; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; background: var(--surface-1, var(--surface)); }
     .kh-editor-pane .ql-toolbar.ql-snow { border: 0; border-bottom: 1px solid var(--border); background: var(--surface-2, var(--surface2)); padding: 7px; }
     .kh-editor-pane .ql-container.ql-snow { border: 0; flex: 1; min-height: 0; font-family: inherit; }
+    .kh-editor-pane .ql-toolbar.ql-snow, .kh-editor-pane .ql-snow .ql-picker-label, .kh-editor-pane .ql-snow .ql-picker-options,
+    .kh-editor-pane .ql-snow .ql-tooltip { font-family: 'Cairo', 'Segoe UI', sans-serif; }
     .kh-editor-pane .ql-editor { min-height: 260px; font-size: 14px; line-height: 1.65; padding: 16px 18px; color: var(--text); }
     .kh-editor-pane .ql-editor.ql-blank::before { color: var(--muted); font-style: normal; left: 18px; right: 18px; }
     .kh-editor-pane .ql-snow .ql-stroke { stroke: var(--muted); }
@@ -1761,7 +1819,7 @@
     .client-card-alt, .client-detail-alt { margin-top: 3px; color: var(--muted); font-size: 11px; }
     .client-code-badge {
       flex: 0 0 auto; padding: 4px 7px; border: 1px solid var(--border); border-radius: 7px;
-      background: var(--surface2); color: var(--accent); font: 700 10px/1.1 'Cascadia Mono', Consolas, monospace;
+      background: var(--surface2); color: var(--accent); font: 700 10px/1.1 'Cairo', 'Segoe UI', sans-serif; font-variant-numeric: tabular-nums;
     }
     .client-profile-summary {
       display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-bottom: 14px;
@@ -1792,7 +1850,7 @@
     .cl-identity-locked { background: var(--surface2); }
     .cl-identity-locked span { display: flex; align-items: center; gap: 5px; }
     .cl-identity-locked .lic { width: 11px; height: 11px; }
-    .cl-identity-locked b { font-family: 'Cascadia Mono', Consolas, monospace; letter-spacing: .4px; padding: 7px 0; }
+    .cl-identity-locked b { font-family: 'Cairo', 'Segoe UI', sans-serif; font-variant-numeric: tabular-nums; letter-spacing: .4px; padding: 7px 0; }
 
     /* Roster actions above the card grid: Show archived / Arrange / New Client. */
     .cl-list-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
@@ -2020,7 +2078,7 @@
       background: #fff; width: 794px; flex-shrink: 0;
       box-shadow: 0 2px 40px rgba(0,0,0,.25);
       border-radius: 0; padding: 56px 60px;
-      font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+      font-family: 'Cairo', 'Segoe UI', Arial, sans-serif;
       font-size: 13px; color: #111;
       position: relative;
     }
@@ -2170,7 +2228,7 @@
     /* ══ KBD HINTS ══ */
     kbd {
       display: inline-block; padding: 3px 9px; border-radius: 7px;
-      font-size: 12px; font-family: 'JetBrains Mono', monospace; font-weight: 600;
+      font-size: 12px; font-family: 'Cairo', 'Segoe UI', sans-serif; font-weight: 600;
       background: var(--elevate); border: 1px solid var(--border); border-bottom-width: 2px;
       color: var(--text); vertical-align: middle; margin-left: 4px;
     }
@@ -2234,7 +2292,7 @@
       0%,100% { border-color: color-mix(in srgb, var(--good) 35%, transparent); }
       50%      { border-color: color-mix(in srgb, var(--good) 70%, transparent); }
     }
-    #timer-display { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; letter-spacing: -.5px; }
+    #timer-display { font-family: 'Cairo', 'Segoe UI', sans-serif; font-variant-numeric: tabular-nums; letter-spacing: -.5px; }
     #timer-stop-btn {
       background: color-mix(in srgb, var(--good) 18%, transparent);
       border: 1px solid color-mix(in srgb, var(--good) 40%, transparent);
@@ -2298,7 +2356,7 @@
       padding: 2px 9px; border-radius: 999px; white-space: nowrap;
     }
     .tsg-sub { margin-left: auto; display: flex; align-items: center; gap: 10px; }
-    .tsg-total { font-size: var(--fs-sm); font-weight: 700; color: var(--primary); font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+    .tsg-total { font-size: var(--fs-sm); font-weight: 700; color: var(--primary); font-family: 'Cairo', 'Segoe UI', sans-serif; font-variant-numeric: tabular-nums; }
     .tsg-add {
       display: inline-flex; align-items: center; gap: 5px;
       background: none; border: 1px solid var(--border); border-radius: 8px;
@@ -2423,7 +2481,7 @@
       background:
         radial-gradient(1200px 600px at 50% -10%, color-mix(in srgb, var(--primary) 14%, transparent), transparent 70%),
         var(--bg);
-      font-family: 'Inter', system-ui, sans-serif;
+      font-family: 'Cairo', system-ui, sans-serif;
     }
     #auth-overlay.active { display: flex; }
     .auth-card {
@@ -3011,6 +3069,11 @@
     body[data-density="compact"] #sub-table tbody td { padding-block: 7px; }
     body[data-density="compact"] .an-scroll { padding-top: 20px; }
     body[data-density="compact"] .dash-stat { min-height: 94px; padding: 14px; }
+    /* The Overview KPI row (.an-kpi) had no density rule at all, so toggling
+       compact/spacious left it the only stat-card row on the page that never
+       resized — a real inconsistency, not just a look. Scaled to match its
+       siblings' padding change at each tier. */
+    body[data-density="compact"] .an-kpi { padding: 11px 13px; gap: 4px; }
     body[data-density="compact"] .an-section { margin-top: 25px; }
     body[data-density="compact"] .cp-body,
     body[data-density="compact"] .kh-shell,
@@ -3030,6 +3093,7 @@
     body[data-density="spacious"] #sub-table tbody td { padding-block: 14px; }
     body[data-density="spacious"] .an-scroll { padding-top: 34px; }
     body[data-density="spacious"] .dash-stat { min-height: 138px; padding: 24px; }
+    body[data-density="spacious"] .an-kpi { padding: 19px 20px; gap: 7px; }
     body[data-density="spacious"] .an-section { margin-top: 46px; }
     body[data-density="spacious"] .cp-body,
     body[data-density="spacious"] .kh-shell,

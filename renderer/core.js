@@ -320,8 +320,27 @@ function lookupDisplayName(option) {
   const arabic = window.ctI18n?.getLanguage?.() === 'ar';
   return (arabic ? option.nameAr : option.nameEn) || option.nameEn || option.label || option.nameAr || '';
 }
+// Currency codes shown as their real symbol instead of the ISO code/full
+// name — $ is a plain Latin character (any font has it), but the Saudi
+// Riyal sign (U+20C1) needs the dedicated font vendored in
+// renderer/vendor/fonts/saudi-riyal/ (Cairo predates the character; see that
+// folder's VERSION.md). Currencies with no symbol here (EUR, ...) keep
+// falling through to their translated lookup label/code as before.
+const CURRENCY_SYMBOLS = { USD: '$', SAR: '⃁' };
+// Localized "N hour"/"N hours" (Arabic: ساعة/ساعات) for a numeric hour count.
+// Checks the language directly rather than leaving it for the DOM-observer's
+// regex translation pass, since callers like the task-search option meta line
+// compose it into a compound string of several already-localized fragments
+// that no single regex rule matches as a whole.
+function hourUnitWord(h) {
+  const ar = window.ctI18n?.getLanguage?.() === 'ar';
+  const singular = Number(h) === 1;
+  return ar ? (singular ? 'ساعة' : 'ساعات') : (singular ? 'hour' : 'hours');
+}
+function hoursPhrase(h) { return h + ' ' + hourUnitWord(h); }
 // Stored value → human label (falls back to the raw value if unknown/legacy).
 function lkLabel(category, value) {
+  if (category === 'CURRENCY' && CURRENCY_SYMBOLS[value]) return CURRENCY_SYMBOLS[value];
   const o = lkFind(category, value);
   return o ? lookupDisplayName(o) : (value || '');
 }
@@ -1039,7 +1058,7 @@ function buildTaskSearchSelect(host, tasks, initialId, placeholder, onChange) {
         t.lastDate ? (window.ctI18n?.t?.('worked {date}', { date: t.lastDate }) || ('worked ' + t.lastDate)) : null,
         t.logCount ? (window.ctI18n?.t?.(t.logCount === 1 ? '{n} session' : '{n} sessions', { n: t.logCount })
           || (t.logCount + ' session' + (t.logCount === 1 ? '' : 's'))) : null,
-        t.totalMinutes ? (Math.round(t.totalMinutes / 60 * 10) / 10 + 'h') : null]
+        t.totalMinutes ? hoursPhrase(Math.round(t.totalMinutes / 60 * 10) / 10) : null]
         .filter(Boolean).join(' · ');
       return '<div class="ss-opt-title-row"><span>' + esc(t.name || '(untitled task)') + '</span>' +
         '<span class="status-badge ' + esc(statusClass(t.status)) + '">' + esc(lkLabel('ENTRY_STATUS', t.status) || '—') + '</span></div>' +
