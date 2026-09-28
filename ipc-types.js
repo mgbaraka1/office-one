@@ -804,8 +804,8 @@
  * @property {string} status          PFM_STATUS code of the current status.
  * @property {boolean} isFinal        True for ACCEPTED / REJECTED.
  * @property {string} contactName
- * @property {string} contactEmail
- * @property {string} contactPhone
+ * @property {string} channel         'EMAIL' | 'JIRA' | '' (migration 064).
+ * @property {string} channelRef      Email title/subject, or the Jira URL. '' when no channel.
  * @property {string} validUntil      YYYY-MM-DD, or ''.
  * @property {string} notes
  * @property {boolean} archived

@@ -1103,6 +1103,9 @@
     .pfm-step-note { font-size: var(--fs-caption); color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .pfm-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3) var(--space-4); }
     .pfm-form-grid .form-group.full { grid-column: 1 / -1; }
+    .pfm-form-grid .form-group[hidden] { display: none; }
+    .pfm-channel-ref-row { display: flex; gap: var(--space-2); align-items: center; }
+    .pfm-channel-ref-row input { flex: 1; min-width: 0; }
     .pfm-meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); margin-top: var(--space-4); font-size: var(--fs-sm); }
     .pfm-meta-item { display: inline-flex; gap: var(--space-2); }
     .pfm-history summary { cursor: pointer; list-style: none; }
