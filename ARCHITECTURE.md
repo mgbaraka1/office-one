@@ -16,7 +16,6 @@ Office ONE is an offline, multi-user Electron desktop app covering:
 - **Clients** — bilingual client profiles plus VPN connections, servers and internal systems; client **Projects** with tracked documents and linked tasks live under each client.
 - **Subscriptions** and **Company Documents** — recurring spend and renewal-tracked files.
 - **Knowledge Hub** — WYSIWYG articles (Quill), groups, tags, attachments, versioned documents.
-- **Finance** — contracts, change requests, invoices, payments, meeting minutes.
 - **Overview / Reports** — read-only analytics, PDF/CSV/Excel export.
 
 There is no server and no network access. All data lives in one embedded SQLite
@@ -45,8 +44,8 @@ main.js              Electron lifecycle, IPC registration, trusted/authed gates,
                      dialogs, printing, single-instance lock, crash handling
 auth.js              bcrypt, login throttling, account management, the in-memory session
 db.js                SQLite connection, migration runner, maintenance/backups, all app
-                     CRUD, validation, analytics, and the Finance section
-                     (~6,700 lines — by far the largest file; see §10)
+                     CRUD, validation, and analytics
+                     (~5,200 lines — by far the largest file; see §10)
 xlsx.js              Dependency-free OpenXML workbook writer
 ipc-contracts.js     Executable, fail-closed argument contracts per channel
 ipc-types.js         Documentation-only JSDoc shapes (NOT in build.files)
@@ -59,12 +58,11 @@ renderer/
   settings-registry.js Single source of truth for the Settings catalog tabs
   core.js            Icons, shared state, modals/focus traps, toasts, lookups, pickers
   app.css            All application styling (design tokens in :root)
-  finance.css        Finance styling
   features/          timesheet.js, tasks.js, workspace.js, clients.js, knowledge.js,
-                     knowledge-sanitize.js, company-documents.js, finance.js, shell.js
+                     knowledge-sanitize.js, company-documents.js, shell.js
   vendor/            quill/, dompurify/
-migrations/          000_baseline.js … 060_unify_finance_catalog.js (append-only)
-test/                40 *-smoke.js suites + run-all.js + electron-e2e.js + helpers
+migrations/          000_baseline.js … 061_drop_finance.js (append-only)
+test/                39 *-smoke.js suites + run-all.js + electron-e2e.js + helpers
 ```
 
 Renderer scripts are **ordered classic scripts**, not modules — load order in
@@ -113,14 +111,9 @@ and `client_field_history` — where `password`/`secret_key` are always written 
 **Subscriptions**: `subscriptions` (`cost` REAL, `currency_id`, `billing_cycle_id`, `renewal_date`).
 
 **Search**: `workspace_search` — a user-scoped, trigger-maintained FTS5 index.
-Credentials, file contents and financial *amounts* are deliberately excluded.
-Client-infrastructure and Finance rows use a composite `entity_id` of
-`ownerId:recordId` so a result can deep-link back to its parent.
-
-**Finance**: `finance_clients`, `finance_contracts`, `finance_contract_versions`,
-`finance_contract_installments`, `finance_change_requests`, `finance_invoices`,
-`finance_invoice_links`, `finance_invoice_payments`, `finance_meetings`,
-`finance_meeting_actions`, `finance_attachments`. See §5.
+Credentials and file contents are deliberately excluded. Client-infrastructure
+rows use a composite `entity_id` of `ownerId:recordId` so a result can deep-link
+back to its parent.
 
 ### 4.2 Lookups (`lookup_codes`)
 
@@ -142,8 +135,7 @@ one of the categories in `db.js`'s `LOOKUP_CATEGORIES`.
   deliberately a JS fold rather than SQL `COLLATE NOCASE`, which is ASCII-only).
 - **`COMPANY` has no Settings tab** — the roster is managed on the Clients page
   (§7). Its registry entry must still exist, because `LK_CAT`/`LK_VALUE` and
-  `LOOKUP_MERGE_CATEGORIES` derive from that same array. The four Finance
-  categories work the same way, edited in Settings → Finance.
+  `LOOKUP_MERGE_CATEGORIES` derive from that same array.
 
 ### 4.3 Migrations
 
@@ -171,16 +163,16 @@ Landmarks worth knowing:
 | 035 | project hierarchy + Annual Support — **retired**, see §10 |
 | 042 | Project Categories fully removed |
 | 043–045, 051 | Knowledge Hub, groups, versioned documents, `content_format` |
-| 046, 049, 057 | FTS5 workspace search, extended to client infrastructure and Finance |
+| 046, 049 | FTS5 workspace search, extended to client infrastructure |
 | 047, 050 | bilingual client profiles and catalog labels |
 | 048 | SQLite triggers enforcing lookup-category invariants (defense in depth) |
 | 052 | forced password rotation |
 | 053 | Client/Internal task domain separation — `department_id` is the single source of truth; there is deliberately **no** `tasks.kind` column |
-| 054 | the Finance module's schema |
-| 056 | Finance clients join the shared roster; the global `company_profiles` table |
+| 054, 057, 060 | the Finance module — built, integrated, then fully retired by 061 |
+| 056 | the global `company_profiles` table (survives Finance's removal — see §4.1) |
 | 058 | `lookup_code_history` — the shared catalog gains an audit trail |
 | 059 | seeds `TIME_TYPE` and `ACTIVITY_TYPE` on a **fresh** database, guarded on the category being empty |
-| 060 | Finance's catalog folds into `lookup_codes` (§5) |
+| 061 | Finance removed entirely — every `finance_*` table dropped, its four catalog categories removed from `lookup_codes` (see §5) |
 
 **A guarded seed is the right shape for a fresh-install gap.** Migration 003
 seeded some categories from "legacy blob ∪ values already in the data", both
@@ -192,80 +184,41 @@ Never fix that class of gap by editing 003.
 `COMPANY` is still deliberately empty on a fresh install: the client roster is
 yours to create, and a seeded fake company would be worse than none.
 
-## 5. Finance
+## 5. Finance (retired)
 
-Contracts, contract versions, installments, change requests, invoices with
-payment tracking, and meeting minutes.
+Office ONE had a Finance module — contracts with versions and installments,
+change requests, invoices with payment tracking and allocation, and minutes of
+meeting, rendered on the client that owned them (Clients page **Finance** and
+**Meetings** tabs, plus a catalog editor at Settings → Finance). It was removed
+in full — code, schema, and catalog — by migration 061, at the owner's request,
+to be redesigned from scratch rather than extended in place.
 
-Finance began as a deliberately isolated module — its own file, its own client
-roster, its own catalog — so it could be removed by deleting a few files. That
-isolation has been unwound on purpose:
+**What's actually gone**: `renderer/features/finance.js`, `renderer/finance.css`,
+the `finance:*` IPC channels (`main.js`/`preload.js`/`ipc-contracts.js`), the
+Finance section of `db.js`, every `finance_*` table (dropped by migration 061),
+and the four catalog categories it contributed to `lookup_codes`
+(`CONTRACT_STATUS`, `CR_STATUS`, `INVOICE_STATUS`, `PAYMENT_METHOD`).
 
-- **Its clients ARE the shared roster** (migration 056). `finance_clients` is a
-  per-user *finance profile* keyed to a global `COMPANY` lookup id. Identity
-  (name, Arabic name, code) is read from the joined `COMPANY` row, so a rename
-  flows straight through. The local `name`/`code` columns survive as the
-  pre-merge audit trail and as the fallback for an unlinked row.
-- **Its catalog IS the shared catalog** (migration 060). `CONTRACT_STATUS`,
-  `CR_STATUS`, `INVOICE_STATUS` and `PAYMENT_METHOD` are ordinary `lookup_codes`
-  categories, gated by `LOOKUP_CATEGORIES` and audited in `lookup_code_history`
-  like any other catalog edit. They keep a dedicated editor in
-  **Settings → Finance** rather than four more shared tabs, which is what their
-  `settingsTab: false` registry entries mean. The old `finance_lookups` table is
-  left in place, unread, as the pre-migration record.
-- **Its code IS the shared data layer.** What was `finance-db.js` is now the
-  Finance section of `db.js`.
-- **Currency comes from the app-wide `CURRENCY` catalog.** `currency_code` stores
-  a *string*, not an FK id.
+**What deliberately survived** because migrations 056/058 had already promoted
+it into shared, Finance-independent territory:
+- `company_profiles` (§4.1) — the shared contact/address/tax-number record per
+  company, now owned outright by the Clients page.
+- The `COMPANY` and `CURRENCY` `lookup_codes` categories — Finance only ever
+  read these, never owned them.
+- `lookup_code_history` rows recorded against the four removed categories —
+  per migration 058's own rule, an audit trail must survive the thing it
+  describes disappearing, not cascade away with it.
+- The old, already-dormant `finance_lookups` table from before migration 060 —
+  left in place by that migration as a pre-migration record, and migration 061
+  left it exactly as dormant.
 
-**Money is stored as INTEGER MINOR UNITS** (halalas/cents) on every amount
-column — deliberately unlike `subscriptions.cost` REAL. Invoice-to-installment
-reconciliation (partial payments, allocation across installments/CRs) needs
-exact integer arithmetic.
+A user's `<userData>/finance/{entityType}/{entityId}/` attachment files are not
+touched by the migration (a schema change, not a filesystem one); they are
+orphaned on disk unless cleaned up separately.
 
-Every mutating function returns `{ ok, ... }` rather than throwing, so a refusal
-is never a partial write. Six cross-entity invariants are enforced server-side:
-
-1. Exactly one final version per contract (SQLite-enforced).
-2. Link exclusivity — an invoice link points at exactly one of `installment_id` / `cr_id`.
-3. Currency agreement across linked entities.
-4. No over-allocation of an invoice.
-5. No over-payment beyond an invoice's total.
-6. An installment/CR carrying any invoice allocation cannot be deleted.
-
-### Uploads
-
-Files live under `<userData>/finance/{entityType}/{entityId}/`, and
-`finance_attachments.file_path` stores that path **including the leading
-directory**, built with `path.join` — so on Windows the stored separators are
-**backslashes**. Any query against these paths must handle both forms.
-
-### There is no Finance page
-
-Finance is **not a module**. There is no `#module-finance`, and
-`switchModule('finance')` is remapped to `clients`, so a remembered `lastModule`
-or a stale deep link still lands somewhere real. A contract, a change request and
-an invoice are *client* records, and they render on the client that owns them:
-
-| Surface | Host id |
-|---|---|
-| Contracts / Change Requests / Invoices / Reports — the client's **Finance** tab | `#finance-detail-sections` |
-| Meeting minutes — the client's **Meetings** tab | `#finance-meetings-sections` |
-| The Finance catalog editor — **Settings → Finance** | `#finance-setup-sections` |
-
-`renderFinanceDetailSections()` is the single repaint entry point and repaints
-whichever of those three hosts is mounted. After a write, `finance.js` calls
-`refreshFinanceHostPage()` → the Clients page's
-`renderClientDetailAfterFinanceChange()`, which also refreshes the tab counts.
-
-Reaching a finance record from elsewhere goes through
-**`openClientFinance(companyId, subTab)`**, or
-**`openFinanceRecordByClientId(financeClientId, subTab)`** when the caller only
-has Finance's own id. `getFinanceAttentionItems()` therefore returns **both**
-`clientId` and `companyId`.
-
-A client with no `finance_clients` row shows a **Set Up Finance** button rather
-than an error.
+If you're reading this while planning the rebuild: don't restore the deleted
+code as a starting point. The whole point of the removal was a clean-slate
+redesign, not a revert.
 
 ## 6. Security
 
@@ -423,20 +376,16 @@ against the hub coming back.
 Two modules have **no sidebar entry** and are reached only by deep link:
 `projects` (a single project's detail page) and `browse` (read-only
 Companies/Systems roll-ups). `PAL_PAGES` in `shell.js` still lists Browse — the
-command palette is a search surface, not the main menu. **Finance is not in
-`PAL_PAGES`**; individual finance records still surface in Quick Find.
+command palette is a search surface, not the main menu.
 
 **Client detail tabs** (`CLIENT_DETAIL_TYPES` in `renderer/features/clients.js`):
-Overview / Projects / **Finance** / **Meetings** / Access / Servers / Systems.
+Overview / Projects / Access / Servers / Systems.
 
-- The **Finance** tab is not a window into anything — it *is* Finance (§5).
-- **Meetings** is its own tab because minutes are a record of what was agreed with
-  a client, not a financial document. Only their storage stayed put.
-- Both tabs need data Finance loads asynchronously, so their `(N)` counts are
-  written by `updateClientDetailTabCounts()` **in place** rather than by
-  rebuilding the toolbar — which would steal focus out of the search box beside it.
-- Under an active detail search both fall back to a flat list of matching records.
-- Finance's attention count folds into the **Clients** nav badge.
+- `(N)` counts are written by `updateClientDetailTabCounts()` **in place**
+  rather than by rebuilding the toolbar — which would steal focus out of the
+  search box beside it.
+- Under an active detail search, sections fall back to a flat list of matching
+  records.
 
 **The Clients page owns the client roster.** The roster *is* the `COMPANY` lookup
 catalog, so this is the only place it is managed: **+ New Client** (the one place
@@ -447,7 +396,7 @@ merging lives in Settings → Maintenance.
 
 **Settings tabs** come from `renderer/settings-registry.js` (minus
 `settingsTab: false` entries) plus the hand-authored General, User Management,
-**Finance**, **Backup Data** and Maintenance tabs. Every tab is visible to every
+**Backup Data** and Maintenance tabs. Every tab is visible to every
 account. **Backup Data is a Settings page, not a sidebar button**; Maintenance
 keeps only the read-only audits and repairs.
 
@@ -468,10 +417,10 @@ theme is **not** in `workspaceViewPrefs` — it lives on `documentElement[data-t
 
 ## 8. IPC
 
-204 channels, named `domain:action`. Domains: `auth`, `app`, `days`, `companies`,
+150 channels, named `domain:action`. Domains: `auth`, `app`, `days`, `companies`,
 `systems`, `analytics`, `attention`, `activity`, `lookups`, `subscriptions`,
 `tasks`, `search`, `worklogs`, `day`, `projects`, `departments`, `internal`,
-`companydocs`, `knowledge`, `clients`, `finance`, `ui`, `preferences`, `db`,
+`companydocs`, `knowledge`, `clients`, `ui`, `preferences`, `db`,
 `maintenance`, `report`, `security`, `window`, `shell`.
 
 **Adding an IPC handler — all four steps or it fails closed:**

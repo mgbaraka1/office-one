@@ -1253,6 +1253,35 @@ async function renderUserManagement() {
   if (addBtn) addBtn.hidden = false;
 }
 
+// ── Money helpers (Settings → Users' salary field) ──
+// Salary is stored server-side as an integer minor unit (halalas/cents), like
+// every other money column in the app — these convert it to/from the decimal
+// string a plain <input> shows.
+function minorToStr(minor) { return ((Number(minor) || 0) / 100).toFixed(2); }
+function strToMinor(str) { const n = parseFloat(str); return Number.isFinite(n) ? Math.round(n * 100) : 0; }
+
+function populateCurrencySelect(selectId, currentVal) {
+  const el = document.getElementById(selectId);
+  el.innerHTML = '';
+  const none = document.createElement('option'); none.value = ''; none.textContent = '— No currency —';
+  el.appendChild(none);
+  const opts = lkOptions('CURRENCY').map(o => ({ code: o.code, labelEn: o.nameEn || o.label || o.code, labelAr: o.nameAr || '' }));
+  // A stored currency whose catalog row has since been retired must still be
+  // selectable, or opening an old record would silently blank its currency.
+  if (currentVal && !opts.some(o => o.code === currentVal)) {
+    opts.push({ code: currentVal, labelEn: currentVal, labelAr: '' });
+  }
+  const lang = window.ctI18n?.getLanguage?.() === 'ar' ? 'ar' : 'en';
+  opts.forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o.code;
+    opt.textContent = o.code + ' — ' + (lang === 'ar' ? (o.labelAr || o.labelEn) : o.labelEn);
+    if (o.code === currentVal) opt.selected = true;
+    el.appendChild(opt);
+  });
+  if (!currentVal) none.selected = true;
+}
+
 function openUserEditor(id = null) {
   const user = id == null ? null : managedUsers.find(item => item.id === Number(id));
   if (id != null && !user) return;
@@ -1281,10 +1310,10 @@ function openUserEditor(id = null) {
   // Salary/OT-rate live in user_settings keyed by userId, so there's nothing to
   // save them against until the account exists — hidden while creating.
   document.getElementById('user-salary-section').style.display = creating ? 'none' : 'contents';
-  document.getElementById('user-edit-salary').value = user?.salaryMinor ? finMinorToStr(user.salaryMinor) : '';
+  document.getElementById('user-edit-salary').value = user?.salaryMinor ? minorToStr(user.salaryMinor) : '';
   document.getElementById('user-edit-ot-divisor').value = user?.otRateDivisor || 240;
   document.getElementById('user-edit-ot-multiplier').value = user?.otRateMultiplier || 1.5;
-  populateFinanceCurrencySelect('user-edit-currency', user?.salaryCurrency || '');
+  populateCurrencySelect('user-edit-currency', user?.salaryCurrency || '');
   ['user-edit-current-password', 'user-edit-password', 'user-edit-confirm'].forEach(key => { document.getElementById(key).value = ''; });
   document.getElementById('user-form-status').textContent = '';
   document.getElementById('user-save-btn').textContent = creating ? 'Create User' : 'Save User';
@@ -1357,7 +1386,7 @@ async function saveManagedUser() {
         currentPassword: document.getElementById('user-edit-current-password').value,
         actorPassword: document.getElementById('user-edit-current-password').value,
         password,
-        salaryMinor: finStrToMinor(document.getElementById('user-edit-salary').value),
+        salaryMinor: strToMinor(document.getElementById('user-edit-salary').value),
         salaryCurrency: document.getElementById('user-edit-currency').value,
         otRateDivisor: parseFloat(document.getElementById('user-edit-ot-divisor').value) || 240,
         otRateMultiplier: parseFloat(document.getElementById('user-edit-ot-multiplier').value) || 1.5,
@@ -1587,7 +1616,6 @@ function switchTab(btn) {
   syncSettingsSaveButton(btn.dataset.tab);
   syncControlSemantics(document.getElementById('module-settings'));
   if (btn.dataset.tab === 'backup') renderBackupTab();
-  if (btn.dataset.tab === 'finance') renderFinanceSetupTab();
   if (btn.dataset.tab === 'maintenance') renderMaintenanceTab();
   if (btn.dataset.tab === 'users') renderUserManagement();
   uiState.filters.settings = { tab: btn.dataset.tab };
@@ -1597,9 +1625,7 @@ function switchTab(btn) {
 function syncSettingsSaveButton(tab) {
   const btn = document.getElementById('settings-save-btn');
   if (!btn) return;
-  // Finance is excluded for the same reason Backup and Maintenance are: its
-  // panel carries its own Save Catalog button, over a different catalog table.
-  btn.hidden = tab === 'maintenance' || tab === 'backup' || tab === 'finance'
+  btn.hidden = tab === 'maintenance' || tab === 'backup'
     || tab === 'general' || tab === 'users';
   btn.textContent = 'Save Catalog Changes';
   document.getElementById('settings-save-status').textContent = '';
@@ -1638,7 +1664,6 @@ const SETTINGS_SEARCH_INDEX = [
   { tab: 'general', selector: '#tab-general button[data-onclick="openHowThinksOverlay()"]', terms: 'how this app thinks help guide explainer onboarding' },
   { tab: 'users', selector: '#user-add-btn', terms: 'add user new user create account invite' },
   { tab: 'users', selector: '#user-list', terms: 'users accounts password permissions role administrator standard' },
-  { tab: 'finance', selector: '#finance-setup-host', terms: 'finance catalog contract status change request status invoice status payment method' },
   { tab: 'backup', selector: '#maint-fullbackup-btn', terms: 'backup full backup desktop everything export' },
   { tab: 'backup', selector: '#maint-fullrestore-btn', terms: 'restore recovery full restore import' },
   { tab: 'backup', selector: '#backup-dbonly-btn', terms: 'database only copy sqlite save file' },

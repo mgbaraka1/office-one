@@ -50,8 +50,7 @@ backups/
 # never committed — listed here only as a reminder.
 
 # Internal working documents — kept in the working copy, never published.
-# CLAUDE.md is the local developer/agent reference and FINANCE_INTEGRATION_PLAN.md
-# is a mid-migration planning doc; both are notes to ourselves, not documentation
-# for anyone cloning this repository. CONTRIBUTING.md is the public equivalent.
+# CLAUDE.md is the local developer/agent reference — a note to ourselves, not
+# documentation for anyone cloning this repository. CONTRIBUTING.md is the
+# public equivalent.
 CLAUDE.md
-FINANCE_INTEGRATION_PLAN.md

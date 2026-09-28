@@ -16,7 +16,7 @@ Everything runs on the device. There is no application server, no cloud sync, an
     <td width="50%"><a href="docs/screenshots/03-client-tasks.png"><img src="docs/screenshots/03-client-tasks.png" alt="The Client Tasks list with expanded work logs"></a><br><sub><b>Client Tasks</b> — every task with its dated work logs, filterable by company, system and project.</sub></td>
   </tr>
   <tr>
-    <td width="50%"><a href="docs/screenshots/04-clients.png"><img src="docs/screenshots/04-clients.png" alt="A client detail page with its record tabs"></a><br><sub><b>Clients</b> — a client's projects, access records, servers, internal systems, Finance and Meetings. The company code is permanent and read-only.</sub></td>
+    <td width="50%"><a href="docs/screenshots/04-clients.png"><img src="docs/screenshots/04-clients.png" alt="A client detail page with its record tabs"></a><br><sub><b>Clients</b> — a client's projects, access records, servers, and internal systems. The company code is permanent and read-only.</sub></td>
     <td width="50%"><a href="docs/screenshots/05-knowledge-hub.png"><img src="docs/screenshots/05-knowledge-hub.png" alt="The Knowledge Hub article list"></a><br><sub><b>Knowledge Hub</b> — WYSIWYG articles with groups, tags, attachments and versioned documents.</sub></td>
   </tr>
 </table>
@@ -45,7 +45,6 @@ The whole interface is bilingual, including a full right-to-left layout. The sam
 
 **Knowledge & records**
 - Knowledge Hub with a real WYSIWYG editor (vendored Quill), groups, tags, attachments, versioned documents, and a strict HTML sanitizer allowlist.
-- Finance: contracts with versions and installments, change requests, invoices with allocation and payment tracking, and minutes of meeting — all rendered on the client that owns them, under the Clients page's Finance and Meetings tabs. Money is stored in integer minor units, and six cross-entity invariants are enforced server-side.
 
 **Review & output**
 - Overview dashboard leading with attention items, period comparisons, and accessible chart data tables.
@@ -107,7 +106,6 @@ Windows CI runs the full smoke suite, the E2E run, `npm run pack`, and a `npm au
 | Project files | `%APPDATA%\office-one\projects\` |
 | Company-document files | `%APPDATA%\office-one\company_documents\` |
 | Knowledge Hub attachments | `%APPDATA%\office-one\knowledge_hub\` |
-| Finance attachments | `%APPDATA%\office-one\finance\` |
 | Rotating snapshots | `%APPDATA%\office-one\backups\` (newest five) |
 
 Electron derives that folder name from `package.json`'s `name`, so changing `name` moves where the app looks for its data. The rebrand from `timesheet` to `office-one` therefore ships with a one-time carry-over in `main.js` (`migrateLegacyUserDataDir`): on first launch it **copies** the database, uploads and snapshots out of a pre-rebrand `%APPDATA%\timesheet\` and leaves the original in place as a recovery point. It also carries across Chromium's `Local State`, which is emphatically not a disposable cache: it holds the key `safeStorage` encrypts every stored credential with, so a database that moves without it arrives intact and permanently unopenable. Two static-quality assertions keep the package name and that carry-over from ever drifting apart. The database filename itself stays `cooperation-tools.db` — it is the name every existing install, rotating snapshot and full-backup manifest already records.
@@ -152,7 +150,7 @@ A credential this machine holds no key for is shown as *"Cannot be read on this 
 |---|---|
 | `main.js` | Electron lifecycle, window, IPC registration and the trusted/authed boundaries, native dialogs, printing, OS integration |
 | `auth.js` | bcrypt validation, login throttling, account administration, the in-memory session |
-| `db.js` | SQLite connection, migration runner, maintenance/backups, ownership-scoped CRUD, validation, analytics, and the Finance data layer |
+| `db.js` | SQLite connection, migration runner, maintenance/backups, ownership-scoped CRUD, validation, and analytics |
 | `xlsx.js` | Dependency-free OpenXML workbook writer for Excel exports |
 | `ipc-contracts.js` | Executable, fail-closed argument contracts for every renderer→main channel |
 | `ipc-types.js` | Documentation-only JSDoc shapes for the IPC boundary |

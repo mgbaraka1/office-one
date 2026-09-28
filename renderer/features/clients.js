@@ -28,20 +28,9 @@ let clientNewGroupKind = null;       // 'server' | 'internal' — which section'
 // + one active workspace tab. Reset per client on open; preserved across an
 // in-place reload (post-CRUD refresh of the same client).
 let clientDetailSearch = '';
-// This client's Finance profile, or null when it has none. Finance's records
-// themselves live in finance.js's module state (currentFinanceClient and the
-// arrays beside it) — this only marks which client that state belongs to, and
-// is cleared whenever a different client is opened.
-let clientFinance = null;
-let clientFinanceLoadedFor = null;
 const CLIENT_DETAIL_TYPES = [
   { key: 'overview',  label: 'Overview' },
   { key: 'projects',  label: 'Projects' },
-  { key: 'finance',   label: 'Finance' },
-  // Minutes of meeting are a record of what was agreed with the client, not a
-  // financial document — they get a tab of their own beside Finance rather
-  // than sitting inside it.
-  { key: 'meetings',  label: 'Meetings' },
   { key: 'auth',      label: 'Access' },
   { key: 'servers',   label: 'Servers' },
   { key: 'internal',  label: 'Systems' },
@@ -452,19 +441,13 @@ function renderClientSearchResults(matches, q) {
 // results table), seeds the detail view's own search box with the same query
 // instead of resetting it, so the matched record is already visible/highlighted.
 // `tab`, when given, wins over both the preset search and the remembered tab —
-// it is how a deep link into a contract, an invoice or a meeting lands on the
-// right part of the client's page.
+// it is how a deep link lands on the right part of the client's page.
 async function openClientDetail(companyId, presetSearch, tab) {
   let client;
   try { client = await window.api.getClient(companyId); }
   catch { toast('Could not open client'); return; }
   if (!client) { toast('Client not found'); return; }
   currentClient = client;
-  if (clientFinanceLoadedFor !== client.id) {
-    clientFinance = null;
-    clientFinanceLoadedFor = null;
-    clearFinanceClientRecords();
-  }
   clientDetailSearch = tab ? '' : (presetSearch || '');
   clientDetailTab = tab || (presetSearch ? 'overview' : (uiState.filters.clients?.tab || 'overview'));
   if (!CLIENT_DETAIL_TYPES.some(t => t.key === clientDetailTab)) clientDetailTab = 'overview';
@@ -665,17 +648,10 @@ function renderClientDetail(c) {
   renderClientDetailSections(c);
 }
 
-// The tab strip's "(N)" suffixes, rewritten in place. Finance and Meetings
-// count records that arrive asynchronously — rebuilding the whole toolbar for
-// them would steal focus out of the search box beside it, and not rewriting
-// them at all is why the Finance tab used to read "(0)" next to a client that
-// plainly had a contract.
+// The tab strip's "(N)" suffixes, rewritten in place.
 function clientDetailTabCounts(c) {
-  const financeReady = clientFinanceLoadedFor === c.id && !!clientFinance;
   return {
     projects: projectsList.filter(p => cpjPrimaryCompany(p)?.id === c.id).length,
-    finance: financeReady ? financeContracts.length : 0,
-    meetings: financeReady ? financeMeetings.length : 0,
     auth: Array.isArray(c.vpnConnections) ? c.vpnConnections.length : 0,
     servers: Array.isArray(c.servers) ? c.servers.length : 0,
     internal: Array.isArray(c.internalSystems) ? c.internalSystems.length : 0,
@@ -688,105 +664,6 @@ function updateClientDetailTabCounts() {
     const key = btn.dataset.clientTab;
     btn.textContent = btn.dataset.tabLabel + (key === 'overview' ? '' : ' (' + (counts[key] || 0) + ')');
   });
-}
-// finance.js calls this after every write, because its records now render on
-// this page and nowhere else.
-function renderClientDetailAfterFinanceChange() {
-  if (!currentClient) return;
-  updateClientDetailTabCounts();
-  renderClientDetailSections(currentClient);
-}
-
-// Finance's records for the open client, fetched once per client. Finance
-// keeps a per-user profile keyed to a company id (migration 056), so a client
-// that has never been invoiced simply has no profile — not an error, just a
-// Finance tab that offers to start one.
-async function loadClientFinance(companyId) {
-  if (clientFinanceLoadedFor === companyId) return;
-  clientFinanceLoadedFor = companyId;
-  clientFinance = null;
-  clearFinanceClientRecords();
-  await ensureFinanceClientsCache();
-  const match = financeClientForCompany(companyId);
-  if (match && await loadFinanceClientRecords(match.id)) clientFinance = { client: currentFinanceClient };
-  if (currentClient && currentClient.id === companyId) renderClientDetailAfterFinanceChange();
-}
-// Turns Finance on for a client that has never had it. The company is already
-// known, so there is nothing to ask — that is the whole point of the two
-// rosters having become one.
-async function startClientFinance(companyId) {
-  if (!(await enableFinanceForCompany(companyId))) return;
-  clientFinanceLoadedFor = null;
-  await loadClientFinance(companyId);
-}
-
-// A titled wrapper for the states where the Finance/Meetings tabs cannot show
-// the real workspace — still loading, not set up yet, or filtered by a search.
-function buildClientFinanceShell(title, body) {
-  const sec = pjMk('div', 'pj-section');
-  const head = pjMk('div', 'pj-section-head');
-  const heading = pjMk('div', 'pj-section-title');
-  heading.innerHTML = ic(title === 'Meetings' ? 'book-open' : 'credit-card');
-  heading.appendChild(document.createTextNode(title));
-  head.appendChild(heading);
-  sec.appendChild(head);
-  sec.appendChild(body);
-  return sec;
-}
-function buildClientFinanceStartPrompt(c, message) {
-  const wrap = pjMk('div', 'cl-finance-start');
-  wrap.appendChild(pjMk('div', 'cp-records-empty', message));
-  const btn = pjMk('button', 'btn primary');
-  btn.type = 'button';
-  btn.innerHTML = ic('plus') + ' Set Up Finance';
-  btn.addEventListener('click', () => startClientFinance(c.id));
-  wrap.appendChild(btn);
-  return wrap;
-}
-function buildClientFinanceSearchResults(q) {
-  const wrap = pjMk('div', 'cl-finance-hits');
-  const contracts = financeContracts.filter(k => textMatch([k.title, k.ref, k.statusLabelEn], q));
-  const invoices = financeInvoices.filter(i => textMatch([i.number, i.statusLabelEn], q));
-  if (!contracts.length && !invoices.length) {
-    wrap.appendChild(pjMk('div', 'cp-records-empty', 'No financial records match your search.'));
-    return wrap;
-  }
-  contracts.forEach(k => wrap.appendChild(buildClientFinanceHit(
-    k.title || 'Untitled',
-    [k.ref, k.statusLabelEn || k.status, k.endDate ? 'ends ' + k.endDate : ''].filter(Boolean).join(' · '),
-    'contracts')));
-  invoices.forEach(i => wrap.appendChild(buildClientFinanceHit(
-    i.number || 'Invoice',
-    [i.statusLabelEn || i.status, i.dueDate ? 'due ' + i.dueDate : ''].filter(Boolean).join(' · '),
-    'invoices')));
-  return wrap;
-}
-function buildClientMeetingSearchResults(q) {
-  const wrap = pjMk('div', 'cl-finance-hits');
-  const meetings = financeMeetings.filter(m => textMatch([m.title, m.location, m.attendees], q));
-  if (!meetings.length) {
-    wrap.appendChild(pjMk('div', 'cp-records-empty', 'No meetings match your search.'));
-    return wrap;
-  }
-  meetings.forEach(m => wrap.appendChild(buildClientFinanceHit(
-    m.title || 'Untitled', [m.meetingDate, m.location].filter(Boolean).join(' · '), 'meetings')));
-  return wrap;
-}
-// Clearing the search is what reveals the full workspace, so a hit's job is to
-// drop the query and land on the tab that owns the record.
-function buildClientFinanceHit(title, meta, subTab) {
-  const row = pjMk('div', 'cl-item-card');
-  const main = pjMk('div', 'cl-item-main');
-  const name = pjMk('div', 'cl-item-title', title);
-  name.dataset.userContent = '';
-  main.appendChild(name);
-  main.appendChild(pjMk('div', 'cl-item-meta', meta));
-  row.appendChild(main);
-  row.addEventListener('click', () => {
-    if (subTab !== 'meetings') setFinanceDetailTab(subTab);
-    setClientDetailTab(subTab === 'meetings' ? 'meetings' : 'finance');
-  });
-  return row;
 }
 
 // Rebuilds only the record sections (not the toolbar/search input above),
@@ -809,43 +686,6 @@ function renderClientDetailSections(c) {
     return;
   }
   const showSection = key => !!q || clientDetailTab === key;
-
-  // ── Finance and Meetings ──────────────────────────────────────────────────
-  // This page IS Finance now. Contracts, change requests, invoices and the
-  // report export render right here, in full, and opening one never leaves the
-  // client — there is no Finance page left to leave for. Meetings render the
-  // same way one tab over.
-  //
-  // Under an active search both fall back to a flat list of matching records:
-  // the workspace's own sub-tabs would hide most of the hits behind a tab the
-  // searcher never clicked.
-  if (showSection('finance')) {
-    if (clientFinanceLoadedFor !== c.id) {
-      host.appendChild(buildClientFinanceShell('Finance', pjMk('div', 'cp-records-empty', 'Loading…')));
-      loadClientFinance(c.id);
-    } else if (!clientFinance) {
-      host.appendChild(buildClientFinanceShell('Finance', buildClientFinanceStartPrompt(c,
-        'No contracts, invoices or change requests are tracked for this client yet.')));
-    } else if (q) {
-      host.appendChild(buildClientFinanceShell('Finance', buildClientFinanceSearchResults(q)));
-    } else {
-      renderClientFinanceWorkspace(host);
-    }
-  }
-
-  if (showSection('meetings')) {
-    if (clientFinanceLoadedFor !== c.id) {
-      host.appendChild(buildClientFinanceShell('Meetings', pjMk('div', 'cp-records-empty', 'Loading…')));
-      loadClientFinance(c.id);
-    } else if (!clientFinance) {
-      host.appendChild(buildClientFinanceShell('Meetings', buildClientFinanceStartPrompt(c,
-        'No minutes of meeting are recorded for this client yet.')));
-    } else if (q) {
-      host.appendChild(buildClientFinanceShell('Meetings', buildClientMeetingSearchResults(q)));
-    } else {
-      renderClientMeetingsWorkspace(host);
-    }
-  }
 
   // ── Projects section (this client's own projects — merged in from the retired
   // Clients Projects page; a project is grouped under its FIRST linked company,

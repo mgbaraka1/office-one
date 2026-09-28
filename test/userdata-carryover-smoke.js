@@ -48,8 +48,6 @@ function seedLegacy(dir) {
   fs.writeFileSync(path.join(dir, DB + '-shm'), 'SHM');
   fs.mkdirSync(path.join(dir, 'projects', '7'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'projects', '7', 'contract.pdf'), 'PDF');
-  fs.mkdirSync(path.join(dir, 'finance', 'contract', '3'), { recursive: true });
-  fs.writeFileSync(path.join(dir, 'finance', 'contract', '3', 'signed.pdf'), 'FIN');
   fs.mkdirSync(path.join(dir, 'backups'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'backups', 'cooperation-tools-2026-08-01.db'), 'SNAPSHOT');
   fs.mkdirSync(path.join(dir, 'Cache'), { recursive: true });      // Chromium's, disposable
@@ -76,8 +74,6 @@ const read = p => (fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null);
     read(path.join(current, DB + '-wal')) === 'WAL' && read(path.join(current, DB + '-shm')) === 'SHM');
   check('uploaded project files are carried recursively',
     read(path.join(current, 'projects', '7', 'contract.pdf')) === 'PDF');
-  check('Finance attachments are carried recursively',
-    read(path.join(current, 'finance', 'contract', '3', 'signed.pdf')) === 'FIN');
   check('rotating snapshots are carried',
     read(path.join(current, 'backups', 'cooperation-tools-2026-08-01.db')) === 'SNAPSHOT');
 
@@ -159,7 +155,7 @@ const read = p => (fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null);
 
 // ── 4. The entry list must stay in step with the directories db.js creates ──
 {
-  for (const required of [DB, 'backups', 'projects', 'company_documents', 'knowledge_hub', 'finance']) {
+  for (const required of [DB, 'backups', 'projects', 'company_documents', 'knowledge_hub']) {
     check(`USER_DATA_ENTRIES covers ${required}`, db.USER_DATA_ENTRIES.includes(required));
   }
   // Deliberately NOT in USER_DATA_ENTRIES: it is Chromium's file, copied by its

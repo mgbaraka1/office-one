@@ -226,7 +226,7 @@
     'Tune the visual rhythm for your eyes and your task. These preferences follow your account and never change your records.': 'اضبط مظهر الواجهة بما يلائم عينيك وعملك. تتبع هذه التفضيلات حسابك ولا تغيّر سجلاتك.',
     'Choose the overall light level of the interface.': 'اختر مستوى الإضاءة العام للواجهة.',
     'Bright, high-contrast surfaces': 'أسطح ساطعة عالية التباين', 'Dimmed surfaces for low light': 'أسطح خافتة للإضاءة المنخفضة',
-    'Writes just the SQLite file wherever you choose. Quick, but it carries none of the uploaded project, company document, Knowledge Hub, or Finance files — use Full Backup for a complete recovery point.': 'يحفظ ملف SQLite فقط في المكان الذي تختاره. سريع، لكنه لا يحمل أياً من ملفات المشاريع أو مستندات الشركة أو مركز المعرفة أو المالية المرفوعة — استخدم النسخة الاحتياطية الكاملة للحصول على نقطة استعادة كاملة.',
+    'Writes just the SQLite file wherever you choose. Quick, but it carries none of the uploaded project, company document, or Knowledge Hub files — use Full Backup for a complete recovery point.': 'يحفظ ملف SQLite فقط في المكان الذي تختاره. سريع، لكنه لا يحمل أياً من ملفات المشاريع أو مستندات الشركة أو مركز المعرفة المرفوعة — استخدم النسخة الاحتياطية الكاملة للحصول على نقطة استعادة كاملة.',
     'Temporarily hide navigation and give the active workspace the full window.': 'أخفِ التنقل مؤقتاً وامنح مساحة العمل النشطة كامل النافذة.',
     'is one stretch of time on one date, logged against a task — a task can have many, across many days.': 'هي فترة عمل في تاريخ واحد مسجلة على مهمة؛ ويمكن للمهمة أن تحتوي جلسات عديدة عبر أيام مختلفة.',
     '— a Project (client/system work), a Department (internal work), or neither. Never both.': '— إما مشروع (عمل عميل / نظام)، أو قسم (عمل داخلي)، أو لا شيء منهما؛ وليس كليهما أبداً.',
@@ -290,19 +290,8 @@
     '• List': '• قائمة', '1. List': '1. قائمة',
     'Collapse navigation': 'طي شريط التنقل', 'Quick Find (Ctrl+K)': 'البحث السريع (Ctrl+K)',
     'Today — Timesheet': 'اليوم — سجل الدوام',
-    'Finance — contracts, invoices, and minutes': 'المالية — العقود والفواتير والمحاضر',
-    // Finance client modal copy (plan §5).
-    'Add a Finance client first': 'أضف عميل المالية أولاً',
     'Add client': 'إضافة عميل',
-    // Finance tab on the Clients page + the company-picker client modal (plan §6).
     'Rename this client on the Clients page': 'أعد تسمية هذا العميل من صفحة العملاء',
-    'This client has no financial records yet.': 'لا توجد سجلات مالية لهذا العميل بعد.',
-    'Add Client to Finance': 'إضافة عميل إلى المالية',
-    'Open in Finance': 'فتح في المالية',
-    'Every client is already in Finance': 'جميع العملاء مضافون بالفعل إلى المالية',
-    'No contracts yet.': 'لا توجد عقود بعد.',
-    'No contracts match your search.': 'لا توجد عقود تطابق بحثك.',
-    'Invoiced': 'مفوتر', 'Outstanding': 'مستحق', 'Contracts': 'العقود',
     'Theme, workspace view, and eye comfort': 'السمة وعرض مساحة العمل وراحة العين',
     'Log out of this session': 'تسجيل الخروج من هذه الجلسة', 'Application version': 'إصدار التطبيق',
     'Save this analytics view as PDF': 'حفظ عرض التحليلات بصيغة PDF', 'Start a workflow': 'بدء إجراء',
@@ -447,9 +436,10 @@
     // these are built in template literals or set as .title/.textContent from
     // clients.js — i18n.js's two known blind spots — so they are registered
     // here explicitly rather than left to the DOM observer.
-    // 'New Client', 'Archive', 'Company Code', 'English Name', 'Arabic Name',
-    // 'Move up' and 'Move down' are already in the dictionary from other pages
-    // and are deliberately not repeated here.
+    // 'Archive', 'Company Code', 'English Name', 'Arabic Name', 'Move up' and
+    // 'Move down' are already in the dictionary from other pages and are
+    // deliberately not repeated here.
+    'New Client': 'عميل جديد', '+ New Client': '+ عميل جديد',
     'Create Client': 'إنشاء عميل',
     'Show archived': 'إظهار المؤرشفة', 'Arrange': 'ترتيب',
     'Archived': 'مؤرشف', 'Restore': 'استعادة',
@@ -552,6 +542,8 @@
     'Email Title / Subject': 'عنوان / موضوع البريد', 'e.g. Renewal quote issue': 'مثال: مشكلة عرض سعر التجديد',
     'Meeting Title': 'عنوان الاجتماع', 'e.g. Sprint planning': 'مثال: تخطيط السبرنت',
     'Caller Name': 'اسم المتصل', 'e.g. John Smith': 'مثال: محمد أحمد',
+    // Salary currency picker (User Management editor).
+    '— No currency —': '— بلا عملة —',
     'Search…': 'بحث…', '(untitled task)': '(مهمة بلا اسم)',
     'Recent': 'الأخيرة', 'All tasks': 'كل المهام',
     'Hide completed': 'إخفاء المكتملة', 'Show completed': 'إظهار المكتملة',
@@ -663,7 +655,6 @@
     // "Needs Attention" row kinds.
     'Renews': 'يتجدد', 'Auth expires': 'تنتهي صلاحية المصادقة',
     'Internal System expires': 'تنتهي صلاحية النظام الداخلي',
-    'Invoice due': 'فاتورة مستحقة', 'Installment due': 'دفعة مستحقة', 'Contract ends': 'ينتهي العقد',
     'The backup folder could not be validated.': 'تعذّر التحقق من مجلد النسخة الاحتياطية.',
     'That folder is not a valid full backup.': 'هذا المجلد ليس نسخة احتياطية كاملة صالحة.',
     'Full restore failed': 'فشلت الاستعادة الكاملة',
@@ -693,48 +684,13 @@
     'Could not save the user.': 'تعذّر حفظ المستخدم.',
   });
 
-  // db.js's Finance section — every refusal Finance can surface as a toast or
-  // an inline modal error. All six cross-entity invariants live here.
+  // db.js — shared attachment/upload validation error messages (Knowledge,
+  // Company Documents, Project Documents).
   Object.assign(ar, {
-    'Pick a client from the company list': 'اختر عميلاً من قائمة الشركات',
-    'That client is already in Finance': 'هذا العميل مضاف بالفعل إلى المالية',
-    'Delete this client’s contracts first': 'احذف عقود هذا العميل أولاً',
-    'Delete this client’s change requests first': 'احذف طلبات التغيير لهذا العميل أولاً',
-    'Delete this client’s invoices first': 'احذف فواتير هذا العميل أولاً',
-    'Delete this client’s meetings first': 'احذف اجتماعات هذا العميل أولاً',
-    'Contract title is required': 'عنوان العقد مطلوب',
-    'Contract not found': 'لم يُعثر على العقد',
-    'Contract not found for this client': 'لم يُعثر على العقد لهذا العميل',
-    'This contract has an installment that has already been invoiced — delete that invoice allocation first':
-      'يحتوي هذا العقد على دفعة تمت فوترتها بالفعل — احذف تخصيص تلك الفاتورة أولاً',
-    'Version label is required': 'تسمية الإصدار مطلوبة',
-    'Version not found': 'لم يُعثر على الإصدار',
-    'Installment not found': 'لم يُعثر على الدفعة',
-    'Installment not found for this client': 'لم يُعثر على الدفعة لهذا العميل',
-    'A valid sequence number is required': 'مطلوب رقم تسلسلي صالح',
-    'This installment has already been invoiced and cannot be deleted':
-      'تمت فوترة هذه الدفعة بالفعل ولا يمكن حذفها',
-    'Change request title is required': 'عنوان طلب التغيير مطلوب',
-    'Change request not found': 'لم يُعثر على طلب التغيير',
-    'Change request not found for this client': 'لم يُعثر على طلب التغيير لهذا العميل',
-    'This change request has already been invoiced and cannot be deleted':
-      'تمت فوترة طلب التغيير هذا بالفعل ولا يمكن حذفه',
-    'Invoice number is required': 'رقم الفاتورة مطلوب',
-    'Invoice not found': 'لم يُعثر على الفاتورة',
-    'Link exactly one installment or change request': 'اربط دفعة واحدة أو طلب تغيير واحد فقط',
-    'Allocated amount must be greater than zero': 'يجب أن يكون المبلغ المخصَّص أكبر من صفر',
-    'Link not found': 'لم يُعثر على الرابط',
-    'Payment amount must be greater than zero': 'يجب أن يكون مبلغ الدفعة أكبر من صفر',
-    'Payment not found': 'لم يُعثر على الدفعة المالية',
     'Not found': 'غير موجود',
     'Attachment not found': 'لم يُعثر على المرفق',
     'Invalid stored file path': 'مسار الملف المخزَّن غير صالح',
     'The file is no longer available to restore': 'لم يعد الملف متاحاً للاستعادة',
-    'Meeting title is required': 'عنوان الاجتماع مطلوب',
-    'Meeting not found': 'لم يُعثر على الاجتماع',
-    'Action item description is required': 'وصف بند العمل مطلوب',
-    'Action item not found': 'لم يُعثر على بند العمل',
-    // Shared by the app-wide and Finance upload validation in db.js.
     'Could not read the selected file': 'تعذّرت قراءة الملف المحدد',
     'File must be between 1 byte and 100 MB': 'يجب أن يكون حجم الملف بين 1 بايت و100 ميجابايت',
     'The file contents do not match its extension': 'محتوى الملف لا يطابق امتداده',
@@ -818,162 +774,6 @@
     'Invalid secret value': 'قيمة سرية غير صالحة',
   });
 
-  // Finance — standalone financial record-keeping module (2026-08). "Finance"
-  // is an ordinary translated module name (المالية), NOT a Latin brand like
-  // 'Office ONE' above — an earlier version of this comment claimed otherwise
-  // and left "Finance" untranslated in a few strings.
-  // Finance moved onto the Clients page (2026-08): its records render in the
-  // client's Finance and Meetings tabs, and its catalog editor in Settings.
-  // 'Meetings' is the client tab; 'Meeting Minutes' stays the wording inside
-  // it, because 'Minutes' alone already means the Timesheet's time unit and
-  // one English key can only carry one Arabic meaning.
-  Object.assign(ar, {
-    'Meetings': 'الاجتماعات',
-    'Finance workspace': 'مساحة عمل المالية',
-    'Billing Details': 'تفاصيل الفوترة',
-    'Edit Billing Details': 'تعديل تفاصيل الفوترة',
-    'Billing details saved': 'تم حفظ تفاصيل الفوترة',
-    'Client added to Finance': 'تمت إضافة العميل إلى المالية',
-    'Set Up Finance': 'إعداد المالية',
-    'Could not set up Finance for this client': 'تعذّر إعداد المالية لهذا العميل',
-    'No contracts, invoices or change requests are tracked for this client yet.':
-      'لا توجد عقود أو فواتير أو طلبات تغيير مسجّلة لهذا العميل بعد.',
-    'No minutes of meeting are recorded for this client yet.':
-      'لا توجد محاضر اجتماعات مسجّلة لهذا العميل بعد.',
-    'No financial records match your search.': 'لا توجد سجلات مالية تطابق بحثك.',
-    'No meetings match your search.': 'لا توجد اجتماعات تطابق بحثك.',
-  });
-
-  Object.assign(ar, {
-    'Finance': 'المالية',
-    'Search clients…': 'البحث في العملاء…', 'New Client': 'عميل جديد', 'Edit Client': 'تعديل العميل',
-    'Add Client': 'إضافة عميل',
-    'No Finance clients yet — click': 'لا يوجد عملاء في المالية بعد — انقر',
-    'No clients match your search': 'لا يوجد عملاء يطابقون بحثك',
-    'Outstanding': 'المستحق', 'Code': 'الرمز',
-    'Contact Name': 'اسم جهة الاتصال', 'Contact Email': 'البريد الإلكتروني لجهة الاتصال',
-    'Contact Phone': 'هاتف جهة الاتصال', 'Address': 'العنوان', 'Tax Number': 'الرقم الضريبي',
-    'Client Details': 'تفاصيل العميل', 'Contact': 'جهة الاتصال', 'Email': 'البريد الإلكتروني', 'Phone': 'الهاتف',
-    'No additional contact details recorded.': 'لا توجد تفاصيل اتصال إضافية مسجّلة.',
-    'Contracts': 'العقود', 'Active Contracts': 'العقود النشطة', 'Final Contract Value': 'القيمة النهائية للعقد',
-    'Invoiced': 'المفوتر', 'Paid': 'المدفوع', 'Change Requests': 'طلبات التغيير',
-    'Invoices': 'الفواتير', 'Meeting Minutes': 'محاضر الاجتماعات', 'Setup': 'الإعداد',
-    'New Contract': 'عقد جديد', 'Edit Contract': 'تعديل العقد', 'Add Contract': 'إضافة عقد',
-    'No contracts yet for this client.': 'لا توجد عقود لهذا العميل بعد.',
-    'Versions': 'الإصدارات', 'Add Version': 'إضافة إصدار', 'No versions yet.': 'لا توجد إصدارات بعد.',
-    'Installment Schedule': 'جدول الدفعات', 'Add Installment': 'إضافة دفعة',
-    'No installments yet.': 'لا توجد دفعات بعد.',
-    'Mark Final': 'تعيين كنهائي', 'Final': 'نهائي',
-    'New Version': 'إصدار جديد', 'Edit Version': 'تعديل الإصدار',
-    'Version Label': 'تسمية الإصدار', 'Value': 'القيمة', 'Signed Date': 'تاريخ التوقيع',
-    'Effective Date': 'تاريخ السريان', 'Mark as the final version': 'التعيين كإصدار نهائي',
-    'New Installment': 'دفعة جديدة', 'Edit Installment': 'تعديل الدفعة',
-    'Sequence #': 'الرقم التسلسلي', 'Amount': 'المبلغ', 'Milestone': 'مرحلة الإنجاز', 'Due Date': 'تاريخ الاستحقاق',
-    'Not Invoiced': 'غير مفوتر', 'Partially Invoiced': 'مفوتر جزئياً',
-    'Finance’s own catalog, separate from the app’s shared lookups. Add, relabel, reorder, or disable values here.':
-      'كتالوج المالية الخاص، منفصل عن القوائم المشتركة للتطبيق. أضف القيم أو أعد تسميتها أو رتّبها أو عطّلها هنا.',
-    'Contract Status': 'حالة العقد', 'Change Request Status': 'حالة طلب التغيير', 'Invoice Status': 'حالة الفاتورة',
-    'Payment Method': 'طريقة الدفع', 'Save Catalog': 'حفظ الكتالوج', 'Catalog saved': 'تم حفظ الكتالوج',
-    '+ New Client': '+ عميل جديد', 'Reference': 'المرجع', 'Start Date': 'تاريخ البدء',
-    'e.g. Acme Corporation': 'مثال: شركة أكمي', 'e.g. ACME': 'مثال: ACME',
-    'e.g. Support Agreement 2026': 'مثال: اتفاقية الدعم 2026', 'e.g. v1.0': 'مثال: v1.0',
-    'auto': 'تلقائي', 'e.g. Kickoff': 'مثال: بدء التنفيذ',
-    'Edit contract': 'تعديل العقد', 'Delete contract': 'حذف العقد',
-    'Edit version': 'تعديل الإصدار', 'Delete version': 'حذف الإصدار',
-    'Edit installment': 'تعديل الدفعة', 'Delete installment': 'حذف الدفعة',
-    '— No currency —': '— بلا عملة —',
-    'Client restored': 'تمت استعادة العميل', 'Contract restored': 'تمت استعادة العقد',
-    'Final version updated': 'تم تحديث الإصدار النهائي',
-    'Version restored': 'تمت استعادة الإصدار', 'Installment restored': 'تمت استعادة الدفعة',
-  });
-
-  // Finance Phase 2 — Change Requests, Invoices, allocations, payments (2026-08).
-  Object.assign(ar, {
-    'New Change Request': 'طلب تغيير جديد', 'Edit Change Request': 'تعديل طلب التغيير',
-    'Add Change Request': 'إضافة طلب تغيير', 'Contract': 'العقد',
-    'Requested Date': 'تاريخ الطلب', 'Approved Date': 'تاريخ الاعتماد',
-    'No change requests yet for this client.': 'لا توجد طلبات تغيير لهذا العميل بعد.',
-    'New Invoice': 'فاتورة جديدة', 'Edit Invoice': 'تعديل الفاتورة', 'Add Invoice': 'إضافة فاتورة',
-    'Invoice Number': 'رقم الفاتورة', 'Tax': 'الضريبة', 'Issue Date': 'تاريخ الإصدار',
-    'No invoices yet for this client.': 'لا توجد فواتير لهذا العميل بعد.',
-    'Add Allocation': 'إضافة تخصيص', 'Installment': 'دفعة', 'Change Request': 'طلب تغيير',
-    'Target': 'الهدف', 'Allocated Amount': 'المبلغ المخصَّص', 'Allocations': 'التخصيصات',
-    'No allocations yet.': 'لا توجد تخصيصات بعد.',
-    'Link to Invoice': 'ربط بفاتورة', 'Invoice': 'الفاتورة', 'Link to invoice': 'ربط بفاتورة',
-    'No invoices for this client yet': 'لا توجد فواتير لهذا العميل بعد', 'Linked to invoice': 'تم الربط بالفاتورة',
-    'New Payment': 'دفعة مالية جديدة', 'Edit Payment': 'تعديل الدفعة المالية', 'Add Payment': 'إضافة دفعة مالية',
-    'Paid Date': 'تاريخ السداد', 'Method': 'طريقة الدفع', 'Payments': 'المدفوعات',
-    'No payments recorded yet.': 'لا توجد مدفوعات مسجّلة بعد.',
-    'Linked To': 'مرتبط بـ', 'Allocated': 'المخصَّص', 'Date': 'التاريخ',
-    'e.g. Add reporting module': 'مثال: إضافة وحدة تقارير', 'e.g. INV-0001': 'مثال: INV-0001',
-    'Edit change request': 'تعديل طلب التغيير', 'Delete change request': 'حذف طلب التغيير',
-    'Edit invoice': 'تعديل الفاتورة', 'Delete invoice': 'حذف الفاتورة',
-    'Remove allocation': 'إزالة التخصيص', 'Edit payment': 'تعديل الدفعة المالية', 'Delete payment': 'حذف الدفعة المالية',
-    '— No contract —': '— بلا عقد —', '— No method —': '— بلا طريقة دفع —',
-    'No outstanding installments': 'لا توجد دفعات مستحقة', 'No outstanding change requests': 'لا توجد طلبات تغيير مستحقة',
-    'Change request created': 'تم إنشاء طلب التغيير', 'Change request saved': 'تم حفظ طلب التغيير',
-    'Change request deleted': 'تم حذف طلب التغيير', 'Change request restored': 'تمت استعادة طلب التغيير',
-    'Invoice created': 'تم إنشاء الفاتورة', 'Invoice saved': 'تم حفظ الفاتورة',
-    'Invoice deleted': 'تم حذف الفاتورة', 'Invoice restored': 'تمت استعادة الفاتورة',
-    'Allocation added': 'تمت إضافة التخصيص', 'Allocation removed': 'تمت إزالة التخصيص',
-    'Allocation restored': 'تمت استعادة التخصيص',
-    'Payment recorded': 'تم تسجيل الدفعة المالية', 'Payment saved': 'تم حفظ الدفعة المالية',
-    'Payment deleted': 'تم حذف الدفعة المالية', 'Payment restored': 'تمت استعادة الدفعة المالية',
-    'total': 'الإجمالي', 'Fully paid': 'مدفوعة بالكامل',
-  });
-
-  // Finance Phase 3 — attachments and Minutes of Meeting (2026-08).
-  Object.assign(ar, {
-    'Attachments': 'المرفقات', 'Attach File': 'إرفاق ملف', 'Files': 'الملفات',
-    'No files attached.': 'لا توجد ملفات مرفقة.',
-    'File attached': 'تم إرفاق الملف', 'File deleted': 'تم حذف الملف',
-    'New Meeting': 'اجتماع جديد', 'Edit Meeting': 'تعديل الاجتماع', 'Add Meeting': 'إضافة اجتماع',
-    'No meetings recorded yet for this client.': 'لا توجد اجتماعات مسجّلة لهذا العميل بعد.',
-    'Location': 'الموقع', 'Attendees': 'الحضور', 'Agenda': 'جدول الأعمال',
-    'No minutes recorded yet.': 'لا توجد محاضر مسجّلة بعد.',
-    'Action Items': 'بنود العمل', 'New Action Item': 'بند عمل جديد', 'Edit Action Item': 'تعديل بند العمل',
-    'Add Action Item': 'إضافة بند عمل', 'No action items yet.': 'لا توجد بنود عمل بعد.',
-    'Owner': 'المسؤول', 'Due': 'الاستحقاق',
-    'Mark open': 'تعيين كمفتوح', 'Mark done': 'تعيين كمكتمل',
-    'Edit meeting': 'تعديل الاجتماع', 'Delete meeting': 'حذف الاجتماع',
-    'Edit action item': 'تعديل بند العمل', 'Delete action item': 'حذف بند العمل',
-    '— No change request —': '— بلا طلب تغيير —',
-    'Write meeting minutes…': 'اكتب محضر الاجتماع…',
-    'e.g. Kickoff meeting': 'مثال: اجتماع بدء التنفيذ', 'Comma-separated names': 'أسماء مفصولة بفواصل',
-    'Meeting created': 'تم إنشاء الاجتماع', 'Meeting saved': 'تم حفظ الاجتماع',
-    'Meeting deleted': 'تم حذف الاجتماع', 'Meeting restored': 'تمت استعادة الاجتماع',
-    'Action item added': 'تمت إضافة بند العمل', 'Action item saved': 'تم حفظ بند العمل',
-    'Action item deleted': 'تم حذف بند العمل', 'Action item restored': 'تمت استعادة بند العمل',
-    'Report': 'التقرير', 'Export to Excel': 'تصدير إلى Excel', 'Report exported': 'تم تصدير التقرير',
-    'Could not export report': 'تعذر تصدير التقرير',
-    'Exports every contract, change request, and invoice currently loaded for this client into one Excel workbook.':
-      'يُصدِّر كل عقد وطلب تغيير وفاتورة محمّلة حالياً لهذا العميل إلى ملف Excel واحد.',
-  });
-
-  // Finance leftovers found by a 2026-08 sweep of the module's runtime-built
-  // DOM — toasts, fallbacks, and the aria-label on the detail tab strip. None
-  // of these are static markup, so the coverage smoke test never saw them.
-  Object.assign(ar, {
-    'Untitled': 'بدون اسم', 'Finance client workspace': 'مساحة عمل عميل المالية',
-    // The installment badge is sentence-case in the source; 'Partially
-    // Invoiced' above is the title-case sibling used elsewhere. Both spellings
-    // exist in the UI, so both need an entry.
-    'Partially invoiced': 'مفوتر جزئياً',
-    '— No status —': '— بلا حالة —',
-    'Unsaved changes': 'تغييرات غير محفوظة',
-    'Client saved': 'تم حفظ العميل', 'Client deleted': 'تم حذف العميل',
-    'Contract saved': 'تم حفظ العقد', 'Contract created': 'تم إنشاء العقد',
-    'Contract deleted': 'تم حذف العقد',
-    'Version saved': 'تم حفظ الإصدار', 'Version created': 'تم إنشاء الإصدار',
-    'Version deleted': 'تم حذف الإصدار',
-    'Installment saved': 'تم حفظ الدفعة', 'Installment created': 'تم إنشاء الدفعة',
-    'Installment deleted': 'تم حذف الدفعة',
-    'File restored': 'تمت استعادة الملف',
-    // Export payload strings: these leave the DOM for the workbook/PDF, so
-    // finance.js resolves them through t() rather than the DOM observer.
-    'Finance Report': 'تقرير المالية',
-    'Finance — {client} Report': 'المالية — تقرير {client}',
-  });
 
   // Portable credentials — the Full Backup passphrase dialog, the restore
   // prompt, and the "this device holds the wrong key" state on a client record.
@@ -1019,7 +819,7 @@
   // subscriptions"), which the renderer emits raw alongside the row kind.
   const attentionModuleAr = {
     subscriptions: 'الاشتراكات', companydocs: 'مستندات الشركة', clients: 'العملاء',
-    finance: 'المالية', knowledge: 'مركز المعرفة', timesheet: 'سجل الدوام'
+    knowledge: 'مركز المعرفة', timesheet: 'سجل الدوام'
   };
   // Indefinite accusative forms, for the "pick a real <kind>" placeholder hint
   // only — kept out of uiNounsAr, whose entries are definite ("تعذر تحميل …").
@@ -1076,15 +876,7 @@
     [/^(\d+) rec$/s, m => `${m[1]} سجل`],
     // Timesheet filter counter.
     [/^(\d+) of (\d+) shown$/s, m => `معروض ${m[1]} من ${m[2]}`],
-    // Finance invariants 3–5, whose messages name the link target and the
-    // remaining headroom (db.js, Finance section).
-    [/^Invoice and (installment|change request) currencies do not match$/s,
-      m => `عملة الفاتورة و${m[1] === 'installment' ? 'الدفعة' : 'طلب التغيير'} غير متطابقتين`],
-    [/^This would over-allocate the (installment|change request) \(only (.+) remaining\)$/s,
-      m => `سيتجاوز هذا تخصيص ${m[1] === 'installment' ? 'الدفعة' : 'طلب التغيير'} (المتبقي ${m[2]} فقط)`],
-    [/^This would over-pay the invoice \(only (.+) remaining\)$/s,
-      m => `سيتجاوز هذا سداد الفاتورة (المتبقي ${m[1]} فقط)`],
-    // Upload validation, shared by the app-wide and Finance paths in db.js.
+    // Upload validation (db.js).
     [/^Unsupported file type \((\..*?|\.\?)\)\. Allowed: (.+)$/s,
       m => `نوع الملف غير مدعوم (${m[1]}). المسموح: ${m[2]}`],
     [/^Unsupported file type \((.+)\)$/s, m => `نوع الملف غير مدعوم (${m[1]})`],
@@ -1113,12 +905,7 @@
     // application wording, so translate them together.
     [new RegExp(`^(.+) · (${Object.keys(attentionModuleAr).join('|')})$`, 's'),
       m => `${arabicTranslation(m[1])} · ${attentionModuleAr[m[2]]}`],
-    // Finance client card footer.
-    [/^(\d+) contracts?$/s, m => `${m[1]} عقد`],
-    [/^Outstanding ([\d.]+)$/s, m => `المستحق ${m[1]}`],
     // Overview stat-tile footers and chart subtitles.
-    [/^(\d+) invoices? overdue$/s, m => `${m[1]} فاتورة متأخرة`],
-    [/^(\d+) active contracts?$/s, m => `${m[1]} عقد نشط`],
     [/^(\d+) types$/s, m => `${m[1]} نوع`],
     [/^(\d+) files$/s, m => `${m[1]} ملف`],
     [/^(\d+)d overdue$/s, m => `متأخر ${m[1]} يوم`],
@@ -1155,30 +942,6 @@
     [/^Auth \((\d+)\)$/s, m => `المصادقة (${m[1]})`],
     [/^Server Information \((\d+)\)$/s, m => `معلومات الخوادم (${m[1]})`],
     [/^Internal Systems \((\d+)\)$/s, m => `الأنظمة الداخلية (${m[1]})`],
-    [/^Minutes of Meeting \((\d+)\)$/s, m => `محاضر الاجتماعات (${m[1]})`],
-    // Finance section headers, allocation labels and pickers. Each of these is
-    // one text node built by string concatenation in finance.js, so only a rule
-    // can translate the wording while leaving the record's own data alone.
-    [/^Contracts \((\d+)\)$/s, m => `العقود (${m[1]})`],
-    [/^Change Requests \((\d+)\)$/s, m => `طلبات التغيير (${m[1]})`],
-    [/^Invoices \((\d+)\)$/s, m => `الفواتير (${m[1]})`],
-    [/^(Hide|Show) (\d+) earlier versions?$/s,
-      m => `${m[1] === 'Hide' ? 'إخفاء' : 'عرض'} ${m[2]} إصدار سابق`],
-    [/^Go to invoice (.+)$/s, m => `الانتقال إلى الفاتورة ${m[1]}`],
-    // Fallback panel for a Finance tab with no renderer yet; the captured tab
-    // label is itself a dictionary key.
-    [/^(.+) is coming in a later phase of Finance\.$/s,
-      m => `${arabicTranslation(m[1])} قادم في مرحلة لاحقة من المالية.`],
-    // Invoice link targets: "Installment #3", "Installment #3 — Kickoff (Contract A)".
-    [/^Installment #(\d+)(?: — (.+))? \((.+)\)$/s,
-      m => `الدفعة رقم ${m[1]}${m[2] ? ` — ${m[2]}` : ''} (${m[3]})`],
-    [/^Installment #(\d+)$/s, m => `الدفعة رقم ${m[1]}`],
-    [/^CR — (.+)$/s, m => `طلب تغيير — ${m[1]}`],
-    [/^Change Request #(\d+)$/s, m => `طلب التغيير رقم ${m[1]}`],
-    // Allocation/link <option> labels — the trailing "(outstanding N)" and
-    // "— outstanding N" suffixes are the only translatable part.
-    [/^(.+) \(outstanding ([\d.]+)\)$/s, m => `${m[1]} (المستحق ${m[2]})`],
-    [/^(.+) — outstanding ([\d.]+)$/s, m => `${m[1]} — المستحق ${m[2]}`],
     // Client card footer: "N auth · N servers · N internal · N projects".
     [/^(\d+) auth · (\d+) servers? · (\d+) internal · (\d+) projects?$/s,
       m => `${m[1]} وصول · ${m[2]} خادم · ${m[3]} نظام داخلي · ${m[4]} مشروع`],
@@ -1281,8 +1044,7 @@
     // uses. Must stay at the END of this array so the specific rules above keep
     // their own wording. The label is resolved through the dictionary, so a
     // record's own name passes through untouched while a new tab is covered
-    // automatically — the Clients page's Finance tab shipped English because
-    // it was the one tab without a hand-written rule.
+    // automatically, without a hand-written rule.
     [/^(.+) \((\d+)\)$/s, m => `${arabicTranslation(m[1])} (${m[2]})`]
   ];
 

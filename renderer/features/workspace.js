@@ -459,9 +459,6 @@ async function renderOverview() {
     companyDocument:  { icon: ic('calendar-check'), kind: 'Renews' },
     clientVpn:        { icon: ic('layers'),          kind: 'Auth expires' },
     clientInternal:   { icon: ic('layers'),          kind: 'Internal System expires' },
-    financeInvoice:     { icon: ic('credit-card'), kind: 'Invoice due' },
-    financeInstallment: { icon: ic('credit-card'), kind: 'Installment due' },
-    financeContract:    { icon: ic('credit-card'), kind: 'Contract ends' },
   };
   let rawAttention = [];
   try { rawAttention = await window.api.getAttentionItems(); } catch { rawAttention = []; }
@@ -476,31 +473,11 @@ async function renderOverview() {
   });
   attention.sort((a, b) => a.days - b.days);
 
-  // Finance position — one aggregate read across every client. Only shown when
-  // Finance is actually in use, so an account that never opens it sees the same
-  // Overview it always did instead of a permanent pair of zeroes.
-  let finance = null;
-  try { finance = await window.api.getFinanceOverview(); } catch { finance = null; }
-
   // Stat cards
   const stats = [
     { label: ic('clock') + ' Today',      value: (todayMin / 60).toFixed(1), unit: hourUnitWord(todayMin / 60), foot: `${todayRecs} record${todayRecs === 1 ? '' : 's'}`, cls: 'accent', go: 'timesheet' },
     { label: ic('calendar') + ' This Month', value: (monthMin / 60).toFixed(1), unit: hourUnitWord(monthMin / 60), foot: `${daysLogged} day${daysLogged === 1 ? '' : 's'} logged`, cls: '', go: 'timesheet' },
   ];
-  if (finance && finance.clientCount > 0) {
-    const overdue = finance.overdueInvoiceCount || 0;
-    stats.push({
-      label: ic('credit-card') + ' Outstanding',
-      value: ((finance.outstandingMinor || 0) / 100).toFixed(2),
-      unit: '',
-      foot: overdue
-        ? `${overdue} invoice${overdue === 1 ? '' : 's'} overdue`
-        : `${finance.activeContracts || 0} active contract${finance.activeContracts === 1 ? '' : 's'}`,
-      cls: overdue ? 'warn' : '',
-      // Finance is not a page any more — the money lives on each client.
-      go: 'clients',
-    });
-  }
   document.getElementById('dash-stats').innerHTML = stats.map(s => `
     <div class="dash-stat ${s.cls}" ${s.go ? `data-onclick="switchModule('${s.go}')"` : ''}>
       <span class="ds-label">${s.label}</span>
@@ -531,14 +508,6 @@ async function renderOverview() {
     attEl.querySelectorAll('.dash-att-item').forEach(el => {
       const a = attention[Number(el.dataset.attIdx)];
       el.addEventListener('click', () => {
-        // A finance item is a client record now, so it navigates to Clients
-        // like any other one — `module` stays 'finance' only as the label the
-        // row shows and the bucket the badge counts.
-        const isFinance = a.module === 'finance';
-        if (isFinance) {
-          openClientFinance(a.companyId, a.type === 'financeInvoice' ? 'invoices' : 'contracts');
-          return;
-        }
         switchModule(a.module);
         if (a.companyId != null) openClientDetail(a.companyId, a.title);
         else if (a.type === 'subscription') scrollToAndHighlight('[data-sub-id="' + a.id + '"]');
@@ -552,7 +521,7 @@ async function renderOverview() {
   const urgent = m => attention.filter(a => a.module === m && a.days <= 7).length;
   setNavBadge('subscriptions', urgent('subscriptions'));
   setNavBadge('companydocs', urgent('companydocs'));
-  setNavBadge('clients', urgent('clients') + urgent('finance'));
+  setNavBadge('clients', urgent('clients'));
 
 }
 
@@ -583,8 +552,8 @@ function anFmtHrs(mins) {
 }
 
 // Thousands-grouped money display for the Over-Time Income KPI (e.g. 1,000.00) —
-// scoped to Analytics rather than finMinorToStr, which the rest of the app's
-// money fields (Finance) already render without a separator.
+// scoped to Analytics rather than core.js's minorToStr, which the salary field
+// renders without a separator.
 function anMoney(minor) {
   return (Number(minor || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
