@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { createTimesheetWorkbook, createPfmWorkbook } = require('../xlsx');
+const { createTimesheetWorkbook, createPfmWorkbook, createOutsStatementWorkbook } = require('../xlsx');
 
 function readStoredZip(buffer) {
   const entries = new Map();
@@ -84,3 +84,40 @@ assert.match(pfmEntries.get('xl/workbook.xml'), /name="Offers &amp; CRs"/, 'the 
 assert.match(pfmEntries.get('xl/styles.xml'), /<cellXfs count="14">/, 'the style count matches the number of cell formats');
 assert.throws(() => createPfmWorkbook({}), /Invalid Excel export data/);
 console.log('PASS  Project & Finance export writes typed fees and dates for the filtered rows');
+
+// Outsource statement (Phase 5): the old sheet's columns grouped by project,
+// live SUM formulas for minutes/hours, the issued amounts as numbers.
+const outsBook = createOutsStatementWorkbook({
+  title: 'Statement ST-001', sheetName: 'ST-001', rtl: true, currency: 'SAR',
+  info: [['Resource', 'Consultant A'], ['Period', '2090-06-01 → 2090-06-30']],
+  headers: { day: 'Day', date: 'Date', minutes: 'Minutes', hours: 'Hours', description: 'Description', project: 'Project' },
+  groups: [
+    { project: 'Project One', subtotalLabel: 'Subtotal — Project One', rows: [
+      { day: 'Monday', date: '2090-06-05', minutes: 90, description: 'Generic work' },
+      { day: 'Tuesday', date: '2090-06-06', minutes: 20, description: 'عمل عام' },
+    ] },
+    { project: 'Project Two', subtotalLabel: 'Subtotal — Project Two', rows: [
+      { day: 'Friday', date: '2090-06-09', minutes: 45, description: 'Generic review' },
+    ] },
+  ],
+  totalLabel: 'Total',
+  lineHeaders: { project: 'Project', hours: 'Hours', rate: 'Rate / Hour', amount: 'Amount' },
+  lines: [
+    { project: 'Project One', hours: 1.83, rate: 200, amount: 366.67 },
+    { project: 'Project Two', hours: 0.75, rate: 200, amount: 150 },
+  ],
+  amountLabel: 'Total Fee', totalAmount: 516.67,
+});
+const outsSheet = readStoredZip(outsBook).get('xl/worksheets/sheet1.xml');
+assert.match(outsSheet, /<c r="B6" s="5"><v>\d+<\/v><\/c>/, 'entry dates are typed Excel dates');
+assert.match(outsSheet, /<c r="D6" s="7"><f>C6\/60<\/f>/, 'hours are a live formula of the minutes');
+assert.match(outsSheet, /<c r="C8" s="9"><f>SUM\(C6:C7\)<\/f><v>110<\/v>/, 'each project has a minutes subtotal');
+assert.match(outsSheet, /<f>SUM\(C8,C10\)<\/f><v>155<\/v>/, 'the grand total adds the subtotals');
+assert.match(outsSheet, /<v>366.67<\/v>/, 'line amounts are the statement\'s own numbers');
+assert.match(outsSheet, /Total Fee \(SAR\)/, 'the fee total names its currency');
+assert.match(outsSheet, /<c r="D\d+" s="10"><v>516.67<\/v>/, 'the fee total is numeric');
+assert.match(outsSheet, /rightToLeft="1"/, 'an Arabic export is right-to-left');
+assert.match(outsSheet, /عمل عام/, 'Arabic descriptions are preserved');
+assert.throws(() => createOutsStatementWorkbook({}), /Invalid Excel export data/);
+console.log('PASS  Outsource statement export groups entries by project with subtotals, totals and the fee lines');
+

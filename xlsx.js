@@ -204,6 +204,82 @@ function createPfmWorkbook(input) {
   return packageWorkbook(input.sheetName, 'Offers and CRs', worksheet);
 }
 
+// Outsource statement (plan Phase 5): the old per-person sheet's columns —
+// Day, Date, Minutes, Hours, Description, Project — grouped by project with a
+// subtotal row each, a grand total, then the per project × rate lines with the
+// fee. Minutes/hours are live SUM formulas like the timesheet export; the
+// amounts are the statement's own numbers (already rounded once per line), so
+// Excel can never disagree with what was issued. Labels arrive translated.
+function createOutsStatementWorkbook(input) {
+  if (!input || typeof input !== 'object' || !Array.isArray(input.groups) || !Array.isArray(input.lines)) {
+    throw new Error('Invalid Excel export data');
+  }
+  const entryCount = input.groups.reduce((n, g) => n + (Array.isArray(g?.rows) ? g.rows.length : 0), 0);
+  if (entryCount > 100000 || input.lines.length > 10000) throw new Error('Excel export has too many rows');
+  const h = input.headers || {};
+  const sheetRows = [];
+  let r = 1;
+  const push = cells => { sheetRows.push(`<row r="${r}">${cells}</row>`); r++; };
+  sheetRows.push(`<row r="1" ht="28" customHeight="1">${textCell('A1', input.title || 'Statement', 1)}</row>`);
+  r = 2;
+  (Array.isArray(input.info) ? input.info : []).slice(0, 6).forEach(([label, value]) =>
+    push(`${textCell(`A${r}`, label, 11)}${textCell(`B${r}`, value, 12)}`));
+  push('');
+  const headerRow = r;
+  push(['day', 'date', 'minutes', 'hours', 'description', 'project']
+    .map((key, i) => textCell(`${String.fromCharCode(65 + i)}${headerRow}`, h[key] || key, 4)).join(''));
+
+  const subtotalRows = [];
+  let totalMinutes = 0;
+  input.groups.forEach(group => {
+    const rows = Array.isArray(group?.rows) ? group.rows : [];
+    const first = r;
+    rows.forEach(row => {
+      const minutes = Math.max(0, Number(row?.minutes) || 0);
+      totalMinutes += minutes;
+      const serial = excelDate(row?.date);
+      push(`${textCell(`A${r}`, row?.day)}${serial == null ? textCell(`B${r}`, row?.date) : numberCell(`B${r}`, serial, 5)}`
+        + `${numberCell(`C${r}`, minutes, 6)}${formulaCell(`D${r}`, `C${r}/60`, minutes / 60, 7)}`
+        + `${textCell(`E${r}`, row?.description)}${textCell(`F${r}`, group.project)}`);
+    });
+    const last = r - 1;
+    const minutes = rows.reduce((n, row) => n + Math.max(0, Number(row?.minutes) || 0), 0);
+    subtotalRows.push(r);
+    push(`${textCell(`A${r}`, group.subtotalLabel || group.project || '', 8)}${textCell(`B${r}`, '', 8)}`
+      + `${rows.length ? formulaCell(`C${r}`, `SUM(C${first}:C${last})`, minutes, 9) : numberCell(`C${r}`, 0, 9)}`
+      + `${rows.length ? formulaCell(`D${r}`, `SUM(D${first}:D${last})`, minutes / 60, 10) : numberCell(`D${r}`, 0, 10)}`
+      + `${textCell(`E${r}`, '', 8)}${textCell(`F${r}`, group.project || '', 8)}`);
+  });
+  const sumOf = col => subtotalRows.map(n => `${col}${n}`).join(',') || '0';
+  push(`${textCell(`A${r}`, input.totalLabel || 'Total', 8)}${textCell(`B${r}`, '', 8)}`
+    + `${formulaCell(`C${r}`, `SUM(${sumOf('C')})`, totalMinutes, 9)}${formulaCell(`D${r}`, `SUM(${sumOf('D')})`, totalMinutes / 60, 10)}`
+    + `${textCell(`E${r}`, '', 8)}${textCell(`F${r}`, '', 8)}`);
+  push('');
+
+  const lh = input.lineHeaders || {};
+  const linesHeader = r;
+  push(['project', 'hours', 'rate', 'amount'].map((key, i) => textCell(`${String.fromCharCode(65 + i)}${linesHeader}`, lh[key] || key, 4)).join(''));
+  input.lines.forEach(l => {
+    const rate = l?.rate == null || l.rate === '' ? null : Number(l.rate);
+    const amount = l?.amount == null || l.amount === '' ? null : Number(l.amount);
+    push(`${textCell(`A${r}`, l?.project)}${numberCell(`B${r}`, Math.max(0, Number(l?.hours) || 0), 7)}`
+      + `${Number.isFinite(rate) ? numberCell(`C${r}`, rate, 13) : textCell(`C${r}`, '')}`
+      + `${Number.isFinite(amount) ? numberCell(`D${r}`, amount, 13) : textCell(`D${r}`, '')}`);
+  });
+  push(`${textCell(`A${r}`, `${input.amountLabel || 'Total Fee'}${input.currency ? ` (${input.currency})` : ''}`, 8)}`
+    + `${textCell(`B${r}`, '', 8)}${textCell(`C${r}`, '', 8)}${numberCell(`D${r}`, Number(input.totalAmount) || 0, 10)}`);
+  const lastRow = r - 1;
+
+  const worksheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <dimension ref="A1:F${lastRow}"/><sheetViews><sheetView workbookViewId="0"${input.rtl ? ' rightToLeft="1"' : ''}/></sheetViews>
+  <sheetFormatPr defaultRowHeight="18"/><cols><col min="1" max="1" width="24" customWidth="1"/><col min="2" max="2" width="13" customWidth="1"/><col min="3" max="4" width="12" customWidth="1"/><col min="5" max="5" width="52" customWidth="1"/><col min="6" max="6" width="26" customWidth="1"/></cols>
+  <sheetData>${sheetRows.join('')}</sheetData>
+  <mergeCells count="1"><mergeCell ref="A1:F1"/></mergeCells>
+  <pageMargins left="0.3" right="0.3" top="0.5" bottom="0.5" header="0.2" footer="0.2"/><pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/></worksheet>`;
+  return packageWorkbook(input.sheetName, 'Statement', worksheet);
+}
+
 // The package around one worksheet: styles, workbook, relationships and
 // document properties, shared by every workbook this file writes. Cell style
 // indexes (the `s=` attribute) point into cellXfs below; 13 = #,##0.00.
@@ -226,4 +302,4 @@ function packageWorkbook(sheetName, fallbackName, worksheet) {
   ]);
 }
 
-module.exports = { createTimesheetWorkbook, createPfmWorkbook };
+module.exports = { createTimesheetWorkbook, createPfmWorkbook, createOutsStatementWorkbook };

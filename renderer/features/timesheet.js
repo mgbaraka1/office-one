@@ -1599,7 +1599,7 @@ document.addEventListener('keydown', e => {
       else if (activeModule === 'all-tasks')     openBacklogModal();
       else if (activeModule === 'internal-tasks') openInternalTaskModal();
       else if (activeModule === 'pfm')           openPfmNew('OFFER');
-      else if (activeModule === 'outsource')     openOutsNew();
+      else if (activeModule === 'outsource')     outsCtrlN();
     }
     // Day navigation: Ctrl+Left = earlier day, Ctrl+Right = later day
     if (e.ctrlKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {

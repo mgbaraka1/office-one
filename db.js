@@ -6045,12 +6045,31 @@ function outsOwnedRate(userId, rateId, { deleted = false } = {}) {
         AND t.deleted_at IS ${deleted ? 'NOT ' : ''}NULL`
   ).get(Number(rateId), userId) || null;
 }
+// An entry is reachable only while its resource and its project are live.
 function outsOwnedEntry(userId, entryId, { deleted = false } = {}) {
   return db.prepare(
-    `SELECT e.* FROM outs_entries e JOIN outs_resources r ON r.id = e.resource_id
-      WHERE e.id = ? AND e.user_id = ? AND r.user_id = ? AND r.deleted_at IS NULL
+    `SELECT e.*, p.name AS project_name FROM outs_entries e
+       JOIN outs_resources r ON r.id = e.resource_id
+       JOIN outs_projects p ON p.id = e.project_id
+      WHERE e.id = ? AND e.user_id = ? AND r.user_id = ? AND r.deleted_at IS NULL AND p.deleted_at IS NULL
         AND e.deleted_at IS ${deleted ? 'NOT ' : ''}NULL`
   ).get(Number(entryId), userId, userId) || null;
+}
+function outsOwnedProject(userId, projectId, { deleted = false } = {}) {
+  return db.prepare(
+    `SELECT p.* FROM outs_projects p JOIN outs_resources r ON r.id = p.resource_id
+      WHERE p.id = ? AND r.user_id = ? AND r.deleted_at IS NULL
+        AND p.deleted_at IS ${deleted ? 'NOT ' : ''}NULL`
+  ).get(Number(projectId), userId) || null;
+}
+// Live entries of live projects, each row carrying project_name. `where` is
+// ANDed on (use the e. alias); oldest first, the sheet's order.
+function outsLiveEntries(where, params) {
+  return db.prepare(
+    `SELECT e.*, p.name AS project_name FROM outs_entries e
+       JOIN outs_projects p ON p.id = e.project_id AND p.deleted_at IS NULL
+      WHERE e.deleted_at IS NULL AND ${where} ORDER BY e.work_date, e.id`
+  ).all(...params);
 }
 
 // Append-only audit row, only when the value actually changed. Values are the
@@ -6093,15 +6112,15 @@ const outsRateToApi = t => ({
 function outsEntryToApi(e, rates) {
   const rate = outsRateAt(rates, e.work_date);
   return {
-    id: e.id, resourceId: e.resource_id, date: e.work_date, minutes: e.minutes,
-    description: e.description, project: e.project, statementId: e.statement_id ?? null,
+    id: e.id, resourceId: e.resource_id, projectId: e.project_id ?? null, date: e.work_date, minutes: e.minutes,
+    description: e.description, project: e.project_name ?? e.project, statementId: e.statement_id ?? null,
     locked: e.statement_id != null, rateMinor: rate ? rate.rate_minor : null,
     createdAt: e.created_at, updatedAt: e.updated_at,
   };
 }
 
-// Groups API entries into statement lines — one per project (folded) × rate —
-// exactly as a statement will snapshot them. Minutes are summed exactly and
+// Groups API entries into statement lines — one per project × rate — exactly
+// as a statement will snapshot them. Minutes are summed exactly and
 // money is rounded once per line. Entries with no rate get a line with a null
 // rate and amount, and are counted in `missingRate` (they block issuing).
 function outsSummarize(entries) {
@@ -6111,10 +6130,10 @@ function outsSummarize(entries) {
   for (const e of entries) {
     totalMinutes += e.minutes;
     if (e.rateMinor == null) missingRate++;
-    const key = outsProjectKey(e.project) + '\u0000' + (e.rateMinor ?? '');
+    const key = (e.projectId ?? outsProjectKey(e.project)) + '\u0000' + (e.rateMinor ?? '');
     let line = lines.get(key);
     if (!line) {
-      line = { project: e.project, rateMinor: e.rateMinor, minutes: 0, entries: 0, firstDate: e.date };
+      line = { projectId: e.projectId ?? null, project: e.project, rateMinor: e.rateMinor, minutes: 0, entries: 0, firstDate: e.date };
       lines.set(key, line);
     }
     line.minutes += e.minutes;
@@ -6180,14 +6199,21 @@ function outsNameConflict(userId, name, exceptId = null) {
 // plus ISSUED (not yet PAID) statements.
 function outsResourceTotals(resourceId, rates, today) {
   const month = today.slice(0, 7);
-  const unbilled = outsSummarize(db.prepare(
-    'SELECT * FROM outs_entries WHERE resource_id = ? AND deleted_at IS NULL AND statement_id IS NULL'
-  ).all(resourceId).map(e => outsEntryToApi(e, rates)));
+  const unbilled = outsSummarize(outsLiveEntries('e.resource_id = ? AND e.statement_id IS NULL', [resourceId])
+    .map(e => outsEntryToApi(e, rates)));
   const agg = db.prepare(
-    `SELECT MAX(work_date) AS lastDate,
-            COALESCE(SUM(CASE WHEN substr(work_date, 1, 7) = ? THEN minutes END), 0) AS monthMinutes
-       FROM outs_entries WHERE resource_id = ? AND deleted_at IS NULL`
+    `SELECT MAX(e.work_date) AS lastDate,
+            COALESCE(SUM(CASE WHEN substr(e.work_date, 1, 7) = ? THEN e.minutes END), 0) AS monthMinutes
+       FROM outs_entries e JOIN outs_projects p ON p.id = e.project_id AND p.deleted_at IS NULL
+      WHERE e.resource_id = ? AND e.deleted_at IS NULL`
   ).get(month, resourceId);
+  const statements = db.prepare(
+    `SELECT COALESCE(SUM(status = 'DRAFT'), 0) AS drafts, COALESCE(SUM(status = 'ISSUED'), 0) AS issued
+       FROM outs_statements WHERE resource_id = ? AND deleted_at IS NULL`
+  ).get(resourceId);
+  const projects = db.prepare(
+    'SELECT COUNT(*) AS n FROM outs_projects WHERE resource_id = ? AND deleted_at IS NULL AND is_active = 1'
+  ).get(resourceId).n;
   const issuedMinor = db.prepare(
     "SELECT COALESCE(SUM(total_minor), 0) AS n FROM outs_statements WHERE resource_id = ? AND status = 'ISSUED' AND deleted_at IS NULL"
   ).get(resourceId).n;
@@ -6201,6 +6227,9 @@ function outsResourceTotals(resourceId, rates, today) {
     unbilledMissingRate: unbilled.missingRate,
     issuedMinor,
     unpaidMinor: unbilled.totalMinor + issuedMinor,
+    draftStatements: statements.drafts,
+    issuedStatements: statements.issued,
+    activeProjects: projects,
   };
 }
 
@@ -6363,7 +6392,7 @@ function addOutsRate(userId, resourceId, data) {
     outsTouchResource(r.id, now);
   });
   if (error) return { ok: false, error };
-  return { ok: true, resource: getOutsResource(userId, r.id) };
+  return { ok: true, resource: getOutsResource(userId, r.id), draftsAffected: outsDraftsReaching(r.id, f.effective_from) };
 }
 function updateOutsRate(userId, rateId, data) {
   const before = outsOwnedRate(userId, rateId);
@@ -6384,7 +6413,8 @@ function updateOutsRate(userId, rateId, data) {
     outsTouchResource(before.resource_id, now);
   });
   if (error) return { ok: false, error };
-  return { ok: true, resource: getOutsResource(userId, before.resource_id) };
+  return { ok: true, resource: getOutsResource(userId, before.resource_id),
+    draftsAffected: outsDraftsReaching(before.resource_id, [before.effective_from, f.effective_from].sort()[0]) };
 }
 function setOutsRateDeleted(userId, rateId, deleted) {
   const before = outsOwnedRate(userId, rateId, { deleted: !deleted });
@@ -6403,7 +6433,7 @@ function setOutsRateDeleted(userId, rateId, deleted) {
     db.prepare('UPDATE outs_rates SET deleted_at = ? WHERE id = ?').run(deleted ? now : null, before.id);
     outsTouchResource(before.resource_id, now);
   });
-  return { ok: true, resource: getOutsResource(userId, before.resource_id) };
+  return { ok: true, resource: getOutsResource(userId, before.resource_id), draftsAffected: outsDraftsReaching(before.resource_id, before.effective_from) };
 }
 const deleteOutsRate = (userId, rateId) => setOutsRateDeleted(userId, rateId, true);
 const restoreOutsRate = (userId, rateId) => setOutsRateDeleted(userId, rateId, false);
@@ -6414,8 +6444,159 @@ function purgeOutsRate(userId, rateId) {
   return { ok: true };
 }
 
+// ── Outsource projects (migration 067) ──
+// Person → Projects → Entries: a project is added inside a resource, and its
+// entries are written inside the project. Names are unique per resource among
+// live projects (capitals/spaces ignored). A project with an entry on an
+// issued statement is a payment record: it can be deactivated, not deleted.
+function outsProjectConflict(resourceId, name, exceptId = null) {
+  const key = outsProjectKey(name);
+  const clash = db.prepare(
+    'SELECT name FROM outs_projects WHERE resource_id = ? AND deleted_at IS NULL AND id IS NOT ?'
+  ).all(resourceId, exceptId).some(p => outsProjectKey(p.name) === key);
+  return clash ? 'This person already has a project with this name' : null;
+}
+function outsProjectWriteFields(data, before) {
+  const has = key => data != null && Object.prototype.hasOwnProperty.call(data, key);
+  const name = has('name') ? outsProject(data.name) : before?.name;
+  if (!name) return { error: 'A project name is required' };
+  if (name.length > OUTS_MAX_TEXT) return { error: 'The project name is too long' };
+  const notes = has('notes') ? outsText(data.notes) : (before?.notes || '');
+  if (notes.length > OUTS_MAX_LONG_TEXT) return { error: 'The notes are too long' };
+  return { fields: { name, notes } };
+}
+function outsProjectToApi(p, extra = {}) {
+  return {
+    id: p.id, resourceId: p.resource_id, name: p.name, notes: p.notes, isActive: !!p.is_active,
+    createdAt: p.created_at, updatedAt: p.updated_at, ...extra,
+  };
+}
+function outsProjectTotals(projectId, rates, today) {
+  const entries = outsLiveEntries('e.project_id = ?', [projectId]).map(e => outsEntryToApi(e, rates));
+  const unbilled = outsSummarize(entries.filter(e => !e.locked));
+  const month = today.slice(0, 7);
+  return {
+    entryCount: entries.length,
+    totalMinutes: entries.reduce((n, e) => n + e.minutes, 0),
+    monthMinutes: entries.filter(e => e.date.slice(0, 7) === month).reduce((n, e) => n + e.minutes, 0),
+    unbilledMinutes: unbilled.totalMinutes,
+    unbilledMinor: unbilled.totalMinor,
+    unbilledMissingRate: unbilled.missingRate,
+    lastEntryDate: entries.length ? entries.map(e => e.date).sort().pop() : '',
+    billed: entries.some(e => e.locked),
+  };
+}
+// filters: { includeInactive }. Name order.
+function listOutsProjects(userId, resourceId, filters = {}) {
+  const r = outsOwnedResource(userId, resourceId);
+  if (!r) return [];
+  const rates = outsRates(r.id);
+  const today = pfmLocalToday();
+  return db.prepare(
+    `SELECT * FROM outs_projects WHERE resource_id = ? AND deleted_at IS NULL ${filters.includeInactive ? '' : 'AND is_active = 1'}`
+  ).all(r.id)
+    .sort((a, b) => outsProjectKey(a.name).localeCompare(outsProjectKey(b.name)) || a.id - b.id)
+    .map(p => outsProjectToApi(p, outsProjectTotals(p.id, rates, today)));
+}
+function getOutsProject(userId, projectId) {
+  const p = outsOwnedProject(userId, projectId);
+  if (!p) return null;
+  return outsProjectToApi(p, outsProjectTotals(p.id, outsRates(p.resource_id), pfmLocalToday()));
+}
+// data: { name, notes }.
+function createOutsProject(userId, resourceId, data) {
+  const r = outsOwnedResource(userId, resourceId);
+  if (!r) return { ok: false, error: 'Resource not found' };
+  const w = outsProjectWriteFields(data, null);
+  if (w.error) return { ok: false, error: w.error };
+  const f = w.fields;
+  const now = new Date().toISOString();
+  let error = null;
+  const id = tx(() => {
+    error = outsProjectConflict(r.id, f.name);
+    if (error) return null;
+    const newId = Number(db.prepare(
+      'INSERT INTO outs_projects(resource_id, name, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?)'
+    ).run(r.id, f.name, f.notes, now, now).lastInsertRowid);
+    recordOutsHistory(userId, r.id, 'project', newId, 'Project Added', '', f.name, now);
+    outsTouchResource(r.id, now);
+    return newId;
+  });
+  if (error) return { ok: false, error };
+  return { ok: true, project: getOutsProject(userId, id) };
+}
+function updateOutsProject(userId, projectId, data) {
+  const before = outsOwnedProject(userId, projectId);
+  if (!before) return { ok: false, error: 'Project not found' };
+  const w = outsProjectWriteFields(data, before);
+  if (w.error) return { ok: false, error: w.error };
+  const f = w.fields;
+  const now = new Date().toISOString();
+  let error = null;
+  tx(() => {
+    error = outsProjectConflict(before.resource_id, f.name, before.id);
+    if (error) return;
+    recordOutsHistory(userId, before.resource_id, 'project', before.id, 'Project Name', before.name, f.name, now);
+    recordOutsHistory(userId, before.resource_id, 'project', before.id, `${f.name}: Notes`, before.notes, f.notes, now);
+    db.prepare('UPDATE outs_projects SET name = ?, notes = ?, updated_at = ? WHERE id = ?').run(f.name, f.notes, now, before.id);
+    // Keep 066's text column equal to the name, for anything still reading it.
+    if (f.name !== before.name) db.prepare('UPDATE outs_entries SET project = ? WHERE project_id = ?').run(f.name, before.id);
+    outsTouchResource(before.resource_id, now);
+  });
+  if (error) return { ok: false, error };
+  return { ok: true, project: getOutsProject(userId, before.id) };
+}
+function setOutsProjectActive(userId, projectId, active) {
+  const before = outsOwnedProject(userId, projectId);
+  if (!before) return { ok: false, error: 'Project not found' };
+  if (!!before.is_active !== !!active) {
+    const now = new Date().toISOString();
+    tx(() => {
+      recordOutsHistory(userId, before.resource_id, 'project', before.id, `${before.name}: Active`,
+        before.is_active ? 'Yes' : 'No', active ? 'Yes' : 'No', now);
+      db.prepare('UPDATE outs_projects SET is_active = ?, updated_at = ? WHERE id = ?').run(active ? 1 : 0, now, before.id);
+    });
+  }
+  return { ok: true, project: getOutsProject(userId, before.id) };
+}
+function deleteOutsProject(userId, projectId) {
+  const before = outsOwnedProject(userId, projectId);
+  if (!before) return { ok: false, error: 'Project not found' };
+  const billed = db.prepare(
+    'SELECT 1 FROM outs_entries WHERE project_id = ? AND deleted_at IS NULL AND statement_id IS NOT NULL LIMIT 1'
+  ).get(before.id);
+  if (billed) return { ok: false, error: 'This project has entries on an issued statement — deactivate it instead' };
+  const now = new Date().toISOString();
+  tx(() => {
+    recordOutsHistory(userId, before.resource_id, 'project', before.id, 'Project Deleted', '', before.name, now);
+    db.prepare('UPDATE outs_projects SET deleted_at = ? WHERE id = ?').run(now, before.id);
+    outsTouchResource(before.resource_id, now);
+  });
+  return { ok: true };
+}
+function restoreOutsProject(userId, projectId) {
+  const before = outsOwnedProject(userId, projectId, { deleted: true });
+  if (!before) return { ok: false, error: 'Project not found' };
+  const error = outsProjectConflict(before.resource_id, before.name, before.id);
+  if (error) return { ok: false, error };
+  const now = new Date().toISOString();
+  tx(() => {
+    recordOutsHistory(userId, before.resource_id, 'project', before.id, 'Project Restored', '', before.name, now);
+    db.prepare('UPDATE outs_projects SET deleted_at = NULL WHERE id = ?').run(before.id);
+    outsTouchResource(before.resource_id, now);
+  });
+  return { ok: true, project: getOutsProject(userId, before.id) };
+}
+function purgeOutsProject(userId, projectId) {
+  const p = outsOwnedProject(userId, projectId, { deleted: true });
+  if (!p) return { ok: false };
+  db.prepare('DELETE FROM outs_projects WHERE id = ? AND deleted_at IS NOT NULL').run(p.id);
+  return { ok: true };
+}
+
 // ── Outsource entries ──
-// data: { date, minutes (number, or text per parseOutsMinutes), description, project }.
+// data: { date, minutes (number, or text per parseOutsMinutes), description,
+// projectId (update only: move to another project of the same resource) }.
 function outsEntryWriteFields(data, before) {
   const has = key => data != null && Object.prototype.hasOwnProperty.call(data, key);
   let workDate = before?.work_date;
@@ -6432,33 +6613,35 @@ function outsEntryWriteFields(data, before) {
   }
   const description = has('description') ? outsText(data.description) : (before?.description || '');
   if (description.length > OUTS_MAX_LONG_TEXT) return { error: 'The description is too long' };
-  const project = has('project') ? outsProject(data.project) : (before?.project || '');
-  if (project.length > OUTS_MAX_TEXT) return { error: 'The project name is too long' };
-  return { fields: { work_date: workDate, minutes, description, project } };
+  return { fields: { work_date: workDate, minutes, description } };
 }
 const OUTS_ENTRY_HISTORY_FIELDS = [
-  ['work_date', 'Date'], ['minutes', 'Minutes'], ['description', 'Description'], ['project', 'Project'],
+  ['work_date', 'Date'], ['minutes', 'Minutes'], ['description', 'Description'], ['project_name', 'Project'],
 ];
 const OUTS_LOCKED_ERROR = 'This entry is on an issued statement and can no longer be changed';
-const outsEntryLabel = e => `${e.work_date} · ${e.minutes} min${e.project ? ' · ' + e.project : ''}`;
+const outsEntryLabel = e => `${e.work_date} · ${e.minutes} min · ${e.project_name ?? e.project}`;
 function outsEntryById(id) {
-  const e = db.prepare('SELECT * FROM outs_entries WHERE id = ?').get(id);
+  const e = db.prepare(
+    'SELECT e.*, p.name AS project_name FROM outs_entries e JOIN outs_projects p ON p.id = e.project_id WHERE e.id = ?'
+  ).get(id);
   return outsEntryToApi(e, outsRates(e.resource_id));
 }
 
-function createOutsEntry(userId, resourceId, data) {
-  const r = outsOwnedResource(userId, resourceId);
-  if (!r) return { ok: false, error: 'Resource not found' };
+// Entries are written inside a project (067); the resource is the project's.
+function createOutsEntry(userId, projectId, data) {
+  const p = outsOwnedProject(userId, projectId);
+  if (!p) return { ok: false, error: 'Project not found' };
   const w = outsEntryWriteFields(data, null);
   if (w.error) return { ok: false, error: w.error };
   const f = w.fields;
   const now = new Date().toISOString();
   const id = tx(() => {
     const newId = Number(db.prepare(
-      `INSERT INTO outs_entries(user_id, resource_id, work_date, minutes, description, project, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(userId, r.id, f.work_date, f.minutes, f.description, f.project, now, now).lastInsertRowid);
-    outsTouchResource(r.id, now);
+      `INSERT INTO outs_entries(user_id, resource_id, project_id, work_date, minutes, description, project, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(userId, p.resource_id, p.id, f.work_date, f.minutes, f.description, p.name, now, now).lastInsertRowid);
+    db.prepare('UPDATE outs_projects SET updated_at = ? WHERE id = ?').run(now, p.id);
+    outsTouchResource(p.resource_id, now);
     return newId;
   });
   return { ok: true, entry: outsEntryById(id) };
@@ -6470,13 +6653,20 @@ function updateOutsEntry(userId, id, data) {
   const w = outsEntryWriteFields(data, before);
   if (w.error) return { ok: false, error: w.error };
   const f = w.fields;
+  let project = { id: before.project_id, name: before.project_name };
+  if (data != null && Object.prototype.hasOwnProperty.call(data, 'projectId') && Number(data.projectId) !== before.project_id) {
+    const target = outsOwnedProject(userId, data.projectId);
+    if (!target || target.resource_id !== before.resource_id) return { ok: false, error: 'Project not found' };
+    project = { id: target.id, name: target.name };
+  }
   const now = new Date().toISOString();
   tx(() => {
+    const after = { ...f, project_name: project.name };
     OUTS_ENTRY_HISTORY_FIELDS.forEach(([column, label]) =>
-      recordOutsHistory(userId, before.resource_id, 'entry', before.id, label, before[column], f[column], now));
+      recordOutsHistory(userId, before.resource_id, 'entry', before.id, label, before[column], after[column], now));
     db.prepare(
-      'UPDATE outs_entries SET work_date = ?, minutes = ?, description = ?, project = ?, updated_at = ? WHERE id = ?'
-    ).run(f.work_date, f.minutes, f.description, f.project, now, before.id);
+      'UPDATE outs_entries SET work_date = ?, minutes = ?, description = ?, project_id = ?, project = ?, updated_at = ? WHERE id = ?'
+    ).run(f.work_date, f.minutes, f.description, project.id, project.name, now, before.id);
     outsTouchResource(before.resource_id, now);
   });
   return { ok: true, entry: outsEntryById(before.id) };
@@ -6504,43 +6694,306 @@ function purgeOutsEntry(userId, id) {
 }
 
 // One resource's entries, oldest first (the sheet's order), plus the summary
-// the grid footer shows. filters: { from, to (YYYY-MM-DD), project (folded
-// match), unbilled (only entries not on an issued statement) }.
+// the grid footer shows. filters: { projectId, from, to (YYYY-MM-DD),
+// unbilled (only entries not on an issued statement) }.
 function listOutsEntries(userId, resourceId, filters = {}) {
   const r = outsOwnedResource(userId, resourceId);
   if (!r) return { ok: false, error: 'Resource not found' };
-  const where = ['resource_id = ?', 'user_id = ?', 'deleted_at IS NULL'];
+  const where = ['e.resource_id = ?', 'e.user_id = ?'];
   const params = [r.id, userId];
   for (const [key, op] of [['from', '>='], ['to', '<=']]) {
     const s = outsText(filters[key]);
     if (!s) continue;
     if (!isValidDateStr(s)) return { ok: false, error: 'The filter dates must be valid dates' };
-    where.push(`work_date ${op} ?`); params.push(s);
+    where.push(`e.work_date ${op} ?`); params.push(s);
   }
-  if (filters.unbilled) where.push('statement_id IS NULL');
-  const projectKey = filters.project != null && filters.project !== '' ? outsProjectKey(filters.project) : null;
+  if (filters.projectId != null && filters.projectId !== '') { where.push('e.project_id = ?'); params.push(Number(filters.projectId)); }
+  if (filters.unbilled) where.push('e.statement_id IS NULL');
   const rates = outsRates(r.id);
-  const entries = db.prepare(
-    `SELECT * FROM outs_entries WHERE ${where.join(' AND ')} ORDER BY work_date, id`
-  ).all(...params)
-    .filter(e => projectKey == null || outsProjectKey(e.project) === projectKey)
-    .map(e => outsEntryToApi(e, rates));
+  const entries = outsLiveEntries(where.join(' AND '), params).map(e => outsEntryToApi(e, rates));
   return { ok: true, currency: lkCode(r.currency_id), entries, summary: outsSummarize(entries) };
 }
 
-// Project names already typed on this login's entries — the <datalist> behind
-// the free-text project field (D2). Folded; the most recent spelling wins.
-function listOutsProjects(userId) {
-  const seen = new Map();
-  db.prepare(
-    `SELECT e.project FROM outs_entries e JOIN outs_resources r ON r.id = e.resource_id
-      WHERE e.user_id = ? AND r.user_id = ? AND e.deleted_at IS NULL AND r.deleted_at IS NULL
-        AND e.project <> '' ORDER BY e.updated_at DESC, e.id DESC`
-  ).all(userId, userId).forEach(({ project }) => {
-    const key = outsProjectKey(project);
-    if (!seen.has(key)) seen.set(key, project);
+// ── Outsource statements (Phase 4) ──
+// A statement is a closed date range of one resource: DRAFT → ISSUED → PAID,
+// or CANCELLED. A draft only holds the range; its lines are computed live.
+// Issuing takes every unbilled entry of a live project in the range, stamps
+// statement_id on it (which locks it) and snapshots the per project × rate
+// lines, so a later rate change or project rename cannot alter what was
+// issued. Cancelling clears statement_id again; the snapshot stays as the
+// record of what had been issued. An entry can therefore be on only one
+// non-cancelled statement.
+function outsOwnedStatement(userId, id, { deleted = false } = {}) {
+  return db.prepare(
+    `SELECT s.* FROM outs_statements s JOIN outs_resources r ON r.id = s.resource_id
+      WHERE s.id = ? AND s.user_id = ? AND r.user_id = ? AND r.deleted_at IS NULL
+        AND s.deleted_at IS ${deleted ? 'NOT ' : ''}NULL`
+  ).get(Number(id), userId, userId) || null;
+}
+// Next "ST-###" for this login (the highest number used so far + 1).
+function outsNextReference(userId) {
+  const max = db.prepare('SELECT reference FROM outs_statements WHERE user_id = ?').all(userId)
+    .map(r => /^ST-(\d+)$/i.exec(r.reference)?.[1]).filter(Boolean).map(Number)
+    .reduce((a, b) => Math.max(a, b), 0);
+  return 'ST-' + String(max + 1).padStart(3, '0');
+}
+function outsReferenceConflict(userId, key, exceptId = null) {
+  return db.prepare('SELECT 1 FROM outs_statements WHERE user_id = ? AND reference_key = ? AND id IS NOT ?')
+    .get(userId, key, exceptId) ? 'This statement number is already used' : null;
+}
+// Unbilled entries of live projects in [from, to], priced at today's rates,
+// plus how many unbilled entries sit before `from` (easy to forget).
+function outsStatementPreview(resourceId, from, to) {
+  const rates = outsRates(resourceId);
+  const entries = outsLiveEntries('e.resource_id = ? AND e.statement_id IS NULL AND e.work_date BETWEEN ? AND ?',
+    [resourceId, from, to]).map(e => outsEntryToApi(e, rates));
+  const earlierUnbilled = db.prepare(
+    `SELECT COUNT(*) AS n FROM outs_entries e JOIN outs_projects p ON p.id = e.project_id AND p.deleted_at IS NULL
+      WHERE e.resource_id = ? AND e.deleted_at IS NULL AND e.statement_id IS NULL AND e.work_date < ?`
+  ).get(resourceId, from).n;
+  return { entries, summary: outsSummarize(entries), earlierUnbilled };
+}
+function outsStatementToApi(s, currency, extra = {}) {
+  return {
+    id: s.id, resourceId: s.resource_id, reference: s.reference, periodFrom: s.period_from, periodTo: s.period_to,
+    status: s.status, totalMinutes: s.total_minutes, totalMinor: s.total_minor,
+    currency: lkCode(s.currency_id) || currency, notes: s.notes, issuedAt: s.issued_at || '',
+    paidAt: s.paid_at || '', paidNote: s.paid_note || '', cancelledAt: s.cancelled_at || '',
+    createdAt: s.created_at, updatedAt: s.updated_at, ...extra,
+  };
+}
+const outsLineToApi = l => ({
+  projectId: l.project_id ?? null, project: l.project, minutes: l.minutes, rateMinor: l.rate_minor, amountMinor: l.amount_minor,
+});
+// Newest period first. A draft's totals are its live preview's.
+function listOutsStatements(userId, resourceId) {
+  const r = outsOwnedResource(userId, resourceId);
+  if (!r) return [];
+  const currency = lkCode(r.currency_id);
+  return db.prepare(
+    'SELECT * FROM outs_statements WHERE resource_id = ? AND user_id = ? AND deleted_at IS NULL ORDER BY period_to DESC, id DESC'
+  ).all(r.id, userId).map(s => {
+    if (s.status !== 'DRAFT') return outsStatementToApi(s, currency);
+    const p = outsStatementPreview(r.id, s.period_from, s.period_to);
+    return outsStatementToApi({ ...s, total_minutes: p.summary.totalMinutes, total_minor: p.summary.totalMinor }, currency,
+      { missingRate: p.summary.missingRate, entryCount: p.entries.length });
   });
-  return [...seen.values()].sort((a, b) => a.localeCompare(b));
+}
+// Full detail: lines + entries. Draft = live preview; issued/paid = snapshot
+// + its locked entries; cancelled = the snapshot only (its entries are free).
+function getOutsStatement(userId, id) {
+  const s = outsOwnedStatement(userId, id);
+  if (!s) return null;
+  const r = outsOwnedResource(userId, s.resource_id);
+  const currency = lkCode(r.currency_id);
+  if (s.status === 'DRAFT') {
+    const p = outsStatementPreview(r.id, s.period_from, s.period_to);
+    return outsStatementToApi({ ...s, total_minutes: p.summary.totalMinutes, total_minor: p.summary.totalMinor }, currency, {
+      resourceName: r.name, lines: p.summary.lines, entries: p.entries,
+      missingRate: p.summary.missingRate, earlierUnbilled: p.earlierUnbilled,
+    });
+  }
+  const lines = db.prepare('SELECT * FROM outs_statement_lines WHERE statement_id = ? ORDER BY sort_order, id').all(s.id).map(outsLineToApi);
+  const rates = outsRates(r.id);
+  const entries = s.status === 'CANCELLED' ? []
+    : db.prepare(
+      `SELECT e.*, p.name AS project_name FROM outs_entries e JOIN outs_projects p ON p.id = e.project_id
+        WHERE e.statement_id = ? ORDER BY e.work_date, e.id`
+    ).all(s.id).map(e => outsEntryToApi(e, rates));
+  return outsStatementToApi(s, currency, { resourceName: r.name, lines, entries, missingRate: 0, earlierUnbilled: 0 });
+}
+function outsStatementPeriod(data, before) {
+  const has = key => data != null && Object.prototype.hasOwnProperty.call(data, key);
+  const from = has('periodFrom') ? outsDate(data.periodFrom, 'The start date') : { value: before?.period_from };
+  if (from.error) return { error: from.error };
+  const to = has('periodTo') ? outsDate(data.periodTo, 'The end date') : { value: before?.period_to };
+  if (to.error) return { error: to.error };
+  if (!from.value || !to.value) return { error: 'Choose the statement period' };
+  if (from.value > to.value) return { error: 'The start date must be on or before the end date' };
+  return { from: from.value, to: to.value };
+}
+// data: { periodFrom, periodTo, reference (default: next ST-###), notes }.
+function createOutsStatement(userId, resourceId, data) {
+  const r = outsOwnedResource(userId, resourceId);
+  if (!r) return { ok: false, error: 'Resource not found' };
+  const period = outsStatementPeriod(data, null);
+  if (period.error) return { ok: false, error: period.error };
+  const reference = outsText(data?.reference) || outsNextReference(userId);
+  if (reference.length > OUTS_MAX_TEXT) return { ok: false, error: 'The statement number is too long' };
+  const notes = outsText(data?.notes);
+  if (notes.length > OUTS_MAX_LONG_TEXT) return { ok: false, error: 'The notes are too long' };
+  const now = new Date().toISOString();
+  let error = null;
+  const id = tx(() => {
+    error = outsReferenceConflict(userId, lookupLabelKey(reference));
+    if (error) return null;
+    const newId = Number(db.prepare(
+      `INSERT INTO outs_statements(user_id, resource_id, reference, reference_key, period_from, period_to, status, notes, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?)`
+    ).run(userId, r.id, reference, lookupLabelKey(reference), period.from, period.to, notes, now, now).lastInsertRowid);
+    recordOutsHistory(userId, r.id, 'statement', newId, 'Statement Created', '', `${reference} (${period.from} → ${period.to})`, now);
+    return newId;
+  });
+  if (error) return { ok: false, error };
+  return { ok: true, statement: getOutsStatement(userId, id) };
+}
+// Reference and notes can change at any status; the period only on a draft.
+function updateOutsStatement(userId, id, data) {
+  const before = outsOwnedStatement(userId, id);
+  if (!before) return { ok: false, error: 'Statement not found' };
+  const has = key => data != null && Object.prototype.hasOwnProperty.call(data, key);
+  if ((has('periodFrom') || has('periodTo')) && before.status !== 'DRAFT') {
+    return { ok: false, error: 'Only a draft statement can change its period' };
+  }
+  const period = outsStatementPeriod(data, before);
+  if (period.error) return { ok: false, error: period.error };
+  const reference = has('reference') ? outsText(data.reference) : before.reference;
+  if (!reference) return { ok: false, error: 'A statement number is required' };
+  if (reference.length > OUTS_MAX_TEXT) return { ok: false, error: 'The statement number is too long' };
+  const notes = has('notes') ? outsText(data.notes) : before.notes;
+  if (notes.length > OUTS_MAX_LONG_TEXT) return { ok: false, error: 'The notes are too long' };
+  const now = new Date().toISOString();
+  let error = null;
+  tx(() => {
+    error = outsReferenceConflict(userId, lookupLabelKey(reference), before.id);
+    if (error) return;
+    const h = (field, a, b) => recordOutsHistory(userId, before.resource_id, 'statement', before.id, `${before.reference}: ${field}`, a, b, now);
+    h('Number', before.reference, reference);
+    h('Period', `${before.period_from} → ${before.period_to}`, `${period.from} → ${period.to}`);
+    h('Notes', before.notes, notes);
+    db.prepare(
+      'UPDATE outs_statements SET reference = ?, reference_key = ?, period_from = ?, period_to = ?, notes = ?, updated_at = ? WHERE id = ?'
+    ).run(reference, lookupLabelKey(reference), period.from, period.to, notes, now, before.id);
+  });
+  if (error) return { ok: false, error };
+  return { ok: true, statement: getOutsStatement(userId, before.id) };
+}
+function issueOutsStatement(userId, id) {
+  const before = outsOwnedStatement(userId, id);
+  if (!before) return { ok: false, error: 'Statement not found' };
+  if (before.status !== 'DRAFT') return { ok: false, error: 'Only a draft statement can be issued' };
+  const r = outsOwnedResource(userId, before.resource_id);
+  const now = new Date().toISOString();
+  let error = null;
+  tx(() => {
+    const p = outsStatementPreview(r.id, before.period_from, before.period_to);
+    if (!p.entries.length) { error = 'There are no unbilled entries in this period'; return; }
+    if (p.summary.missingRate) { error = 'Some entries in this period have no rate — add a rate that covers them first'; return; }
+    const insertLine = db.prepare(
+      `INSERT INTO outs_statement_lines(statement_id, project_id, project, minutes, rate_minor, amount_minor, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    );
+    p.summary.lines.forEach((l, i) => insertLine.run(before.id, l.projectId, l.project, l.minutes, l.rateMinor, l.amountMinor, i));
+    const lock = db.prepare('UPDATE outs_entries SET statement_id = ? WHERE id = ? AND statement_id IS NULL');
+    p.entries.forEach(e => lock.run(before.id, e.id));
+    db.prepare(
+      `UPDATE outs_statements SET status = 'ISSUED', total_minutes = ?, total_minor = ?, currency_id = ?, issued_at = ?, updated_at = ?
+        WHERE id = ?`
+    ).run(p.summary.totalMinutes, p.summary.totalMinor, r.currency_id, now, now, before.id);
+    recordOutsHistory(userId, r.id, 'statement', before.id, `${before.reference}: Status`, 'Draft',
+      `Issued · ${outsMoneyText(p.summary.totalMinor)} ${lkCode(r.currency_id)}`, now);
+    outsTouchResource(r.id, now);
+  });
+  if (error) return { ok: false, error };
+  return { ok: true, statement: getOutsStatement(userId, before.id) };
+}
+// data: { paidOn (YYYY-MM-DD, default today), note }.
+function markOutsStatementPaid(userId, id, data) {
+  const before = outsOwnedStatement(userId, id);
+  if (!before) return { ok: false, error: 'Statement not found' };
+  if (before.status !== 'ISSUED') return { ok: false, error: 'Only an issued statement can be marked paid' };
+  const paidOn = outsText(data?.paidOn) ? outsDate(data.paidOn, 'The payment date') : { value: pfmLocalToday() };
+  if (paidOn.error) return { ok: false, error: paidOn.error };
+  const note = outsText(data?.note);
+  if (note.length > OUTS_MAX_LONG_TEXT) return { ok: false, error: 'The note is too long' };
+  const now = new Date().toISOString();
+  tx(() => {
+    recordOutsHistory(userId, before.resource_id, 'statement', before.id, `${before.reference}: Status`, 'Issued',
+      `Paid ${paidOn.value}${note ? ' · ' + note : ''}`, now);
+    db.prepare("UPDATE outs_statements SET status = 'PAID', paid_at = ?, paid_note = ?, updated_at = ? WHERE id = ?")
+      .run(paidOn.value, note, now, before.id);
+    outsTouchResource(before.resource_id, now);
+  });
+  return { ok: true, statement: getOutsStatement(userId, before.id) };
+}
+// A payment recorded by mistake goes back to ISSUED.
+function markOutsStatementUnpaid(userId, id) {
+  const before = outsOwnedStatement(userId, id);
+  if (!before) return { ok: false, error: 'Statement not found' };
+  if (before.status !== 'PAID') return { ok: false, error: 'This statement is not marked paid' };
+  const now = new Date().toISOString();
+  tx(() => {
+    recordOutsHistory(userId, before.resource_id, 'statement', before.id, `${before.reference}: Status`,
+      `Paid ${before.paid_at}`, 'Issued', now);
+    db.prepare("UPDATE outs_statements SET status = 'ISSUED', paid_at = NULL, paid_note = '', updated_at = ? WHERE id = ?")
+      .run(now, before.id);
+    outsTouchResource(before.resource_id, now);
+  });
+  return { ok: true, statement: getOutsStatement(userId, before.id) };
+}
+// Draft or issued → CANCELLED, unlocking the entries. A paid statement must be
+// marked unpaid first, so money recorded as paid is never silently undone.
+function cancelOutsStatement(userId, id) {
+  const before = outsOwnedStatement(userId, id);
+  if (!before) return { ok: false, error: 'Statement not found' };
+  if (before.status === 'PAID') return { ok: false, error: 'A paid statement cannot be cancelled — mark it unpaid first' };
+  if (before.status === 'CANCELLED') return { ok: true, statement: getOutsStatement(userId, before.id) };
+  const now = new Date().toISOString();
+  tx(() => {
+    const freed = db.prepare('UPDATE outs_entries SET statement_id = NULL WHERE statement_id = ?').run(before.id).changes;
+    recordOutsHistory(userId, before.resource_id, 'statement', before.id, `${before.reference}: Status`,
+      before.status === 'DRAFT' ? 'Draft' : 'Issued', `Cancelled${freed ? ` · ${freed} entries unlocked` : ''}`, now);
+    db.prepare("UPDATE outs_statements SET status = 'CANCELLED', cancelled_at = ?, updated_at = ? WHERE id = ?").run(now, now, before.id);
+    outsTouchResource(before.resource_id, now);
+  });
+  return { ok: true, statement: getOutsStatement(userId, before.id) };
+}
+// Only a draft or a cancelled statement can be deleted (undo window as usual).
+function setOutsStatementDeleted(userId, id, deleted) {
+  const before = outsOwnedStatement(userId, id, { deleted: !deleted });
+  if (!before) return { ok: false, error: 'Statement not found' };
+  if (!['DRAFT', 'CANCELLED'].includes(before.status)) {
+    return { ok: false, error: 'Only a draft or cancelled statement can be deleted' };
+  }
+  const now = new Date().toISOString();
+  tx(() => {
+    recordOutsHistory(userId, before.resource_id, 'statement', before.id, deleted ? 'Statement Deleted' : 'Statement Restored',
+      '', before.reference, now);
+    db.prepare('UPDATE outs_statements SET deleted_at = ? WHERE id = ?').run(deleted ? now : null, before.id);
+  });
+  return deleted ? { ok: true } : { ok: true, statement: getOutsStatement(userId, before.id) };
+}
+const deleteOutsStatement = (userId, id) => setOutsStatementDeleted(userId, id, true);
+const restoreOutsStatement = (userId, id) => setOutsStatementDeleted(userId, id, false);
+function purgeOutsStatement(userId, id) {
+  const s = outsOwnedStatement(userId, id, { deleted: true });
+  if (!s) return { ok: false };
+  db.prepare('DELETE FROM outs_statements WHERE id = ? AND deleted_at IS NOT NULL').run(s.id);
+  return { ok: true };
+}
+// Draft statements whose period reaches `date` or later — a rate starting on
+// `date` changes what they will issue at. The Rates tab warns with this.
+function outsDraftsReaching(resourceId, date) {
+  return db.prepare(
+    "SELECT COUNT(*) AS n FROM outs_statements WHERE resource_id = ? AND status = 'DRAFT' AND deleted_at IS NULL AND period_to >= ?"
+  ).get(resourceId, date).n;
+}
+
+// Overview tile: what this login still owes across all resources, per
+// currency (unbilled entries at their rates + issued, unpaid statements).
+function getOutsUnpaidSummary(userId) {
+  const byCurrency = new Map();
+  let people = 0;
+  listOutsResources(userId, { includeInactive: true }).forEach(r => {
+    if (!r.unpaidMinor && !r.unbilledMissingRate) return;
+    people++;
+    const row = byCurrency.get(r.currency) || { currency: r.currency, unpaidMinor: 0, issuedMinor: 0, unbilledMinor: 0 };
+    row.unpaidMinor += r.unpaidMinor;
+    row.issuedMinor += r.issuedMinor;
+    row.unbilledMinor += r.unbilledMinor;
+    byCurrency.set(r.currency, row);
+  });
+  return { people, totals: [...byCurrency.values()].sort((a, b) => b.unpaidMinor - a.unpaidMinor) };
 }
 
 // Newest first, with the acting account's username. Readable while the
@@ -6562,6 +7015,7 @@ function purgeDeletedOutsRecords() {
   return tx(() => ({
     resources: db.prepare('DELETE FROM outs_resources WHERE deleted_at IS NOT NULL').run().changes,
     rates: db.prepare('DELETE FROM outs_rates WHERE deleted_at IS NOT NULL').run().changes,
+    projects: db.prepare('DELETE FROM outs_projects WHERE deleted_at IS NOT NULL').run().changes,
     entries: db.prepare('DELETE FROM outs_entries WHERE deleted_at IS NOT NULL').run().changes,
     statements: db.prepare('DELETE FROM outs_statements WHERE deleted_at IS NOT NULL').run().changes,
   }));
@@ -6622,4 +7076,8 @@ module.exports = {
   setOutsResourceActive, deleteOutsResource, restoreOutsResource, purgeOutsResource, addOutsRate,
   updateOutsRate, deleteOutsRate, restoreOutsRate, purgeOutsRate, createOutsEntry, updateOutsEntry,
   deleteOutsEntry, restoreOutsEntry, purgeOutsEntry, listOutsEntries, listOutsProjects, getOutsHistory,
+  getOutsProject, createOutsProject, updateOutsProject, setOutsProjectActive, deleteOutsProject,
+  restoreOutsProject, purgeOutsProject, listOutsStatements, getOutsStatement, createOutsStatement,
+  updateOutsStatement, issueOutsStatement, markOutsStatementPaid, markOutsStatementUnpaid,
+  cancelOutsStatement, deleteOutsStatement, restoreOutsStatement, purgeOutsStatement, getOutsUnpaidSummary,
 };

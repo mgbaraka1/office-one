@@ -17,7 +17,7 @@ Office ONE is an offline, multi-user Electron desktop app covering:
 - **Subscriptions** and **Company Documents** — recurring spend and renewal-tracked files.
 - **Knowledge Hub** — WYSIWYG articles (Quill), groups, tags, attachments, versioned documents.
 - **Project & Finance** — Offers and Change Requests (CRs): a status stage trail, fee-bearing versions with uploaded files, follow-up/expiry reminders and Excel export.
-- **Outsource** — external resources paid by the hour: an hourly rate history per person (being built in phases, see docs/OUTSOURCE_PLAN.md).
+- **Outsource** — external resources paid by the hour: Person → Projects → Entries (a keyboard-first timesheet grid per project), an hourly rate history, statements (draft → issued → paid) with Excel/PDF export, and an Overview "owed" tile.
 - **Overview / Reports** — read-only analytics, PDF/CSV/Excel export.
 
 There is no server and no network access. All data lives in one embedded SQLite
@@ -133,17 +133,23 @@ retired Finance tables, §5): `pfm_items` (one row per Offer or CR), `pfm_stages
 - `pfm_history.item_id` is deliberately **not** a foreign key: like
   `lookup_code_history`, the audit outlives the record.
 
-**Outsource** (migration 066, `outs_` prefix — a standalone module: no foreign
+**Outsource** (migrations 066–067, `outs_` prefix — a standalone module: no foreign
 key to projects, `COMPANY`, `pfm_*`, tasks or work logs; only `CURRENCY` is shared):
-`outs_resources` (one per external person paid), `outs_rates`, `outs_entries`,
-`outs_statements`, `outs_statement_lines`, `outs_history`.
+`outs_resources` (one per external person paid), `outs_projects` (inside a resource),
+`outs_rates`, `outs_entries` (inside a project), `outs_statements`,
+`outs_statement_lines`, `outs_history`.
 
-- Rows are **private per login** (`user_id`). An entry's project is **free text**.
+- Rows are **private per login** (`user_id`). Person → Projects → Entries: an
+  entry's `project_id` is its project (067); the 066 `project` text column stays,
+  kept equal to the project's name. Project names are unique per resource.
 - Rates are integer minor units **per hour** with an `effective_from` date; an
   entry is priced by the rate in force on its date, never stored. Fees are
   rounded half-up once per statement line (project × rate).
-- An entry is **locked** while `statement_id` is set, which only issuing a
-  statement does; issuing snapshots the lines so a later rate change cannot alter it.
+- Statements run DRAFT → ISSUED → PAID, or CANCELLED. A draft is a live preview;
+  issuing stamps `statement_id` on every unbilled entry in the period (which
+  **locks** it) and snapshots the lines, so a later rate change or rename cannot
+  alter it. Cancelling unlocks the entries. A resource or project with billed
+  entries can be deactivated, not deleted.
 - Soft delete via `deleted_at`, purged at the next boot, as in Project & Finance.
 
 **Search**: `workspace_search` — a user-scoped, trigger-maintained FTS5 index.
@@ -215,6 +221,7 @@ Landmarks worth knowing:
 | 064 | `pfm_items.client_channel` (EMAIL/JIRA) + `client_channel_ref` (email subject or Jira URL) via ADD COLUMN; the contact email/phone and notes columns stay but are no longer shown |
 | 065 | Repair: an Offer/CR whose status lags its furthest dated stage moves forward to it (history row per move); `savePfmStage` now does this on save |
 | 066 | Outsource — the six `outs_*` tables (resources, rate history, time entries, statements + their line snapshots, history), additive only; resources and entries join `workspace_search` (kinds `outs-resource` / `outs-entry`) |
+| 067 | Outsource projects — `outs_projects`; `outs_entries.project_id` and `outs_statement_lines.project_id` via ADD COLUMN; `outs_history` rebuilt only to widen its `record_type` CHECK (no triggers on it); older entries backfilled into projects; the entry search triggers recreated with the project join, plus `outs-project` search rows |
 
 **A guarded seed is the right shape for a fresh-install gap.** Migration 003
 seeded some categories from "legacy blob ∪ values already in the data", both
@@ -414,7 +421,7 @@ list ungrouped — it is the landing page everything else reports into:
 | | `subscriptions` | **Subscriptions** |
 | | `companydocs` | **Company Docs** |
 | | `pfm` | **Project & Finance** — Offers & CRs |
-| | `outsource` | **Outsource** — external resources and their hourly rates |
+| | `outsource` | **Outsource** — external resources, their projects, hours, rates and statements |
 | | `knowledge` | **Knowledge Hub** |
 | Review | `reports` | **Reports** |
 
