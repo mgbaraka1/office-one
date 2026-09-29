@@ -46,7 +46,7 @@ The whole interface is bilingual, including a full right-to-left layout. The sam
 - Outsource: the people you pay by the hour — projects inside each person, a keyboard-first timesheet grid per project (`90`, `1:30` or `1.5h`), an hourly rate history, statements that lock what they bill (draft → issued → paid), Excel/PDF export, and what is still owed on the Overview.
 
 **Knowledge & records**
-- Knowledge Hub document shelf: link items to clients and systems, drop a file to add it (a matching name becomes the next version, with a "what changed" note), a side panel for each item, plain-text notes, and tags.
+- Knowledge Hub document shelf: link items to clients and systems, drop a file to add it (a matching name becomes the next version, with a "what changed" note), a side panel, a Knowledge Hub tab on each client and a section on each project for each item, plain-text notes, and tags.
 
 **Review & output**
 - Overview dashboard leading with attention items, period comparisons, and accessible chart data tables.

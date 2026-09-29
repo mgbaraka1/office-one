@@ -929,6 +929,39 @@ async function run() {
   })()`);
   const shelf = { ...shelfFirst, ...shelfSecond };
   if (!Object.values(shelf).every(Boolean)) throw new Error(`Knowledge Hub shelf / drop / versioning failed: ${JSON.stringify(shelf)}`);
+  // Phase 4: the client page and a project page show the Hub items linked to them.
+  const linkedPages = await evaluate(`(async () => {
+    const until = async test => { for (let i = 0; i < 60 && !test(); i++) await new Promise(r => setTimeout(r, 50)); return !!test(); };
+    const client = LK.categories.COMPANY.find(item => item.code === 'E2E_CLIENT');
+    const titles = sel => [...document.querySelectorAll(sel + ' .kh-linked .kh-row-title')].map(n => n.textContent);
+    switchModule('clients');
+    await openClientDetail(client.id, '', 'knowledge');
+    const clientListed = await until(() => titles('#client-detail-sections').includes('E2E client mapping sheet'));
+    const clientOnlyLinked = !titles('#client-detail-sections').includes('E2E unrelated manual');
+    const tabCount = /\\(1\\)$/.test(document.querySelector('#client-detail-tabs [data-client-tab="knowledge"]')?.textContent || '');
+    const section = document.querySelector('#client-detail-sections .kh-linked');
+    const dt = new DataTransfer(); dt.items.add(new File(['runbook'], 'E2E_Client_Runbook_v1.0.txt', { type: 'text/plain' }));
+    section.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+    const dropPreset = document.getElementById('knowledge-modal-overlay').classList.contains('open')
+      && document.getElementById('kh-title-input').value === 'E2E Client Runbook'
+      && !!document.querySelector('#kh-companies .tp-pill')?.textContent.includes('E2E_CLIENT');
+    closeKnowledgeEditor(true);
+    [...section.querySelectorAll('.pj-section-actions .btn.primary')].pop().click();
+    document.getElementById('kh-title-input').value = 'E2E client runbook';
+    await saveKnowledgeEditor();
+    const savedHere = activeModule === 'clients'
+      && await until(() => titles('#client-detail-sections').includes('E2E client runbook'))
+      && knowledgeItems.find(item => item.title === 'E2E client runbook')?.companies?.[0]?.id === client.id;
+    const project = await window.api.createProject({ name: 'E2E knowledge project', companyIds: [client.id] });
+    openProjectById(project.id);
+    const projectListed = await until(() => titles('#projects-detail-view').includes('E2E client mapping sheet'));
+    const projectOnlyLinked = !titles('#projects-detail-view').includes('E2E unrelated manual');
+    [...document.querySelectorAll('#projects-detail-view .kh-linked .kh-row-main')].find(n => n.textContent.includes('E2E client mapping sheet')).click();
+    const openedInHub = await until(() => activeModule === 'knowledge' && knowledgeCurrentItem?.title === 'E2E client mapping sheet');
+    closeKnowledgeDetail();
+    return { clientListed, clientOnlyLinked, tabCount, dropPreset, savedHere, projectListed, projectOnlyLinked, openedInHub };
+  })()`);
+  if (!Object.values(linkedPages).every(Boolean)) throw new Error(`Knowledge Hub on client/project pages failed: ${JSON.stringify(linkedPages)}`);
   if (!result.version) throw new Error('Application version IPC returned no value');
   if (result.accessibility.duplicateIds.length || result.accessibility.unnamedButtons.length ||
       !result.accessibility.language || !result.accessibility.direction || result.accessibility.liveRegions < 1) {
@@ -1098,6 +1131,7 @@ async function run() {
   console.log('PASS  Knowledge Hub HTML sanitizer strips scripts/handlers/img/js-urls/style while keeping the safe subset');
   console.log('PASS  Knowledge Hub adds a real picked file, refuses a page-made File, versions a matching drop as 1.1 with a "what changed" note, and edits that note');
   console.log('PASS  Knowledge Hub opens items in a side panel beside the list, with plain-text notes and one-click Open');
+  console.log('PASS  Client and project pages list their Knowledge Hub items; a drop or New item there is pre-linked and stays on the page');
   console.log('PASS  Quick Find rendered the FTS result');
   console.log('PASS  Client profile code and English/Arabic names flow into a linked task');
   console.log('PASS  Arabic login choice drives RTL, preserves user content, and localizes report/PDF output');

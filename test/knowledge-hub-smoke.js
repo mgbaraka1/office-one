@@ -42,6 +42,7 @@ try {
   record('Knowledge Hub content_format migration 051 is applied', head >= 51 && itemColumns.includes('content_format'), `head=${head}`);
   record('Retired project/link tables are absent', retiredTables.length === 0, JSON.stringify(retiredTables));
   record('Migration 068 brings back the client and system link tables', head >= 68 && linkTables.length === 2, JSON.stringify(linkTables));
+  record('Migration 069 is applied', head >= 69, `head=${head}`);
   record('Document versions have a change note column', attachmentColumns.includes('change_note'));
   record('Field Mapping is a seeded document kind', db.getLookupsByCategory('KNOWLEDGE_TYPE').some(x => x.code === 'FIELD_MAPPING'));
   record('Review date is retired and document version columns exist',
@@ -149,6 +150,8 @@ try {
   const restoredFileId = restoredAttachment.item.documents[0].id;
   const noteEdited = db.updateKnowledgeAttachmentNote(user.id, restoredFileId, 'Mapped 12 new fields');
   record('A version note can be edited later', noteEdited.ok && noteEdited.item.documents[0].changeNote === 'Mapped 12 new fields');
+  record('Quick Find reaches an edited version note (migration 069)',
+    db.searchWorkspace(user.id, 'Mapped 12 new fields').some(hit => hit.kind === 'knowledge' && hit.id === created.id));
   const noteCapped = db.updateKnowledgeAttachmentNote(user.id, restoredFileId, 'x'.repeat(5000));
   record('A version note is capped at 1000 characters', noteCapped.ok && noteCapped.item.documents[0].changeNote.length === 1000);
   db.updateKnowledgeAttachmentNote(user.id, restoredFileId, 'Mapped 12 new fields');

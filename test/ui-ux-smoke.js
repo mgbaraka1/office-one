@@ -287,7 +287,7 @@ gate('Knowledge Hub creates items from one short form with an optional file',
   !html.includes('startKnowledgeCreation(')
   && html.includes('data-onclick="openKnowledgeEditor()"')
   && html.includes('id="kh-editor-drop"') && html.includes('id="kh-file-input"')
-  && html.includes('function openKnowledgeEditor(item, file)')
+  && html.includes('function openKnowledgeEditor(item, file, preset)')
   && html.includes('window.api.uploadKnowledgeFile(saved.id, file, meta)'));
 gate('Knowledge Hub takes dropped files: a matching name becomes the next version',
   html.includes('function setupKnowledgeFileDrop()')
@@ -313,6 +313,14 @@ gate('Each document version carries a "what changed" note, set on upload and edi
   && html.includes('x.originalName, x.changeNote]')
   && preload.includes("ipcRenderer.invoke('knowledge:update-attachment-note', attachmentId, note)")
   && main.includes("ipcMain.handle('knowledge:update-attachment-note'"));
+gate('Client and project pages show their Knowledge Hub items, with a drop target and a pre-linked New item',
+  html.includes("{ key: 'knowledge', label: 'Knowledge Hub' }")
+  && html.includes("buildKnowledgeLinkedSection({ companyIds: [c.id], q,")
+  && html.includes('systemIds: (p.systems || []).map(x => x.id)')
+  && html.includes('function knowledgeItemsLinkedTo(companyIds = [], systemIds = [])')
+  && html.includes('function handleKnowledgeLinkedDrop(file, opts)')
+  && html.includes("openKnowledgeEditor(null, null, { companyIds, systemIds })")
+  && html.includes('refreshKnowledgeLinkedSections();'));
 gate('Knowledge Hub has no reference URL or review-date UI',
   !html.includes('id="kh-review-input"')
   && !html.includes('id="kh-link-editor"')

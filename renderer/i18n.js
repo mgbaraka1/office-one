@@ -520,7 +520,7 @@
     'No document types configured — add them in Settings → Project Documents.': 'لم تُضبط أنواع مستندات — أضفها من الإعدادات ← مستندات المشروع.',
     'Create knowledge items first, or create an empty group now.': 'أنشئ عناصر معرفة أولاً، أو أنشئ مجموعة فارغة الآن.',
     'Your formatted preview will appear here.': 'ستظهر المعاينة المنسقة هنا.',
-    'Use the tabs above to manage this client’s projects, access records, servers, and internal systems. Search spans every tab without searching passwords or secret keys.': 'استخدم علامات التبويب أعلاه لإدارة مشاريع العميل وسجلات الوصول والخوادم والأنظمة الداخلية. يشمل البحث كل التبويبات دون كلمات المرور أو المفاتيح السرية.',
+    'Use the tabs above to manage this client’s projects, Knowledge Hub items, access records, servers, and internal systems. Search spans every tab without searching passwords or secret keys.': 'استخدم علامات التبويب أعلاه لإدارة مشاريع العميل وعناصر مركز المعرفة وسجلات الوصول والخوادم والأنظمة الداخلية. يشمل البحث كل التبويبات دون كلمات المرور أو المفاتيح السرية.',
     'Attachment saved': 'تم حفظ المرفق', 'Document added': 'تمت إضافة المستند', 'Document created': 'تم إنشاء المستند',
     'Document saved': 'تم حفظ المستند', 'Document removed': 'تمت إزالة المستند', 'Document restored': 'تمت استعادة المستند',
     'File saved': 'تم حفظ الملف', 'File replaced': 'تم استبدال الملف', 'File removed': 'تمت إزالة الملف',
@@ -792,6 +792,15 @@
     'Note': 'ملاحظة', 'What changed': 'ما الذي تغيّر', 'Optional': 'اختياري',
     'Edit note': 'تعديل الملاحظة', 'Add note': 'إضافة ملاحظة', 'Note saved': 'تم حفظ الملاحظة',
     'Could not save note': 'تعذّر حفظ الملاحظة',
+    'Note restored': 'تمت استعادة الملاحظة', 'Could not restore note': 'تعذّرت استعادة الملاحظة',
+    // Knowledge Hub on client and project pages (Phase 4).
+    'Show in Knowledge Hub': 'عرض في مركز المعرفة', 'New Knowledge item': 'عنصر معرفة جديد',
+    'No Knowledge Hub items for this client yet.': 'لا توجد عناصر في مركز المعرفة لهذا العميل بعد.',
+    'No Knowledge Hub items for this project’s clients or systems yet.': 'لا توجد عناصر في مركز المعرفة لعملاء هذا المشروع أو أنظمته بعد.',
+    'Link a client or system to see its Knowledge Hub items here.': 'اربط عميلاً أو نظاماً لعرض عناصره في مركز المعرفة هنا.',
+    'No Knowledge Hub items match your search.': 'لا توجد عناصر في مركز المعرفة تطابق بحثك.',
+    'Drop a file here: a matching name becomes its next version, anything else starts a new item linked here.':
+      'أفلت ملفاً هنا: الاسم المطابق يصبح إصداره التالي، وغير ذلك يبدأ عنصراً جديداً مرتبطاً هنا.',
     'Drop a file on this panel to add it. A matching name becomes the next version.':
       'أفلت ملفاً على هذه اللوحة لإضافته. الاسم المطابق يصبح الإصدار التالي.',
     'No documents yet. Drop a file on this panel, or use Add document.':
