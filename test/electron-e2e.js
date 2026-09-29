@@ -552,6 +552,101 @@ async function run() {
           clientTabRowsAfterCreate, stayedOnClient, ref,
         };
       })(),
+      outsource: await (async () => {
+        // Outsource Phase 2, through the page's real DOM and handlers: create a
+        // resource with its first rate from the modal, add a second rate from
+        // the Rates section, refuse a duplicate name, deactivate (hidden from
+        // the default list), delete + undo, and open it from Quick Find.
+        const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+        switchModule('outsource');
+        await wait(200);
+        const name = 'E2E Resource ' + Date.now();
+
+        document.activeElement?.blur();
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, bubbles: true }));
+        const ctrlNOpened = document.getElementById('outs-modal-overlay').classList.contains('open');
+        const currencyPreset = !!document.getElementById('outs-currency').value;
+        document.getElementById('outs-name').value = name;
+        document.getElementById('outs-first-rate').value = '200';
+        document.getElementById('outs-first-rate-from').value = '2090-01-01';
+        await submitOutsModal();
+        await wait(300);
+        const created = outsCurrent;
+        const detailOpen = created?.name === name && document.getElementById('outs-detail-view').style.display !== 'none';
+        const firstRate = created?.rates?.[0]?.rateMinor;
+
+        document.querySelector('#outs-detail-view .outs-rate-add').click();
+        const rateModalOpen = document.getElementById('outs-rate-overlay').classList.contains('open');
+        document.getElementById('outs-rate-amount').value = 'abc';
+        await submitOutsRateModal();
+        const badRateRefused = document.getElementById('outs-rate-amount').classList.contains('field-error');
+        document.getElementById('outs-rate-amount').value = '1,250.50';
+        document.getElementById('outs-rate-from').value = '2090-07-01';
+        await submitOutsRateModal();
+        await wait(250);
+        const rateFroms = (outsCurrent?.rates || []).map(r => r.effectiveFrom).join(',');
+        const rateRows = document.querySelectorAll('#outs-detail-view .outs-rate-row').length;
+        const newestRate = outsCurrent?.rates?.[0]?.rateMinor;
+
+        // A second rate on the same date is refused on the date field.
+        document.querySelector('#outs-detail-view .outs-rate-add').click();
+        document.getElementById('outs-rate-amount').value = '1';
+        document.getElementById('outs-rate-from').value = '2090-07-01';
+        await submitOutsRateModal();
+        await wait(150);
+        const sameDateRefused = document.getElementById('outs-rate-from').classList.contains('field-error')
+          && document.getElementById('outs-rate-overlay').classList.contains('open');
+        closeOutsRateModal();
+
+        // Delete the newest rate: trash → "Yes"; Undo brings it back.
+        document.querySelector('#outs-detail-view .outs-rate-row .cd-icon-btn.danger').click();
+        document.querySelector('#outs-detail-view .outs-rate-row .del-yes').click();
+        await wait(300);
+        const ratesAfterDelete = (await window.api.getOutsResource(created.id)).rates.length;
+        document.querySelector('#app-toast .toast-action-btn').click();
+        await wait(300);
+        const ratesAfterUndo = (await window.api.getOutsResource(created.id)).rates.length;
+
+        openOutsNew();
+        document.getElementById('outs-name').value = ' ' + name.toUpperCase() + ' ';
+        await submitOutsModal();
+        await wait(150);
+        const duplicateRefused = document.getElementById('outs-name').classList.contains('field-error')
+          && document.getElementById('outs-modal-overlay').classList.contains('open');
+        closeOutsModal();
+
+        await setOutsActiveUi(created.id, false);
+        backToOutsList();
+        await wait(250);
+        const hiddenWhenInactive = !document.querySelector('#outs-tbody tr[data-outs-id="' + created.id + '"]');
+        toggleOutsInactive();
+        const shownWithInactive = !!document.querySelector('#outs-tbody tr[data-outs-id="' + created.id + '"]');
+        toggleOutsInactive();
+        await setOutsActiveUi(created.id, true);
+        await wait(250);
+
+        await openPalette();
+        document.getElementById('palette-input').value = name;
+        paletteInputChanged();
+        await wait(500);
+        const palHit = [...document.querySelectorAll('#palette-list .pal-item')].find(b => b.textContent.includes(name));
+        palHit?.click();
+        await wait(300);
+        const quickFindOpened = !!palHit && activeModule === 'outsource' && outsCurrent?.id === created.id;
+
+        await deleteOutsResourceUi(created.id);
+        const goneAfterDelete = !(await window.api.listOutsResources({ includeInactive: true })).some(r => r.id === created.id);
+        document.querySelector('#app-toast .toast-action-btn').click();
+        await wait(250);
+        const backAfterUndo = (await window.api.listOutsResources({})).some(r => r.id === created.id);
+
+        switchModule('analytics');
+        return {
+          ctrlNOpened, currencyPreset, detailOpen, firstRate, rateModalOpen, badRateRefused, rateFroms, rateRows,
+          newestRate, sameDateRefused, ratesAfterDelete, ratesAfterUndo, duplicateRefused, hiddenWhenInactive,
+          shownWithInactive, quickFindOpened, goneAfterDelete, backAfterUndo,
+        };
+      })(),
       passwordRotation: await (async () => {
         // Forced password rotation: an
         // admin-created account carries an admin-assigned password, so login
@@ -693,6 +788,26 @@ async function run() {
     throw new Error(`The client's Offers & CRs tab failed: ${JSON.stringify(pfm)}`);
   }
 
+  const outs = result.outsource;
+  if (!outs.ctrlNOpened || !outs.currencyPreset || !outs.detailOpen || outs.firstRate !== 20000) {
+    throw new Error(`Creating an Outsource resource with its first rate failed: ${JSON.stringify(outs)}`);
+  }
+  if (!outs.rateModalOpen || !outs.badRateRefused || outs.rateFroms !== '2090-07-01,2090-01-01' || outs.rateRows !== 2
+      || outs.newestRate !== 125050 || !outs.sameDateRefused) {
+    throw new Error(`Adding a second hourly rate failed: ${JSON.stringify(outs)}`);
+  }
+  if (outs.ratesAfterDelete !== 1 || outs.ratesAfterUndo !== 2) {
+    throw new Error(`Deleting a rate with undo failed: ${JSON.stringify(outs)}`);
+  }
+  if (!outs.duplicateRefused) throw new Error(`A duplicate resource name was not refused: ${JSON.stringify(outs)}`);
+  if (!outs.hiddenWhenInactive || !outs.shownWithInactive) {
+    throw new Error(`Deactivating a resource did not move it behind Show inactive: ${JSON.stringify(outs)}`);
+  }
+  if (!outs.quickFindOpened) throw new Error(`Quick Find did not open the resource: ${JSON.stringify(outs)}`);
+  if (!outs.goneAfterDelete || !outs.backAfterUndo) {
+    throw new Error(`Resource delete/undo round trip failed: ${JSON.stringify(outs)}`);
+  }
+
   const rotation = result.passwordRotation;
   if (!rotation.ipcFlagsCreation) throw new Error('An admin-created account was not flagged to change its password on next login');
   if (!rotation.ipcFlagsLogin) throw new Error('Login did not surface the must-change-password flag over the real IPC bridge');
@@ -763,6 +878,8 @@ async function run() {
   console.log('PASS  A duplicate Reference ID is refused in the modal, and delete/undo keeps the offer');
   console.log('PASS  Versions with fees become current newest-first; files are added (bad ones listed), removed and restored');
   console.log('PASS  Project & Finance reaches the rest of the app: fee change, Quick Find, Ctrl+N, Excel export, client tab');
+  console.log('PASS  An Outsource resource is created with its first rate; a second rate is added, a bad or clashing one refused, and a rate delete is undone');
+  console.log('PASS  Outsource: duplicate name refused, deactivate hides behind Show inactive, Quick Find opens it, delete/undo keeps it');
   console.log('PASS  An admin-created account is forced to replace its admin-assigned password on next login');
   console.log('PASS  Runtime accessibility invariants cover names, unique ids, language/direction, and live regions');
   console.log(`PASS  report:exportPDF produces a real PDF file (${pdfBytes.length} bytes)`);

@@ -339,7 +339,10 @@ function runMaintenance() {
   try { pfmPurged = purgeDeletedPfmRecords(); }
   catch (err) { console.error('[maintenance] pfm purge failed:', String(err?.message || err)); }
   const pfmFiles = sweepOrphanPfmFiles(); // after the purge, so purged rows' bytes go too
-  _lastOrphanSweepReport = { projectIds, companyDocumentIds, knowledgeItemIds, pfmPurged, pfmFiles, backup, ranAt: new Date().toISOString() };
+  let outsPurged = null;
+  try { outsPurged = purgeDeletedOutsRecords(); }
+  catch (err) { console.error('[maintenance] outsource purge failed:', String(err?.message || err)); }
+  _lastOrphanSweepReport = { projectIds, companyDocumentIds, knowledgeItemIds, pfmPurged, pfmFiles, outsPurged, backup, ranAt: new Date().toISOString() };
   return _lastOrphanSweepReport;
 }
 // A lookup with no access rows is global. Once any access row exists it is
@@ -5966,6 +5969,604 @@ function purgeDeletedPfmRecords() {
   }));
 }
 
+// ── Outsource (external resources: hours & fees) ──
+// A standalone module (docs/OUTSOURCE_PLAN.md, migration 066): it links to no
+// other module, and its only shared vocabulary is CURRENCY. Everything is
+// private per login. Money is integer minor units per hour; an entry's fee is
+// never stored, it is derived from the rate in force on its date.
+//
+// An entry is locked once statement_id is set — that happens only when a
+// statement is ISSUED (Phase 4), and cancelling one clears it again.
+const OUTS_MAX_TEXT = 200;
+const OUTS_MAX_LONG_TEXT = 5000;
+const OUTS_MAX_MINUTES = 24 * 60;
+const outsText = v => String(v ?? '').trim();
+// Free-text project: trimmed, inner runs of spaces collapsed. Grouping folds
+// capitals too (outsProjectKey), so "Alpha" and "alpha " land on one line.
+const outsProject = v => outsText(v).replace(/\s+/g, ' ');
+const outsProjectKey = v => lookupLabelKey(outsProject(v));
+
+// D7: '90' / '90m' (minutes — a bare number means minutes, as in the old
+// sheet), '1:30' (h:mm), '1.5h' / '1,5h' (hours), '1h30' / '1h 30m'. Arabic-
+// Indic digits and the Arabic decimal separator are accepted. A number is taken
+// as minutes. Returns { value } (whole minutes, 1..1440) or { error }.
+function parseOutsMinutes(input) {
+  let minutes;
+  if (typeof input === 'number') {
+    minutes = input;
+  } else {
+    const s = String(input ?? '').trim().toLowerCase()
+      .replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
+      .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06F0))
+      .replace(/[٫,]/g, '.');
+    let m;
+    if ((m = /^(\d+)\s*(?:m|min|mins|minutes?)?$/.exec(s))) {
+      minutes = Number(m[1]);
+    } else if ((m = /^(\d+):([0-5]\d)$/.exec(s))) {
+      minutes = Number(m[1]) * 60 + Number(m[2]);
+    } else if ((m = /^(\d+(?:\.\d+)?|\.\d+)\s*(?:h|hr|hrs|hours?)$/.exec(s))) {
+      minutes = Math.round(Number(m[1]) * 60);
+    } else if ((m = /^(\d+)\s*h\s*([0-5]?\d)\s*(?:m|min|mins)?$/.exec(s))) {
+      minutes = Number(m[1]) * 60 + Number(m[2]);
+    } else {
+      return { error: 'Enter the time as minutes (90), h:mm (1:30) or hours (1.5h)' };
+    }
+  }
+  if (!Number.isInteger(minutes) || minutes <= 0) return { error: 'The time must be more than zero' };
+  if (minutes > OUTS_MAX_MINUTES) return { error: 'One entry can be at most 24 hours' };
+  return { value: minutes };
+}
+
+// Fee for `minutes` at `rateMinor` per hour, rounded half-up to the minor unit.
+// Integer arithmetic only: floor((m × r + 30) / 60) is round(m × r / 60).
+const outsAmountMinor = (minutes, rateMinor) => Math.floor((minutes * rateMinor + 30) / 60);
+
+function outsDate(value, label) {
+  const s = outsText(value);
+  if (!s) return { error: `${label} is required` };
+  return isValidDateStr(s) ? { value: s } : { error: `${label} must be a valid date` };
+}
+function outsRateMinor(value) {
+  if (value == null || value === '') return { error: 'A rate is required' };
+  const n = Number(value);
+  return Number.isSafeInteger(n) && n >= 0 ? { value: n } : { error: 'The rate must be zero or more' };
+}
+const outsMoneyText = minor => (minor == null ? '' : (minor / 100).toFixed(2));
+
+function outsOwnedResource(userId, id, { deleted = false } = {}) {
+  return db.prepare(
+    `SELECT * FROM outs_resources WHERE id = ? AND user_id = ? AND deleted_at IS ${deleted ? 'NOT ' : ''}NULL`
+  ).get(Number(id), userId) || null;
+}
+function outsOwnedRate(userId, rateId, { deleted = false } = {}) {
+  return db.prepare(
+    `SELECT t.* FROM outs_rates t JOIN outs_resources r ON r.id = t.resource_id
+      WHERE t.id = ? AND r.user_id = ? AND r.deleted_at IS NULL
+        AND t.deleted_at IS ${deleted ? 'NOT ' : ''}NULL`
+  ).get(Number(rateId), userId) || null;
+}
+function outsOwnedEntry(userId, entryId, { deleted = false } = {}) {
+  return db.prepare(
+    `SELECT e.* FROM outs_entries e JOIN outs_resources r ON r.id = e.resource_id
+      WHERE e.id = ? AND e.user_id = ? AND r.user_id = ? AND r.deleted_at IS NULL
+        AND e.deleted_at IS ${deleted ? 'NOT ' : ''}NULL`
+  ).get(Number(entryId), userId, userId) || null;
+}
+
+// Append-only audit row, only when the value actually changed. Values are the
+// human-facing form. Call inside the same tx() as the write it describes.
+// Entries record edits, deletes and restores — not every new row, which would
+// turn the trail into a second copy of the timesheet.
+function recordOutsHistory(userId, resourceId, recordType, recordId, field, oldValue, newValue, now) {
+  const oldStr = String(oldValue ?? '');
+  const newStr = String(newValue ?? '');
+  if (oldStr === newStr) return;
+  db.prepare(
+    `INSERT INTO outs_history(resource_id, record_type, record_id, field, old_value, new_value, user_id, changed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(resourceId, recordType, recordId, field, oldStr, newStr, userId, now);
+}
+function outsTouchResource(resourceId, now) {
+  db.prepare('UPDATE outs_resources SET updated_at = ? WHERE id = ?').run(now, resourceId);
+}
+
+// Live rates of one resource, oldest first — the order outsRateAt walks.
+function outsRates(resourceId) {
+  return db.prepare(
+    'SELECT * FROM outs_rates WHERE resource_id = ? AND deleted_at IS NULL ORDER BY effective_from, id'
+  ).all(resourceId);
+}
+// The rate in force on `date`: the latest effective_from on or before it, or
+// null when the date is before the first rate (D5 — flagged "no rate").
+function outsRateAt(rates, date) {
+  let found = null;
+  for (const r of rates) {
+    if (r.effective_from <= date) found = r;
+    else break;
+  }
+  return found;
+}
+const outsRateToApi = t => ({
+  id: t.id, resourceId: t.resource_id, rateMinor: t.rate_minor, effectiveFrom: t.effective_from,
+  createdAt: t.created_at, updatedAt: t.updated_at,
+});
+function outsEntryToApi(e, rates) {
+  const rate = outsRateAt(rates, e.work_date);
+  return {
+    id: e.id, resourceId: e.resource_id, date: e.work_date, minutes: e.minutes,
+    description: e.description, project: e.project, statementId: e.statement_id ?? null,
+    locked: e.statement_id != null, rateMinor: rate ? rate.rate_minor : null,
+    createdAt: e.created_at, updatedAt: e.updated_at,
+  };
+}
+
+// Groups API entries into statement lines — one per project (folded) × rate —
+// exactly as a statement will snapshot them. Minutes are summed exactly and
+// money is rounded once per line. Entries with no rate get a line with a null
+// rate and amount, and are counted in `missingRate` (they block issuing).
+function outsSummarize(entries) {
+  const lines = new Map();
+  let totalMinutes = 0;
+  let missingRate = 0;
+  for (const e of entries) {
+    totalMinutes += e.minutes;
+    if (e.rateMinor == null) missingRate++;
+    const key = outsProjectKey(e.project) + '\u0000' + (e.rateMinor ?? '');
+    let line = lines.get(key);
+    if (!line) {
+      line = { project: e.project, rateMinor: e.rateMinor, minutes: 0, entries: 0, firstDate: e.date };
+      lines.set(key, line);
+    }
+    line.minutes += e.minutes;
+    line.entries++;
+    if (e.date < line.firstDate) line.firstDate = e.date;
+  }
+  const out = [...lines.values()]
+    .map(l => ({ ...l, amountMinor: l.rateMinor == null ? null : outsAmountMinor(l.minutes, l.rateMinor) }))
+    .sort((a, b) => outsProjectKey(a.project).localeCompare(outsProjectKey(b.project))
+      || a.firstDate.localeCompare(b.firstDate));
+  const totalMinor = out.reduce((sum, l) => sum + (l.amountMinor ?? 0), 0);
+  return { totalMinutes, totalMinor, missingRate, lines: out };
+}
+
+function outsResourceToApi(r, extra = {}) {
+  return {
+    id: r.id, name: r.name, email: r.email, phone: r.phone, notes: r.notes,
+    currency: lkCode(r.currency_id), isActive: !!r.is_active,
+    createdAt: r.created_at, updatedAt: r.updated_at, ...extra,
+  };
+}
+const OUTS_RESOURCE_HISTORY_FIELDS = [
+  ['name', 'Name'], ['email', 'Email'], ['phone', 'Phone'], ['notes', 'Notes'],
+  ['currency_id', 'Currency', id => lkCode(id)],
+];
+
+// Merges `data` over `before` (raw row, or null on create). Partial: only keys
+// present in `data` change. Returns { fields } or { error }.
+function outsResourceWriteFields(data, before) {
+  const has = key => data != null && Object.prototype.hasOwnProperty.call(data, key);
+  const pick = (key, column) => (has(key) ? outsText(data[key]) : (before ? before[column] : ''));
+  const name = pick('name', 'name');
+  if (!name) return { error: 'A name is required' };
+  if (name.length > OUTS_MAX_TEXT) return { error: 'The name is too long' };
+  const email = pick('email', 'email');
+  if (email && (email.length > OUTS_MAX_TEXT || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+    return { error: 'The email address is not valid' };
+  }
+  const phone = pick('phone', 'phone');
+  if (phone.length > OUTS_MAX_TEXT) return { error: 'The phone number is too long' };
+  const notes = pick('notes', 'notes');
+  if (notes.length > OUTS_MAX_LONG_TEXT) return { error: 'The notes are too long' };
+  let currencyId = before?.currency_id ?? null;
+  if (has('currency')) {
+    currencyId = lkId('CURRENCY', outsText(data.currency));
+    if (currencyId == null || !isLookupId('CURRENCY', currencyId)) return { error: 'Choose a currency' };
+  }
+  if (currencyId == null) return { error: 'Choose a currency' };
+  return { fields: { name, email, phone, notes, currency_id: currencyId } };
+}
+// Two live resources on one login may not share a name (capitals/spaces
+// ignored) — the list would be ambiguous. A resource in its undo window does
+// not hold its name; restoring it re-checks.
+function outsNameConflict(userId, name, exceptId = null) {
+  const key = lookupLabelKey(name);
+  const clash = db.prepare(
+    'SELECT name FROM outs_resources WHERE user_id = ? AND deleted_at IS NULL AND id IS NOT ?'
+  ).all(userId, exceptId).some(r => lookupLabelKey(r.name) === key);
+  return clash ? 'Another resource already has this name' : null;
+}
+
+// Unbilled = live entries not on an issued statement. Unpaid = unbilled fees
+// plus ISSUED (not yet PAID) statements.
+function outsResourceTotals(resourceId, rates, today) {
+  const month = today.slice(0, 7);
+  const unbilled = outsSummarize(db.prepare(
+    'SELECT * FROM outs_entries WHERE resource_id = ? AND deleted_at IS NULL AND statement_id IS NULL'
+  ).all(resourceId).map(e => outsEntryToApi(e, rates)));
+  const agg = db.prepare(
+    `SELECT MAX(work_date) AS lastDate,
+            COALESCE(SUM(CASE WHEN substr(work_date, 1, 7) = ? THEN minutes END), 0) AS monthMinutes
+       FROM outs_entries WHERE resource_id = ? AND deleted_at IS NULL`
+  ).get(month, resourceId);
+  const issuedMinor = db.prepare(
+    "SELECT COALESCE(SUM(total_minor), 0) AS n FROM outs_statements WHERE resource_id = ? AND status = 'ISSUED' AND deleted_at IS NULL"
+  ).get(resourceId).n;
+  const current = outsRateAt(rates, today);
+  return {
+    currentRateMinor: current ? current.rate_minor : null,
+    lastEntryDate: agg.lastDate || '',
+    monthMinutes: agg.monthMinutes,
+    unbilledMinutes: unbilled.totalMinutes,
+    unbilledMinor: unbilled.totalMinor,
+    unbilledMissingRate: unbilled.missingRate,
+    issuedMinor,
+    unpaidMinor: unbilled.totalMinor + issuedMinor,
+  };
+}
+
+// filters: { includeInactive }. Name order, folded like lookupLabelKey.
+function listOutsResources(userId, filters = {}) {
+  const today = pfmLocalToday();
+  return db.prepare(
+    `SELECT * FROM outs_resources WHERE user_id = ? AND deleted_at IS NULL
+        ${filters.includeInactive ? '' : 'AND is_active = 1'}`
+  ).all(userId)
+    .sort((a, b) => lookupLabelKey(a.name).localeCompare(lookupLabelKey(b.name)) || a.id - b.id)
+    .map(r => outsResourceToApi(r, outsResourceTotals(r.id, outsRates(r.id), today)));
+}
+
+// Full detail: the resource, its totals and its rate history (newest first).
+function getOutsResource(userId, id) {
+  const r = outsOwnedResource(userId, id);
+  if (!r) return null;
+  const rates = outsRates(r.id);
+  return outsResourceToApi(r, {
+    ...outsResourceTotals(r.id, rates, pfmLocalToday()),
+    rates: rates.map(outsRateToApi).reverse(),
+  });
+}
+
+// data: { name, email, phone, notes, currency (CURRENCY code) }.
+function createOutsResource(userId, data) {
+  const w = outsResourceWriteFields(data, null);
+  if (w.error) return { ok: false, error: w.error };
+  const f = w.fields;
+  const now = new Date().toISOString();
+  let error = null;
+  const id = tx(() => {
+    error = outsNameConflict(userId, f.name);
+    if (error) return null;
+    const newId = Number(db.prepare(
+      `INSERT INTO outs_resources(user_id, name, email, phone, notes, currency_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(userId, f.name, f.email, f.phone, f.notes, f.currency_id, now, now).lastInsertRowid);
+    recordOutsHistory(userId, newId, 'resource', newId, 'Created', '', f.name, now);
+    return newId;
+  });
+  if (error) return { ok: false, error };
+  return { ok: true, resource: getOutsResource(userId, id) };
+}
+
+function updateOutsResource(userId, id, data) {
+  const before = outsOwnedResource(userId, id);
+  if (!before) return { ok: false, error: 'Resource not found' };
+  const w = outsResourceWriteFields(data, before);
+  if (w.error) return { ok: false, error: w.error };
+  const f = w.fields;
+  const now = new Date().toISOString();
+  let error = null;
+  tx(() => {
+    error = outsNameConflict(userId, f.name, before.id);
+    if (error) return;
+    OUTS_RESOURCE_HISTORY_FIELDS.forEach(([column, label, fmt]) => {
+      const show = v => (fmt ? fmt(v) : (v ?? ''));
+      recordOutsHistory(userId, before.id, 'resource', before.id, label, show(before[column]), show(f[column]), now);
+    });
+    db.prepare(
+      `UPDATE outs_resources SET name = ?, email = ?, phone = ?, notes = ?, currency_id = ?, updated_at = ?
+        WHERE id = ? AND user_id = ?`
+    ).run(f.name, f.email, f.phone, f.notes, f.currency_id, now, before.id, userId);
+  });
+  if (error) return { ok: false, error };
+  return { ok: true, resource: getOutsResource(userId, before.id) };
+}
+
+function setOutsResourceActive(userId, id, active) {
+  const before = outsOwnedResource(userId, id);
+  if (!before) return { ok: false, error: 'Resource not found' };
+  if (!!before.is_active === !!active) return { ok: true, resource: getOutsResource(userId, before.id) };
+  const now = new Date().toISOString();
+  tx(() => {
+    recordOutsHistory(userId, before.id, 'resource', before.id, 'Active', before.is_active ? 'Yes' : 'No', active ? 'Yes' : 'No', now);
+    db.prepare('UPDATE outs_resources SET is_active = ?, updated_at = ? WHERE id = ? AND user_id = ?')
+      .run(active ? 1 : 0, now, before.id, userId);
+  });
+  return { ok: true, resource: getOutsResource(userId, before.id) };
+}
+
+// A resource with an issued or paid statement is a payment record: it can be
+// deactivated, never deleted. Otherwise delete = stamp deleted_at (the 5 s
+// undo window); restore clears it; purge removes it, with its rates, entries
+// and draft/cancelled statements (ON DELETE CASCADE).
+function deleteOutsResource(userId, id) {
+  const before = outsOwnedResource(userId, id);
+  if (!before) return { ok: false, error: 'Resource not found' };
+  const billed = db.prepare(
+    "SELECT 1 FROM outs_statements WHERE resource_id = ? AND status IN ('ISSUED', 'PAID') AND deleted_at IS NULL LIMIT 1"
+  ).get(before.id);
+  if (billed) return { ok: false, error: 'This resource has issued statements — deactivate it instead' };
+  const now = new Date().toISOString();
+  tx(() => {
+    recordOutsHistory(userId, before.id, 'resource', before.id, 'Deleted', '', before.name, now);
+    db.prepare('UPDATE outs_resources SET deleted_at = ? WHERE id = ? AND user_id = ?').run(now, before.id, userId);
+  });
+  return { ok: true };
+}
+function restoreOutsResource(userId, id) {
+  const before = outsOwnedResource(userId, id, { deleted: true });
+  if (!before) return { ok: false, error: 'Resource not found' };
+  const error = outsNameConflict(userId, before.name, before.id);
+  if (error) return { ok: false, error };
+  const now = new Date().toISOString();
+  tx(() => {
+    recordOutsHistory(userId, before.id, 'resource', before.id, 'Restored', '', before.name, now);
+    db.prepare('UPDATE outs_resources SET deleted_at = NULL WHERE id = ? AND user_id = ?').run(before.id, userId);
+  });
+  return { ok: true, resource: getOutsResource(userId, before.id) };
+}
+function purgeOutsResource(userId, id) {
+  const changes = db.prepare('DELETE FROM outs_resources WHERE id = ? AND user_id = ? AND deleted_at IS NOT NULL')
+    .run(Number(id), userId).changes;
+  return { ok: changes > 0 };
+}
+
+// ── Outsource rates ──
+// data: { rateMinor (integer minor units per hour), effectiveFrom (YYYY-MM-DD) }.
+function outsRateWriteFields(data, before) {
+  const has = key => data != null && Object.prototype.hasOwnProperty.call(data, key);
+  let rateMinor = before?.rate_minor;
+  if (has('rateMinor') || !before) {
+    const r = outsRateMinor(data?.rateMinor);
+    if (r.error) return { error: r.error };
+    rateMinor = r.value;
+  }
+  let effectiveFrom = before?.effective_from;
+  if (has('effectiveFrom') || !before) {
+    const d = outsDate(data?.effectiveFrom, 'Effective from');
+    if (d.error) return { error: d.error };
+    effectiveFrom = d.value;
+  }
+  return { fields: { rate_minor: rateMinor, effective_from: effectiveFrom } };
+}
+function outsRateConflict(resourceId, effectiveFrom, exceptId = null) {
+  return db.prepare(
+    'SELECT 1 FROM outs_rates WHERE resource_id = ? AND effective_from = ? AND deleted_at IS NULL AND id IS NOT ?'
+  ).get(resourceId, effectiveFrom, exceptId) ? 'A rate already starts on this date' : null;
+}
+const outsRateLabel = (t, currency) => `${outsMoneyText(t.rate_minor)} ${currency}/h from ${t.effective_from}`;
+
+function addOutsRate(userId, resourceId, data) {
+  const r = outsOwnedResource(userId, resourceId);
+  if (!r) return { ok: false, error: 'Resource not found' };
+  const w = outsRateWriteFields(data, null);
+  if (w.error) return { ok: false, error: w.error };
+  const f = w.fields;
+  const now = new Date().toISOString();
+  let error = null;
+  tx(() => {
+    error = outsRateConflict(r.id, f.effective_from);
+    if (error) return;
+    const newId = Number(db.prepare(
+      'INSERT INTO outs_rates(resource_id, rate_minor, effective_from, created_at, updated_at) VALUES (?, ?, ?, ?, ?)'
+    ).run(r.id, f.rate_minor, f.effective_from, now, now).lastInsertRowid);
+    recordOutsHistory(userId, r.id, 'rate', newId, 'Rate Added', '', outsRateLabel(f, lkCode(r.currency_id)), now);
+    outsTouchResource(r.id, now);
+  });
+  if (error) return { ok: false, error };
+  return { ok: true, resource: getOutsResource(userId, r.id) };
+}
+function updateOutsRate(userId, rateId, data) {
+  const before = outsOwnedRate(userId, rateId);
+  if (!before) return { ok: false, error: 'Rate not found' };
+  const w = outsRateWriteFields(data, before);
+  if (w.error) return { ok: false, error: w.error };
+  const f = w.fields;
+  const currency = lkCode(outsOwnedResource(userId, before.resource_id).currency_id);
+  const now = new Date().toISOString();
+  let error = null;
+  tx(() => {
+    error = outsRateConflict(before.resource_id, f.effective_from, before.id);
+    if (error) return;
+    recordOutsHistory(userId, before.resource_id, 'rate', before.id, 'Rate',
+      outsRateLabel(before, currency), outsRateLabel(f, currency), now);
+    db.prepare('UPDATE outs_rates SET rate_minor = ?, effective_from = ?, updated_at = ? WHERE id = ?')
+      .run(f.rate_minor, f.effective_from, now, before.id);
+    outsTouchResource(before.resource_id, now);
+  });
+  if (error) return { ok: false, error };
+  return { ok: true, resource: getOutsResource(userId, before.resource_id) };
+}
+function setOutsRateDeleted(userId, rateId, deleted) {
+  const before = outsOwnedRate(userId, rateId, { deleted: !deleted });
+  if (!before) return { ok: false, error: 'Rate not found' };
+  // Restoring into a date someone re-used during the undo window would break
+  // the one-rate-per-date rule.
+  if (!deleted) {
+    const error = outsRateConflict(before.resource_id, before.effective_from, before.id);
+    if (error) return { ok: false, error };
+  }
+  const currency = lkCode(outsOwnedResource(userId, before.resource_id).currency_id);
+  const now = new Date().toISOString();
+  tx(() => {
+    recordOutsHistory(userId, before.resource_id, 'rate', before.id, deleted ? 'Rate Deleted' : 'Rate Restored',
+      '', outsRateLabel(before, currency), now);
+    db.prepare('UPDATE outs_rates SET deleted_at = ? WHERE id = ?').run(deleted ? now : null, before.id);
+    outsTouchResource(before.resource_id, now);
+  });
+  return { ok: true, resource: getOutsResource(userId, before.resource_id) };
+}
+const deleteOutsRate = (userId, rateId) => setOutsRateDeleted(userId, rateId, true);
+const restoreOutsRate = (userId, rateId) => setOutsRateDeleted(userId, rateId, false);
+function purgeOutsRate(userId, rateId) {
+  const t = outsOwnedRate(userId, rateId, { deleted: true });
+  if (!t) return { ok: false };
+  db.prepare('DELETE FROM outs_rates WHERE id = ? AND deleted_at IS NOT NULL').run(t.id);
+  return { ok: true };
+}
+
+// ── Outsource entries ──
+// data: { date, minutes (number, or text per parseOutsMinutes), description, project }.
+function outsEntryWriteFields(data, before) {
+  const has = key => data != null && Object.prototype.hasOwnProperty.call(data, key);
+  let workDate = before?.work_date;
+  if (has('date') || !before) {
+    const d = outsDate(data?.date, 'Date');
+    if (d.error) return { error: d.error };
+    workDate = d.value;
+  }
+  let minutes = before?.minutes;
+  if (has('minutes') || !before) {
+    const m = parseOutsMinutes(data?.minutes);
+    if (m.error) return { error: m.error };
+    minutes = m.value;
+  }
+  const description = has('description') ? outsText(data.description) : (before?.description || '');
+  if (description.length > OUTS_MAX_LONG_TEXT) return { error: 'The description is too long' };
+  const project = has('project') ? outsProject(data.project) : (before?.project || '');
+  if (project.length > OUTS_MAX_TEXT) return { error: 'The project name is too long' };
+  return { fields: { work_date: workDate, minutes, description, project } };
+}
+const OUTS_ENTRY_HISTORY_FIELDS = [
+  ['work_date', 'Date'], ['minutes', 'Minutes'], ['description', 'Description'], ['project', 'Project'],
+];
+const OUTS_LOCKED_ERROR = 'This entry is on an issued statement and can no longer be changed';
+const outsEntryLabel = e => `${e.work_date} · ${e.minutes} min${e.project ? ' · ' + e.project : ''}`;
+function outsEntryById(id) {
+  const e = db.prepare('SELECT * FROM outs_entries WHERE id = ?').get(id);
+  return outsEntryToApi(e, outsRates(e.resource_id));
+}
+
+function createOutsEntry(userId, resourceId, data) {
+  const r = outsOwnedResource(userId, resourceId);
+  if (!r) return { ok: false, error: 'Resource not found' };
+  const w = outsEntryWriteFields(data, null);
+  if (w.error) return { ok: false, error: w.error };
+  const f = w.fields;
+  const now = new Date().toISOString();
+  const id = tx(() => {
+    const newId = Number(db.prepare(
+      `INSERT INTO outs_entries(user_id, resource_id, work_date, minutes, description, project, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(userId, r.id, f.work_date, f.minutes, f.description, f.project, now, now).lastInsertRowid);
+    outsTouchResource(r.id, now);
+    return newId;
+  });
+  return { ok: true, entry: outsEntryById(id) };
+}
+function updateOutsEntry(userId, id, data) {
+  const before = outsOwnedEntry(userId, id);
+  if (!before) return { ok: false, error: 'Entry not found' };
+  if (before.statement_id != null) return { ok: false, error: OUTS_LOCKED_ERROR };
+  const w = outsEntryWriteFields(data, before);
+  if (w.error) return { ok: false, error: w.error };
+  const f = w.fields;
+  const now = new Date().toISOString();
+  tx(() => {
+    OUTS_ENTRY_HISTORY_FIELDS.forEach(([column, label]) =>
+      recordOutsHistory(userId, before.resource_id, 'entry', before.id, label, before[column], f[column], now));
+    db.prepare(
+      'UPDATE outs_entries SET work_date = ?, minutes = ?, description = ?, project = ?, updated_at = ? WHERE id = ?'
+    ).run(f.work_date, f.minutes, f.description, f.project, now, before.id);
+    outsTouchResource(before.resource_id, now);
+  });
+  return { ok: true, entry: outsEntryById(before.id) };
+}
+function setOutsEntryDeleted(userId, id, deleted) {
+  const before = outsOwnedEntry(userId, id, { deleted: !deleted });
+  if (!before) return { ok: false, error: 'Entry not found' };
+  if (before.statement_id != null) return { ok: false, error: OUTS_LOCKED_ERROR };
+  const now = new Date().toISOString();
+  tx(() => {
+    recordOutsHistory(userId, before.resource_id, 'entry', before.id, deleted ? 'Entry Deleted' : 'Entry Restored',
+      '', outsEntryLabel(before), now);
+    db.prepare('UPDATE outs_entries SET deleted_at = ? WHERE id = ?').run(deleted ? now : null, before.id);
+    outsTouchResource(before.resource_id, now);
+  });
+  return deleted ? { ok: true } : { ok: true, entry: outsEntryById(before.id) };
+}
+const deleteOutsEntry = (userId, id) => setOutsEntryDeleted(userId, id, true);
+const restoreOutsEntry = (userId, id) => setOutsEntryDeleted(userId, id, false);
+function purgeOutsEntry(userId, id) {
+  const e = outsOwnedEntry(userId, id, { deleted: true });
+  if (!e) return { ok: false };
+  db.prepare('DELETE FROM outs_entries WHERE id = ? AND deleted_at IS NOT NULL').run(e.id);
+  return { ok: true };
+}
+
+// One resource's entries, oldest first (the sheet's order), plus the summary
+// the grid footer shows. filters: { from, to (YYYY-MM-DD), project (folded
+// match), unbilled (only entries not on an issued statement) }.
+function listOutsEntries(userId, resourceId, filters = {}) {
+  const r = outsOwnedResource(userId, resourceId);
+  if (!r) return { ok: false, error: 'Resource not found' };
+  const where = ['resource_id = ?', 'user_id = ?', 'deleted_at IS NULL'];
+  const params = [r.id, userId];
+  for (const [key, op] of [['from', '>='], ['to', '<=']]) {
+    const s = outsText(filters[key]);
+    if (!s) continue;
+    if (!isValidDateStr(s)) return { ok: false, error: 'The filter dates must be valid dates' };
+    where.push(`work_date ${op} ?`); params.push(s);
+  }
+  if (filters.unbilled) where.push('statement_id IS NULL');
+  const projectKey = filters.project != null && filters.project !== '' ? outsProjectKey(filters.project) : null;
+  const rates = outsRates(r.id);
+  const entries = db.prepare(
+    `SELECT * FROM outs_entries WHERE ${where.join(' AND ')} ORDER BY work_date, id`
+  ).all(...params)
+    .filter(e => projectKey == null || outsProjectKey(e.project) === projectKey)
+    .map(e => outsEntryToApi(e, rates));
+  return { ok: true, currency: lkCode(r.currency_id), entries, summary: outsSummarize(entries) };
+}
+
+// Project names already typed on this login's entries — the <datalist> behind
+// the free-text project field (D2). Folded; the most recent spelling wins.
+function listOutsProjects(userId) {
+  const seen = new Map();
+  db.prepare(
+    `SELECT e.project FROM outs_entries e JOIN outs_resources r ON r.id = e.resource_id
+      WHERE e.user_id = ? AND r.user_id = ? AND e.deleted_at IS NULL AND r.deleted_at IS NULL
+        AND e.project <> '' ORDER BY e.updated_at DESC, e.id DESC`
+  ).all(userId, userId).forEach(({ project }) => {
+    const key = outsProjectKey(project);
+    if (!seen.has(key)) seen.set(key, project);
+  });
+  return [...seen.values()].sort((a, b) => a.localeCompare(b));
+}
+
+// Newest first, with the acting account's username. Readable while the
+// resource exists for this login; the rows themselves outlive it.
+function getOutsHistory(userId, resourceId) {
+  if (!outsOwnedResource(userId, resourceId)) return [];
+  return db.prepare(
+    `SELECT h.id, h.record_type AS recordType, h.record_id AS recordId, h.field,
+            h.old_value AS oldValue, h.new_value AS newValue, h.changed_at AS changedAt,
+            u.username AS changedBy
+       FROM outs_history h LEFT JOIN users u ON u.id = h.user_id
+      WHERE h.resource_id = ? ORDER BY h.changed_at DESC, h.id DESC`
+  ).all(Number(resourceId));
+}
+
+// Boot-time safety net, like purgeDeletedPfmRecords: rows still stamped
+// deleted_at were deleted in a session that ended inside its undo window.
+function purgeDeletedOutsRecords() {
+  return tx(() => ({
+    resources: db.prepare('DELETE FROM outs_resources WHERE deleted_at IS NOT NULL').run().changes,
+    rates: db.prepare('DELETE FROM outs_rates WHERE deleted_at IS NOT NULL').run().changes,
+    entries: db.prepare('DELETE FROM outs_entries WHERE deleted_at IS NOT NULL').run().changes,
+    statements: db.prepare('DELETE FROM outs_statements WHERE deleted_at IS NOT NULL').run().changes,
+  }));
+}
+
 module.exports = {
 
   LOOKUP_CATEGORIES, LOOKUP_MERGE_TARGETS, DB_FILENAME, USER_DATA_ENTRIES,
@@ -6017,4 +6618,8 @@ module.exports = {
   createPfmVersion, updatePfmVersion, deletePfmVersion, restorePfmVersion, purgePfmVersion,
   getPfmHistory, listPfmMemberNames, addPfmVersionFiles, resolvePfmFile, removePfmFile,
   restorePfmFile, purgePfmFile, pfmRootDir, pfmAttentionItems,
+  parseOutsMinutes, listOutsResources, getOutsResource, createOutsResource, updateOutsResource,
+  setOutsResourceActive, deleteOutsResource, restoreOutsResource, purgeOutsResource, addOutsRate,
+  updateOutsRate, deleteOutsRate, restoreOutsRate, purgeOutsRate, createOutsEntry, updateOutsEntry,
+  deleteOutsEntry, restoreOutsEntry, purgeOutsEntry, listOutsEntries, listOutsProjects, getOutsHistory,
 };

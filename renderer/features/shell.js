@@ -23,6 +23,7 @@ const PAL_PAGES = [
   { icon: 'building',         label: 'Internal Work',  go: 'internal-tasks' },
   { icon: 'layers',           label: 'Clients',       go: 'clients' },
   { icon: 'briefcase',        label: 'Project & Finance', go: 'pfm' },
+  { icon: 'users',            label: 'Outsource',     go: 'outsource' },
 
   { icon: 'credit-card',      label: 'Subscriptions', go: 'subscriptions' },
   { icon: 'calendar-check',   label: 'Company Documents', go: 'companydocs' },
@@ -160,6 +161,7 @@ function renderPalette() {
     { icon: 'clipboard-list',label: 'New project',                match: 'new project create',              run: () => { switchModule('clients'); openProjectModal(); } },
     { icon: 'briefcase',     label: 'New offer',                  match: 'new offer create quotation proposal project finance', run: () => { switchModule('pfm'); openPfmNew('OFFER'); } },
     { icon: 'briefcase',     label: 'New CR',                     match: 'new cr change request create project finance', run: () => { switchModule('pfm'); openPfmNew('CR'); } },
+    { icon: 'users',         label: 'New outsource resource',     match: 'new outsource resource freelancer contractor external person rate', run: () => { switchModule('outsource'); openOutsNew(); } },
     { icon: 'book-open',     label: 'New knowledge item',         match: 'new knowledge manual guide article create', run: () => { switchModule('knowledge'); openKnowledgeEditor(); } },
     { icon: 'calendar-check',label: 'Go to today',                match: 'today now current day',           run: () => { switchModule('timesheet'); goToday(); } },
     { icon: 'moon',          label: 'Toggle dark / light theme',  match: 'theme dark light mode toggle',    run: toggleTheme },
@@ -197,6 +199,8 @@ function renderPalette() {
     'client-server': ['server', 'Open client server'],
     'client-system': ['monitor', 'Open client system'],
     pfm: ['briefcase', 'Open offer / CR'],
+    'outs-resource': ['users', 'Open resource'],
+    'outs-entry': ['users', 'Open resource'],
   };
   const workspaceItems = _palWorkspace.map(result => {
     const [icon, fallbackHint] = kindInfo[result.kind] || ['search', 'Open'];
@@ -227,6 +231,9 @@ function renderPalette() {
           scrollToAndHighlight('[data-sub-id="' + result.id + '"]');
         } else if (result.kind === 'pfm') {
           openPfmDetail(result.id);
+        } else if (result.kind === 'outs-resource' || result.kind === 'outs-entry') {
+          // An entry's id is 'resourceId:entryId'; either way, open the resource.
+          openOutsDetail(Number(String(result.id).split(':', 1)[0]));
         } else if (result.kind.startsWith('client-')) {
           const companyId = Number(String(result.id).split(':', 1)[0]);
           if (Number.isInteger(companyId) && companyId > 0) {

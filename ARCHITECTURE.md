@@ -17,6 +17,7 @@ Office ONE is an offline, multi-user Electron desktop app covering:
 - **Subscriptions** and **Company Documents** — recurring spend and renewal-tracked files.
 - **Knowledge Hub** — WYSIWYG articles (Quill), groups, tags, attachments, versioned documents.
 - **Project & Finance** — Offers and Change Requests (CRs): a status stage trail, fee-bearing versions with uploaded files, follow-up/expiry reminders and Excel export.
+- **Outsource** — external resources paid by the hour: an hourly rate history per person (being built in phases, see docs/OUTSOURCE_PLAN.md).
 - **Overview / Reports** — read-only analytics, PDF/CSV/Excel export.
 
 There is no server and no network access. All data lives in one embedded SQLite
@@ -60,9 +61,10 @@ renderer/
   core.js            Icons, shared state, modals/focus traps, toasts, lookups, pickers
   app.css            All application styling (design tokens in :root)
   features/          timesheet.js, tasks.js, workspace.js, clients.js, knowledge.js,
-                     knowledge-sanitize.js, company-documents.js, pfm.js, shell.js
+                     knowledge-sanitize.js, company-documents.js, pfm.js, outsource.js,
+                     shell.js
   vendor/            quill/, dompurify/
-migrations/          000_baseline.js … 065_pfm_status_follows_stages.js (append-only)
+migrations/          000_baseline.js … 066_outsource.js (append-only)
 test/                40 *-smoke.js suites + run-all.js + electron-e2e.js + helpers
 ```
 
@@ -130,6 +132,19 @@ retired Finance tables, §5): `pfm_items` (one row per Offer or CR), `pfm_stages
   the bytes. Ids stay stable across an undo.
 - `pfm_history.item_id` is deliberately **not** a foreign key: like
   `lookup_code_history`, the audit outlives the record.
+
+**Outsource** (migration 066, `outs_` prefix — a standalone module: no foreign
+key to projects, `COMPANY`, `pfm_*`, tasks or work logs; only `CURRENCY` is shared):
+`outs_resources` (one per external person paid), `outs_rates`, `outs_entries`,
+`outs_statements`, `outs_statement_lines`, `outs_history`.
+
+- Rows are **private per login** (`user_id`). An entry's project is **free text**.
+- Rates are integer minor units **per hour** with an `effective_from` date; an
+  entry is priced by the rate in force on its date, never stored. Fees are
+  rounded half-up once per statement line (project × rate).
+- An entry is **locked** while `statement_id` is set, which only issuing a
+  statement does; issuing snapshots the lines so a later rate change cannot alter it.
+- Soft delete via `deleted_at`, purged at the next boot, as in Project & Finance.
 
 **Search**: `workspace_search` — a user-scoped, trigger-maintained FTS5 index.
 Credentials and file contents are deliberately excluded. Client-infrastructure
@@ -199,6 +214,7 @@ Landmarks worth knowing:
 | 063 | Offers & CRs join `workspace_search` — backfill plus three `workspace_search_pfm_items_*` triggers |
 | 064 | `pfm_items.client_channel` (EMAIL/JIRA) + `client_channel_ref` (email subject or Jira URL) via ADD COLUMN; the contact email/phone and notes columns stay but are no longer shown |
 | 065 | Repair: an Offer/CR whose status lags its furthest dated stage moves forward to it (history row per move); `savePfmStage` now does this on save |
+| 066 | Outsource — the six `outs_*` tables (resources, rate history, time entries, statements + their line snapshots, history), additive only; resources and entries join `workspace_search` (kinds `outs-resource` / `outs-entry`) |
 
 **A guarded seed is the right shape for a fresh-install gap.** Migration 003
 seeded some categories from "legacy blob ∪ values already in the data", both
@@ -398,6 +414,7 @@ list ungrouped — it is the landing page everything else reports into:
 | | `subscriptions` | **Subscriptions** |
 | | `companydocs` | **Company Docs** |
 | | `pfm` | **Project & Finance** — Offers & CRs |
+| | `outsource` | **Outsource** — external resources and their hourly rates |
 | | `knowledge` | **Knowledge Hub** |
 | Review | `reports` | **Reports** |
 
@@ -573,7 +590,7 @@ from the OS region.
 ```bash
 npm start          # electron .
 npm run lint       # eslint
-npm test           # test/run-all.js — 40 headless smoke suites
+npm test           # test/run-all.js — 41 headless smoke suites
 npm run test:e2e   # test/electron-e2e.js — real Electron over CDP
 npm run build:win  # NSIS + portable
 npm run pack       # unpacked dir (fast packaging sanity check)

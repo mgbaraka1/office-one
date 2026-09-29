@@ -868,6 +868,65 @@
  */
 
 /**
+ * One hourly rate of an Outsource resource (outs_rates). The rate for a work
+ * date is the one with the latest effectiveFrom on or before it.
+ * @typedef {Object} OutsRate
+ * @property {number} id
+ * @property {number} resourceId
+ * @property {number} rateMinor       Integer minor units per hour (25000 = 250.00).
+ * @property {string} effectiveFrom   YYYY-MM-DD.
+ * @property {string} createdAt
+ * @property {string} updatedAt
+ */
+
+/**
+ * An external person being paid (outs_resources), private to the login that
+ * owns it. Totals are computed on read, never stored: "unbilled" is live
+ * entries not on an issued statement, "unpaid" adds ISSUED statements.
+ * @typedef {Object} OutsResource
+ * @property {number} id
+ * @property {string} name
+ * @property {string} email
+ * @property {string} phone
+ * @property {string} notes
+ * @property {string} currency              CURRENCY lookup code.
+ * @property {boolean} isActive
+ * @property {number|null} currentRateMinor The rate in force today, or null.
+ * @property {string} lastEntryDate         '' when there are no entries.
+ * @property {number} monthMinutes          Minutes logged this calendar month.
+ * @property {number} unbilledMinutes
+ * @property {number} unbilledMinor
+ * @property {number} unbilledMissingRate   Unbilled entries dated before the first rate.
+ * @property {number} issuedMinor           ISSUED, not yet PAID, statements.
+ * @property {number} unpaidMinor           unbilledMinor + issuedMinor.
+ * @property {string} createdAt
+ * @property {string} updatedAt
+ * @property {OutsRate[]} [rates]           outs:get and every write: newest first.
+ */
+
+/**
+ * Result of every outs:* resource or rate write. Refusals (duplicate name,
+ * a second rate on one date, a delete once billed) come back as ok:false.
+ * @typedef {Object} OutsWriteResult
+ * @property {boolean} ok
+ * @property {string} [error]
+ * @property {OutsResource} [resource]
+ */
+
+/**
+ * One outs_history row (`outs:history`), newest first. Values are human-facing.
+ * @typedef {Object} OutsHistoryEntry
+ * @property {number} id
+ * @property {'resource'|'rate'|'entry'|'statement'} recordType
+ * @property {number|null} recordId
+ * @property {string} field
+ * @property {string} oldValue
+ * @property {string} newValue
+ * @property {string} changedAt
+ * @property {string} changedBy      Username of the acting account.
+ */
+
+/**
  * One date-urgent item from `attention:list` (db.getAttentionItems) — the
  * Milestone 3 aggregation across subscription renewals, Company Document
  * renewals, and the three client_* tables with an expiry_date (Auth/VPN,
@@ -958,6 +1017,8 @@
  *                                          still marked deleted at boot (their undo window lapsed with the app closed) and purged.
  * @property {string[]} pfmFiles             project_finance/ item folders, item/version folders, or
  *                                          item/version/file paths removed this boot because nothing references them.
+ * @property {{resources:number, rates:number, entries:number, statements:number}|null} outsPurged  Outsource
+ *                                          rows still marked deleted at boot, purged the same way.
  * @property {string|null} ranAt            ISO timestamp of the boot that produced this report, or null before first boot.
  */
 

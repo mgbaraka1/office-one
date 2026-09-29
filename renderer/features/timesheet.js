@@ -1599,6 +1599,7 @@ document.addEventListener('keydown', e => {
       else if (activeModule === 'all-tasks')     openBacklogModal();
       else if (activeModule === 'internal-tasks') openInternalTaskModal();
       else if (activeModule === 'pfm')           openPfmNew('OFFER');
+      else if (activeModule === 'outsource')     openOutsNew();
     }
     // Day navigation: Ctrl+Left = earlier day, Ctrl+Right = later day
     if (e.ctrlKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
@@ -2783,6 +2784,7 @@ function switchModule(name) {
     if (name === 'browse') setBrowseKind(browseKind);
     else if (name === 'clients') backToClientsList();
     else if (name === 'pfm') backToPfmList();
+    else if (name === 'outsource') backToOutsList();
     return;
   }
   activeModule = name;
@@ -2837,6 +2839,9 @@ function switchModule(name) {
   } else if (name === 'pfm') {
     setAppTitle('Project & Finance');
     initPfmModule();
+  } else if (name === 'outsource') {
+    setAppTitle('Outsource');
+    initOutsModule();
   } else if (name === 'knowledge') {
     setAppTitle('Knowledge Hub');
     initKnowledgeModule();
