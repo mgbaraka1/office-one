@@ -104,6 +104,9 @@
     <button class="nav-item" data-module="pfm" data-onclick="switchModule('pfm')" title="Project &amp; Finance">
       <span class="nav-icon" data-ic="briefcase"></span><span class="nav-label">Project &amp; Finance</span><span class="nav-badge" id="nav-badge-pfm"></span>
     </button>
+    <button class="nav-item" data-module="outsource" data-onclick="switchModule('outsource')" title="Outsource">
+      <span class="nav-icon" data-ic="users"></span><span class="nav-label">Outsource</span><span class="nav-badge" id="nav-badge-outsource"></span>
+    </button>
     <button class="nav-item" data-module="knowledge" data-onclick="switchModule('knowledge')" title="Knowledge Hub">
       <span class="nav-icon" data-ic="book-open"></span><span class="nav-label">Knowledge Hub</span><span class="nav-badge" id="nav-badge-knowledge"></span>
     </button>
@@ -979,6 +982,122 @@
   <datalist id="pfm-member-names"></datalist>
 </div>
 
+<!-- ══ OUTSOURCE MODULE (external resources: hours & fees) ══ -->
+<div id="module-outsource" class="app-module">
+  <div id="outs-topbar" class="page-header">
+    <span class="page-title"><span class="ti-ic" data-ic="users"></span>Outsource</span>
+    <div class="topbar-right" id="outs-topbar-actions">
+      <input type="text" id="outs-search" class="mod-search" placeholder="Search resources…" data-oninput="applyOutsSearch()">
+      <button type="button" class="btn" id="outs-inactive-btn" data-onclick="toggleOutsInactive()" aria-pressed="false"><span data-ic="eye"></span>Show inactive</button>
+      <button class="btn primary" data-onclick="openOutsNew()"><span data-ic="plus"></span>New Resource</button>
+    </div>
+  </div>
+  <!-- List view. Loaded once (inactive included) and filtered client-side. -->
+  <div id="outs-list-view" class="pj-scroll">
+    <div class="pfm-table-wrap">
+      <table id="outs-table" class="pfm-table" style="display:none">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Rate / Hour</th>
+            <th>Hours This Month</th>
+            <th>Unbilled Hours</th>
+            <th>Unpaid</th>
+            <th>Last Entry</th>
+          </tr>
+        </thead>
+        <tbody id="outs-tbody"></tbody>
+      </table>
+    </div>
+    <div id="outs-empty-state" class="empty-state" hidden>
+      <div class="empty-state-inner">
+        <span data-ic="users"></span>
+        <p>No resources yet. Click <strong>+ New Resource</strong> to add the first one.</p>
+      </div>
+    </div>
+  </div>
+  <!-- Detail view (built by outsource.js) -->
+  <div id="outs-detail-view" class="pj-detail-scroll" style="display:none"></div>
+</div>
+
+<!-- ══ OUTSOURCE RESOURCE CREATE + EDIT MODAL ══ -->
+<div id="outs-modal-overlay" class="modal-overlay" data-onclick="outsModalOverlayClick(event)">
+  <div id="outs-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="outs-modal-title">New Resource</span>
+      <button class="modal-close" data-onclick="closeOutsModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="outs-name">Name</label>
+          <input id="outs-name" type="text" maxlength="200" placeholder="Who are you paying?" autocomplete="off" />
+        </div>
+        <div class="form-group">
+          <label for="outs-currency">Currency</label>
+          <select id="outs-currency"></select>
+        </div>
+      </div>
+      <div class="form-row" id="outs-first-rate-group">
+        <div class="form-group">
+          <label for="outs-first-rate">Rate per Hour (optional)</label>
+          <input id="outs-first-rate" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 250.00" />
+        </div>
+        <div class="form-group">
+          <label for="outs-first-rate-from">Effective From</label>
+          <input id="outs-first-rate-from" type="date" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="outs-email">Email (optional)</label>
+          <input id="outs-email" type="email" maxlength="200" autocomplete="off" />
+        </div>
+        <div class="form-group">
+          <label for="outs-phone">Phone (optional)</label>
+          <input id="outs-phone" type="text" maxlength="200" autocomplete="off" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label for="outs-notes">Notes (optional)</label>
+          <textarea id="outs-notes" placeholder="Anything worth remembering about this resource"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-onclick="closeOutsModal()">Cancel</button>
+      <button class="btn primary" id="outs-modal-submit" data-onclick="submitOutsModal()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Outsource — add / edit one hourly rate -->
+<div id="outs-rate-overlay" class="modal-overlay" data-onclick="outsRateOverlayClick(event)">
+  <div id="outs-rate-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="outs-rate-title">New Rate</span>
+      <button class="modal-close" data-onclick="closeOutsRateModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="outs-rate-amount">Rate per Hour</label>
+          <input id="outs-rate-amount" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 250.00" />
+        </div>
+        <div class="form-group">
+          <label for="outs-rate-from">Effective From</label>
+          <input id="outs-rate-from" type="date" />
+        </div>
+      </div>
+      <p class="outs-hint">Work dated on or after this day is priced at this rate, until the next rate starts.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-onclick="closeOutsRateModal()">Cancel</button>
+      <button class="btn primary" id="outs-rate-submit" data-onclick="submitOutsRateModal()">Add Rate</button>
+    </div>
+  </div>
+</div>
 <!-- ══ OFFER / CR CREATE + EDIT MODAL ══ -->
 <div id="pfm-modal-overlay" class="modal-overlay" data-onclick="pfmModalOverlayClick(event)">
   <div id="pfm-modal" class="modal-box">
@@ -2347,6 +2466,7 @@
 <script src="renderer/features/knowledge.js"></script>
 <script src="renderer/features/company-documents.js"></script>
 <script src="renderer/features/pfm.js"></script>
+<script src="renderer/features/outsource.js"></script>
 <script src="renderer/features/clients.js"></script>
 <script src="renderer/features/shell.js"></script>
 <div id="app-toast" class="app-toast" role="status" aria-live="polite"></div>

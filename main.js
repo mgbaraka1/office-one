@@ -485,6 +485,21 @@ ipcMain.handle('pfm:version-update', authed((_e, versionId, data) => db.updatePf
 ipcMain.handle('pfm:version-delete', authed((_e, versionId)      => db.deletePfmVersion(auth.requireUserId(), versionId)));
 ipcMain.handle('pfm:version-restore', authed((_e, versionId)     => db.restorePfmVersion(auth.requireUserId(), versionId)));
 ipcMain.handle('pfm:version-purge',  authed((_e, versionId)      => db.purgePfmVersion(auth.requireUserId(), versionId)));
+// Outsource (OUTSOURCE_PLAN.md): external resources and their hourly rates.
+ipcMain.handle('outs:list',          authed((_e, filters)        => db.listOutsResources(auth.requireUserId(), filters || {})));
+ipcMain.handle('outs:get',           authed((_e, id)             => db.getOutsResource(auth.requireUserId(), id)));
+ipcMain.handle('outs:create',        authed((_e, data)           => db.createOutsResource(auth.requireUserId(), data)));
+ipcMain.handle('outs:update',        authed((_e, id, data)       => db.updateOutsResource(auth.requireUserId(), id, data)));
+ipcMain.handle('outs:set-active',    authed((_e, id, active)     => db.setOutsResourceActive(auth.requireUserId(), id, active)));
+ipcMain.handle('outs:delete',        authed((_e, id)             => db.deleteOutsResource(auth.requireUserId(), id)));
+ipcMain.handle('outs:restore',       authed((_e, id)             => db.restoreOutsResource(auth.requireUserId(), id)));
+ipcMain.handle('outs:purge',         authed((_e, id)             => db.purgeOutsResource(auth.requireUserId(), id)));
+ipcMain.handle('outs:history',       authed((_e, id)             => db.getOutsHistory(auth.requireUserId(), id)));
+ipcMain.handle('outs:rate-add',      authed((_e, id, data)       => db.addOutsRate(auth.requireUserId(), id, data)));
+ipcMain.handle('outs:rate-update',   authed((_e, rateId, data)   => db.updateOutsRate(auth.requireUserId(), rateId, data)));
+ipcMain.handle('outs:rate-delete',   authed((_e, rateId)         => db.deleteOutsRate(auth.requireUserId(), rateId)));
+ipcMain.handle('outs:rate-restore',  authed((_e, rateId)         => db.restoreOutsRate(auth.requireUserId(), rateId)));
+ipcMain.handle('outs:rate-purge',    authed((_e, rateId)         => db.purgeOutsRate(auth.requireUserId(), rateId)));
 // The renderer never supplies a path: main opens the dialog, db validates and
 // copies each chosen file on its own and reports per-file ok/error.
 ipcMain.handle('pfm:files-add', authed(async (_e, versionId) => {

@@ -223,6 +223,26 @@ contextBridge.exposeInMainWorld('api', {
   purgePfmFile:       (fileId)           => ipcRenderer.invoke('pfm:file-purge', fileId),
   exportPfmExcel:     (data, name)       => ipcRenderer.invoke('pfm:export-xlsx', data, name),
 
+  // ── Outsource (resources + hourly rate history; see ipc-types OutsResource) ──
+  /** @returns {Promise<import('./ipc-types').OutsResource[]>} */
+  listOutsResources:   (filters)         => ipcRenderer.invoke('outs:list', filters),
+  /** @returns {Promise<import('./ipc-types').OutsResource|null>} */
+  getOutsResource:     (id)              => ipcRenderer.invoke('outs:get', id),
+  /** @returns {Promise<import('./ipc-types').OutsWriteResult>} */
+  createOutsResource:  (data)            => ipcRenderer.invoke('outs:create', data),
+  updateOutsResource:  (id, data)        => ipcRenderer.invoke('outs:update', id, data),
+  setOutsResourceActive: (id, active)    => ipcRenderer.invoke('outs:set-active', id, active),
+  deleteOutsResource:  (id)              => ipcRenderer.invoke('outs:delete', id),
+  restoreOutsResource: (id)              => ipcRenderer.invoke('outs:restore', id),
+  purgeOutsResource:   (id)              => ipcRenderer.invoke('outs:purge', id),
+  /** @returns {Promise<import('./ipc-types').OutsHistoryEntry[]>} */
+  getOutsHistory:      (id)              => ipcRenderer.invoke('outs:history', id),
+  addOutsRate:         (id, data)        => ipcRenderer.invoke('outs:rate-add', id, data),
+  updateOutsRate:      (rateId, data)    => ipcRenderer.invoke('outs:rate-update', rateId, data),
+  deleteOutsRate:      (rateId)          => ipcRenderer.invoke('outs:rate-delete', rateId),
+  restoreOutsRate:     (rateId)          => ipcRenderer.invoke('outs:rate-restore', rateId),
+  purgeOutsRate:       (rateId)          => ipcRenderer.invoke('outs:rate-purge', rateId),
+
   // ── Clients (Auth + Server Information + Databases per COMPANY lookup) ──
   /** @returns {Promise<import('./ipc-types').ClientListItem[]>} */
   listClients: (includeArchived)      => ipcRenderer.invoke('clients:list', includeArchived),

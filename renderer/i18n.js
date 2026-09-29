@@ -936,6 +936,51 @@
       'حُفظت بيانات الاعتماد هذه بحساب Windows آخر أو على جهاز آخر، لذا مفتاحها غير متوفر هنا. القيمة المخزّنة سليمة — استعد النسخة الاحتياطية بعبارة مرورها، أو أعد إدخال بيانات الاعتماد لاستبدالها.',
   });
 
+  // Outsource — external resources, their hourly rates and (later phases) their
+  // hours and statements. "Resource" is مورد throughout; the module is التعهيد الخارجي.
+  Object.assign(ar, {
+    'Outsource': 'التعهيد الخارجي', 'Show inactive': 'إظهار غير النشطين', 'New Resource': 'مورد جديد',
+    '+ New Resource': '+ مورد جديد', 'No resources yet. Click': 'لا توجد موارد بعد. انقر',
+    'to add the first one.': 'لإضافة أول مورد.', 'Search resources…': 'ابحث في الموارد…',
+    'Rate / Hour': 'السعر / ساعة', 'Hours This Month': 'ساعات هذا الشهر', 'Unbilled Hours': 'ساعات غير مفوترة',
+    'Unpaid': 'غير مدفوع', 'Last Entry': 'آخر إدخال', 'Edit Resource': 'تعديل المورد',
+    'Who are you paying?': 'لمن تدفع؟', 'Rate per Hour (optional)': 'السعر بالساعة (اختياري)',
+    'Rate per Hour': 'السعر بالساعة', 'Effective From': 'ساري من', 'e.g. 250.00': 'مثال: 250.00',
+    'Email (optional)': 'البريد الإلكتروني (اختياري)', 'Phone (optional)': 'الهاتف (اختياري)',
+    'Anything worth remembering about this resource': 'أي شيء يستحق التذكر عن هذا المورد',
+    'New Rate': 'سعر جديد', 'Edit Rate': 'تعديل السعر', 'Add Rate': 'إضافة سعر',
+    'Work dated on or after this day is priced at this rate, until the next rate starts.':
+      'يُسعَّر العمل المؤرخ في هذا اليوم أو بعده بهذا السعر، حتى يبدأ السعر التالي.',
+    'Every resource is inactive — click Show inactive to see them': 'كل الموارد غير نشطة — انقر إظهار غير النشطين لرؤيتها',
+    'Some entries have no rate yet': 'بعض الإدخالات ليس لها سعر بعد', 'No rate': 'لا يوجد سعر',
+    'No rate yet — add one so the hours can be priced.': 'لا يوجد سعر بعد — أضف سعراً ليتسنى تسعير ساعات هذا المورد.',
+    'Current Rate': 'السعر الحالي', 'Hourly Rates': 'أسعار الساعة', 'Upcoming': 'قادم',
+    'Edit rate': 'تعديل السعر', 'Delete rate': 'حذف السعر',
+    'Deactivate': 'إيقاف التنشيط', 'Activate': 'تنشيط',
+    'Resource activated': 'تم تنشيط المورد', 'Resource deactivated': 'تم إيقاف تنشيط المورد',
+    'Resource created': 'تم إنشاء المورد', 'Resource deleted': 'تم حذف المورد',
+    'This resource no longer exists': 'هذا المورد لم يعد موجوداً',
+    'Rate added': 'تمت إضافة السعر', 'Rate saved': 'تم حفظ السعر', 'Rate deleted': 'تم حذف السعر',
+    'Rate restored': 'تمت استعادة السعر',
+    'Enter the rate as a number, e.g. 250.00': 'أدخل السعر كرقم، مثال: 250.00',
+    'Resource created, but the rate was not saved: ': 'تم إنشاء المورد، لكن لم يُحفظ السعر: ',
+    'Could not load resources': 'تعذّر تحميل الموارد', 'Could not save the resource': 'تعذّر حفظ المورد',
+    'Could not open this resource': 'تعذّر فتح هذا المورد', 'Could not update the resource': 'تعذّر تحديث المورد',
+    'Could not delete the resource': 'تعذّر حذف المورد', 'Could not restore the resource': 'تعذّر استعادة المورد',
+    'Could not save the rate': 'تعذّر حفظ السعر', 'Could not delete the rate': 'تعذّر حذف السعر',
+    'Could not restore the rate': 'تعذّر استعادة السعر',
+    'Open resource': 'فتح المورد', 'New outsource resource': 'مورد تعهيد خارجي جديد',
+    // Server refusals (db.js) shown as-is in toasts and field errors.
+    'A name is required': 'الاسم مطلوب', 'The name is too long': 'الاسم طويل جداً',
+    'The email address is not valid': 'البريد الإلكتروني غير صالح', 'The phone number is too long': 'رقم الهاتف طويل جداً',
+    'The notes are too long': 'الملاحظات طويلة جداً', 'Choose a currency': 'اختر عملة',
+    'Another resource already has this name': 'يوجد مورد آخر بهذا الاسم', 'Resource not found': 'المورد غير موجود',
+    'This resource has issued statements — deactivate it instead': 'لهذا المورد كشوف صادرة — أوقف تنشيطه بدلاً من حذفه',
+    'A rate is required': 'السعر مطلوب', 'The rate must be zero or more': 'يجب أن يكون السعر صفراً أو أكثر',
+    'Effective from is required': 'تاريخ السريان مطلوب', 'Effective from must be a valid date': 'يجب أن يكون تاريخ السريان تاريخاً صالحاً',
+    'A rate already starts on this date': 'يوجد سعر يبدأ في هذا التاريخ بالفعل', 'Rate not found': 'السعر غير موجود',
+  });
+
   const uiNounsAr = {
     clients: 'العملاء', companies: 'الشركات', systems: 'الأنظمة',
     'company documents': 'مستندات الشركة', department: 'القسم', departments: 'الأقسام',
@@ -1156,6 +1201,7 @@
     [/^Client Tasks \((.+)\)$/s, m => `مهام العملاء (${m[1].replace(' of ', ' من ')})`],
     [/^Internal Tasks \((.+)\)$/s, m => `المهام الداخلية (${m[1].replace(' of ', ' من ')})`],
     [/^Documents \((.+)\)$/s, m => `المستندات (${m[1]})`], [/^PDF failed: (.+)$/s, m => `فشل PDF: ${m[1]}`],
+    [/^Resource created, but the rate was not saved: (.+)$/s, m => `تم إنشاء المورد، لكن لم يُحفظ السعر: ${ar[m[1]] || m[1]}`],
     [/^(\d+) documents?( · .+)?$/s, m => `${m[1]} مستند${m[2] || ''}`], [/^Updated today$/s, () => 'تم التحديث اليوم'],
     [/^Updated yesterday$/s, () => 'تم التحديث أمس'], [/^Updated (\d+) days? ago$/s, m => `تم التحديث منذ ${m[1]} يوم`],
     [/^Updated (\d+) weeks? ago$/s, m => `تم التحديث منذ ${m[1]} أسبوع`], [/^Updated (.+)$/s, m => `تم التحديث ${m[1]}`],
