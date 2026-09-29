@@ -360,6 +360,9 @@ function renderOutsDetail() {
   head.appendChild(ident);
 
   const actions = pjMk('div', 'pj-detail-actions pfm-detail-actions');
+  // Exports every project's entries, as they stand.
+  actions.appendChild(outsBtn('download', 'Excel', () => exportOutsExcel(), 'outs-excel-btn'));
+  actions.appendChild(outsBtn('printer', 'PDF', () => exportOutsPdf(), 'outs-pdf-btn'));
   actions.appendChild(outsBtn('pencil', 'Edit', () => openOutsModal(r)));
   actions.appendChild(outsBtn(r.isActive ? 'ban' : 'rotate-ccw', r.isActive ? 'Deactivate' : 'Activate', () => setOutsActiveUi(r.id, !r.isActive)));
   const delHost = pjMk('span', 'pfm-del-host');
@@ -784,6 +787,9 @@ function renderOutsProjectPage() {
   ident.appendChild(sub);
   head.appendChild(ident);
   const actions = pjMk('div', 'pj-detail-actions pfm-detail-actions');
+  // Exports the entries under the current filter, as they stand.
+  actions.appendChild(outsBtn('download', 'Excel', () => exportOutsExcel(), 'outs-excel-btn'));
+  actions.appendChild(outsBtn('printer', 'PDF', () => exportOutsPdf(), 'outs-pdf-btn'));
   actions.appendChild(outsBtn('pencil', 'Edit', () => openOutsProjectModal(p)));
   actions.appendChild(outsBtn(p.isActive ? 'ban' : 'rotate-ccw', p.isActive ? 'Deactivate' : 'Activate', () => setOutsProjectActiveUi(p.id, !p.isActive)));
   const delHost = pjMk('span', 'pfm-del-host');
@@ -1320,10 +1326,8 @@ function renderOutsStatementPage() {
     actions.appendChild(issue);
   }
   if (s.status === 'ISSUED') actions.appendChild(outsBtn('credit-card', 'Mark Paid', () => openOutsPaidModal(), 'primary outs-paid-btn'));
-  if (s.status === 'ISSUED' || s.status === 'PAID') {
-    actions.appendChild(outsBtn('download', 'Excel', () => exportOutsStatementExcel(), 'outs-excel-btn'));
-    actions.appendChild(outsBtn('printer', 'PDF', () => exportOutsStatementPdf(), 'outs-pdf-btn'));
-  }
+  actions.appendChild(outsBtn('download', 'Excel', () => exportOutsExcel(), 'outs-excel-btn'));
+  actions.appendChild(outsBtn('printer', 'PDF', () => exportOutsPdf(), 'outs-pdf-btn'));
   actions.appendChild(outsBtn('pencil', 'Edit', () => openOutsStatementModal(s)));
   if (s.status === 'PAID') confirmHost('rotate-ccw', 'Mark Unpaid', () => setOutsStatementUnpaidUi(s.id), 'Mark unpaid?', 'outs-unpaid-btn');
   if (s.status === 'ISSUED') confirmHost('ban', 'Cancel Statement', () => cancelOutsStatementUi(s.id), 'Cancel it?', 'del-action outs-cancel-btn');
@@ -1489,53 +1493,99 @@ async function submitOutsPaidModal() {
 }
 
 // ══ EXPORT (Phase 5) ══
-// Labels are translated here (rptText), because the workbook and the PDF are
-// built outside the DOM translation pass.
-function outsStatementFileBase(s) {
-  const person = String(outsCurrent?.name || 'resource').replace(/[\\/:*?"<>|]+/g, ' ').trim();
-  return `${s.reference} ${person}`.replace(/\s+/g, '-');
+// Whatever is on screen exports as it stands: a statement in any status, or a
+// project's entries under the current filter. A missing value — an entry with
+// no rate yet — stays an empty cell, and so does the total fee while any line
+// is unpriced (a partial sum would read as the full fee). Labels are
+// translated here (rptText), because the workbook and the PDF are built
+// outside the DOM translation pass.
+function outsFileName(...parts) {
+  return parts.map(p => String(p || '').replace(/[\\/:*?"<>|]+/g, ' ').trim()).filter(Boolean).join(' ').replace(/\s+/g, '-');
 }
-async function exportOutsStatementExcel() {
-  const s = outsCurrentStatement;
-  if (!s) return;
+async function outsExportDoc() {
+  const tr = key => rptText(key);
+  const person = outsCurrent?.name || '';
+  // The person page: every entry of every project, all dates.
+  if (outsView === 'resource' && outsCurrent) {
+    let data;
+    try { data = await window.api.listOutsEntries(outsCurrent.id, {}); }
+    catch { data = null; }
+    if (!data?.ok) { toast(data?.error || 'Could not load entries'); return null; }
+    const dates = data.entries.map(e => e.date).sort();
+    return {
+      title: person, sheetName: person, fileBase: outsFileName(person),
+      currency: data.currency, entries: data.entries, lines: data.summary.lines, totalMinutes: data.summary.totalMinutes,
+      totalMinor: data.summary.missingRate ? null : data.summary.totalMinor,
+      info: [
+        [tr('Resource'), person],
+        [tr('Period'), dates.length ? dates[0] + ' → ' + dates[dates.length - 1] : ''],
+      ],
+    };
+  }
+  if (outsView === 'statement' && outsCurrentStatement) {
+    const s = outsCurrentStatement;
+    return {
+      title: tr('Statement') + ' ' + s.reference, sheetName: s.reference, fileBase: outsFileName(s.reference, person),
+      currency: s.currency, entries: s.entries, lines: s.lines, totalMinutes: s.totalMinutes,
+      totalMinor: s.lines.some(l => l.amountMinor == null) ? null : s.totalMinor,
+      info: [
+        [tr('Resource'), person],
+        [tr('Period'), s.periodFrom + ' → ' + s.periodTo],
+        [tr('Status'), tr(OUTS_STATUS_LABEL[s.status] || s.status)],
+      ].concat(s.issuedAt ? [[tr('Issued On'), s.issuedAt.slice(0, 10)]] : [])
+        .concat(s.paidAt ? [[tr('Paid On'), s.paidAt + (s.paidNote ? ' · ' + s.paidNote : '')]] : []),
+    };
+  }
+  const p = outsCurrentProject;
+  const data = outsEntryData;
+  if (outsView !== 'project' || !p || !data || data.projectId !== p.id) return null;
+  const { from, to } = outsPeriodRange();
+  const dates = data.entries.map(e => e.date).sort();
+  const period = (from || dates[0] || '') + ' → ' + (to || dates[dates.length - 1] || '');
+  return {
+    title: p.name, sheetName: p.name, fileBase: outsFileName(p.name, person),
+    currency: data.currency, entries: data.entries, lines: data.summary.lines, totalMinutes: data.summary.totalMinutes,
+    totalMinor: data.summary.missingRate ? null : data.summary.totalMinor,
+    info: [
+      [tr('Resource'), person],
+      [tr('Project'), p.name],
+      [tr('Period'), dates.length || from || to ? period : ''],
+    ].concat(outsEntryFilter.unbilled ? [[tr('Filters'), tr('Not on a statement')]] : []),
+  };
+}
+async function exportOutsExcel() {
+  const d = await outsExportDoc();
+  if (!d) return;
   const tr = key => rptText(key);
   const data = {
-    title: tr('Statement') + ' ' + s.reference,
-    sheetName: s.reference,
-    rtl: rptDirection() === 'rtl',
-    currency: s.currency,
-    info: [
-      [tr('Resource'), outsCurrent?.name || ''],
-      [tr('Period'), s.periodFrom + ' → ' + s.periodTo],
-      [tr('Status'), tr(OUTS_STATUS_LABEL[s.status] || s.status)],
-      [tr('Currency'), s.currency],
-    ].concat(s.paidAt ? [[tr('Paid On'), s.paidAt + (s.paidNote ? ' · ' + s.paidNote : '')]] : []),
+    title: d.title, sheetName: d.sheetName, rtl: rptDirection() === 'rtl', currency: d.currency,
+    info: d.info.concat([[tr('Currency'), d.currency]]),
     headers: { day: tr('Day'), date: tr('Date'), minutes: tr('Minutes'), hours: tr('Hours'), description: tr('Description'), project: tr('Project') },
-    groups: outsGroupByProject(s.entries).map(g => ({
+    groups: outsGroupByProject(d.entries).map(g => ({
       project: g.project,
       subtotalLabel: tr('Subtotal') + ' — ' + g.project,
       rows: g.entries.map(e => ({ day: tr(outsWeekday(e.date)), date: e.date, minutes: e.minutes, description: e.description })),
     })),
     totalLabel: tr('Total'),
     lineHeaders: { project: tr('Project'), hours: tr('Hours'), rate: tr('Rate / Hour'), amount: tr('Amount') },
-    lines: s.lines.map(l => ({
+    lines: d.lines.map(l => ({
       project: l.project, hours: Number(outsHours(l.minutes)),
       rate: l.rateMinor == null ? null : l.rateMinor / 100, amount: l.amountMinor == null ? null : l.amountMinor / 100,
     })),
     amountLabel: tr('Total Fee'),
-    totalAmount: s.totalMinor / 100,
+    totalAmount: d.totalMinor == null ? null : d.totalMinor / 100,
   };
   let res;
-  try { res = await window.api.exportOutsStatementExcel(data, outsStatementFileBase(s) + '.xlsx'); }
+  try { res = await window.api.exportOutsStatementExcel(data, d.fileBase + '.xlsx'); }
   catch { res = { ok: false, error: 'failed' }; }
   if (res?.ok) toast('Excel saved');
   else if (res?.error) toast('Excel failed: ' + res.error);
 }
 
-function buildOutsStatementHtml(s) {
+function buildOutsExportHtml(d) {
   const tr = key => esc(rptText(key));
-  const money = minor => esc(outsMoney(minor, s.currency));
-  const rows = outsGroupByProject(s.entries).map(g => {
+  const money = minor => (minor == null ? '' : esc(outsMoney(minor, d.currency)));
+  const rows = outsGroupByProject(d.entries).map(g => {
     const minutes = g.entries.reduce((n, e) => n + e.minutes, 0);
     return `<tr class="ost-group"><td colspan="5">${esc(g.project)}</td></tr>`
       + g.entries.map(e => `<tr><td>${tr(outsWeekday(e.date))}</td><td>${esc(e.date)}</td><td class="num">${e.minutes}</td>`
@@ -1543,14 +1593,9 @@ function buildOutsStatementHtml(s) {
       + `<tr class="ost-sub"><td colspan="2">${tr('Subtotal')} — ${esc(g.project)}</td><td class="num">${minutes}</td>`
       + `<td class="num">${outsHours(minutes)}</td><td></td></tr>`;
   }).join('');
-  const lines = s.lines.map(l => `<tr><td>${esc(l.project)}</td><td class="num">${outsHours(l.minutes)}</td>`
-    + `<td class="num">${l.rateMinor == null ? '—' : money(l.rateMinor)}</td><td class="num">${l.amountMinor == null ? '—' : money(l.amountMinor)}</td></tr>`).join('');
-  const meta = [
-    [tr('Resource'), esc(outsCurrent?.name || '')],
-    [tr('Period'), esc(s.periodFrom) + ' → ' + esc(s.periodTo)],
-    [tr('Status'), tr(OUTS_STATUS_LABEL[s.status] || s.status)],
-  ].concat(s.issuedAt ? [[tr('Issued On'), esc(s.issuedAt.slice(0, 10))]] : [])
-    .concat(s.paidAt ? [[tr('Paid On'), esc(s.paidAt) + (s.paidNote ? ' · ' + esc(s.paidNote) : '')]] : []);
+  const lines = d.lines.map(l => `<tr><td>${esc(l.project)}</td><td class="num">${outsHours(l.minutes)}</td>`
+    + `<td class="num">${money(l.rateMinor)}</td><td class="num">${money(l.amountMinor)}</td></tr>`).join('');
+  const meta = d.info.map(([k, v]) => [esc(k), esc(v)]);
   return `<style>
       .ost-head { display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #111; padding-bottom:10px; margin-bottom:18px; }
       .ost-title { font-size:22px; font-weight:800; }
@@ -1561,23 +1606,25 @@ function buildOutsStatementHtml(s) {
       .ost-group td { background:#f6f6f6; font-weight:700; }
       .ost-sub td { font-weight:700; border-top:1.5px solid #111; }
       .ost-total { margin-top:14px; text-align:end; font-size:15px; font-weight:800; }
+      html[dir="rtl"] .rpt-table td.num, html[dir="rtl"] .ost-total { text-align:right; }
+      .rpt-table td.num { direction:ltr; unicode-bidi:isolate; }
     </style>
-    <div class="ost-head"><div class="ost-title">${tr('Statement')} ${esc(s.reference)}</div>
+    <div class="ost-head"><div class="ost-title">${esc(d.title)}</div>
       <div class="ost-meta">${meta.map(([k, v]) => `<div><b>${k}</b> ${v}</div>`).join('')}</div></div>
     <div class="ost-h2">${tr('By Project & Rate')}</div>
     <table class="rpt-table"><thead><tr><th>${tr('Project')}</th><th>${tr('Hours')}</th><th>${tr('Rate / Hour')}</th><th>${tr('Amount')}</th></tr></thead>
       <tbody>${lines}</tbody>
-      <tfoot><tr class="rpt-totals"><td>${tr('Total')}</td><td class="num">${outsHours(s.totalMinutes)}</td><td></td><td class="num">${money(s.totalMinor)}</td></tr></tfoot></table>
+      <tfoot><tr class="rpt-totals"><td>${tr('Total')}</td><td class="num">${outsHours(d.totalMinutes)}</td><td></td><td class="num">${money(d.totalMinor)}</td></tr></tfoot></table>
     <div class="ost-h2">${tr('Entries')}</div>
     <table class="rpt-table"><thead><tr><th>${tr('Day')}</th><th>${tr('Date')}</th><th>${tr('Minutes')}</th><th>${tr('Hours')}</th><th>${tr('Description')}</th></tr></thead>
       <tbody>${rows}</tbody></table>
-    <div class="ost-total">${tr('Total Fee')}: ${money(s.totalMinor)}</div>`;
+    <div class="ost-total">${tr('Total Fee')}: ${money(d.totalMinor)}</div>`;
 }
-async function exportOutsStatementPdf() {
-  const s = outsCurrentStatement;
-  if (!s) return;
+async function exportOutsPdf() {
+  const d = await outsExportDoc();
+  if (!d) return;
   let res;
-  try { res = await window.api.exportPDF(buildReportDoc(buildOutsStatementHtml(s), 'Statement'), outsStatementFileBase(s) + '.pdf'); }
+  try { res = await window.api.exportPDF(buildReportDoc(buildOutsExportHtml(d), d.title), d.fileBase + '.pdf'); }
   catch { res = { ok: false, error: 'failed' }; }
   if (res?.ok) toast('PDF saved');
   else if (res?.error) toast('PDF failed: ' + res.error);

@@ -663,6 +663,29 @@ async function run() {
         await wait(450);
         const entriesAfterUndo = (await window.api.listOutsEntries(created.id, {})).entries.length;
 
+        // ── Project export as it stands: an entry before the first rate has
+        // no rate, so its rate/amount and the total fee export empty. ──
+        const unpriced = (await window.api.createOutsEntry(projectId, { date: '2089-12-01', minutes: 30, description: 'E2E unpriced' })).entry;
+        await loadOutsEntries();
+        await wait(200);
+        const projectExportButtons = !!document.querySelector('#outs-detail-view .outs-excel-btn')
+          && !!document.querySelector('#outs-detail-view .outs-pdf-btn');
+        const projectDoc = await outsExportDoc();
+        const projectHtml = buildOutsExportHtml(projectDoc);
+        const projectExportOk = projectExportButtons && projectDoc.entries.length === 3 && projectDoc.totalMinor === null
+          && projectHtml.includes('E2E unpriced') && projectHtml.includes('E2E Project')
+          && projectDoc.lines.some(l => l.rateMinor == null) && !projectHtml.includes('—</td>');
+        // The person page exports every project's entries the same way.
+        backToOutsResource('projects');
+        await wait(400);
+        const personDoc = await outsExportDoc();
+        const personExportOk = !!document.querySelector('#outs-detail-view .outs-excel-btn')
+          && personDoc?.entries.length === 3 && personDoc.totalMinor === null && personDoc.title === name;
+        await openOutsProject(projectId);
+        await wait(400);
+        await window.api.deleteOutsEntry(unpriced.id);
+        await window.api.purgeOutsEntry(unpriced.id);
+
         // ── Statement: draft → issue (locks) → paid → Excel ──
         backToOutsResource('statements');
         await wait(400);
@@ -675,7 +698,8 @@ async function run() {
         await wait(500);
         const draft = outsCurrentStatement;
         const draftOpen = outsView === 'statement' && draft?.status === 'DRAFT' && /^ST-[0-9]{3}$/.test(draft?.reference || '')
-          && draft.entries.length === 2 && draft.totalMinutes === 165;
+          && draft.entries.length === 2 && draft.totalMinutes === 165
+          && !!document.querySelector('#outs-detail-view .outs-excel-btn');
         document.querySelector('#outs-detail-view .outs-issue-btn').click();
         await wait(500);
         const issued = outsCurrentStatement;
@@ -688,8 +712,8 @@ async function run() {
         await submitOutsPaidModal();
         await wait(500);
         const paidOk = outsCurrentStatement?.status === 'PAID' && outsCurrentStatement?.paidAt === '2090-08-05';
-        await exportOutsStatementExcel();
-        const pdfHtml = buildOutsStatementHtml(outsCurrentStatement);
+        await exportOutsExcel();
+        const pdfHtml = buildOutsExportHtml(await outsExportDoc());
         const pdfHasLines = pdfHtml.includes(outsCurrentStatement.reference) && pdfHtml.includes('E2E Project');
 
         // A project with billed entries can only be deactivated.
@@ -748,7 +772,7 @@ async function run() {
           sameDateRefused, ratesAfterDelete, ratesAfterUndo, projectModalOpen, projectPageOpen, badTimeRefused, keptDate,
           refocused, gridRows, enteredMinutes, inProject, totalMinor, footerMinutes, editedMinutes, entriesAfterDelete,
           entriesAfterUndo, statementModalOpen, defaultFrom, draftOpen, issuedOk, lockedAfterIssue, editRefused, paidOk,
-          pdfHasLines, lockIcons, billedProjectKept, duplicateRefused, entryQuickFind, hiddenWhenInactive,
+          pdfHasLines, projectExportOk, personExportOk, lockIcons, billedProjectKept, duplicateRefused, entryQuickFind, hiddenWhenInactive,
           shownWithInactive, refusedDelete, goneAfterDelete, backAfterUndo, owedTile,
         };
       })(),
@@ -907,6 +931,8 @@ async function run() {
   if (outs.editedMinutes !== 120 || outs.entriesAfterDelete !== 1 || outs.entriesAfterUndo !== 2) outsFail('Editing / deleting an entry failed');
   if (!outs.statementModalOpen || outs.defaultFrom !== '2090-07-02' || !outs.draftOpen || !outs.issuedOk || !outs.lockedAfterIssue
       || !outs.editRefused || !outs.paidOk || !outs.pdfHasLines) outsFail('The statement draft → issue → paid flow failed');
+  if (!outs.personExportOk) outsFail('Exporting from the person page failed');
+  if (!outs.projectExportOk) outsFail('Exporting a project as it stands (an unpriced entry left empty) failed');
   if (outs.lockIcons !== 2 || !outs.billedProjectKept) outsFail('Issued entries are not shown locked, or a billed project was deleted');
   if (!outs.duplicateRefused || !outs.entryQuickFind || !outs.hiddenWhenInactive || !outs.shownWithInactive
       || !outs.refusedDelete || !outs.goneAfterDelete || !outs.backAfterUndo) outsFail('Outsource list, Quick Find or delete/undo failed');
@@ -989,6 +1015,7 @@ async function run() {
   console.log('PASS  Outsource: a resource with its first rate; the Rates tab adds, refuses a bad or clashing rate, and undoes a delete');
   console.log('PASS  Outsource: a project added inside the person opens its grid; entries typed with Enter, edited, deleted with undo');
   console.log('PASS  Outsource statements: draft preview → issue locks the entries → marked paid → Excel and PDF export');
+  console.log('PASS  Outsource: a project, or the whole person, exports as it stands — an entry with no rate leaves its rate, amount and the total fee empty');
   console.log('PASS  Outsource: duplicate name refused, deactivate, Quick Find to an entry, delete/undo, Overview owed tile');
   console.log('PASS  An admin-created account is forced to replace its admin-assigned password on next login');
   console.log('PASS  Runtime accessibility invariants cover names, unique ids, language/direction, and live regions');

@@ -267,7 +267,8 @@ function createOutsStatementWorkbook(input) {
       + `${Number.isFinite(amount) ? numberCell(`D${r}`, amount, 13) : textCell(`D${r}`, '')}`);
   });
   push(`${textCell(`A${r}`, `${input.amountLabel || 'Total Fee'}${input.currency ? ` (${input.currency})` : ''}`, 8)}`
-    + `${textCell(`B${r}`, '', 8)}${textCell(`C${r}`, '', 8)}${numberCell(`D${r}`, Number(input.totalAmount) || 0, 10)}`);
+    + `${textCell(`B${r}`, '', 8)}${textCell(`C${r}`, '', 8)}`
+    + `${input.totalAmount == null || input.totalAmount === '' ? textCell(`D${r}`, '', 8) : numberCell(`D${r}`, Number(input.totalAmount) || 0, 10)}`);
   const lastRow = r - 1;
 
   const worksheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
