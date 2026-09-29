@@ -182,6 +182,25 @@ async function run() {
       summary: 'Chromium bridge verification'
     });
     const hits = await window.api.searchWorkspace('searchable handbook', 10);
+    // Knowledge Hub is found by client (migration 068): link, search by the Arabic
+    // client name, then filter the real list by that client.
+    const linkedDoc = await window.api.createKnowledgeItem({ title: 'E2E client mapping sheet', status: 'PUBLISHED', companyIds: [profile.id] });
+    const unlinkedDoc = await window.api.createKnowledgeItem({ title: 'E2E unrelated manual', status: 'PUBLISHED' });
+    const clientHits = await window.api.searchWorkspace('عميل الاختبار', 10);
+    switchModule('knowledge');
+    await loadKnowledgeItems();
+    knowledgeFilters.clear(); knowledgeFilters.add('CLIENT:' + profile.id); renderKnowledgeList();
+    const listedIds = [...document.querySelectorAll('#kh-list [data-knowledge-id]')].map(row => Number(row.dataset.knowledgeId));
+    const knowledgeClientFilter = {
+      linked: linkedDoc.companies?.[0]?.id === profile.id,
+      searched: clientHits.some(item => item.kind === 'knowledge' && item.id === linkedDoc.id),
+      facet: !!document.querySelector('#kh-filters [data-filter-id="clients"]'),
+      filtered: listedIds.includes(linkedDoc.id) && !listedIds.includes(unlinkedDoc.id),
+    };
+    knowledgeFilters.clear(); renderKnowledgeList();
+    openKnowledgeEditor(knowledgeItems.find(item => item.id === linkedDoc.id));
+    knowledgeClientFilter.editorPill = document.querySelector('#kh-companies .tp-pill')?.textContent.includes('E2E_CLIENT') || false;
+    closeKnowledgeEditor(true);
     openPalette();
     document.getElementById('palette-input').value = 'searchable handbook';
     paletteInputChanged();
@@ -189,6 +208,7 @@ async function run() {
     return {
       createdId: created.id,
       hit: hits.some(item => item.kind === 'knowledge' && item.id === created.id),
+      knowledgeClientFilter,
       paletteVisible: document.getElementById('palette-overlay').classList.contains('open'),
       paletteText: document.getElementById('palette-list').textContent,
       rendererModules: typeof openKnowledgeDetail === 'function' && typeof renderTable === 'function',
@@ -819,6 +839,8 @@ async function run() {
   })()`);
 
   if (!result.hit) throw new Error('FTS result did not cross the preload bridge');
+  if (!Object.values(result.knowledgeClientFilter || {}).every(Boolean))
+    throw new Error(`Knowledge Hub client link/search/filter failed: ${JSON.stringify(result.knowledgeClientFilter)}`);
   if (!result.paletteVisible || !result.paletteText.includes('Electron E2E searchable handbook')) {
     throw new Error('Quick Find did not render the indexed result');
   }
@@ -828,6 +850,85 @@ async function run() {
       !sanitize.stripsStyleAttr || !sanitize.keepsPlainText || !sanitize.allowsSafeMarkup) {
     throw new Error(`Knowledge Hub HTML sanitizer failed: ${JSON.stringify(sanitize)}`);
   }
+
+  // Knowledge Hub shelf (Phase 2): a real file goes in through <input type=file>
+  // (set over CDP, so it carries a disk path) and reaches main via preload's
+  // webUtils; a second file with a matching name becomes the next version.
+  const shelfFiles = [['E2E_Field_Mapping_v1.0.txt', 'Generic mapping, first cut.\n'], ['E2E-Field-Mapping.txt', 'Generic mapping, revised.\n']]
+    .map(([name, body]) => { const p = path.join(root, name); fs.writeFileSync(p, body); return p; });
+  const setKnowledgeInputFile = async filePath => {
+    const { root: doc } = await command('DOM.getDocument', { depth: 1 });
+    const { nodeId } = await command('DOM.querySelector', { nodeId: doc.nodeId, selector: '#kh-file-input' });
+    await command('DOM.setFileInputFiles', { nodeId, files: [filePath] });
+  };
+  await evaluate(`(async () => { closePalette(); switchModule('knowledge'); await loadKnowledgeItems(); return true; })()`);
+  await setKnowledgeInputFile(shelfFiles[0]);
+  const shelfFirst = await evaluate(`(async () => {
+    const file = document.getElementById('kh-file-input').files[0];
+    const forged = await window.api.uploadKnowledgeFile(knowledgeItems[0].id, new File(['x'], 'forged.txt'), { name: 'Forged', version: '1.0' });
+    openKnowledgeEditor(null, file);
+    const title = document.getElementById('kh-title-input').value;
+    document.getElementById('kh-notes-input').value = 'Ask the vendor first. https://example.com/mapping';
+    await saveKnowledgeEditor();
+    const item = knowledgeItems.find(entry => entry.title === 'E2E Field Mapping');
+    const row = document.querySelector('#kh-list [data-knowledge-id="' + item?.id + '"]');
+    const link = document.querySelector('#kh-detail-view .kh-content a');
+    return {
+      forgedRejected: forged && forged.ok === false,
+      titleFromFile: title === 'E2E Field Mapping',
+      uploaded: item?.documents?.length === 1 && item.documents[0].version === '1.0' && item.documents[0].name === 'E2E Field Mapping',
+      plainNotes: item?.contentFormat === 'text',
+      // The e2e catalog has a single system; the picker must not link it on its own.
+      noAutoLink: item?.systems?.length === 0 && item?.companies?.length === 0,
+      bareLink: link?.title === 'https://example.com/mapping',
+      panelBesideList: !document.getElementById('kh-detail-view').hidden
+        && document.getElementById('kh-list-view').classList.contains('has-panel') && !!row && row.classList.contains('active'),
+      rowOpen: !!row?.querySelector('.kh-row-actions button'),
+    };
+  })()`);
+  await setKnowledgeInputFile(shelfFiles[1]);
+  const shelfSecond = await evaluate(`(async () => {
+    const file = document.getElementById('kh-file-input').files[0];
+    closeKnowledgeDetail();
+    await handleKnowledgeDrop(file, false);
+    const suggested = {
+      name: document.getElementById('kh-document-name').value,
+      version: document.getElementById('kh-document-version').value,
+      modalOpen: document.getElementById('knowledge-document-modal-overlay').classList.contains('open'),
+      noteLabel: ['What changed', 'ما الذي تغيّر'].includes(document.getElementById('kh-document-note-label').textContent),
+    };
+    document.getElementById('kh-document-note').value = 'Added claim fields, see https://example.com/notes';
+    await submitKnowledgeDocument();
+    const item = knowledgeItems.find(entry => entry.title === 'E2E Field Mapping');
+    await openKnowledgeDetail(item.id);
+    const latestNote = document.querySelector('#kh-detail-view .kh-document-family > .kh-change-note');
+    const noteShown = !!latestNote && !latestNote.hidden && latestNote.textContent.includes('Added claim fields')
+      && latestNote.querySelector('a')?.textContent === 'https://example.com/notes';
+    const latestDoc = knowledgeCurrentItem.documents.find(doc => doc.version === '1.1');
+    editKnowledgeChangeNote(latestNote.closest('.kh-document-family'), latestDoc);
+    const noteInput = latestNote.querySelector('textarea');
+    noteInput.value = 'Mapped 12 new claim fields';
+    latestNote.querySelector('.kh-change-note-actions .btn.primary').click();
+    for (let i = 0; i < 40 && !knowledgeCurrentItem?.documents?.some(doc => doc.changeNote === 'Mapped 12 new claim fields'); i++) await new Promise(r => setTimeout(r, 50));
+    const noteEdited = knowledgeCurrentItem.documents.find(doc => doc.version === '1.1')?.changeNote === 'Mapped 12 new claim fields'
+      && !!document.querySelector('#kh-detail-view .kh-document-family > .kh-change-note')?.textContent.includes('Mapped 12 new claim fields');
+    const noteSearch = knowledgeMatches(knowledgeItems.find(entry => entry.id === item.id), 'mapped 12 new');
+    const legacy = knowledgeNotesFromItem({ contentFormat: 'html', content: '<p>Step one</p><ul><li>Check <a href="https://example.com/a">the sheet</a></li></ul>' });
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    return {
+      matchedName: suggested.name === 'E2E Field Mapping', nextVersion: suggested.version === '1.1', modalOpen: suggested.modalOpen,
+      versioned: item?.documents?.length === 2 && item.documents.some(doc => doc.version === '1.1'),
+      noteLabel: suggested.noteLabel, noteShown, noteEdited, noteSearch,
+      panelFollowed: knowledgeCurrentId == null,
+      legacyToPlain: legacy === 'Step one\\n- Check the sheet (https://example.com/a)',
+      versionRules: knowledgeNextVersion('1.0') === '1.1' && knowledgeNextVersion('2026.07') === '2026.08'
+        && knowledgeNextVersion('Rev B') === 'Rev C' && knowledgeNextVersion('1.0', ['1.1']) === '1.2',
+      nameRules: knowledgeParseFileName('ACME_Mapping_v2.3.xlsx').version === '2.3'
+        && knowledgeParseFileName('Guide (2).pdf').base === 'Guide' && knowledgeParseFileName('Guide (2).pdf').version === '',
+    };
+  })()`);
+  const shelf = { ...shelfFirst, ...shelfSecond };
+  if (!Object.values(shelf).every(Boolean)) throw new Error(`Knowledge Hub shelf / drop / versioning failed: ${JSON.stringify(shelf)}`);
   if (!result.version) throw new Error('Application version IPC returned no value');
   if (result.accessibility.duplicateIds.length || result.accessibility.unnamedButtons.length ||
       !result.accessibility.language || !result.accessibility.direction || result.accessibility.liveRegions < 1) {
@@ -993,7 +1094,10 @@ async function run() {
   console.log('PASS  Login language selector controls the setup and authenticated session language');
   console.log('PASS  Authenticated pages expose no language switch and cannot override the login choice');
   console.log('PASS  Context-isolated preload IPC created and searched a knowledge item');
+  console.log('PASS  Knowledge Hub links an item to a client, finds it by the Arabic client name, and filters the list by client');
   console.log('PASS  Knowledge Hub HTML sanitizer strips scripts/handlers/img/js-urls/style while keeping the safe subset');
+  console.log('PASS  Knowledge Hub adds a real picked file, refuses a page-made File, versions a matching drop as 1.1 with a "what changed" note, and edits that note');
+  console.log('PASS  Knowledge Hub opens items in a side panel beside the list, with plain-text notes and one-click Open');
   console.log('PASS  Quick Find rendered the FTS result');
   console.log('PASS  Client profile code and English/Arabic names flow into a linked task');
   console.log('PASS  Arabic login choice drives RTL, preserves user content, and localizes report/PDF output');

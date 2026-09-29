@@ -6,7 +6,6 @@
   <title>Office ONE</title>
   <script src="renderer/bootstrap.js"></script>
   <script src="renderer/i18n.js"></script>
-  <link rel="stylesheet" href="renderer/vendor/quill/quill.snow.css">
   <link rel="stylesheet" href="renderer/app.css">
 </head>
 <body>
@@ -769,15 +768,8 @@
     <span class="page-title"><span class="ti-ic" data-ic="book-open"></span>Knowledge Hub</span>
     <div class="topbar-right">
       <label class="sr-only" for="kh-search">Search Knowledge Hub</label>
-      <input type="search" id="kh-search" class="mod-search" placeholder="Search titles, content, documents, or tags…" data-oninput="renderKnowledgeList()">
-      <button class="btn" data-onclick="openKnowledgeGroupEditor()"><span data-ic="folder-plus"></span>New Group</button>
-      <div class="kh-create-menu">
-        <button class="btn primary" id="kh-create-btn" aria-haspopup="menu" aria-expanded="false" data-onclick="toggleKnowledgeCreateMenu()"><span data-ic="plus"></span>New Knowledge Item</button>
-        <div class="kh-create-options" id="kh-create-options" role="menu" hidden>
-          <button role="menuitem" data-onclick="startKnowledgeCreation('ARTICLE')"><strong>Write an article</strong><br><span class="modal-hint">Create guidance, steps, or troubleshooting notes</span></button>
-          <button role="menuitem" data-onclick="startKnowledgeCreation('DOCUMENT')"><strong>Upload a document</strong><br><span class="modal-hint">Create an item and attach its first version</span></button>
-        </div>
-      </div>
+      <input type="search" id="kh-search" class="mod-search" placeholder="Search titles, clients, systems, documents, or tags…" data-oninput="renderKnowledgeList()">
+      <button class="btn primary" id="kh-create-btn" data-onclick="openKnowledgeEditor()"><span data-ic="plus"></span>New item</button>
     </div>
   </div>
   <div id="kh-list-view" class="kh-shell">
@@ -788,40 +780,39 @@
       <div id="kh-list" class="kh-list"></div>
       <div id="kh-empty" class="kh-empty" hidden><div class="kh-empty-inner"><span data-ic="book-open"></span><h3 id="kh-empty-title">No knowledge found</h3><p id="kh-empty-copy">Create a manual, integration guide, procedure, or troubleshooting note.</p><button id="kh-empty-clear" class="btn" data-onclick="resetKnowledgeFilters()" hidden>Clear filters</button></div></div>
     </div>
+    <section id="kh-detail-view" class="kh-panel" aria-label="Knowledge item" hidden></section>
+    <div id="kh-drop-hint" class="kh-drop-hint" hidden><span data-ic="upload"></span><span id="kh-drop-hint-text">Drop to add this file</span></div>
   </div>
-  <div id="kh-detail-view" class="kh-main" hidden></div>
+  <input type="file" id="kh-file-input" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.png,.jpg,.jpeg,.gif,.webp" hidden>
 </div>
 
 <div id="knowledge-modal-overlay" class="modal-overlay" data-onclick="knowledgeEditorOverlayClick(event)">
   <div id="knowledge-modal" class="modal-box">
-    <div class="modal-header"><span class="modal-title" id="kh-modal-title">New Knowledge Item</span><button class="modal-close" data-onclick="closeKnowledgeEditor()" data-ic="x"></button></div>
+    <div class="modal-header"><span class="modal-title" id="kh-modal-title">New item</span><button class="modal-close" data-onclick="closeKnowledgeEditor()" data-ic="x"></button></div>
     <div class="modal-body">
       <div id="kh-recovery" class="kh-recovery" hidden><span>An unsaved draft is available for this item.</span><button class="btn small" data-onclick="recoverKnowledgeDraft()">Recover</button><button class="btn small" data-onclick="discardKnowledgeDraft()">Discard</button></div>
       <div class="form-row"><div class="form-group full"><label>Title</label><input id="kh-title-input" maxlength="300" placeholder="A clear, searchable title"></div></div>
-      <div class="form-row"><div class="form-group"><label>Type</label><select id="kh-type-input"></select></div><div class="form-group"><label>Status</label><select id="kh-status-input"><option value="DRAFT">Draft</option><option value="PUBLISHED">Ready</option><option value="ARCHIVED">Archived</option></select><div class="modal-hint">Ready means finalized for your personal library; it is not shared with other accounts.</div></div></div>
-      <div class="form-row"><div class="form-group full"><label>Summary</label><textarea id="kh-summary-input" maxlength="2000" placeholder="What this item helps someone understand or do"></textarea></div></div>
-      <div class="form-group full"><label>Contents</label>
-        <div class="kh-editor-pane"><div id="kh-content-editor"></div></div>
-        <div class="modal-hint">Do not store passwords or secret keys here.</div>
-      </div>
       <div class="form-row">
-        <div class="form-group"><label for="kh-tags-input">Tags</label><div id="kh-tag-field" class="kh-token-field" data-onclick="document.getElementById('kh-tags-input').focus()"><div id="kh-tag-tokens"></div><input id="kh-tags-input" list="kh-tag-suggestions" placeholder="Add a tag and press Enter"><datalist id="kh-tag-suggestions"></datalist></div><div class="modal-hint"><span id="kh-tag-count">0</span>/30 tags. Existing tags are suggested automatically.</div></div>
-        <div class="form-group"><label>Groups</label><input id="kh-editor-group-search" type="search" placeholder="Filter groups…" data-oninput="renderKnowledgeEditorGroups()"><div id="kh-editor-groups" class="kh-editor-groups"></div></div>
+        <div class="form-group"><label>Clients</label><div id="kh-companies"></div></div>
+        <div class="form-group"><label>Systems</label><div id="kh-systems"></div></div>
       </div>
+      <div class="form-row"><div class="form-group"><label for="kh-type-input">Document kind</label><select id="kh-type-input"></select></div></div>
+      <div class="form-row" id="kh-editor-file-row"><div class="form-group full"><label>File</label>
+        <div class="kh-dropzone" id="kh-editor-drop"><span data-ic="upload"></span><span class="kh-dropzone-text" id="kh-editor-file-label">Drop a file here, or</span><button type="button" class="btn small" data-onclick="chooseKnowledgeFile('editor')">Choose file…</button><button type="button" class="btn small" id="kh-editor-file-clear" data-onclick="setKnowledgeEditorFile(null)" hidden>Remove</button></div>
+        <div class="modal-hint">Optional. You can add files and new versions later.</div>
+      </div></div>
+      <div class="form-row"><div class="form-group full"><label for="kh-notes-input">Notes</label>
+        <textarea id="kh-notes-input" class="kh-notes-input" maxlength="200000" placeholder="Anything worth remembering: steps, contacts, gotchas…"></textarea>
+        <div class="modal-hint">Plain text. Links starting with https:// open in your browser. Do not store passwords or secret keys here.</div>
+      </div></div>
+      <details id="kh-more" class="kh-more"><summary>More</summary>
+        <div class="form-row"><div class="form-group full"><label for="kh-summary-input">Summary</label><textarea id="kh-summary-input" maxlength="2000" placeholder="One line shown under the title in the list"></textarea></div></div>
+        <div class="form-row">
+          <div class="form-group full"><label for="kh-tags-input">Tags</label><div id="kh-tag-field" class="kh-token-field" data-onclick="document.getElementById('kh-tags-input').focus()"><div id="kh-tag-tokens"></div><input id="kh-tags-input" list="kh-tag-suggestions" placeholder="Add a tag and press Enter"><datalist id="kh-tag-suggestions"></datalist></div><div class="modal-hint"><span id="kh-tag-count">0</span>/30 tags. Existing tags are suggested automatically.</div></div>
+        </div>
+      </details>
     </div>
-    <div class="modal-footer"><button class="btn" data-onclick="closeKnowledgeEditor()">Cancel</button><button class="btn primary" id="kh-save-btn" data-onclick="saveKnowledgeEditor()">Create Item</button></div>
-  </div>
-</div>
-
-<div id="knowledge-group-modal-overlay" class="modal-overlay" data-onclick="knowledgeGroupOverlayClick(event)">
-  <div id="knowledge-group-modal" class="modal-box">
-    <div class="modal-header"><span class="modal-title" id="kh-group-modal-title">New Group</span><button class="modal-close" data-onclick="closeKnowledgeGroupEditor()" data-ic="x"></button></div>
-    <div class="modal-body">
-      <div class="form-row"><div class="form-group full"><label>Group Name</label><input id="kh-group-name" maxlength="120" placeholder="e.g. Employee Onboarding"></div></div>
-      <div class="form-row"><div class="form-group full"><label>Description</label><textarea id="kh-group-description" maxlength="1000" placeholder="What belongs in this group"></textarea></div></div>
-      <div class="form-row"><div class="form-group full"><label>Include Knowledge Items</label><input id="kh-group-item-search" type="search" placeholder="Filter knowledge items…" data-oninput="filterKnowledgeGroupItems()"><div id="kh-group-items" class="kh-group-picker"></div></div></div>
-    </div>
-    <div class="modal-footer"><div id="kh-group-delete-host"></div><span style="flex:1"></span><button class="btn" data-onclick="closeKnowledgeGroupEditor()">Cancel</button><button class="btn primary" id="kh-group-save" data-onclick="saveKnowledgeGroup()">Create Group</button></div>
+    <div class="modal-footer"><button class="btn" data-onclick="closeKnowledgeEditor()">Cancel</button><button class="btn primary" id="kh-save-btn" data-onclick="saveKnowledgeEditor()">Save</button></div>
   </div>
 </div>
 
@@ -852,11 +843,15 @@
   <div id="knowledge-document-modal" class="modal-box">
     <div class="modal-header"><span class="modal-title" id="kh-document-modal-title">Add Document</span><button class="modal-close" data-onclick="closeKnowledgeDocumentModal()" data-ic="x"></button></div>
     <div class="modal-body">
+      <div class="form-row"><div class="form-group full"><label>File</label>
+        <div class="kh-dropzone" id="kh-document-drop"><span data-ic="upload"></span><span class="kh-dropzone-text" id="kh-document-file-label">Drop a file here, or</span><button type="button" class="btn small" data-onclick="chooseKnowledgeFile('document')">Choose file…</button></div>
+        <div class="modal-hint" id="kh-document-match" hidden></div>
+      </div></div>
       <div class="form-row"><div class="form-group full"><label>Document Name</label><input id="kh-document-name" list="kh-document-names" maxlength="200" placeholder="e.g. Installation Manual"><datalist id="kh-document-names"></datalist><div class="modal-hint">Reuse an existing document name when uploading a newer version.</div></div></div>
       <div class="form-row"><div class="form-group full"><label>Version</label><input id="kh-document-version" maxlength="60" placeholder="e.g. 1.0, 2026.07, Rev B"></div></div>
-      <div class="modal-hint">After continuing, choose the document file from your computer.</div>
+      <div class="form-row"><div class="form-group full"><label for="kh-document-note" id="kh-document-note-label">Note</label><textarea id="kh-document-note" class="kh-change-note-input" maxlength="1000" rows="3" placeholder="Optional"></textarea></div></div>
     </div>
-    <div class="modal-footer"><button class="btn" data-onclick="closeKnowledgeDocumentModal()">Cancel</button><button class="btn primary" data-onclick="submitKnowledgeDocument()">Choose File</button></div>
+    <div class="modal-footer"><button class="btn" data-onclick="closeKnowledgeDocumentModal()">Cancel</button><button class="btn primary" id="kh-document-submit" data-onclick="submitKnowledgeDocument()">Add</button></div>
   </div>
 </div>
 
@@ -2554,7 +2549,6 @@
 <script src="renderer/features/workspace.js"></script>
 <script src="renderer/features/tasks.js"></script>
 <script src="renderer/vendor/dompurify/purify.min.js"></script>
-<script src="renderer/vendor/quill/quill.min.js"></script>
 <script src="renderer/features/knowledge-sanitize.js"></script>
 <script src="renderer/features/knowledge.js"></script>
 <script src="renderer/features/company-documents.js"></script>

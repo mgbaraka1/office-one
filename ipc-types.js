@@ -698,6 +698,18 @@
  */
 
 /**
+ * A client or system a knowledge item is linked to — one lookup row.
+ * knowledge:create / knowledge:update take `companyIds` / `systemIds` (lookup ids);
+ * a field left out keeps the item's current links.
+ * @typedef {Object} KnowledgeLink
+ * @property {number} id
+ * @property {string} code
+ * @property {string} label
+ * @property {string} nameEn
+ * @property {string} nameAr
+ */
+
+/**
  * A complete user-owned Knowledge Hub article returned by knowledge:get and mutations.
  * @typedef {Object} KnowledgeItem
  * @property {number} id
@@ -707,10 +719,12 @@
  * @property {'DRAFT'|'PUBLISHED'|'ARCHIVED'} status
  * @property {string} summary
  * @property {string} content
- * @property {'text'|'html'} contentFormat  'text' = legacy Markdown-lite plain text; 'html' = sanitized Quill-authored HTML.
+ * @property {'text'|'html'} contentFormat  'text' = plain-text notes (all new saves since Phase 2); 'html' = older sanitized rich-text notes, shown as-is and turned into plain text on the next edit.
  * @property {string[]} tags
  * @property {Array<{id:number,name:string}>} groups
- * @property {Array<{id:number,path:string,name:string,version:string,originalName:string,size:number,mimeType:string,uploadedAt:string,exists:boolean}>} documents
+ * @property {Array<KnowledgeLink>} companies  Linked clients (COMPANY lookups, migration 068).
+ * @property {Array<KnowledgeLink>} systems    Linked SYSTEM lookups (migration 068).
+ * @property {Array<{id:number,path:string,name:string,version:string,changeNote:string,originalName:string,size:number,mimeType:string,uploadedAt:string,exists:boolean}>} documents
  * @property {string} createdAt
  * @property {string} updatedAt
  */
@@ -730,7 +744,9 @@
  * @property {'text'|'html'} contentFormat
  * @property {string[]} tags
  * @property {Array<{id:number,name:string}>} groups
- * @property {Array<{name:string,version:string,originalName:string}>} documents
+ * @property {Array<KnowledgeLink>} companies
+ * @property {Array<KnowledgeLink>} systems
+ * @property {Array<{id:number,name:string,version:string,originalName:string,uploadedAt:string,changeNote:string}>} documents  Enough for the list's one-click Open of the latest version, and for search to reach each version's "what changed" note.
  * @property {number} documentCount
  * @property {string} createdAt
  * @property {string} updatedAt

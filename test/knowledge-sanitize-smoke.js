@@ -28,10 +28,10 @@ const forbiddenAttrs = ['style', 'onclick', 'onerror', 'onload', 'onmouseover', 
 for (const tag of forbiddenTags) assert.ok(!tags.includes(tag), `ALLOWED_TAGS must never include <${tag}>`);
 for (const attr of forbiddenAttrs) assert.ok(!attrs.includes(attr), `ALLOWED_ATTR must never include ${attr}`);
 assert.ok(tags.includes('p') && tags.includes('a') && tags.includes('pre') && tags.includes('code'),
-  'ALLOWED_TAGS must still cover the Quill toolbar vocabulary (paragraphs, links, code blocks)');
+  'ALLOWED_TAGS must still cover the stored rich-text vocabulary (paragraphs, links, code blocks)');
 assert.ok(attrs.includes('href'), 'ALLOWED_ATTR must still allow href for links');
 assert.match(source, /ALLOW_DATA_ATTR:\s*false/, 'data-* attributes must stay disabled');
 
 console.log('PASS  Knowledge Hub sanitizer allowlist excludes script/img/iframe/style and dangerous attributes');
-console.log('PASS  Knowledge Hub sanitizer allowlist still covers the Quill toolbar vocabulary');
+console.log('PASS  Knowledge Hub sanitizer allowlist still covers the stored rich-text vocabulary');
 console.log('PASS  Knowledge Hub sanitizer keeps data-* attributes disabled');

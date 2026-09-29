@@ -432,18 +432,16 @@ ipcMain.handle('knowledge:groups-list', authed(() => db.listKnowledgeGroups(auth
 ipcMain.handle('knowledge:group-create', authed((_e, data) => db.createKnowledgeGroup(auth.requireUserId(), data)));
 ipcMain.handle('knowledge:group-update', authed((_e, id, data) => db.updateKnowledgeGroup(auth.requireUserId(), id, data)));
 ipcMain.handle('knowledge:group-delete', authed((_e, id) => db.deleteKnowledgeGroup(auth.requireUserId(), id)));
-ipcMain.handle('knowledge:upload-attachment', authed(async (_e, itemId, documentMeta) => {
-  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
-    title: 'Choose document file', properties: ['openFile'],
-    filters: [
-      { name: 'Knowledge files', extensions: KNOWLEDGE_UPLOAD_EXTENSIONS },
-      { name: 'PDF', extensions: ['pdf'] }, { name: 'Word', extensions: ['doc', 'docx'] },
-      { name: 'Excel', extensions: ['xls', 'xlsx'] }, { name: 'Text', extensions: ['txt'] },
-      { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },
-    ],
-  });
-  if (canceled || !filePaths?.[0]) return { ok: false, canceled: true };
-  return db.saveKnowledgeAttachment(auth.requireUserId(), itemId, filePaths[0], documentMeta);
+// The path comes from preload's webUtils.getPathForFile on a File the user
+// dropped or picked — the renderer itself never supplies a path string. The
+// db layer still checks type, size and file header; this adds the path shape.
+ipcMain.handle('knowledge:upload-file', authed((_e, itemId, filePath, documentMeta) => {
+  if (!path.isAbsolute(filePath) || /^[\\/]{2}/.test(filePath)) {
+    return { ok: false, error: 'Copy the file to this computer first, then add it' };
+  }
+  try { if (!fs.statSync(filePath).isFile()) return { ok: false, error: 'Only single files can be added' }; }
+  catch { return { ok: false, error: 'Could not read the selected file' }; }
+  return db.saveKnowledgeAttachment(auth.requireUserId(), itemId, filePath, documentMeta);
 }));
 ipcMain.handle('knowledge:download-attachment', authed(async (_e, attachmentId) => {
   const r = db.resolveKnowledgeAttachment(auth.requireUserId(), attachmentId);
@@ -463,6 +461,7 @@ ipcMain.handle('knowledge:open-attachment', authed(async (_e, attachmentId) => {
 }));
 ipcMain.handle('knowledge:remove-attachment', authed((_e, attachmentId) => db.removeKnowledgeAttachment(auth.requireUserId(), attachmentId)));
 ipcMain.handle('knowledge:restore-attachment', authed((_e, itemId, fileMeta) => db.restoreKnowledgeAttachment(auth.requireUserId(), itemId, fileMeta)));
+ipcMain.handle('knowledge:update-attachment-note', authed((_e, attachmentId, note) => db.updateKnowledgeAttachmentNote(auth.requireUserId(), attachmentId, note)));
 ipcMain.handle('knowledge:purge-attachment', authed((_e, itemId, relPath) => db.purgeKnowledgeAttachment(auth.requireUserId(), itemId, relPath)));
 ipcMain.handle('knowledge:purge-files', authed((_e, itemId) => db.purgeKnowledgeFiles(auth.requireUserId(), itemId)));
 

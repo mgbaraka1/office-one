@@ -26,14 +26,24 @@ try {
   const user = raw.prepare('SELECT id FROM users WHERE is_active=1 ORDER BY id LIMIT 1').get();
   const head = raw.prepare('SELECT MAX(version) v FROM schema_migrations').get().v;
   const retiredTables = raw.prepare(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('knowledge_item_companies','knowledge_item_systems','knowledge_item_projects','knowledge_links')"
+    "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('knowledge_item_projects','knowledge_links')"
   ).all();
+  const linkTables = raw.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('knowledge_item_companies','knowledge_item_systems')"
+  ).all();
+  const lookupOf = category => raw.prepare(
+    "SELECT id, code, label FROM lookup_codes WHERE category = ? AND is_active = 1 AND id NOT IN (SELECT lookup_id FROM lookup_code_user_access) ORDER BY id LIMIT 2"
+  ).all(category);
+  const companies = lookupOf('COMPANY'), systems = lookupOf('SYSTEM');
   const itemColumns = raw.prepare('PRAGMA table_info(knowledge_items)').all().map(x => x.name);
   const attachmentColumns = raw.prepare('PRAGMA table_info(knowledge_attachments)').all().map(x => x.name);
   raw.close();
   record('Knowledge Hub groups/documents migration 045 is applied', head >= 45, `head=${head}`);
   record('Knowledge Hub content_format migration 051 is applied', head >= 51 && itemColumns.includes('content_format'), `head=${head}`);
-  record('Retired domain/link tables are absent', retiredTables.length === 0, JSON.stringify(retiredTables));
+  record('Retired project/link tables are absent', retiredTables.length === 0, JSON.stringify(retiredTables));
+  record('Migration 068 brings back the client and system link tables', head >= 68 && linkTables.length === 2, JSON.stringify(linkTables));
+  record('Document versions have a change note column', attachmentColumns.includes('change_note'));
+  record('Field Mapping is a seeded document kind', db.getLookupsByCategory('KNOWLEDGE_TYPE').some(x => x.code === 'FIELD_MAPPING'));
   record('Review date is retired and document version columns exist',
     !itemColumns.includes('review_date') && attachmentColumns.includes('document_name') && attachmentColumns.includes('version_label'));
   record('Knowledge types are seeded', db.getLookupsByCategory('KNOWLEDGE_TYPE').length >= 7);
@@ -44,8 +54,44 @@ try {
     tags:['API','Claims','api'],
   });
   record('Create persists article fields and normalizes duplicate tags', created.title === 'Claims API Integration' && created.type === 'INTEGRATION_GUIDE' && created.status === 'PUBLISHED' && created.tags.length === 2, JSON.stringify(created.tags));
-  record('Knowledge item is generic and exposes no domain relationship fields',
-    !Object.hasOwn(created, 'companies') && !Object.hasOwn(created, 'systems') && !Object.hasOwn(created, 'projects'));
+  record('Knowledge item exposes client and system links but no project links',
+    Array.isArray(created.companies) && Array.isArray(created.systems) && !Object.hasOwn(created, 'projects'));
+
+  // Clients / systems (migration 068).
+  const linked = db.createKnowledgeItem(user.id, {
+    title: 'Linked Mapping Sheet', type: 'FIELD_MAPPING', status: 'PUBLISHED',
+    companyIds: [companies[0].id, companies[0].id, systems[0].id, 999999999], systemIds: [systems[0].id, companies[0].id],
+  });
+  record('Create links clients and systems, skipping duplicates and wrong-category ids',
+    linked.companies.map(x => x.id).join() === String(companies[0].id) && linked.systems.map(x => x.id).join() === String(systems[0].id),
+    JSON.stringify({ companies: linked.companies, systems: linked.systems }));
+  const statusOnly = db.updateKnowledgeItem(user.id, linked.id, { title: linked.title, type: linked.type, status: 'ARCHIVED', tags: [] });
+  record('An update that does not send links keeps them', statusOnly.companies.length === 1 && statusOnly.systems.length === 1);
+  const listed = db.listKnowledgeItems(user.id).find(item => item.id === linked.id);
+  record('The list index carries client and system links',
+    listed.companies[0]?.id === companies[0].id && listed.systems[0]?.id === systems[0].id && typeof listed.companies[0].nameEn === 'string');
+  const searchable = db.searchWorkspace(user.id, companies[0].code);
+  record('Quick Find finds an item by its client code', searchable.some(hit => hit.kind === 'knowledge' && hit.id === linked.id),
+    JSON.stringify(searchable.slice(0, 3)));
+  record('The Quick Find subtitle names the client and system',
+    searchable.find(hit => hit.kind === 'knowledge' && hit.id === linked.id)?.subtitle.includes(' · '));
+  const cleared = db.updateKnowledgeItem(user.id, linked.id, { ...statusOnly, companyIds: [], systemIds: [systems[1]?.id].filter(Boolean) });
+  record('Sending links replaces them', cleared.companies.length === 0 && cleared.systems.length === (systems[1] ? 1 : 0));
+  record('Unlinking a client drops it from Quick Find',
+    !db.searchWorkspace(user.id, companies[0].code).some(hit => hit.kind === 'knowledge' && hit.id === linked.id));
+  const relinked = db.updateKnowledgeItem(user.id, linked.id, { ...cleared, companyIds: [companies[0].id] });
+  const linkedDeleted = db.deleteKnowledgeItem(user.id, linked.id);
+  const linkedRestored = db.restoreKnowledgeItem(user.id, linked.id, linkedDeleted.snapshot);
+  record('Delete undo restores client and system links',
+    linkedRestored.ok && linkedRestored.item.companies[0]?.id === companies[0].id
+      && linkedRestored.item.systems.map(x => x.id).join() === relinked.systems.map(x => x.id).join());
+  if (companies[1]) {
+    const merged = db.mergeLookupDuplicate('COMPANY', companies[1].id, companies[0].id);
+    const afterMerge = db.getKnowledgeItem(user.id, linkedRestored.item.id);
+    record('Merging a client repoints its knowledge links', merged.ok && afterMerge.companies.map(x => x.id).join() === String(companies[1].id),
+      JSON.stringify({ merged, companies: afterMerge.companies }));
+  }
+  db.deleteKnowledgeItem(user.id, linkedRestored.item.id);
   record('Reference links and review dates are absent from the API',
     !Object.hasOwn(created, 'links') && !Object.hasOwn(created, 'reviewDate'));
   record('Create without contentFormat defaults to legacy text', created.contentFormat === 'text');
@@ -76,14 +122,17 @@ try {
   db.updateKnowledgeItem(user.id, created.id, { ...movedByItemEditor, groupIds:[group.id] });
 
   const pdf = path.join(workDir, 'manual.pdf'); fs.writeFileSync(pdf, '%PDF-1.4\nKnowledge smoke file\n%%EOF');
-  const uploaded = db.saveKnowledgeAttachment(user.id, created.id, pdf, { name:'Claims Integration Manual', version:'2.4' });
+  const uploaded = db.saveKnowledgeAttachment(user.id, created.id, pdf, { name:'Claims Integration Manual', version:'2.4', changeNote:'  Added the claims fields\r\nfrom the vendor  ' });
   const file = uploaded.item?.documents?.[0];
+  record('Upload keeps the "what changed" note, trimmed with line breaks normalised',
+    file?.changeNote === 'Added the claims fields\nfrom the vendor', JSON.stringify(file?.changeNote));
   record('Document upload records name and version with validated bytes',
     uploaded.ok && file?.name === 'Claims Integration Manual' && file?.version === '2.4' && file.exists && fs.existsSync(path.join(workDir, file.path)), JSON.stringify(file));
   const listIndexItem = db.listKnowledgeItems(user.id).find(item => item.id === created.id);
   record('Knowledge list uses a lightweight document index while preserving search metadata',
     listIndexItem.documentCount === 1 && listIndexItem.documents[0]?.name === 'Claims Integration Manual'
-      && !Object.hasOwn(listIndexItem.documents[0], 'path') && listIndexItem.content.includes('Prerequisites'),
+      && !Object.hasOwn(listIndexItem.documents[0], 'path') && listIndexItem.content.includes('Prerequisites')
+      && listIndexItem.documents[0].changeNote.includes('claims fields'),
     JSON.stringify(listIndexItem.documents));
   const duplicateVersion = db.saveKnowledgeAttachment(user.id, created.id, pdf, { name:' claims integration manual ', version:'2.4' });
   record('Duplicate document name/version is rejected case-insensitively',
@@ -95,17 +144,28 @@ try {
   const removed = db.removeKnowledgeAttachment(user.id, file.id);
   record('Document removal keeps bytes available for undo', removed.ok && removed.item.documents.length === 0 && fs.existsSync(path.join(workDir, removed.removedFile.path)));
   const restoredAttachment = db.restoreKnowledgeAttachment(user.id, created.id, removed.removedFile);
-  record('Document undo restores version metadata', restoredAttachment.ok && restoredAttachment.item.documents[0]?.version === '2.4');
+  record('Document undo restores version metadata', restoredAttachment.ok && restoredAttachment.item.documents[0]?.version === '2.4'
+    && restoredAttachment.item.documents[0]?.changeNote === 'Added the claims fields\nfrom the vendor');
+  const restoredFileId = restoredAttachment.item.documents[0].id;
+  const noteEdited = db.updateKnowledgeAttachmentNote(user.id, restoredFileId, 'Mapped 12 new fields');
+  record('A version note can be edited later', noteEdited.ok && noteEdited.item.documents[0].changeNote === 'Mapped 12 new fields');
+  const noteCapped = db.updateKnowledgeAttachmentNote(user.id, restoredFileId, 'x'.repeat(5000));
+  record('A version note is capped at 1000 characters', noteCapped.ok && noteCapped.item.documents[0].changeNote.length === 1000);
+  db.updateKnowledgeAttachmentNote(user.id, restoredFileId, 'Mapped 12 new fields');
 
   const otherId = db.createUser('knowledge-other-' + Date.now(), 'hash', false);
   record('Another user cannot enumerate or fetch the first user\'s knowledge', db.listKnowledgeItems(otherId).length === 0 && db.getKnowledgeItem(otherId, created.id) === null);
   record('Another user cannot resolve the document by guessed id', db.resolveKnowledgeAttachment(otherId, restoredAttachment.item.documents[0].id).ok === false);
   record('Another user cannot enumerate the first user\'s groups', db.listKnowledgeGroups(otherId).length === 0);
+  record('Another user cannot edit a version note',
+    db.updateKnowledgeAttachmentNote(otherId, restoredFileId, 'hijack').ok === false
+      && db.getKnowledgeItem(user.id, created.id).documents[0].changeNote === 'Mapped 12 new fields');
 
   const deleted = db.deleteKnowledgeItem(user.id, created.id);
   record('Delete removes the row but retains its file during undo window', deleted.ok && db.getKnowledgeItem(user.id, created.id) === null && fs.existsSync(path.join(workDir, deleted.snapshot.documents[0].path)));
   const restored = db.restoreKnowledgeItem(user.id, created.id, deleted.snapshot);
-  record('Delete undo restores article, tags, group, and versioned document', restored.ok && restored.item.title.endsWith('v2') && restored.item.tags.join() === 'Deployment' && restored.item.groups[0]?.name === 'API Playbooks' && restored.item.documents[0]?.version === '2.4' && restored.item.documents[0].exists);
+  record('Delete undo restores article, tags, group, and versioned document', restored.ok && restored.item.title.endsWith('v2') && restored.item.tags.join() === 'Deployment' && restored.item.groups[0]?.name === 'API Playbooks' && restored.item.documents[0]?.version === '2.4' && restored.item.documents[0].exists
+    && restored.item.documents[0].changeNote === 'Mapped 12 new fields');
 
   const deletedAgain = db.deleteKnowledgeItem(user.id, restored.item.id);
   const purged = db.purgeKnowledgeFiles(user.id, restored.item.id);

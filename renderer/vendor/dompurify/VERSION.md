@@ -4,6 +4,6 @@
 - Vendored: 2026-08-06
 - License: MPL-2.0 OR Apache-2.0 (see LICENSE)
 - `purify.min.js` is the npm package's `dist/purify.min.js` as published, unmodified. UMD build, exposes `window.DOMPurify`.
-- Used to sanitize Knowledge Hub article HTML (Quill editor output) before it is persisted or rendered — see `renderer/features/knowledge-sanitize.js`.
+- Used to sanitize Knowledge Hub notes stored as HTML (written with the rich editor that was removed in Phase 2) before they are rendered or converted to plain text — see `renderer/features/knowledge-sanitize.js`.
 
 To upgrade: download the new tarball, replace `purify.min.js`, update this file.

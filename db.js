@@ -2029,7 +2029,7 @@ function knowledgeStatus(value) {
 function knowledgeAttachmentToApi(r) {
   return {
     id: r.id, path: r.file_path, originalName: r.original_name || '', size: r.file_size || 0,
-    name: r.document_name || r.original_name || '', version: r.version_label || '1.0',
+    name: r.document_name || r.original_name || '', version: r.version_label || '1.0', changeNote: r.change_note || '',
     mimeType: r.mime_type || '', uploadedAt: r.uploaded_at || '', sortOrder: r.sort_order || 0,
     exists: (() => { try { return fs.existsSync(resolveStoredPath(r.file_path)); } catch { return false; } })(),
   };
@@ -2052,7 +2052,29 @@ function knowledgeItemToApi(r) {
     id: itemId, title: r.title || '', type: lkCode(r.type_id), typeLabel: lkLabel(r.type_id),
     status: r.status, summary: r.summary || '', content: r.content || '', contentFormat: r.content_format || 'text',
     createdAt: r.created_at, updatedAt: r.updated_at, documents, tags, groups,
+    companies: knowledgeLinks('companies', null, itemId).map(({ itemId: _, ...x }) => x),
+    systems: knowledgeLinks('systems', null, itemId).map(({ itemId: _, ...x }) => x),
   };
+}
+// The client (COMPANY) or SYSTEM lookups linked to knowledge items (migration 068),
+// as { itemId, id, code, label, nameEn, nameAr } in display order. Scoped by
+// itemId when given, else every link of that user's items.
+const KNOWLEDGE_LINK_TABLES = {
+  companies: ['knowledge_item_companies', 'company_id', 'COMPANY'],
+  systems: ['knowledge_item_systems', 'system_id', 'SYSTEM'],
+};
+function knowledgeLinks(kind, userId = null, itemId = null) {
+  const [table, column] = KNOWLEDGE_LINK_TABLES[kind];
+  const where = itemId != null ? 'x.item_id = ?' : 'k.user_id = ?';
+  return db.prepare(
+    `SELECT x.item_id AS itemId, lc.id, lc.code, lc.label,
+            COALESCE(NULLIF(lc.name_en, ''), lc.label) AS nameEn, COALESCE(lc.name_ar, '') AS nameAr
+       FROM ${table} x
+       JOIN lookup_codes lc ON lc.id = x.${column}
+       JOIN knowledge_items k ON k.id = x.item_id
+      WHERE ${where}
+      ORDER BY lc.sort_order, lc.label`
+  ).all(itemId != null ? itemId : userId);
 }
 function knowledgeContentFormat(value) { return value === 'html' ? 'html' : 'text'; }
 function listKnowledgeItems(userId) {
@@ -2080,7 +2102,7 @@ function listKnowledgeItems(userId) {
     groupsByItem.get(row.item_id).push({ id: row.id, name: row.name });
   });
   db.prepare(
-    `SELECT a.item_id, a.document_name, a.version_label, a.original_name
+    `SELECT a.id, a.item_id, a.document_name, a.version_label, a.original_name, a.uploaded_at, a.change_note
        FROM knowledge_attachments a
        JOIN knowledge_items k ON k.id = a.item_id
       WHERE a.user_id = ? AND k.user_id = ?
@@ -2088,11 +2110,17 @@ function listKnowledgeItems(userId) {
   ).all(userId, userId).forEach(row => {
     if (!documentsByItem.has(row.item_id)) documentsByItem.set(row.item_id, []);
     documentsByItem.get(row.item_id).push({
+      id: row.id, uploadedAt: row.uploaded_at,
       name: row.document_name || row.original_name || '',
       version: row.version_label || '1.0',
-      originalName: row.original_name || '',
+      originalName: row.original_name || '', changeNote: row.change_note || '',
     });
   });
+  const linksByItem = { companies: new Map(), systems: new Map() };
+  Object.keys(linksByItem).forEach(kind => knowledgeLinks(kind, userId).forEach(({ itemId, ...link }) => {
+    if (!linksByItem[kind].has(itemId)) linksByItem[kind].set(itemId, []);
+    linksByItem[kind].get(itemId).push(link);
+  }));
   return rows.map(row => {
     const documents = documentsByItem.get(row.id) || [];
     return {
@@ -2100,6 +2128,7 @@ function listKnowledgeItems(userId) {
       status: row.status, summary: row.summary || '', content: row.content || '', contentFormat: row.content_format || 'text',
       createdAt: row.created_at, updatedAt: row.updated_at,
       tags: tagsByItem.get(row.id) || [], groups: groupsByItem.get(row.id) || [],
+      companies: linksByItem.companies.get(row.id) || [], systems: linksByItem.systems.get(row.id) || [],
       documents, documentCount: documents.length,
     };
   });
@@ -2123,6 +2152,20 @@ function setKnowledgeChildren(userId, itemId, data) {
     seen.add(key);
     const row = ensureTag.get(userId, name, new Date().toISOString());
     addTag.run(itemId, row.id);
+  });
+  // Client / system links are replaced only when the caller sends them, like groups.
+  [['companies', 'companyIds'], ['systems', 'systemIds']].forEach(([kind, field]) => {
+    if (!Object.hasOwn(data || {}, field)) return;
+    const [table, column, category] = KNOWLEDGE_LINK_TABLES[kind];
+    db.prepare(`DELETE FROM ${table} WHERE item_id = ?`).run(itemId);
+    const link = db.prepare(`INSERT OR IGNORE INTO ${table}(item_id, ${column}) VALUES(?, ?)`);
+    const seenLinks = new Set();
+    (Array.isArray(data[field]) ? data[field] : []).slice(0, 100).forEach(value => {
+      const id = Number(value);
+      if (!Number.isInteger(id) || seenLinks.has(id) || !isLookupId(category, id) || !canAccessLookup(userId, id)) return;
+      seenLinks.add(id);
+      link.run(itemId, id);
+    });
   });
   if (Object.hasOwn(data || {}, 'groupIds')) {
     db.prepare('DELETE FROM knowledge_group_items WHERE item_id = ?').run(itemId);
@@ -2181,6 +2224,7 @@ function restoreKnowledgeItem(userId, oldId, snapshot) {
   const restored = createKnowledgeItem(userId, {
     title: snapshot?.title, type: snapshot?.type, status: snapshot?.status, summary: snapshot?.summary,
     content: snapshot?.content, contentFormat: snapshot?.contentFormat, tags: snapshot?.tags,
+    companyIds: (snapshot?.companies || []).map(x => x.id), systemIds: (snapshot?.systems || []).map(x => x.id),
   });
   pendingKnowledgeDeletes.delete(Number(oldId));
   const oldDir = knowledgeItemDir(Number(oldId));
@@ -2200,11 +2244,11 @@ function restoreKnowledgeItem(userId, oldId, snapshot) {
       file.mimeType || '', index, file.uploadedAt || new Date().toISOString());
   });
   const setDocumentMeta = db.prepare(
-    'UPDATE knowledge_attachments SET document_name = ?, version_label = ? WHERE item_id = ? AND sort_order = ?'
+    'UPDATE knowledge_attachments SET document_name = ?, version_label = ?, change_note = ? WHERE item_id = ? AND sort_order = ?'
   );
   (snapshot?.documents || []).forEach((file, index) =>
     setDocumentMeta.run(String(file.name || file.originalName || 'Document').slice(0, 200),
-      String(file.version || '1.0').slice(0, 60), restored.id, index));
+      String(file.version || '1.0').slice(0, 60), knowledgeChangeNote(file.changeNote), restored.id, index));
   const restoreMembership = db.prepare(
     `INSERT OR IGNORE INTO knowledge_group_items(group_id, item_id, sort_order)
      SELECT id, ?, COALESCE((SELECT MAX(sort_order) + 1 FROM knowledge_group_items WHERE group_id = knowledge_groups.id), 0)
@@ -2212,6 +2256,11 @@ function restoreKnowledgeItem(userId, oldId, snapshot) {
   );
   (snapshot?.groups || []).forEach(group => restoreMembership.run(restored.id, group.id, userId));
   return { ok: true, item: getKnowledgeItem(userId, restored.id) };
+}
+// "What changed" in a document version: plain text, trimmed, at most 1000 characters.
+const MAX_KNOWLEDGE_CHANGE_NOTE = 1000;
+function knowledgeChangeNote(value) {
+  return String(value ?? '').replace(/\r\n?/g, '\n').trim().slice(0, MAX_KNOWLEDGE_CHANGE_NOTE);
 }
 function saveKnowledgeAttachment(userId, itemId, srcPath, documentMeta = {}) {
   if (!ownsKnowledgeItem(userId, itemId)) return { ok: false, error: 'Knowledge item not found' };
@@ -2238,10 +2287,10 @@ function saveKnowledgeAttachment(userId, itemId, srcPath, documentMeta = {}) {
   try {
     const sort = db.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM knowledge_attachments WHERE item_id = ?').get(itemId).n;
     db.prepare(
-      `INSERT INTO knowledge_attachments(user_id, item_id, file_path, original_name, file_size, mime_type, sort_order, uploaded_at, document_name, version_label)
-       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO knowledge_attachments(user_id, item_id, file_path, original_name, file_size, mime_type, sort_order, uploaded_at, document_name, version_label, change_note)
+       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(userId, itemId, relPath, path.basename(srcPath), size, KNOWLEDGE_DOC_TYPES[ext], sort, new Date().toISOString(),
-      documentName, versionLabel);
+      documentName, versionLabel, knowledgeChangeNote(documentMeta?.changeNote));
     db.prepare('UPDATE knowledge_items SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), itemId);
   } catch (err) { try { fs.rmSync(absPath, { force: true }); } catch {} return { ok: false, error: String(err?.message || err) }; }
   return { ok: true, item: getKnowledgeItem(userId, itemId) };
@@ -2285,12 +2334,21 @@ function restoreKnowledgeAttachment(userId, itemId, fileMeta) {
   if (!fs.existsSync(absPath)) return { ok: false, error: 'The previous file is no longer available' };
   const sort = db.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM knowledge_attachments WHERE item_id = ?').get(itemId).n;
   db.prepare(
-    `INSERT INTO knowledge_attachments(user_id, item_id, file_path, original_name, file_size, mime_type, sort_order, uploaded_at, document_name, version_label)
-     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO knowledge_attachments(user_id, item_id, file_path, original_name, file_size, mime_type, sort_order, uploaded_at, document_name, version_label, change_note)
+     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(userId, itemId, fileMeta.path, fileMeta.originalName || path.basename(fileMeta.path), Number(fileMeta.size) || 0,
     fileMeta.mimeType || '', sort, fileMeta.uploadedAt || new Date().toISOString(),
-    documentName, versionLabel);
+    documentName, versionLabel, knowledgeChangeNote(fileMeta.changeNote));
   return { ok: true, item: getKnowledgeItem(userId, itemId) };
+}
+function updateKnowledgeAttachmentNote(userId, attachmentId, note) {
+  const r = db.prepare(
+    `SELECT a.id, a.item_id FROM knowledge_attachments a JOIN knowledge_items k ON k.id = a.item_id
+      WHERE a.id = ? AND a.user_id = ? AND k.user_id = ?`
+  ).get(attachmentId, userId, userId);
+  if (!r) return { ok: false, error: 'Attachment not found' };
+  db.prepare('UPDATE knowledge_attachments SET change_note = ? WHERE id = ?').run(knowledgeChangeNote(note), r.id);
+  return { ok: true, item: getKnowledgeItem(userId, r.item_id) };
 }
 function purgeKnowledgeAttachment(userId, itemId, relPath) {
   if (!ownsKnowledgeItem(userId, itemId) || !relPath) return { ok: false };
@@ -3417,7 +3475,7 @@ function saveUiState(userId, state) {
 
 // Knowledge Hub editor recovery draft — deliberately NOT part of ui_state
 // (loadUiState/saveUiState above). The editor snapshots on every keystroke
-// (including Quill content), and folding that into the shared ui_state blob
+// (including the notes text), and folding that into the shared ui_state blob
 // meant a large document rewrote filters/lastModule/etc. on every debounce
 // tick too. One row, its own key, same size cap.
 function loadKnowledgeDraft(userId) {
@@ -4100,11 +4158,11 @@ const LOOKUP_MERGE_TARGETS = {
       ['client_databases', 'company_id'], ['client_external_services', 'company_id'], ['client_internal_systems', 'company_id'],
       ['pfm_items', 'company_id'],
     ],
-    junctions: [['project_companies', 'company_id', 'project_id']],
+    junctions: [['project_companies', 'company_id', 'project_id'], ['knowledge_item_companies', 'company_id', 'item_id']],
   },
   SYSTEM: {
     simple: [['tasks', 'system_id']],
-    junctions: [['project_systems', 'system_id', 'project_id']],
+    junctions: [['project_systems', 'system_id', 'project_id'], ['knowledge_item_systems', 'system_id', 'item_id']],
   },
   ACTIVITY_TYPE: {
     simple: [['work_logs', 'activity_type_id']],
@@ -7046,7 +7104,7 @@ module.exports = {
   purgeUnreferencedCompanyDocumentFile, purgeCompanyDocumentFiles,
   restoreCompanyDocumentFile, listKnowledgeItems, getKnowledgeItem, createKnowledgeItem,
   updateKnowledgeItem, deleteKnowledgeItem, restoreKnowledgeItem, saveKnowledgeAttachment,
-  resolveKnowledgeAttachment, removeKnowledgeAttachment, restoreKnowledgeAttachment,
+  resolveKnowledgeAttachment, removeKnowledgeAttachment, restoreKnowledgeAttachment, updateKnowledgeAttachmentNote,
   purgeKnowledgeAttachment, purgeKnowledgeFiles, listKnowledgeGroups, createKnowledgeGroup,
   updateKnowledgeGroup, deleteKnowledgeGroup, listClients, getClient,
   getClientFieldHistory, createClient, renameClient, setClientActive, reorderClients,

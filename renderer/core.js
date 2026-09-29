@@ -417,7 +417,7 @@ function saveUiStateDebounced() {
 
 // Knowledge Hub editor recovery draft — its own row (see db.js), loaded once
 // at boot alongside uiState. Deliberately NOT part of uiState: the editor
-// snapshots on every keystroke (including the Quill HTML content), and that
+// snapshots on every keystroke (including the notes text), and that
 // used to mean a large document rewrote the whole ui_state blob — filters,
 // lastModule, everything — on every 300ms debounce tick.
 let knowledgeDraftCache = null;
@@ -844,11 +844,13 @@ function populateSelect(id, key, currentVal) {
 // { id, label }; `initialIds` the preselected ids. The user types to filter, then
 // clicks / Enters an option to add it as a removable pill; already-selected options
 // are excluded from results. The underlying value is always an array of ids,
-// returned by the handle's getSelectedIds(). Used for the Projects modal's
-// Companies and Systems fields (one shared component — never two copies).
+// returned by the handle's getSelectedIds(). Used for the Projects modal's and the
+// Knowledge Hub editor's client / system fields (one shared component — never two
+// copies). Optional `onChange` fires after the user adds or removes a pill.
 // Special case: with exactly one option, it auto-selects it and shows a static
-// pill (no search UI), since that is the only possible value.
-function buildTagPicker(host, options, initialIds, placeholder) {
+// pill (no search UI), since that is the only possible value. Pass
+// { autoSelectSingle: false } where an empty choice is valid (Knowledge Hub).
+function buildTagPicker(host, options, initialIds, placeholder, onChange, { autoSelectSingle = true } = {}) {
   host.innerHTML = '';
   host.className = 'tag-picker';
   const optById = new Map((options || []).map(o => [Number(o.id), o.label]));
@@ -859,7 +861,7 @@ function buildTagPicker(host, options, initialIds, placeholder) {
   const handle = { getSelectedIds: () => selectedIds.slice() };
 
   // Single-option shortcut: auto-select and skip the interactive UI.
-  if ((options || []).length === 1) {
+  if (autoSelectSingle && (options || []).length === 1) {
     if (!selectedIds.length) selectedIds.push(Number(options[0].id));
     const pills = document.createElement('div'); pills.className = 'tp-pills';
     const pill = document.createElement('span'); pill.className = 'tp-pill tp-pill-static';
@@ -888,7 +890,7 @@ function buildTagPicker(host, options, initialIds, placeholder) {
       x.type = 'button'; x.className = 'tp-pill-x'; x.innerHTML = '&times;'; x.title = 'Remove';
       x.addEventListener('click', () => {
         const i = selectedIds.indexOf(id); if (i >= 0) selectedIds.splice(i, 1);
-        renderPills(); renderMenu();
+        renderPills(); renderMenu(); onChange?.();
       });
       pill.appendChild(x);
       pills.appendChild(pill);
@@ -916,7 +918,7 @@ function buildTagPicker(host, options, initialIds, placeholder) {
   const pick = (id) => {
     if (!selectedIds.includes(id)) selectedIds.push(id);
     input.value = ''; activeIdx = 0;
-    renderPills(); renderMenu(); input.focus();
+    renderPills(); renderMenu(); input.focus(); onChange?.();
   };
 
   input.addEventListener('focus', () => { activeIdx = 0; renderMenu(); });
@@ -926,7 +928,7 @@ function buildTagPicker(host, options, initialIds, placeholder) {
     if (e.key === 'ArrowDown') { e.preventDefault(); if (filtered.length) { activeIdx = (activeIdx + 1) % filtered.length; renderMenu(); } }
     else if (e.key === 'ArrowUp') { e.preventDefault(); if (filtered.length) { activeIdx = (activeIdx - 1 + filtered.length) % filtered.length; renderMenu(); } }
     else if (e.key === 'Enter') { e.preventDefault(); if (filtered[activeIdx]) pick(Number(filtered[activeIdx].id)); }
-    else if (e.key === 'Backspace' && input.value === '' && selectedIds.length) { selectedIds.pop(); renderPills(); renderMenu(); }
+    else if (e.key === 'Backspace' && input.value === '' && selectedIds.length) { selectedIds.pop(); renderPills(); renderMenu(); onChange?.(); }
   });
 
   renderPills(); renderMenu();

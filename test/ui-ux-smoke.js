@@ -218,23 +218,27 @@ gate('HTML hidden state cannot be overridden by component display rules',
   html.includes('[hidden] { display: none !important; }')
   && html.includes('function showKnowledgeListView()')
   && html.includes('function showKnowledgeDetailView()'));
-gate('Knowledge Hub is generic and tag-first, with no domain relationship selectors',
-  html.includes("appendKnowledgeFilterSection(host, 'tags', 'Tags'")
+gate('Knowledge Hub is found by client and system, with tags kept as a secondary facet',
+  html.includes("appendKnowledgeFilterSection(host, 'clients', 'Clients'")
+  && html.includes("appendKnowledgeFilterSection(host, 'systems', 'Systems'")
+  && html.includes('id="kh-companies"') && html.includes('id="kh-systems"')
+  && html.includes('id="kh-more"')
+  && html.includes("appendKnowledgeFilterSection(host, 'tags', 'Tags'")
   && html.includes("x.startsWith('TAG:')")
   && html.includes('id="kh-tag-tokens"')
   && !html.includes('id="kh-company-checks"')
   && !html.includes('id="kh-system-checks"')
   && !html.includes('id="kh-project-checks"'));
-gate('Knowledge Hub has user-defined groups with item membership',
-  html.includes('id="knowledge-group-modal-overlay"')
-  && html.includes('function saveKnowledgeGroup()')
-  && html.includes("x.startsWith('GROUP:')")
-  && html.includes('groupIds: [...knowledgeEditorGroupIds]')
-  && html.includes('Include Knowledge Items'));
-gate('Knowledge group editing preserves archived members and uses a valid inline delete host',
-  html.includes("item.status === 'ARCHIVED' ? ' (Archived)' : ''")
-  && html.includes('knowledgeItems.forEach(item => {')
-  && html.includes("showDeleteConfirm(host, () => deleteKnowledgeGroup(group)"));
+gate('Knowledge Hub groups and the Draft/Ready status are retired from the UI (Archive stays)',
+  !html.includes('id="knowledge-group-modal-overlay"')
+  && !html.includes('openKnowledgeGroupEditor')
+  && !html.includes("x.startsWith('GROUP:')")
+  && !html.includes('id="kh-status-input"')
+  && html.includes("key === 'STATUS:ARCHIVED'")
+  && html.includes("label: item.status === 'ARCHIVED' ? 'Restore from archive' : 'Archive'"));
+gate('Knowledge editor keeps a link to a since-disabled client or system',
+  html.includes('function buildKnowledgeLinkPicker(hostId, category, selectedIds, placeholder)')
+  && html.includes('lkOptions(category, true).filter(o => o.isActive || selectedIds.includes(o.id))'));
 gate('Knowledge Hub documents require a name and version',
   html.includes('id="knowledge-document-modal-overlay"')
   && html.includes('id="kh-document-version"')
@@ -262,8 +266,11 @@ gate('Knowledge item duplication creates stable numbered copy titles',
 gate('Knowledge item delete replaces an older undo safely',
   html.includes('const previous = knowledgeUndo')
   && html.includes('purgeKnowledgeFiles(previous.oldId)'));
-gate('Knowledge Hub offers rich-text authoring, safe links, and recoverable drafts',
-  html.includes('id="kh-content-editor"')
+gate('Knowledge Hub notes are plain text (no rich editor), with safe links and recoverable drafts',
+  html.includes('id="kh-notes-input"')
+  && !html.includes('id="kh-content-editor"') && !html.includes('vendor/quill/')
+  && html.includes("contentFormat: 'text'")
+  && html.includes('function knowledgeNotesFromItem(data)')
   && html.includes('function renderKnowledgeContent(host, value, format)')
   && html.includes('knowledgeDraftCache = knowledgeEditorSnapshot()')
   && html.includes('function recoverKnowledgeDraft()'));
@@ -272,14 +279,40 @@ gate('Knowledge Hub supports combined accessible filters and highlighted search 
   && html.includes('aria-label="Active filters"')
   && html.includes("b.setAttribute('aria-pressed'")
   && html.includes('function appendHighlightedText(host, text, q)'));
-gate('Knowledge Hub keyboard shortcuts cover all three dialogs',
-  html.includes('closeKnowledgeEditor(); closeKnowledgeGroupEditor(); closeKnowledgeDocumentModal()')
-  && html.includes("contains('open')) saveKnowledgeGroup()")
+gate('Knowledge Hub keyboard shortcuts cover both dialogs',
+  html.includes('closeKnowledgeEditor(); closeKnowledgeDocumentModal()')
+  && html.includes("contains('open')) saveKnowledgeEditor()")
   && html.includes("contains('open')) submitKnowledgeDocument()"));
-gate('Knowledge Hub supports article-first and document-first creation',
-  html.includes("startKnowledgeCreation('ARTICLE')")
-  && html.includes("startKnowledgeCreation('DOCUMENT')")
-  && html.includes("mode === 'DOCUMENT'"));
+gate('Knowledge Hub creates items from one short form with an optional file',
+  !html.includes('startKnowledgeCreation(')
+  && html.includes('data-onclick="openKnowledgeEditor()"')
+  && html.includes('id="kh-editor-drop"') && html.includes('id="kh-file-input"')
+  && html.includes('function openKnowledgeEditor(item, file)')
+  && html.includes('window.api.uploadKnowledgeFile(saved.id, file, meta)'));
+gate('Knowledge Hub takes dropped files: a matching name becomes the next version',
+  html.includes('function setupKnowledgeFileDrop()')
+  && html.includes('function handleKnowledgeDrop(file, toPanel)')
+  && html.includes('function knowledgeFindItemForFile(fileName)')
+  && html.includes('function knowledgeNextVersion(latest, used = [])')
+  && html.includes('knowledgeSuggestVersion(family, file.name)'));
+gate('Knowledge item detail opens as a side panel beside the list, with one-click Open on rows',
+  html.includes('<section id="kh-detail-view" class="kh-panel"')
+  && html.includes(".kh-shell.has-panel { grid-template-columns:")
+  && html.includes('function buildKnowledgeRowOpen(families)')
+  && html.includes("if (!anyOpen && activeModule === 'knowledge' && knowledgeCurrentId != null) closeKnowledgeDetail()"));
+gate('A dropped or picked file reaches main only as a File, never as a page-supplied path',
+  preload.includes('webUtils.getPathForFile(file)')
+  && preload.includes("ipcRenderer.invoke('knowledge:upload-file', itemId, filePath, meta)")
+  && main.includes("ipcMain.handle('knowledge:upload-file'")
+  && !main.includes("'knowledge:upload-attachment'") && !preload.includes("'knowledge:upload-attachment'"));
+gate('Each document version carries a "what changed" note, set on upload and editable later',
+  html.includes('id="kh-document-note"')
+  && html.includes('{ name, version, changeNote }')
+  && html.includes('function buildKnowledgeChangeNote(file)')
+  && html.includes('function editKnowledgeChangeNote(host, file)')
+  && html.includes('x.originalName, x.changeNote]')
+  && preload.includes("ipcRenderer.invoke('knowledge:update-attachment-note', attachmentId, note)")
+  && main.includes("ipcMain.handle('knowledge:update-attachment-note'"));
 gate('Knowledge Hub has no reference URL or review-date UI',
   !html.includes('id="kh-review-input"')
   && !html.includes('id="kh-link-editor"')
