@@ -31,6 +31,7 @@ let clientDetailSearch = '';
 const CLIENT_DETAIL_TYPES = [
   { key: 'overview',  label: 'Overview' },
   { key: 'projects',  label: 'Projects' },
+  { key: 'knowledge', label: 'Knowledge Hub' },
   { key: 'pfm',       label: 'Offers & CRs' },
   { key: 'auth',      label: 'Access' },
   { key: 'servers',   label: 'Servers' },
@@ -643,6 +644,7 @@ function renderClientDetail(c) {
   host.appendChild(toolbar);
   updateClientDetailTabCounts();
   ensureClientPfmRows(c.id);
+  ensureKnowledgeIndex();
 
   const sectionsHost = pjMk('div', 'cl-detail-sections');
   sectionsHost.id = 'client-detail-sections';
@@ -656,10 +658,22 @@ function clientDetailTabCounts(c) {
   return {
     projects: projectsList.filter(p => cpjPrimaryCompany(p)?.id === c.id).length,
     pfm: clientPfmCount(c.id),
+    knowledge: clientKnowledgeCount(c.id),
     auth: Array.isArray(c.vpnConnections) ? c.vpnConnections.length : 0,
     servers: Array.isArray(c.servers) ? c.servers.length : 0,
     internal: Array.isArray(c.internalSystems) ? c.internalSystems.length : 0,
   };
+}
+// Knowledge Hub items linked to this client (the Hub index loads on demand).
+function clientKnowledgeCount(companyId) {
+  return knowledgeLoaded ? knowledgeItemsLinkedTo([companyId]).length : 0;
+}
+// Called when the Hub index loads or changes, so the open client's counts follow.
+function refreshClientKnowledgeCount() {
+  if (!currentClient) return;
+  updateClientDetailTabCounts();
+  document.querySelectorAll('#client-detail-sections [data-overview-count="knowledge"]')
+    .forEach(n => { n.textContent = String(clientKnowledgeCount(currentClient.id)); });
 }
 function updateClientDetailTabCounts() {
   if (!currentClient) return;
@@ -723,6 +737,11 @@ function renderClientDetailSections(c) {
       pjSec.appendChild(pjGrid);
     }
     host.appendChild(pjSec);
+  }
+
+  // ── Knowledge Hub items linked to this client (built in knowledge.js) ──
+  if (showSection('knowledge')) {
+    host.appendChild(buildKnowledgeLinkedSection({ companyIds: [c.id], q, emptyText: 'No Knowledge Hub items for this client yet.' }));
   }
 
   // ── Offers & CRs (Project & Finance, this client only — built in pfm.js) ──
@@ -876,6 +895,7 @@ function renderClientOverview(host, c, servers, internalSystems, vpns) {
     ['Projects', projects.length],
     // Filled in place by loadClientPfmRows() when its fetch lands.
     ['Offers & CRs', clientPfmCount(c.id), 'pfm'],
+    ['Knowledge Hub', clientKnowledgeCount(c.id), 'knowledge'],
     ['Access records', vpns.length],
     ['Servers', servers.length],
     ['Internal systems', internalSystems.length],
@@ -893,6 +913,7 @@ function renderClientOverview(host, c, servers, internalSystems, vpns) {
   [
     ['plus', 'New Project', () => openProjectModal(), 'primary'],
     ['briefcase', 'New Offer', () => openPfmModal(null, { kind: 'OFFER', companyId: c.id }), ''],
+    ['book-open', 'New Knowledge item', () => openKnowledgeEditor(null, null, { companyIds: [c.id] }), ''],
     ['zap', 'Add Access', () => openClientVpnModal(), ''],
     ['server', 'Add Server', () => openClientServerModal(), ''],
     ['layout-dashboard', 'Add System', () => openClientInternalModal(), ''],
@@ -933,7 +954,7 @@ function renderClientOverview(host, c, servers, internalSystems, vpns) {
   title.innerHTML = ic('layers') + 'Workspace summary';
   note.appendChild(title);
   note.appendChild(pjMk('div', 'general-hint',
-    'Use the tabs above to manage this client’s projects, access records, servers, and internal systems. Search spans every tab without searching passwords or secret keys.'));
+    'Use the tabs above to manage this client’s projects, Knowledge Hub items, access records, servers, and internal systems. Search spans every tab without searching passwords or secret keys.'));
   host.appendChild(note);
 }
 

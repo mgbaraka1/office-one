@@ -1003,6 +1003,12 @@ function renderProjectDetail(p) {
   docs.appendChild(docGrid);
   host.appendChild(docs);
 
+  // ── Knowledge Hub items linked to this project's clients or systems ──
+  host.appendChild(buildKnowledgeLinkedSection({
+    companyIds: (p.companies || []).map(x => x.id), systemIds: (p.systems || []).map(x => x.id),
+    emptyText: 'No Knowledge Hub items for this project’s clients or systems yet.',
+  }));
+
   // ── Tasks section (ProjectTasksV2: each task with its work sessions nested) ──
   const tasksSec = pjMk('div', 'pj-section');
   const tHead = pjMk('div', 'pj-section-head');

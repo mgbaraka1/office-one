@@ -52,6 +52,93 @@ async function loadKnowledgeItems(openId) {
   renderKnowledgeList();
   if (targetId != null && knowledgeItems.some(item => item.id === Number(targetId))) await openKnowledgeDetail(targetId);
   else { showKnowledgeListView(); knowledgeCurrentId = null; knowledgeCurrentItem = null; }
+  refreshKnowledgeLinkedSections();
+}
+// ── Knowledge Hub on a client or project page ──
+// The Hub index is loaded quietly the first time a page needs it; opening the
+// Hub later reuses it.
+let knowledgeIndexLoading = null;
+function ensureKnowledgeIndex() {
+  if (knowledgeLoaded) return Promise.resolve();
+  knowledgeIndexLoading ||= window.api.listKnowledgeItems()
+    .then(items => { if (!knowledgeLoaded) { knowledgeItems = items || []; knowledgeLoaded = true; } })
+    .catch(() => {})
+    .finally(() => { knowledgeIndexLoading = null; refreshKnowledgeLinkedSections(); });
+  return knowledgeIndexLoading;
+}
+// Items linked to any of these clients or systems, not archived. Items that
+// match both a client and a system come first, then the most recently updated.
+function knowledgeItemsLinkedTo(companyIds = [], systemIds = []) {
+  const clients = new Set(companyIds.map(Number)), systems = new Set(systemIds.map(Number));
+  return knowledgeItems.filter(item => item.status !== 'ARCHIVED')
+    .map(item => ({ item, rank: ((item.companies || []).some(x => clients.has(x.id)) ? 1 : 0) + ((item.systems || []).some(x => systems.has(x.id)) ? 1 : 0) }))
+    .filter(entry => entry.rank)
+    .sort((a, b) => b.rank - a.rank || String(b.item.updatedAt).localeCompare(String(a.item.updatedAt)))
+    .map(entry => entry.item);
+}
+// opts: { companyIds, systemIds, q, emptyText }. The section fills itself in
+// and is rebuilt in place whenever the Hub reloads.
+function buildKnowledgeLinkedSection(opts) {
+  setupKnowledgeFileDrop();
+  const section = pjMk('div', 'pj-section kh-linked');
+  section.khLinked = { companyIds: [], systemIds: [], q: '', ...opts };
+  section.addEventListener('dragover', event => {
+    if (!knowledgeDragHasFiles(event)) return;
+    event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; section.classList.add('kh-drop-over');
+  });
+  section.addEventListener('dragleave', event => { if (!section.contains(event.relatedTarget)) section.classList.remove('kh-drop-over'); });
+  section.addEventListener('drop', event => {
+    if (!knowledgeDragHasFiles(event)) return;
+    event.preventDefault(); section.classList.remove('kh-drop-over');
+    const file = knowledgeDroppedFile(event); if (file) handleKnowledgeLinkedDrop(file, section.khLinked);
+  });
+  fillKnowledgeLinkedSection(section);
+  if (!knowledgeLoaded) ensureKnowledgeIndex();
+  return section;
+}
+function fillKnowledgeLinkedSection(section) {
+  const { companyIds, systemIds, q, emptyText } = section.khLinked, linkable = companyIds.length + systemIds.length > 0;
+  const items = knowledgeLoaded ? knowledgeItemsLinkedTo(companyIds, systemIds) : [];
+  const shown = q ? items.filter(item => knowledgeMatches(item, q)) : items;
+  section.innerHTML = '';
+  const head = pjMk('div', 'pj-section-head'), title = pjMk('div', 'pj-section-title');
+  title.innerHTML = ic('book-open'); title.appendChild(document.createTextNode('Knowledge Hub (' + items.length + ')'));
+  const actions = pjMk('div', 'pj-section-actions');
+  if (items.length) {
+    const all = pjMk('button', 'btn'); all.type = 'button'; all.innerHTML = ic('arrow-right', 'lic-arrow-right') + 'Show in Knowledge Hub';
+    all.onclick = () => openKnowledgeHubFor(companyIds, systemIds); actions.appendChild(all);
+  }
+  const add = pjMk('button', 'btn primary'); add.type = 'button'; add.innerHTML = ic('plus') + ' New item';
+  add.onclick = () => openKnowledgeEditor(null, null, { companyIds, systemIds }); actions.appendChild(add);
+  head.append(title, actions); section.appendChild(head);
+  if (!knowledgeLoaded) { section.appendChild(pjMk('div', 'cp-records-empty', 'Loading…')); return; }
+  if (!items.length) section.appendChild(pjMk('div', 'cp-records-empty', linkable ? emptyText : 'Link a client or system to see its Knowledge Hub items here.'));
+  else if (!shown.length) section.appendChild(pjMk('div', 'cp-records-empty', 'No Knowledge Hub items match your search.'));
+  else {
+    const list = pjMk('div', 'kh-linked-list');
+    shown.forEach(item => list.appendChild(buildKnowledgeRow(item, q, () => openKnowledgeInHub(item.id))));
+    section.appendChild(list);
+  }
+  section.appendChild(pjMk('div', 'kh-linked-tip', 'Drop a file here: a matching name becomes its next version, anything else starts a new item linked here.'));
+}
+function refreshKnowledgeLinkedSections() {
+  document.querySelectorAll('.kh-linked').forEach(section => { if (section.khLinked) fillKnowledgeLinkedSection(section); });
+  if (typeof refreshClientKnowledgeCount === 'function') refreshClientKnowledgeCount();
+}
+// A file dropped on a client or project page: a matching document anywhere in
+// the Hub gets it as its next version; otherwise a new item, linked here.
+function handleKnowledgeLinkedDrop(file, opts) {
+  const match = knowledgeFindItemForFile(file.name);
+  if (match) { openKnowledgeDocumentModal(match.item.id, match.family[0].name, file); return; }
+  openKnowledgeEditor(null, file, { companyIds: opts.companyIds, systemIds: opts.systemIds });
+}
+function openKnowledgeInHub(id) { switchModule('knowledge'); openKnowledgeDetail(id); }
+// Opens the Hub filtered to these clients and systems, with no search text.
+function openKnowledgeHubFor(companyIds = [], systemIds = []) {
+  switchModule('knowledge');
+  knowledgeFilters = new Set([...companyIds.map(id => 'CLIENT:' + id), ...systemIds.map(id => 'SYSTEM:' + id)]);
+  document.getElementById('kh-search').value = '';
+  renderKnowledgeList();
 }
 // ── Files: names, families, versions ──
 // "ACME_Mapping_v2.3.xlsx" → { base: 'ACME_Mapping', version: '2.3' }. A
@@ -376,31 +463,34 @@ function renderKnowledgeList() {
     document.getElementById('kh-empty-copy').textContent = hasQuery ? 'Try fewer words, a document version, or a different tag.' : filtered ? 'Remove a filter to broaden this view.' : 'Drop a file here, or click New item.';
     document.getElementById('kh-empty-clear').hidden = !hasQuery && !filtered;
   }
-  shown.forEach(item => {
-    const row = pjMk('div', 'kh-row' + (item.id === knowledgeCurrentId ? ' active' : '')); row.dataset.knowledgeId = item.id;
-    const main = pjMk('button', 'kh-row-main'); main.type = 'button';
-    const icon = pjMk('span', 'kh-row-icon'); icon.innerHTML = ic(item.type === 'TROUBLESHOOTING' ? 'wrench' : item.type === 'INTEGRATION_GUIDE' ? 'plug' : 'book-open');
-    const copy = pjMk('div'), title = pjMk('div', 'kh-row-title');
-    appendHighlightedText(title, item.title, q); copy.appendChild(title);
-    const subtitle = q ? knowledgeRowSubtitle(item, q) : item.summary;
-    if (subtitle) { const summary = pjMk('div', 'kh-row-summary'); appendHighlightedText(summary, subtitle, q); copy.appendChild(summary); }
-    const meta = pjMk('div', 'kh-meta'), families = knowledgeDocumentFamilies(item.documents);
-    if (item.status !== 'PUBLISHED') meta.appendChild(pjMk('span', 'kh-pill ' + item.status.toLowerCase(), knowledgeStatusLabel(item.status)));
-    ['companies', 'systems'].forEach(kind => (item[kind] || []).forEach(link => meta.appendChild(knowledgeLinkPill(kind, link))));
-    if (item.typeLabel || item.type) meta.appendChild(pjMk('span', 'kh-pill', lkLabel('KNOWLEDGE_TYPE', item.type) || item.typeLabel));
-    if (families.length === 1) meta.appendChild(pjMk('span', 'kh-version-pill', formatKnowledgeVersion(families[0][0].version)));
-    else if (families.length > 1) meta.appendChild(pjMk('span', 'kh-pill', families.length + ' documents'));
-    copy.appendChild(meta);
-    main.append(icon, copy, pjMk('span', 'kh-row-date', 'Updated ' + new Date(item.updatedAt).toLocaleDateString()));
-    main.onclick = () => { knowledgeListFocus = main; openKnowledgeDetail(item.id); };
-    row.appendChild(main);
-    const open = buildKnowledgeRowOpen(families);
-    if (open) { const cell = pjMk('div', 'kh-row-actions'); cell.appendChild(open); row.appendChild(cell); }
-    list.appendChild(row);
-  });
+  shown.forEach(item => list.appendChild(buildKnowledgeRow(item, q, main => { knowledgeListFocus = main; openKnowledgeDetail(item.id); })));
   uiState.filters ||= {};
   uiState.filters.knowledge = { filters: [...knowledgeFilters], query: q, sort, sections: knowledgeFilterSections };
   saveUiStateDebounced();
+}
+// One item row: used by the Hub list and by the Knowledge Hub section on a
+// client or project page. `onOpen(main)` runs when the row itself is clicked.
+function buildKnowledgeRow(item, q, onOpen) {
+  const row = pjMk('div', 'kh-row' + (item.id === knowledgeCurrentId ? ' active' : '')); row.dataset.knowledgeId = item.id;
+  const main = pjMk('button', 'kh-row-main'); main.type = 'button';
+  const icon = pjMk('span', 'kh-row-icon'); icon.innerHTML = ic(item.type === 'TROUBLESHOOTING' ? 'wrench' : item.type === 'INTEGRATION_GUIDE' ? 'plug' : 'book-open');
+  const copy = pjMk('div'), title = pjMk('div', 'kh-row-title');
+  appendHighlightedText(title, item.title, q); copy.appendChild(title);
+  const subtitle = q ? knowledgeRowSubtitle(item, q) : item.summary;
+  if (subtitle) { const summary = pjMk('div', 'kh-row-summary'); appendHighlightedText(summary, subtitle, q); copy.appendChild(summary); }
+  const meta = pjMk('div', 'kh-meta'), families = knowledgeDocumentFamilies(item.documents);
+  if (item.status !== 'PUBLISHED') meta.appendChild(pjMk('span', 'kh-pill ' + item.status.toLowerCase(), knowledgeStatusLabel(item.status)));
+  ['companies', 'systems'].forEach(kind => (item[kind] || []).forEach(link => meta.appendChild(knowledgeLinkPill(kind, link))));
+  if (item.typeLabel || item.type) meta.appendChild(pjMk('span', 'kh-pill', lkLabel('KNOWLEDGE_TYPE', item.type) || item.typeLabel));
+  if (families.length === 1) meta.appendChild(pjMk('span', 'kh-version-pill', formatKnowledgeVersion(families[0][0].version)));
+  else if (families.length > 1) meta.appendChild(pjMk('span', 'kh-pill', families.length + ' documents'));
+  copy.appendChild(meta);
+  main.append(icon, copy, pjMk('span', 'kh-row-date', 'Updated ' + new Date(item.updatedAt).toLocaleDateString()));
+  main.onclick = () => onOpen(main);
+  row.appendChild(main);
+  const open = buildKnowledgeRowOpen(families);
+  if (open) { const cell = pjMk('div', 'kh-row-actions'); cell.appendChild(open); row.appendChild(cell); }
+  return row;
 }
 function khButton(label, cls, fn) { const b = pjMk('button', 'btn' + (cls ? ' ' + cls : ''), label); b.onclick = fn; return b; }
 function formatKnowledgeVersion(value) { const version = String(value || '1.0').trim(); return /^(v|rev(?:ision)?\b)/i.test(version) ? version : 'v' + version; }
@@ -552,7 +642,15 @@ function editKnowledgeChangeNote(host, file) {
   const actions = pjMk('div', 'kh-change-note-actions'), save = khButton('Save', 'small primary', async () => {
     let result; try { result = await window.api.updateKnowledgeAttachmentNote(file.id, input.value); } catch { result = null; }
     if (!result?.ok) { toast(result?.error || 'Could not save note'); return; }
-    toast('Note saved'); await loadKnowledgeItems(knowledgeCurrentId);
+    // The previous note can come back for 5 seconds, like every other change here.
+    const before = file.changeNote || '';
+    if (before === input.value.trim()) toast('Note saved');
+    else toast('Note saved', { actionLabel: 'Undo', duration: 5000, onAction: async () => {
+      let restored; try { restored = await window.api.updateKnowledgeAttachmentNote(file.id, before); } catch { restored = null; }
+      if (restored?.ok) await loadKnowledgeItems(knowledgeCurrentId);
+      toast(restored?.ok ? 'Note restored' : 'Could not restore note');
+    } });
+    await loadKnowledgeItems(knowledgeCurrentId);
   });
   const cancel = khButton('Cancel', 'small', () => openKnowledgeDetail(knowledgeCurrentId));
   input.addEventListener('keydown', event => {
@@ -707,13 +805,14 @@ function setKnowledgeEditorFile(file) {
   const title = document.getElementById('kh-title-input');
   if (knowledgeEditorFile && !title.value.trim()) { title.value = knowledgeTitleFromFile(knowledgeEditorFile.name); clearFieldError(title); }
 }
-function openKnowledgeEditor(item, file) {
+// `preset` ({companyIds, systemIds}) pre-links a new item, e.g. from a client page.
+function openKnowledgeEditor(item, file, preset) {
   knowledgeEditId = item?.id || null; knowledgeEditorDirty = false;
   document.getElementById('kh-modal-title').textContent = item ? 'Edit item' : 'New item';
   document.getElementById('kh-editor-file-row').hidden = !!item;
   const type = document.getElementById('kh-type-input'); type.innerHTML = '<option value="">No kind</option>';
   lkOptions('KNOWLEDGE_TYPE').forEach(option => { const el = document.createElement('option'); el.dataset.userContent = ''; el.value = option.code; el.textContent = lookupDisplayName(option); type.appendChild(el); });
-  applyKnowledgeEditorData(item || { status: 'PUBLISHED', tags: [] });
+  applyKnowledgeEditorData(item || { status: 'PUBLISHED', tags: [], companyIds: preset?.companyIds || [], systemIds: preset?.systemIds || [] });
   const suggestions = document.getElementById('kh-tag-suggestions'); suggestions.innerHTML = '';
   [...new Set(knowledgeItems.flatMap(entry => entry.tags || []))].sort((a, b) => a.localeCompare(b)).forEach(tag => { const option = document.createElement('option'); option.value = tag; suggestions.appendChild(option); });
   setupKnowledgeTagInput(); clearErrorsIn('#knowledge-modal'); setKnowledgeEditorFile(item ? null : file);
