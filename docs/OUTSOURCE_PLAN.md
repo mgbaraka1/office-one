@@ -1,7 +1,7 @@
 # Plan — Outsource (external resources: hours & fees)
 
-> **Status: Phases 1–2 done (2026-09-29)** — schema + data layer; Outsource page with resources and the Rates section.
-> Phases 3–6 not started. Pulled forward from Phase 6 because they cost a line each: Ctrl+N, the Quick Find routing, the palette entries.
+> **Status: DONE — all six phases built (2026-09-29).** One change on the way (D10): projects are records inside a
+> person (migration 067), not free text. Sections below keep the original plan; D10 records what changed. Pulled forward from Phase 6 because they cost a line each: Ctrl+N, the Quick Find routing, the palette entries.
 > Claude Code: work **one phase at a time** and stop after each one.
 
 ---
@@ -68,6 +68,7 @@
 | D7 | Time input | ✅ **Minutes or hours** — `90`, `1:30`, `1.5h` all save as 90 minutes |
 | D8 | Export | ✅ **Excel + PDF** |
 | D9 | Resource logins | ✅ **None** — a resource is a record, not a user |
+| D10 | Projects (changed after Phase 3) | ✅ **Person → Projects → Entries.** Add a project inside a person, then write that project's entries inside it. Replaces D2's free text (migration 067 backfills any older entries into projects) |
 
 ---
 

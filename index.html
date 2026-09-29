@@ -1098,6 +1098,99 @@
     </div>
   </div>
 </div>
+<!-- Outsource — add / edit a project inside a person -->
+<div id="outs-project-overlay" class="modal-overlay" data-onclick="outsProjectOverlayClick(event)">
+  <div id="outs-project-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="outs-project-title">New Project</span>
+      <button class="modal-close" data-onclick="closeOutsProjectModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label for="outs-project-name">Project Name</label>
+          <input id="outs-project-name" type="text" maxlength="200" placeholder="What is this person working on?" autocomplete="off" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label for="outs-project-notes">Notes (optional)</label>
+          <textarea id="outs-project-notes" placeholder="Anything worth remembering about this project"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-onclick="closeOutsProjectModal()">Cancel</button>
+      <button class="btn primary" id="outs-project-submit" data-onclick="submitOutsProjectModal()">Add Project</button>
+    </div>
+  </div>
+</div>
+
+<!-- Outsource — new / edit statement (number, period, notes) -->
+<div id="outs-statement-overlay" class="modal-overlay" data-onclick="outsStatementOverlayClick(event)">
+  <div id="outs-statement-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="outs-statement-title">New Statement</span>
+      <button class="modal-close" data-onclick="closeOutsStatementModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="outs-statement-from">Period From</label>
+          <input id="outs-statement-from" type="date" />
+        </div>
+        <div class="form-group">
+          <label for="outs-statement-to">Period To</label>
+          <input id="outs-statement-to" type="date" />
+        </div>
+      </div>
+      <p class="outs-hint" id="outs-statement-period-note" hidden>Only a draft can change its period.</p>
+      <div class="form-row">
+        <div class="form-group full">
+          <label for="outs-statement-ref">Statement Number</label>
+          <input id="outs-statement-ref" type="text" maxlength="200" placeholder="Leave empty for the next number (ST-001…)" autocomplete="off" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label for="outs-statement-notes">Notes (optional)</label>
+          <textarea id="outs-statement-notes" placeholder="Anything worth remembering about this statement"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-onclick="closeOutsStatementModal()">Cancel</button>
+      <button class="btn primary" id="outs-statement-submit" data-onclick="submitOutsStatementModal()">Create Draft</button>
+    </div>
+  </div>
+</div>
+
+<!-- Outsource — mark a statement paid -->
+<div id="outs-paid-overlay" class="modal-overlay" data-onclick="outsPaidOverlayClick(event)">
+  <div id="outs-paid-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title">Mark Paid</span>
+      <button class="modal-close" data-onclick="closeOutsPaidModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="outs-paid-date">Paid On</label>
+          <input id="outs-paid-date" type="date" />
+        </div>
+        <div class="form-group">
+          <label for="outs-paid-note">Note (optional)</label>
+          <input id="outs-paid-note" type="text" maxlength="500" placeholder="e.g. bank transfer reference" autocomplete="off" />
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-onclick="closeOutsPaidModal()">Cancel</button>
+      <button class="btn primary" id="outs-paid-submit" data-onclick="submitOutsPaidModal()">Mark Paid</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ OFFER / CR CREATE + EDIT MODAL ══ -->
 <div id="pfm-modal-overlay" class="modal-overlay" data-onclick="pfmModalOverlayClick(event)">
   <div id="pfm-modal" class="modal-box">

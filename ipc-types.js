@@ -914,6 +914,102 @@
  */
 
 /**
+ * A project inside an Outsource resource (outs_projects, migration 067).
+ * Entries are written inside a project. Totals are computed on read.
+ * @typedef {Object} OutsProject
+ * @property {number} id
+ * @property {number} resourceId
+ * @property {string} name
+ * @property {string} notes
+ * @property {boolean} isActive
+ * @property {number} entryCount
+ * @property {number} totalMinutes
+ * @property {number} monthMinutes
+ * @property {number} unbilledMinutes
+ * @property {number} unbilledMinor
+ * @property {number} unbilledMissingRate
+ * @property {string} lastEntryDate
+ * @property {boolean} billed          Has entries on an issued statement (so it can't be deleted).
+ * @property {string} createdAt
+ * @property {string} updatedAt
+ */
+
+/**
+ * A statement of one resource (outs_statements): DRAFT → ISSUED → PAID, or
+ * CANCELLED. A draft's totals, lines and entries are a live preview; an issued
+ * or paid one carries its snapshot lines and its (locked) entries.
+ * @typedef {Object} OutsStatement
+ * @property {number} id
+ * @property {number} resourceId
+ * @property {string} reference        "ST-001" by default, editable, unique per login.
+ * @property {string} periodFrom
+ * @property {string} periodTo
+ * @property {'DRAFT'|'ISSUED'|'PAID'|'CANCELLED'} status
+ * @property {number} totalMinutes
+ * @property {number} totalMinor
+ * @property {string} currency
+ * @property {string} notes
+ * @property {string} issuedAt         ISO timestamp, '' until issued.
+ * @property {string} paidAt           YYYY-MM-DD, '' until paid.
+ * @property {string} paidNote
+ * @property {string} cancelledAt
+ * @property {number} [missingRate]    Draft: entries in the period with no rate (issuing is refused).
+ * @property {number} [earlierUnbilled] Draft: unbilled entries dated before the period.
+ * @property {string} [resourceName]   outs:statement-get only.
+ * @property {OutsSummaryLine[]} [lines]  outs:statement-get only.
+ * @property {OutsEntry[]} [entries]   outs:statement-get only.
+ */
+
+/**
+ * One timesheet row of an Outsource resource (outs_entries). The fee is never
+ * stored: rateMinor is the rate in force on `date` (null = before the first
+ * rate). `locked` = on an issued statement, so it can't be edited or deleted.
+ * @typedef {Object} OutsEntry
+ * @property {number} id
+ * @property {number} resourceId
+ * @property {string} date            YYYY-MM-DD.
+ * @property {number} minutes
+ * @property {string} description
+ * @property {string} project         Free text.
+ * @property {number|null} statementId
+ * @property {boolean} locked
+ * @property {number|null} rateMinor
+ * @property {string} createdAt
+ * @property {string} updatedAt
+ */
+
+/**
+ * One statement-style line: entries grouped by project (case/space folded) and
+ * rate, minutes summed exactly, the fee rounded half-up once per line.
+ * @typedef {Object} OutsSummaryLine
+ * @property {string} project
+ * @property {number|null} rateMinor
+ * @property {number} minutes
+ * @property {number} entries
+ * @property {string} firstDate
+ * @property {number|null} amountMinor   null when the line has no rate.
+ */
+
+/**
+ * Result of `outs:entries` — the filtered entries (oldest first) and the
+ * summary of exactly those entries.
+ * @typedef {Object} OutsEntryList
+ * @property {boolean} ok
+ * @property {string} [error]
+ * @property {string} [currency]
+ * @property {OutsEntry[]} [entries]
+ * @property {{totalMinutes:number, totalMinor:number, missingRate:number, lines:OutsSummaryLine[]}} [summary]
+ */
+
+/**
+ * Result of every outs:entry-* write. Delete returns no entry.
+ * @typedef {Object} OutsEntryWriteResult
+ * @property {boolean} ok
+ * @property {string} [error]
+ * @property {OutsEntry} [entry]
+ */
+
+/**
  * One outs_history row (`outs:history`), newest first. Values are human-facing.
  * @typedef {Object} OutsHistoryEntry
  * @property {number} id

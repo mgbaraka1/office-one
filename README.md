@@ -43,6 +43,7 @@ The whole interface is bilingual, including a full right-to-left layout. The sam
 - Client projects with tracked uploaded documents and linked tasks, reached from the client's profile.
 - Recurring subscriptions and renewal-tracked company documents.
 - Project & Finance: Offers and Change Requests with a who/when status trail, fee-bearing versions with uploaded files, follow-up and validity reminders on the Overview, a per-client tab, and Excel export.
+- Outsource: the people you pay by the hour — projects inside each person, a keyboard-first timesheet grid per project (`90`, `1:30` or `1.5h`), an hourly rate history, statements that lock what they bill (draft → issued → paid), Excel/PDF export, and what is still owed on the Overview.
 
 **Knowledge & records**
 - Knowledge Hub with a real WYSIWYG editor (vendored Quill), groups, tags, attachments, versioned documents, and a strict HTML sanitizer allowlist.

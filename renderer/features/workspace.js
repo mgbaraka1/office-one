@@ -482,6 +482,21 @@ async function renderOverview() {
     { label: ic('clock') + ' Today',      value: (todayMin / 60).toFixed(1), unit: hourUnitWord(todayMin / 60), foot: `${todayRecs} record${todayRecs === 1 ? '' : 's'}`, cls: 'accent', go: 'timesheet' },
     { label: ic('calendar') + ' This Month', value: (monthMin / 60).toFixed(1), unit: hourUnitWord(monthMin / 60), foot: `${daysLogged} day${daysLogged === 1 ? '' : 's'} logged`, cls: '', go: 'timesheet' },
   ];
+  // Outsource (Phase 6): what this login still owes external resources —
+  // unbilled hours at their rates plus issued, unpaid statements. Only shown
+  // once something is owed; a second currency goes in the foot.
+  let owed = null;
+  try { owed = await window.api.getOutsUnpaidSummary(); } catch { owed = null; }
+  const owedTotals = (owed?.totals || []).filter(t => t.unpaidMinor > 0);
+  if (owedTotals.length) {
+    const money = t => anMoney(t.unpaidMinor) + ' ' + (CURRENCY_SYMBOLS[t.currency] || t.currency || '');
+    stats.push({
+      label: ic('users') + ' Owed to Outsource', value: anMoney(owedTotals[0].unpaidMinor),
+      unit: esc(CURRENCY_SYMBOLS[owedTotals[0].currency] || owedTotals[0].currency || ''),
+      foot: owedTotals.length > 1 ? owedTotals.slice(1).map(money).join(' · ') : 'Unbilled hours + issued statements',
+      cls: 'outs-owed', go: 'outsource',
+    });
+  }
   document.getElementById('dash-stats').innerHTML = stats.map(s => `
     <div class="dash-stat ${s.cls}" ${s.go ? `data-onclick="switchModule('${s.go}')"` : ''}>
       <span class="ds-label">${s.label}</span>

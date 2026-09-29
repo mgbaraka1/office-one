@@ -80,6 +80,7 @@ async function run() {
   const pdfPath = path.join(root, 'e2e-exported-report.pdf');
   const xlsxPath = path.join(root, 'e2e-exported-office-one.xlsx');
   const pfmXlsxPath = path.join(root, 'e2e-exported-offers.xlsx');
+  const outsXlsxPath = path.join(root, 'e2e-exported-statement.xlsx');
   // Project & Finance "Add files": two good files and one whose bytes do not
   // match its extension, handed to pfm:files-add in place of the open dialog.
   const pfmFiles = [
@@ -97,6 +98,7 @@ async function run() {
       OFFICE_ONE_E2E_XLSX_PATH: xlsxPath,
       OFFICE_ONE_E2E_PFM_FILES: pfmFiles.join(path.delimiter),
       OFFICE_ONE_E2E_PFM_XLSX_PATH: pfmXlsxPath,
+      OFFICE_ONE_E2E_OUTS_XLSX_PATH: outsXlsxPath,
       ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -553,15 +555,22 @@ async function run() {
         };
       })(),
       outsource: await (async () => {
-        // Outsource Phase 2, through the page's real DOM and handlers: create a
-        // resource with its first rate from the modal, add a second rate from
-        // the Rates section, refuse a duplicate name, deactivate (hidden from
-        // the default list), delete + undo, and open it from Quick Find.
+        // Outsource, through the page's real DOM and handlers: a resource with
+        // its first rate, a second rate, then Person → Project → Entries (typed
+        // row by row with Enter), a statement drafted, issued (entries lock),
+        // marked paid and exported to Excel, plus the delete/undo and Quick
+        // Find paths.
         const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+        const confirmYes = async (selector) => {
+          document.querySelector(selector).click();
+          document.querySelector('#outs-detail-view .del-yes').click();
+          await wait(400);
+        };
         switchModule('outsource');
         await wait(200);
         const name = 'E2E Resource ' + Date.now();
 
+        // ── Resource + rates ──
         document.activeElement?.blur();
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, bubbles: true }));
         const ctrlNOpened = document.getElementById('outs-modal-overlay').classList.contains('open');
@@ -570,11 +579,13 @@ async function run() {
         document.getElementById('outs-first-rate').value = '200';
         document.getElementById('outs-first-rate-from').value = '2090-01-01';
         await submitOutsModal();
-        await wait(300);
+        await wait(400);
         const created = outsCurrent;
-        const detailOpen = created?.name === name && document.getElementById('outs-detail-view').style.display !== 'none';
+        const detailOpen = created?.name === name && outsView === 'resource' && outsDetailTab === 'projects';
         const firstRate = created?.rates?.[0]?.rateMinor;
 
+        setOutsDetailTab('rates');
+        await wait(100);
         document.querySelector('#outs-detail-view .outs-rate-add').click();
         const rateModalOpen = document.getElementById('outs-rate-overlay').classList.contains('open');
         document.getElementById('outs-rate-amount').value = 'abc';
@@ -583,68 +594,162 @@ async function run() {
         document.getElementById('outs-rate-amount').value = '1,250.50';
         document.getElementById('outs-rate-from').value = '2090-07-01';
         await submitOutsRateModal();
-        await wait(250);
+        await wait(300);
         const rateFroms = (outsCurrent?.rates || []).map(r => r.effectiveFrom).join(',');
-        const rateRows = document.querySelectorAll('#outs-detail-view .outs-rate-row').length;
         const newestRate = outsCurrent?.rates?.[0]?.rateMinor;
-
-        // A second rate on the same date is refused on the date field.
         document.querySelector('#outs-detail-view .outs-rate-add').click();
         document.getElementById('outs-rate-amount').value = '1';
         document.getElementById('outs-rate-from').value = '2090-07-01';
         await submitOutsRateModal();
         await wait(150);
-        const sameDateRefused = document.getElementById('outs-rate-from').classList.contains('field-error')
-          && document.getElementById('outs-rate-overlay').classList.contains('open');
+        const sameDateRefused = document.getElementById('outs-rate-from').classList.contains('field-error');
         closeOutsRateModal();
-
-        // Delete the newest rate: trash → "Yes"; Undo brings it back.
-        document.querySelector('#outs-detail-view .outs-rate-row .cd-icon-btn.danger').click();
-        document.querySelector('#outs-detail-view .outs-rate-row .del-yes').click();
-        await wait(300);
+        await confirmYes('#outs-detail-view .outs-rate-row .cd-icon-btn.danger');
         const ratesAfterDelete = (await window.api.getOutsResource(created.id)).rates.length;
         document.querySelector('#app-toast .toast-action-btn').click();
-        await wait(300);
+        await wait(400);
         const ratesAfterUndo = (await window.api.getOutsResource(created.id)).rates.length;
 
+        // ── Projects inside the person ──
+        setOutsDetailTab('projects');
+        await wait(300);
+        document.activeElement?.blur();
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, bubbles: true }));
+        const projectModalOpen = document.getElementById('outs-project-overlay').classList.contains('open');
+        document.getElementById('outs-project-name').value = 'E2E Project';
+        await submitOutsProjectModal();
+        await wait(500);
+        const projectPageOpen = outsView === 'project' && outsCurrentProject?.name === 'E2E Project'
+          && document.activeElement?.id === 'outs-new-time';
+        const projectId = outsCurrentProject?.id;
+
+        // ── Entries, keyboard first ──
+        const enter = id => document.getElementById(id).dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        const typeRow = async (time, description) => {
+          document.getElementById('outs-new-time').value = time;
+          document.getElementById('outs-new-description').value = description;
+          enter('outs-new-description');
+          await wait(450);
+        };
+        document.getElementById('outs-new-date').value = '2090-07-02';
+        await typeRow('abc', 'E2E refused');
+        const badTimeRefused = document.getElementById('outs-new-time').classList.contains('field-error')
+          && (await window.api.listOutsEntries(created.id, {})).entries.length === 0;
+        await typeRow('1:30', 'E2E first task');
+        const keptDate = document.getElementById('outs-new-date').value;
+        const refocused = document.activeElement?.id === 'outs-new-time';
+        await typeRow('45', 'E2E second task');
+        const gridRows = document.querySelectorAll('#outs-detail-view .outs-entry-row').length;
+        const listed = await window.api.listOutsEntries(created.id, {});
+        const enteredMinutes = listed.entries.map(e => e.minutes).join(',');
+        const inProject = listed.entries.every(e => e.projectId === projectId);
+        const totalMinor = listed.summary.totalMinor;
+        const footerMinutes = document.querySelector('#outs-detail-view .outs-total-row td:nth-child(2)')?.textContent;
+
+        const firstId = listed.entries[0].id;
+        document.querySelector('#outs-detail-view tr[data-entry-id="' + firstId + '"] .outs-entry-edit').click();
+        await wait(100);
+        document.getElementById('outs-edit-time').value = '2h';
+        enter('outs-edit-time');
+        await wait(450);
+        const editedMinutes = (await window.api.listOutsEntries(created.id, {})).entries.find(e => e.id === firstId)?.minutes;
+
+        const secondId = listed.entries[1].id;
+        document.querySelector('#outs-detail-view tr[data-entry-id="' + secondId + '"] .outs-entry-delete').click();
+        document.querySelector('#outs-detail-view tr[data-entry-id="' + secondId + '"] .del-yes').click();
+        await wait(450);
+        const entriesAfterDelete = (await window.api.listOutsEntries(created.id, {})).entries.length;
+        document.querySelector('#app-toast .toast-action-btn').click();
+        await wait(450);
+        const entriesAfterUndo = (await window.api.listOutsEntries(created.id, {})).entries.length;
+
+        // ── Statement: draft → issue (locks) → paid → Excel ──
+        backToOutsResource('statements');
+        await wait(400);
+        document.querySelector('#outs-detail-view .outs-statement-add').click();
+        await wait(300);
+        const statementModalOpen = document.getElementById('outs-statement-overlay').classList.contains('open');
+        const defaultFrom = document.getElementById('outs-statement-from').value;
+        document.getElementById('outs-statement-to').value = '2090-07-31';
+        await submitOutsStatementModal();
+        await wait(500);
+        const draft = outsCurrentStatement;
+        const draftOpen = outsView === 'statement' && draft?.status === 'DRAFT' && /^ST-[0-9]{3}$/.test(draft?.reference || '')
+          && draft.entries.length === 2 && draft.totalMinutes === 165;
+        document.querySelector('#outs-detail-view .outs-issue-btn').click();
+        await wait(500);
+        const issued = outsCurrentStatement;
+        const issuedOk = issued?.status === 'ISSUED' && issued.totalMinor === draft.totalMinor && issued.lines.length === 1;
+        const lockedAfterIssue = (await window.api.listOutsEntries(created.id, {})).entries.every(e => e.locked);
+        const editRefused = !(await window.api.updateOutsEntry(firstId, { minutes: 5 })).ok;
+        document.querySelector('#outs-detail-view .outs-paid-btn').click();
+        document.getElementById('outs-paid-date').value = '2090-08-05';
+        document.getElementById('outs-paid-note').value = 'E2E transfer';
+        await submitOutsPaidModal();
+        await wait(500);
+        const paidOk = outsCurrentStatement?.status === 'PAID' && outsCurrentStatement?.paidAt === '2090-08-05';
+        await exportOutsStatementExcel();
+        const pdfHtml = buildOutsStatementHtml(outsCurrentStatement);
+        const pdfHasLines = pdfHtml.includes(outsCurrentStatement.reference) && pdfHtml.includes('E2E Project');
+
+        // A project with billed entries can only be deactivated.
+        await openOutsProject(projectId);
+        await wait(400);
+        const lockIcons = document.querySelectorAll('#outs-detail-view .outs-lock-ic').length;
+        await confirmYes('#outs-detail-view .pfm-del-host .del-action');
+        const billedProjectKept = !!(await window.api.getOutsProject(projectId));
+
+        // ── Duplicate name, deactivate, Quick Find, delete/undo ──
         openOutsNew();
         document.getElementById('outs-name').value = ' ' + name.toUpperCase() + ' ';
         await submitOutsModal();
         await wait(150);
-        const duplicateRefused = document.getElementById('outs-name').classList.contains('field-error')
-          && document.getElementById('outs-modal-overlay').classList.contains('open');
+        const duplicateRefused = document.getElementById('outs-name').classList.contains('field-error');
         closeOutsModal();
+
+        await openPalette();
+        document.getElementById('palette-input').value = 'E2E second task';
+        paletteInputChanged();
+        await wait(500);
+        const entryHit = [...document.querySelectorAll('#palette-list .pal-item')].find(b => b.textContent.includes('E2E second task'));
+        entryHit?.click();
+        await wait(700);
+        const entryQuickFind = !!entryHit && outsView === 'project' && outsCurrentProject?.id === projectId
+          && !!document.querySelector('#outs-detail-view tr[data-entry-id="' + secondId + '"]');
 
         await setOutsActiveUi(created.id, false);
         backToOutsList();
-        await wait(250);
+        await wait(300);
         const hiddenWhenInactive = !document.querySelector('#outs-tbody tr[data-outs-id="' + created.id + '"]');
         toggleOutsInactive();
         const shownWithInactive = !!document.querySelector('#outs-tbody tr[data-outs-id="' + created.id + '"]');
         toggleOutsInactive();
         await setOutsActiveUi(created.id, true);
-        await wait(250);
 
-        await openPalette();
-        document.getElementById('palette-input').value = name;
-        paletteInputChanged();
-        await wait(500);
-        const palHit = [...document.querySelectorAll('#palette-list .pal-item')].find(b => b.textContent.includes(name));
-        palHit?.click();
-        await wait(300);
-        const quickFindOpened = !!palHit && activeModule === 'outsource' && outsCurrent?.id === created.id;
-
-        await deleteOutsResourceUi(created.id);
-        const goneAfterDelete = !(await window.api.listOutsResources({ includeInactive: true })).some(r => r.id === created.id);
+        // A resource with a paid statement is refused; a fresh one deletes and undoes.
+        const refusedDelete = !(await window.api.deleteOutsResource(created.id)).ok;
+        const spare = (await window.api.createOutsResource({ name: name + ' spare', currency: created.currency })).resource;
+        await deleteOutsResourceUi(spare.id);
+        const goneAfterDelete = !(await window.api.listOutsResources({ includeInactive: true })).some(r => r.id === spare.id);
         document.querySelector('#app-toast .toast-action-btn').click();
-        await wait(250);
-        const backAfterUndo = (await window.api.listOutsResources({})).some(r => r.id === created.id);
+        await wait(300);
+        const backAfterUndo = (await window.api.listOutsResources({})).some(r => r.id === spare.id);
 
+        // Everything above is billed and paid, so nothing is owed yet — one
+        // unbilled hour makes the Overview tile appear.
+        const nothingOwed = (await window.api.getOutsUnpaidSummary()).totals.every(t => t.unpaidMinor === 0);
+        await window.api.createOutsEntry(projectId, { date: '2090-09-01', minutes: '1h', description: 'E2E unbilled' });
         switchModule('analytics');
+        await wait(800);
+        const owedTile = nothingOwed && !!document.querySelector('#dash-stats .outs-owed');
+
         return {
-          ctrlNOpened, currencyPreset, detailOpen, firstRate, rateModalOpen, badRateRefused, rateFroms, rateRows,
-          newestRate, sameDateRefused, ratesAfterDelete, ratesAfterUndo, duplicateRefused, hiddenWhenInactive,
-          shownWithInactive, quickFindOpened, goneAfterDelete, backAfterUndo,
+          ctrlNOpened, currencyPreset, detailOpen, firstRate, rateModalOpen, badRateRefused, rateFroms, newestRate,
+          sameDateRefused, ratesAfterDelete, ratesAfterUndo, projectModalOpen, projectPageOpen, badTimeRefused, keptDate,
+          refocused, gridRows, enteredMinutes, inProject, totalMinor, footerMinutes, editedMinutes, entriesAfterDelete,
+          entriesAfterUndo, statementModalOpen, defaultFrom, draftOpen, issuedOk, lockedAfterIssue, editRefused, paidOk,
+          pdfHasLines, lockIcons, billedProjectKept, duplicateRefused, entryQuickFind, hiddenWhenInactive,
+          shownWithInactive, refusedDelete, goneAfterDelete, backAfterUndo, owedTile,
         };
       })(),
       passwordRotation: await (async () => {
@@ -789,23 +894,26 @@ async function run() {
   }
 
   const outs = result.outsource;
-  if (!outs.ctrlNOpened || !outs.currencyPreset || !outs.detailOpen || outs.firstRate !== 20000) {
-    throw new Error(`Creating an Outsource resource with its first rate failed: ${JSON.stringify(outs)}`);
+  const outsFail = what => { throw new Error(`${what}: ${JSON.stringify(outs)}`); };
+  if (!outs.ctrlNOpened || !outs.currencyPreset || !outs.detailOpen || outs.firstRate !== 20000) outsFail('Creating an Outsource resource with its first rate failed');
+  if (!outs.rateModalOpen || !outs.badRateRefused || outs.rateFroms !== '2090-07-01,2090-01-01' || outs.newestRate !== 125050
+      || !outs.sameDateRefused || outs.ratesAfterDelete !== 1 || outs.ratesAfterUndo !== 2) outsFail('The Outsource Rates tab failed');
+  if (!outs.projectModalOpen || !outs.projectPageOpen) outsFail('Adding a project inside the person did not open it ready for entries');
+  // 90 + 45 min in July 2090 at 1,250.50/h → 135 × 125050 / 60 = 281362.5 → 281363.
+  if (!outs.badTimeRefused || outs.keptDate !== '2090-07-02' || !outs.refocused || outs.gridRows !== 2
+      || outs.enteredMinutes !== '90,45' || !outs.inProject || outs.footerMinutes !== '135' || outs.totalMinor !== 281363) {
+    outsFail('Typing entries into the project grid failed');
   }
-  if (!outs.rateModalOpen || !outs.badRateRefused || outs.rateFroms !== '2090-07-01,2090-01-01' || outs.rateRows !== 2
-      || outs.newestRate !== 125050 || !outs.sameDateRefused) {
-    throw new Error(`Adding a second hourly rate failed: ${JSON.stringify(outs)}`);
-  }
-  if (outs.ratesAfterDelete !== 1 || outs.ratesAfterUndo !== 2) {
-    throw new Error(`Deleting a rate with undo failed: ${JSON.stringify(outs)}`);
-  }
-  if (!outs.duplicateRefused) throw new Error(`A duplicate resource name was not refused: ${JSON.stringify(outs)}`);
-  if (!outs.hiddenWhenInactive || !outs.shownWithInactive) {
-    throw new Error(`Deactivating a resource did not move it behind Show inactive: ${JSON.stringify(outs)}`);
-  }
-  if (!outs.quickFindOpened) throw new Error(`Quick Find did not open the resource: ${JSON.stringify(outs)}`);
-  if (!outs.goneAfterDelete || !outs.backAfterUndo) {
-    throw new Error(`Resource delete/undo round trip failed: ${JSON.stringify(outs)}`);
+  if (outs.editedMinutes !== 120 || outs.entriesAfterDelete !== 1 || outs.entriesAfterUndo !== 2) outsFail('Editing / deleting an entry failed');
+  if (!outs.statementModalOpen || outs.defaultFrom !== '2090-07-02' || !outs.draftOpen || !outs.issuedOk || !outs.lockedAfterIssue
+      || !outs.editRefused || !outs.paidOk || !outs.pdfHasLines) outsFail('The statement draft → issue → paid flow failed');
+  if (outs.lockIcons !== 2 || !outs.billedProjectKept) outsFail('Issued entries are not shown locked, or a billed project was deleted');
+  if (!outs.duplicateRefused || !outs.entryQuickFind || !outs.hiddenWhenInactive || !outs.shownWithInactive
+      || !outs.refusedDelete || !outs.goneAfterDelete || !outs.backAfterUndo) outsFail('Outsource list, Quick Find or delete/undo failed');
+  if (!outs.owedTile) outsFail('The Overview did not show what is owed to Outsource');
+  const outsXlsx = fs.existsSync(outsXlsxPath) ? fs.readFileSync(outsXlsxPath) : Buffer.alloc(0);
+  if (outsXlsx.readUInt32LE(0) !== 0x04034B50 || !outsXlsx.includes('E2E first task')) {
+    throw new Error(`The Outsource statement Excel export was not written (${outsXlsx.length} bytes)`);
   }
 
   const rotation = result.passwordRotation;
@@ -878,8 +986,10 @@ async function run() {
   console.log('PASS  A duplicate Reference ID is refused in the modal, and delete/undo keeps the offer');
   console.log('PASS  Versions with fees become current newest-first; files are added (bad ones listed), removed and restored');
   console.log('PASS  Project & Finance reaches the rest of the app: fee change, Quick Find, Ctrl+N, Excel export, client tab');
-  console.log('PASS  An Outsource resource is created with its first rate; a second rate is added, a bad or clashing one refused, and a rate delete is undone');
-  console.log('PASS  Outsource: duplicate name refused, deactivate hides behind Show inactive, Quick Find opens it, delete/undo keeps it');
+  console.log('PASS  Outsource: a resource with its first rate; the Rates tab adds, refuses a bad or clashing rate, and undoes a delete');
+  console.log('PASS  Outsource: a project added inside the person opens its grid; entries typed with Enter, edited, deleted with undo');
+  console.log('PASS  Outsource statements: draft preview → issue locks the entries → marked paid → Excel and PDF export');
+  console.log('PASS  Outsource: duplicate name refused, deactivate, Quick Find to an entry, delete/undo, Overview owed tile');
   console.log('PASS  An admin-created account is forced to replace its admin-assigned password on next login');
   console.log('PASS  Runtime accessibility invariants cover names, unique ids, language/direction, and live regions');
   console.log(`PASS  report:exportPDF produces a real PDF file (${pdfBytes.length} bytes)`);

@@ -242,6 +242,39 @@ contextBridge.exposeInMainWorld('api', {
   deleteOutsRate:      (rateId)          => ipcRenderer.invoke('outs:rate-delete', rateId),
   restoreOutsRate:     (rateId)          => ipcRenderer.invoke('outs:rate-restore', rateId),
   purgeOutsRate:       (rateId)          => ipcRenderer.invoke('outs:rate-purge', rateId),
+  /** @returns {Promise<import('./ipc-types').OutsEntryList>} */
+  listOutsEntries:     (id, filters)     => ipcRenderer.invoke('outs:entries', id, filters),
+  /** @returns {Promise<import('./ipc-types').OutsEntryWriteResult>} */
+  createOutsEntry:     (projectId, data) => ipcRenderer.invoke('outs:entry-create', projectId, data),
+  updateOutsEntry:     (entryId, data)   => ipcRenderer.invoke('outs:entry-update', entryId, data),
+  deleteOutsEntry:     (entryId)         => ipcRenderer.invoke('outs:entry-delete', entryId),
+  restoreOutsEntry:    (entryId)         => ipcRenderer.invoke('outs:entry-restore', entryId),
+  purgeOutsEntry:      (entryId)         => ipcRenderer.invoke('outs:entry-purge', entryId),
+  /** @returns {Promise<import('./ipc-types').OutsProject[]>} */
+  listOutsProjects:    (id, filters)     => ipcRenderer.invoke('outs:projects', id, filters),
+  getOutsProject:      (projectId)       => ipcRenderer.invoke('outs:project-get', projectId),
+  createOutsProject:   (id, data)        => ipcRenderer.invoke('outs:project-create', id, data),
+  updateOutsProject:   (projectId, data) => ipcRenderer.invoke('outs:project-update', projectId, data),
+  setOutsProjectActive: (projectId, active) => ipcRenderer.invoke('outs:project-set-active', projectId, active),
+  deleteOutsProject:   (projectId)       => ipcRenderer.invoke('outs:project-delete', projectId),
+  restoreOutsProject:  (projectId)       => ipcRenderer.invoke('outs:project-restore', projectId),
+  purgeOutsProject:    (projectId)       => ipcRenderer.invoke('outs:project-purge', projectId),
+  /** @returns {Promise<import('./ipc-types').OutsStatement[]>} */
+  listOutsStatements:  (id)              => ipcRenderer.invoke('outs:statements', id),
+  /** @returns {Promise<import('./ipc-types').OutsStatement|null>} */
+  getOutsStatement:    (statementId)     => ipcRenderer.invoke('outs:statement-get', statementId),
+  createOutsStatement: (id, data)        => ipcRenderer.invoke('outs:statement-create', id, data),
+  updateOutsStatement: (statementId, data) => ipcRenderer.invoke('outs:statement-update', statementId, data),
+  issueOutsStatement:  (statementId)     => ipcRenderer.invoke('outs:statement-issue', statementId),
+  markOutsStatementPaid: (statementId, data) => ipcRenderer.invoke('outs:statement-paid', statementId, data),
+  markOutsStatementUnpaid: (statementId) => ipcRenderer.invoke('outs:statement-unpaid', statementId),
+  cancelOutsStatement: (statementId)     => ipcRenderer.invoke('outs:statement-cancel', statementId),
+  deleteOutsStatement: (statementId)     => ipcRenderer.invoke('outs:statement-delete', statementId),
+  restoreOutsStatement: (statementId)    => ipcRenderer.invoke('outs:statement-restore', statementId),
+  purgeOutsStatement:  (statementId)     => ipcRenderer.invoke('outs:statement-purge', statementId),
+  /** @returns {Promise<{people:number, totals:{currency:string, unpaidMinor:number, issuedMinor:number, unbilledMinor:number}[]}>} */
+  getOutsUnpaidSummary: ()               => ipcRenderer.invoke('outs:unpaid-summary'),
+  exportOutsStatementExcel: (data, name) => ipcRenderer.invoke('outs:export-xlsx', data, name),
 
   // ── Clients (Auth + Server Information + Databases per COMPANY lookup) ──
   /** @returns {Promise<import('./ipc-types').ClientListItem[]>} */

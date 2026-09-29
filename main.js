@@ -4,7 +4,7 @@ const path = require('node:path');
 const db     = require('./db');
 const auth   = require('./auth');
 const { validateIpcArgs } = require('./ipc-contracts');
-const { createTimesheetWorkbook, createPfmWorkbook } = require('./xlsx');
+const { createTimesheetWorkbook, createPfmWorkbook, createOutsStatementWorkbook } = require('./xlsx');
 
 const e2ePort = !app.isPackaged
   ? Number(process.env.OFFICE_ONE_E2E_PORT)
@@ -500,6 +500,56 @@ ipcMain.handle('outs:rate-update',   authed((_e, rateId, data)   => db.updateOut
 ipcMain.handle('outs:rate-delete',   authed((_e, rateId)         => db.deleteOutsRate(auth.requireUserId(), rateId)));
 ipcMain.handle('outs:rate-restore',  authed((_e, rateId)         => db.restoreOutsRate(auth.requireUserId(), rateId)));
 ipcMain.handle('outs:rate-purge',    authed((_e, rateId)         => db.purgeOutsRate(auth.requireUserId(), rateId)));
+ipcMain.handle('outs:entries',       authed((_e, id, filters)    => db.listOutsEntries(auth.requireUserId(), id, filters || {})));
+ipcMain.handle('outs:entry-create',  authed((_e, projectId, data) => db.createOutsEntry(auth.requireUserId(), projectId, data)));
+ipcMain.handle('outs:entry-update',  authed((_e, entryId, data)  => db.updateOutsEntry(auth.requireUserId(), entryId, data)));
+ipcMain.handle('outs:entry-delete',  authed((_e, entryId)        => db.deleteOutsEntry(auth.requireUserId(), entryId)));
+ipcMain.handle('outs:entry-restore', authed((_e, entryId)        => db.restoreOutsEntry(auth.requireUserId(), entryId)));
+ipcMain.handle('outs:entry-purge',   authed((_e, entryId)        => db.purgeOutsEntry(auth.requireUserId(), entryId)));
+ipcMain.handle('outs:projects',      authed((_e, id, filters)    => db.listOutsProjects(auth.requireUserId(), id, filters || {})));
+ipcMain.handle('outs:project-get',    authed((_e, projectId)      => db.getOutsProject(auth.requireUserId(), projectId)));
+ipcMain.handle('outs:project-create', authed((_e, id, data)       => db.createOutsProject(auth.requireUserId(), id, data)));
+ipcMain.handle('outs:project-update', authed((_e, projectId, data) => db.updateOutsProject(auth.requireUserId(), projectId, data)));
+ipcMain.handle('outs:project-set-active', authed((_e, projectId, active) => db.setOutsProjectActive(auth.requireUserId(), projectId, active)));
+ipcMain.handle('outs:project-delete', authed((_e, projectId)      => db.deleteOutsProject(auth.requireUserId(), projectId)));
+ipcMain.handle('outs:project-restore', authed((_e, projectId)     => db.restoreOutsProject(auth.requireUserId(), projectId)));
+ipcMain.handle('outs:project-purge',  authed((_e, projectId)      => db.purgeOutsProject(auth.requireUserId(), projectId)));
+ipcMain.handle('outs:statements',     authed((_e, id)             => db.listOutsStatements(auth.requireUserId(), id)));
+ipcMain.handle('outs:statement-get',  authed((_e, statementId)    => db.getOutsStatement(auth.requireUserId(), statementId)));
+ipcMain.handle('outs:statement-create', authed((_e, id, data)     => db.createOutsStatement(auth.requireUserId(), id, data)));
+ipcMain.handle('outs:statement-update', authed((_e, statementId, data) => db.updateOutsStatement(auth.requireUserId(), statementId, data)));
+ipcMain.handle('outs:statement-issue', authed((_e, statementId)   => db.issueOutsStatement(auth.requireUserId(), statementId)));
+ipcMain.handle('outs:statement-paid', authed((_e, statementId, data) => db.markOutsStatementPaid(auth.requireUserId(), statementId, data || {})));
+ipcMain.handle('outs:statement-unpaid', authed((_e, statementId)  => db.markOutsStatementUnpaid(auth.requireUserId(), statementId)));
+ipcMain.handle('outs:statement-cancel', authed((_e, statementId)  => db.cancelOutsStatement(auth.requireUserId(), statementId)));
+ipcMain.handle('outs:statement-delete', authed((_e, statementId)  => db.deleteOutsStatement(auth.requireUserId(), statementId)));
+ipcMain.handle('outs:statement-restore', authed((_e, statementId) => db.restoreOutsStatement(auth.requireUserId(), statementId)));
+ipcMain.handle('outs:statement-purge', authed((_e, statementId)   => db.purgeOutsStatement(auth.requireUserId(), statementId)));
+ipcMain.handle('outs:unpaid-summary', authed(()                   => db.getOutsUnpaidSummary(auth.requireUserId())));
+// One statement as an Excel workbook (xlsx.js createOutsStatementWorkbook).
+// Same save-dialog and size rules as pfm:export-xlsx.
+ipcMain.handle('outs:export-xlsx', authed(async (_e, exportData, defaultName) => {
+  try {
+    const serializedBytes = Buffer.byteLength(JSON.stringify(exportData || {}), 'utf8');
+    if (!exportData || serializedBytes > 10 * 1024 * 1024) {
+      return { ok: false, error: 'Excel export content is empty or too large' };
+    }
+    const safeDefaultName = path.basename(String(defaultName || 'statement.xlsx')).slice(0, 180) || 'statement.xlsx';
+    const e2eXlsxPath = isE2ERun ? process.env.OFFICE_ONE_E2E_OUTS_XLSX_PATH : null;
+    const { canceled, filePath } = e2eXlsxPath
+      ? { canceled: false, filePath: e2eXlsxPath }
+      : await dialog.showSaveDialog(win, {
+          title: 'Save statement as Excel',
+          defaultPath: safeDefaultName,
+          filters: [{ name: 'Excel workbook', extensions: ['xlsx'] }],
+        });
+    if (canceled || !filePath) return { ok: false };
+    fs.writeFileSync(filePath, createOutsStatementWorkbook(exportData));
+    return { ok: true, path: filePath };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err) };
+  }
+}));
 // The renderer never supplies a path: main opens the dialog, db validates and
 // copies each chosen file on its own and reports per-file ok/error.
 ipcMain.handle('pfm:files-add', authed(async (_e, versionId) => {

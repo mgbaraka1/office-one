@@ -200,7 +200,8 @@ function renderPalette() {
     'client-system': ['monitor', 'Open client system'],
     pfm: ['briefcase', 'Open offer / CR'],
     'outs-resource': ['users', 'Open resource'],
-    'outs-entry': ['users', 'Open resource'],
+    'outs-project': ['folder', 'Open project'],
+    'outs-entry': ['clock', 'Open entry'],
   };
   const workspaceItems = _palWorkspace.map(result => {
     const [icon, fallbackHint] = kindInfo[result.kind] || ['search', 'Open'];
@@ -231,9 +232,12 @@ function renderPalette() {
           scrollToAndHighlight('[data-sub-id="' + result.id + '"]');
         } else if (result.kind === 'pfm') {
           openPfmDetail(result.id);
-        } else if (result.kind === 'outs-resource' || result.kind === 'outs-entry') {
-          // An entry's id is 'resourceId:entryId'; either way, open the resource.
-          openOutsDetail(Number(String(result.id).split(':', 1)[0]));
+        } else if (result.kind === 'outs-resource') {
+          openOutsDetail(Number(result.id));
+        } else if (result.kind === 'outs-project' || result.kind === 'outs-entry') {
+          // 'resourceId:projectId' or 'resourceId:projectId:entryId' (migration 067).
+          const [, projectId, entryId] = String(result.id).split(':');
+          openOutsProject(Number(projectId), entryId ? { entryId: Number(entryId) } : {});
         } else if (result.kind.startsWith('client-')) {
           const companyId = Number(String(result.id).split(':', 1)[0]);
           if (Number.isInteger(companyId) && companyId > 0) {

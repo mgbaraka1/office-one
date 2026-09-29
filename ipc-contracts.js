@@ -7,7 +7,7 @@ const NO_ARGS = new Set([
   'days:list', 'companies:list', 'systems:list', 'attention:list', 'activity:list',
   'lookups:get', 'subscriptions:list', 'tasks:list', 'tasks:index',
   'projects:list', 'projects:linkable-tasks', 'departments:list',
-  'internal:list', 'companydocs:list', 'knowledge:list', 'pfm:member-names',
+  'internal:list', 'companydocs:list', 'knowledge:list', 'pfm:member-names', 'outs:unpaid-summary',
   'knowledge:groups-list', 'ui:getState', 'db:backup',
   'ui:getKnowledgeDraft', 'ui:clearKnowledgeDraft', 'preferences:get',
   'maintenance:listBackups', 'maintenance:integrityCheck',
@@ -134,6 +134,32 @@ const SIGNATURES = {
   'outs:rate-delete': ['id'],
   'outs:rate-restore': ['id'],
   'outs:rate-purge': ['id'],
+  'outs:entries': ['id', 'object?'],
+  'outs:entry-create': ['id', 'object'],
+  'outs:entry-update': ['id', 'object'],
+  'outs:entry-delete': ['id'],
+  'outs:entry-restore': ['id'],
+  'outs:entry-purge': ['id'],
+  'outs:projects': ['id', 'object?'],
+  'outs:project-get': ['id'],
+  'outs:project-create': ['id', 'object'],
+  'outs:project-update': ['id', 'object'],
+  'outs:project-set-active': ['id', 'boolean'],
+  'outs:project-delete': ['id'],
+  'outs:project-restore': ['id'],
+  'outs:project-purge': ['id'],
+  'outs:statements': ['id'],
+  'outs:statement-get': ['id'],
+  'outs:statement-create': ['id', 'object'],
+  'outs:statement-update': ['id', 'object'],
+  'outs:statement-issue': ['id'],
+  'outs:statement-paid': ['id', 'object?'],
+  'outs:statement-unpaid': ['id'],
+  'outs:statement-cancel': ['id'],
+  'outs:statement-delete': ['id'],
+  'outs:statement-restore': ['id'],
+  'outs:statement-purge': ['id'],
+  'outs:export-xlsx': ['object', 'string'],
   // Zero required args — the optional flag is the Clients page's "Show
   // archived" toggle, so existing no-arg callers stay valid.
   'clients:list': ['boolean?'],
@@ -247,7 +273,7 @@ function validateIpcArgs(channel, args) {
   });
   if (channel === 'report:exportPDF' || channel === 'report:exportCSV' || channel === 'report:print') {
     if (Buffer.byteLength(args[0], 'utf8') > 10 * 1024 * 1024) throw new Error('Report content is too large');
-  } else if (channel === 'report:exportExcel' || channel === 'pfm:export-xlsx') {
+  } else if (channel === 'report:exportExcel' || channel === 'pfm:export-xlsx' || channel === 'outs:export-xlsx') {
     if (Buffer.byteLength(JSON.stringify(args[0]), 'utf8') > 10 * 1024 * 1024) throw new Error('Report content is too large');
   } else {
     for (const arg of args) {
