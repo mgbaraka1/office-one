@@ -121,3 +121,13 @@ assert.match(outsSheet, /عمل عام/, 'Arabic descriptions are preserved');
 assert.throws(() => createOutsStatementWorkbook({}), /Invalid Excel export data/);
 console.log('PASS  Outsource statement export groups entries by project with subtotals, totals and the fee lines');
 
+// Exported as it stands: an unpriced line and an unknown total stay empty cells.
+const unpricedSheet = readStoredZip(createOutsStatementWorkbook({
+  title: 'Project One', sheetName: 'Project One', currency: 'SAR',
+  groups: [{ project: 'Project One', rows: [{ day: 'Monday', date: '2089-12-01', minutes: 30, description: 'Generic work' }] }],
+  lines: [{ project: 'Project One', hours: 0.5, rate: null, amount: null }],
+  totalAmount: null,
+})).get('xl/worksheets/sheet1.xml');
+assert.doesNotMatch(unpricedSheet, /s="13"><v>/, 'a missing rate or amount is not written as a number');
+assert.doesNotMatch(unpricedSheet, /s="10"><v>0<\/v>/, 'an unknown total fee is not written as 0');
+console.log('PASS  Outsource export leaves missing rates, amounts and the unknown total empty');
