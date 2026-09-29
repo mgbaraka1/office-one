@@ -15,7 +15,7 @@ Office ONE is an offline, multi-user Electron desktop app covering:
 - **Client Tasks** and **Internal Work** — two separate task domains (project work vs. department work).
 - **Clients** — bilingual client profiles plus VPN connections, servers and internal systems; client **Projects** with tracked documents and linked tasks live under each client.
 - **Subscriptions** and **Company Documents** — recurring spend and renewal-tracked files.
-- **Knowledge Hub** — WYSIWYG articles (Quill), groups, tags, attachments, versioned documents.
+- **Knowledge Hub** — a document shelf found by client and system: drop a file to add it (a matching name becomes the next version, with an optional "what changed" note that can be edited later and is searchable in the Hub), items open in a side panel, plain-text notes, tags. Groups remain in the schema but have no UI; older rich-text notes still render and turn into plain text on their next edit.
 - **Project & Finance** — Offers and Change Requests (CRs): a status stage trail, fee-bearing versions with uploaded files, follow-up/expiry reminders and Excel export.
 - **Outsource** — external resources paid by the hour: Person → Projects → Entries (a keyboard-first timesheet grid per project), an hourly rate history, statements (draft → issued → paid) with Excel/PDF export, and an Overview "owed" tile.
 - **Overview / Reports** — read-only analytics, PDF/CSV/Excel export.
@@ -33,7 +33,7 @@ lives **only** in the main-process session and is never trusted from the rendere
 | Storage | `node:sqlite` `DatabaseSync` — built into Node 24, ships inside Electron |
 | Hashing | `bcryptjs` (pure JS; the only runtime dependency) |
 | Renderer | Vanilla HTML/CSS/classic-script JS, system fonts |
-| Vendored 3rd-party JS | Quill + DOMPurify, Knowledge Hub only (`renderer/vendor/`) |
+| Vendored 3rd-party JS | DOMPurify, Knowledge Hub only (`renderer/vendor/`) — renders older rich-text notes |
 | Packaging | `electron-builder` → Windows NSIS + portable |
 
 No bundler, no transpilation, no native addons. `engines.node` is `>=24` and CI
@@ -63,7 +63,7 @@ renderer/
   features/          timesheet.js, tasks.js, workspace.js, clients.js, knowledge.js,
                      knowledge-sanitize.js, company-documents.js, pfm.js, outsource.js,
                      shell.js
-  vendor/            quill/, dompurify/
+  vendor/            dompurify/
 migrations/          000_baseline.js … 066_outsource.js (append-only)
 test/                40 *-smoke.js suites + run-all.js + electron-e2e.js + helpers
 ```
@@ -109,7 +109,9 @@ and `client_field_history` — where `password`/`secret_key` are always written 
 `'(hidden)'`. That is deliberate; do not "fix" it into storing real values.
 
 **Knowledge Hub**: `knowledge_items`, `knowledge_groups`, `knowledge_group_items`,
-`knowledge_tags`, `knowledge_item_tags`, `knowledge_attachments`.
+`knowledge_tags`, `knowledge_item_tags`, `knowledge_attachments`, and the lookup
+junctions `knowledge_item_companies` (clients) and `knowledge_item_systems` (068).
+Both junctions are in `LOOKUP_MERGE_TARGETS`, so merging a client or system repoints them.
 
 **Subscriptions**: `subscriptions` (`cost` REAL, `currency_id`, `billing_cycle_id`, `renewal_date`).
 
@@ -222,6 +224,7 @@ Landmarks worth knowing:
 | 065 | Repair: an Offer/CR whose status lags its furthest dated stage moves forward to it (history row per move); `savePfmStage` now does this on save |
 | 066 | Outsource — the six `outs_*` tables (resources, rate history, time entries, statements + their line snapshots, history), additive only; resources and entries join `workspace_search` (kinds `outs-resource` / `outs-entry`) |
 | 067 | Outsource projects — `outs_projects`; `outs_entries.project_id` and `outs_statement_lines.project_id` via ADD COLUMN; `outs_history` rebuilt only to widen its `record_type` CHECK (no triggers on it); older entries backfilled into projects; the entry search triggers recreated with the project join, plus `outs-project` search rows |
+| 068 | Knowledge Hub clients/systems — `knowledge_item_companies` / `knowledge_item_systems` (043's shape, dropped by 044, brought back); `knowledge_attachments.change_note`; `KNOWLEDGE_TYPE` `FIELD_MAPPING` seeded; the three knowledge search triggers recreated so the Quick Find subtitle is the client/system names and the body carries every client/system spelling, document names and the kind; link, attachment and lookup-rename triggers re-index the items they touch |
 
 **A guarded seed is the right shape for a fresh-install gap.** Migration 003
 seeded some categories from "legacy blob ∪ values already in the data", both
@@ -394,7 +397,11 @@ Uploads are ownership-checked, path-contained through `resolveInside()`, capped 
 `MAX_DOCUMENT_BYTES` (100 MB), and validated by both extension allowlist and
 magic-byte header. Project docs allow PDF/DOC/DOCX/PNG/JPG/GIF/WEBP; Knowledge
 Hub adds XLS/XLSX/TXT, and Project & Finance version files use the Knowledge Hub
-list.
+list. Knowledge Hub files are dropped or picked in the page, not chosen through a
+main-process dialog: preload turns the `File` into a disk path with
+`webUtils.getPathForFile` and sends it on `knowledge:upload-file`, so the page
+itself can never name a path. Main refuses UNC and non-file paths before the
+checks above run.
 
 ### Backups & restore
 

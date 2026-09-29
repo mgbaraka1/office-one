@@ -595,15 +595,6 @@
     'Could not update this client': 'تعذّر تحديث هذا العميل',
     'Could not save the new order': 'تعذّر حفظ الترتيب الجديد',
     'Saved — reopen the app to refresh company lists': 'تم الحفظ — أعد فتح التطبيق لتحديث قوائم الشركات',
-    // Knowledge Hub article editor (Quill) toolbar — screen-reader aria-labels.
-    // Quill sets these as lowercase format-name aria-label values, not title
-    // tooltips (the toolbar shows icons only), so this only affects assistive
-    // tech, not visible text. The picker's visible "Heading 1"/"Normal" labels
-    // and the link-tooltip text are CSS ::before content, not DOM text/attrs —
-    // those are translated via [lang="ar"] overrides in app.css instead.
-    'bold': 'غامق', 'italic': 'مائل', 'underline': 'تسطير', 'strike': 'يتوسطه خط',
-    'blockquote': 'اقتباس', 'code-block': 'كتلة برمجية', 'link': 'رابط',
-    'list: ordered': 'قائمة مرقمة', 'list: bullet': 'قائمة نقطية',
   });
 
   // Knowledge Hub detail-view overflow menu, command palette (Ctrl+K), and
@@ -779,6 +770,39 @@
     'Knowledge item moved to draft': 'تم نقل عنصر المعرفة إلى المسودات',
     'Add New Version': 'إضافة إصدار جديد',
     'Edit Group': 'تعديل المجموعة', 'Save Group': 'حفظ المجموعة', 'Group saved': 'تم حفظ المجموعة',
+    // Clients / systems links (migration 068).
+    'Document kind': 'نوع المستند', 'No kind': 'بلا نوع', 'Archived items': 'العناصر المؤرشفة',
+    'Search titles, clients, systems, documents, or tags…': 'ابحث في العناوين والعملاء والأنظمة والمستندات والوسوم…',
+    'Filter clients, systems, or tags…': 'تصفية العملاء أو الأنظمة أو الوسوم…',
+    'Filter Knowledge Hub clients, systems, and tags': 'تصفية عملاء وأنظمة ووسوم مركز المعرفة',
+    'Search clients…': 'البحث في العملاء…', 'Duplicate': 'نسخ العنصر', 'Restore from archive': 'استعادة من الأرشيف',
+    'Copy created with the same clients, systems, and tags': 'تم إنشاء نسخة بنفس العملاء والأنظمة والوسوم',
+    // Document shelf, drag and drop, side panel, plain notes (Phase 2).
+    'New item': 'عنصر جديد', 'Edit item': 'تعديل العنصر', 'File': 'الملف', 'Add': 'إضافة',
+    'Choose file…': 'اختيار ملف…', 'Drop a file here, or': 'أفلت ملفاً هنا، أو',
+    'Open file': 'فتح الملف', 'Open file ▾': 'فتح الملف ▾', 'Knowledge item': 'عنصر معرفة',
+    'Optional. You can add files and new versions later.': 'اختياري. يمكنك إضافة ملفات وإصدارات جديدة لاحقاً.',
+    'Anything worth remembering: steps, contacts, gotchas…': 'أي شيء يستحق التذكر: خطوات، جهات اتصال، ملاحظات مهمة…',
+    'Plain text. Links starting with https:// open in your browser. Do not store passwords or secret keys here.':
+      'نص عادي. الروابط التي تبدأ بـ https:// تُفتح في المتصفح. لا تحفظ كلمات المرور أو المفاتيح السرية هنا.',
+    'One line shown under the title in the list': 'سطر واحد يظهر تحت العنوان في القائمة',
+    'Drop to add this file': 'أفلت لإضافة هذا الملف',
+    'Drop to add this file to the open item': 'أفلت لإضافة هذا الملف إلى العنصر المفتوح',
+    // "What changed" note on each document version (Phase 3).
+    'Note': 'ملاحظة', 'What changed': 'ما الذي تغيّر', 'Optional': 'اختياري',
+    'Edit note': 'تعديل الملاحظة', 'Add note': 'إضافة ملاحظة', 'Note saved': 'تم حفظ الملاحظة',
+    'Could not save note': 'تعذّر حفظ الملاحظة',
+    'Drop a file on this panel to add it. A matching name becomes the next version.':
+      'أفلت ملفاً على هذه اللوحة لإضافته. الاسم المطابق يصبح الإصدار التالي.',
+    'No documents yet. Drop a file on this panel, or use Add document.':
+      'لا توجد مستندات بعد. أفلت ملفاً على هذه اللوحة، أو استخدم إضافة مستند.',
+    'Added the first file. Drop the others one at a time.': 'تمت إضافة الملف الأول. أفلت الملفات الأخرى واحداً تلو الآخر.',
+    'Drop or choose a file.': 'أفلت ملفاً أو اختره.',
+    'The item was saved, but the file could not be added': 'تم حفظ العنصر، لكن تعذّرت إضافة الملف',
+    'Drop or choose a file saved on this computer': 'أفلت أو اختر ملفاً محفوظاً على هذا الجهاز',
+    'Copy the file to this computer first, then add it': 'انسخ الملف إلى هذا الجهاز أولاً، ثم أضفه',
+    'Only single files can be added': 'يمكن إضافة ملفات مفردة فقط',
+    'Drop a file here, or click New item.': 'أفلت ملفاً هنا، أو انقر عنصر جديد.',
   });
 
   // Overview / Browse / Subscriptions / Full Backup — the workspace surfaces.
@@ -1198,6 +1222,8 @@
     [/^Latest (.+) · (.+) · (.+)$/s, m => `الأحدث ${m[1]} · ${m[2]} · ${m[3]}`],
     [/^(.+) · (.+) · Added (.+)$/s, m => `${m[1]} · ${m[2]} · أُضيف ${m[3]}`],
     [/^(.+) \(Archived\)$/s, m => `${m[1]} (مؤرشف)`],
+    [/^Show everything for (.+)$/s, m => `عرض كل ما يخص ${m[1]}`],
+    [/^New version of (.+) \(latest (.+)\)$/s, m => `إصدار جديد من ${m[1]} (الأحدث ${m[2]})`],
     [/^(\d+) of (\d+) done$/s, m => `${m[1]} من ${m[2]} مكتمل`],
     // Project & Finance "Add files" toast (1 has its own dictionary entry).
     [/^(\d+) files added$/s, m => {
@@ -1307,8 +1333,11 @@
     [/^code: (.+)$/s, m => `رمز: ${m[1]}`],
     [/^(\d+) min · ([\d.]+) h$/s, m => `${m[1]} دقيقة · ${m[2]} ساعة`],
     // Knowledge Hub facet-section and task-sessions collapse/expand toggles.
-    [/^(Expand|Collapse) (Types|Status|Groups|Tags|sessions)$/s, m => {
-      const nounAr = { Types: 'الأنواع', Status: 'الحالة', Groups: 'المجموعات', Tags: 'الوسوم', sessions: 'الجلسات' }[m[2]];
+    [/^(Expand|Collapse) (Types|Status|Groups|Tags|sessions|Clients|Systems|Document kind|Archived items)$/s, m => {
+      const nounAr = {
+        Types: 'الأنواع', Status: 'الحالة', Groups: 'المجموعات', Tags: 'الوسوم', sessions: 'الجلسات',
+        Clients: 'العملاء', Systems: 'الأنظمة', 'Document kind': 'نوع المستند', 'Archived items': 'العناصر المؤرشفة',
+      }[m[2]];
       return `${m[1] === 'Expand' ? 'توسيع' : 'طي'} ${nounAr}`;
     }],
     [/^Settings — (.+)$/s, m => `الإعدادات — ${m[1]}`],

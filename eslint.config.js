@@ -80,7 +80,6 @@ const browserGlobals = {
   clearInterval: 'readonly',
   queueMicrotask: 'readonly',
   alert: 'readonly',
-  Quill: 'readonly',
   DOMPurify: 'readonly',
 };
 
@@ -125,7 +124,7 @@ module.exports = [
     ignores: [
       'node_modules/**',
       'dist/**',
-      'renderer/vendor/**', // Quill + DOMPurify, vendored verbatim — not ours to lint.
+      'renderer/vendor/**', // DOMPurify, vendored verbatim — not ours to lint.
     ],
   },
 

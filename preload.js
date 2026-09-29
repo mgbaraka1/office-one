@@ -2,7 +2,7 @@
 // channel (`domain:action`) handled in main.js. The façade method names are kept
 // stable (JS identifiers); the wire-level channel strings are the scoped names.
 // Request/response shapes are documented in ipc-types.js.
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
   // ── Authentication ──
@@ -189,12 +189,20 @@ contextBridge.exposeInMainWorld('api', {
   createKnowledgeGroup:        (data)         => ipcRenderer.invoke('knowledge:group-create', data),
   updateKnowledgeGroup:        (id, data)     => ipcRenderer.invoke('knowledge:group-update', id, data),
   deleteKnowledgeGroup:        (id)           => ipcRenderer.invoke('knowledge:group-delete', id),
-  uploadKnowledgeAttachment:   (itemId, meta) => ipcRenderer.invoke('knowledge:upload-attachment', itemId, meta),
+  // Takes the File itself (dropped or picked). Its disk path is resolved here,
+  // so the page can hand over a file but can never name an arbitrary path.
+  uploadKnowledgeFile: (itemId, file, meta) => {
+    let filePath = '';
+    try { filePath = webUtils.getPathForFile(file); } catch { /* not a real File */ }
+    if (!filePath) return Promise.resolve({ ok: false, error: 'Drop or choose a file saved on this computer' });
+    return ipcRenderer.invoke('knowledge:upload-file', itemId, filePath, meta);
+  },
   downloadKnowledgeAttachment: (attachmentId) => ipcRenderer.invoke('knowledge:download-attachment', attachmentId),
   openKnowledgeAttachment:     (attachmentId) => ipcRenderer.invoke('knowledge:open-attachment', attachmentId),
   removeKnowledgeAttachment:   (attachmentId) => ipcRenderer.invoke('knowledge:remove-attachment', attachmentId),
   restoreKnowledgeAttachment:  (itemId, fileMeta) => ipcRenderer.invoke('knowledge:restore-attachment', itemId, fileMeta),
   purgeKnowledgeAttachment:    (itemId, relPath) => ipcRenderer.invoke('knowledge:purge-attachment', itemId, relPath),
+  updateKnowledgeAttachmentNote: (attachmentId, note) => ipcRenderer.invoke('knowledge:update-attachment-note', attachmentId, note),
   purgeKnowledgeFiles:         (itemId) => ipcRenderer.invoke('knowledge:purge-files', itemId),
 
   // Project & Finance (Offers & CRs)

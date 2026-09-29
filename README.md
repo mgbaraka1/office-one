@@ -1,6 +1,6 @@
 # Office ONE
 
-An offline, multi-user Electron desktop app for timesheets, client tasks, internal/department work, client projects and infrastructure, subscriptions, company documents, a WYSIWYG Knowledge Hub, offer and change-request tracking, analytics, and exportable reports.
+An offline, multi-user Electron desktop app for timesheets, client tasks, internal/department work, client projects and infrastructure, subscriptions, company documents, a Knowledge Hub document shelf, offer and change-request tracking, analytics, and exportable reports.
 
 Everything runs on the device. There is no application server, no cloud sync, and no network calls — one embedded SQLite database holds all data, and the renderer's Content-Security-Policy sets `connect-src 'none'`. Each account logs in separately and owns its own data; every business query is scoped in the main process to the session's user id, and the renderer can never supply a trusted `user_id`.
 
@@ -17,7 +17,7 @@ Everything runs on the device. There is no application server, no cloud sync, an
   </tr>
   <tr>
     <td width="50%"><a href="docs/screenshots/04-clients.png"><img src="docs/screenshots/04-clients.png" alt="A client detail page with its record tabs"></a><br><sub><b>Clients</b> — a client's projects, access records, servers, and internal systems. The company code is permanent and read-only.</sub></td>
-    <td width="50%"><a href="docs/screenshots/05-knowledge-hub.png"><img src="docs/screenshots/05-knowledge-hub.png" alt="The Knowledge Hub article list"></a><br><sub><b>Knowledge Hub</b> — WYSIWYG articles with groups, tags, attachments and versioned documents.</sub></td>
+    <td width="50%"><a href="docs/screenshots/05-knowledge-hub.png"><img src="docs/screenshots/05-knowledge-hub.png" alt="The Knowledge Hub"></a><br><sub><b>Knowledge Hub</b> — versioned documents found by client and system, with plain-text notes.</sub></td>
   </tr>
 </table>
 
@@ -46,7 +46,7 @@ The whole interface is bilingual, including a full right-to-left layout. The sam
 - Outsource: the people you pay by the hour — projects inside each person, a keyboard-first timesheet grid per project (`90`, `1:30` or `1.5h`), an hourly rate history, statements that lock what they bill (draft → issued → paid), Excel/PDF export, and what is still owed on the Overview.
 
 **Knowledge & records**
-- Knowledge Hub with a real WYSIWYG editor (vendored Quill), groups, tags, attachments, versioned documents, and a strict HTML sanitizer allowlist.
+- Knowledge Hub document shelf: link items to clients and systems, drop a file to add it (a matching name becomes the next version, with a "what changed" note), a side panel for each item, plain-text notes, and tags.
 
 **Review & output**
 - Overview dashboard leading with attention items, period comparisons, and accessible chart data tables.
@@ -70,7 +70,7 @@ The whole interface is bilingual, including a full right-to-left layout. The sam
 | Storage | Node's built-in `node:sqlite` (`DatabaseSync`) |
 | Password hashing | `bcryptjs` (pure JS — no native modules) |
 | UI | Vanilla HTML, CSS, and classic-script JavaScript; system fonts |
-| Third-party renderer JS | Vendored Quill + DOMPurify (Knowledge Hub only) |
+| Third-party renderer JS | Vendored DOMPurify (Knowledge Hub only) |
 | Packaging | `electron-builder` (Windows NSIS + portable) |
 
 `bcryptjs` is the only runtime dependency. There is no bundler, no transpilation step, and no native addon to compile — a fresh clone installs and runs.
@@ -142,7 +142,8 @@ A credential this machine holds no key for is shown as *"Cannot be read on this 
 - Permission requests are denied, renderer-created windows are denied, and navigation away from the app page is blocked.
 - Uploaded files are ownership-checked, path-contained inside the data directory, capped at 100 MB, and validated by both extension and file-signature magic bytes.
 - Database restore accepts only a listed snapshot and validates SQLite integrity, foreign keys, required tables and schema compatibility. Full Restore additionally validates its manifest, SHA-256 checksums, and every database-referenced attachment before touching live data.
-- Knowledge Hub article HTML is sanitized through a fixed DOMPurify allowlist both before persisting and before rendering.
+- Older Knowledge Hub rich-text notes are sanitized through a fixed DOMPurify allowlist before rendering; new notes are plain text.
+- A dropped or picked Knowledge Hub file reaches the main process only as a `File`: preload resolves its disk path with `webUtils.getPathForFile`, so the page can never name an arbitrary path, and main still checks type, size and file header.
 - There is deliberately **no** email or token password-reset flow — the app has no network layer. If the last active account forgets its password, recovery is a manual local procedure: generate a bcrypt hash with the app's own `bcryptjs` dependency and write it into `users.password_hash` directly via `node:sqlite`. This is also why the last active account can never be deactivated.
 
 ---

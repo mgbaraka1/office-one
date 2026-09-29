@@ -1557,7 +1557,9 @@ document.addEventListener('keydown', e => {
     closeClientVpnModal(); closeClientServerModal(); closeClientInternalModal(); closeClientGroupRenameModal(); closeClientNewGroupModal();
     closeClientRecordInfoModal(); cancelClientEditConfirm(); closeClientHistoryModal();
     closeSessionModal(); closeWlHistoryModal(); closeMergeModal(); closeShortcutsOverlay(); closeHowThinksOverlay();
-    closeKnowledgeEditor(); closeKnowledgeGroupEditor(); closeKnowledgeDocumentModal(); toggleKnowledgeCreateMenu(false);
+    closeKnowledgeEditor(); closeKnowledgeDocumentModal();
+    // The Knowledge side panel closes on Esc only when no dialog was open.
+    if (!anyOpen && activeModule === 'knowledge' && knowledgeCurrentId != null) closeKnowledgeDetail();
     closeWorkspaceView();
     document.querySelectorAll('.top-menu.open').forEach(m => m.classList.remove('open'));
   }
@@ -1576,7 +1578,6 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('project-modal-overlay').classList.contains('open')) submitProjectModal();
     if (document.getElementById('companydoc-modal-overlay').classList.contains('open')) submitCompanyDocModal();
     if (document.getElementById('knowledge-modal-overlay').classList.contains('open')) saveKnowledgeEditor();
-    if (document.getElementById('knowledge-group-modal-overlay').classList.contains('open')) saveKnowledgeGroup();
     if (document.getElementById('knowledge-document-modal-overlay').classList.contains('open')) submitKnowledgeDocument();
     if (document.getElementById('client-vpn-modal-overlay').classList.contains('open')) submitClientVpnModal();
     if (document.getElementById('client-server-modal-overlay').classList.contains('open')) submitClientServerModal();
