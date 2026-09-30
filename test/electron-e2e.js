@@ -721,7 +721,8 @@ async function run() {
           && draft.entries.length === 2 && draft.totalMinutes === 165
           && !!document.querySelector('#outs-detail-view .outs-excel-btn');
         document.querySelector('#outs-detail-view .outs-issue-btn').click();
-        await wait(500);
+        // The click handler is not awaitable; a fixed pause flaked on slow CI runners.
+        for (let i = 0; i < 100 && outsCurrentStatement?.status !== 'ISSUED'; i++) await wait(100);
         const issued = outsCurrentStatement;
         const issuedOk = issued?.status === 'ISSUED' && issued.totalMinor === draft.totalMinor && issued.lines.length === 1;
         const lockedAfterIssue = (await window.api.listOutsEntries(created.id, {})).entries.every(e => e.locked);
