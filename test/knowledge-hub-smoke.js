@@ -43,6 +43,7 @@ try {
   record('Retired project/link tables are absent', retiredTables.length === 0, JSON.stringify(retiredTables));
   record('Migration 068 brings back the client and system link tables', head >= 68 && linkTables.length === 2, JSON.stringify(linkTables));
   record('Migration 069 is applied', head >= 69, `head=${head}`);
+  record('Migration 070 is applied (its is_active column is retired and unused)', head >= 70 && attachmentColumns.includes('is_active'), `head=${head}`);
   record('Document versions have a change note column', attachmentColumns.includes('change_note'));
   record('Field Mapping is a seeded document kind', db.getLookupsByCategory('KNOWLEDGE_TYPE').some(x => x.code === 'FIELD_MAPPING'));
   record('Review date is retired and document version columns exist',
@@ -54,7 +55,7 @@ try {
     summary:'How to connect to Claims API', content:'Prerequisites\n1. Request access\n2. Configure the client',
     tags:['API','Claims','api'],
   });
-  record('Create persists article fields and normalizes duplicate tags', created.title === 'Claims API Integration' && created.type === 'INTEGRATION_GUIDE' && created.status === 'PUBLISHED' && created.tags.length === 2, JSON.stringify(created.tags));
+  record('Create persists article fields; tags are retired and ignored', created.title === 'Claims API Integration' && created.type === 'INTEGRATION_GUIDE' && created.status === 'PUBLISHED' && !Object.hasOwn(created, 'tags'), JSON.stringify(created));
   record('Knowledge item exposes client and system links but no project links',
     Array.isArray(created.companies) && Array.isArray(created.systems) && !Object.hasOwn(created, 'projects'));
 
@@ -107,7 +108,7 @@ try {
   db.deleteKnowledgeItem(user.id, htmlItem.id);
 
   const updated = db.updateKnowledgeItem(user.id, created.id, { ...created, title:'Claims API Integration v2', status:'DRAFT', tags:['Deployment'] });
-  record('Update replaces profile and tag collection', updated.title.endsWith('v2') && updated.status === 'DRAFT' && updated.tags.join() === 'Deployment');
+  record('Update replaces the profile', updated.title.endsWith('v2') && updated.status === 'DRAFT' && !Object.hasOwn(updated, 'tags'));
   record('Update without contentFormat defaults to text (matches legacy plain-text save path)', updated.contentFormat === 'text');
 
   const group = db.createKnowledgeGroup(user.id, { name:'API Playbooks', description:'Reusable integration material', itemIds:[created.id] });
@@ -167,8 +168,9 @@ try {
   const deleted = db.deleteKnowledgeItem(user.id, created.id);
   record('Delete removes the row but retains its file during undo window', deleted.ok && db.getKnowledgeItem(user.id, created.id) === null && fs.existsSync(path.join(workDir, deleted.snapshot.documents[0].path)));
   const restored = db.restoreKnowledgeItem(user.id, created.id, deleted.snapshot);
-  record('Delete undo restores article, tags, group, and versioned document', restored.ok && restored.item.title.endsWith('v2') && restored.item.tags.join() === 'Deployment' && restored.item.groups[0]?.name === 'API Playbooks' && restored.item.documents[0]?.version === '2.4' && restored.item.documents[0].exists
-    && restored.item.documents[0].changeNote === 'Mapped 12 new fields');
+  record('Delete undo restores article, group, and versioned document', restored.ok && restored.item.title.endsWith('v2') && restored.item.groups[0]?.name === 'API Playbooks' && restored.item.documents[0]?.version === '2.4' && restored.item.documents[0].exists
+    && restored.item.documents[0].changeNote === 'Mapped 12 new fields'
+    && !Object.hasOwn(restored.item.documents[0], 'isActive'));
 
   const deletedAgain = db.deleteKnowledgeItem(user.id, restored.item.id);
   const purged = db.purgeKnowledgeFiles(user.id, restored.item.id);

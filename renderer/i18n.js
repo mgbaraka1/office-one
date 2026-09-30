@@ -793,6 +793,12 @@
     'Edit note': 'تعديل الملاحظة', 'Add note': 'إضافة ملاحظة', 'Note saved': 'تم حفظ الملاحظة',
     'Could not save note': 'تعذّر حفظ الملاحظة',
     'Note restored': 'تمت استعادة الملاحظة', 'Could not restore note': 'تعذّرت استعادة الملاحظة',
+    // Knowledge Hub tags retired.
+    'Search titles, clients, systems, or documents…': 'ابحث في العناوين أو العملاء أو الأنظمة أو المستندات…',
+    'Filter clients or systems…': 'تصفية العملاء أو الأنظمة…',
+    'Filter Knowledge Hub clients and systems': 'تصفية عملاء وأنظمة مركز المعرفة',
+    'Try fewer words, a document version, or a client or system name.': 'جرّب كلمات أقل، أو إصدار مستند، أو اسم عميل أو نظام.',
+    'Copy created with the same clients and systems': 'تم إنشاء نسخة بنفس العملاء والأنظمة',
     // Knowledge Hub on client and project pages (Phase 4).
     'Show in Knowledge Hub': 'عرض في مركز المعرفة', 'New Knowledge item': 'عنصر معرفة جديد',
     'No Knowledge Hub items for this client yet.': 'لا توجد عناصر في مركز المعرفة لهذا العميل بعد.',

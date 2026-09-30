@@ -218,14 +218,14 @@ gate('HTML hidden state cannot be overridden by component display rules',
   html.includes('[hidden] { display: none !important; }')
   && html.includes('function showKnowledgeListView()')
   && html.includes('function showKnowledgeDetailView()'));
-gate('Knowledge Hub is found by client and system, with tags kept as a secondary facet',
+gate('Knowledge Hub is found by client and system; tags are retired everywhere',
   html.includes("appendKnowledgeFilterSection(host, 'clients', 'Clients'")
   && html.includes("appendKnowledgeFilterSection(host, 'systems', 'Systems'")
   && html.includes('id="kh-companies"') && html.includes('id="kh-systems"')
   && html.includes('id="kh-more"')
-  && html.includes("appendKnowledgeFilterSection(host, 'tags', 'Tags'")
-  && html.includes("x.startsWith('TAG:')")
-  && html.includes('id="kh-tag-tokens"')
+  && !html.includes("appendKnowledgeFilterSection(host, 'tags'")
+  && !html.includes("'TAG:") && !html.includes('knowledgeEditorTags')
+  && !html.includes('id="kh-tag-tokens"') && !html.includes('id="kh-tags-input"')
   && !html.includes('id="kh-company-checks"')
   && !html.includes('id="kh-system-checks"')
   && !html.includes('id="kh-project-checks"'));
@@ -321,6 +321,12 @@ gate('Client and project pages show their Knowledge Hub items, with a drop targe
   && html.includes('function handleKnowledgeLinkedDrop(file, opts)')
   && html.includes("openKnowledgeEditor(null, null, { companyIds, systemIds })")
   && html.includes('refreshKnowledgeLinkedSections();'));
+gate('Versions group by name with the version set aside; Open file opens the latest, with a menu for several documents',
+  html.includes('function knowledgeFamilyName(family)')
+  && html.includes("const key = knowledgeDocKey(file.name || file.originalName || 'Document')")
+  && html.includes('function buildKnowledgeRowOpen(families)') && html.includes("'Open file ▾'")
+  && !html.includes('kh-active-toggle') && !preload.includes('knowledge:set-attachment-active')
+  && !main.includes("'knowledge:set-attachment-active'"));
 gate('Knowledge Hub has no reference URL or review-date UI',
   !html.includes('id="kh-review-input"')
   && !html.includes('id="kh-link-editor"')
