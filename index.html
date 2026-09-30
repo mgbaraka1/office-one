@@ -768,7 +768,7 @@
     <span class="page-title"><span class="ti-ic" data-ic="book-open"></span>Knowledge Hub</span>
     <div class="topbar-right">
       <label class="sr-only" for="kh-search">Search Knowledge Hub</label>
-      <input type="search" id="kh-search" class="mod-search" placeholder="Search titles, clients, systems, documents, or tags…" data-oninput="renderKnowledgeList()">
+      <input type="search" id="kh-search" class="mod-search" placeholder="Search titles, clients, systems, or documents…" data-oninput="renderKnowledgeList()">
       <button class="btn primary" id="kh-create-btn" data-onclick="openKnowledgeEditor()"><span data-ic="plus"></span>New item</button>
     </div>
   </div>
@@ -807,9 +807,6 @@
       </div></div>
       <details id="kh-more" class="kh-more"><summary>More</summary>
         <div class="form-row"><div class="form-group full"><label for="kh-summary-input">Summary</label><textarea id="kh-summary-input" maxlength="2000" placeholder="One line shown under the title in the list"></textarea></div></div>
-        <div class="form-row">
-          <div class="form-group full"><label for="kh-tags-input">Tags</label><div id="kh-tag-field" class="kh-token-field" data-onclick="document.getElementById('kh-tags-input').focus()"><div id="kh-tag-tokens"></div><input id="kh-tags-input" list="kh-tag-suggestions" placeholder="Add a tag and press Enter"><datalist id="kh-tag-suggestions"></datalist></div><div class="modal-hint"><span id="kh-tag-count">0</span>/30 tags. Existing tags are suggested automatically.</div></div>
-        </div>
       </details>
     </div>
     <div class="modal-footer"><button class="btn" data-onclick="closeKnowledgeEditor()">Cancel</button><button class="btn primary" id="kh-save-btn" data-onclick="saveKnowledgeEditor()">Save</button></div>

@@ -2014,7 +2014,7 @@ function restoreCompanyDocumentFile(userId, oldId, newId, fileMeta) {
 }
 
 // ── Knowledge Hub ────────────────────────────────────────────────────────────
-// User-owned articles with tags, groups, and version-labeled documents. Files live under
+// User-owned articles with client/system links, groups, and version-labeled documents. Files live under
 // <userData>/knowledge_hub/{itemId}/attachments/.
 const KNOWLEDGE_STATUSES = new Set(['DRAFT', 'PUBLISHED', 'ARCHIVED']);
 const pendingKnowledgeDeletes = new Map(); // deleted item id -> user id
@@ -2039,10 +2039,6 @@ function knowledgeItemToApi(r) {
   const documents = db.prepare(
     'SELECT * FROM knowledge_attachments WHERE item_id = ? AND user_id = ? ORDER BY sort_order, id'
   ).all(itemId, r.user_id).map(knowledgeAttachmentToApi);
-  const tags = db.prepare(
-    `SELECT kt.name FROM knowledge_item_tags kit JOIN knowledge_tags kt ON kt.id = kit.tag_id
-      WHERE kit.item_id = ? AND kt.user_id = ? ORDER BY kt.name COLLATE NOCASE`
-  ).all(itemId, r.user_id).map(x => x.name);
   const groups = db.prepare(
     `SELECT g.id, g.name FROM knowledge_group_items gi
        JOIN knowledge_groups g ON g.id = gi.group_id
@@ -2051,7 +2047,7 @@ function knowledgeItemToApi(r) {
   return {
     id: itemId, title: r.title || '', type: lkCode(r.type_id), typeLabel: lkLabel(r.type_id),
     status: r.status, summary: r.summary || '', content: r.content || '', contentFormat: r.content_format || 'text',
-    createdAt: r.created_at, updatedAt: r.updated_at, documents, tags, groups,
+    createdAt: r.created_at, updatedAt: r.updated_at, documents, groups,
     companies: knowledgeLinks('companies', null, itemId).map(({ itemId: _, ...x }) => x),
     systems: knowledgeLinks('systems', null, itemId).map(({ itemId: _, ...x }) => x),
   };
@@ -2080,17 +2076,7 @@ function knowledgeContentFormat(value) { return value === 'html' ? 'html' : 'tex
 function listKnowledgeItems(userId) {
   const rows = db.prepare('SELECT * FROM knowledge_items WHERE user_id = ? ORDER BY updated_at DESC, id DESC').all(userId);
   if (!rows.length) return [];
-  const tagsByItem = new Map(), groupsByItem = new Map(), documentsByItem = new Map();
-  db.prepare(
-    `SELECT kit.item_id, kt.name FROM knowledge_item_tags kit
-       JOIN knowledge_tags kt ON kt.id = kit.tag_id
-       JOIN knowledge_items k ON k.id = kit.item_id
-      WHERE k.user_id = ? AND kt.user_id = ?
-      ORDER BY kt.name COLLATE NOCASE`
-  ).all(userId, userId).forEach(row => {
-    if (!tagsByItem.has(row.item_id)) tagsByItem.set(row.item_id, []);
-    tagsByItem.get(row.item_id).push(row.name);
-  });
+  const groupsByItem = new Map(), documentsByItem = new Map();
   db.prepare(
     `SELECT gi.item_id, g.id, g.name FROM knowledge_group_items gi
        JOIN knowledge_groups g ON g.id = gi.group_id
@@ -2127,7 +2113,7 @@ function listKnowledgeItems(userId) {
       id: row.id, title: row.title || '', type: lkCode(row.type_id), typeLabel: lkLabel(row.type_id),
       status: row.status, summary: row.summary || '', content: row.content || '', contentFormat: row.content_format || 'text',
       createdAt: row.created_at, updatedAt: row.updated_at,
-      tags: tagsByItem.get(row.id) || [], groups: groupsByItem.get(row.id) || [],
+      groups: groupsByItem.get(row.id) || [],
       companies: linksByItem.companies.get(row.id) || [], systems: linksByItem.systems.get(row.id) || [],
       documents, documentCount: documents.length,
     };
@@ -2138,21 +2124,6 @@ function getKnowledgeItem(userId, id) {
   return r ? knowledgeItemToApi(r) : null;
 }
 function setKnowledgeChildren(userId, itemId, data) {
-  db.prepare('DELETE FROM knowledge_item_tags WHERE item_id = ?').run(itemId);
-  const ensureTag = db.prepare(
-    `INSERT INTO knowledge_tags(user_id, name, created_at) VALUES(?, ?, ?)
-     ON CONFLICT(user_id, name) DO UPDATE SET name = excluded.name RETURNING id`
-  );
-  const addTag = db.prepare('INSERT OR IGNORE INTO knowledge_item_tags(item_id, tag_id) VALUES(?, ?)');
-  const seen = new Set();
-  (Array.isArray(data?.tags) ? data.tags : []).slice(0, 30).forEach(value => {
-    const name = String(value || '').trim().replace(/\s+/g, ' ').slice(0, 60);
-    const key = name.toLowerCase();
-    if (!name || seen.has(key)) return;
-    seen.add(key);
-    const row = ensureTag.get(userId, name, new Date().toISOString());
-    addTag.run(itemId, row.id);
-  });
   // Client / system links are replaced only when the caller sends them, like groups.
   [['companies', 'companyIds'], ['systems', 'systemIds']].forEach(([kind, field]) => {
     if (!Object.hasOwn(data || {}, field)) return;
@@ -2223,7 +2194,7 @@ function restoreKnowledgeItem(userId, oldId, snapshot) {
   if (pendingKnowledgeDeletes.get(Number(oldId)) !== userId) return { ok: false, error: 'Not authorized to restore this item' };
   const restored = createKnowledgeItem(userId, {
     title: snapshot?.title, type: snapshot?.type, status: snapshot?.status, summary: snapshot?.summary,
-    content: snapshot?.content, contentFormat: snapshot?.contentFormat, tags: snapshot?.tags,
+    content: snapshot?.content, contentFormat: snapshot?.contentFormat,
     companyIds: (snapshot?.companies || []).map(x => x.id), systemIds: (snapshot?.systems || []).map(x => x.id),
   });
   pendingKnowledgeDeletes.delete(Number(oldId));

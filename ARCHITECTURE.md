@@ -15,7 +15,7 @@ Office ONE is an offline, multi-user Electron desktop app covering:
 - **Client Tasks** and **Internal Work** — two separate task domains (project work vs. department work).
 - **Clients** — bilingual client profiles plus VPN connections, servers and internal systems; client **Projects** with tracked documents and linked tasks live under each client.
 - **Subscriptions** and **Company Documents** — recurring spend and renewal-tracked files.
-- **Knowledge Hub** — a document shelf found by client and system: drop a file to add it (a matching name becomes the next version, with an optional "what changed" note that can be edited later with a 5-second undo, and is searchable in the Hub and Quick Find), items open in a side panel, plain-text notes, tags. Each client page has a Knowledge Hub tab and each project page a Knowledge Hub section listing the items linked to its clients or systems; a file dropped there or a New item started there is pre-linked. Groups remain in the schema but have no UI; older rich-text notes still render and turn into plain text on their next edit.
+- **Knowledge Hub** — a document shelf found by client and system: drop a file to add it (a matching name becomes the next version, with an optional "what changed" note that can be edited later with a 5-second undo, and is searchable in the Hub and Quick Find), items open in a side panel, plain-text notes. Tags are retired: nothing reads or writes them. Versions of one document are grouped by name with the version set aside ("Guide v1.0" and "Guide v1.4" are one document); at the same number a plain version ranks above one with extra words ("1.4" above "1.4 changes"). The list's Open file opens the latest version, with a menu when an item has several documents. Each client page has a Knowledge Hub tab and each project page a Knowledge Hub section listing the items linked to its clients or systems; a file dropped there or a New item started there is pre-linked. Groups remain in the schema but have no UI; older rich-text notes still render and turn into plain text on their next edit.
 - **Project & Finance** — Offers and Change Requests (CRs): a status stage trail, fee-bearing versions with uploaded files, follow-up/expiry reminders and Excel export.
 - **Outsource** — external resources paid by the hour: Person → Projects → Entries (a keyboard-first timesheet grid per project), an hourly rate history, statements (draft → issued → paid) with Excel/PDF export, and an Overview "owed" tile.
 - **Overview / Reports** — read-only analytics, PDF/CSV/Excel export.
@@ -109,8 +109,9 @@ and `client_field_history` — where `password`/`secret_key` are always written 
 `'(hidden)'`. That is deliberate; do not "fix" it into storing real values.
 
 **Knowledge Hub**: `knowledge_items`, `knowledge_groups`, `knowledge_group_items`,
-`knowledge_tags`, `knowledge_item_tags`, `knowledge_attachments`, and the lookup
-junctions `knowledge_item_companies` (clients) and `knowledge_item_systems` (068).
+`knowledge_attachments`, and the lookup junctions `knowledge_item_companies`
+(clients) and `knowledge_item_systems` (068). `knowledge_tags` / `knowledge_item_tags`
+(043) still exist but are unused since tags were retired; no code reads or writes them.
 Both junctions are in `LOOKUP_MERGE_TARGETS`, so merging a client or system repoints them.
 
 **Subscriptions**: `subscriptions` (`cost` REAL, `currency_id`, `billing_cycle_id`, `renewal_date`).
@@ -226,6 +227,7 @@ Landmarks worth knowing:
 | 067 | Outsource projects — `outs_projects`; `outs_entries.project_id` and `outs_statement_lines.project_id` via ADD COLUMN; `outs_history` rebuilt only to widen its `record_type` CHECK (no triggers on it); older entries backfilled into projects; the entry search triggers recreated with the project join, plus `outs-project` search rows |
 | 068 | Knowledge Hub clients/systems — `knowledge_item_companies` / `knowledge_item_systems` (043's shape, dropped by 044, brought back); `knowledge_attachments.change_note`; `KNOWLEDGE_TYPE` `FIELD_MAPPING` seeded; the three knowledge search triggers recreated so the Quick Find subtitle is the client/system names and the body carries every client/system spelling, document names and the kind; link, attachment and lookup-rename triggers re-index the items they touch |
 | 069 | Knowledge Hub note search — the knowledge `_ai`/`_au` and `workspace_search_knowledge_attachments_au` triggers recreated so the Quick Find body carries each document version's `change_note`, and a note edit re-indexes its item |
+| 070 | Knowledge Hub active document — `knowledge_attachments.is_active` (default 0, every existing document inactive) and the partial unique index `idx_knowledge_attachments_one_active` (one active document per item). Withdrawn the same day: the column and index remain but nothing reads or writes them |
 
 **A guarded seed is the right shape for a fresh-install gap.** Migration 003
 seeded some categories from "legacy blob ∪ values already in the data", both

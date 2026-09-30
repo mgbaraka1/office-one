@@ -912,13 +912,39 @@ async function run() {
     for (let i = 0; i < 40 && !knowledgeCurrentItem?.documents?.some(doc => doc.changeNote === 'Mapped 12 new claim fields'); i++) await new Promise(r => setTimeout(r, 50));
     const noteEdited = knowledgeCurrentItem.documents.find(doc => doc.version === '1.1')?.changeNote === 'Mapped 12 new claim fields'
       && !!document.querySelector('#kh-detail-view .kh-document-family > .kh-change-note')?.textContent.includes('Mapped 12 new claim fields');
+    // The ⋯ menu opens inside the side panel in either reading direction.
+    const menuInPanel = await (async () => {
+      const trigger = document.querySelector('#kh-detail-view .kh-document-family-head .kh-overflow > .btn');
+      const results = [];
+      for (const dir of ['rtl', 'ltr']) {
+        const previous = document.documentElement.dir; document.documentElement.dir = dir;
+        const panelRect = document.getElementById('kh-detail-view').getBoundingClientRect();
+        trigger.click(); const menu = trigger.parentElement.querySelector('.kh-overflow-menu'); const rect = menu.getBoundingClientRect();
+        results.push(!menu.hidden && rect.left >= panelRect.left - 1 && rect.right <= panelRect.right + 1);
+        trigger.click(); if (!menu.hidden) menu.hidden = true; document.documentElement.dir = previous;
+      }
+      return results.every(Boolean);
+    })();
+    // Versions group by name with the version set aside, newest first, and the
+    // plain "1.4" ranks above "1.4 changes". Two versions of one document still
+    // give the row a single one-click Open file for the latest.
+    const grouping = (() => {
+      const families = knowledgeDocumentFamilies([
+        { id: 1, name: 'Guide v1.0', version: '1.0' }, { id: 2, name: 'guide_v1.4', version: '1.4' },
+        { id: 3, name: 'Guide', version: '1.4 changes' }, { id: 4, name: 'Lookup table', version: '1.0' },
+      ]);
+      const guide = families.find(family => knowledgeFamilyName(family).toLowerCase() === 'guide');
+      const rowOpen = document.querySelector('#kh-list .kh-row[data-knowledge-id="' + item.id + '"] .kh-row-actions > .btn');
+      return families.length === 2 && guide?.map(file => file.id).join() === '2,3,1'
+        && !document.querySelector('#kh-detail-view .kh-active-toggle') && !!rowOpen && !rowOpen.disabled;
+    })();
     const noteSearch = knowledgeMatches(knowledgeItems.find(entry => entry.id === item.id), 'mapped 12 new');
     const legacy = knowledgeNotesFromItem({ contentFormat: 'html', content: '<p>Step one</p><ul><li>Check <a href="https://example.com/a">the sheet</a></li></ul>' });
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     return {
       matchedName: suggested.name === 'E2E Field Mapping', nextVersion: suggested.version === '1.1', modalOpen: suggested.modalOpen,
       versioned: item?.documents?.length === 2 && item.documents.some(doc => doc.version === '1.1'),
-      noteLabel: suggested.noteLabel, noteShown, noteEdited, noteSearch,
+      noteLabel: suggested.noteLabel, noteShown, noteEdited, noteSearch, menuInPanel, grouping,
       panelFollowed: knowledgeCurrentId == null,
       legacyToPlain: legacy === 'Step one\\n- Check the sheet (https://example.com/a)',
       versionRules: knowledgeNextVersion('1.0') === '1.1' && knowledgeNextVersion('2026.07') === '2026.08'
@@ -1132,6 +1158,7 @@ async function run() {
   console.log('PASS  Knowledge Hub adds a real picked file, refuses a page-made File, versions a matching drop as 1.1 with a "what changed" note, and edits that note');
   console.log('PASS  Knowledge Hub opens items in a side panel beside the list, with plain-text notes and one-click Open');
   console.log('PASS  Client and project pages list their Knowledge Hub items; a drop or New item there is pre-linked and stays on the page');
+  console.log('PASS  Versions of one document group by name with the version set aside; "1.4" ranks above "1.4 changes"; Open file opens the latest');
   console.log('PASS  Quick Find rendered the FTS result');
   console.log('PASS  Client profile code and English/Arabic names flow into a linked task');
   console.log('PASS  Arabic login choice drives RTL, preserves user content, and localizes report/PDF output');

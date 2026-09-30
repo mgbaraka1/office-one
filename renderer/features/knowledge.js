@@ -4,7 +4,7 @@ let knowledgeFilters = new Set(), knowledgeFilterSections = {}, knowledgeFilterS
 let knowledgeCurrentId = null, knowledgeCurrentItem = null, knowledgeEditId = null;
 let knowledgeUndo = null, knowledgeUndoTimer = null, knowledgeEditorDirty = false;
 let knowledgeDocumentItemId = null, knowledgeEditorFile = null, knowledgeDocumentFile = null, knowledgeFileTarget = 'editor';
-let knowledgeEditorTags = [], knowledgePendingDraft = null, knowledgeEditorStatus = 'PUBLISHED';
+let knowledgePendingDraft = null, knowledgeEditorStatus = 'PUBLISHED';
 let khCompaniesPicker = null, khSystemsPicker = null;
 let knowledgeUiRestored = false, knowledgeListFocus = null, knowledgeDropReady = false, knowledgeDragDepth = 0;
 
@@ -21,7 +21,7 @@ function initKnowledgeModule() {
     const saved = uiState.filters?.knowledge || {};
     // Groups and the Draft/Ready facets are retired; only Archived survives as a status filter.
     const restored = (Array.isArray(saved.filters) ? saved.filters : [])
-      .filter(key => /^(TYPE|CLIENT|SYSTEM|TAG):/.test(key) || key === 'STATUS:ARCHIVED');
+      .filter(key => /^(TYPE|CLIENT|SYSTEM):/.test(key) || key === 'STATUS:ARCHIVED');
     knowledgeFilters = new Set(restored);
     knowledgeFilterSections = Object.assign({}, saved.sections || {});
     document.getElementById('kh-search').value = saved.query || '';
@@ -129,7 +129,7 @@ function refreshKnowledgeLinkedSections() {
 // the Hub gets it as its next version; otherwise a new item, linked here.
 function handleKnowledgeLinkedDrop(file, opts) {
   const match = knowledgeFindItemForFile(file.name);
-  if (match) { openKnowledgeDocumentModal(match.item.id, match.family[0].name, file); return; }
+  if (match) { openKnowledgeDocumentModal(match.item.id, knowledgeFamilyName(match.family), file); return; }
   openKnowledgeEditor(null, file, { companyIds: opts.companyIds, systemIds: opts.systemIds });
 }
 function openKnowledgeInHub(id) { switchModule('knowledge'); openKnowledgeDetail(id); }
@@ -159,15 +159,22 @@ function knowledgeDocKey(value, hasExtension = false) {
   return knowledgeParseFileName(value, hasExtension).base.toLowerCase().replace(/[\s_.-]+/g, ' ').trim();
 }
 // Versions of one document share a name; each family is sorted newest first.
+// "Guide v1.0" and "Guide v1.4" are one document: the key sets aside case,
+// separators and a trailing version, like a dropped file's name.
 function knowledgeDocumentFamilies(documents) {
   const families = new Map();
   (documents || []).forEach(file => {
-    const key = String(file.name || file.originalName || 'Document').trim().toLowerCase();
+    const key = knowledgeDocKey(file.name || file.originalName || 'Document') || String(file.name || '').trim().toLowerCase();
     if (!families.has(key)) families.set(key, []);
     families.get(key).push(file);
   });
   return [...families.values()].map(family => family.sort(knowledgeVersionCompare))
-    .sort((a, b) => String(a[0].name).localeCompare(String(b[0].name)));
+    .sort((a, b) => knowledgeFamilyName(a).localeCompare(knowledgeFamilyName(b)));
+}
+// A document's name without the version it was uploaded under.
+function knowledgeFamilyName(family) {
+  const name = family[0]?.name || family[0]?.originalName || '';
+  return knowledgeParseFileName(name, false).base || name;
 }
 function knowledgeFindFamily(documents, fileName, hasExtension = true) {
   const key = knowledgeDocKey(fileName, hasExtension); if (!key) return null;
@@ -259,7 +266,7 @@ async function handleKnowledgeDrop(file, toPanel) {
   const match = knowledgeFindItemForFile(file.name);
   if (match) {
     await openKnowledgeDetail(match.item.id);
-    openKnowledgeDocumentModal(match.item.id, match.family[0].name, file);
+    openKnowledgeDocumentModal(match.item.id, knowledgeFamilyName(match.family), file);
     return;
   }
   openKnowledgeEditor(null, file);
@@ -276,13 +283,13 @@ function setKnowledgeFileLabel(id, file) {
 }
 function knowledgeFilterDimension(key) {
   return key.startsWith('TYPE:') ? 'TYPE' : key.startsWith('STATUS:') ? 'STATUS'
-    : key.startsWith('CLIENT:') ? 'CLIENT' : key.startsWith('SYSTEM:') ? 'SYSTEM' : 'TAG';
+    : key.startsWith('CLIENT:') ? 'CLIENT' : 'SYSTEM';
 }
 function toggleKnowledgeFilter(key) {
   const dimension = knowledgeFilterDimension(key);
   if (knowledgeFilters.has(key)) knowledgeFilters.delete(key);
   else {
-    if (dimension !== 'TAG') [...knowledgeFilters].forEach(current => {
+    [...knowledgeFilters].forEach(current => {
       if (knowledgeFilterDimension(current) === dimension) knowledgeFilters.delete(current);
     });
     knowledgeFilters.add(key);
@@ -293,7 +300,7 @@ function appendKnowledgeFilterSection(host, id, title, entries, limit = 8) {
   if (!entries.length) return;
   const section = pjMk('div', 'kh-filter-section' + (knowledgeFilterSections[id] ? ' collapsed' : ''));
   section.dataset.filterId = id;
-  if (id === 'clients' || id === 'systems' || id === 'tags') section.dataset.searchable = 'true';
+  if (id === 'clients' || id === 'systems') section.dataset.searchable = 'true';
   const heading = pjMk('div', 'kh-filter-title'), label = pjMk('span', '', title);
   const toggle = pjMk('button', 'kh-filter-toggle', knowledgeFilterSections[id] ? '▸' : '▾');
   toggle.title = (knowledgeFilterSections[id] ? 'Expand ' : 'Collapse ') + title;
@@ -341,8 +348,8 @@ function renderKnowledgeFilters() {
   all.onclick = () => { knowledgeFilters.clear(); renderKnowledgeList(); };
   browse.append(heading, all);
   const facetSearch = document.createElement('input'); facetSearch.type = 'search'; facetSearch.className = 'mod-search';
-  facetSearch.style.cssText = 'width:100%;min-width:0;margin-top:8px'; facetSearch.placeholder = 'Filter clients, systems, or tags…';
-  facetSearch.setAttribute('aria-label', 'Filter Knowledge Hub clients, systems, and tags');
+  facetSearch.style.cssText = 'width:100%;min-width:0;margin-top:8px'; facetSearch.placeholder = 'Filter clients or systems…';
+  facetSearch.setAttribute('aria-label', 'Filter Knowledge Hub clients and systems');
   facetSearch.oninput = () => filterKnowledgeFacetButtons(facetSearch.value);
   browse.appendChild(facetSearch); host.appendChild(browse);
   appendKnowledgeFilterSection(host, 'clients', 'Clients', knowledgeLinkFacet('companies', 'CLIENT:'));
@@ -352,14 +359,6 @@ function renderKnowledgeFilters() {
     count: knowledgeItems.filter(x => x.type === type.code && x.status !== 'ARCHIVED').length,
   })).filter(type => type.count || knowledgeFilters.has(type.key));
   appendKnowledgeFilterSection(host, 'types', 'Document kind', types);
-  const tagCounts = new Map();
-  knowledgeItems.filter(x => x.status !== 'ARCHIVED').forEach(item => (item.tags || []).forEach(tag => {
-    const key = tag.toLowerCase(), current = tagCounts.get(key);
-    tagCounts.set(key, { label: current?.label || tag, count: (current?.count || 0) + 1 });
-  }));
-  const tags = [...tagCounts.entries()].sort((a, b) => b[1].count - a[1].count || a[1].label.localeCompare(b[1].label))
-    .map(([key, tag]) => ({ key: 'TAG:' + key, label: '#' + tag.label, count: tag.count }));
-  appendKnowledgeFilterSection(host, 'tags', 'Tags', tags, 10);
   const archived = knowledgeItems.filter(x => x.status === 'ARCHIVED').length;
   if (archived || knowledgeFilters.has('STATUS:ARCHIVED'))
     appendKnowledgeFilterSection(host, 'status', 'Archived items', [{ key: 'STATUS:ARCHIVED', label: 'Archived', count: archived }]);
@@ -382,24 +381,20 @@ function knowledgeContentPlainText(item) {
   return scratch.textContent.replace(/\s+/g, ' ').trim();
 }
 function knowledgeMatches(item, q) {
-  const tagQuery = String(q || '').replace(/^#/, '');
-  return textMatch([item.title, item.summary, knowledgeContentPlainText(item), item.typeLabel, ...(item.tags || []),
+  return textMatch([item.title, item.summary, knowledgeContentPlainText(item), item.typeLabel,
     ...['companies', 'systems'].flatMap(kind => (item[kind] || []).flatMap(x => [x.code, x.label, x.nameEn, x.nameAr])),
-    ...(item.documents || []).flatMap(x => [x.name, x.version, x.originalName, x.changeNote])], q)
-    || (!!tagQuery && (item.tags || []).some(tag => tag.toLowerCase().includes(tagQuery)));
+    ...(item.documents || []).flatMap(x => [x.name, x.version, x.originalName, x.changeNote])], q);
 }
 function knowledgePassesFilters(item) {
   const status = [...knowledgeFilters].filter(x => x.startsWith('STATUS:')).map(x => x.slice(7));
   const types = [...knowledgeFilters].filter(x => x.startsWith('TYPE:')).map(x => x.slice(5));
   const clients = [...knowledgeFilters].filter(x => x.startsWith('CLIENT:')).map(x => Number(x.slice(7)));
   const systems = [...knowledgeFilters].filter(x => x.startsWith('SYSTEM:')).map(x => Number(x.slice(7)));
-  const tags = [...knowledgeFilters].filter(x => x.startsWith('TAG:')).map(x => x.slice(4));
   if (!status.length && item.status === 'ARCHIVED') return false;
   if (status.length && !status.includes(item.status)) return false;
   if (types.length && !types.includes(item.type)) return false;
   if (clients.length && !clients.some(id => (item.companies || []).some(link => link.id === id))) return false;
   if (systems.length && !systems.some(id => (item.systems || []).some(link => link.id === id))) return false;
-  if (tags.length && !tags.every(tag => (item.tags || []).some(value => value.toLowerCase() === tag))) return false;
   return true;
 }
 function knowledgeRowSubtitle(item, q = '') {
@@ -436,7 +431,6 @@ function renderKnowledgeActiveFilters() {
     else if (key.startsWith('STATUS:')) label = knowledgeStatusLabel(key.slice(7));
     else if (key.startsWith('CLIENT:')) label = lkLabelById('COMPANY', key.slice(7)) || 'Client';
     else if (key.startsWith('SYSTEM:')) label = lkLabelById('SYSTEM', key.slice(7)) || 'System';
-    else if (key.startsWith('TAG:')) label = '#' + key.slice(4);
     const chip = pjMk('button', 'kh-filter-chip', label + ' ×'); chip.title = 'Remove filter ' + label;
     chip.onclick = () => toggleKnowledgeFilter(key); host.appendChild(chip);
   });
@@ -460,7 +454,7 @@ function renderKnowledgeList() {
   if (!shown.length) {
     const hasQuery = !!q, filtered = knowledgeFilters.size > 0;
     document.getElementById('kh-empty-title').textContent = hasQuery ? 'No search results' : filtered ? 'Nothing in this view' : 'No knowledge yet';
-    document.getElementById('kh-empty-copy').textContent = hasQuery ? 'Try fewer words, a document version, or a different tag.' : filtered ? 'Remove a filter to broaden this view.' : 'Drop a file here, or click New item.';
+    document.getElementById('kh-empty-copy').textContent = hasQuery ? 'Try fewer words, a document version, or a client or system name.' : filtered ? 'Remove a filter to broaden this view.' : 'Drop a file here, or click New item.';
     document.getElementById('kh-empty-clear').hidden = !hasQuery && !filtered;
   }
   shown.forEach(item => list.appendChild(buildKnowledgeRow(item, q, main => { knowledgeListFocus = main; openKnowledgeDetail(item.id); })));
@@ -494,13 +488,20 @@ function buildKnowledgeRow(item, q, onOpen) {
 }
 function khButton(label, cls, fn) { const b = pjMk('button', 'btn' + (cls ? ' ' + cls : ''), label); b.onclick = fn; return b; }
 function formatKnowledgeVersion(value) { const version = String(value || '1.0').trim(); return /^(v|rev(?:ision)?\b)/i.test(version) ? version : 'v' + version; }
-function knowledgeVersionCompare(a, b) { return String(b.version || '').localeCompare(String(a.version || ''), undefined, { numeric: true, sensitivity: 'base' }) || String(b.uploadedAt).localeCompare(String(a.uploadedAt)); }
+// Newest first. The number decides; at the same number the plain version ranks
+// above one with extra words, so "1.4" is the latest ahead of "1.4 changes".
+function knowledgeVersionCompare(a, b) {
+  const split = file => { const v = String(file.version || '').trim(), m = v.match(/^v?(\d+(?:\.\d+)*)\s*(.*)$/i); return m ? [m[1], m[2]] : [v, '']; };
+  const [coreA, restA] = split(a), [coreB, restB] = split(b), opts = { numeric: true, sensitivity: 'base' };
+  return coreB.localeCompare(coreA, undefined, opts) || (Number(!!restA) - Number(!!restB))
+    || restB.localeCompare(restA, undefined, opts) || String(b.uploadedAt).localeCompare(String(a.uploadedAt));
+}
 // One click opens the latest version; with several documents it lists them.
 function buildKnowledgeRowOpen(families) {
   if (!families.length) return null;
   if (families.length === 1) return khButton('Open file', 'small', () => openKnowledgeAttachment(families[0][0].id));
   return buildKnowledgeOverflow(families.map(family => ({
-    label: (family[0].name || family[0].originalName) + ' · ' + formatKnowledgeVersion(family[0].version),
+    label: knowledgeFamilyName(family) + ' · ' + formatKnowledgeVersion(family[0].version),
     userContent: true, run: () => openKnowledgeAttachment(family[0].id),
   })), 'Open file ▾');
 }
@@ -577,14 +578,6 @@ async function openKnowledgeDetail(id) {
     const content = pjMk('section', 'kh-section'), rendered = pjMk('div', 'kh-content');
     content.append(pjMk('h3', '', 'Notes'), rendered); renderKnowledgeContent(rendered, item.content, item.contentFormat); page.appendChild(content);
   }
-  if ((item.tags || []).length) {
-    const tagSection = pjMk('section', 'kh-section'), chips = pjMk('div', 'kh-meta');
-    tagSection.appendChild(pjMk('h3', '', 'Tags'));
-    item.tags.forEach(tag => {
-      const chip = pjMk('button', 'kh-pill', '#' + tag); chip.onclick = () => { knowledgeFilters.add('TAG:' + tag.toLowerCase()); renderKnowledgeList(); }; chips.appendChild(chip);
-    });
-    tagSection.appendChild(chips); page.appendChild(tagSection);
-  }
   host.appendChild(page); back.focus();
 }
 function closeKnowledgeDetail() {
@@ -595,8 +588,8 @@ function buildKnowledgeDocumentFamily(item, files) {
   const latest = files[0], family = pjMk('div', 'kh-document-family'), head = pjMk('div', 'kh-document-family-head');
   const icon = pjMk('span'); icon.innerHTML = ic(latest.exists ? 'file-text' : 'triangle-alert');
   const copy = pjMk('div', 'kh-resource-copy');
-  copy.append(pjMk('b', '', latest.name || latest.originalName || '(document)'), pjMk('span', '', `Latest ${formatKnowledgeVersion(latest.version)} · ${latest.originalName} · ${fmtFileSize(latest.size)}${latest.exists ? '' : ' · Missing from disk'}`));
-  head.append(icon, copy, pjMk('span', 'kh-version-pill', formatKnowledgeVersion(latest.version)), khButton('New version', 'small', () => openKnowledgeDocumentModal(item.id, latest.name)));
+  copy.append(pjMk('b', '', knowledgeFamilyName(files) || '(document)'), pjMk('span', '', `Latest ${formatKnowledgeVersion(latest.version)} · ${latest.originalName} · ${fmtFileSize(latest.size)}${latest.exists ? '' : ' · Missing from disk'}`));
+  head.append(icon, copy, pjMk('span', 'kh-version-pill', formatKnowledgeVersion(latest.version)), khButton('New version', 'small', () => openKnowledgeDocumentModal(item.id, knowledgeFamilyName(files))));
   if (latest.exists) head.appendChild(khButton('Open file', 'small primary', () => openKnowledgeAttachment(latest.id)));
   head.appendChild(buildKnowledgeOverflow([
     ...(latest.exists ? [{ label: 'Download latest', run: () => downloadKnowledgeAttachment(latest.id) }] : []),
@@ -731,29 +724,6 @@ function knowledgeNotesFromItem(data) {
   scratch.querySelectorAll('p, h1, h2, h3, li, pre, blockquote').forEach(block => block.append('\n'));
   return scratch.textContent.replace(/\n{3,}/g, '\n\n').trim();
 }
-function normalizeKnowledgeTag(value) { return String(value || '').trim().replace(/^#/, '').replace(/\s+/g, ' ').slice(0, 60); }
-function addKnowledgeTag(value) {
-  const tag = normalizeKnowledgeTag(value); if (!tag || knowledgeEditorTags.length >= 30 || knowledgeEditorTags.some(x => x.toLowerCase() === tag.toLowerCase())) return;
-  knowledgeEditorTags.push(tag); renderKnowledgeEditorTags(); markKnowledgeEditorDirty();
-}
-function renderKnowledgeEditorTags() {
-  const host = document.getElementById('kh-tag-tokens'); host.innerHTML = '';
-  knowledgeEditorTags.forEach((tag, index) => {
-    const token = pjMk('span', 'kh-token'); token.appendChild(document.createTextNode('#' + tag));
-    const remove = pjMk('button', '', '×'); remove.type = 'button'; remove.title = 'Remove tag ' + tag;
-    remove.onclick = event => { event.stopPropagation(); knowledgeEditorTags.splice(index, 1); renderKnowledgeEditorTags(); markKnowledgeEditorDirty(); };
-    token.appendChild(remove); host.appendChild(token);
-  });
-  document.getElementById('kh-tag-count').textContent = String(knowledgeEditorTags.length);
-}
-function setupKnowledgeTagInput() {
-  const input = document.getElementById('kh-tags-input');
-  input.onkeydown = event => {
-    if (event.key === 'Enter' || event.key === ',') { event.preventDefault(); addKnowledgeTag(input.value); input.value = ''; }
-    else if (event.key === 'Backspace' && !input.value && knowledgeEditorTags.length) { knowledgeEditorTags.pop(); renderKnowledgeEditorTags(); markKnowledgeEditorDirty(); }
-  };
-  input.onblur = () => { if (input.value.trim()) { addKnowledgeTag(input.value); input.value = ''; } };
-}
 // Clients / systems pickers. A link to a since-disabled code stays selectable so
 // saving the editor never drops it silently.
 function buildKnowledgeLinkPicker(hostId, category, selectedIds, placeholder) {
@@ -767,7 +737,7 @@ function knowledgeEditorSnapshot() {
     type: document.getElementById('kh-type-input').value, status: knowledgeEditorStatus,
     summary: document.getElementById('kh-summary-input').value, content: document.getElementById('kh-notes-input').value, contentFormat: 'text',
     companyIds: khCompaniesPicker?.getSelectedIds() || [], systemIds: khSystemsPicker?.getSelectedIds() || [],
-    tags: [...knowledgeEditorTags], savedAt: new Date().toISOString(),
+    savedAt: new Date().toISOString(),
   };
 }
 function markKnowledgeEditorDirty() {
@@ -781,9 +751,7 @@ function applyKnowledgeEditorData(data) {
   khCompaniesPicker = buildKnowledgeLinkPicker('kh-companies', 'COMPANY', data?.companyIds || (data?.companies || []).map(x => x.id), 'Search clients…');
   khSystemsPicker = buildKnowledgeLinkPicker('kh-systems', 'SYSTEM', data?.systemIds || (data?.systems || []).map(x => x.id), 'Search systems…');
   document.getElementById('kh-notes-input').value = knowledgeNotesFromItem(data);
-  knowledgeEditorTags = [...(data?.tags || [])];
-  renderKnowledgeEditorTags();
-  document.getElementById('kh-more').open = knowledgeEditorTags.length > 0 || !!String(data?.summary || '').trim();
+  document.getElementById('kh-more').open = !!String(data?.summary || '').trim();
 }
 function recoverKnowledgeDraft() {
   if (!knowledgePendingDraft) return;
@@ -812,16 +780,14 @@ function openKnowledgeEditor(item, file, preset) {
   document.getElementById('kh-editor-file-row').hidden = !!item;
   const type = document.getElementById('kh-type-input'); type.innerHTML = '<option value="">No kind</option>';
   lkOptions('KNOWLEDGE_TYPE').forEach(option => { const el = document.createElement('option'); el.dataset.userContent = ''; el.value = option.code; el.textContent = lookupDisplayName(option); type.appendChild(el); });
-  applyKnowledgeEditorData(item || { status: 'PUBLISHED', tags: [], companyIds: preset?.companyIds || [], systemIds: preset?.systemIds || [] });
-  const suggestions = document.getElementById('kh-tag-suggestions'); suggestions.innerHTML = '';
-  [...new Set(knowledgeItems.flatMap(entry => entry.tags || []))].sort((a, b) => a.localeCompare(b)).forEach(tag => { const option = document.createElement('option'); option.value = tag; suggestions.appendChild(option); });
-  setupKnowledgeTagInput(); clearErrorsIn('#knowledge-modal'); setKnowledgeEditorFile(item ? null : file);
+  applyKnowledgeEditorData(item || { status: 'PUBLISHED', companyIds: preset?.companyIds || [], systemIds: preset?.systemIds || [] });
+  clearErrorsIn('#knowledge-modal'); setKnowledgeEditorFile(item ? null : file);
   const draft = knowledgeDraftCache;
   knowledgePendingDraft = draft && Number(draft.itemId || 0) === Number(knowledgeEditId || 0) ? draft : null;
   document.getElementById('kh-recovery').hidden = !knowledgePendingDraft;
   const overlay = document.getElementById('knowledge-modal-overlay'); overlay.classList.add('open');
   overlay.oninput = event => {
-    if (event.target.id === 'kh-tags-input' || event.target.closest('.tag-picker')) return;
+    if (event.target.closest('.tag-picker')) return;
     markKnowledgeEditorDirty();
   };
   overlay.onchange = event => { if (!event.target.closest('.tag-picker')) markKnowledgeEditorDirty(); };
@@ -835,14 +801,13 @@ function closeKnowledgeEditor(force) {
 }
 function knowledgeEditorOverlayClick(event) { if (event.target === document.getElementById('knowledge-modal-overlay')) closeKnowledgeEditor(); }
 async function saveKnowledgeEditor() {
-  const input = document.getElementById('kh-tags-input'); if (input.value.trim()) { addKnowledgeTag(input.value); input.value = ''; }
   clearErrorsIn('#knowledge-modal'); const title = document.getElementById('kh-title-input').value.trim();
   if (!title) { markError('kh-title-input'); return; }
   const editing = knowledgeEditId, file = editing ? null : knowledgeEditorFile;
   const data = {
     title, type: document.getElementById('kh-type-input').value, status: knowledgeEditorStatus,
     summary: document.getElementById('kh-summary-input').value.trim(), content: document.getElementById('kh-notes-input').value.replace(/\s+$/, ''), contentFormat: 'text',
-    companyIds: khCompaniesPicker.getSelectedIds(), systemIds: khSystemsPicker.getSelectedIds(), tags: knowledgeEditorTags,
+    companyIds: khCompaniesPicker.getSelectedIds(), systemIds: khSystemsPicker.getSelectedIds(),
   };
   try {
     const saved = editing ? await window.api.updateKnowledgeItem(editing, data) : await window.api.createKnowledgeItem(data);
@@ -867,15 +832,15 @@ async function duplicateKnowledgeItem(item) {
   try {
     const copy = await window.api.createKnowledgeItem({
       title: nextKnowledgeCopyTitle(item.title), type: item.type, status: item.status === 'ARCHIVED' ? 'PUBLISHED' : item.status,
-      summary: item.summary, content: item.content, contentFormat: item.contentFormat, tags: item.tags,
+      summary: item.summary, content: item.content, contentFormat: item.contentFormat,
       companyIds: (item.companies || []).map(x => x.id), systemIds: (item.systems || []).map(x => x.id),
     });
-    toast('Copy created with the same clients, systems, and tags'); await loadKnowledgeItems(copy.id);
+    toast('Copy created with the same clients and systems'); await loadKnowledgeItems(copy.id);
   } catch { toast('Could not duplicate item'); }
 }
 async function setKnowledgeStatus(item, status) {
   try {
-    const saved = await window.api.updateKnowledgeItem(item.id, { title: item.title, type: item.type, status, summary: item.summary, content: item.content, contentFormat: item.contentFormat, tags: item.tags });
+    const saved = await window.api.updateKnowledgeItem(item.id, { title: item.title, type: item.type, status, summary: item.summary, content: item.content, contentFormat: item.contentFormat });
     toast(status === 'ARCHIVED' ? 'Knowledge item archived' : item.status === 'ARCHIVED' ? 'Knowledge item restored' : 'Knowledge item marked ready'); await loadKnowledgeItems(saved.id);
   } catch { toast('Could not update knowledge status'); }
 }
@@ -906,14 +871,14 @@ function refreshKnowledgeDocumentSuggestion() {
   let family = nameInput.value.trim() ? knowledgeFindFamily(documents, nameInput.value, false) : null;
   if (!nameInput.dataset.touched && file) {
     family = knowledgeFindFamily(documents, file.name);
-    nameInput.value = family ? family[0].name : knowledgeTitleFromFile(file.name);
+    nameInput.value = family ? knowledgeFamilyName(family) : knowledgeTitleFromFile(file.name);
   }
   if (!versionInput.dataset.touched) {
     versionInput.value = file ? knowledgeSuggestVersion(family, file.name)
       : family ? knowledgeNextVersion(family[0].version, family.map(x => x.version)) : '1.0';
   }
   hint.hidden = !family;
-  if (family) { hint.textContent = 'New version of ' + family[0].name + ' (latest ' + formatKnowledgeVersion(family[0].version) + ')'; }
+  if (family) { hint.textContent = 'New version of ' + knowledgeFamilyName(family) + ' (latest ' + formatKnowledgeVersion(family[0].version) + ')'; }
   document.getElementById('kh-document-modal-title').textContent = family ? 'Add New Version' : 'Add Document';
   document.getElementById('kh-document-note-label').textContent = family ? 'What changed' : 'Note';
 }
