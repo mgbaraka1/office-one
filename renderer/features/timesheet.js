@@ -111,41 +111,10 @@ function statusClass(s) {
   return 'status-' + statusSuffix(s);
 }
 
-// ── Day view mode: sessions grouped under their task (default) or a flat list ──
-let tsView = (localStorage.getItem('ct-ts-view') === 'flat') ? 'flat' : 'grouped';
-const tsNarrow = () => window.innerWidth <= 1100;
-function setTsView(v) {
-  tsView = v === 'flat' ? 'flat' : 'grouped';
-  try { localStorage.setItem('ct-ts-view', tsView); } catch (e) { /* private mode */ }
-  saveUserPreference('timesheetView', tsView);
-  renderTable();
-}
-function syncTsViewCtl() {
-  const effective = tsNarrow() ? 'grouped' : tsView;
-  document.querySelectorAll('#ts-view-ctl .seg-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.view === effective);
-    if (b.dataset.view === 'flat') {
-      b.disabled = tsNarrow();
-      b.title = tsNarrow() ? 'Grouped view is used automatically in compact windows' : '';
-    }
-  });
-}
+// ── Day view: sessions grouped under their task, one card per task. ──
 function renderTable() {
-  syncTsViewCtl();
-  const grouped = tsNarrow() || tsView === 'grouped';
-  document.getElementById('ts-table').style.display  = grouped ? 'none' : '';
-  document.getElementById('ts-groups').style.display = grouped ? 'flex' : 'none';
-  if (grouped) renderTableGrouped();
-  else renderTableFlat();
+  renderTableGrouped();
 }
-let _lastTsNarrow = tsNarrow();
-window.addEventListener('resize', () => {
-  const narrow = tsNarrow();
-  if (narrow !== _lastTsNarrow) {
-    _lastTsNarrow = narrow;
-    if (activeModule === 'timesheet') renderTable();
-  }
-});
 
 // Grouped view: one card per task, its sessions nested (mirrors the two-level model).
 function renderTableGrouped() {
@@ -153,7 +122,7 @@ function renderTableGrouped() {
   host.innerHTML = '';
 
   const shown = rows.filter(rowMatchesFilter);
-  const isFiltered = filterText || filterStatuses.size > 0 || filterDomain !== 'all';
+  const isFiltered = filterText || filterDomain !== 'all';
   document.getElementById('filter-count').textContent = isFiltered ? `${shown.length} of ${rows.length} shown` : '';
 
   // Group sessions by task; a not-yet-saved row (no taskId) is its own group.
@@ -168,7 +137,7 @@ function renderTableGrouped() {
     g.rows.push(r);
     g.lastIdx = i;
   });
-  // Done tasks first, then in-progress — same ordering as the flat view. Within
+  // Done tasks first, then in-progress. Within
   // a status bucket, most-recently-touched task last.
   const list = [...groups.values()].sort((a, b) =>
     (a.rows[0].status === 'DONE' ? 0 : 1) - (b.rows[0].status === 'DONE' ? 0 : 1) || a.lastIdx - b.lastIdx
@@ -182,8 +151,8 @@ function renderTableGrouped() {
   document.getElementById('row-count').textContent = rows.length || '0';
 }
 
-// One task card in the grouped day view: header (name · pills · status ·
-// subtotal · add-session) + a mini table of its sessions with row actions.
+// One task card in the grouped day view: header (company - system - project -
+// name · status · subtotal · add-session) + a mini table of its sessions with row actions.
 function buildTaskGroupCard(g, origIdxOf) {
   const first = g[0];
   const card = document.createElement('div');
@@ -192,6 +161,40 @@ function buildTaskGroupCard(g, origIdxOf) {
   // ── Header ──
   const head = document.createElement('div');
   head.className = 'tsg-head';
+
+  // The heading reads "Company - System - Project - Task name". Each leading
+  // part is a cross-link (it replaces the pill that used to sit after the
+  // status badge); only the task name itself is click-to-rename. Natural is
+  // per-session, so it's shown per row in the sessions table, not here.
+  const heading = document.createElement('span');
+  heading.className = 'tsg-heading';
+  const crumb = (text, tip, onClick) => {
+    if (!text) return;
+    const b = document.createElement('button');
+    b.className = 'tsg-crumb'; b.textContent = text; b.title = tip;
+    b.addEventListener('click', (e) => { e.stopPropagation(); onClick(); });
+    heading.appendChild(b);
+    const sep = document.createElement('span');
+    // A chevron, not a dash — company and project names contain dashes themselves.
+    sep.className = 'tsg-crumb-sep'; sep.textContent = '›'; sep.setAttribute('aria-hidden', 'true');
+    heading.appendChild(sep);
+  };
+  // Internal rows never carry a company, so they lead with an explicit
+  // "Internal" part instead of letting the card read as missing data.
+  if (first.departmentId != null) {
+    crumb('Internal', 'Open Internal Work', () => openDepartmentById(Number(first.departmentId)));
+  } else if (first.company) {
+    const name = companyDisplayName(first.company, false);
+    crumb(name, 'Browse all work for ' + name, () => openBrowseSlice('companies', first.company));
+  }
+  if (first.system) {
+    const name = lkLabel('SYSTEM', first.system);
+    crumb(name, 'Browse all work for ' + name, () => openBrowseSlice('systems', first.system));
+  }
+  const projName = projectNameById(first.projectId);
+  if (projName) crumb(projName, 'Open project: ' + projName, () => openProjectById(Number(first.projectId)));
+  const deptName = lkLabelById('DEPARTMENT', first.departmentId);
+  if (deptName) crumb(deptName, 'Open department: ' + deptName, () => openDepartmentById(Number(first.departmentId)));
 
   const title = document.createElement('span');
   title.className = 'tsg-title';
@@ -214,9 +217,10 @@ function buildTaskGroupCard(g, origIdxOf) {
       if (ev.key === 'Escape') { ev.preventDefault(); renderTable(); }
     });
   });
-  head.appendChild(title);
+  heading.appendChild(title);
+  head.appendChild(heading);
 
-  // Status badge — same dropdown as the flat view; status is task-level.
+  // Status badge — a dropdown; status is task-level.
   const stBadgeWrap = document.createElement('span');
   stBadgeWrap.className = statusClass(first.status);
   const badge = document.createElement('span');
@@ -250,6 +254,7 @@ function buildTaskGroupCard(g, origIdxOf) {
   stBadgeWrap.appendChild(badge);
   head.appendChild(stBadgeWrap);
 
+  const headActions = [];
   // One-click Done (Milestone 10) — sets DONE without opening the status
   // dropdown, with the same undo-toast every other non-destructive-but-easy-
   // to-regret action in the app already uses. Hidden once already DONE.
@@ -269,7 +274,7 @@ function buildTaskGroupCard(g, origIdxOf) {
         renderTable(); setUnsaved();
       });
     });
-    head.appendChild(doneBtn);
+    headActions.push(doneBtn);
   }
 
   // View task detail (metadata + rollups + full session history).
@@ -278,48 +283,10 @@ function buildTaskGroupCard(g, origIdxOf) {
   viewBtn.title = 'View task details';
   if (first.taskId) viewBtn.addEventListener('click', () => openTaskDetail(first.taskId));
   else { viewBtn.disabled = true; viewBtn.style.opacity = '.45'; viewBtn.title = 'Saving… try again in a moment'; }
-  head.appendChild(viewBtn);
+  headActions.push(viewBtn);
 
-  // Category pills (company / system) — both are cross-links. Natural is
-  // per-session now, so it's shown per row in the sessions table, not here.
-  const meta = document.createElement('span');
-  meta.className = 'tsg-meta';
-  const pill = (text, kind) => {
-    if (!text) return;
-    if (kind) {
-      const b = document.createElement('button');
-      b.className = 'tsg-pill cell-link';
-      b.textContent = kind === 'companies' ? companyDisplayName(text, false) : lkLabel('SYSTEM', text);
-      b.title = 'Browse all work for ' + b.textContent;
-      b.addEventListener('click', () => openBrowseSlice(kind, text));
-      meta.appendChild(b);
-    } else {
-      const s = document.createElement('span');
-      s.className = 'tsg-pill'; s.textContent = text;
-      meta.appendChild(s);
-    }
-  };
-  // Internal rows never carry a company — pill()
-  // would silently no-op on the empty string, so show an explicit chip
-  // instead of letting the card read as missing data.
-  if (first.departmentId != null) {
-    const b = document.createElement('button');
-    b.className = 'tsg-pill cell-link row-department-tag';
-    b.textContent = 'Internal';
-    b.title = 'Open Internal Work';
-    b.addEventListener('click', () => openDepartmentById(Number(first.departmentId)));
-    meta.appendChild(b);
-  } else {
-    pill(first.company, 'companies');
-  }
-  pill(first.system, 'systems');
-  const projTag = projectRowTag(first.projectId);
-  if (projTag) meta.appendChild(projTag);
-  const deptTag = departmentRowTag(first.departmentId);
-  if (deptTag) meta.appendChild(deptTag);
-  head.appendChild(meta);
-
-  // Right side: per-task subtotal + add-session.
+  // End side: per-task subtotal, then the task actions, then add-session. They
+  // sit together at the end edge so they line up from one card to the next.
   const sub = document.createElement('span');
   sub.className = 'tsg-sub';
   const tMin = totalMins(g);
@@ -327,6 +294,7 @@ function buildTaskGroupCard(g, origIdxOf) {
   total.className = 'tsg-total';
   total.textContent = tMin ? (tMin + ' min · ' + (tMin / 60).toFixed(2) + ' h') : '—';
   sub.appendChild(total);
+  headActions.forEach(b => sub.appendChild(b));
   const addBtn = document.createElement('button');
   addBtn.className = 'tsg-add';
   addBtn.innerHTML = ic('plus') + 'Session';
@@ -342,12 +310,12 @@ function buildTaskGroupCard(g, origIdxOf) {
   // ── Sessions table ──
   const table = document.createElement('table');
   table.innerHTML = '<thead><tr>' +
-    '<th style="width:90px">Time</th>' +
-    '<th style="width:100px">Natural</th>' +
+    '<th class="tsg-col-time">Time</th>' +
+    '<th class="tsg-col-natural">Natural</th>' +
     '<th>Description</th>' +
-    '<th style="width:80px;text-align:right">Minutes</th>' +
-    '<th style="width:70px;text-align:right">Hours</th>' +
-    '<th style="width:100px"></th></tr></thead>';
+    '<th class="tsg-col-num">Minutes</th>' +
+    '<th class="tsg-col-num">Hours</th>' +
+    '<th class="tsg-col-actions"></th></tr></thead>';
   const tb = document.createElement('tbody');
 
   g.forEach(row => {
@@ -359,10 +327,12 @@ function buildTaskGroupCard(g, origIdxOf) {
     const timeSpan = document.createElement('span');
     timeSpan.textContent = lkLabel('TIME_TYPE', row.time) || '—';
     if (row.time === 'OVERTIME') timeSpan.style.color = 'var(--bad)';
-    tr.appendChild(cellWrap(timeSpan, 'cell'));
+    const timeTd = cellWrap(timeSpan, 'cell'); timeTd.className = 'tsg-nowrap';
+    tr.appendChild(timeTd);
 
     // Natural — per-session, so sessions on the same task can genuinely differ.
-    tr.appendChild(textCell(lkLabel('ACTIVITY_TYPE', row.natural) || '—'));
+    const naturalTd = textCell(lkLabel('ACTIVITY_TYPE', row.natural) || '—'); naturalTd.className = 'tsg-nowrap';
+    tr.appendChild(naturalTd);
 
     // Description
     const descTd = document.createElement('td');
@@ -373,8 +343,8 @@ function buildTaskGroupCard(g, origIdxOf) {
     descTd.appendChild(descDiv);
     tr.appendChild(descTd);
 
-    // Minutes — click to edit inline (same behavior as the flat view)
-    const minTd = document.createElement('td'); minTd.style.textAlign = 'right';
+    // Minutes — click to edit inline
+    const minTd = document.createElement('td');
     const minCell = document.createElement('div'); minCell.className = 'cell cell-right';
     const minSpan = document.createElement('span');
     minSpan.textContent = row.minutes || '—';
@@ -467,282 +437,6 @@ function buildTaskGroupCard(g, origIdxOf) {
   return card;
 }
 
-// Icon shown in the row-group divider for each non-DONE status. Falls back to
-// 'circle' for any status without a specific icon (keeps new lookup codes safe).
-const STATUS_DIVIDER_ICON = { IN_PROGRESS: 'zap', OPEN: 'circle', BLOCKED: 'ban' };
-
-function renderTableFlat() {
-  const tbody = document.getElementById('tbody');
-  tbody.innerHTML = '';
-
-  // Done rows are always surfaced first, unlabeled — a pre-existing, intentional
-  // exception (completed work reviewed first) to the ENTRY_STATUS workflow order.
-  // Every other status gets its own bucket + divider, in the lookup's sort_order
-  // (currently Open → In Progress → Blocked), so new statuses need no code change.
-  const doneRows = rows.filter(r => r.status === 'DONE' && rowMatchesFilter(r));
-  const nonDoneCodes = lkOptions('ENTRY_STATUS').map(o => o.code).filter(c => c !== 'DONE');
-  const buckets = nonDoneCodes.map(code => ({
-    code, label: lkLabel('ENTRY_STATUS', code),
-    rows: rows.filter(r => r.status === code && rowMatchesFilter(r)),
-  }));
-  // Defensive: a row with an unrecognized/legacy status still renders (grouped
-  // at the end, no divider) instead of silently vanishing from the view.
-  const known = new Set(['DONE', ...nonDoneCodes]);
-  const unknownRows = rows.filter(r => !known.has(r.status) && rowMatchesFilter(r));
-  const ordered = [...doneRows, ...buckets.flatMap(b => b.rows), ...unknownRows];
-
-  const isFiltered = filterText || filterStatuses.size > 0 || filterDomain !== 'all';
-  const countEl    = document.getElementById('filter-count');
-  countEl.textContent = isFiltered ? `${ordered.length} of ${rows.length} shown` : '';
-
-  // Map each row object → its index in `rows` once, so the per-row lookup below
-  // is O(1) instead of rows.indexOf() (O(n)) inside the render loop.
-  const origIdxOf = new Map(rows.map((r, i) => [r, i]));
-  const getOrigIdx = (row) => origIdxOf.get(row);
-
-  // Which `ordered` index starts each non-empty bucket (skip index 0 — the very
-  // first visible row never needs a "new section" label).
-  const dividerStarts = new Map();
-  let cursor = doneRows.length;
-  buckets.forEach(b => {
-    if (b.rows.length > 0 && cursor > 0) dividerStarts.set(cursor, b);
-    cursor += b.rows.length;
-  });
-
-  ordered.forEach((row, i) => {
-    const origIdx = getOrigIdx(row);
-
-    const startingBucket = dividerStarts.get(i);
-    if (startingBucket) {
-      const divTr = document.createElement('tr');
-      divTr.className = 'inprogress-divider';
-      const divTd = document.createElement('td');
-      divTd.colSpan = 11;
-      divTd.innerHTML = '<div class="inprogress-divider-inner"><span class="inprogress-divider-label">' +
-        ic(STATUS_DIVIDER_ICON[startingBucket.code] || 'circle') + ' ' + esc(startingBucket.label) + '</span></div>';
-      divTr.appendChild(divTd);
-      tbody.appendChild(divTr);
-    }
-
-    const tr = document.createElement('tr');
-    if (activeTimer.rowRef === row) tr.classList.add('timer-running');
-
-    // #
-    const numTd = document.createElement('td');
-    const numCellDiv = document.createElement('div'); numCellDiv.className = 'cell cell-center';
-    const numSpan = document.createElement('span');
-    numSpan.className = 'cell-num'; numSpan.textContent = i + 1;
-    numCellDiv.appendChild(numSpan); numTd.appendChild(numCellDiv);
-    tr.appendChild(numTd);
-
-    // Task name — the two-level entity this work session belongs to. Click to
-    // rename inline (persists the task, distinct from the session's description).
-    const taskTd = document.createElement('td');
-    const taskCell = document.createElement('div'); taskCell.className = 'cell';
-    const taskSpan = document.createElement('span');
-    taskSpan.className = 'task-name-cell';
-    taskSpan.dataset.userContent = ''; taskSpan.textContent = row.taskName || row.description || '—';
-    taskSpan.title = 'Click to rename this task';
-    taskSpan.style.cursor = 'pointer'; taskSpan.style.fontWeight = '600';
-    taskSpan.addEventListener('click', () => {
-      const inp = document.createElement('input');
-      inp.type = 'text'; inp.className = 'min-inline-input'; inp.style.width = '100%';
-      inp.value = row.taskName || '';
-      taskCell.replaceChild(inp, taskSpan);
-      inp.focus(); inp.select();
-      const commit = () => {
-        rows[origIdx].taskName = inp.value.trim();
-        syncSiblingTasks(rows[origIdx]);   // task name is task-level
-        renderTable(); setUnsaved();
-      };
-      inp.addEventListener('blur', commit);
-      inp.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Enter')  { ev.preventDefault(); inp.blur(); }
-        if (ev.key === 'Escape') { ev.preventDefault(); renderTable(); }
-      });
-    });
-    taskCell.appendChild(taskSpan); taskTd.appendChild(taskCell);
-    tr.appendChild(taskTd);
-
-    tr.appendChild(row.departmentId != null ? internalCompanyCell(row.departmentId) : linkCell(row.company, 'companies'));
-    tr.appendChild(linkCell(row.system, 'systems'));
-    tr.appendChild(textCell(lkLabel('ACTIVITY_TYPE', row.natural)));
-    const timeTd = document.createElement('td');
-    const timeDiv = document.createElement('div'); timeDiv.className = 'cell';
-    const timeSpan = document.createElement('span');
-    timeSpan.textContent = lkLabel('TIME_TYPE', row.time);
-    if (row.time === 'OVERTIME') timeSpan.style.color = 'var(--bad)';
-    timeDiv.appendChild(timeSpan); timeTd.appendChild(timeDiv);
-    tr.appendChild(timeTd);
-
-    // Description
-    const descTd = document.createElement('td');
-    const descDiv = document.createElement('div');
-    descDiv.className = 'cell desc-cell';
-    const descSpan = document.createElement('span');
-    descSpan.className = 'desc-text'; descSpan.dataset.userContent = ''; descSpan.textContent = row.description;
-    descDiv.appendChild(descSpan);
-    descTd.appendChild(descDiv);
-    tr.appendChild(descTd);
-
-    // Project / Department — cross-links into whichever container is linked
-    tr.appendChild(projectCell(row.projectId, row.departmentId));
-
-    // Minutes — click to edit inline
-    const minTd = document.createElement('td');
-    minTd.style.textAlign = 'right';
-    const minCell = document.createElement('div');
-    minCell.className = 'cell cell-right';
-    const minSpan = document.createElement('span');
-    minSpan.textContent = row.minutes || '—';
-    minSpan.style.cursor = 'pointer';
-    minSpan.title = 'Click to edit minutes';
-    minSpan.addEventListener('click', () => {
-      const inp = document.createElement('input');
-      inp.type = 'number'; inp.min = 1; inp.max = 1440;
-      inp.className = 'min-inline-input';
-      inp.value = row.minutes || '';
-      minCell.replaceChild(inp, minSpan);
-      inp.focus(); inp.select();
-      const commit = () => {
-        const val = parseInt(inp.value, 10);
-        if (!isNaN(val) && val >= 1 && val <= 1440) rows[origIdx].minutes = val;
-        renderTable(); setUnsaved();
-      };
-      inp.addEventListener('blur', commit);
-      inp.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Enter') { ev.preventDefault(); inp.blur(); }
-        if (ev.key === 'Escape') { ev.preventDefault(); renderTable(); }
-      });
-    });
-    minCell.appendChild(minSpan);
-    minTd.appendChild(minCell);
-    tr.appendChild(minTd);
-
-    // Hours
-    const m = parseFloat(row.minutes);
-    const hrsSpan = document.createElement('span');
-    hrsSpan.className = 'hours-val';
-    hrsSpan.textContent = isNaN(m) ? '—' : (m/60).toFixed(2);
-    tr.appendChild(cellWrap(hrsSpan, 'cell cell-right'));
-
-    // Actions
-    const actTd = document.createElement('td');
-    const actDiv = document.createElement('div'); actDiv.className = 'cell';
-    const acts = document.createElement('div'); acts.className = 'row-actions';
-
-    // Timer button
-    const timerBtn = document.createElement('button');
-    if (activeTimer.rowRef === row) {
-      timerBtn.className = 'row-btn timer-stop';
-      timerBtn.innerHTML = ic('square');
-      timerBtn.title = 'Stop timer';
-      timerBtn.addEventListener('click', () => stopTimer());
-    } else {
-      timerBtn.className = 'row-btn timer-start';
-      timerBtn.innerHTML = ic('play');
-      timerBtn.title = 'Start timer';
-      timerBtn.addEventListener('click', () => startTimer(origIdx));
-    }
-
-    const editBtn = document.createElement('button');
-    editBtn.className = 'row-btn'; editBtn.innerHTML = ic('pencil');
-    editBtn.title = 'Edit'; editBtn.addEventListener('click', () => openModal(origIdx));
-
-    const viewBtn = document.createElement('button');
-    viewBtn.className = 'row-btn'; viewBtn.innerHTML = ic('eye');
-    viewBtn.title = 'View task details';
-    if (row.taskId) viewBtn.addEventListener('click', () => openTaskDetail(row.taskId));
-    else { viewBtn.disabled = true; viewBtn.style.opacity = '.45'; viewBtn.title = 'Saving… try again in a moment'; }
-
-    // One-click Done (Milestone 10) — same behavior/undo as the grouped view's
-    // status-badge counterpart; hidden once already DONE.
-    const doneBtn = document.createElement('button');
-    if (row.status !== 'DONE') {
-      doneBtn.className = 'row-btn done-btn'; doneBtn.innerHTML = ic('check');
-      doneBtn.title = 'Mark done';
-      doneBtn.addEventListener('click', () => {
-        const prevStatus = row.status;
-        row.status = 'DONE';
-        syncSiblingTasks(row);
-        renderTable(); setUnsaved();
-        showGenericUndo('Marked done', () => {
-          row.status = prevStatus;
-          syncSiblingTasks(row);
-          renderTable(); setUnsaved();
-        });
-      });
-    }
-
-    // Add session — log another work session against THIS row's task (same or a
-    // different day). The core two-level capability: one task, many work logs.
-    const sessionBtn = document.createElement('button');
-    sessionBtn.className = 'row-btn'; sessionBtn.innerHTML = ic('timer-reset') || ic('plus');
-    sessionBtn.title = 'Add another session to this task';
-    sessionBtn.addEventListener('click', () => openSessionModal(null, {
-      mode: 'create', task: { id: row.taskId, name: row.taskName, status: row.status }, defaultDate: activeDate,
-    }));
-
-    const dupBtn = document.createElement('button');
-    dupBtn.className = 'row-btn'; dupBtn.innerHTML = ic('copy');
-    dupBtn.title = 'Duplicate as a new task';
-    dupBtn.addEventListener('click', () => {
-      // A new, independent task+session (strip ids so the save creates fresh rows).
-      rows.splice(origIdx + 1, 0, Object.assign({}, rows[origIdx], { eid: undefined, taskId: undefined }));
-      renderTable(); setUnsaved();
-    });
-
-    const moveBtn = document.createElement('button');
-    moveBtn.className = 'row-btn'; moveBtn.innerHTML = ic('calendar-clock');
-    moveBtn.title = 'Move to another day';
-    const restoreActs = () => {
-      acts.innerHTML = '';
-      acts.appendChild(timerBtn); acts.appendChild(editBtn); acts.appendChild(viewBtn);
-      if (row.status !== 'DONE') acts.appendChild(doneBtn);
-      acts.appendChild(sessionBtn);
-      acts.appendChild(dupBtn); acts.appendChild(moveBtn); acts.appendChild(delBtn);
-    };
-    moveBtn.addEventListener('click', () => {
-      acts.innerHTML = '';
-      const conf = document.createElement('div'); conf.className = 'del-confirm move-confirm';
-      const dateInp = document.createElement('input');
-      dateInp.type = 'date'; dateInp.className = 'move-date-input'; dateInp.value = activeDate;
-      const yes = document.createElement('button'); yes.className = 'row-btn move-yes'; yes.innerHTML = ic('check');
-      yes.title = 'Move record to this day';
-      yes.addEventListener('click', () => moveRowToDate(origIdx, dateInp.value));
-      const no = document.createElement('button'); no.className = 'row-btn del-no'; no.innerHTML = ic('x');
-      no.title = 'Cancel';
-      no.addEventListener('click', restoreActs);
-      dateInp.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Enter') { ev.preventDefault(); moveRowToDate(origIdx, dateInp.value); }
-        if (ev.key === 'Escape') { ev.preventDefault(); restoreActs(); }
-      });
-      conf.appendChild(dateInp); conf.appendChild(yes); conf.appendChild(no);
-      acts.appendChild(conf);
-      dateInp.focus();
-    });
-
-    const delBtn = document.createElement('button');
-    delBtn.className = 'row-btn del'; delBtn.innerHTML = ic('trash-2');
-    delBtn.title = 'Delete';
-    delBtn.addEventListener('click', () => showDeleteConfirm(acts, () => {
-      const removed = rows.splice(origIdx, 1)[0];
-      showUndoToast(removed, origIdx);
-      renderTable(); setUnsaved();
-    }, restoreActs));
-
-    restoreActs();
-    actDiv.appendChild(acts); actTd.appendChild(actDiv);
-    tr.appendChild(actTd);
-
-    tbody.appendChild(tr);
-  });
-
-  updateTotals();
-  document.getElementById('empty-state').hidden = rows.length > 0;
-  document.getElementById('row-count').textContent = rows.length || '0';
-}
-
 function cellWrap(el, cls) {
   const td = document.createElement('td');
   const div = document.createElement('div'); div.className = cls;
@@ -761,27 +455,6 @@ function linkCell(val, kind) {
   btn.title = 'Browse all work for ' + btn.textContent;
   btn.addEventListener('click', () => openBrowseSlice(kind, val));
   return cellWrap(btn, 'cell');
-}
-// The flat table's Company cell for an internal row — company is always ''
-// there, so a plain linkCell would render empty
-// and read as a bug rather than a different domain. Shows an explicit
-// "Internal" chip instead, cross-linking into Internal Work like the
-// Department pill in the Project/Department column does.
-function internalCompanyCell(departmentId) {
-  const btn = document.createElement('button');
-  btn.className = 'cell-link row-department-tag';
-  btn.textContent = 'Internal';
-  btn.title = 'Open Internal Work';
-  btn.addEventListener('click', () => openDepartmentById(Number(departmentId)));
-  return cellWrap(btn, 'cell');
-}
-// A task's linked-container cell — the same cross-linking pill used elsewhere
-// (Description used to carry this inline; it now gets its own column). Shows
-// whichever of Project/Department is set (Milestone 9: never both) or a dash
-// for a task linked to neither.
-function projectCell(projectId, departmentId) {
-  const tag = projectRowTag(projectId) || departmentRowTag(departmentId);
-  return tag ? cellWrap(tag, 'cell') : textCell('—');
 }
 
 // Shared inline "Delete?" confirm used by every module's row delete button.
@@ -1461,20 +1134,6 @@ async function submitModal() {
       toast('Session logged to ' + targetDate);
     } catch { toast('Could not save the session'); }
   }
-}
-
-function repeatLastSession() {
-  const source = [...rows].reverse().find(r => r.taskId != null);
-  if (!source) { toast('No saved session is available to repeat on this day'); return; }
-  openSessionModal(null, {
-    mode: 'create',
-    task: { id: source.taskId, name: source.taskName, status: source.status },
-    defaultDate: activeDate,
-    prefill: {
-      time: source.time, natural: source.natural,
-      description: source.description, minutes: source.minutes,
-    },
-  });
 }
 
 // Shared field-error helpers (used by every module's form validation).
@@ -2628,10 +2287,8 @@ async function submitInternalTaskModal() {
 
 // ── Filter ──
 let filterText = '';
-let filterStatuses = new Set();
-// Client / Internal / All — a domain slice next to the status chips
-// 'all' is the default so a fresh day never
-// looks like it's missing rows.
+// Client / Internal / All — a domain slice next to the text filter.
+// 'all' is the default so a fresh day never looks like it's missing rows.
 let filterDomain = 'all';
 
 function setFilterDomain(domain) {
@@ -2654,32 +2311,9 @@ function clearFilter() {
   renderTable();
 }
 
-function toggleStatusFilter(btn) {
-  const s = btn.dataset.status;
-  if (filterStatuses.has(s)) { filterStatuses.delete(s); btn.classList.remove('active'); }
-  else                        { filterStatuses.add(s);    btn.classList.add('active'); }
-  renderTable();
-}
-// Populate the Timesheet filter chips from the ENTRY_STATUS lookup category —
-// called once at boot after LK loads. Preserves any active selection across a
-// Settings-triggered rebuild (relabel/add).
-function renderFilterChips() {
-  const wrap = document.getElementById('filter-chips');
-  wrap.innerHTML = '';
-  lkOptions('ENTRY_STATUS').forEach(o => {
-    const btn = document.createElement('button');
-    btn.className = 'filter-chip' + (filterStatuses.has(o.code) ? ' active' : '');
-    btn.dataset.status = o.code;
-    btn.dataset.userContent = ''; btn.textContent = lookupDisplayName(o);
-    btn.addEventListener('click', () => toggleStatusFilter(btn));
-    wrap.appendChild(btn);
-  });
-}
-
 function rowMatchesFilter(row) {
   if (filterDomain === 'client' && row.departmentId != null) return false;
   if (filterDomain === 'internal' && row.departmentId == null) return false;
-  if (filterStatuses.size > 0 && !filterStatuses.has(row.status)) return false;
   if (!filterText) return true;
   // Search against the human labels of the code-valued fields (time / status).
   return [row.company, row.companyCode, row.companyNameEn, row.companyNameAr,

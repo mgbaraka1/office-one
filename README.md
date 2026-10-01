@@ -34,7 +34,7 @@ The whole interface is bilingual, including a full right-to-left layout. The sam
 
 **Time tracking**
 - A `tasks` → `work_logs` model: a task is date-independent, each work log is one dated session with its own minutes, description, activity type and time type.
-- Today (Timesheet) page with grouped or flat views, Repeat Last, remembered session defaults, duration presets, a live timer, and per-day employee/day naming.
+- Today (Timesheet) page with sessions grouped by task, remembered session defaults, duration presets, a live timer, and per-day employee/day naming.
 - Client Tasks and Internal Work as separate domains — a task belongs to one client project **or** one department, never both.
 - Per-task detail view with a full field-change history, task merging, and structured, searchable task source references.
 

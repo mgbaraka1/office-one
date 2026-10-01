@@ -380,7 +380,6 @@
       <span id="save-status"></span>
       <button class="btn today-btn" id="btn-today" data-onclick="goToday()"><span data-ic="calendar-check"></span>Today</button>
       <button class="btn" data-onclick="openMonthView()" title="Month overview"><span data-ic="calendar-days"></span>Month</button>
-      <button class="btn" id="btn-repeat-last" data-onclick="repeatLastSession()" title="Prefill a new session from the latest session shown"><span data-ic="copy"></span>Repeat Last</button>
       <button class="btn primary" data-onclick="openModal()"><span data-ic="plus"></span>Add Record <kbd>⌃N</kbd></button>
     </div>
   </div>
@@ -418,39 +417,16 @@
       <input id="filter-input" type="text" placeholder="Filter rows…" data-oninput="applyFilter()" />
       <button id="filter-clear" data-onclick="clearFilter()" title="Clear filter" data-ic="x"></button>
     </div>
-    <div class="filter-chips" id="filter-chips"></div>
     <div class="seg-ctl" id="ts-domain-ctl" title="Show client work, internal work, or both">
       <button class="seg-btn active" data-domain="all" data-onclick="setFilterDomain('all')">All</button>
       <button class="seg-btn" data-domain="client" data-onclick="setFilterDomain('client')">Client</button>
       <button class="seg-btn" data-domain="internal" data-onclick="setFilterDomain('internal')">Internal</button>
     </div>
-    <div class="seg-ctl" id="ts-view-ctl" title="How the day's sessions are laid out">
-      <button class="seg-btn" data-view="grouped" data-onclick="setTsView('grouped')"><span data-ic="layers"></span>By Task</button>
-      <button class="seg-btn" data-view="flat" data-onclick="setTsView('flat')"><span data-ic="rows-3"></span>Flat</button>
-    </div>
     <span id="filter-count"></span>
   </div>
 
-  <!-- Table (flat view) + grouped-by-task cards (grouped view) -->
+  <!-- The day's sessions, as one card per task -->
   <div id="table-wrap">
-    <table id="ts-table">
-      <thead>
-        <tr>
-          <th style="width:36px">#</th>
-          <th style="min-width:150px">Task</th>
-          <th>Company</th>
-          <th>System</th>
-          <th>Natural</th>
-          <th>Time</th>
-          <th style="min-width:220px">Description</th>
-          <th style="min-width:140px">Project / Dept</th>
-          <th style="width:80px;text-align:right">Minutes</th>
-          <th style="width:70px;text-align:right">Hours</th>
-          <th style="width:56px"></th>
-        </tr>
-      </thead>
-      <tbody id="tbody"></tbody>
-    </table>
     <div id="ts-groups"></div>
     <div id="empty-state" class="empty-state" hidden>
       <div class="empty-state-inner">

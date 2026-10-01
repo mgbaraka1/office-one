@@ -27,10 +27,10 @@ function count(pattern) { return (html.match(pattern) || []).length; }
 const totals = html.match(/<div id="totals-bar">([\s\S]*?)<\/div>\s*\n\s*<!-- Filter bar -->/)?.[1] || '';
 const workspaceViewCode = html.match(/const WORKSPACE_VIEW_DEFAULTS([\s\S]*?)function applySidebarPreference/)?.[1] || '';
 gate('compact daily summary has exactly three visible stat cards', (totals.match(/class="total-chip/g) || []).length === 3);
-gate('responsive Timesheet forces grouped mode at narrow widths', html.includes('const tsNarrow = () => window.innerWidth <= 1100') && html.includes("const grouped = tsNarrow() || tsView === 'grouped'"));
+gate('Timesheet always renders grouped by task, with no flat-view switch', !html.includes('id="ts-view-ctl"') && !html.includes('setTsView(') && /function renderTable\(\) \{[^}]*renderTableGrouped\(\);\s*\}/.test(html));
 gate('session defaults are persisted in per-user UI state', html.includes('sessionDefaults: {}') && html.includes('rememberSessionDefaults(payload.time, payload.natural)'));
 gate('both session forms expose quick duration presets', count(/data-duration-for="(?:f|sm)-minutes"/g) === 2 && count(/class="duration-preset"/g) === 10);
-gate('Repeat Last is available from the Timesheet top bar', html.includes('id="btn-repeat-last"') && html.includes('function repeatLastSession()'));
+gate('Timesheet has no Repeat Last button and no status filter chips', !html.includes('btn-repeat-last') && !html.includes('repeatLastSession') && !html.includes('id="filter-chips"'));
 gate('Task Detail can add, edit, and remove structured sources inline',
   html.includes('function renderTaskDetailSourcesEditor(task, host)')
   && html.includes("addTaskSourceRow('td-sources-list')")

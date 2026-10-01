@@ -427,11 +427,10 @@ function renderTaskDetail(t) {
   // Status badge under the title, plus a "Merge into another task…" link —
   // cleans up the duplicate single-session tasks migration 012 seeded (see
   // CLAUDE.md's task-merge-UI follow-up note) without needing a separate page.
-  const statusWrap = pjMk('div', statusClass(t.status));
-  statusWrap.style.cssText = 'margin-bottom:4px;display:flex;align-items:center;justify-content:space-between;gap:10px';
+  const statusWrap = pjMk('div', 'td-toolbar ' + statusClass(t.status));
   const badge = pjMk('span', 'status-badge', lkLabel('ENTRY_STATUS', t.status));
   statusWrap.appendChild(badge);
-  const taskActions = pjMk('div', 'row-actions');
+  const taskActions = pjMk('div', 'td-toolbar-actions');
   const historyLink = pjMk('button', 'td-merge-link', 'View task history');
   historyLink.addEventListener('click', () => openTaskHistoryModal(t.id, t.name));
   taskActions.appendChild(historyLink);
@@ -468,7 +467,7 @@ function renderTaskDetail(t) {
   const sourcesField = pjMk('div', 'td-sources-field');
   const sourcesHead = pjMk('div', 'td-sources-head');
   sourcesHead.appendChild(pjMk('div', 'pj-field-label', 'Sources'));
-  const editSourcesBtn = pjMk('button', 'btn');
+  const editSourcesBtn = pjMk('button', 'td-merge-link');
   editSourcesBtn.type = 'button';
   editSourcesBtn.innerHTML = ic('pencil') + ' Edit sources';
   editSourcesBtn.addEventListener('click', () => renderTaskDetailSourcesEditor(t, sourcesField));
@@ -478,7 +477,6 @@ function renderTaskDetail(t) {
   if (sourcesNode) sourcesVal.appendChild(sourcesNode);
   else sourcesVal.appendChild(pjMk('span', 'ts-empty-hint', 'No sources added yet.'));
   sourcesField.appendChild(sourcesVal);
-  grid.appendChild(sourcesField);
   grid.appendChild(field('Company', companyDisplayName(t.company)));
   grid.appendChild(field('System', lkLabel('SYSTEM', t.system)));
   if (t.projectId != null) {
@@ -490,14 +488,13 @@ function renderTaskDetail(t) {
   } else {
     grid.appendChild(field('Project', null));
   }
-  grid.appendChild(field('Created', t.createdAt
-    ? new Date(t.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-    : null));
+  // Same YYYY-MM-DD form the sessions table below uses, in either language.
+  grid.appendChild(field('Created', t.createdAt ? fmt(new Date(t.createdAt)) : null));
+  grid.appendChild(sourcesField);
   body.appendChild(grid);
 
   // ── Analytics: total time, entry count, breakdown by time type ──
   const logs = Array.isArray(t.workLogs) ? t.workLogs : [];
-  const totalMin = t.totalMinutes || 0;
   const byType = {};
   logs.forEach(w => {
     const key = w.time || '—';
@@ -505,23 +502,37 @@ function renderTaskDetail(t) {
   });
 
   const stats = pjMk('div', 'td-stats');
-  const chip = (label, value) => {
+  // Same card as the Timesheet's totals: the figure in hours, the minutes as a
+  // small line beneath. The unit is its own element so it translates and never
+  // ends up on the wrong side of the number in a right-to-left layout.
+  const chip = (label, value, minutes) => {
     const c = pjMk('div', 'total-chip');
     c.appendChild(pjMk('span', 'lbl', label));
     c.appendChild(pjMk('span', 'stat-value', value));
+    if (minutes != null) {
+      const meta = pjMk('span', 'summary-meta');
+      meta.appendChild(pjMk('span', null, String(minutes)));
+      meta.appendChild(document.createTextNode(' '));
+      meta.appendChild(pjMk('span', null, 'minutes'));
+      c.appendChild(meta);
+    }
     return c;
   };
-  stats.appendChild(chip('Total Minutes', String(totalMin)));
-  stats.appendChild(chip('Total Hours', (totalMin / 60).toFixed(2)));
-  stats.appendChild(chip('Entries', String(t.logCount || logs.length)));
-  Object.keys(byType).forEach(code => {
-    stats.appendChild(chip(lkLabel('TIME_TYPE', code) || code, String(byType[code]) + ' min'));
+  // Sessions first, then the hours split the way they are billed: work time and
+  // over time are always shown (a combined total would just repeat work time on
+  // most tasks). Any other time type appears only when the task has some.
+  stats.appendChild(chip('Sessions', String(t.logCount || logs.length)));
+  const typeCodes = ['WORK_TIME', 'OVERTIME', ...Object.keys(byType).filter(c => c !== 'WORK_TIME' && c !== 'OVERTIME')];
+  typeCodes.forEach(code => {
+    const mins = byType[code] || 0;
+    const c = chip(lkLabel('TIME_TYPE', code) || code, (mins / 60).toFixed(2), mins);
+    if (code === 'OVERTIME' && mins > 0) c.classList.add('ot-chip', 'has-value');
+    stats.appendChild(c);
   });
   body.appendChild(stats);
 
   // ── Sessions (oldest first) ──
-  const sessHead = pjMk('div', 'pj-section-head');
-  sessHead.style.marginTop = '18px';
+  const sessHead = pjMk('div', 'pj-section-head td-section-head');
   const sessTitle = pjMk('div', 'pj-section-title', 'Sessions (' + logs.length + ')');
   sessHead.appendChild(sessTitle);
   const sessActions = pjMk('div', 'pj-section-actions');
@@ -541,11 +552,13 @@ function renderTaskDetail(t) {
     body.appendChild(pjMk('div', 'td-sessions-empty', 'No sessions yet — this task hasn\'t been worked on.'));
   } else {
     const table = document.createElement('table');
+    // Same card, columns and order as a task's sessions on the Timesheet, with
+    // a leading Date column.
     table.innerHTML = '<thead><tr>' +
-      '<th style="width:110px">Date</th><th style="width:100px">Time</th>' +
-      '<th style="width:100px">Natural</th>' +
-      '<th style="width:70px;text-align:right">Min</th><th>What was done</th>' +
-      '<th style="width:96px"></th></tr></thead><tbody></tbody>';
+      '<th class="tsg-col-date">Date</th><th class="tsg-col-time">Time</th>' +
+      '<th class="tsg-col-natural">Natural</th><th>Description</th>' +
+      '<th class="tsg-col-num">Minutes</th>' +
+      '<th class="tsg-col-actions"></th></tr></thead><tbody></tbody>';
     const tb = table.querySelector('tbody');
     sorted.forEach(w => {
       const tr = document.createElement('tr');
@@ -558,15 +571,16 @@ function renderTaskDetail(t) {
           switchDay(w.date);
         });
       }
-      tr.appendChild(cellWrap(dateSpan, 'cell'));
+      const nowrap = (td) => { td.className = 'tsg-nowrap'; return td; };
+      tr.appendChild(nowrap(cellWrap(dateSpan, 'cell')));
       const timeSpan = pjMk('span', null, lkLabel('TIME_TYPE', w.time) || '—');
       if (w.time === 'OVERTIME') timeSpan.style.color = 'var(--bad)';
-      tr.appendChild(cellWrap(timeSpan, 'cell'));
-      tr.appendChild(textCell(lkLabel('ACTIVITY_TYPE', w.natural) || '—'));
-      const minCell = cellWrap(pjMk('span', null, (w.minutes === '' || w.minutes == null) ? '—' : String(w.minutes)), 'cell cell-right');
-      minCell.style.textAlign = 'right';
-      tr.appendChild(minCell);
-      tr.appendChild(textCell(w.description || '—'));
+      tr.appendChild(nowrap(cellWrap(timeSpan, 'cell')));
+      tr.appendChild(nowrap(textCell(lkLabel('ACTIVITY_TYPE', w.natural) || '—')));
+      const descSpan = pjMk('span', 'desc-text', w.description || '—');
+      descSpan.dataset.userContent = '';
+      tr.appendChild(cellWrap(descSpan, 'cell desc-cell'));
+      tr.appendChild(cellWrap(pjMk('span', null, (w.minutes === '' || w.minutes == null) ? '—' : String(w.minutes)), 'cell cell-right'));
 
       const actsWrap = pjMk('div', 'row-actions');
       const restoreActs = () => {
@@ -590,7 +604,9 @@ function renderTaskDetail(t) {
       tr.appendChild(cellWrap(actsWrap, 'cell'));
       tb.appendChild(tr);
     });
-    body.appendChild(table);
+    const card = pjMk('div', 'tsg-card td-sessions');
+    card.appendChild(table);
+    body.appendChild(card);
   }
 }
 

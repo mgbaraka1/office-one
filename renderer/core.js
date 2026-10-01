@@ -446,7 +446,6 @@ async function loadUserPreferencesFromMain() {
     workspaceViewPrefs.motion = prefs.motion;
     applyWorkspaceViewPreferences();
     applySidebarPreference(prefs.sidebar === 'compact');
-    tsView = prefs.timesheetView === 'flat' ? 'flat' : 'grouped';
   } catch { /* keep the localStorage-derived pre-login guess */ }
 }
 function saveUserPreference(key, value) {
@@ -1204,7 +1203,6 @@ async function saveSettings() {
   settingsDirty = false;
   initSettingsModule();                     // re-sync the draft with server-assigned codes
   renderTable();                            // reflect any relabeled values immediately
-  renderFilterChips();
   if (skipped.length) {
     const detail = skipped.map(s => `${s.label} (${SKIP_REASON_LABEL[s.reason] || s.reason})`).join('; ');
     if (statusEl) statusEl.textContent = `Saved — ${skipped.length} not saved`;
