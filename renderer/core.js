@@ -1051,7 +1051,7 @@ function buildTaskSearchSelect(host, tasks, initialId, placeholder, onChange) {
   const api = buildSearchSelect(host, visibleOptions(), initialId, placeholder || 'Search tasks…', onChange, {
     getOptions: visibleOptions,
     matchFn: (o, q) => textMatch([o.task.name, o.task.company, o.task.companyCode,
-      o.task.companyNameEn, o.task.companyNameAr, o.task.system, o.task.source, o.task.firstSourceRef], q),
+      o.task.companyNameEn, o.task.companyNameAr, o.task.system, o.task.source, o.task.allSourceText], q),
     labelText: (o) => o.label,
     groupFn: (o) => (isRecent(o.task) ? 'Recent' : 'All tasks'),
     renderOption: (o) => {

@@ -1491,7 +1491,7 @@ function renderLinkList() {
 
   const all = (linkableTasks || []).filter(t => textMatch(
     [t.name, t.company, t.companyCode, t.companyNameEn, t.companyNameAr,
-      t.system, t.source, t.firstSourceRef], q));
+      t.system, t.source, t.allSourceText], q));
 
   if (all.length === 0) {
     host.appendChild(pjMk('div', 'cp-records-empty', 'No unlinked tasks available.'));
@@ -1751,7 +1751,7 @@ function atTaskMatchesFilters(t, q, company, system, projectSel) {
   else if (projectSel && String(t.projectId) !== projectSel) return false;
   if (q) {
     const hay = [t.name, t.company, t.companyCode, t.companyNameEn, t.companyNameAr,
-      t.system, t.source, t.allSourceRefs].filter(Boolean).join(' ').toLowerCase();
+      t.system, t.source, t.allSourceText].filter(Boolean).join(' ').toLowerCase();
     if (!hay.includes(q)) return false;
   }
   return true;
@@ -2097,7 +2097,7 @@ function renderInternalWorkAllCards() {
     if (iwStatuses.size && !iwStatuses.has(t.status)) return false;
     if (deptSel && String(t.departmentId) !== deptSel) return false;
     if (q) {
-      const hay = [t.name, t.department, t.source, t.firstSourceRef].filter(Boolean).join(' ').toLowerCase();
+      const hay = [t.name, t.department, t.source, t.allSourceText].filter(Boolean).join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
