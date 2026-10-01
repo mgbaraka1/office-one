@@ -22,6 +22,9 @@
       --fs-body:    14px;                        /* default text */
       --fs-sm:      12.5px;                      /* secondary text */
       --fs-caption: 11px;  --ls-caption: .7px;   /* uppercase labels */
+      /* Control heights — one for toolbar controls (buttons, pickers, search,
+         segmented switches), one for the small in-card actions. */
+      --control-h: 40px; --control-h-sm: 28px;
       /* Chrome (dark sidebar + topbar) — shared across themes */
       --sidebar-fg: #f2ece0;
       /* Surface ramp — 0 = page, 1 = card, 2 = nested/inputs, 3 = raised/hover.
@@ -348,9 +351,8 @@
     .stab-icon { display: inline-flex; align-items: center; }
     .stab-icon .lic { width: 15px; height: 15px; vertical-align: middle; }
     .rmod-card-icon .lic { width: 22px; height: 22px; }
-    /* Save / status pills + in-progress divider */
+    /* Save / status pills */
     .saved .lic, .save-error .lic { width: 13px; height: 13px; vertical-align: -0.15em; }
-    .inprogress-divider-label .lic { width: 13px; height: 13px; vertical-align: -0.12em; }
     /* Decorative empty-state icon — larger, lighter stroke (.empty-state's
        own icon size/color comes from .empty-state .lic, see EMPTY STATES) */
     .cp-placeholder .icon .lic { width: 46px; height: 46px; stroke-width: 1.5; }
@@ -366,7 +368,6 @@
     .ds-label { display: inline-flex; align-items: center; gap: 6px; }
     .ds-label .lic { width: 14px; height: 14px; color: var(--primary); }
     .dash-att-icon .lic { width: 18px; height: 18px; vertical-align: middle; }
-    .inprogress-divider-label .lic { color: var(--warn); }
 
     /* Calendar trigger */
     #cal-trigger {
@@ -420,7 +421,7 @@
     .cal-day.has-data { color: var(--good); }
     .cal-day.selected { background: var(--primary) !important; color: #fff !important; }
 
-    .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .topbar-right { margin-inline-start: auto; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
     .btn {
       display: inline-flex; align-items: center; justify-content: center; gap: 8px;
@@ -477,7 +478,7 @@
 
     table { width: 100%; border-collapse: separate; border-spacing: 0; }
     thead th {
-      padding: 14px 18px; text-align: left;
+      padding: 14px 18px; text-align: start;
       font-size: 11.5px; font-weight: 700; text-transform: uppercase;
       letter-spacing: .6px; color: var(--muted);
       border-bottom: 1px solid var(--border);
@@ -569,9 +570,6 @@
 
     /* Row actions (on hover) */
     .row-actions { display: flex; gap: 2px; }
-    /* Flat Timesheet view: the actions cell can carry up to 8 buttons — a
-       2-column box keeps the column narrow instead of one long horizontal strip. */
-    #ts-table .row-actions { display: grid; grid-template-columns: repeat(2, auto); gap: 2px; }
     .row-btn {
       background: none; border: 1px solid transparent; border-radius: 6px;
       padding: 4px; font-size: 11px; cursor: pointer; color: var(--muted);
@@ -857,11 +855,17 @@
     }
     .sm-task-summary .status-badge { margin-left: 8px; }
     /* Task Detail's "Merge into another task…" link */
+    /* Task Detail's small secondary actions (history, merge, edit sources) —
+       the same small outlined control as a task card's "+ Session". */
     .td-merge-link {
-      background: none; border: none; color: var(--muted); font-size: 12px; font-weight: 600;
-      cursor: pointer; padding: 4px 7px; border-radius: var(--radius-sm); white-space: nowrap;
+      display: inline-flex; align-items: center; gap: 5px;
+      height: var(--control-h-sm); box-sizing: border-box; padding: 0 10px;
+      background: none; border: 1px solid var(--border); border-radius: var(--radius-sm);
+      color: var(--muted); font-family: inherit; font-size: var(--fs-sm); font-weight: 600;
+      cursor: pointer; white-space: nowrap; transition: color var(--speed), border-color var(--speed);
     }
-    .td-merge-link:hover { background: rgba(20,184,166,.10); color: var(--primary); }
+    .td-merge-link:hover { border-color: var(--primary); color: var(--primary); }
+    .td-merge-link .lic { width: 13px; height: 13px; }
     /* Merge Task modal */
     .merge-intro { font-size: 13px; color: var(--muted); margin: 0 0 var(--space-4); line-height: 1.5; }
     .merge-preview {
@@ -1664,10 +1668,31 @@
     #modal, #backlog-modal, #sub-modal,
     #client-vpn-modal,
     #client-server-modal, #client-internal-modal { width: 640px; max-width: 94vw; }
-    #task-detail-modal { width: 720px; max-width: 94vw; max-height: 90vh; }
+    #task-detail-modal { width: 960px; max-width: 94vw; max-height: 90vh; }
     #task-detail-overlay { z-index: 150; }
-    .td-stats { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
-    .td-sessions-empty { color: var(--muted); font-size: 13px; font-style: italic; padding: 8px 0; }
+    /* One spacing step between the popup's blocks, a smaller one inside them. */
+    #td-body { gap: var(--space-6); padding: var(--space-5) var(--space-7) var(--space-7); }
+    #task-detail-modal .modal-header { padding-inline: var(--space-7); }
+    #td-body .pj-profile-grid { gap: var(--space-5) var(--space-6); }
+    #td-body .pj-field-label { margin-bottom: var(--space-2); }
+    #td-body .td-sources-head { margin-bottom: var(--space-2); }
+    #td-body .ts-list-compact { gap: var(--space-2); }
+    #td-body .ts-badge { padding: 4px 10px; }
+    .td-stats .total-chip { padding: var(--space-4) var(--space-5); gap: var(--space-1); }
+    /* Status at the start, the task-level actions at the end. */
+    .td-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+    .td-toolbar-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+    /* Equal-width stat cards that fill the row, whatever their count. */
+    .td-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--space-3); }
+    .td-stats .total-chip { min-height: 0; }
+    .td-section-head { margin-bottom: 0; }
+    .td-section-head .btn { height: var(--control-h); min-height: 0; padding-block: 0; box-sizing: border-box; }
+    /* Narrower fixed columns than the Timesheet's, so the description — the
+       only free-text column — gets the width. */
+    .td-sessions .tsg-col-date, .td-sessions .tsg-col-time { width: 112px; }
+    .td-sessions .tsg-col-natural { width: 104px; }
+    .td-sessions { box-shadow: none; }
+    .td-sessions-empty { color: var(--muted); font-size: var(--fs-sm); font-style: italic; padding: 8px 0; }
     .btn.del-action { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 28%, transparent); }
     .btn.del-action:hover { background: var(--bad); border-color: var(--bad); color: #fff; }
 
@@ -1939,10 +1964,6 @@
       #filter-bar { flex-wrap: wrap; }
       #totals-bar { padding-inline: 14px; }
       #table-wrap { padding-inline: 14px; }
-      #ts-table th:nth-child(1), #ts-table td:nth-child(1),
-      #ts-table th:nth-child(3), #ts-table td:nth-child(3),
-      #ts-table th:nth-child(4), #ts-table td:nth-child(4),
-      #ts-table th:nth-child(10), #ts-table td:nth-child(10) { display: none; }
     }
 
     @media (max-width: 1050px) {
@@ -2281,26 +2302,6 @@
     .cp-summary-lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
     .cp-date-cell { font-size: 12px; color: var(--muted); white-space: nowrap; }
 
-    /* ══ SECTION DIVIDERS ══ */
-    tr.inprogress-divider td {
-      background: transparent !important; padding: 0 !important; border: none !important;
-    }
-    .inprogress-divider-inner {
-      display: flex; align-items: center; gap: 10px;
-      padding: 14px 12px 6px;
-    }
-    .inprogress-divider-inner::before,
-    .inprogress-divider-inner::after {
-      content: ''; flex: 1; height: 1.5px;
-      background: linear-gradient(90deg, transparent, var(--prog-text), transparent);
-      opacity: .35;
-    }
-    .inprogress-divider-label {
-      font-size: 11px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: .7px; color: var(--prog-text); white-space: nowrap;
-      padding: 3px 10px; background: var(--prog); border-radius: 20px;
-    }
-
     /* ══ TODAY BUTTON ══ */
     #btn-today { transition: all var(--speed); }
     #btn-today.is-today { background: color-mix(in srgb, var(--primary) 18%, transparent); border-color: var(--primary); color: var(--primary); }
@@ -2464,14 +2465,14 @@
     }
     .filter-chip:hover { color: var(--text); background: color-mix(in srgb, var(--primary) 8%, transparent); }
     .filter-chip.active { background: var(--primary); color: #fff; box-shadow: 0 2px 8px -2px var(--primary-glow); }
-    #filter-count { font-size: 12px; color: var(--muted); margin-left: auto; }
+    #filter-count { font-size: var(--fs-sm); color: var(--muted); margin-inline-start: auto; }
 
     /* ══ KBD HINTS ══ */
     kbd {
       display: inline-block; padding: 3px 9px; border-radius: 7px;
       font-size: 12px; font-family: 'Cairo', 'Segoe UI', sans-serif; font-weight: 600;
       background: var(--elevate); border: 1px solid var(--border); border-bottom-width: 2px;
-      color: var(--text); vertical-align: middle; margin-left: 4px;
+      color: var(--text); vertical-align: middle; margin-inline-start: 4px;
     }
     .btn.primary kbd { background: rgba(255,255,255,.15); border-color: rgba(255,255,255,.2); color: #fff; }
 
@@ -2577,8 +2578,20 @@
     .an-bar-row.clickable:hover .an-bar-label { color: var(--primary); }
     .an-bar-row.clickable:hover .an-bar-fill { filter: brightness(1.12); }
 
+    /* ══ TIMESHEET CONTROL RHYTHM ══
+       Every control in the page's top bar and filter bar shares one height, so
+       the date picker, buttons, search box and Client/Internal switch sit on
+       one line instead of four slightly different ones. */
+    #topbar .btn, #cal-trigger, #filter-input, #ts-domain-ctl {
+      height: var(--control-h); min-height: 0; box-sizing: border-box;
+    }
+    #topbar .btn { padding-block: 0; }
+    #topbar .btn kbd { padding: 0 7px; font-size: var(--fs-caption); line-height: 20px; border-bottom-width: 1px; }
+    #ts-domain-ctl { align-items: stretch; }
+    #ts-domain-ctl .seg-btn { min-height: 0; padding-block: 0; }
+
     /* ══ TIMESHEET GROUPED VIEW (sessions nested under their task) ══ */
-    #ts-groups { display: none; flex-direction: column; gap: 12px; }
+    #ts-groups { display: flex; flex-direction: column; gap: 12px; }
     .tsg-card {
       background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
       box-shadow: var(--shadow-sm); overflow: hidden;
@@ -2590,26 +2603,45 @@
     }
     .tsg-title { font-size: var(--fs-body); font-weight: 700; color: var(--text); cursor: pointer; }
     .tsg-title:hover { color: var(--primary); }
-    .tsg-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-    .tsg-pill {
-      font-size: 11px; font-weight: 600; color: var(--muted);
-      background: var(--surface); border: 1px solid var(--border);
-      padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+    .tsg-heading { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; min-width: 0; }
+    /* The lead-in parts read lighter than the task name, so the name stays the
+       thing the eye lands on; the company alone carries the accent color. */
+    .tsg-crumb {
+      background: none; border: 0; padding: 0; font-family: inherit;
+      font-size: var(--fs-sm); font-weight: 600; color: var(--muted);
+      cursor: pointer; transition: color var(--speed);
     }
-    .tsg-sub { margin-left: auto; display: flex; align-items: center; gap: 10px; }
-    .tsg-total { font-size: var(--fs-sm); font-weight: 700; color: var(--primary); font-family: 'Cairo', 'Segoe UI', sans-serif; font-variant-numeric: tabular-nums; }
+    .tsg-crumb:first-child { color: var(--primary); }
+    .tsg-crumb:hover { color: var(--text); text-decoration: underline; }
+    .tsg-crumb-sep { color: var(--muted); font-size: var(--fs-sm); opacity: .7; }
+    /* The task total and "+ Session" sit at the far end of every card header,
+       so they line up down the page whatever the title length. */
+    .tsg-sub { margin-inline-start: auto; display: flex; align-items: center; gap: var(--space-3); }
+    .tsg-total { font-size: var(--fs-sm); font-weight: 700; color: var(--primary); font-family: 'Cairo', 'Segoe UI', sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .tsg-add {
       display: inline-flex; align-items: center; gap: 5px;
-      background: none; border: 1px solid var(--border); border-radius: 8px;
-      padding: 4px 10px; font-size: 11.5px; font-weight: 600; color: var(--muted);
+      background: none; border: 1px solid var(--border); border-radius: var(--radius-sm);
+      height: var(--control-h-sm); box-sizing: border-box;
+      padding: 0 10px; font-size: var(--fs-sm); font-weight: 600; color: var(--muted);
       cursor: pointer; font-family: inherit; transition: all var(--speed); white-space: nowrap;
     }
     .tsg-add:hover { border-color: var(--primary); color: var(--primary); }
     .tsg-add .lic { width: 13px; height: 13px; }
     .tsg-card table { width: 100%; table-layout: fixed; }
     .tsg-card tbody { box-shadow: none; }
-    .tsg-card thead th { position: static; background: var(--surface); font-size: 10.5px; padding: 9px 16px; }
-    .tsg-card td .cell { padding: 10px 16px; }
+    .tsg-card thead th { position: static; background: var(--surface); font-size: var(--fs-caption); padding: 9px var(--space-4); }
+    .tsg-card td .cell { padding: 10px var(--space-4); }
+    /* Column widths live here, not inline, and every header shares its cells'
+       alignment: text columns at the start edge, number columns at the end. */
+    .tsg-card .tsg-col-time { width: 124px; }
+    .tsg-card .tsg-col-natural { width: 116px; }
+    .tsg-card .tsg-col-num { width: 88px; text-align: end; }
+    .tsg-card .tsg-col-actions { width: 132px; }
+    .tsg-card td.tsg-nowrap .cell { white-space: nowrap; }
+    /* Row actions sit at the end edge, under the header's "+ Session", with
+       room between the icons so the delete button is not a neighbour's slip. */
+    .tsg-card .row-actions { gap: var(--space-2); justify-content: flex-end; width: 100%; }
+    .tsg-card .tsg-col-actions { width: 168px; }
     .tsg-card tbody tr:first-child td { border-radius: 0 !important; }
     .tsg-card tbody tr:last-child td { border-radius: 0 !important; }
 
@@ -3093,7 +3125,7 @@
       position: relative; min-height: 104px; padding: 16px 18px; overflow: hidden;
     }
     .total-chip::before {
-      content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+      content: ''; position: absolute; inset-inline-start: 0; top: 0; bottom: 0; width: 4px;
       background: linear-gradient(180deg, #E0855D, #C96442);
     }
     .total-chip:nth-child(2)::before { background: linear-gradient(180deg, #E8A34D, #B8823C); }
@@ -3101,22 +3133,22 @@
     .total-chip .stat-value { font-size: 25px; letter-spacing: -1px; }
     #filter-bar { margin: 12px 24px 0; border-radius: 14px; border: 1px solid var(--border); background: var(--surface-1); }
     #table-wrap, #sub-table-wrap { padding: 16px 24px 38px; }
-    #ts-table, #sub-table { border-collapse: separate; border-spacing: 0 8px; }
-    #ts-table thead th, #sub-table thead th {
+    #sub-table { border-collapse: separate; border-spacing: 0 8px; }
+    #sub-table thead th {
       border: 0; background: transparent; padding-block: 9px;
     }
-    #ts-table tbody, #sub-table tbody { box-shadow: none; }
-    #ts-table tbody td, #sub-table tbody td {
+    #sub-table tbody { box-shadow: none; }
+    #sub-table tbody td {
       border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
       background: color-mix(in srgb, var(--surface-1) 96%, transparent);
     }
-    #ts-table tbody td:first-child, #sub-table tbody td:first-child {
+    #sub-table tbody td:first-child {
       border-left: 1px solid var(--border); border-radius: 12px 0 0 12px !important;
     }
-    #ts-table tbody td:last-child, #sub-table tbody td:last-child {
+    #sub-table tbody td:last-child {
       border-right: 1px solid var(--border); border-radius: 0 12px 12px 0 !important;
     }
-    #ts-table tbody tr:hover td, #sub-table tbody tr:hover td {
+    #sub-table tbody tr:hover td {
       background: color-mix(in srgb, var(--primary) 5%, var(--surface-1));
       border-color: color-mix(in srgb, var(--primary) 22%, var(--border));
     }
@@ -3304,9 +3336,7 @@
     body[data-density="compact"] .total-chip { min-height: 78px; padding: 11px 14px; }
     body[data-density="compact"] #table-wrap,
     body[data-density="compact"] #sub-table-wrap { padding-top: 9px; }
-    body[data-density="compact"] #ts-table,
     body[data-density="compact"] #sub-table { border-spacing: 0 4px; }
-    body[data-density="compact"] #ts-table tbody td,
     body[data-density="compact"] #sub-table tbody td { padding-block: 7px; }
     body[data-density="compact"] .an-scroll { padding-top: 20px; }
     body[data-density="compact"] .dash-stat { min-height: 94px; padding: 14px; }
@@ -3328,9 +3358,7 @@
     body[data-density="spacious"] .page-header { min-height: 78px; padding-block: 18px; }
     body[data-density="spacious"] #totals-bar { gap: 16px; padding-top: 24px; }
     body[data-density="spacious"] .total-chip { min-height: 120px; padding: 21px; }
-    body[data-density="spacious"] #ts-table,
     body[data-density="spacious"] #sub-table { border-spacing: 0 11px; }
-    body[data-density="spacious"] #ts-table tbody td,
     body[data-density="spacious"] #sub-table tbody td { padding-block: 14px; }
     body[data-density="spacious"] .an-scroll { padding-top: 34px; }
     body[data-density="spacious"] .dash-stat { min-height: 138px; padding: 24px; }
@@ -3576,23 +3604,18 @@
     .total-chip::before { background: var(--primary) !important; }
 
     #filter-bar { border-radius: 8px; }
-    #ts-table,
     #sub-table { border-collapse: collapse; border-spacing: 0; }
-    #ts-table thead th,
     #sub-table thead th {
       padding-block: 10px;
       background: var(--surface-2);
       border-bottom: 1px solid var(--border);
     }
-    #ts-table tbody td,
     #sub-table tbody td {
       background: var(--surface-1);
       border: 0;
       border-bottom: 1px solid var(--border);
     }
-    #ts-table tbody td:first-child,
     #sub-table tbody td:first-child,
-    #ts-table tbody td:last-child,
     #sub-table tbody td:last-child {
       border-radius: 0 !important;
       border-inline: 0;

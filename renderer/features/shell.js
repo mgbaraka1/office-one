@@ -379,7 +379,6 @@ async function init() {
 
   try {
     LK = await window.api.loadLookups();
-    renderFilterChips();
     await refreshProjectIndex();   // names for the Timesheet/Project-task Project field + row pills
     await refreshDayList();
     const today = fmt(t);
