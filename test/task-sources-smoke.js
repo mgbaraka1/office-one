@@ -161,6 +161,11 @@ try {
     && idx.sourceCount === 3 && idx.firstSourceType === 'JIRA' && idx.firstSourceRef === ''
     && idx.firstSourceUrl === 'https://jira.example.com/ABC-123' && !('sources' in idx),
     JSON.stringify(idx && { sourceCount: idx.sourceCount, firstSourceType: idx.firstSourceType, firstSourceRef: idx.firstSourceRef, hasSourcesKey: 'sources' in idx }));
+  // The search haystack must carry every entry's ref AND url — the Jira entry
+  // above has no ref, so a refs-only haystack could never match its issue key.
+  record('getTasksIndex allSourceText carries every ref and url', idx
+    && ['https://jira.example.com/ABC-123', 'Renewal quote issue', 'Sprint planning'].every(s => idx.allSourceText.includes(s)),
+    JSON.stringify(idx && idx.allSourceText));
   const listed = db.listTasks(userId).find(t => t.id === task.id);
   record('listTasks carries the same summary fields as getTasksIndex', listed
     && listed.sourceCount === 3 && listed.firstSourceUrl === 'https://jira.example.com/ABC-123', 'sourceCount=' + (listed && listed.sourceCount));
