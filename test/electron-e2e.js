@@ -199,7 +199,7 @@ async function run() {
     };
     knowledgeFilters.clear(); renderKnowledgeList();
     openKnowledgeEditor(knowledgeItems.find(item => item.id === linkedDoc.id));
-    knowledgeClientFilter.editorPill = document.querySelector('#kh-companies .tp-pill')?.textContent.includes('E2E_CLIENT') || false;
+    knowledgeClientFilter.editorPill = document.querySelector('#kh-companies .tp-pill')?.textContent.includes(companyDisplayName(profile)) || false;
     closeKnowledgeEditor(true);
     openPalette();
     document.getElementById('palette-input').value = 'searchable handbook';
@@ -971,7 +971,7 @@ async function run() {
     section.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
     const dropPreset = document.getElementById('knowledge-modal-overlay').classList.contains('open')
       && document.getElementById('kh-title-input').value === 'E2E Client Runbook'
-      && !!document.querySelector('#kh-companies .tp-pill')?.textContent.includes('E2E_CLIENT');
+      && !!document.querySelector('#kh-companies .tp-pill')?.textContent.includes(companyDisplayName('E2E_CLIENT'));
     closeKnowledgeEditor(true);
     [...section.querySelectorAll('.pj-section-actions .btn.primary')].pop().click();
     document.getElementById('kh-title-input').value = 'E2E client runbook';

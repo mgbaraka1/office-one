@@ -254,7 +254,9 @@ async function exportPfmExcel() {
     })),
   };
   let res;
-  try { res = await window.api.exportPfmExcel(data, 'offers-and-crs-' + pfmLocalToday() + '.xlsx'); }
+  // File name reads "Offers and CRs dd-MM-yyyy" — pfmLocalToday() is yyyy-MM-dd.
+  const stamp = pfmLocalToday().split('-').reverse().join('-');
+  try { res = await window.api.exportPfmExcel(data, 'Offers and CRs ' + stamp + '.xlsx'); }
   catch { res = { ok: false, error: 'failed' }; }
   if (res?.ok) toast('Excel saved');
   else if (res?.error) toast('Excel failed: ' + res.error);

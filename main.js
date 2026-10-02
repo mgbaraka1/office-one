@@ -802,7 +802,7 @@ ipcMain.handle('pfm:export-xlsx', authed(async (_e, exportData, defaultName) => 
     if (!exportData || serializedBytes > 10 * 1024 * 1024) {
       return { ok: false, error: 'Excel export content is empty or too large' };
     }
-    const safeDefaultName = path.basename(String(defaultName || 'offers-and-crs.xlsx')).slice(0, 180) || 'offers-and-crs.xlsx';
+    const safeDefaultName = path.basename(String(defaultName || 'Offers and CRs.xlsx')).slice(0, 180) || 'Offers and CRs.xlsx';
     const e2eXlsxPath = isE2ERun ? process.env.OFFICE_ONE_E2E_PFM_XLSX_PATH : null;
     const { canceled, filePath } = e2eXlsxPath
       ? { canceled: false, filePath: e2eXlsxPath }

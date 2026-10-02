@@ -207,7 +207,7 @@ async function saveClientNames(companyId) {
   currentClient.label  = res.client.label;
   // Patch the two places the name is already painted rather than re-rendering
   // the detail view, which would blow away focus and the caret mid-typing.
-  const shown = companyDisplayName(currentClient, false) || 'Untitled';
+  const shown = companyDisplayName(currentClient) || 'Untitled';
   const title = document.querySelector('#clients-detail-view .pj-detail-title');
   if (title) title.textContent = shown;
   const crumb = document.querySelector('#clients-detail-view .pj-crumb-here');
@@ -289,7 +289,7 @@ function buildClientCard(c, projectCount, index, total) {
 
   const head = pjMk('div', 'pj-card-head');
   const identity = pjMk('div', 'client-card-identity');
-  identity.appendChild(pjMk('div', 'pj-card-name', companyDisplayName(c, false) || 'Untitled'));
+  identity.appendChild(pjMk('div', 'pj-card-name', companyDisplayName(c) || 'Untitled'));
   head.appendChild(identity);
   if (c.code) head.appendChild(pjMk('span', 'client-code-badge', c.code));
   if (archived) head.appendChild(pjMk('span', 'cl-archived-badge', 'Archived'));
@@ -375,10 +375,10 @@ function renderClientsList() {
     if (textMatch([c.code, c.nameEn, c.nameAr, c.label], q)) {
       // Search still matches across both languages above, but the result shows
       // only the current-language name (via companyDisplayName) plus the code.
-      matches.push({ companyId: c.id, companyLabel: companyDisplayName(c, false), type: 'profile', typeLabel: 'Client Profile', name: companyDisplayName(c), detail: c.code || '', fields: [] });
+      matches.push({ companyId: c.id, companyLabel: companyDisplayName(c), type: 'profile', typeLabel: 'Client Profile', name: companyDisplayName(c), detail: c.code || '', fields: [] });
     }
     (c.records || []).forEach(r => {
-      if (textMatch(r.fields, q)) matches.push({ companyId: c.id, companyLabel: companyDisplayName(c, false), ...r });
+      if (textMatch(r.fields, q)) matches.push({ companyId: c.id, companyLabel: companyDisplayName(c), ...r });
     });
   });
 
@@ -605,12 +605,12 @@ function renderClientDetail(c) {
   const sep = pjMk('span', 'pj-crumb-sep');
   sep.innerHTML = ic('chevron-right');
   crumbs.appendChild(sep);
-  crumbs.appendChild(pjMk('span', 'pj-crumb-here', companyDisplayName(c, false) || 'Untitled'));
+  crumbs.appendChild(pjMk('span', 'pj-crumb-here', companyDisplayName(c) || 'Untitled'));
   host.appendChild(crumbs);
 
   const head = pjMk('div', 'pj-detail-head');
   const titleBlock = pjMk('div', 'client-detail-identity');
-  titleBlock.appendChild(pjMk('div', 'pj-detail-title', companyDisplayName(c, false) || 'Untitled'));
+  titleBlock.appendChild(pjMk('div', 'pj-detail-title', companyDisplayName(c) || 'Untitled'));
   // Show only the language-neutral code as the secondary line — never the
   // other language's name (Arabic mode shows Arabic only, English shows English).
   if (c.code) titleBlock.appendChild(pjMk('div', 'client-detail-alt', c.code));
@@ -1332,15 +1332,50 @@ function buildClientSecretControl(label, value, unreadable) {
   return wrap;
 }
 
+// A value on a record card that copies itself on click: the text plus a small
+// copy icon. `label` names it in the "… copied" toast. Passwords and secret
+// keys do NOT use this — they go through buildClientSecretControl, whose copy
+// clears the clipboard again after 30 seconds.
+function clCopyValue(value, label) {
+  const btn = pjMk('button', 'cl-copy-val');
+  btn.type = 'button'; btn.title = 'Click to copy';
+  const text = pjMk('span', null, String(value));
+  text.dataset.userContent = ''; text.dir = 'auto';
+  btn.appendChild(text);
+  btn.insertAdjacentHTML('beforeend', ic('copy'));
+  btn.addEventListener('click', () => copyClientFieldValue(value, label));
+  return btn;
+}
+// "Caption: value" with the value as the copy target. The caption is its own
+// text node so the i18n observer translates it without touching the value.
+function clCopyField(caption, value, label) {
+  const wrap = pjMk('span', 'cl-copy-field');
+  wrap.appendChild(document.createTextNode(caption + ' '));
+  wrap.appendChild(clCopyValue(value, label));
+  return wrap;
+}
+// A card's meta line: strings stay plain text, nodes are placed as given, and
+// the parts are joined with the same " · " the cards have always used.
+function clMetaLine(parts) {
+  const line = pjMk('div', 'cl-item-meta cl-item-metaline');
+  parts.filter(Boolean).forEach((part, i) => {
+    if (i) line.appendChild(pjMk('span', 'cl-meta-sep', '·'));
+    line.appendChild(typeof part === 'string' ? pjMk('span', null, part) : part);
+  });
+  return line;
+}
+
 function buildClientVpnCard(v) {
   const card = pjMk('div', 'cl-item-card');
   const main = pjMk('div', 'cl-item-main');
   main.appendChild(pjMk('div', 'cl-item-title', v.connectionName || '(unnamed connection)'));
-  const metaBits = [v.vpnType, v.endpoint, v.port ? ('Port ' + v.port) : ''].filter(Boolean).join(' · ');
-  if (metaBits) main.appendChild(pjMk('div', 'cl-item-meta', metaBits));
+  if (v.vpnType || v.endpoint || v.port) {
+    main.appendChild(clMetaLine([v.vpnType, v.endpoint && clCopyValue(v.endpoint, 'Endpoint'),
+      v.port && clCopyField('Port', v.port, 'Port')]));
+  }
   if (v.username || v.password || v.passwordUnreadable) {
     const cred = pjMk('div', 'cl-item-meta cl-item-cred');
-    if (v.username) cred.appendChild(pjMk('span', null, 'User: ' + v.username));
+    if (v.username) cred.appendChild(clCopyField('User:', v.username, 'Username'));
     // An unreadable credential is empty in `password` but still very much there —
     // render on the flag too, or it would silently disappear from the card.
     if (v.password || v.passwordUnreadable) {
@@ -1348,7 +1383,7 @@ function buildClientVpnCard(v) {
     }
     main.appendChild(cred);
   }
-  if (v.credentialLocation) main.appendChild(pjMk('div', 'cl-item-meta', 'Credential location: ' + v.credentialLocation));
+  if (v.credentialLocation) main.appendChild(clMetaLine([clCopyField('Credential location:', v.credentialLocation, 'Credential Location')]));
   if (v.expiryDate) {
     const status = cdRenewalStatus(v.expiryDate);
     const row = pjMk('div', 'cd-renewal' + (status ? ' ' + status : ''));
@@ -1426,11 +1461,13 @@ function buildClientServerCard(s) {
   const card = pjMk('div', 'cl-item-card');
   const main = pjMk('div', 'cl-item-main');
   main.appendChild(buildServerIdentityLine(s));
-  const metaBits = [s.host, s.hostname, s.os].filter(Boolean).join(' · ');
-  if (metaBits) main.appendChild(pjMk('div', 'cl-item-meta', metaBits));
+  if (s.host || s.hostname || s.os) {
+    main.appendChild(clMetaLine([s.host && clCopyValue(s.host, 'Host (IP)'),
+      s.hostname && clCopyValue(s.hostname, 'Hostname'), s.os]));
+  }
   if (s.username || s.password || s.passwordUnreadable) {
     const cred = pjMk('div', 'cl-item-meta cl-item-cred');
-    if (s.username) cred.appendChild(pjMk('span', null, 'User: ' + s.username));
+    if (s.username) cred.appendChild(clCopyField('User:', s.username, 'Username'));
     if (s.password || s.passwordUnreadable) {
       cred.appendChild(buildClientSecretControl('Password', s.password, s.passwordUnreadable));
     }
@@ -1701,10 +1738,10 @@ function buildClientInternalSystemCard(s) {
     title.appendChild(pjMk('span', 'cl-env-badge ' + s.environment.toLowerCase(), envLabel));
   }
   main.appendChild(title);
-  if (s.url) main.appendChild(pjMk('div', 'cl-item-meta', s.url));
+  if (s.url) main.appendChild(clMetaLine([clCopyValue(s.url, 'URL')]));
   if (s.username || s.password || s.passwordUnreadable) {
     const cred = pjMk('div', 'cl-item-meta cl-item-cred');
-    if (s.username) cred.appendChild(pjMk('span', null, 'User: ' + s.username));
+    if (s.username) cred.appendChild(clCopyField('User:', s.username, 'Username'));
     if (s.password || s.passwordUnreadable) {
       cred.appendChild(buildClientSecretControl('Password', s.password, s.passwordUnreadable));
     }
@@ -1712,7 +1749,7 @@ function buildClientInternalSystemCard(s) {
   }
   if (s.companyCode || s.secretKey || s.secretKeyUnreadable) {
     const svcCred = pjMk('div', 'cl-item-meta cl-item-cred');
-    if (s.companyCode) svcCred.appendChild(pjMk('span', null, 'Company Code: ' + s.companyCode));
+    if (s.companyCode) svcCred.appendChild(clCopyField('Company Code:', s.companyCode, 'Company Code'));
     if (s.secretKey || s.secretKeyUnreadable) {
       svcCred.appendChild(buildClientSecretControl('Secret Key', s.secretKey, s.secretKeyUnreadable));
     }
@@ -1723,7 +1760,7 @@ function buildClientInternalSystemCard(s) {
     s.subServices.forEach(sub => {
       const row = pjMk('div', 'cl-subsvc-row-view');
       if (sub.label) row.appendChild(pjMk('span', 'cl-subsvc-label', sub.label + ':'));
-      if (sub.url) row.appendChild(pjMk('span', null, sub.url));
+      if (sub.url) row.appendChild(clCopyValue(sub.url, sub.label || 'Endpoint'));
       subList.appendChild(row);
     });
     main.appendChild(subList);

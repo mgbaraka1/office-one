@@ -1021,7 +1021,12 @@ function setUserSalarySettings(userId, { salaryMinor, currencyCode, otRateDiviso
 // what the renderer loads once at boot to build all dropdowns.
 function loadLookups(userId) {
   const categories = {};
-  for (const cat of LOOKUP_CATEGORIES) categories[cat] = getLookupsByCategory(cat, true, userId);
+  // inUse drives the Settings editor's delete button: an entry can be deleted
+  // for good only while nothing uses it (saveLookups re-checks on save).
+  const usage = lookupUsageCounts();
+  for (const cat of LOOKUP_CATEGORIES) {
+    categories[cat] = getLookupsByCategory(cat, true, userId).map(o => ({ ...o, inUse: !!usage.get(o.id) }));
+  }
   return {
     categories,
     defaultName: userGet(userId, 'default_employee_name') || '',
@@ -1034,7 +1039,8 @@ function loadLookups(userId) {
   };
 }
 // Persist edits from the Settings catalog editor. Existing rows are updated in
-// place and entries are NEVER hard-deleted — disable via isActive:false. No
+// place; an entry in use is never hard-deleted — disable via isActive:false —
+// and only the explicit `deleted` id list removes an unused one (see above). No
 // update path here touches `code` for ANY category: a code is set once, at
 // insert, and is then unreachable. That used to be false for COMPANY, whose
 // business code was editable after the fact; it is the stable business identity
@@ -1098,9 +1104,86 @@ function getLookupCodeHistory(lookupId) {
   ).all(Number(lookupId));
 }
 
+// ── Permanent delete of an unused catalog entry ───────────────────────────────
+// A lookup row may be hard-deleted only while nothing points at it; once a
+// record or setting uses it, the only way to retire it is the soft-disable.
+// "Unused" is the ONLY condition, by the owner's decision: a seeded code the
+// app's own logic names (DONE, OVERTIME, USD, …) is deletable too once nothing
+// references it, and the feature keyed on that code then simply stops matching.
+
+// References that are not foreign keys: columns and settings that store a
+// lookup's CODE as text, so the schema cannot report them.
+const LOOKUP_TEXT_REFERENCES = {
+  PROJECT_STATUS:            ['SELECT status AS v, COUNT(*) AS n FROM projects GROUP BY status'],
+  PROJECT_DOCUMENT:          ['SELECT document_type AS v, COUNT(*) AS n FROM project_documents GROUP BY document_type'],
+  COMPANY_DOCUMENT_CATEGORY: ['SELECT category AS v, COUNT(*) AS n FROM company_documents WHERE category IS NOT NULL GROUP BY category'],
+  CURRENCY:                  ["SELECT value AS v, COUNT(*) AS n FROM user_settings WHERE key IN ('subscriptions_default_currency', 'salary_currency') GROUP BY value"],
+};
+
+// How many rows use each lookup, as Map(lookup id -> count); an id that is
+// absent is unused. NOT user-scoped: the catalog is shared, so one other
+// account's record is enough to keep an entry. Foreign keys are read from the
+// schema itself rather than a hand-kept list, so a table added by a later
+// migration is counted without anyone remembering to register it here. A
+// CASCADE reference is skipped: those rows (per-user access, company profile)
+// belong to the lookup and are meant to go with it.
+function lookupUsageCounts() {
+  const counts = new Map();
+  const add = (id, n) => { if (id != null) counts.set(Number(id), (counts.get(Number(id)) || 0) + Number(n)); };
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all();
+  for (const { name } of tables) {
+    for (const fk of db.prepare(`PRAGMA foreign_key_list("${name}")`).all()) {
+      if (fk.table !== 'lookup_codes' || fk.on_delete === 'CASCADE') continue;
+      db.prepare(`SELECT "${fk.from}" AS id, COUNT(*) AS n FROM "${name}" WHERE "${fk.from}" IS NOT NULL GROUP BY "${fk.from}"`)
+        .all().forEach(r => add(r.id, r.n));
+    }
+  }
+  for (const [category, queries] of Object.entries(LOOKUP_TEXT_REFERENCES)) {
+    for (const sql of queries) {
+      // lkId resolves a code or a label, so an older row stored by label counts too.
+      db.prepare(sql).all().forEach(r => add(lkId(category, r.v) ?? lkId(category, String(r.v || '').toUpperCase()), r.n));
+    }
+  }
+  return counts;
+}
+
+// Why this lookup cannot be hard-deleted, or null when it can.
+function lookupDeleteBlocker(userId, row, usage) {
+  if (!row || !LOOKUP_CATEGORIES.includes(row.category)) return 'not-found';
+  // Clients are archived from the Clients page; their profile, files and
+  // infrastructure records make a hard delete a different operation entirely.
+  if (row.category === 'COMPANY') return 'not-deletable';
+  if (!canAccessLookup(userId, row.id)) return 'no-access';
+  if (usage.get(row.id)) return 'in-use';
+  return null;
+}
+
 function saveLookups(userId, data) {
   const skipped = [];
   tx(() => {
+    // Deletes run first, so a label freed here can be reused by an entry added
+    // in the same save. Each one is re-checked against live usage — the editor's
+    // greyed-out button is a hint, never the guard.
+    if (Array.isArray(data?.deleted) && data.deleted.length) {
+      const usage = lookupUsageCounts();
+      const now = new Date().toISOString();
+      for (const rawId of new Set(data.deleted.map(Number))) {
+        const row = Number.isInteger(rawId)
+          ? db.prepare('SELECT id, category, code, label FROM lookup_codes WHERE id = ?').get(rawId) : null;
+        const blocker = lookupDeleteBlocker(userId, row, usage);
+        if (blocker) {
+          if (blocker !== 'not-found') skipped.push({ category: row.category, label: row.label, reason: blocker });
+          continue;
+        }
+        db.prepare('DELETE FROM lookup_codes WHERE id = ?').run(row.id);
+        // The audit trail outlives the row it describes (lookup_id is not an FK).
+        db.prepare(
+          `INSERT INTO lookup_code_history(user_id, lookup_id, category, field_name, old_value, new_value, changed_at)
+           VALUES (?, ?, ?, 'Deleted', ?, '', ?)`
+        ).run(userId, row.id, row.category, `${row.code} — ${row.label}`, now);
+      }
+      lkInvalidate();
+    }
     if (data?.categories) {
       const now = new Date().toISOString();
       const upd = db.prepare('UPDATE lookup_codes SET label = ?, name_en = ?, name_ar = ?, sort_order = ?, is_active = ? WHERE id = ?');

@@ -72,7 +72,8 @@ A change that breaks one of these fails the build, so check them before pushing:
   the shape in `ipc-types.js`. A channel with no contract fails closed, and
   `test/ipc-contracts-smoke.js` checks all four agree.
 - **Categories live in the lookup catalog**, never as hardcoded arrays. Compare
-  on the stable `code`, render the label, and soft-disable rather than delete.
+  on the stable `code`, render the label, and soft-disable rather than delete
+  (only an entry nothing uses can be deleted for good, from Settings).
 - **No inline event attributes.** Use `data-onclick` / `data-onchange` and friends,
   parsed by `renderer/event-delegation.js`; the CSP forbids anything else.
 - **Design tokens only** — colors, spacing, radii and shadows come from the

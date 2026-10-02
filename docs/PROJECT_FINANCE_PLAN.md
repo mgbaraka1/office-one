@@ -8,7 +8,7 @@
 
 ## TL;DR
 
-- New page: **Project & Finance** (sidebar, under *Clients & Assets*).
+- New page: **Project & Finance** (sidebar, under *External*).
 - It tracks **Offers** and **CRs** (Change Requests), each with its own **Reference ID** that you type in.
 - Every Offer/CR moves through **Prepare → Ready → Sent → Accepted / Rejected**.
 - Each stage records **who on our side** did it, and **when**.

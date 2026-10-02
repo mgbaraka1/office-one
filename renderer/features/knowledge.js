@@ -11,7 +11,7 @@ let knowledgeUiRestored = false, knowledgeListFocus = null, knowledgeDropReady =
 function knowledgeDocumentCount(item) { return Number(item.documentCount ?? item.documents?.length ?? 0); }
 function knowledgeStatusLabel(status) { return status === 'PUBLISHED' ? 'Ready' : status === 'ARCHIVED' ? 'Archived' : 'Draft'; }
 // Items link to clients (the COMPANY lookup) and systems (SYSTEM) — how documents are looked up.
-function knowledgeLinkName(kind, link) { return kind === 'companies' ? companyDisplayName(link, false) : lookupDisplayName(link); }
+function knowledgeLinkName(kind, link) { return kind === 'companies' ? companyDisplayName(link) : lookupDisplayName(link); }
 function knowledgeLinkPill(kind, link, tag = 'span') {
   const pill = pjMk(tag, 'kh-pill kh-pill-' + (kind === 'companies' ? 'client' : 'system'), knowledgeLinkName(kind, link));
   pill.dataset.userContent = ''; return pill;
