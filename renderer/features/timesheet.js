@@ -184,7 +184,7 @@ function buildTaskGroupCard(g, origIdxOf) {
   if (first.departmentId != null) {
     crumb('Internal', 'Open Internal Work', () => openDepartmentById(Number(first.departmentId)));
   } else if (first.company) {
-    const name = companyDisplayName(first.company, false);
+    const name = companyDisplayName(first.company);
     crumb(name, 'Browse all work for ' + name, () => openBrowseSlice('companies', first.company));
   }
   if (first.system) {
@@ -228,28 +228,13 @@ function buildTaskGroupCard(g, origIdxOf) {
   badge.title = 'Click to change status';
   badge.addEventListener('click', (e) => {
     e.stopPropagation();
-    document.querySelector('.status-dropdown')?.remove();
-    const dropdown = document.createElement('div');
-    dropdown.className = 'status-dropdown';
-    lkOptions('ENTRY_STATUS').forEach(o => {
-      const opt = document.createElement('div');
-      opt.className = 'sd-opt ' + statusSuffix(o.code);
-      opt.dataset.userContent = ''; opt.textContent = lookupDisplayName(o);
-      opt.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        first.status = o.code;
+    openCellMenu(badge,
+      lkOptions('ENTRY_STATUS').map(o => ({ value: o.code, label: lookupDisplayName(o), cls: statusSuffix(o.code) })),
+      first.status, (code) => {
+        first.status = code;
         syncSiblingTasks(first);
-        dropdown.remove();
         renderTable(); setUnsaved();
       });
-      dropdown.appendChild(opt);
-    });
-    const rect = badge.getBoundingClientRect();
-    dropdown.style.top  = (rect.bottom + 4) + 'px';
-    dropdown.style.left = rect.left + 'px';
-    document.body.appendChild(dropdown);
-    const close = () => { dropdown.remove(); document.removeEventListener('click', close); };
-    setTimeout(() => document.addEventListener('click', close), 0);
   });
   stBadgeWrap.appendChild(badge);
   head.appendChild(stBadgeWrap);
@@ -323,16 +308,13 @@ function buildTaskGroupCard(g, origIdxOf) {
     const tr = document.createElement('tr');
     if (activeTimer.rowRef === row) tr.classList.add('timer-running');
 
-    // Time type
-    const timeSpan = document.createElement('span');
-    timeSpan.textContent = lkLabel('TIME_TYPE', row.time) || '—';
-    if (row.time === 'OVERTIME') timeSpan.style.color = 'var(--bad)';
-    const timeTd = cellWrap(timeSpan, 'cell'); timeTd.className = 'tsg-nowrap';
+    // Time type — click to change from a small menu
+    const timeTd = pickCell(row, 'time', 'timeType', 'Click to change time type');
+    if (row.time === 'OVERTIME') timeTd.querySelector('.cell-pick').style.color = 'var(--bad)';
     tr.appendChild(timeTd);
 
     // Natural — per-session, so sessions on the same task can genuinely differ.
-    const naturalTd = textCell(lkLabel('ACTIVITY_TYPE', row.natural) || '—'); naturalTd.className = 'tsg-nowrap';
-    tr.appendChild(naturalTd);
+    tr.appendChild(pickCell(row, 'natural', 'natural', 'Click to change natural'));
 
     // Description
     const descTd = document.createElement('td');
@@ -437,6 +419,98 @@ function buildTaskGroupCard(g, origIdxOf) {
   return card;
 }
 
+// The one anchored pick-one menu behind every click-to-change value in the day
+// view (task status, session time type, session natural). `options` is a list
+// of { value, label, cls }; the current value is ticked, and picking another
+// calls onPick(value). Closes on pick, outside click, Escape or Tab.
+let closeCellMenu = null;
+function openCellMenu(anchor, options, current, onPick) {
+  const reopening = closeCellMenu && closeCellMenu.anchor === anchor;
+  if (closeCellMenu) closeCellMenu();
+  if (reopening) return;   // a second click on the same trigger just closes it
+
+  const menu = document.createElement('div');
+  menu.className = 'status-dropdown'; menu.setAttribute('role', 'menu');
+  const isButton = anchor.tagName === 'BUTTON';
+  const close = () => {
+    menu.remove();
+    document.removeEventListener('click', close);
+    document.removeEventListener('keydown', onKey, true);
+    if (isButton) anchor.setAttribute('aria-expanded', 'false');
+    closeCellMenu = null;
+  };
+  const onKey = (ev) => {
+    const opts = [...menu.children];
+    const at = opts.indexOf(document.activeElement);
+    if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); close(); if (isButton) anchor.focus(); }
+    else if (ev.key === 'Tab') close();
+    else if (ev.key === 'ArrowDown') { ev.preventDefault(); opts[(at + 1) % opts.length].focus(); }
+    else if (ev.key === 'ArrowUp') { ev.preventDefault(); opts[(at - 1 + opts.length) % opts.length].focus(); }
+  };
+  options.forEach(o => {
+    const opt = document.createElement('button');
+    opt.type = 'button'; opt.setAttribute('role', 'menuitemradio');
+    const selected = o.value === current;
+    opt.className = 'sd-opt ' + (o.cls || 'plain') + (selected ? ' selected' : '');
+    opt.setAttribute('aria-checked', String(selected));
+    opt.dataset.userContent = ''; opt.textContent = o.label;
+    opt.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      close();
+      if (!selected) onPick(o.value);
+    });
+    menu.appendChild(opt);
+  });
+  document.body.appendChild(menu);
+
+  // Hang from the anchor's start edge (its right edge in Arabic), flipping
+  // above it and clamping sideways so the menu never leaves the window.
+  const rect = anchor.getBoundingClientRect();
+  const rtl = getComputedStyle(anchor).direction === 'rtl';
+  const left = rtl ? rect.right - menu.offsetWidth : rect.left;
+  let top = rect.bottom + 4;
+  if (top + menu.offsetHeight > window.innerHeight - 8) top = Math.max(8, rect.top - menu.offsetHeight - 4);
+  menu.style.top = top + 'px';
+  menu.style.left = Math.max(8, Math.min(left, window.innerWidth - menu.offsetWidth - 8)) + 'px';
+
+  if (isButton) {
+    anchor.setAttribute('aria-expanded', 'true');
+    (menu.querySelector('.selected') || menu.firstElementChild)?.focus();
+  }
+  closeCellMenu = close; closeCellMenu.anchor = anchor;
+  document.addEventListener('keydown', onKey, true);
+  setTimeout(() => document.addEventListener('click', close), 0);
+}
+
+// A session cell whose lookup value changes in place: the current label plus a
+// chevron, opening openCellMenu() with that catalog's options. `key` is the
+// settings-registry key, which says both the category and the stored form.
+function pickCell(row, field, key, tip) {
+  const category = LK_CAT[key];
+  const valField = LK_VALUE[key] || 'label';
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'cell-pick'; btn.title = tip;
+  btn.setAttribute('aria-haspopup', 'menu'); btn.setAttribute('aria-expanded', 'false');
+  const text = document.createElement('span');
+  text.textContent = lkLabel(category, row[field]) || '—';
+  btn.appendChild(text);
+  btn.insertAdjacentHTML('beforeend', ic('chevron-down'));
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    // A stored value may be either form (code or label), so match the option
+    // it resolves to rather than comparing raw strings.
+    const current = lkFind(category, row[field])?.[valField];
+    openCellMenu(btn,
+      lkOptions(category).map(o => ({ value: o[valField], label: lookupDisplayName(o) })),
+      current, (value) => {
+        row[field] = value;
+        renderTable(); setUnsaved();
+      });
+  });
+  const td = cellWrap(btn, 'cell'); td.className = 'tsg-nowrap';
+  return td;
+}
+
 function cellWrap(el, cls) {
   const td = document.createElement('td');
   const div = document.createElement('div'); div.className = cls;
@@ -451,7 +525,7 @@ function linkCell(val, kind) {
   if (!val) return textCell(val);
   const btn = document.createElement('button');
   btn.className = 'cell-link';
-  btn.textContent = kind === 'companies' ? companyDisplayName(val, false) : lkLabel('SYSTEM', val);
+  btn.textContent = kind === 'companies' ? companyDisplayName(val) : lkLabel('SYSTEM', val);
   btn.title = 'Browse all work for ' + btn.textContent;
   btn.addEventListener('click', () => openBrowseSlice(kind, val));
   return cellWrap(btn, 'cell');
@@ -904,7 +978,6 @@ async function openModal(idx = null, opts = {}) {
     modal.classList.add('mode-existing');
     modal.classList.remove('mode-new');
     document.getElementById('f-mode-toggle-row').style.display = '';
-    document.querySelector('#modal .modal-more').open = false;   // reset closed for a fresh Add
     document.querySelectorAll('#f-mode-toggle .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === 'existing'));
     setModalTaskType('client');   // reset to client work for a fresh Add
     if (!defaults.time) blankSelect('f-time');
@@ -1398,7 +1471,7 @@ function buildDailyReportHTML(srcRows, date, name, sourcesByTaskId) {
     // An internal group has no company/system —
     // print INTERNAL - DEPARTMENT - TASK instead, rather than a blank company.
     const isInternalGroup = g.departmentId != null;
-    const companyTitle = isInternalGroup ? (LK.orgName ? LK.orgName.toUpperCase() : rptText('INTERNAL')) : companyDisplayName(g.company, false).trim();
+    const companyTitle = isInternalGroup ? (LK.orgName ? LK.orgName.toUpperCase() : rptText('INTERNAL')) : companyDisplayName(g.company).trim();
     const projectTitle = isInternalGroup
       ? String(lkLabelById('DEPARTMENT', g.departmentId) || '').trim().toUpperCase()
       : String(lkLabel('SYSTEM', g.system) || '').trim().toUpperCase();
@@ -1715,7 +1788,7 @@ function buildPeriodExcelData(days, kind, periodLabel, name, sourcesByTaskId) {
     const internal = row.departmentId != null;
     const company = internal
       ? (LK.orgName || rptText('INTERNAL'))
-      : companyDisplayName(row.company, false).trim();
+      : companyDisplayName(row.company).trim();
     const container = internal
       ? String(lkLabelById('DEPARTMENT', row.departmentId) || '').trim()
       : String(lkLabel('SYSTEM', row.system) || '').trim();
@@ -1801,7 +1874,7 @@ function buildPeriodReportHTML(days, kind, periodLabel, name, sourcesByTaskId) {
         taskNo++;
         const r = group.row;
         const internal = r.departmentId != null;
-        const company = internal ? (LK.orgName ? LK.orgName.toUpperCase() : rptText('INTERNAL')) : companyDisplayName(r.company, false).trim();
+        const company = internal ? (LK.orgName ? LK.orgName.toUpperCase() : rptText('INTERNAL')) : companyDisplayName(r.company).trim();
         const container = internal ? String(lkLabelById('DEPARTMENT', r.departmentId) || '').trim().toUpperCase() : String(lkLabel('SYSTEM', r.system) || '').trim().toUpperCase();
         let task = String(r.taskName || r.description || '(untitled task)').trim();
         const systemPrefix = String(r.system || '').trim();
@@ -1876,7 +1949,7 @@ function buildOvertimeReportHTML(days, monthLabel, name) {
       <tr>
         <td style="text-align:center">${i + 1}</td>
         <td>${dLabel}</td>
-        <td>${esc(r.departmentId != null ? (LK.orgName || rptText('INTERNAL')) : companyDisplayName(r.company, false))}</td>
+        <td>${esc(r.departmentId != null ? (LK.orgName || rptText('INTERNAL')) : companyDisplayName(r.company))}</td>
         <td>${esc(r.departmentId != null ? lkLabelById('DEPARTMENT', r.departmentId) : lkLabel('SYSTEM', r.system))}</td>
         <td>${esc(r.taskName || lkLabel('ACTIVITY_TYPE', r.natural) || '—')}</td>
         <td>${esc(r.description)}</td>

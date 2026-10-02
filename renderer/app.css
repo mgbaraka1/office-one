@@ -535,12 +535,22 @@
       background: var(--surface); border: 1px solid var(--border);
       border-radius: var(--radius-sm); box-shadow: var(--shadow);
       padding: 4px; display: flex; flex-direction: column; gap: 2px; min-width: 130px;
+      max-height: 280px; overflow-y: auto;
     }
     .status-dropdown .sd-opt {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      background: none; border: 0; font-family: inherit; text-align: start; color: var(--text);
       padding: 5px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
-      cursor: pointer; white-space: nowrap; transition: opacity .1s;
+      cursor: pointer; white-space: nowrap; transition: opacity .1s, background var(--speed);
     }
     .status-dropdown .sd-opt:hover { opacity: .8; }
+    .status-dropdown .sd-opt:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+    .status-dropdown .sd-opt.selected::after { content: '✓'; font-size: 12px; font-weight: 700; }
+    /* Uncoloured options — the time type / natural menus, where no option
+       carries a status colour of its own. */
+    .status-dropdown .sd-opt.plain:hover,
+    .status-dropdown .sd-opt.plain:focus-visible { opacity: 1; background: color-mix(in srgb, var(--primary) 10%, transparent); color: var(--primary); }
+    .status-dropdown .sd-opt.plain.selected { color: var(--primary); }
     .status-dropdown .sd-opt.done     { background: var(--done);   color: var(--done-text); }
     .status-dropdown .sd-opt.progress { background: var(--prog);   color: var(--prog-text); }
     .status-dropdown .sd-opt.open     { background: var(--open);   color: var(--open-text); }
@@ -1268,6 +1278,26 @@
     .cs-identity-preview .cs-identity-value { color: var(--text); font-weight: 600; }
     .cs-identity-preview.bad { color: var(--bad); }
     .cl-item-cred { display: flex; gap: 14px; flex-wrap: wrap; }
+    /* Click-to-copy values on a record card (address, user, host, …): the value
+       reads as text in the stronger colour with a faint copy icon, and lights up
+       on hover. The negative margin cancels the padding so lines stay aligned. */
+    .cl-item-metaline { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
+    .cl-meta-sep { opacity: .6; }
+    .cl-copy-field { display: inline-flex; align-items: center; gap: 4px; white-space: pre; }
+    .cl-copy-val {
+      display: inline-flex; align-items: center; gap: 5px; max-width: 100%;
+      background: none; border: 1px solid transparent; border-radius: 6px;
+      margin: -2px -5px; padding: 1px 4px;
+      font: inherit; color: var(--text); text-align: start; cursor: pointer; white-space: normal;
+      transition: background var(--speed), border-color var(--speed), color var(--speed);
+    }
+    .cl-copy-val > span { overflow-wrap: anywhere; }
+    .cl-copy-val .lic { width: 12px; height: 12px; color: var(--muted); opacity: .55; transition: opacity var(--speed); }
+    .cl-copy-val:hover, .cl-copy-val:focus-visible {
+      background: var(--surface2); border-color: var(--border); color: var(--primary); outline: none;
+    }
+    .cl-copy-val:focus-visible { border-color: var(--primary); }
+    .cl-copy-val:hover .lic, .cl-copy-val:focus-visible .lic { opacity: 1; color: var(--primary); }
     .cl-pw-wrap { display: inline-flex; align-items: center; gap: 4px; }
     .cl-pw-toggle { width: 20px; height: 20px; padding: 2px; }
     .cl-pw-toggle svg { width: 13px; height: 13px; }
@@ -1996,7 +2026,11 @@
     .settings-tabs {
       width: 160px; flex-shrink: 0; border-right: 1px solid var(--border);
       padding: 12px 8px; display: flex; flex-direction: column; gap: 2px;
+      /* The list is longer than a short window: scroll it rather than let the
+         last tabs fall below the clipped edge of .settings-body. */
+      min-height: 0; overflow-y: auto;
     }
+    .settings-tabs > * { flex-shrink: 0; }
     .stab {
       display: flex; align-items: center; gap: 8px;
       padding: 8px 12px; border-radius: 8px; cursor: pointer;
@@ -2042,7 +2076,16 @@
       font-size: 16px; line-height: 1; padding: 0 2px;
       transition: color .12s;
     }
-    .lookup-item-del:hover { color: var(--bad); }
+    .lookup-item-del:hover { color: var(--text); }
+    .lookup-item-del.lookup-item-trash:hover { color: var(--bad); }
+    /* An entry that is in use cannot be deleted: the bin greys out. */
+    .lookup-item-del:disabled { opacity: .3; cursor: not-allowed; color: var(--muted); }
+    .lookup-item-actions { display: flex; align-items: center; gap: 6px; min-height: 24px; }
+    .lookup-item-note { font-size: 11px; font-weight: 600; color: var(--bad); white-space: nowrap; }
+    /* Hidden from dropdowns / queued for delete: the labels dim, the actions don't. */
+    .lookup-item-inactive input { opacity: .5; }
+    .lookup-item-deleting { border-style: dashed; }
+    .lookup-item-deleting input { opacity: .5; text-decoration: line-through; }
     .lookup-item-reorder { display: flex; gap: 2px; }
     .lookup-item-reorder-btn {
       background: none; border: none; cursor: pointer; color: var(--muted);
@@ -2075,7 +2118,7 @@
       .lookup-item.bilingual-lookup-item { grid-template-columns: 1fr auto; }
       .bilingual-lookup-item .client-profile-field { grid-column: 1; }
       .bilingual-lookup-item .lookup-item-reorder { grid-column: 2; grid-row: 1; justify-self: end; }
-      .bilingual-lookup-item .lookup-item-del { grid-column: 2; grid-row: 2; justify-self: end; }
+      .bilingual-lookup-item .lookup-item-actions { grid-column: 2; grid-row: 2; justify-self: end; }
     }
     .client-card-identity, .client-detail-identity { min-width: 0; }
     .client-card-alt, .client-detail-alt { margin-top: 3px; color: var(--muted); font-size: 11px; }
@@ -2638,6 +2681,24 @@
     .tsg-card .tsg-col-num { width: 88px; text-align: end; }
     .tsg-card .tsg-col-actions { width: 132px; }
     .tsg-card td.tsg-nowrap .cell { white-space: nowrap; }
+    /* Click-to-change session value (time type, natural): reads as plain cell
+       text with a faint chevron, and opens the same menu as the status badge.
+       The negative margin cancels the padding so the text stays on the column's
+       start edge, under its header. */
+    .cell-pick {
+      display: inline-flex; align-items: center; gap: 4px; max-width: calc(100% + 14px);
+      background: none; border: 1px solid transparent; border-radius: 6px;
+      margin: -3px -7px; padding: 2px 6px;
+      font: inherit; color: inherit; cursor: pointer;
+      transition: background var(--speed), border-color var(--speed);
+    }
+    .cell-pick > span { overflow: hidden; text-overflow: ellipsis; }
+    .cell-pick .lic { width: 12px; height: 12px; color: var(--muted); opacity: .55; transition: opacity var(--speed); }
+    .cell-pick:hover, .cell-pick:focus-visible, .cell-pick[aria-expanded="true"] {
+      background: var(--surface2); border-color: var(--border); outline: none;
+    }
+    .cell-pick:focus-visible { border-color: var(--primary); }
+    .cell-pick:hover .lic, .cell-pick[aria-expanded="true"] .lic { opacity: 1; }
     /* Row actions sit at the end edge, under the header's "+ Session", with
        room between the icons so the delete button is not a neighbour's slip. */
     .tsg-card .row-actions { gap: var(--space-2); justify-content: flex-end; width: 100%; }
@@ -2730,9 +2791,8 @@
     .modal-tasksection-divider {
       border: none; border-top: 1px solid var(--border); margin: 2px 0 -6px;
     }
-    /* "More options" collapse (Milestone 10) — Project link + Sources on the
-       Add Record modal's New Task branch, closed by default so the common
-       case (Company/System/Status/Description) reads as a short form. */
+    /* Collapsed "advanced details" block in a modal (client VPN / internal
+       system editors) — closed by default so the common case stays short. */
     .modal-more {
       display: flex; flex-direction: column; gap: 15px;
       border-top: 1px dashed var(--border); padding-top: 14px; margin-top: -2px;

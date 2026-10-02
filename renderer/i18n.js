@@ -23,9 +23,9 @@
     'Your password was set by an administrator. Choose a new one to continue.': 'كلمة المرور الخاصة بك حدّدها المسؤول. اختر كلمة مرور جديدة للمتابعة.',
     'Change password': 'تغيير كلمة المرور', 'New password': 'كلمة المرور الجديدة',
     'Could not change password.': 'تعذّر تغيير كلمة المرور.', 'Must change password': 'يجب تغيير كلمة المرور',
-    'Track': 'التتبع', 'Today': 'اليوم', 'Tasks': 'المهام', 'Clients & Assets': 'العملاء والأصول',
+    'Today': 'اليوم', 'Tasks': 'المهام', 'External': 'خارجي',
     'Clients': 'العملاء', 'Subscriptions': 'الاشتراكات', 'Company Docs': 'مستندات الشركة',
-    'Company Documents': 'مستندات الشركة', 'Knowledge Hub': 'مركز المعرفة', 'Review': 'المراجعة',
+    'Company Documents': 'مستندات الشركة', 'Knowledge Hub': 'مركز المعرفة',
     'Overview': 'نظرة عامة', 'Reports': 'التقارير', 'Administration': 'الإدارة', 'Settings': 'الإعدادات',
     'Quick Find': 'البحث السريع', 'View & Comfort': 'العرض والراحة',
     'Dark Mode': 'الوضع الداكن', 'Light Mode': 'الوضع الفاتح', 'Backup Data': 'نسخ البيانات احتياطياً',
@@ -51,7 +51,7 @@
     'Task Details': 'تفاصيل المهمة', 'New Task Details': 'تفاصيل المهمة الجديدة', 'Task Name': 'اسم المهمة',
     'Task History': 'سجل المهمة', 'View task history': 'عرض سجل المهمة',
     'Task Type': 'نوع المهمة', 'All Tasks': 'كل المهام', 'Internal': 'داخلي', 'INTERNAL': 'داخلي', 'Sources': 'المصادر',
-    '+ Add Source': '+ إضافة مصدر', 'More options': 'خيارات إضافية', 'Advanced details': 'تفاصيل متقدمة',
+    '+ Add Source': '+ إضافة مصدر', 'Advanced details': 'تفاصيل متقدمة',
     // Client/Internal domain separation (migration 053, 2026-08)
     'Client Tasks': 'مهام العملاء', 'Internal Work': 'العمل الداخلي',
     'By Department': 'حسب القسم', 'All Internal': 'كل الأعمال الداخلية',
@@ -391,7 +391,7 @@
     'Analytics — {label}': 'التحليلات — {label}', 'generated {date}': 'أُنشئ في {date}',
     'in {days} days': 'خلال {days} يوم', 'Overdue by {days} days': 'متأخر منذ {days} يوم',
     'minutes': 'دقائق', 'on the selected day': 'في اليوم المحدد',
-    '— defaults to the description': '— يستخدم الوصف افتراضياً', '— Project link, Sources': '— رابط المشروع والمصادر',
+    '— defaults to the description': '— يستخدم الوصف افتراضياً',
     '— optional, link this task to a project': '— اختياري، اربط هذه المهمة بمشروع',
     '— optional, e.g. Jira tickets, email threads': '— اختياري، مثل تذاكر Jira ومحادثات البريد',
     '— the day this session was worked': '— اليوم الذي نُفذت فيه هذه الجلسة',
@@ -413,7 +413,7 @@
     'is the durable thing — its name, company/system, and status.': 'هي العمل الدائم بحد ذاته: اسمه وشركته / نظامه وحالته.',
     'Click its chip in the': 'انقر على شريحته في قسم',
     'strip at the top of Timesheet → fill in Time Type, Natural, Minutes → Save.': 'أعلى سجل الدوام ← أدخل نوع الوقت وطبيعة العمل والدقائق ← حفظ.',
-    '→ Company, System, Status, Description → Save. Project link and Sources are optional — tucked under': '← الشركة والنظام والحالة والوصف ← حفظ. رابط المشروع والمصادر اختياريان وموجودان ضمن',
+    '→ Company, System, Status, Description → Save. Project link and Sources are optional.': '← الشركة والنظام والحالة والوصف ← حفظ. رابط المشروع والمصادر اختياريان.',
     'Click the': 'انقر زر',
     'button on its row or card — no dropdown, no modal. Sets it Done immediately (undoable).': 'في صفه أو بطاقته، دون قائمة أو نافذة. سيُضبط كمكتمل فوراً مع إمكانية التراجع.'
   };
@@ -470,6 +470,7 @@
 
     'Close dialog': 'إغلاق النافذة', 'All types': 'كل الأنواع', 'Open this day in the Timesheet': 'فتح هذا اليوم في سجل الدوام',
     'Click to rename this task': 'انقر لإعادة تسمية المهمة', 'Click to change status': 'انقر لتغيير الحالة',
+    'Click to change time type': 'انقر لتغيير نوع الوقت', 'Click to change natural': 'انقر لتغيير طبيعة العمل',
     'Click to edit minutes': 'انقر لتعديل الدقائق', 'Click to copy': 'انقر للنسخ', 'Mark done': 'تحديد كمكتمل',
     'View task details': 'عرض تفاصيل المهمة', 'Log another session on this task': 'تسجيل جلسة أخرى على هذه المهمة',
     'Log a new session against this task': 'تسجيل جلسة جديدة على هذه المهمة',
@@ -652,6 +653,9 @@
     'Problems found:': 'مشكلات تم العثور عليها:', 'Pages and actions ready': 'الصفحات والإجراءات جاهزة',
     'new entry': 'قيد جديد', 'English label': 'التسمية بالإنجليزية', 'Re-enable': 'إعادة التفعيل',
     'Move up': 'نقل لأعلى', 'Move down': 'نقل لأسفل',
+    'Delete permanently': 'حذف نهائي', 'In use — cannot be deleted': 'مستخدم — لا يمكن حذفه',
+    'Undo delete': 'تراجع عن الحذف',
+    'Deleted on save': 'يُحذف عند الحفظ',
     'Disable (hide from dropdowns)': 'تعطيل (إخفاء من القوائم المنسدلة)', 'e.g. ACME or 105': 'مثال: ACME أو 105',
     'No documents or written content yet': 'لا توجد مستندات أو محتوى مكتوب بعد',
     'Written knowledge item': 'عنصر معرفة مكتوب', 'Session': 'جلسة', 'Types': 'الأنواع',
@@ -714,6 +718,7 @@
     'Internal system deleted': 'تم حذف النظام الداخلي',
     'That System / Role / Environment is already taken.': 'هذا النظام / الدور / البيئة مستخدم بالفعل.',
     'Password:': 'كلمة المرور:', 'Secret Key:': 'المفتاح السري:',
+    'User:': 'المستخدم:', 'Company Code:': 'رمز الشركة:', 'Credential location:': 'موقع بيانات الدخول:',
     // Shell: command palette, close/logout guards, and the account chip.
     'Save failed': 'فشل الحفظ', 'Account': 'حساب',
     'Close cancelled — your unsaved changes are still open.':

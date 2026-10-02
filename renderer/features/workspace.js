@@ -53,7 +53,7 @@ function renderCatList(kind) {
   const q = (document.getElementById(kind + '-search').value || '').trim().toLowerCase();
   const wrap = document.getElementById(kind + '-list');
   wrap.innerHTML = '';
-  const displayName = value => kind === 'companies' ? companyDisplayName(value, false) : lkLabel('SYSTEM', value);
+  const displayName = value => kind === 'companies' ? companyDisplayName(value) : lkLabel('SYSTEM', value);
   const items = q ? st.list.filter(x =>
     [x.name, displayName(x.name)].some(value => String(value || '').toLowerCase().includes(q))) : st.list;
   if (!items.length) {
@@ -110,7 +110,7 @@ function renderCatRecords(kind) {
 
   const head = document.createElement('div'); head.className = 'cp-records-head';
   const title = document.createElement('h2'); title.className = 'cp-records-title';
-  title.textContent = kind === 'companies' ? companyDisplayName(st.selected, false) : lkLabel('SYSTEM', st.selected);
+  title.textContent = kind === 'companies' ? companyDisplayName(st.selected) : lkLabel('SYSTEM', st.selected);
   head.appendChild(title);
   host.appendChild(head);
 
@@ -766,7 +766,7 @@ async function renderAnalytics() {
 // which has no page to click into anymore) renders plain, non-clickable bars.
 function renderAnBars(elId, map, subId, linkKind) {
   const items = Object.entries(map).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
-  const visibleLabel = key => linkKind === 'companies' ? companyDisplayName(key, false)
+  const visibleLabel = key => linkKind === 'companies' ? companyDisplayName(key)
     : linkKind === 'systems' ? lkLabel('SYSTEM', key)
     : linkKind === 'department' ? lkLabel('DEPARTMENT', key)
     : key;

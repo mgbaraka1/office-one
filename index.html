@@ -73,26 +73,22 @@
     <span data-ic="search"></span><span class="nav-label">Quick Find</span><span class="quickfind-key" aria-hidden="true">Ctrl K</span>
   </button>
   <nav class="sidebar-nav" aria-label="Primary navigation">
-    <!-- Overview is the default landing page and the surface every other module
-         eventually reports back into, so it sits above the sectioned list rather
-         than inside Review. -->
+    <!-- Pages that cover both sides of the work sit above the two groups:
+         Overview (the landing page everything reports into), Today (one
+         timesheet for client and internal sessions alike) and Reports. -->
     <button class="nav-item active" data-module="analytics" data-onclick="switchModule('analytics')" title="Overview">
       <span class="nav-icon" data-ic="layout-dashboard"></span><span class="nav-label">Overview</span>
     </button>
-    <div class="nav-section">Track</div>
     <button class="nav-item" data-module="timesheet" data-onclick="switchModule('timesheet')" title="Today — Timesheet">
       <span class="nav-icon" data-ic="clock"></span><span class="nav-label">Today</span>
     </button>
-    <button class="nav-item" data-module="all-tasks" data-onclick="switchModule('all-tasks')" title="Client Tasks">
-      <span class="nav-icon" data-ic="list"></span><span class="nav-label">Client Tasks</span>
+    <button class="nav-item" data-module="reports" data-onclick="switchModule('reports')" title="Reports">
+      <span class="nav-icon" data-ic="file-text"></span><span class="nav-label">Reports</span>
     </button>
+    <!-- Internal: the company's own work and assets. -->
     <div class="nav-section">Internal</div>
     <button class="nav-item" data-module="internal-tasks" data-onclick="switchModule('internal-tasks')" title="Internal Work">
       <span class="nav-icon" data-ic="building"></span><span class="nav-label">Internal Work</span>
-    </button>
-    <div class="nav-section">Clients &amp; Assets</div>
-    <button class="nav-item" data-module="clients" data-onclick="switchModule('clients')" title="Clients">
-      <span class="nav-icon" data-ic="layers"></span><span class="nav-label">Clients</span><span class="nav-badge" id="nav-badge-clients"></span>
     </button>
     <button class="nav-item" data-module="subscriptions" data-onclick="switchModule('subscriptions')" title="Subscriptions">
       <span class="nav-icon" data-ic="credit-card"></span><span class="nav-label">Subscriptions</span><span class="nav-badge" id="nav-badge-subscriptions"></span>
@@ -100,18 +96,22 @@
     <button class="nav-item" data-module="companydocs" data-onclick="switchModule('companydocs')" title="Company Documents">
       <span class="nav-icon" data-ic="calendar-check"></span><span class="nav-label">Company Docs</span><span class="nav-badge" id="nav-badge-companydocs"></span>
     </button>
+    <button class="nav-item" data-module="knowledge" data-onclick="switchModule('knowledge')" title="Knowledge Hub">
+      <span class="nav-icon" data-ic="book-open"></span><span class="nav-label">Knowledge Hub</span><span class="nav-badge" id="nav-badge-knowledge"></span>
+    </button>
+    <!-- External: clients and everyone else outside the company. -->
+    <div class="nav-section">External</div>
+    <button class="nav-item" data-module="clients" data-onclick="switchModule('clients')" title="Clients">
+      <span class="nav-icon" data-ic="layers"></span><span class="nav-label">Clients</span><span class="nav-badge" id="nav-badge-clients"></span>
+    </button>
+    <button class="nav-item" data-module="all-tasks" data-onclick="switchModule('all-tasks')" title="Client Tasks">
+      <span class="nav-icon" data-ic="list"></span><span class="nav-label">Client Tasks</span>
+    </button>
     <button class="nav-item" data-module="pfm" data-onclick="switchModule('pfm')" title="Project &amp; Finance">
       <span class="nav-icon" data-ic="briefcase"></span><span class="nav-label">Project &amp; Finance</span><span class="nav-badge" id="nav-badge-pfm"></span>
     </button>
     <button class="nav-item" data-module="outsource" data-onclick="switchModule('outsource')" title="Outsource">
       <span class="nav-icon" data-ic="users"></span><span class="nav-label">Outsource</span><span class="nav-badge" id="nav-badge-outsource"></span>
-    </button>
-    <button class="nav-item" data-module="knowledge" data-onclick="switchModule('knowledge')" title="Knowledge Hub">
-      <span class="nav-icon" data-ic="book-open"></span><span class="nav-label">Knowledge Hub</span><span class="nav-badge" id="nav-badge-knowledge"></span>
-    </button>
-    <div class="nav-section">Review</div>
-    <button class="nav-item" data-module="reports" data-onclick="switchModule('reports')" title="Reports">
-      <span class="nav-icon" data-ic="file-text"></span><span class="nav-label">Reports</span>
     </button>
   </nav>
   <div class="sidebar-footer">
@@ -519,27 +519,23 @@
             <select id="f-status"></select>
           </div>
         </div>
-        <!-- Milestone 10 — Project link and Sources are the two least-used fields on
-             the brand-new-task path; collapsed by default so the common case (Company/
-             System/Status/Description) reads as a short form, not a long one. Native
-             <details> — no JS needed to open/close, and it degrades gracefully. -->
-        <details class="modal-more">
-          <summary>More options <span class="modal-more-hint">— Project link, Sources</span></summary>
-          <div class="form-row" id="f-project-row">
-            <div class="form-group full">
-              <label>Project <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional, link this task to a project</span></label>
-              <div id="f-project"></div>
-            </div>
+        <!-- Project link and Sources are optional but always visible — direct
+             children of the section, so they pick up its flex gap like every
+             other row. -->
+        <div class="form-row" id="f-project-row">
+          <div class="form-group full">
+            <label>Project <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional, link this task to a project</span></label>
+            <div id="f-project"></div>
           </div>
-          <hr class="modal-tasksection-divider" />
-          <div class="modal-tasksection-head"><span data-ic="tag"></span>Sources <span style="text-transform:none;font-weight:500;letter-spacing:normal">— optional, e.g. Jira tickets, email threads</span></div>
-          <div class="form-row">
-            <div class="form-group full">
-              <div id="f-sources-list"></div>
-              <button type="button" class="btn" data-onclick="addTaskSourceRow('f-sources-list')">+ Add Source</button>
-            </div>
+        </div>
+        <hr class="modal-tasksection-divider" />
+        <div class="modal-tasksection-head"><span data-ic="tag"></span>Sources <span style="text-transform:none;font-weight:500;letter-spacing:normal">— optional, e.g. Jira tickets, email threads</span></div>
+        <div class="form-row">
+          <div class="form-group full">
+            <div id="f-sources-list"></div>
+            <button type="button" class="btn" data-onclick="addTaskSourceRow('f-sources-list')">+ Add Source</button>
           </div>
-        </details>
+        </div>
       </div>
       <!-- Session-level fields — always editable, in both Existing Task and New Task modes. -->
       <div class="modal-tasksection">
@@ -2498,7 +2494,7 @@
         </div>
         <div class="howthinks-journey">
           <div class="howthinks-journey-title"><span data-ic="plus"></span>Start brand-new client/system work</div>
-          <div class="howthinks-journey-path"><b>+ Add Record</b> → <b>New Task</b> → Company, System, Status, Description → Save. Project link and Sources are optional — tucked under <b>More options</b>.</div>
+          <div class="howthinks-journey-path"><b>+ Add Record</b> → <b>New Task</b> → Company, System, Status, Description → Save. Project link and Sources are optional.</div>
         </div>
         <div class="howthinks-journey">
           <div class="howthinks-journey-title"><span data-ic="check"></span>Wrap up something you finished</div>

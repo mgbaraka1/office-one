@@ -64,6 +64,7 @@ const ICONS = {
   "command": "<path d=\"M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3\" />",
   "arrow-right": "<path d=\"M5 12h14\" /><path d=\"m12 5 7 7-7 7\" />",
   "eye": "<path d=\"M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0\" /><circle cx=\"12\" cy=\"12\" r=\"3\" />",
+  "eye-off": "<path d=\"M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49\" /><path d=\"M14.084 14.158a3 3 0 0 1-4.242-4.242\" /><path d=\"M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143\" /><path d=\"m2 2 20 20\" />",
   "circle": "<circle cx=\"12\" cy=\"12\" r=\"10\" />",
   "ban": "<circle cx=\"12\" cy=\"12\" r=\"10\" /><path d=\"m4.9 4.9 14.2 14.2\" />",
   "lock": "<rect width=\"18\" height=\"11\" x=\"3\" y=\"11\" rx=\"2\" ry=\"2\" /><path d=\"M7 11V7a5 5 0 0 1 10 0v4\" />",
@@ -350,7 +351,10 @@ function companyProfileOption(value) {
   return (LK.categories.COMPANY || []).find(o =>
     o.code === value || o.label === value || o.nameEn === value || o.nameAr === value) || null;
 }
-function companyDisplayName(company, includeCode = true) {
+// A client's name in the current language — never its business code, which is
+// shown only on the client's own profile. The code is the last-resort fallback
+// for a client with no name at all, so a row never renders blank.
+function companyDisplayName(company) {
   const direct = typeof company === 'object' && company ? {
     ...company,
     code: company.code || company.companyCode,
@@ -361,8 +365,7 @@ function companyDisplayName(company, includeCode = true) {
   const o = direct || companyProfileOption(company);
   if (!o) return typeof company === 'string' ? company : '';
   const arabic = window.ctI18n?.getLanguage?.() === 'ar';
-  const name = (arabic ? o.nameAr : o.nameEn) || o.nameEn || o.label || o.nameAr || '';
-  return includeCode && o.code ? `${o.code} — ${name}` : name;
+  return (arabic ? o.nameAr : o.nameEn) || o.nameEn || o.label || o.nameAr || o.code || '';
 }
 // Stored FK id (e.g. a task's departmentId) → human label, matched by the
 // catalog's own numeric id — unlike lkFind/lkLabel above, which match a
@@ -370,7 +373,7 @@ function companyDisplayName(company, includeCode = true) {
 function lkLabelById(category, id) {
   if (id == null) return '';
   const o = (LK.categories[category] || []).find(x => Number(x.id) === Number(id));
-  return o ? (category === 'COMPANY' ? companyDisplayName(o, false) : lookupDisplayName(o)) : '';
+  return o ? (category === 'COMPANY' ? companyDisplayName(o) : lookupDisplayName(o)) : '';
 }
 
 // ── Timer state ──
@@ -1086,7 +1089,8 @@ function buildTaskSearchSelect(host, tasks, initialId, placeholder, onChange) {
 // ── Settings (lookup catalog editor) ──
 // The tabs edit a working copy of the catalog (lookupsDraft, keyed by category).
 // Existing entries are relabeled / reordered / soft-disabled in place; new entries
-// get a server-generated stable code on save. Codes are never edited or deleted.
+// get a server-generated stable code on save. Codes are never edited; an entry
+// can be deleted for good only while no record or setting uses it.
 // Only the categories that actually have a Settings panel. COMPANY is in the
 // registry (LK_CAT and the merge list still need it) but is managed on the
 // Clients page, so it is filtered out here — which also keeps it out of
@@ -1126,6 +1130,27 @@ async function initSettingsModule() {
     const status = await window.api.getCredentialEncryptionStatus();
     document.getElementById('credential-encryption-banner').style.display = status.available ? 'none' : '';
   } catch { /* non-critical — banner just stays hidden */ }
+  refreshLookupUsage();
+}
+
+// LK is loaded at boot, so its inUse flags go stale as records are added and
+// removed elsewhere. Re-read them each time Settings opens and redraw only if
+// one actually changed, so an edit in progress is never interrupted for nothing.
+// Runs after the panels are drawn rather than before, so it cannot delay — or
+// reorder against — a deep link that switches tab right after init.
+async function refreshLookupUsage() {
+  let fresh;
+  try { fresh = await window.api.loadLookups(); } catch { return; }
+  const inUseById = new Map(Object.values(fresh.categories || {}).flat().map(o => [o.id, !!o.inUse]));
+  let changed = false;
+  [LK.categories, lookupsDraft].forEach(catalog => Object.values(catalog || {}).flat().forEach(o => {
+    if (o.id == null || !inUseById.has(o.id) || !!o.inUse === inUseById.get(o.id)) return;
+    o.inUse = inUseById.get(o.id);
+    // A delete queued before the entry came into use can no longer succeed.
+    if (o.inUse) o.pendingDelete = false;
+    changed = true;
+  }));
+  if (changed) SETTINGS_TABS.forEach(renderLookupPanel);
 }
 
 // Milestone 11 — persists immediately (like Maintenance's own actions), no
@@ -1151,6 +1176,8 @@ const SKIP_REASON_LABEL = {
   'blank-label': 'missing an English label',
   'duplicate-label': 'duplicates another entry’s label',
   'no-access': 'could not be saved (not accessible)',
+  'in-use': 'is in use, so it was not deleted',
+  'not-deletable': 'cannot be deleted here',
 };
 
 async function saveSettings() {
@@ -1166,6 +1193,7 @@ async function saveSettings() {
   for (const uiKey of SETTINGS_TABS) {
     const cat = LK_CAT[uiKey];
     categories[cat] = (lookupsDraft[cat] || [])
+      .filter(o => !o.pendingDelete)
       .map((o, i) => ({
         id: o.id ?? null, code: o.code,
         label: String(o.label || o.nameEn || '').trim(),
@@ -1177,6 +1205,10 @@ async function saveSettings() {
   }
   const payload = {};
   payload.categories = categories;
+  // Entries marked for permanent delete. The server re-checks each one and
+  // reports any that turned out to be in use as skipped, leaving it in place.
+  payload.deleted = SETTINGS_TABS.flatMap(uiKey => (lookupsDraft[LK_CAT[uiKey]] || [])
+    .filter(o => o.pendingDelete && o.id != null).map(o => o.id));
   let result;
   try {
     result = await window.api.saveLookups(payload);
@@ -1749,7 +1781,8 @@ function renderLookupPanel(uiKey) {
 
   arr.forEach((opt, i) => {
     const item = document.createElement('div');
-    item.className = 'lookup-item bilingual-lookup-item' + (opt.isActive === false ? ' lookup-item-inactive' : '');
+    item.className = 'lookup-item bilingual-lookup-item' + (opt.isActive === false ? ' lookup-item-inactive' : '')
+      + (opt.pendingDelete ? ' lookup-item-deleting' : '');
 
     const field = (label, value, placeholder, onInput, dir) => {
       const wrap = document.createElement('label'); wrap.className = 'client-profile-field';
@@ -1757,6 +1790,7 @@ function renderLookupPanel(uiKey) {
       const input = document.createElement('input'); input.type = 'text'; input.value = value || ''; input.placeholder = placeholder;
       input.title = opt.code ? 'code: ' + opt.code : 'new entry';
       input.dir = dir;
+      input.disabled = !!opt.pendingDelete;
       input.addEventListener('input', e => { onInput(e.target.value); markSettingsDirty(); }); wrap.appendChild(input);
       return wrap;
     };
@@ -1767,20 +1801,46 @@ function renderLookupPanel(uiKey) {
 
     item.appendChild(buildReorderControls(arr, i, redraw));
 
-    // Existing entries soft-disable (codes are immutable — historical rows point at
-    // them); never-saved new entries are simply dropped.
-    const del = document.createElement('button');
-    del.className = 'lookup-item-del';
-    del.innerHTML = opt.isActive === false ? ic('rotate-ccw') : ic('x');
-    del.title = opt.id == null ? 'Remove' : (opt.isActive === false ? 'Re-enable' : 'Disable (hide from dropdowns)');
-    del.addEventListener('click', () => {
-      if (opt.id == null) arr.splice(i, 1);
-      else opt.isActive = opt.isActive === false;
-      markSettingsDirty();
-      redraw();
-    });
+    const acts = document.createElement('div');
+    acts.className = 'lookup-item-actions';
+    const actBtn = (icon, title, onClick) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'lookup-item-del'; b.innerHTML = ic(icon); b.title = title;
+      b.addEventListener('click', onClick);
+      return b;
+    };
+    const change = (fn) => () => { fn(); markSettingsDirty(); redraw(); };
+    const drawActs = () => {
+      acts.innerHTML = '';
+      if (opt.pendingDelete) {
+        // Marked for delete: nothing is removed until Save, and this puts it back.
+        const note = document.createElement('span');
+        note.className = 'lookup-item-note'; note.textContent = 'Deleted on save';
+        acts.appendChild(note);
+        acts.appendChild(actBtn('rotate-ccw', 'Undo delete', change(() => { opt.pendingDelete = false; })));
+        return;
+      }
+      if (opt.id == null) {
+        // A never-saved entry is simply dropped.
+        acts.appendChild(actBtn('x', 'Remove', change(() => { arr.splice(i, 1); })));
+        return;
+      }
+      // Soft-disable keeps the entry on the records that use it, but hides it
+      // from dropdowns — the only way to retire an entry that is in use.
+      acts.appendChild(opt.isActive === false
+        ? actBtn('eye', 'Re-enable', change(() => { opt.isActive = true; }))
+        : actBtn('eye-off', 'Disable (hide from dropdowns)', change(() => { opt.isActive = false; })));
+      // Permanent delete — only while no record or setting uses the entry.
+      // The server re-checks.
+      const trash = actBtn('trash-2', 'Delete permanently', () => showDeleteConfirm(acts,
+        change(() => { opt.pendingDelete = true; }), drawActs));
+      trash.classList.add('lookup-item-trash');
+      if (opt.inUse) { trash.disabled = true; trash.title = 'In use — cannot be deleted'; }
+      acts.appendChild(trash);
+    };
+    drawActs();
 
-    item.appendChild(del);
+    item.appendChild(acts);
     list.appendChild(item);
   });
 

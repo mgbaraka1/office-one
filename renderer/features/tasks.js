@@ -407,7 +407,7 @@ async function openTaskHistoryModal(taskId, title) {
     row.appendChild(head);
     const diff = pjMk('div', 'cl-history-diff');
     const category = { Status: 'ENTRY_STATUS', System: 'SYSTEM', Department: 'DEPARTMENT' }[r.fieldName];
-    const shown = value => r.fieldName === 'Company' && value ? companyDisplayName(value, false)
+    const shown = value => r.fieldName === 'Company' && value ? companyDisplayName(value)
       : category && value ? lkLabel(category, value) : value;
     diff.appendChild(pjMk('span', 'cl-history-old', shown(r.oldValue) || '(empty)'));
     diff.appendChild(pjMk('span', 'cl-history-arrow', '→'));
@@ -891,7 +891,7 @@ function renderProjectDetail(p) {
     const clientSep = pjMk('span', 'pj-crumb-sep');
     clientSep.innerHTML = ic('chevron-right');
     crumbs.appendChild(clientSep);
-    const crumbClient = pjMk('button', 'pj-crumb-link', companyDisplayName(primaryCompany, false));
+    const crumbClient = pjMk('button', 'pj-crumb-link', companyDisplayName(primaryCompany));
     crumbClient.addEventListener('click', () => {
       switchModule('clients');
       openClientDetail(primaryCompany.id);
@@ -941,7 +941,7 @@ function renderProjectDetail(p) {
     if ((items || []).length) {
       const pills = pjMk('div', 'pj-pills');
       items.forEach(it => {
-        const visible = kind === 'companies' ? companyDisplayName(it, false)
+        const visible = kind === 'companies' ? companyDisplayName(it)
           : (lkLabelById('SYSTEM', it.id) || lkLabel('SYSTEM', it.label));
         const b = pjMk('button', 'pj-pill cell-link', visible);
         b.title = 'Browse all work for ' + visible;

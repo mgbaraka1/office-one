@@ -174,7 +174,15 @@ one of the categories in `db.js`'s `LOOKUP_CATEGORIES`.
 - The table is **global**. `lookup_code_user_access` rows make a specific lookup
   private to listed users; a lookup with no access rows is a normal shared option.
 - Compare on the stable `code`; render the `label`/localized name.
-  **Soft-disable (`is_active = 0`), never delete a code in use.**
+  **Soft-disable (`is_active = 0`), never delete a code in use.** Settings can
+  delete an entry for good only while nothing uses it: `lookupUsageCounts()`
+  counts every non-CASCADE foreign key into `lookup_codes` (read from the schema,
+  so a new table is covered automatically) plus the text columns and settings in
+  `LOOKUP_TEXT_REFERENCES` — **a new column that stores a lookup code as text
+  must be added there**. Unused is the only condition: a seeded code the app's
+  logic names (`DONE`, `OVERTIME`, `USD`…) is deletable too once nothing
+  references it. Clients are not deleted this way (archive them on the Clients
+  page). `saveLookups` re-checks on save; `test/lookup-delete-smoke.js` covers each refusal.
 - **A `code` is write-once, for every category.** It is the identity every task,
   project, invoice and infrastructure row is filed under.
 - `lookupLabelKey()` is the single definition of "same label" (trim + lowercase,
@@ -418,22 +426,24 @@ replacement files before closing SQLite.
 
 ## 7. Pages & navigation
 
-Sidebar (`switchModule(name)` toggles `#module-<name>`). `analytics` leads the
-list ungrouped — it is the landing page everything else reports into:
+Sidebar (`switchModule(name)` toggles `#module-<name>`). Pages that cover both
+sides of the work lead the list ungrouped; everything else is filed under
+**Internal** (the company's own work and assets) or **External** (clients and
+other outside parties):
 
 | Group | Module | Page |
 |---|---|---|
 | *(ungrouped, first)* | `analytics` | **Overview** (default landing page) |
-| Track | `timesheet` | **Today** — the daily timesheet |
-| | `all-tasks` | **Client Tasks** |
+| | `timesheet` | **Today** — the daily timesheet, client and internal sessions alike |
+| | `reports` | **Reports** |
 | Internal | `internal-tasks` | **Internal Work** (by department) |
-| Clients & Assets | `clients` | **Clients** |
 | | `subscriptions` | **Subscriptions** |
 | | `companydocs` | **Company Docs** |
+| | `knowledge` | **Knowledge Hub** |
+| External | `clients` | **Clients** |
+| | `all-tasks` | **Client Tasks** |
 | | `pfm` | **Project & Finance** — Offers & CRs |
 | | `outsource` | **Outsource** — external resources, their projects, hours, rates and statements |
-| | `knowledge` | **Knowledge Hub** |
-| Review | `reports` | **Reports** |
 
 Above `.sidebar-nav` sit the brand row — the app icon inlined as SVG in
 `.brand-mark`, the same artwork as `build/icon.svg`, so the two must be kept in
