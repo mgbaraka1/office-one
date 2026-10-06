@@ -122,6 +122,7 @@ const SIGNATURES = {
   'pfm:file-restore': ['id'],
   'pfm:file-purge': ['id'],
   'pfm:export-xlsx': ['object', 'string'],
+  'pfm:export-zip': ['object', 'array', 'string'],
   'outs:list': ['object?'],
   'outs:get': ['id'],
   'outs:create': ['object'],
@@ -281,7 +282,7 @@ function validateIpcArgs(channel, args) {
     if (Buffer.byteLength(args[0], 'utf8') > 10 * 1024 * 1024) throw new Error('Report content is too large');
   } else if (channel === 'report:zipAddPDF') {
     if (Buffer.byteLength(args[1], 'utf8') > 10 * 1024 * 1024) throw new Error('Report content is too large');
-  } else if (channel === 'report:exportExcel' || channel === 'pfm:export-xlsx' || channel === 'outs:export-xlsx') {
+  } else if (channel === 'report:exportExcel' || channel === 'pfm:export-xlsx' || channel === 'pfm:export-zip' || channel === 'outs:export-xlsx') {
     if (Buffer.byteLength(JSON.stringify(args[0]), 'utf8') > 10 * 1024 * 1024) throw new Error('Report content is too large');
   } else {
     for (const arg of args) {

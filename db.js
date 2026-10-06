@@ -5614,17 +5614,34 @@ function listPfmItems(userId, filters = {}) {
     where.push('i.status_id = ?'); params.push(statusId);
   }
   if (!filters.includeArchived) where.push('i.archived_at IS NULL');
-  const stageMember = db.prepare('SELECT member_name FROM pfm_stages WHERE item_id = ? AND status_id = ?');
+  const currentStage = db.prepare('SELECT member_name, note, done_on FROM pfm_stages WHERE item_id = ? AND status_id = ?');
+  const openStages = db.prepare(
+    "SELECT status_id, member_name, note FROM pfm_stages WHERE item_id = ? AND done_on IS NULL AND (member_name <> '' OR note <> '')"
+  );
+  // The next thing someone has to do: the first stage from the current status
+  // on that is not done yet but already has a person or a note.
+  const nextStep = r => {
+    const from = pfmStatusOrder(r.status_id);
+    const s = openStages.all(r.id).filter(x => pfmStatusOrder(x.status_id) >= from)
+      .sort((a, b) => pfmStatusOrder(a.status_id) - pfmStatusOrder(b.status_id))[0];
+    return s ? { status: lk().idTo.get(s.status_id)?.code || '', memberName: s.member_name || '', note: s.note || '' } : null;
+  };
   const needle = lookupLabelKey(filters.search);
   return db.prepare(
     `SELECT i.* FROM pfm_items i WHERE ${where.join(' AND ')} ORDER BY i.updated_at DESC, i.id DESC`
   ).all(...params)
     .filter(r => !needle || [r.reference, r.title, lkLabel(r.company_id), r.client_contact_name]
       .some(v => lookupLabelKey(v).includes(needle)))
-    .map(r => pfmItemToApi(r, {
-      currentVersion: pfmCurrentVersion(r.id),
-      currentMember: stageMember.get(r.id, r.status_id)?.member_name || '',
-    }));
+    .map(r => {
+      const stage = currentStage.get(r.id, r.status_id);
+      return pfmItemToApi(r, {
+        currentVersion: pfmCurrentVersion(r.id),
+        currentMember: stage?.member_name || '',
+        currentNote: stage?.note || '',
+        currentDone: !!stage?.done_on,
+        nextStep: nextStep(r),
+      });
+    });
 }
 
 // Full detail: the item, its stages (in catalog order) and its versions
@@ -5731,8 +5748,34 @@ function pfmUpsertStage(userId, itemId, statusId, data, now) {
   ).run(itemId, statusId, next.member_name, next.done_on, next.note, now);
 }
 
+function pfmStatusOrder(statusId) { return lk().idTo.get(statusId)?.sort_order ?? 0; }
+function pfmIsFinalStatus(statusId) { return ['ACCEPTED', 'REJECTED'].includes(lk().idTo.get(statusId)?.code); }
+
+// The item now sits at `statusId`, so no stage after it can be done: every
+// later stage — and, at a final status, the other final one — loses its date
+// and turns back into a plan. Person and note stay; history keeps the date.
+function pfmUndoStagesAfter(userId, itemId, statusId, now) {
+  const final = pfmIsFinalStatus(statusId);
+  db.prepare('SELECT status_id FROM pfm_stages WHERE item_id = ? AND done_on IS NOT NULL').all(itemId)
+    .filter(s => s.status_id !== statusId
+      && (pfmStatusOrder(s.status_id) > pfmStatusOrder(statusId) || (final && pfmIsFinalStatus(s.status_id))))
+    .forEach(s => pfmUpsertStage(userId, itemId, s.status_id, { doneOn: null }, now));
+}
+
+// Where the status goes when its own stage is marked not done: the latest
+// earlier stage that is done, else the status just before it in the catalog.
+// Null when nothing comes before it.
+function pfmStepBackStatusId(itemId, statusId) {
+  const order = pfmStatusOrder(statusId);
+  const earlier = rows => rows.map(r => r.id).filter(id => pfmStatusOrder(id) < order)
+    .sort((a, b) => pfmStatusOrder(b) - pfmStatusOrder(a))[0] ?? null;
+  return earlier(db.prepare('SELECT status_id AS id FROM pfm_stages WHERE item_id = ? AND done_on IS NOT NULL').all(itemId))
+    ?? earlier(db.prepare("SELECT id FROM lookup_codes WHERE category = 'PFM_STATUS' AND is_active = 1").all());
+}
+
 // Move an item to `status` and stamp that stage (who / when / note) in one tx.
 // `memberName`/`note` left out keep what was planned; `date` defaults to today.
+// Moving back un-does the stages after the new status (pfmUndoStagesAfter).
 function setPfmStatus(userId, id, data) {
   const before = pfmOwnedItem(userId, id);
   if (!before) return { ok: false, error: 'Offer or CR not found' };
@@ -5749,6 +5792,7 @@ function setPfmStatus(userId, id, data) {
     db.prepare('UPDATE pfm_items SET status_id = ?, updated_by = ?, updated_at = ? WHERE id = ? AND user_id = ?')
       .run(statusId, userId, now, before.id, userId);
     pfmUpsertStage(userId, before.id, statusId, stage, now);
+    pfmUndoStagesAfter(userId, before.id, statusId, now);
   });
   return { ok: true, item: getPfmItem(userId, before.id) };
 }
@@ -5771,15 +5815,20 @@ function savePfmStage(userId, itemId, data) {
   }
   // Giving a LATER stage a date means it happened, so the status follows it —
   // otherwise the track shows "Ready, done" while the item still says Prepare.
-  // An earlier stage, or a plan (no date), never moves the status.
-  const order = id => lk().idTo.get(id)?.sort_order ?? 0;
-  const advance = !!stage.doneOn && statusId !== item.status_id && order(statusId) > order(item.status_id);
+  // The reverse holds too: marking the CURRENT stage not done (no date) steps
+  // the status back (pfmStepBackStatusId), or the item would still say Ready.
+  // Dating an earlier stage, or planning another one, never moves the status.
+  const advance = !!stage.doneOn && statusId !== item.status_id && pfmStatusOrder(statusId) > pfmStatusOrder(item.status_id);
+  const stepBackTo = statusId === item.status_id && Object.hasOwn(stage, 'doneOn') && !stage.doneOn
+    ? pfmStepBackStatusId(item.id, statusId) : null;
   const now = new Date().toISOString();
   tx(() => {
     pfmUpsertStage(userId, item.id, statusId, stage, now);
-    if (advance) {
-      recordPfmHistory(userId, item.id, 'item', item.id, 'Status', lkLabel(item.status_id), lkLabel(statusId), now);
-      db.prepare('UPDATE pfm_items SET status_id = ? WHERE id = ? AND user_id = ?').run(statusId, item.id, userId);
+    const moveTo = advance ? statusId : stepBackTo;
+    if (moveTo != null) {
+      recordPfmHistory(userId, item.id, 'item', item.id, 'Status', lkLabel(item.status_id), lkLabel(moveTo), now);
+      db.prepare('UPDATE pfm_items SET status_id = ? WHERE id = ? AND user_id = ?').run(moveTo, item.id, userId);
+      if (stepBackTo != null) pfmUndoStagesAfter(userId, item.id, moveTo, now);
     } else if (statusId !== item.status_id) {
       db.prepare(
         `DELETE FROM pfm_stages WHERE item_id = ? AND status_id = ?
@@ -6022,6 +6071,23 @@ function resolvePfmFile(userId, fileId) {
   try { absPath = pfmFileAbsPath(f.item_id, f.version_id, f.file_path); }
   catch { return { ok: false, error: 'Stored file path is invalid' }; }
   return { ok: true, absPath, originalName: f.original_name, exists: fs.existsSync(absPath) };
+}
+// The newest version's files of each owned item, for the list's ZIP export.
+// Unknown or other users' ids are skipped; a file missing from disk comes
+// back with exists: false.
+function listPfmLatestFiles(userId, itemIds) {
+  const filesOf = db.prepare(
+    'SELECT * FROM pfm_version_files WHERE version_id = ? AND deleted_at IS NULL ORDER BY sort_order, id'
+  );
+  return (Array.isArray(itemIds) ? itemIds : []).map(id => pfmOwnedItem(userId, Number(id))).filter(Boolean).map(r => {
+    const v = pfmCurrentVersion(r.id);
+    const files = v ? filesOf.all(v.id).map(f => {
+      let absPath = null;
+      try { absPath = pfmFileAbsPath(r.id, v.id, f.file_path); } catch { /* invalid stored path: reported missing */ }
+      return { absPath, originalName: f.original_name || path.basename(f.file_path), exists: !!absPath && fs.existsSync(absPath) };
+    }) : [];
+    return { itemId: r.id, company: lkLabel(r.company_id), reference: r.reference, title: r.title, version: v?.label || '', files };
+  });
 }
 function setPfmFileDeleted(userId, fileId, deleted) {
   const f = pfmOwnedFile(userId, fileId, { deleted: !deleted });
@@ -7184,7 +7250,7 @@ module.exports = {
   listPfmItems, getPfmItem, createPfmItem, updatePfmItem, setPfmStatus, savePfmStage,
   archivePfmItem, unarchivePfmItem, deletePfmItem, restorePfmItem, purgePfmItem,
   createPfmVersion, updatePfmVersion, deletePfmVersion, restorePfmVersion, purgePfmVersion,
-  getPfmHistory, listPfmMemberNames, addPfmVersionFiles, resolvePfmFile, removePfmFile,
+  getPfmHistory, listPfmMemberNames, addPfmVersionFiles, resolvePfmFile, listPfmLatestFiles, removePfmFile,
   restorePfmFile, purgePfmFile, pfmRootDir, pfmAttentionItems,
   parseOutsMinutes, listOutsResources, getOutsResource, createOutsResource, updateOutsResource,
   setOutsResourceActive, deleteOutsResource, restoreOutsResource, purgeOutsResource, addOutsRate,

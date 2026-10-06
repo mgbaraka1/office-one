@@ -31,6 +31,15 @@ function initPfmModule() {
 function pfmKindLabel(kind) { return kind === 'CR' ? 'CR' : 'Offer'; }
 function pfmStatusOptions() { return lkOptions('PFM_STATUS'); }
 function pfmStatusName(code) { return lkLabel('PFM_STATUS', code) || code || ''; }
+// The step a list row shows: the one waiting on someone (first not-done stage
+// with a person or note), else the current status. Status chips still count
+// by the real current status.
+function pfmRowStep(i) {
+  const next = i.nextStep;
+  return next
+    ? { status: next.status, done: false, person: next.memberName, note: next.note }
+    : { status: i.status, done: !!i.currentDone, person: i.currentMember || '', note: i.currentNote || '' };
+}
 function pfmStatusPill(code) {
   const pill = pjMk('span', 'pfm-status pfm-status-' + String(code || 'NONE').toLowerCase(), pfmStatusName(code));
   pill.dataset.userContent = '';
@@ -128,7 +137,7 @@ function pfmBaseRows() {
     (pfmFilter.archived || !i.archived)
     && (!pfmFilter.kind || i.kind === pfmFilter.kind)
     && (!pfmFilter.companyId || String(i.companyId) === pfmFilter.companyId)
-    && textMatch([i.reference, i.title, lkLabelById('COMPANY', i.companyId) || i.company, i.contactName, i.currentMember],
+    && textMatch([i.reference, i.title, lkLabelById('COMPANY', i.companyId) || i.company, i.contactName, i.currentMember, i.currentNote, i.nextStep?.memberName, i.nextStep?.note],
       pfmFilter.search));
 }
 
@@ -180,8 +189,7 @@ function renderPfmList() {
   const base = pfmBaseRows();
   renderPfmStatusChips(base);
   const rows = pfmVisibleRows(base);
-  const exportBtn = document.getElementById('pfm-export-btn');
-  if (exportBtn) exportBtn.disabled = !rows.length;
+  renderPfmExportMenu(rows.length);
 
   const table = document.getElementById('pfm-table');
   const body = document.getElementById('pfm-tbody');
@@ -210,20 +218,49 @@ function buildPfmRow(i) {
 
   const ref = td(pfmUserText('span', 'pfm-ref', i.reference));
   if (i.archived) ref.appendChild(pjMk('span', 'pfm-archived-tag', 'Archived'));
-  td(pfmUserText('span', 'pfm-cell-title', i.title));
+  const step = pfmRowStep(i);
+  const titleCell = td(pfmUserText('span', 'pfm-cell-title', i.title));
+  // The step's note, one line; full text on hover.
+  if (step.note) {
+    const note = pfmUserText('span', 'pfm-cell-note', step.note);
+    note.title = step.note;
+    titleCell.appendChild(note);
+  }
   td(pfmUserText('span', '', lkLabelById('COMPANY', i.companyId) || i.company));
   td(pjMk('span', 'pfm-kind pfm-kind-' + i.kind.toLowerCase(), pfmKindLabel(i.kind)));
-  td(pfmStatusPill(i.status));
+  const statusStack = pjMk('div', 'pfm-status-stack');
+  statusStack.append(pfmStatusPill(step.status),
+    pjMk('span', 'pfm-step-state ' + (step.done ? 'is-done' : 'is-pending'), step.done ? '✓ Done' : 'Not done yet'));
+  td(statusStack);
   td(pfmUserText('span', 'pfm-fees', pfmFees(i.currentVersion)));
-  td(pfmUserText('span', '', i.currentMember || ''));
+  td(pfmUserText('span', '', step.person));
   td(pjMk('span', 'pfm-muted', pfmFmtDate(i.updatedAt)));
   return tr;
+}
+
+// "Export ▾": the Excel alone, or a ZIP with the Excel plus the newest
+// version's files of every row, in one folder per client.
+function renderPfmExportMenu(rowCount) {
+  const slot = document.getElementById('pfm-export-slot'); if (!slot) return;
+  if (!slot.firstChild) {
+    const menu = buildKnowledgeOverflow([
+      { label: 'Excel only', run: () => exportPfmExcel(false) },
+      { label: 'Excel + latest files (ZIP)', run: () => exportPfmExcel(true) },
+    ], 'Export ▾');
+    const trigger = menu.querySelector('button');
+    trigger.id = 'pfm-export-btn';
+    trigger.classList.remove('small');
+    trigger.title = 'Export what the filters show';
+    trigger.insertAdjacentHTML('afterbegin', ic('download'));
+    slot.appendChild(menu);
+  }
+  document.getElementById('pfm-export-btn').disabled = !rowCount;
 }
 
 // ── Excel export of the current view (plan E8) ──
 // Labels are translated here (rptText), because the workbook is built in the
 // main process where the DOM translation pass never runs.
-async function exportPfmExcel() {
+async function exportPfmExcel(withFiles) {
   if (!pfmLoaded) return;
   const rows = pfmVisibleRows();
   if (!rows.length) { toast('Nothing to export'); return; }
@@ -242,20 +279,34 @@ async function exportPfmExcel() {
     rtl: rptDirection() === 'rtl',
     headers: {
       reference: tr('Reference'), kind: tr('Type'), title: tr('Title'), client: tr('Client'),
-      status: tr('Status'), fees: tr('Fees'), currency: tr('Currency'), version: tr('Version'),
-      person: tr('Person'), validUntil: tr('Valid until'), updated: tr('Updated'),
+      status: tr('Status'), done: tr('Done?'), person: tr('Person'), note: tr('Notes'),
+      fees: tr('Fees'), currency: tr('Currency'), version: tr('Version'), validUntil: tr('Valid until'), updated: tr('Updated'),
     },
-    rows: rows.map(i => ({
-      reference: i.reference, kind: tr(pfmKindLabel(i.kind)), title: i.title,
-      client: lkLabelById('COMPANY', i.companyId) || i.company || '', status: pfmStatusName(i.status),
-      fees: i.currentVersion?.feesMinor == null ? null : i.currentVersion.feesMinor / 100,
-      currency: i.currentVersion?.currency || '', version: i.currentVersion?.label || '',
-      person: i.currentMember || '', validUntil: i.validUntil || '', updated: String(i.updatedAt || '').slice(0, 10),
-    })),
+    rows: rows.map(i => {
+      const step = pfmRowStep(i);
+      return {
+        reference: i.reference, kind: tr(pfmKindLabel(i.kind)), title: i.title,
+        client: lkLabelById('COMPANY', i.companyId) || i.company || '', status: pfmStatusName(step.status),
+        done: tr(step.done ? '✓ Done' : 'Not done yet'), person: step.person, note: step.note,
+        fees: i.currentVersion?.feesMinor == null ? null : i.currentVersion.feesMinor / 100,
+        currency: i.currentVersion?.currency || '', version: i.currentVersion?.label || '',
+        validUntil: i.validUntil || '', updated: String(i.updatedAt || '').slice(0, 10),
+      };
+    }),
   };
   let res;
   // File name reads "Offers and CRs dd-MM-yyyy" — pfmLocalToday() is yyyy-MM-dd.
   const stamp = pfmLocalToday().split('-').reverse().join('-');
+  if (withFiles) {
+    // Folder and file names follow the app language, like the Excel.
+    const base = rptLanguage() === 'ar' ? tr('Offers & CRs') : 'Offers and CRs';
+    const items = rows.map(i => ({ id: i.id, client: lkLabelById('COMPANY', i.companyId) || i.company || '' }));
+    try { res = await window.api.exportPfmZip(data, items, base + ' ' + stamp + '.zip'); }
+    catch { res = { ok: false, error: 'failed' }; }
+    if (res?.ok) toast(res.skipped ? `Saved Excel + ${res.count} files · ${res.skipped} missing skipped` : `Saved Excel + ${res.count} files`);
+    else if (!res?.canceled) toast('ZIP export failed: ' + (res?.error || 'failed'));
+    return;
+  }
   try { res = await window.api.exportPfmExcel(data, 'Offers and CRs ' + stamp + '.xlsx'); }
   catch { res = { ok: false, error: 'failed' }; }
   if (res?.ok) toast('Excel saved');
@@ -403,7 +454,7 @@ function buildClientPfmSection(c, q) {
   head.appendChild(acts);
   section.appendChild(head);
 
-  const shown = rows.filter(i => textMatch([i.reference, i.title, i.contactName, i.currentMember, pfmStatusName(i.status)], q));
+  const shown = rows.filter(i => textMatch([i.reference, i.title, i.contactName, i.currentMember, i.currentNote, i.nextStep?.memberName, i.nextStep?.note, pfmStatusName(i.status)], q));
   if (clientPfmFor !== c.id) {
     const loading = pjMk('div');
     section.appendChild(loading);
@@ -583,9 +634,10 @@ function buildPfmStageTrack(item) {
     btn.addEventListener('click', () => openPfmStageModal('edit', code));
     btn.appendChild(pjMk('span', 'pfm-step-dot'));
     btn.appendChild(pfmUserText('span', 'pfm-step-name', pfmStatusName(code)));
+    // Every stage with a record says outright whether it is done.
+    if (stage) btn.appendChild(pjMk('span', 'pfm-step-state ' + (stage.doneOn ? 'is-done' : 'is-pending'), stage.doneOn ? '✓ Done' : 'Not done yet'));
     if (stage?.memberName) {
       const who = pjMk('span', 'pfm-step-who');
-      if (!stage.doneOn) who.appendChild(pjMk('span', 'pfm-muted', 'Planned:'));
       who.appendChild(pfmUserText('span', '', stage.memberName));
       btn.appendChild(who);
     }
@@ -1068,8 +1120,20 @@ function openPfmStageModal(mode, code) {
   document.getElementById('pfm-stage-overlay').classList.add('open');
   setTimeout(() => document.getElementById('pfm-stage-member').focus(), 80);
 }
+// "✓ Done" / "Not done yet" toggle; the date only shows (and counts) when done.
+function setPfmStageDone(done) {
+  document.getElementById('pfm-stage-planned').checked = !done;
+  syncPfmStagePlanned();
+}
 function syncPfmStagePlanned() {
-  document.getElementById('pfm-stage-date').disabled = document.getElementById('pfm-stage-planned').checked;
+  const planned = document.getElementById('pfm-stage-planned').checked;
+  document.getElementById('pfm-stage-date').disabled = planned;
+  document.getElementById('pfm-stage-date-group').hidden = planned;
+  [['pfm-stage-done-btn', !planned], ['pfm-stage-pending-btn', planned]].forEach(([id, on]) => {
+    const b = document.getElementById(id);
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
 }
 function closePfmStageModal() {
   document.getElementById('pfm-stage-overlay').classList.remove('open');
