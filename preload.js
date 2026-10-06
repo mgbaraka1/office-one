@@ -198,6 +198,7 @@ contextBridge.exposeInMainWorld('api', {
     return ipcRenderer.invoke('knowledge:upload-file', itemId, filePath, meta);
   },
   downloadKnowledgeAttachment: (attachmentId) => ipcRenderer.invoke('knowledge:download-attachment', attachmentId),
+  downloadKnowledgeZip: (entries, name) => ipcRenderer.invoke('knowledge:download-zip', entries, name),
   openKnowledgeAttachment:     (attachmentId) => ipcRenderer.invoke('knowledge:open-attachment', attachmentId),
   removeKnowledgeAttachment:   (attachmentId) => ipcRenderer.invoke('knowledge:remove-attachment', attachmentId),
   restoreKnowledgeAttachment:  (itemId, fileMeta) => ipcRenderer.invoke('knowledge:restore-attachment', itemId, fileMeta),

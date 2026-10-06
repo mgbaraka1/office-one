@@ -1847,6 +1847,7 @@
     .kh-filter-btn span:last-child { color: var(--muted); font-size: 11px; }
     .kh-main { min-width: 0; overflow-y: auto; padding: var(--space-5) var(--space-6) var(--space-7); }
     .kh-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; color: var(--muted); font-size: 12px; }
+    .kh-summary-actions { display: flex; align-items: center; gap: 8px; }
     .kh-active-filters { display: flex; flex-wrap: wrap; gap: 7px; margin: -4px 0 14px; }
     .kh-filter-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border)); background: var(--primary-glow); color: var(--primary); padding: 5px 9px; border-radius: 999px; cursor: pointer; font: 700 11px/1 inherit; }
     .kh-filter-chip:hover { border-color: var(--primary); }
@@ -1911,7 +1912,7 @@
     .kh-resource-copy { flex: 1; min-width: 0; }
     .kh-resource-copy b, .kh-resource-copy span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .kh-resource-copy span { color: var(--muted); font-size: 11px; margin-top: 3px; }
-    .kh-document-family { border-top: 1px solid var(--border); padding: 12px 0 3px; }
+    .kh-document-family { border-top: 1px solid var(--border); padding: 18px 0 16px; }
     .kh-document-family:first-of-type { border-top: 0; padding-top: 0; }
     .kh-document-family-head { display: flex; align-items: center; gap: 10px; }
     .kh-document-family-head strong { flex: 1; min-width: 0; }
@@ -1970,7 +1971,7 @@
     .kh-panel .kh-detail-actions { justify-content: flex-start; }
     .kh-panel .kh-detail h1 { font-size: 22px; }
     .kh-panel .kh-section { padding: 14px 16px; }
-    .kh-drop-tip { color: var(--muted); font-size: 11.5px; margin-top: 10px; }
+    .kh-drop-tip { color: var(--muted); font-size: 11.5px; margin-top: 4px; }
     .kh-shell.has-panel .kh-row-date { display: none; }
     .kh-shell.kh-dragging .kh-main { outline: 2px dashed color-mix(in srgb, var(--primary) 55%, transparent); outline-offset: -8px; }
     .kh-drop-hint { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 5; pointer-events: none; display: flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: 999px; background: var(--primary); color: #fff; font-weight: 700; font-size: 12.5px; box-shadow: var(--shadow); }

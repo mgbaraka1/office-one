@@ -786,6 +786,10 @@
     'New item': 'عنصر جديد', 'Edit item': 'تعديل العنصر', 'File': 'الملف', 'Add': 'إضافة',
     'Choose file…': 'اختيار ملف…', 'Drop a file here, or': 'أفلت ملفاً هنا، أو',
     'Open file': 'فتح الملف', 'Open file ▾': 'فتح الملف ▾', 'Knowledge item': 'عنصر معرفة',
+    'Download ZIP ▾': 'تنزيل ZIP ▾', 'Latest versions': 'أحدث الإصدارات', 'All versions': 'كل الإصدارات',
+    'No documents to download': 'لا توجد مستندات للتنزيل',
+    'The documents are over 1 GB together — narrow the filter': 'حجم المستندات معاً يتجاوز 1 جيجابايت — ضيّق التصفية',
+    'The documents are missing from disk': 'المستندات غير موجودة على القرص',
     'Export was cancelled': 'تم إلغاء التصدير', 'Too many reports': 'عدد التقارير كبير جداً', 'Nothing to save': 'لا يوجد ما يُحفظ',
     'Optional. You can add files and new versions later.': 'اختياري. يمكنك إضافة ملفات وإصدارات جديدة لاحقاً.',
     'Anything worth remembering: steps, contacts, gotchas…': 'أي شيء يستحق التذكر: خطوات، جهات اتصال، ملاحظات مهمة…',
@@ -1250,6 +1254,9 @@
     [/^Exporting (\d+) of (\d+)…$/s, m => `جارٍ تصدير ${m[1]} من ${m[2]}…`],
     [/^Saved (\d+) daily reports$/s, m => `تم حفظ التقارير اليومية: ${m[1]}`],
     [/^ZIP export failed: (.+)$/s, m => `فشل تصدير ZIP: ${arabicTranslation(m[1])}`],
+    // Knowledge Hub "Download ZIP" result toasts.
+    [/^Saved (\d+) documents · (\d+) missing skipped$/s, m => `تم حفظ المستندات: ${m[1]} · المستندات المفقودة التي تم تخطيها: ${m[2]}`],
+    [/^Saved (\d+) documents$/s, m => `تم حفظ المستندات: ${m[1]}`],
     // Project & Finance "Add files" toast (1 has its own dictionary entry).
     [/^(\d+) files added$/s, m => {
       const n = Number(m[1]);
