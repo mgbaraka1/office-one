@@ -453,6 +453,52 @@ ipcMain.handle('knowledge:download-attachment', authed(async (_e, attachmentId) 
   try { fs.copyFileSync(r.absPath, filePath); return { ok: true, path: filePath }; }
   catch (err) { return { ok: false, error: String(err?.message || err) }; }
 }));
+// Saves many documents into one ZIP: the renderer sends attachment ids plus the
+// folder/name each should get; every id is resolved (and owner-checked) here,
+// and every path segment is cleaned, so the renderer never supplies a disk path.
+// Missing files are skipped and counted. Read-only; touches no app data.
+const KNOWLEDGE_ZIP_MAX_BYTES = 1024 * 1024 * 1024;
+function zipPathSegment(value, fallback) {
+  const clean = String(value ?? '').replace(/[\u0000-\u001F<>:"/\\|?*]/g, '_').replace(/[. ]+$/g, '').trim().slice(0, 120);
+  return clean && clean !== '..' ? clean : fallback;
+}
+ipcMain.handle('knowledge:download-zip', authed(async (_e, entries, defaultName) => {
+  const userId = auth.requireUserId();
+  const wanted = Array.isArray(entries) ? entries.slice(0, 5000) : [];
+  if (!wanted.length) return { ok: false, error: 'No documents to download' };
+  const files = [];
+  let skipped = 0, total = 0;
+  for (const entry of wanted) {
+    const r = db.resolveKnowledgeAttachment(userId, Number(entry?.id));
+    if (!r.ok || !r.exists) { skipped++; continue; }
+    try { total += fs.statSync(r.absPath).size; } catch { skipped++; continue; }
+    if (total > KNOWLEDGE_ZIP_MAX_BYTES) return { ok: false, error: 'The documents are over 1 GB together — narrow the filter' };
+    const segments = [...(Array.isArray(entry.dirs) ? entry.dirs : []).map(dir => zipPathSegment(dir, 'Documents')),
+      zipPathSegment(entry.name || r.originalName, 'document')];
+    files.push({ absPath: r.absPath, path: segments.join('/') });
+  }
+  if (!files.length) return { ok: false, error: 'The documents are missing from disk' };
+  const safeDefaultName = path.basename(String(defaultName || 'knowledge.zip')).slice(0, 180) || 'knowledge.zip';
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    title: 'Save documents as ZIP',
+    defaultPath: safeDefaultName,
+    filters: [{ name: 'ZIP archive', extensions: ['zip'] }],
+  });
+  if (canceled || !filePath) return { ok: false, canceled: true };
+  try {
+    const used = new Set();
+    const zipEntries = files.map(file => {
+      let name = file.path;
+      for (let n = 2; used.has(name.toLowerCase()); n++) name = file.path.replace(/(\.[^./]*)?$/, ext => ` (${n})${ext}`);
+      used.add(name.toLowerCase());
+      return [name, fs.readFileSync(file.absPath)];
+    });
+    fs.writeFileSync(filePath, zip(zipEntries));
+    return { ok: true, path: filePath, count: zipEntries.length, skipped };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err) };
+  }
+}));
 ipcMain.handle('knowledge:open-attachment', authed(async (_e, attachmentId) => {
   const r = db.resolveKnowledgeAttachment(auth.requireUserId(), attachmentId);
   if (!r.ok) return r;

@@ -458,9 +458,39 @@ function renderKnowledgeList() {
     document.getElementById('kh-empty-clear').hidden = !hasQuery && !filtered;
   }
   shown.forEach(item => list.appendChild(buildKnowledgeRow(item, q, main => { knowledgeListFocus = main; openKnowledgeDetail(item.id); })));
+  renderKnowledgeZipButton(shown, documentCount);
   uiState.filters ||= {};
   uiState.filters.knowledge = { filters: [...knowledgeFilters], query: q, sort, sections: knowledgeFilterSections };
   saveUiStateDebounced();
+}
+// "Download ZIP ▾" over the items the list currently shows: the latest version
+// of each document, or every version with older ones in an "older versions"
+// subfolder. One folder per item.
+function renderKnowledgeZipButton(shown, documentCount) {
+  const slot = document.getElementById('kh-zip-slot'); if (!slot) return;
+  slot.innerHTML = '';
+  const menu = buildKnowledgeOverflow([
+    { label: 'Latest versions', run: () => downloadKnowledgeZip(shown, false) },
+    { label: 'All versions', run: () => downloadKnowledgeZip(shown, true) },
+  ], 'Download ZIP ▾');
+  const trigger = menu.querySelector('button');
+  trigger.disabled = documentCount === 0;
+  slot.appendChild(menu);
+}
+async function downloadKnowledgeZip(items, allVersions) {
+  const entries = [];
+  items.forEach(item => knowledgeDocumentFamilies(item.documents).forEach(files => {
+    entries.push({ id: files[0].id, dirs: [item.title], name: files[0].originalName });
+    if (allVersions) files.slice(1).forEach(file => entries.push({
+      id: file.id, dirs: [item.title, 'older versions'], name: `${formatKnowledgeVersion(file.version)} - ${file.originalName}`,
+    }));
+  }));
+  if (!entries.length) return;
+  let result;
+  try { result = await window.api.downloadKnowledgeZip(entries, `knowledge${allVersions ? '-all-versions' : ''}-${fmt(new Date())}.zip`); }
+  catch { result = { ok: false, error: 'failed' }; }
+  if (result?.ok) toast(result.skipped ? `Saved ${result.count} documents · ${result.skipped} missing skipped` : `Saved ${result.count} documents`);
+  else if (!result?.canceled) toast('ZIP export failed: ' + (result?.error || 'failed'));
 }
 // One item row: used by the Hub list and by the Knowledge Hub section on a
 // client or project page. `onOpen(main)` runs when the row itself is clicked.

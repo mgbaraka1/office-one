@@ -92,6 +92,7 @@ const SIGNATURES = {
   'knowledge:group-delete': ['id'],
   'knowledge:upload-file': ['id', 'string', 'object'],
   'knowledge:download-attachment': ['id'],
+  'knowledge:download-zip': ['array', 'string'],
   'knowledge:open-attachment': ['id'],
   'knowledge:remove-attachment': ['id'],
   'knowledge:restore-attachment': ['id', 'object'],

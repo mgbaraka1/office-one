@@ -47,6 +47,10 @@ rejects('Reports are bounded to 10 MB',
   () => validateIpcArgs('report:print', ['x'.repeat(10 * 1024 * 1024 + 1)]));
 gate('A ZIP report entry may carry a report-sized (over 1 MB) document',
   validateIpcArgs('report:zipAddPDF', ['token', 'x'.repeat(2 * 1024 * 1024), 'timesheet-2089-12-01.pdf']));
+gate('The Knowledge Hub ZIP download takes a list of attachment entries',
+  validateIpcArgs('knowledge:download-zip', [[{ id: 1, dirs: ['Item'], name: 'a.pdf' }], 'knowledge.zip']));
+rejects('The Knowledge Hub ZIP download refuses a non-list payload',
+  () => validateIpcArgs('knowledge:download-zip', [{ id: 1 }, 'knowledge.zip']));
 rejects('ZIP report entries are bounded to 10 MB',
   () => validateIpcArgs('report:zipAddPDF', ['token', 'x'.repeat(10 * 1024 * 1024 + 1), 'a.pdf']));
 
