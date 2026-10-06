@@ -1177,6 +1177,16 @@ async function submitModal() {
   // null here) creates one below — same-day via the debounced reconciler (which
   // already creates a task for any row with no taskId), other-day inline.
   record.taskId = existingTaskId;
+  // Take the picked task's identity from the task itself, not the hidden form:
+  // an internal task has no company/system, so the selects fall back to their
+  // first option and the row would render under a random client.
+  if (loggingExisting) {
+    const picked = modalTaskList.find(t => t.id === existingTaskId);
+    if (picked) Object.assign(record, {
+      company: picked.company || '', system: picked.system || '',
+      projectId: picked.projectId ?? null, departmentId: picked.departmentId ?? null,
+    });
+  }
 
   // Sources live in their own table and need a real task id right away (unlike
   // the row's own simple fields, which the debounced reconciler below can
@@ -2224,9 +2234,11 @@ let _bSourceOriginalIds = [];
 async function openBacklogModal(id = null, opts = {}) {
   backlogEditId = id;
   _backlogCtx = { projectId: opts.projectId ?? null, onSaved: opts.onSaved || null };
-  const lockedProject = _backlogCtx.projectId != null;
   const task = opts.task || null;
   const isEdit = !!task;
+  // Only a new task created from a project is pinned to it; an edit can move
+  // the task to another project or unlink it.
+  const lockedProject = _backlogCtx.projectId != null && !isEdit;
   document.getElementById('backlog-modal-title').textContent =
     isEdit ? 'Edit Task' : (lockedProject ? 'New Project Task' : 'Add Task');
   document.querySelector('#backlog-modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : 'Add Task';
@@ -2245,10 +2257,10 @@ async function openBacklogModal(id = null, opts = {}) {
     });
   }
 
-  const initialProject = lockedProject ? _backlogCtx.projectId : (task?.projectId ?? null);
+  const initialProject = isEdit ? (task.projectId ?? null) : _backlogCtx.projectId;
   bProjectPicker = buildSearchSelect(document.getElementById('b-project'),
     projectFieldOptions(initialProject), initialProject, 'No project');
-  // In the Projects context the link is fixed — lock the picker to this project.
+  // Creating from a project's page — lock the picker to that project.
   const bpInput = document.querySelector('#b-project .ss-input');
   if (bpInput) bpInput.disabled = lockedProject;
 

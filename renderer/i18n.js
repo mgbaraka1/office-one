@@ -15,7 +15,7 @@
     // The product name is a Latin brand shown identically in both languages;
     // the self-mapping keeps it out of the untranslated-string coverage gate.
     'Office ONE': 'Office ONE', 'Choose language': 'اختر اللغة',
-    'Welcome back': 'مرحباً بعودتك', 'Log in to continue': 'سجّل الدخول للمتابعة',
+    'Welcome back': 'مرحباً بعودتك', 'Toggle the lamp': 'تشغيل المصباح أو إطفاؤه', 'Log in to continue': 'سجّل الدخول للمتابعة',
     'Create your account': 'أنشئ حسابك', 'This is the first account on this device': 'هذا أول حساب على هذا الجهاز',
     'Username': 'اسم المستخدم', 'Password': 'كلمة المرور', 'Confirm password': 'تأكيد كلمة المرور',
     'Log in': 'تسجيل الدخول', 'Create account': 'إنشاء حساب', 'Passwords do not match.': 'كلمتا المرور غير متطابقتين.',

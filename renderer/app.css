@@ -1110,6 +1110,7 @@
     .pfm-step-done .pfm-step-dot, .pfm-step-before .pfm-step-dot { background: var(--primary); border-color: var(--primary); }
     .pfm-step-current .pfm-step-dot { background: var(--primary); border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-glow); }
     .pfm-step-planned .pfm-step-dot { border-style: dashed; border-color: var(--primary); }
+    .pfm-step-current-planned .pfm-step-dot { background: var(--surface); border-style: dashed; }
     .pfm-step-other { opacity: .45; }
     .pfm-step-name { font-size: var(--fs-sm); font-weight: 700; }
     .pfm-step-current .pfm-step-name { color: var(--primary); }
@@ -2678,7 +2679,7 @@
     /* Column widths live here, not inline, and every header shares its cells'
        alignment: text columns at the start edge, number columns at the end. */
     .tsg-card .tsg-col-time { width: 124px; }
-    .tsg-card .tsg-col-natural { width: 116px; }
+    .tsg-card .tsg-col-natural { width: 144px; }
     .tsg-card .tsg-col-num { width: 88px; text-align: end; }
     .tsg-card .tsg-col-actions { width: 132px; }
     .tsg-card td.tsg-nowrap .cell { white-space: nowrap; }
@@ -3735,4 +3736,161 @@
       .cp-body,
       .kh-shell,
       .settings-body { margin: 8px; border-radius: 8px; }
+    }
+
+    /* ── Login lamp ──
+       The auth gate is a dark room in both themes: pull the lamp's cord (or
+       start typing) and the room warms up and the card comes into the light.
+       Scoped under #auth-overlay so it outranks the theme rules above.
+       Motion is spring physics in shell.js (authLamp). It writes --lamp (light
+       level, 0..1 with a little overshoot) on the overlay, --pull (cord
+       stretch, px) on the cord, and inline transforms for the cord swing and
+       the card's float and lean. This CSS only maps those numbers onto
+       opacity and transform, so each frame stays on the compositor. Lit
+       layers never drop below opacity .001: Chromium skips painting fully
+       transparent layers, and at 0 the first switch-on stalls ~100ms. */
+    /* :root + .active matches the specificity of the dark-theme overlay rule
+       above, so the room stays this colour in both themes. */
+    :root #auth-overlay.active,
+    #auth-overlay {
+      --lamp: 0;
+      --lamp-light: #f6c67a;
+      /* The beam and floor light spill ~70px past the lamp, so the gap is
+         wide enough to keep the light clear of the card. */
+      gap: clamp(110px, 12vw, 170px); isolation: isolate; background: #121417;
+    }
+    /* The room: a warm wash and a lifted floor tone, faded in as one layer. */
+    #auth-overlay::before {
+      content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+      background:
+        radial-gradient(760px 520px at 38% 46%, rgba(246,198,122,.17), transparent 70%),
+        #1c1f24;
+      opacity: clamp(.001, var(--lamp), 1); will-change: opacity;
+    }
+
+    #auth-overlay .auth-card {
+      position: relative; width: 400px; color: #f2e9db;
+      background: rgba(38,41,47,.72); border: 1px solid rgba(255,255,255,.08);
+      box-shadow: 0 40px 90px -40px rgba(0,0,0,.85); backdrop-filter: none;
+      opacity: calc(.3 + .7 * clamp(0, var(--lamp), 1));
+      transform: translate3d(0, 8px, 0); /* replaced each frame by authLamp */
+      will-change: opacity, transform;
+    }
+    /* Warm rim and glow: one ready-painted layer that only fades. */
+    #auth-overlay .auth-card::after {
+      content: ''; position: absolute; inset: -1px; z-index: -1; pointer-events: none;
+      border-radius: inherit;
+      box-shadow: 0 0 0 1px rgba(246,198,122,.3), 0 0 70px -16px rgba(246,198,122,.42);
+      opacity: clamp(.001, var(--lamp), 1);
+    }
+    #auth-overlay .auth-brand, #auth-overlay .auth-heading { color: #f8f4ec; }
+    #auth-overlay .auth-sub, #auth-overlay .auth-field label { color: #a7a39b; }
+    #auth-overlay .auth-language { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.1); }
+    #auth-overlay .auth-language button { color: #a7a39b; transition: background .25s ease, color .25s ease; }
+    #auth-overlay .auth-language button.active { background: rgba(255,255,255,.1); color: #f8f4ec; }
+    #auth-overlay .auth-field input {
+      min-height: 44px; color: #f8f4ec; background: rgba(255,255,255,.06);
+      border-color: rgba(255,255,255,.12);
+      transition: border-color .3s ease, background .3s ease, box-shadow .3s ease;
+    }
+    #auth-overlay .auth-field input:focus { background: rgba(255,255,255,.09); }
+    #auth-overlay .auth-btn { transition: background .3s ease, transform .2s ease; }
+    #auth-overlay .auth-btn:active { transform: scale(.985); }
+
+    .auth-lamp {
+      position: relative; flex: 0 0 auto; width: 170px; height: 300px;
+      padding: 0; border: 0; background: none; cursor: grab; touch-action: none;
+    }
+    .auth-lamp.dragging { cursor: grabbing; }
+    .auth-lamp:focus-visible { outline: 2px solid var(--lamp-light); outline-offset: 8px; border-radius: 12px; }
+
+    /* Shade: the dark and lit looks are stacked layers, cross-faded. */
+    .lamp-shade {
+      position: absolute; top: 20px; left: 10px; width: 150px; height: 72px; z-index: 2;
+      border-radius: 150px 150px 10px 10px / 130px 130px 10px 10px;
+      background: linear-gradient(180deg, #4a4d52, #33363b);
+      box-shadow: inset 0 -4px 0 rgba(0,0,0,.25);
+    }
+    .lamp-shade::after {
+      content: ''; position: absolute; inset: 0; border-radius: inherit;
+      background: linear-gradient(180deg, #fbf7ee, #e9e0cc);
+      box-shadow: inset 0 -5px 0 #f6c67a, 0 10px 34px -4px rgba(246,198,122,.6);
+      opacity: clamp(.001, var(--lamp), 1); will-change: opacity;
+    }
+    /* The beam blooms open: its overshoot past 1 reads as a soft swell. */
+    .lamp-beam {
+      position: absolute; top: 88px; left: -40px; width: 250px; height: 210px; z-index: 0;
+      pointer-events: none; clip-path: polygon(25% 0, 75% 0, 100% 100%, 0 100%);
+      background: linear-gradient(180deg, rgba(246,198,122,.42), rgba(246,198,122,0) 92%);
+      transform-origin: top center;
+      opacity: clamp(.001, var(--lamp), 1);
+      transform: scale(calc(.9 + .1 * var(--lamp)), calc(.8 + .2 * var(--lamp)));
+      will-change: opacity, transform;
+    }
+    /* A warm pool of light on the floor under the lamp. */
+    .lamp-floor {
+      position: absolute; bottom: -18px; left: -70px; width: 310px; height: 50px; z-index: 0;
+      pointer-events: none; border-radius: 50%;
+      background: radial-gradient(closest-side, rgba(246,198,122,.38), rgba(246,198,122,0));
+      opacity: clamp(.001, var(--lamp), 1);
+      transform: scaleX(calc(.6 + .4 * var(--lamp)));
+      will-change: opacity, transform;
+    }
+
+    .lamp-stem {
+      position: absolute; top: 88px; left: 80px; width: 10px; height: 196px; z-index: 1;
+      border-radius: 5px; background: linear-gradient(90deg, #8d8679, #d8d0bf 45%, #8d8679);
+    }
+    .lamp-base {
+      position: absolute; bottom: 4px; left: 40px; width: 90px; height: 14px; z-index: 1;
+      border-radius: 8px; background: linear-gradient(180deg, #d8d0bf, #8d8679);
+    }
+
+    /* Cord: swung by an inline rotate, stretched by --pull. */
+    .lamp-cord {
+      --pull: 0;
+      position: absolute; top: 84px; left: 118px; width: 2px; height: 70px; z-index: 1;
+      transform-origin: top center; will-change: transform;
+    }
+    .lamp-cord::before {
+      content: ''; position: absolute; inset: 0; background: #8d8679;
+      transform-origin: top center; transform: scaleY(calc(1 + var(--pull) / 70));
+    }
+    .lamp-knob {
+      position: absolute; bottom: -9px; left: -4px; width: 10px; height: 12px;
+      border-radius: 5px; background: #c9a36a;
+      transform: translate3d(0, calc(var(--pull) * 1px), 0);
+      transition: background .6s ease, box-shadow .6s ease;
+    }
+    .lamp-on .lamp-knob { background: #e6bd7d; box-shadow: 0 0 10px rgba(246,198,122,.6); }
+
+    /* Dust drifting through the beam; the beam's clip-path keeps it in the cone. */
+    .lamp-beam i {
+      position: absolute; bottom: 0; width: 3px; height: 3px; border-radius: 50%;
+      background: rgba(255,236,200,.85); opacity: 0; will-change: transform, opacity;
+    }
+    .lamp-on .lamp-beam i { animation: lamp-dust 9s ease-in-out infinite; }
+    .lamp-beam i:nth-child(1) { left: 30%; animation-delay: 0s; }
+    .lamp-beam i:nth-child(2) { left: 46%; animation-delay: -1.6s; animation-duration: 11s; }
+    .lamp-beam i:nth-child(3) { left: 58%; animation-delay: -3.2s; width: 2px; height: 2px; }
+    .lamp-beam i:nth-child(4) { left: 68%; animation-delay: -5s; animation-duration: 10s; }
+    .lamp-beam i:nth-child(5) { left: 38%; animation-delay: -6.5s; width: 2px; height: 2px; animation-duration: 12s; }
+    .lamp-beam i:nth-child(6) { left: 52%; animation-delay: -8s; }
+    @keyframes lamp-dust {
+      0%   { transform: translate3d(0, 0, 0); opacity: 0; }
+      20%  { opacity: .8; }
+      50%  { transform: translate3d(12px, -110px, 0); }
+      80%  { opacity: .5; }
+      100% { transform: translate3d(-6px, -205px, 0); opacity: 0; }
+    }
+
+    /* Successful login: the room dissolves into the app (the light's swell
+       comes from authLamp.flare()). */
+    #auth-overlay.leaving { opacity: 0; transition: opacity .55s cubic-bezier(.4, 0, .2, 1); }
+
+    @media (max-width: 760px) { .auth-lamp { display: none; } }
+    @media (prefers-reduced-motion: reduce) {
+      #auth-overlay *, #auth-overlay *::before, #auth-overlay *::after,
+      #auth-overlay::before { transition: none !important; animation: none !important; }
+      #auth-overlay .auth-card { transform: none !important; }
     }
