@@ -574,7 +574,9 @@ function buildPfmStageTrack(item) {
     else if (stage) state = 'planned';
     // A final status the item did not end on is an alternative, not a skipped step.
     const other = PFM_FINAL.has(code) && PFM_FINAL.has(item.status) && code !== item.status && !stage;
-    const li = pjMk('li', 'pfm-step pfm-step-' + state + (other ? ' pfm-step-other' : '') + (idx < currentIdx ? ' pfm-step-before' : ''));
+    // The current status can still be only planned (no date yet); its dot says so.
+    const currentPlanned = state === 'current' && stage && !stage.doneOn;
+    const li = pjMk('li', 'pfm-step pfm-step-' + state + (currentPlanned ? ' pfm-step-current-planned' : '') + (other ? ' pfm-step-other' : '') + (idx < currentIdx ? ' pfm-step-before' : ''));
     const btn = pjMk('button', 'pfm-step-btn');
     btn.type = 'button';
     btn.title = 'Edit this stage';

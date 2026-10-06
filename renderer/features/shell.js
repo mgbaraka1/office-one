@@ -453,6 +453,153 @@ async function bootAuth() {
   setTimeout(() => document.getElementById('auth-username').focus(), 50);
 }
 
+// The login lamp. Pulling the cord lights the room and the card; typing or
+// submitting switches it on too, so the effect never slows a login down.
+// All motion is spring physics on one requestAnimationFrame loop: the cord is
+// a damped pendulum you can grab and drag, the light blooms with a slight
+// overshoot and breathes while on, and the card floats and leans toward the
+// pointer. Each frame only writes --lamp / --pull and transforms, which the
+// CSS maps onto opacity and transform. The loop sleeps once everything has
+// settled and stops for good when the overlay closes.
+const authLamp = (() => {
+  const overlay = document.getElementById('auth-overlay');
+  const lamp = document.getElementById('auth-lamp');
+  const cord = lamp.querySelector('.lamp-cord');
+  const card = document.getElementById('auth-form');
+  const still = window.matchMedia('(prefers-reduced-motion: reduce)');
+  // Each spring: value, velocity, stiffness k, damping c. Damping ratio is
+  // c / (2·√k): the pendulum (~.17) swings several times, the light (~.55)
+  // overshoots once, the drag-follow springs (~.75+) just glide.
+  const sp = (k, c) => ({ x: 0, v: 0, k, c });
+  const level = sp(90, 10.5);
+  const swing = sp(38, 2.1);
+  const pull = sp(260, 13);
+  const leanX = sp(55, 11);
+  const leanY = sp(55, 11);
+  const shake = sp(520, 11);
+  let on = false;
+  let drag = null;
+  let aimX = 0, aimY = 0;
+  let frame = 0, last = 0, t = 0;
+
+  function step(s, target, dt) {
+    s.v += ((target - s.x) * s.k - s.v * s.c) * dt;
+    s.x += s.v * dt;
+    return Math.abs(s.v) > 0.002 || Math.abs(target - s.x) > 0.002;
+  }
+
+  function render() {
+    const lit = Math.max(0, Math.min(1, level.x));
+    overlay.style.setProperty('--lamp', Math.max(0, level.x).toFixed(4));
+    cord.style.setProperty('--pull', Math.max(0, pull.x).toFixed(2));
+    cord.style.transform = `rotate(${swing.x.toFixed(3)}deg)`;
+    const float = Math.sin(t * 0.9) * 3 * lit;
+    card.style.transform = `perspective(1100px) translate3d(${shake.x.toFixed(2)}px, ${(float + 8 * (1 - lit)).toFixed(2)}px, 0) `
+      + `rotateX(${leanY.x.toFixed(3)}deg) rotateY(${leanX.x.toFixed(3)}deg)`;
+  }
+
+  function tick(now) {
+    frame = 0;
+    if (!overlay.classList.contains('active')) return;
+    const dt = Math.min(0.032, (now - last) / 1000 || 0.016);
+    last = now; t += dt;
+    // A barely-there breath while lit, so the light never looks frozen.
+    const breath = on ? 1 + 0.03 * Math.sin(t * 1.3) + 0.012 * Math.sin(t * 3.7) : 0;
+    let moving = on;
+    if (drag) {
+      // While held, the cord follows the pointer through stiff springs.
+      pull.v = (drag.pull - pull.x) * 18; pull.x += pull.v * dt;
+      swing.v = (drag.swing - swing.x) * 18; swing.x += swing.v * dt;
+      moving = true;
+    } else {
+      if (step(pull, 0, dt)) moving = true;
+      if (step(swing, 0, dt)) moving = true;
+    }
+    if (step(level, breath, dt)) moving = true;
+    if (step(leanX, aimX, dt)) moving = true;
+    if (step(leanY, aimY, dt)) moving = true;
+    if (step(shake, 0, dt)) moving = true;
+    render();
+    if (moving) frame = requestAnimationFrame(tick);
+  }
+
+  function wake() {
+    if (still.matches) {
+      level.x = on ? 1 : 0; pull.x = swing.x = leanX.x = leanY.x = shake.x = 0;
+      render();
+      return;
+    }
+    if (!frame) { last = performance.now(); frame = requestAnimationFrame(tick); }
+  }
+
+  function set(next) {
+    on = next;
+    overlay.classList.toggle('lamp-on', on);
+    lamp.setAttribute('aria-pressed', String(on));
+    wake();
+  }
+
+  // A pull with no drag (a click, or Enter/Space): yank the cord down.
+  function tug() {
+    pull.v += 520;
+    swing.v += (Math.random() < 0.5 ? -1 : 1) * 40;
+    set(!on);
+  }
+
+  lamp.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    lamp.setPointerCapture(e.pointerId);
+    drag = { x0: e.clientX, y0: e.clientY, pull: 0, swing: 0, moved: false };
+    lamp.classList.add('dragging');
+    wake();
+  });
+  lamp.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.moved = true;
+    // Rubber-band resistance: the cord gives less the further it's pulled.
+    drag.pull = dy > 0 ? 64 * (1 - Math.exp(-dy / 70)) : 0;
+    // A positive rotate swings the cord's free end left, so negate dx.
+    drag.swing = -28 * Math.tanh(dx / 90);
+  });
+  const release = () => {
+    if (!drag) return;
+    const { moved, pull: pulled } = drag;
+    drag = null;
+    lamp.classList.remove('dragging');
+    if (!moved) tug();
+    else if (pulled > 24) set(!on);
+    wake();
+  };
+  lamp.addEventListener('pointerup', release);
+  lamp.addEventListener('pointercancel', release);
+  // Mouse clicks are handled by pointerup; this is the keyboard path.
+  lamp.addEventListener('click', (e) => { if (e.detail === 0) tug(); });
+
+  overlay.addEventListener('pointermove', (e) => {
+    aimX = (e.clientX / window.innerWidth - 0.5) * 6;
+    aimY = -(e.clientY / window.innerHeight - 0.5) * 5;
+    // The pointer stirs the air a little, nudging the cord.
+    if (!drag) swing.v -= Math.max(-30, Math.min(30, (e.movementX || 0) * 0.35));
+    wake();
+  });
+  overlay.addEventListener('pointerleave', () => { aimX = aimY = 0; wake(); });
+
+  return {
+    set,
+    isOn: () => on,
+    // Wrong credentials: the card shakes its head and the light dips.
+    refuse() { shake.v -= 520; level.v -= 5; wake(); },
+    // Successful login: the light swells as the room fades out.
+    flare() { level.v += 3.5; wake(); },
+  };
+})();
+
+function toggleAuthLamp(force) {
+  authLamp.set(typeof force === 'boolean' ? force : !authLamp.isOn());
+}
+document.getElementById('auth-form').addEventListener('input', () => { if (!authLamp.isOn()) toggleAuthLamp(true); });
+
 function setAuthMode(mode) {
   _authMode = mode;
   const setup = mode === 'setup';
@@ -480,6 +627,7 @@ async function submitAuth(e) {
   const showErr = (m) => { document.getElementById('auth-error').textContent = m || ''; };
   [userEl, passEl, confEl].forEach(el => el.classList.remove('input-error'));
   showErr('');
+  toggleAuthLamp(true);
 
   const forceChange = _authMode === 'force-change';
   const username = forceChange ? _pendingForceChangeUser.username : userEl.value.trim();
@@ -509,6 +657,7 @@ async function submitAuth(e) {
 
   if (!res || !res.ok) {
     showErr(res && res.error || (forceChange ? 'Could not change password.' : 'Login failed.'));
+    authLamp.refuse();
     passEl.select();
     return;
   }
@@ -522,7 +671,14 @@ async function submitAuth(e) {
     return;
   }
 
-  document.getElementById('auth-overlay').classList.remove('active');
+  // Let the light flare and the room fade before the app appears.
+  const overlay = document.getElementById('auth-overlay');
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    authLamp.flare();
+    overlay.classList.add('leaving');
+    await new Promise(resolve => setTimeout(resolve, 550));
+  }
+  overlay.classList.remove('active', 'leaving');
   passEl.value = ''; if (confEl) confEl.value = '';
   _pendingForceChangeUser = null; _pendingForceChangePassword = '';
   await startApp(res.user);
