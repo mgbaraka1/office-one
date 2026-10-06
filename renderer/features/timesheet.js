@@ -1716,19 +1716,34 @@ async function fetchTaskSourcesMap(taskIds) {
   return map;
 }
 
-// Daily Timesheet PDF — same daily report, for any chosen day.
+const DAILY_RANGE_MAX_DAYS = 65;
+
+async function loadDailyReportRows(date) {
+  if (date === activeDate) return rows;
+  const list = await window.api.workLogsByDate(date);
+  return list.map(l => Object.assign({}, l, { eid: l.id }));
+}
+
+// Every YYYY-MM-DD from `from` to `to`, both included.
+function dateRangeDays(from, to) {
+  const days = [];
+  const d = new Date(from + 'T00:00:00');
+  const end = new Date(to + 'T00:00:00');
+  while (d <= end) { days.push(fmt(d)); d.setDate(d.getDate() + 1); }
+  return days;
+}
+
+// Daily Timesheet PDF — same daily report, for any chosen day. With a To date
+// it skips the preview and saves one PDF per day (empty days included) in a ZIP.
 async function genDailyReport() {
   const input = document.getElementById('rmod-daily-date');
+  const toInput = document.getElementById('rmod-daily-to');
   const date = input.value;
   if (!date) { flashFieldError(input); return; }
+  const to = toInput?.value || '';
+  if (to && to !== date) { await exportDailyReportRange(date, to, toInput); return; }
 
-  let dayRows;
-  if (date === activeDate) {
-    dayRows = rows;
-  } else {
-    const list = await window.api.workLogsByDate(date);
-    dayRows = list.map(l => Object.assign({}, l, { eid: l.id }));
-  }
+  const dayRows = await loadDailyReportRows(date);
   if (!dayRows.length) toast('No records on that day — showing an empty report');
 
   const sourcesByTaskId = await fetchTaskSourcesMap(dayRows.map(r => r.taskId));
@@ -1737,6 +1752,40 @@ async function genDailyReport() {
   setReportExcelData(null);
   document.getElementById('print-frame').innerHTML = buildDailyReportHTML(dayRows, date, name, sourcesByTaskId);
   document.getElementById('print-overlay').classList.add('open');
+}
+
+let _dailyRangeExporting = false;
+
+async function exportDailyReportRange(from, to, toInput) {
+  if (to < from) { flashFieldError(toInput); toast('The To date is before the From date'); return; }
+  const days = dateRangeDays(from, to);
+  if (days.length > DAILY_RANGE_MAX_DAYS) { flashFieldError(toInput); toast('Pick a range of 65 days or less'); return; }
+  if (_dailyRangeExporting) return;
+  _dailyRangeExporting = true;
+  let token = null;
+  try {
+    const begin = await window.api.zipBegin(`timesheet-${from}_to_${to}.zip`);
+    if (!begin?.ok) { if (begin?.error) toast('ZIP export failed: ' + begin.error); return; }
+    token = begin.token;
+    const name = document.getElementById('hName').value || LK.defaultName || 'N/A';
+    for (let i = 0; i < days.length; i++) {
+      toast(`Exporting ${i + 1} of ${days.length}…`);
+      const dayRows = await loadDailyReportRows(days[i]);
+      const sourcesByTaskId = await fetchTaskSourcesMap(dayRows.map(r => r.taskId));
+      const doc = buildReportDoc(buildDailyReportHTML(dayRows, days[i], name, sourcesByTaskId), 'Report');
+      const added = await window.api.zipAddPDF(token, doc, `timesheet-${days[i]}.pdf`);
+      if (!added?.ok) throw new Error(added?.error || 'failed');
+    }
+    const done = await window.api.zipFinish(token);
+    token = null;
+    if (!done?.ok) throw new Error(done?.error || 'failed');
+    toast(`Saved ${done.count} daily reports`);
+  } catch (err) {
+    toast('ZIP export failed: ' + (err?.message || 'failed'));
+  } finally {
+    if (token) window.api.zipCancel(token).catch(() => {});
+    _dailyRangeExporting = false;
+  }
 }
 
 function periodReportDates(kind, value) {

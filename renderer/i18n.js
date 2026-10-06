@@ -342,7 +342,10 @@
     'Continue something you worked on recently': 'متابعة عمل اشتغلت عليه مؤخراً',
     'Start brand-new client/system work': 'بدء عمل جديد لعميل / نظام', 'Wrap up something you finished': 'إنهاء عمل أكملته',
     'Generate ready-to-share PDF reports. A preview opens first — then Print or Save as PDF.': 'أنشئ تقارير PDF جاهزة للمشاركة. تفتح المعاينة أولاً، ثم يمكنك الطباعة أو الحفظ بصيغة PDF.',
-    'The full daily work report for a single day — every record with its hours and the Work / Over-Time split. The same report you can print from the Timesheet.': 'تقرير العمل اليومي الكامل ليوم واحد، ويشمل كل سجل وساعاته وتقسيم وقت العمل والوقت الإضافي. وهو نفس التقرير الذي يمكن طباعته من سجل الدوام.',
+    'The full daily work report for a single day — every record with its hours and the Work / Over-Time split. Add a To date to get one PDF per day (up to 65 days) in a single ZIP file.': 'تقرير العمل اليومي الكامل ليوم واحد، ويشمل كل سجل وساعاته وتقسيم وقت العمل والوقت الإضافي. أضف تاريخ «إلى» للحصول على ملف PDF لكل يوم (حتى 65 يوماً) في ملف ZIP واحد.',
+    'The To date is before the From date': 'تاريخ «إلى» يسبق تاريخ «من»',
+    'Pick a range of 65 days or less': 'اختر فترة لا تزيد على 65 يوماً',
+    'Export cancelled': 'تم إلغاء التصدير',
     'Weekly / Monthly Timesheet PDF': 'تقرير سجل الدوام الأسبوعي / الشهري PDF',
     'The same detailed task and session report across a full week or month, grouped by day with period-wide Work / Over-Time totals.': 'نفس تقرير المهام والجلسات المفصل لأسبوع أو شهر كامل، مجمعاً حسب اليوم مع إجمالي وقت العمل والوقت الإضافي للفترة.',
     'Every Over-Time entry logged in the chosen month, with the total hours — formatted as an Over-Time Request to share with management for approval.': 'كل إدخال وقت إضافي في الشهر المحدد مع إجمالي الساعات، منسقاً كطلب وقت إضافي لمشاركته مع الإدارة واعتماده.',
@@ -783,6 +786,7 @@
     'New item': 'عنصر جديد', 'Edit item': 'تعديل العنصر', 'File': 'الملف', 'Add': 'إضافة',
     'Choose file…': 'اختيار ملف…', 'Drop a file here, or': 'أفلت ملفاً هنا، أو',
     'Open file': 'فتح الملف', 'Open file ▾': 'فتح الملف ▾', 'Knowledge item': 'عنصر معرفة',
+    'Export was cancelled': 'تم إلغاء التصدير', 'Too many reports': 'عدد التقارير كبير جداً', 'Nothing to save': 'لا يوجد ما يُحفظ',
     'Optional. You can add files and new versions later.': 'اختياري. يمكنك إضافة ملفات وإصدارات جديدة لاحقاً.',
     'Anything worth remembering: steps, contacts, gotchas…': 'أي شيء يستحق التذكر: خطوات، جهات اتصال، ملاحظات مهمة…',
     'Plain text. Links starting with https:// open in your browser. Do not store passwords or secret keys here.':
@@ -1242,6 +1246,10 @@
     [/^Show everything for (.+)$/s, m => `عرض كل ما يخص ${m[1]}`],
     [/^New version of (.+) \(latest (.+)\)$/s, m => `إصدار جديد من ${m[1]} (الأحدث ${m[2]})`],
     [/^(\d+) of (\d+) done$/s, m => `${m[1]} من ${m[2]} مكتمل`],
+    // Daily Timesheet range → ZIP export progress and result toasts.
+    [/^Exporting (\d+) of (\d+)…$/s, m => `جارٍ تصدير ${m[1]} من ${m[2]}…`],
+    [/^Saved (\d+) daily reports$/s, m => `تم حفظ التقارير اليومية: ${m[1]}`],
+    [/^ZIP export failed: (.+)$/s, m => `فشل تصدير ZIP: ${arabicTranslation(m[1])}`],
     // Project & Finance "Add files" toast (1 has its own dictionary entry).
     [/^(\d+) files added$/s, m => {
       const n = Number(m[1]);

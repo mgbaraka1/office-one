@@ -1,10 +1,11 @@
 const { app, BrowserWindow, ipcMain, shell, dialog, safeStorage, clipboard } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const db     = require('./db');
 const auth   = require('./auth');
 const { validateIpcArgs } = require('./ipc-contracts');
-const { createTimesheetWorkbook, createPfmWorkbook, createOutsStatementWorkbook } = require('./xlsx');
+const { createTimesheetWorkbook, createPfmWorkbook, createOutsStatementWorkbook, zip } = require('./xlsx');
 
 const e2ePort = !app.isPackaged
   ? Number(process.env.OFFICE_ONE_E2E_PORT)
@@ -714,7 +715,6 @@ ipcMain.handle('maintenance:openBackupFolder', authed((_e, folderPath) => {
 // Renders the supplied self-contained HTML in an offscreen window, prints it to
 // PDF via Chromium, and writes the chosen file. Read-only; touches no app data.
 ipcMain.handle('report:exportPDF', authed(async (_e, html, defaultName) => {
-  let pdfWin;
   try {
     const reportHtml = String(html || '');
     if (!reportHtml || Buffer.byteLength(reportHtml, 'utf8') > 10 * 1024 * 1024) {
@@ -734,21 +734,93 @@ ipcMain.handle('report:exportPDF', authed(async (_e, html, defaultName) => {
         });
     if (canceled || !filePath) return { ok: false };
 
-    pdfWin = new BrowserWindow({
-      show: false,
-      webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, javascript: false },
-    });
-    await pdfWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(reportHtml));
-    // Give webfonts/layout a beat to settle before snapshotting.
-    await new Promise(r => setTimeout(r, 350));
-    const pdf = await pdfWin.webContents.printToPDF({ printBackground: true, margins: { marginType: 'default' } });
-    fs.writeFileSync(filePath, pdf);
+    fs.writeFileSync(filePath, await renderReportPdf(reportHtml));
     return { ok: true, path: filePath };
   } catch (err) {
     return { ok: false, error: String(err?.message || err) };
-  } finally {
-    if (pdfWin && !pdfWin.isDestroyed()) pdfWin.destroy();
   }
+}));
+
+// Renders self-contained report HTML in an offscreen, script-less window and
+// returns the Chromium printToPDF buffer.
+async function renderReportPdf(reportHtml) {
+  const pdfWin = new BrowserWindow({
+    show: false,
+    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, javascript: false },
+  });
+  try {
+    await pdfWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(reportHtml));
+    // Give webfonts/layout a beat to settle before snapshotting.
+    await new Promise(r => setTimeout(r, 350));
+    return await pdfWin.webContents.printToPDF({ printBackground: true, margins: { marginType: 'default' } });
+  } finally {
+    if (!pdfWin.isDestroyed()) pdfWin.destroy();
+  }
+}
+
+// ── Export many report PDFs into one ZIP (Daily Timesheet over a date range) ──
+// Three steps so each IPC call carries a single report (each embeds the print
+// font, so a whole range in one payload would exceed the IPC size cap):
+// begin (one "Save as" dialog) → add one PDF per call → finish (writes the ZIP).
+// Only one job at a time; the token guards against a stale renderer call.
+// Read-only; touches no app data.
+const PDF_ZIP_MAX_ENTRIES = 65;
+let pdfZipJob = null;
+
+ipcMain.handle('report:zipBegin', authed(async (_e, defaultName) => {
+  try {
+    const safeDefaultName = path.basename(String(defaultName || 'reports.zip')).slice(0, 180) || 'reports.zip';
+    const { canceled, filePath } = await dialog.showSaveDialog(win, {
+      title: 'Save reports as ZIP',
+      defaultPath: safeDefaultName,
+      filters: [{ name: 'ZIP archive', extensions: ['zip'] }],
+    });
+    if (canceled || !filePath) return { ok: false };
+    pdfZipJob = { token: crypto.randomUUID(), filePath, entries: [], names: new Set() };
+    return { ok: true, token: pdfZipJob.token };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err) };
+  }
+}));
+
+ipcMain.handle('report:zipAddPDF', authed(async (_e, token, html, fileName) => {
+  try {
+    const job = pdfZipJob;
+    if (!job || job.token !== token) return { ok: false, error: 'Export was cancelled' };
+    if (job.entries.length >= PDF_ZIP_MAX_ENTRIES) return { ok: false, error: 'Too many reports' };
+    const reportHtml = String(html || '');
+    if (!reportHtml || Buffer.byteLength(reportHtml, 'utf8') > 10 * 1024 * 1024) {
+      return { ok: false, error: 'Report content is empty or too large' };
+    }
+    let name = path.basename(String(fileName || '')).replace(/[^\w.-]/g, '_').slice(0, 120);
+    if (!name.toLowerCase().endsWith('.pdf')) name += '.pdf';
+    if (job.names.has(name)) return { ok: false, error: 'Duplicate file name' };
+    const pdf = await renderReportPdf(reportHtml);
+    if (pdfZipJob !== job) return { ok: false, error: 'Export was cancelled' };
+    job.names.add(name);
+    job.entries.push([name, pdf]);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err) };
+  }
+}));
+
+ipcMain.handle('report:zipFinish', authed(async (_e, token) => {
+  const job = pdfZipJob;
+  if (!job || job.token !== token) return { ok: false, error: 'Export was cancelled' };
+  pdfZipJob = null;
+  try {
+    if (!job.entries.length) return { ok: false, error: 'Nothing to save' };
+    fs.writeFileSync(job.filePath, zip(job.entries));
+    return { ok: true, path: job.filePath, count: job.entries.length };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err) };
+  }
+}));
+
+ipcMain.handle('report:zipCancel', authed(async (_e, token) => {
+  if (pdfZipJob && pdfZipJob.token === token) pdfZipJob = null;
+  return { ok: true };
 }));
 
 ipcMain.handle('report:exportCSV', authed(async (_e, csv, defaultName) => {

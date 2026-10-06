@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { createTimesheetWorkbook, createPfmWorkbook, createOutsStatementWorkbook } = require('../xlsx');
+const { createTimesheetWorkbook, createPfmWorkbook, createOutsStatementWorkbook, zip } = require('../xlsx');
 
 function readStoredZip(buffer) {
   const entries = new Map();
@@ -131,3 +131,11 @@ const unpricedSheet = readStoredZip(createOutsStatementWorkbook({
 assert.doesNotMatch(unpricedSheet, /s="13"><v>/, 'a missing rate or amount is not written as a number');
 assert.doesNotMatch(unpricedSheet, /s="10"><v>0<\/v>/, 'an unknown total fee is not written as 0');
 console.log('PASS  Outsource export leaves missing rates, amounts and the unknown total empty');
+
+// The Daily Timesheet range export reuses the same writer for binary PDFs.
+const pdfZip = zip([['timesheet-2089-12-01.pdf', Buffer.from('%PDF-1.4 one')], ['timesheet-2089-12-02.pdf', Buffer.from('%PDF-1.4 two')]]);
+const pdfEntries = readStoredZip(pdfZip);
+assert.deepEqual([...pdfEntries.keys()], ['timesheet-2089-12-01.pdf', 'timesheet-2089-12-02.pdf']);
+assert.equal(pdfEntries.get('timesheet-2089-12-02.pdf'), '%PDF-1.4 two');
+assert.equal(pdfZip.readUInt16LE(pdfZip.length - 22 + 10), 2, 'the end record counts every entry');
+console.log('PASS  Report ZIP keeps one stored entry per daily PDF');
