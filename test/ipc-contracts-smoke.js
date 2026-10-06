@@ -45,6 +45,10 @@ rejects('Contracts reject unregistered channels',
   () => validateIpcArgs('unknown:channel', []));
 rejects('Reports are bounded to 10 MB',
   () => validateIpcArgs('report:print', ['x'.repeat(10 * 1024 * 1024 + 1)]));
+gate('A ZIP report entry may carry a report-sized (over 1 MB) document',
+  validateIpcArgs('report:zipAddPDF', ['token', 'x'.repeat(2 * 1024 * 1024), 'timesheet-2089-12-01.pdf']));
+rejects('ZIP report entries are bounded to 10 MB',
+  () => validateIpcArgs('report:zipAddPDF', ['token', 'x'.repeat(10 * 1024 * 1024 + 1), 'a.pdf']));
 
 let failed = 0;
 for (const result of results) {

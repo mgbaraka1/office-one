@@ -200,6 +200,10 @@ const SIGNATURES = {
   'report:exportCSV': ['report', 'string'],
   'report:exportExcel': ['object', 'string'],
   'report:print': ['report'],
+  'report:zipBegin': ['string'],
+  'report:zipAddPDF': ['string', 'report', 'string'],
+  'report:zipFinish': ['string'],
+  'report:zipCancel': ['string'],
   'app:confirmSaveFailure': ['string', 'string?'],
   'window:setTitle': ['string'],
   'shell:openExternal': ['string'],
@@ -274,6 +278,8 @@ function validateIpcArgs(channel, args) {
   });
   if (channel === 'report:exportPDF' || channel === 'report:exportCSV' || channel === 'report:print') {
     if (Buffer.byteLength(args[0], 'utf8') > 10 * 1024 * 1024) throw new Error('Report content is too large');
+  } else if (channel === 'report:zipAddPDF') {
+    if (Buffer.byteLength(args[1], 'utf8') > 10 * 1024 * 1024) throw new Error('Report content is too large');
   } else if (channel === 'report:exportExcel' || channel === 'pfm:export-xlsx' || channel === 'outs:export-xlsx') {
     if (Buffer.byteLength(JSON.stringify(args[0]), 'utf8') > 10 * 1024 * 1024) throw new Error('Report content is too large');
   } else {

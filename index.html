@@ -281,11 +281,15 @@
           <div class="rmod-card-icon" data-ic="calendar-days"></div>
           <div class="rmod-card-title">Daily Timesheet PDF</div>
         </div>
-        <div class="rmod-card-desc">The full daily work report for a single day — every record with its hours and the Work / Over-Time split. The same report you can print from the Timesheet.</div>
+        <div class="rmod-card-desc">The full daily work report for a single day — every record with its hours and the Work / Over-Time split. Add a To date to get one PDF per day (up to 65 days) in a single ZIP file.</div>
         <div class="rmod-card-controls">
           <div class="rmod-field">
-            <label for="rmod-daily-date">Day</label>
+            <label for="rmod-daily-date">From</label>
             <input type="date" id="rmod-daily-date" />
+          </div>
+          <div class="rmod-field">
+            <label for="rmod-daily-to">To</label>
+            <input type="date" id="rmod-daily-to" />
           </div>
           <button class="btn primary" data-onclick="genDailyReport()">Generate →</button>
         </div>

@@ -303,4 +303,4 @@ function packageWorkbook(sheetName, fallbackName, worksheet) {
   ]);
 }
 
-module.exports = { createTimesheetWorkbook, createPfmWorkbook, createOutsStatementWorkbook };
+module.exports = { createTimesheetWorkbook, createPfmWorkbook, createOutsStatementWorkbook, zip };
