@@ -51,6 +51,10 @@ gate('The Knowledge Hub ZIP download takes a list of attachment entries',
   validateIpcArgs('knowledge:download-zip', [[{ id: 1, dirs: ['Item'], name: 'a.pdf' }], 'knowledge.zip']));
 rejects('The Knowledge Hub ZIP download refuses a non-list payload',
   () => validateIpcArgs('knowledge:download-zip', [{ id: 1 }, 'knowledge.zip']));
+gate('The Offers & CRs ZIP export takes the Excel data and a list of items',
+  validateIpcArgs('pfm:export-zip', [{ rows: [] }, [{ id: 1, client: 'Client A' }], 'Offers and CRs.zip']));
+rejects('The Offers & CRs ZIP export refuses a non-list of items',
+  () => validateIpcArgs('pfm:export-zip', [{ rows: [] }, 1, 'Offers and CRs.zip']));
 rejects('ZIP report entries are bounded to 10 MB',
   () => validateIpcArgs('report:zipAddPDF', ['token', 'x'.repeat(10 * 1024 * 1024 + 1), 'a.pdf']));
 

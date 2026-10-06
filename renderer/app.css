@@ -1065,6 +1065,9 @@
     .pfm-row.archived td { opacity: .62; }
     .pfm-ref { font-weight: 700; white-space: nowrap; }
     .pfm-cell-title { display: inline-block; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+    .pfm-cell-note { display: block; max-width: 320px; margin-top: 2px; font-size: var(--fs-caption); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pfm-status-stack { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding-block: 2px; }
+    .pfm-status-stack .pfm-step-state { white-space: nowrap; }
     .pfm-fees { font-variant-numeric: tabular-nums; white-space: nowrap; }
     .pfm-muted { color: var(--muted); }
     .pfm-dot { color: var(--muted); }
@@ -1115,6 +1118,9 @@
     .pfm-step-name { font-size: var(--fs-sm); font-weight: 700; }
     .pfm-step-current .pfm-step-name { color: var(--primary); }
     .pfm-step-who { font-size: var(--fs-sm); display: flex; gap: var(--space-1); flex-wrap: wrap; justify-content: center; }
+    .pfm-step-state { font-size: var(--fs-caption); font-weight: 700; padding: 1px 8px; border-radius: 999px; }
+    .pfm-step-state.is-done { color: var(--done-text); background: var(--done); }
+    .pfm-step-state.is-pending { color: var(--muted); border: 1px dashed var(--border); }
     .pfm-step-date { font-size: var(--fs-caption); color: var(--muted); }
     .pfm-step-note { font-size: var(--fs-caption); color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .pfm-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3) var(--space-4); }
@@ -1136,6 +1142,7 @@
     .pfm-history-change { display: flex; flex-wrap: wrap; gap: var(--space-2); min-width: 0; overflow-wrap: anywhere; }
     .pfm-history-old { text-decoration: line-through; color: var(--muted); }
     .pfm-check { display: inline-flex !important; align-items: center; gap: var(--space-2); text-transform: none !important; letter-spacing: 0 !important; cursor: pointer; }
+    .pfm-done-ctl { display: inline-flex; }
     .pfm-version-list { display: flex; flex-direction: column; gap: var(--space-3); }
     .pfm-version { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--space-3) var(--space-4); background: var(--surface); }
     .pfm-version.current { border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); box-shadow: inset 3px 0 0 var(--primary); }

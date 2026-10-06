@@ -159,8 +159,8 @@ function createTimesheetWorkbook(input) {
 // Labels arrive already translated; `rtl` flips the sheet for Arabic.
 const PFM_COLUMNS = [
   ['reference', 'Reference', 18], ['kind', 'Type', 10], ['title', 'Title', 40], ['client', 'Client', 26],
-  ['status', 'Status', 14], ['fees', 'Fees', 14], ['currency', 'Currency', 10], ['version', 'Version', 11],
-  ['person', 'Person', 20], ['validUntil', 'Valid Until', 13], ['updated', 'Updated', 13],
+  ['status', 'Status', 14], ['done', 'Done?', 13], ['person', 'Person', 20], ['note', 'Notes', 40],
+  ['fees', 'Fees', 14], ['currency', 'Currency', 10], ['version', 'Version', 11], ['validUntil', 'Valid Until', 13], ['updated', 'Updated', 13],
 ];
 function createPfmWorkbook(input) {
   if (!input || typeof input !== 'object' || !Array.isArray(input.rows)) throw new Error('Invalid Excel export data');

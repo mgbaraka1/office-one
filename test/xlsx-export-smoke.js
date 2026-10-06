@@ -65,7 +65,8 @@ const pfmBook = createPfmWorkbook({
   headers: { reference: 'Reference', fees: 'Fees' },
   rows: [
     { reference: 'OFF-001', kind: 'Offer', title: 'Generic offer', client: 'Client A', status: 'Sent',
-      fees: 12500.5, currency: 'SAR', version: 'v2', person: 'Person A', validUntil: '2026-08-03', updated: '2026-08-04' },
+      done: 'Not done yet', person: 'Person A', note: 'Waiting for sign-off',
+      fees: 12500.5, currency: 'SAR', version: 'v2', validUntil: '2026-08-03', updated: '2026-08-04' },
     { reference: 'CR-001', kind: 'CR', title: 'عرض عام', client: 'المؤسسة', status: 'Prepare',
       fees: null, currency: '', version: '', person: '', validUntil: '', updated: '2026-08-04' },
   ],
@@ -73,10 +74,12 @@ const pfmBook = createPfmWorkbook({
 const pfmEntries = readStoredZip(pfmBook);
 const pfmSheet = pfmEntries.get('xl/worksheets/sheet1.xml');
 assert.ok(pfmEntries.has('xl/styles.xml') && pfmEntries.has('[Content_Types].xml'), 'PFM export is a full workbook package');
-assert.match(pfmSheet, /<c r="F5" s="13"><v>12500.5<\/v><\/c>/, 'fees are numeric cells with a #,##0.00 format, not text');
-assert.match(pfmSheet, /<c r="F6" s="0" t="inlineStr"><is><t><\/t><\/is><\/c>/, 'a version with no fees exports an empty cell');
-assert.match(pfmSheet, /<c r="J5" s="5"><v>46237<\/v><\/c>/, 'valid-until is a typed Excel date');
-assert.match(pfmSheet, /<autoFilter ref="A4:K6"\/>/, 'the exported rows carry an Excel filter');
+assert.match(pfmSheet, /<c r="F5" s="0" t="inlineStr"><is><t>Not done yet<\/t><\/is><\/c><c r="G5" s="0" t="inlineStr"><is><t>Person A<\/t><\/is><\/c><c r="H5" s="0" t="inlineStr"><is><t>Waiting for sign-off<\/t><\/is><\/c>/,
+  'status is followed by done-or-not, person and notes');
+assert.match(pfmSheet, /<c r="I5" s="13"><v>12500.5<\/v><\/c>/, 'fees are numeric cells with a #,##0.00 format, not text');
+assert.match(pfmSheet, /<c r="I6" s="0" t="inlineStr"><is><t><\/t><\/is><\/c>/, 'a version with no fees exports an empty cell');
+assert.match(pfmSheet, /<c r="L5" s="5"><v>46237<\/v><\/c>/, 'valid-until is a typed Excel date');
+assert.match(pfmSheet, /<autoFilter ref="A4:M6"\/>/, 'the exported rows carry an Excel filter');
 assert.match(pfmSheet, /state="frozen"/, 'PFM headers are frozen');
 assert.doesNotMatch(pfmSheet, /rightToLeft/, 'an English export stays left-to-right');
 assert.match(pfmSheet, /المؤسسة/, 'Arabic client names are preserved');

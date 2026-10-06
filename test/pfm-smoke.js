@@ -187,6 +187,31 @@ try {
   const cleared = db.savePfmStage(userId, offer.id, { status: 'REJECTED', memberName: '' });
   record('Stage: a stage emptied of everything is removed',
     cleared.ok && !cleared.item.stages.some(s => s.status === 'REJECTED'), JSON.stringify(cleared.item?.stages));
+  const stageOf = (res, code) => res.item.stages.find(s => s.status === code);
+  const undone = db.savePfmStage(userId, offer.id, { status: 'ACCEPTED', doneOn: '' });
+  record('Stage: marking the current stage not done steps the status back to the last done stage',
+    undone.ok && undone.item.status === 'SENT' && stageOf(undone, 'ACCEPTED')?.doneOn === ''
+      && stageOf(undone, 'ACCEPTED')?.note === 'signed', JSON.stringify(undone.item?.status));
+  const movedBack = db.setPfmStatus(userId, offer.id, { status: 'PREPARE', date: '2090-01-07' });
+  record('Status: moving back makes every later stage not done, keeping its person',
+    movedBack.ok && movedBack.item.status === 'PREPARE'
+      && ['READY', 'SENT'].every(code => stageOf(movedBack, code)?.doneOn === '')
+      && stageOf(movedBack, 'READY')?.memberName === 'Person A'
+      && db.getPfmHistory(userId, offer.id).some(h => h.field === 'Ready: Date' && h.oldValue === '2090-01-03'),
+    JSON.stringify(movedBack.item?.stages));
+  const nextOf = () => db.listPfmItems(userId).find(i => i.id === offer.id)?.nextStep;
+  record('List: the next step is the first not-done stage after the current one that has a person',
+    JSON.stringify(nextOf()) === JSON.stringify({ status: 'READY', memberName: 'Person A', note: '' }), JSON.stringify(nextOf()));
+  db.savePfmStage(userId, offer.id, { status: 'READY', note: 'Add the price, then send' });
+  record('List: the next step carries its note', nextOf()?.note === 'Add the price, then send', JSON.stringify(nextOf()));
+  const firstUndone = db.savePfmStage(userId, offer.id, { status: 'PREPARE', doneOn: '' });
+  record('Stage: the first status has nothing before it, so it stays current',
+    firstUndone.ok && firstUndone.item.status === 'PREPARE', JSON.stringify(firstUndone.item?.status));
+  db.setPfmStatus(userId, offer.id, { status: 'ACCEPTED', date: '2090-01-09' });
+  const rejected = db.setPfmStatus(userId, offer.id, { status: 'REJECTED', date: '2090-01-10' });
+  record('Status: switching between final statuses un-does the other one',
+    rejected.ok && stageOf(rejected, 'ACCEPTED')?.doneOn === '', JSON.stringify(rejected.item?.stages));
+  db.setPfmStatus(userId, offer.id, { status: 'ACCEPTED', date: '2090-01-11' });
   const names = db.listPfmMemberNames(userId);
   record('Stage: past names are suggested once each (case/space folded)',
     names.filter(n => n.trim().toLowerCase() === 'person b').length === 1 && names.includes('Person A'), JSON.stringify(names));
@@ -276,6 +301,18 @@ try {
     [outside, sideways, absolute].every(r => !r.ok && /invalid/i.test(r.error)), JSON.stringify([outside, sideways, absolute]));
   record('Files: the real path resolves again once restored', db.resolvePfmFile(userId, pdfFile.id).ok);
 
+  // The list's ZIP export takes only the newest version's files.
+  const latestBefore = db.listPfmLatestFiles(userId, [offer.id])[0];
+  record('ZIP export: an older version\'s files are left out',
+    latestBefore.version === 'v2' && latestBefore.files.length === 0, JSON.stringify(latestBefore));
+  db.addPfmVersionFiles(userId, v2.version.id, [goodPdf]);
+  const latest = db.listPfmLatestFiles(userId, [offer.id, 999999])[0];
+  record('ZIP export: the newest version\'s files come with the client, reference and title',
+    db.listPfmLatestFiles(userId, [offer.id, 999999]).length === 1 && latest.company === db.listPfmItems(userId).find(i => i.id === offer.id).company
+      && latest.reference && latest.title && latest.files.length === 1 && latest.files[0].exists
+      && latest.files[0].originalName === 'offer.pdf' && fs.existsSync(latest.files[0].absPath), JSON.stringify(latest));
+  record('ZIP export: another login gets nothing', db.listPfmLatestFiles(otherId, [offer.id]).length === 0);
+
   // Orphan sweep: a dead item folder, a dead version folder under a live item,
   // and a stray file in a live version folder all go; the real file stays.
   fs.mkdirSync(path.join(pfmRoot, '999999', '1'), { recursive: true });
@@ -308,8 +345,9 @@ try {
       && db.listPfmItems(userId, { status: 'ACCEPTED' }).map(i => i.id).join() === String(offer.id)
       && db.listPfmItems(userId, { search: 'off-0' }).map(i => i.id).join() === String(offer.id));
   const listed = db.listPfmItems(userId).find(i => i.id === offer.id);
-  record('List: rows carry current fees and current person',
-    listed.currentVersion?.feesMinor === 1050050 && listed.currentMember === 'person b', JSON.stringify(listed));
+  record('List: rows carry current fees, current person and the current status note',
+    listed.currentVersion?.feesMinor === 1050050 && listed.currentMember === 'person b' && listed.currentNote === 'signed',
+    JSON.stringify(listed));
   db.archivePfmItem(userId, cr.id);
   record('Archive: hidden by default, shown with includeArchived, still holds its reference',
     !db.listPfmItems(userId).some(i => i.id === cr.id)

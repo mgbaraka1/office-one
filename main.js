@@ -462,6 +462,17 @@ function zipPathSegment(value, fallback) {
   const clean = String(value ?? '').replace(/[\u0000-\u001F<>:"/\\|?*]/g, '_').replace(/[. ]+$/g, '').trim().slice(0, 120);
   return clean && clean !== '..' ? clean : fallback;
 }
+// Reads each { absPath, path } into a ZIP entry; a repeated path gets " (2)",
+// " (3)"… before its extension.
+function readZipFiles(files) {
+  const used = new Set();
+  return files.map(file => {
+    let name = file.path;
+    for (let n = 2; used.has(name.toLowerCase()); n++) name = file.path.replace(/(\.[^./]*)?$/, ext => ` (${n})${ext}`);
+    used.add(name.toLowerCase());
+    return [name, fs.readFileSync(file.absPath)];
+  });
+}
 ipcMain.handle('knowledge:download-zip', authed(async (_e, entries, defaultName) => {
   const userId = auth.requireUserId();
   const wanted = Array.isArray(entries) ? entries.slice(0, 5000) : [];
@@ -486,13 +497,7 @@ ipcMain.handle('knowledge:download-zip', authed(async (_e, entries, defaultName)
   });
   if (canceled || !filePath) return { ok: false, canceled: true };
   try {
-    const used = new Set();
-    const zipEntries = files.map(file => {
-      let name = file.path;
-      for (let n = 2; used.has(name.toLowerCase()); n++) name = file.path.replace(/(\.[^./]*)?$/, ext => ` (${n})${ext}`);
-      used.add(name.toLowerCase());
-      return [name, fs.readFileSync(file.absPath)];
-    });
+    const zipEntries = readZipFiles(files);
     fs.writeFileSync(filePath, zip(zipEntries));
     return { ok: true, path: filePath, count: zipEntries.length, skipped };
   } catch (err) {
@@ -932,6 +937,45 @@ ipcMain.handle('pfm:export-xlsx', authed(async (_e, exportData, defaultName) => 
     if (canceled || !filePath) return { ok: false };
     fs.writeFileSync(filePath, createPfmWorkbook(exportData));
     return { ok: true, path: filePath };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err) };
+  }
+}));
+// The same Excel plus the newest version's files of every listed item, straight
+// inside one folder per client: Client/file. A repeated name gets " (2)".
+// `items` is [{ id, client }]: the client name in the app language names its folder.
+ipcMain.handle('pfm:export-zip', authed(async (_e, exportData, items, defaultName) => {
+  const userId = auth.requireUserId();
+  try {
+    const serializedBytes = Buffer.byteLength(JSON.stringify(exportData || {}), 'utf8');
+    if (!exportData || serializedBytes > 10 * 1024 * 1024) {
+      return { ok: false, error: 'Excel export content is empty or too large' };
+    }
+    const safeDefaultName = path.basename(String(defaultName || 'Offers and CRs.zip')).slice(0, 180) || 'Offers and CRs.zip';
+    const workbook = createPfmWorkbook(exportData);
+    const files = [];
+    let skipped = 0, total = workbook.length;
+    const wanted = items.slice(0, 5000);
+    const clientOf = new Map(wanted.map(entry => [Number(entry?.id), String(entry?.client || '')]));
+    for (const item of db.listPfmLatestFiles(userId, wanted.map(entry => entry?.id))) {
+      const dir = zipPathSegment(clientOf.get(item.itemId) || item.company, 'No client');
+      for (const file of item.files) {
+        if (!file.exists) { skipped++; continue; }
+        try { total += fs.statSync(file.absPath).size; } catch { skipped++; continue; }
+        if (total > KNOWLEDGE_ZIP_MAX_BYTES) return { ok: false, error: 'The documents are over 1 GB together — narrow the filter' };
+        files.push({ absPath: file.absPath, path: dir + '/' + zipPathSegment(file.originalName, 'document') });
+      }
+    }
+    const { canceled, filePath } = await dialog.showSaveDialog(win, {
+      title: 'Save offers and CRs as ZIP',
+      defaultPath: safeDefaultName,
+      filters: [{ name: 'ZIP archive', extensions: ['zip'] }],
+    });
+    if (canceled || !filePath) return { ok: false, canceled: true };
+    const zipEntries = readZipFiles(files);
+    zipEntries.unshift([safeDefaultName.replace(/\.zip$/i, '') + '.xlsx', workbook]);
+    fs.writeFileSync(filePath, zip(zipEntries));
+    return { ok: true, path: filePath, count: zipEntries.length - 1, skipped };
   } catch (err) {
     return { ok: false, error: String(err?.message || err) };
   }

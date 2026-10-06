@@ -926,7 +926,7 @@
       <label class="sr-only" for="pfm-client-filter">Client</label>
       <select id="pfm-client-filter" class="pfm-client-filter" data-onchange="setPfmClientFilter()"></select>
       <button type="button" class="btn" id="pfm-archived-btn" data-onclick="togglePfmArchived()" aria-pressed="false"><span data-ic="eye"></span>Show archived</button>
-      <button type="button" class="btn pfm-export-btn" id="pfm-export-btn" data-onclick="exportPfmExcel()" title="Export what the filters show to Excel"><span data-ic="download"></span>Excel</button>
+      <div class="pfm-export-btn" id="pfm-export-slot"></div>
     </div>
     <div class="pfm-chips" id="pfm-status-chips" aria-label="Filter by status"></div>
     <div class="pfm-table-wrap">
@@ -1226,19 +1226,23 @@
       <button class="modal-close" data-onclick="closePfmStageModal()" data-ic="x"></button>
     </div>
     <div class="modal-body">
+      <div class="form-row" id="pfm-stage-planned-group">
+        <div class="form-group full">
+          <div class="seg-ctl pfm-done-ctl" role="group" aria-label="Is this step done?">
+            <button type="button" class="seg-btn" id="pfm-stage-done-btn" data-onclick="setPfmStageDone(true)">✓ Done</button>
+            <button type="button" class="seg-btn" id="pfm-stage-pending-btn" data-onclick="setPfmStageDone(false)">Not done yet</button>
+          </div>
+          <input id="pfm-stage-planned" type="checkbox" hidden />
+        </div>
+      </div>
       <div class="form-row">
         <div class="form-group">
           <label for="pfm-stage-member">Person</label>
           <input id="pfm-stage-member" type="text" list="pfm-member-names" autocomplete="off" placeholder="Type a name" />
         </div>
-        <div class="form-group">
-          <label for="pfm-stage-date">Date</label>
+        <div class="form-group" id="pfm-stage-date-group">
+          <label for="pfm-stage-date">Done on</label>
           <input id="pfm-stage-date" type="date" />
-        </div>
-      </div>
-      <div class="form-row" id="pfm-stage-planned-group">
-        <div class="form-group full">
-          <label class="pfm-check"><input id="pfm-stage-planned" type="checkbox" data-onchange="syncPfmStagePlanned()" /><span>Planned — has not happened yet</span></label>
         </div>
       </div>
       <div class="form-row">

@@ -231,6 +231,7 @@ contextBridge.exposeInMainWorld('api', {
   restorePfmFile:     (fileId)           => ipcRenderer.invoke('pfm:file-restore', fileId),
   purgePfmFile:       (fileId)           => ipcRenderer.invoke('pfm:file-purge', fileId),
   exportPfmExcel:     (data, name)       => ipcRenderer.invoke('pfm:export-xlsx', data, name),
+  exportPfmZip:       (data, ids, name)  => ipcRenderer.invoke('pfm:export-zip', data, ids, name),
 
   // ── Outsource (resources + hourly rate history; see ipc-types OutsResource) ──
   /** @returns {Promise<import('./ipc-types').OutsResource[]>} */
