@@ -123,6 +123,98 @@ function shortcutsOverlayClick(e) { if (e.target === document.getElementById('sh
 function openHowThinksOverlay() { document.getElementById('howthinks-overlay').classList.add('open'); }
 function closeHowThinksOverlay() { document.getElementById('howthinks-overlay').classList.remove('open'); }
 function howThinksOverlayClick(e) { if (e.target === document.getElementById('howthinks-overlay')) closeHowThinksOverlay(); }
+// ── Settings -> General: What's New ──
+// The running version and its notes (only the latest change), from
+// release-notes.json (committed, written with each version bump). Each entry
+// has a title and notes in English and Arabic, shown in the app's language;
+// an entry without Arabic (versions released before the file existed) falls
+// back to English. `technical` lines (migrations, schema) are English only and
+// fold behind their own toggle. All of it is a record, so it is marked as user
+// content and the translator leaves it alone.
+let _whatsNewLoaded = null;
+async function renderWhatsNew() {
+  const host = document.getElementById('whats-new');
+  if (!host) return;
+  if (!_whatsNewLoaded) {
+    _whatsNewLoaded = Promise.all([
+      window.api.appVersion().catch(() => ''),
+      window.api.releaseNotes().catch(() => []),
+    ]);
+  }
+  const [version, notes] = await _whatsNewLoaded;
+  host.innerHTML = '';
+  // Label and number as separate nodes, so the label translates on its own.
+  const versionLine = pjMk('div', 'whats-new-version');
+  versionLine.appendChild(pjMk('span', null, 'Installed version:'));
+  versionLine.appendChild(document.createTextNode(' '));
+  const versionValue = pjMk('span', null, version || '?');
+  versionValue.dataset.userContent = '';
+  versionLine.appendChild(versionValue);
+  host.appendChild(versionLine);
+  if (!notes.length) {
+    host.appendChild(pjMk('p', 'general-hint', 'No release notes are bundled with this build.'));
+    return;
+  }
+  const current = notes.find(n => n.version === version);
+  // A build with no entry of its own shows the newest one instead, and says so.
+  if (!current) host.appendChild(pjMk('p', 'general-hint', 'This build is newer than the last release. Latest release notes:'));
+  // Only the latest change is shown; earlier entries stay in the file as a record.
+  host.appendChild(buildReleaseNote(current || notes[0]));
+}
+// Switching language redraws the notes in the other one.
+document.addEventListener('ct:languagechange', () => {
+  if (document.getElementById('whats-new')?.childNodes.length) renderWhatsNew();
+});
+
+// { en, ar } in the app's language: Arabic when there is one, else English.
+// The element's direction follows the text actually shown.
+function releaseNoteText(el, text) {
+  const ar = window.ctI18n?.getLanguage?.() === 'ar' && text?.ar;
+  el.textContent = ar ? text.ar : (text?.en || '');
+  el.dir = ar ? 'rtl' : 'ltr';
+  el.dataset.userContent = '';
+  return el;
+}
+
+// One version's card: version, kind, title and date, then its notes.
+function buildReleaseNote(n) {
+  const kind = n.kind === 'feat' || n.kind === 'fix' ? n.kind : 'other';
+  const kindLabels = { feat: 'New feature', fix: 'Fix', other: 'Improvement' };
+
+  const box = pjMk('div', 'whats-new-note is-current');
+  const head = pjMk('div', 'whats-new-head');
+  const tag = pjMk('span', 'whats-new-tag', n.version);   // "v" comes from CSS
+  tag.dataset.userContent = '';
+  head.appendChild(tag);
+  head.appendChild(pjMk('span', 'whats-new-kind kind-' + kind, kindLabels[kind]));
+  head.appendChild(releaseNoteText(pjMk('span', 'whats-new-title'), n.title));
+  if (n.date) head.appendChild(pjMk('span', 'whats-new-date', n.date));
+  box.appendChild(head);
+
+  const notes = Array.isArray(n.notes) ? n.notes : [];
+  if (notes.length) {
+    const list = pjMk('ul', 'whats-new-body');
+    notes.forEach(note => list.appendChild(releaseNoteText(pjMk('li', null), note)));
+    box.appendChild(list);
+  }
+  const technical = Array.isArray(n.technical) ? n.technical : [];
+  if (technical.length) {
+    const tech = pjMk('details', 'whats-new-technical');
+    tech.appendChild(pjMk('summary', null, 'Technical details'));
+    const list = pjMk('ul', null);
+    list.dir = 'ltr'; list.dataset.userContent = '';
+    technical.forEach(line => list.appendChild(pjMk('li', null, line)));
+    tech.appendChild(list);
+    box.appendChild(tech);
+  }
+  return box;
+}
+
+// A "Where everything lives" tile: close the guide and open that page.
+function openHowThinksModule(module) {
+  closeHowThinksOverlay();
+  switchModule(module);
+}
 
 // Parse a "jump to date" query: full YYYY-MM-DD, or the words today / yesterday.
 function palParseDate(q) {

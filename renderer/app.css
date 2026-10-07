@@ -225,7 +225,10 @@
       border-radius: 5px; color: var(--sidebar-muted); background: color-mix(in srgb, var(--sidebar-bg) 60%, transparent);
       font: 600 10px/1.3 'Cairo', 'Segoe UI', sans-serif; font-variant-numeric: tabular-nums;
     }
-    .sidebar-nav { display: flex; flex-direction: column; gap: 3px; overflow-y: auto; }
+    /* flex + min-height: 0 let the menu shrink and scroll when the window is
+       short. Without them it kept its full height and pushed the footer
+       (version, signature) below the window edge, where body clips it. */
+    .sidebar-nav { display: flex; flex-direction: column; gap: 3px; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
     .nav-section {
       font-size: 10px; font-weight: 700; text-transform: uppercase;
       letter-spacing: 1.2px; color: var(--sidebar-muted);
@@ -2026,7 +2029,7 @@
 
     @media (max-width: 1050px) {
       #sidebar { width: 76px; padding: 18px 10px; align-items: stretch; }
-      .brand-full, .nav-label, .nav-section, .sidebar-user, .app-version, .quickfind-key { display: none; }
+      .brand-full, .nav-label, .nav-section, .sidebar-user, .app-version, .quickfind-key, .mwl-text { display: none; }
       .brand-compact { display: block; text-align: center; }
       .sidebar-brand { padding: 0; text-align: center; }
       .sidebar-quickfind { justify-content: center; padding: 10px 8px; }
@@ -2558,11 +2561,91 @@
     .shortcuts-row span { margin-left: auto; text-align: right; color: var(--muted); max-width: 60%; }
 
     /* "How This App Thinks" cheat-sheet (Milestone 10) */
+    .howthinks-box { width: 720px; max-width: 94vw; }
+    /* The Task → Sessions → container model. Flex follows the page direction,
+       so the flow reads right-to-left in Arabic; only the arrow glyph needs
+       flipping by hand. */
+    .ht-flow {
+      display: flex; align-items: center; gap: 10px; margin: 14px 0 6px;
+      padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface2);
+    }
+    .ht-node {
+      flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px;
+      padding: 10px 8px; border-radius: 10px; text-align: center;
+      background: var(--surface); border: 1.5px solid var(--border);
+    }
+    .ht-node-main { background: var(--accent-bg); border-color: var(--accent); }
+    .ht-node-optional { border-style: dashed; padding: 7px 8px; }
+    .ht-node-name { font-size: 13px; font-weight: 700; color: var(--text); }
+    .ht-node-sub { font-size: 11px; color: var(--muted); }
+    .ht-flow-arrow { flex: 0 0 auto; color: var(--muted); display: inline-flex; }
+    .ht-flow-arrow .lic { width: 18px; height: 18px; }
+    [dir="rtl"] .ht-flow-arrow .lic { transform: scaleX(-1); }
+    .ht-containers { flex: 1.1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+    .ht-or { text-align: center; font-size: 11px; font-weight: 700; color: var(--muted); }
+    .ht-containers-note { text-align: center; font-size: 11px; color: var(--accent); font-weight: 600; margin-top: 2px; }
+    @media (max-width: 560px) {
+      .ht-flow { flex-direction: column; }
+      .ht-node, .ht-containers { width: 100%; }
+      .ht-flow-arrow .lic, [dir="rtl"] .ht-flow-arrow .lic { transform: rotate(90deg); }
+    }
     .howthinks-rules {
       display: flex; flex-direction: column; gap: 8px; margin: 16px 0;
-      font-size: 13px; color: var(--text); line-height: 1.5;
+      font-size: 13px; color: var(--text); line-height: 1.6;
+      list-style: none; padding: 0; counter-reset: ht-rule;
     }
-    .howthinks-journeys { display: flex; flex-direction: column; gap: 12px; margin-top: 18px; }
+    .howthinks-rules li { display: flex; gap: 10px; align-items: baseline; counter-increment: ht-rule; }
+    .howthinks-rules li::before {
+      content: counter(ht-rule); flex: 0 0 22px; height: 22px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 11.5px; font-weight: 700; color: var(--accent); background: var(--accent-bg);
+    }
+    .ht-section-title { font-size: 13px; font-weight: 700; color: var(--text); margin: 22px 0 10px; }
+    .ht-modules { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .ht-module {
+      display: flex; align-items: flex-start; gap: 10px; text-align: start;
+      padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+      background: var(--surface); color: var(--text); font-family: inherit; cursor: pointer;
+      transition: border-color var(--speed), background var(--speed);
+    }
+    .ht-module:hover, .ht-module:focus-visible { border-color: var(--accent); background: var(--accent-bg); }
+    .ht-module > [data-ic] { flex: 0 0 auto; display: inline-flex; margin-top: 2px; color: var(--accent); }
+    .ht-module > [data-ic] .lic { width: 16px; height: 16px; }
+    .ht-module-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .ht-module-text b { font-size: 13px; }
+    .ht-module-text span { font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+    @media (max-width: 560px) { .ht-modules { grid-template-columns: 1fr; } }
+    .ht-quickfind-tip { display: flex; align-items: center; gap: 6px; margin: 14px 0 0; }
+    .ht-quickfind-tip .lic { width: 14px; height: 14px; }
+    .howthinks-journeys { display: flex; flex-direction: column; gap: 12px; }
+
+    /* Settings -> General: What's New (release-notes.json). */
+    .whats-new { display: flex; flex-direction: column; gap: 10px; max-width: 860px; }
+    .whats-new-version { font-size: 13px; font-weight: 700; color: var(--text); }
+    .whats-new-note {
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      background: var(--surface); padding: 12px 14px;
+    }
+    .whats-new-note.is-current { border-color: var(--accent); background: var(--accent-bg); }
+    .whats-new-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .whats-new-tag {
+      font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+      background: var(--surface2); color: var(--text); font-variant-numeric: tabular-nums;
+    }
+    .whats-new-tag::before { content: "v"; }
+    .whats-new-kind { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+    .whats-new-kind.kind-feat { background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--good); }
+    .whats-new-kind.kind-fix { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+    .whats-new-kind.kind-other { background: var(--surface2); color: var(--muted); }
+    .whats-new-title { font-size: 13px; font-weight: 700; color: var(--text); flex: 1 1 240px; min-width: 0; }
+    .whats-new-date { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    /* Each note carries its own dir (Arabic, or English as the fallback), so
+       text-align: start lines it up with its own language. */
+    .whats-new-body { margin: 8px 0 0; padding-inline-start: 20px; font-size: 12.5px; color: var(--text); line-height: 1.6; }
+    .whats-new-body li { margin: 3px 0; text-align: start; }
+    .whats-new-technical { margin-top: 8px; }
+    .whats-new-technical > summary { cursor: pointer; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+    .whats-new-technical ul { margin: 6px 0 0; padding-left: 20px; font-size: 11.5px; color: var(--muted); line-height: 1.55; text-align: left; }
     .howthinks-journey {
       background: var(--surface2); border: 1px solid var(--border);
       border-radius: var(--radius-sm); padding: 12px 14px;
@@ -2906,6 +2989,20 @@
       background: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
     }
     .app-version { color: var(--sidebar-muted); font-size: 10px; letter-spacing: .35px; text-align: center; white-space: pre-line; line-height: 1.5; }
+    /* Signature under the version: as quiet as the version itself, with the
+       heart the only touch of colour; it beats once on hover. */
+    .made-with-love {
+      display: flex; align-items: center; justify-content: center; gap: 5px;
+      margin-top: 4px; color: var(--sidebar-muted); font-size: 10px; letter-spacing: .2px;
+      opacity: .85; cursor: default; user-select: none;
+    }
+    .mwl-heart { width: 10px; height: 10px; fill: var(--primary); flex: 0 0 auto; transform-origin: center; }
+    .made-with-love:hover { opacity: 1; }
+    .made-with-love:hover .mwl-heart { animation: mwlBeat .9s ease-in-out 1; }
+    @keyframes mwlBeat { 0%, 100% { transform: scale(1); } 30% { transform: scale(1.3); } 60% { transform: scale(.95); } }
+    @media (prefers-reduced-motion: reduce) { .made-with-love:hover .mwl-heart { animation: none; } }
+    body.workspace-reduced-motion .made-with-love:hover .mwl-heart { animation: none; }
+    body.sidebar-collapsed .mwl-text { display: none; }
 
     /* ═══════════════════════════════════════════════════════════════════════
        VISION 2026 — PRECISION WORKSPACE

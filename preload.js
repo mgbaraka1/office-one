@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('api', {
   // ── App metadata ──
   /** @returns {Promise<string>} */
   appVersion:      ()                 => ipcRenderer.invoke('app:version'),
+  releaseNotes:    ()                 => ipcRenderer.invoke('app:release-notes'),
 
   // ── Days ──
   // NB: day:save / day:get were retired in Phase C2 — the Timesheet now persists

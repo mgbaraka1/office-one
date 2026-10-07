@@ -218,6 +218,15 @@ ipcMain.handle('auth:updateUser',  authed((_e, id, data)               => auth.u
 // Resolve this from Electron/package.json at runtime so the renderer never has
 // a second, manually-maintained version string that can drift during releases.
 ipcMain.handle('app:version', trusted(() => app.getVersion()));
+// Release notes for Settings -> What's New: release-notes.json, committed and
+// packaged with the app (English + Arabic per version). Missing or unreadable
+// means none to show.
+ipcMain.handle('app:release-notes', trusted(() => {
+  try {
+    const notes = JSON.parse(fs.readFileSync(path.join(__dirname, 'release-notes.json'), 'utf8'));
+    return Array.isArray(notes) ? notes : [];
+  } catch { return []; }
+}));
 
 // ── Days ── (userId always comes from the authenticated session, never the renderer)
 // day:save / day:get retired in Phase C2 — the Timesheet persists work sessions

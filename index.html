@@ -145,6 +145,13 @@
       <span class="nav-icon" data-ic="log-out"></span><span class="nav-label">Log Out</span>
     </button>
     <div class="app-version" id="app-version" aria-label="Application version"></div>
+    <!-- Signature line: a heart and one short sentence under the version. When
+         the sidebar is collapsed only the heart stays, with the text as its
+         tooltip. -->
+    <div class="made-with-love" title="Made with love from Darsh">
+      <svg class="mwl-heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.5 2.9 4.5 6.6 4.5c2.1 0 3.6 1.1 4.4 2.5.8-1.4 2.3-2.5 4.4-2.5 3.7 0 5.7 4 4.2 7.3C19.5 16.4 12 21 12 21z" /></svg>
+      <span class="mwl-text">Made with love from Darsh</span>
+    </div>
   </div>
 </div>
 
@@ -2085,6 +2092,11 @@
         <button class="btn" data-onclick="openHowThinksOverlay()"><span data-ic="compass"></span>How This App Thinks</button>
         <p class="general-hint">A one-page explainer of the Task → Sessions → optional Project/Department model,
           plus the quickest path for each everyday journey.</p>
+        <hr class="modal-tasksection-divider" style="margin:20px 0" />
+        <!-- This version and what changed in it, from release-notes.json
+             (English and Arabic; see renderWhatsNew in shell.js). -->
+        <h3 class="ht-section-title" style="margin-top:0">What's New</h3>
+        <div id="whats-new" class="whats-new"></div>
       </div>
       <div class="settings-panel" id="tab-users">
         <div class="user-page-head">
@@ -2540,49 +2552,53 @@
      optional Container model, plus the golden path for each core journey.
      Reachable from the "?" shortcuts overlay and Settings -> General. -->
 <div id="howthinks-overlay" class="modal-overlay" data-onclick="howThinksOverlayClick(event)">
-  <div class="modal-box" style="width:640px;max-width:94vw">
+  <div class="modal-box howthinks-box">
     <div class="modal-header">
       <span class="modal-title">How This App Thinks</span>
       <button class="modal-close" data-onclick="closeHowThinksOverlay()" data-ic="x"></button>
     </div>
     <div class="modal-body">
       <p class="general-hint" style="margin-top:0">Three ideas explain almost everything else in this app.</p>
-      <svg viewBox="0 0 560 190" style="width:100%;height:auto;font-family:inherit">
-        <defs>
-          <marker id="ht-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-            <path d="M0 0 L10 5 L0 10 z" fill="var(--muted)" />
-          </marker>
-        </defs>
-        <!-- Task -->
-        <rect x="16" y="70" width="140" height="50" rx="10" fill="var(--accent-bg)" stroke="var(--accent)" stroke-width="1.5" />
-        <text x="86" y="90" text-anchor="middle" font-size="12" font-weight="700" fill="var(--text)">Task</text>
-        <text x="86" y="106" text-anchor="middle" font-size="10" fill="var(--muted)">the job to be done</text>
-        <!-- Sessions -->
-        <rect x="220" y="70" width="150" height="50" rx="10" fill="var(--surface2)" stroke="var(--border)" stroke-width="1.5" />
-        <text x="295" y="90" text-anchor="middle" font-size="12" font-weight="700" fill="var(--text)">Sessions</text>
-        <text x="295" y="106" text-anchor="middle" font-size="10" fill="var(--muted)">time logged on dates</text>
-        <line x1="156" y1="95" x2="216" y2="95" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ht-arrow)" />
-        <!-- Optional container -->
-        <rect x="428" y="18" width="120" height="46" rx="10" fill="var(--surface2)" stroke="var(--border)" stroke-dasharray="4 3" stroke-width="1.5" />
-        <text x="488" y="38" text-anchor="middle" font-size="11" font-weight="700" fill="var(--text)">Project</text>
-        <text x="488" y="52" text-anchor="middle" font-size="9" fill="var(--muted)">client/system work</text>
-        <rect x="428" y="126" width="120" height="46" rx="10" fill="var(--surface2)" stroke="var(--border)" stroke-dasharray="4 3" stroke-width="1.5" />
-        <text x="488" y="146" text-anchor="middle" font-size="11" font-weight="700" fill="var(--text)">Department</text>
-        <text x="488" y="160" text-anchor="middle" font-size="9" fill="var(--muted)">internal work</text>
-        <line x1="370" y1="80" x2="424" y2="42" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#ht-arrow)" />
-        <line x1="370" y1="110" x2="424" y2="148" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#ht-arrow)" />
-        <text x="399" y="55" text-anchor="middle" font-size="9" fill="var(--muted)" transform="rotate(-25 399 55)">optional,</text>
-        <text x="399" y="140" text-anchor="middle" font-size="9" fill="var(--muted)" transform="rotate(25 399 140)">never both</text>
-      </svg>
-      <div class="howthinks-rules">
-        <div><b>A Task</b> is the durable thing — its name, company/system, and status.</div>
-        <div><b>A Session</b> is one stretch of time on one date, logged against a task — a task can have many, across many days.</div>
-        <div><b>A Task's container is optional and exclusive</b> — a Project (client/system work), a Department (internal work), or neither. Never both.</div>
+
+      <!-- The model as plain HTML rather than an SVG: it follows the page
+           direction (mirrors in Arabic) and each label is its own text node,
+           so nothing overlaps and everything translates. -->
+      <div class="ht-flow" aria-label="Task, then sessions, then an optional container">
+        <div class="ht-node ht-node-main">
+          <span class="ht-node-name">Task</span>
+          <span class="ht-node-sub">the job to be done</span>
+        </div>
+        <span class="ht-flow-arrow" data-ic="arrow-right" aria-hidden="true"></span>
+        <div class="ht-node">
+          <span class="ht-node-name">Sessions</span>
+          <span class="ht-node-sub">time logged on dates</span>
+        </div>
+        <span class="ht-flow-arrow" data-ic="arrow-right" aria-hidden="true"></span>
+        <div class="ht-containers">
+          <div class="ht-node ht-node-optional">
+            <span class="ht-node-name">Project</span>
+            <span class="ht-node-sub">client/system work</span>
+          </div>
+          <div class="ht-or">or</div>
+          <div class="ht-node ht-node-optional">
+            <span class="ht-node-name">Department</span>
+            <span class="ht-node-sub">internal work</span>
+          </div>
+          <div class="ht-containers-note">Optional — never both</div>
+        </div>
       </div>
+
+      <ol class="howthinks-rules">
+        <li><b>A Task</b> is the durable thing — its name, company/system, and status.</li>
+        <li><b>A Session</b> is one stretch of time on one date, logged against a task — a task can have many, across many days.</li>
+        <li><b>A Task's container is optional and exclusive</b> — a Project (client/system work), a Department (internal work), or neither. Never both.</li>
+      </ol>
+
+      <h3 class="ht-section-title">Everyday moves</h3>
       <div class="howthinks-journeys">
         <div class="howthinks-journey">
           <div class="howthinks-journey-title"><span data-ic="rotate-ccw"></span>Continue something you worked on recently</div>
-          <div class="howthinks-journey-path">Click its chip in the <b>Continue</b> strip at the top of Timesheet → fill in Time Type, Natural, Minutes → Save.</div>
+          <div class="howthinks-journey-path">Press <kbd>Ctrl K</kbd>, type the task's name and pick it → fill in Time Type, Natural, Minutes → Save. Or <b>+ Add Record</b> → <b>Existing Task</b>.</div>
         </div>
         <div class="howthinks-journey">
           <div class="howthinks-journey-title"><span data-ic="plus"></span>Start brand-new client/system work</div>
@@ -2593,6 +2609,23 @@
           <div class="howthinks-journey-path">Click the <b>✓</b> button on its row or card — no dropdown, no modal. Sets it Done immediately (undoable).</div>
         </div>
       </div>
+
+      <!-- Every page in the sidebar, one line each; a tile opens that page. -->
+      <h3 class="ht-section-title">Where everything lives</h3>
+      <div class="ht-modules">
+        <button type="button" class="ht-module" data-onclick="openHowThinksModule('timesheet')"><span data-ic="clock"></span><span class="ht-module-text"><b>Today</b><span>Log today's sessions and see the day's total.</span></span></button>
+        <button type="button" class="ht-module" data-onclick="openHowThinksModule('analytics')"><span data-ic="layout-dashboard"></span><span class="ht-module-text"><b>Overview</b><span>Hours and trends across clients, systems and departments.</span></span></button>
+        <button type="button" class="ht-module" data-onclick="openHowThinksModule('reports')"><span data-ic="file-text"></span><span class="ht-module-text"><b>Reports</b><span>Timesheets to print or export for any date range.</span></span></button>
+        <button type="button" class="ht-module" data-onclick="openHowThinksModule('internal-tasks')"><span data-ic="building"></span><span class="ht-module-text"><b>Internal Work</b><span>Tasks for your own departments, not for a client.</span></span></button>
+        <button type="button" class="ht-module" data-onclick="openHowThinksModule('all-tasks')"><span data-ic="list"></span><span class="ht-module-text"><b>Client Tasks</b><span>Every client and system task in one list.</span></span></button>
+        <button type="button" class="ht-module" data-onclick="openHowThinksModule('clients')"><span data-ic="layers"></span><span class="ht-module-text"><b>Clients</b><span>Each client's access, servers, databases and systems.</span></span></button>
+        <button type="button" class="ht-module" data-onclick="openHowThinksModule('knowledge')"><span data-ic="book-open"></span><span class="ht-module-text"><b>Knowledge Hub</b><span>Guides and documents, linked to clients and systems.</span></span></button>
+        <button type="button" class="ht-module" data-onclick="openHowThinksModule('pfm')"><span data-ic="briefcase"></span><span class="ht-module-text"><b>Project &amp; Finance</b><span>Offers and change requests, followed step by step.</span></span></button>
+        <button type="button" class="ht-module" data-onclick="openHowThinksModule('outsource')"><span data-ic="users"></span><span class="ht-module-text"><b>Outsource</b><span>Outsourced people, their rates and their logged time.</span></span></button>
+        <button type="button" class="ht-module" data-onclick="openHowThinksModule('companydocs')"><span data-ic="calendar-check"></span><span class="ht-module-text"><b>Company Docs</b><span>The company's own documents and when they renew.</span></span></button>
+        <button type="button" class="ht-module" data-onclick="openHowThinksModule('subscriptions')"><span data-ic="credit-card"></span><span class="ht-module-text"><b>Subscriptions</b><span>Paid services and their renewal dates.</span></span></button>
+      </div>
+      <p class="general-hint ht-quickfind-tip"><span data-ic="search"></span>Lost? <kbd>Ctrl K</kbd> finds any task, project, client record or page by name.</p>
     </div>
     <div class="modal-footer">
       <button class="btn" data-onclick="closeHowThinksOverlay()">Close</button>
