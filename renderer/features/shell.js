@@ -197,6 +197,7 @@ function renderPalette() {
     subscription: ['credit-card', 'Open Subscriptions'],
     'client-auth': ['shield', 'Open client access'],
     'client-server': ['server', 'Open client server'],
+    'client-database': ['database', 'Open client database'],
     'client-system': ['monitor', 'Open client system'],
     pfm: ['briefcase', 'Open offer / CR'],
     'outs-resource': ['users', 'Open resource'],

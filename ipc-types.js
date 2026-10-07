@@ -432,6 +432,7 @@
  * @property {string} environment 'PRODUCTION' | 'TEST' (hardcoded, not lookup-driven). Identity part 3. May also be a 'nullN' placeholder on legacy data — see `role` below.
  * @property {string} os         Free text (e.g. 'Ubuntu 22.04').
  * @property {string} hostname   Free text — a separate hostname distinct from `host` (the IP). Since migration 022.
+ * @property {string} accessMethod 'RDP' | 'PAM', since migration 072 (default 'RDP'; anything else sent is stored as 'RDP'). A PAM server's username/password are kept but not shown.
  * @property {string} username   Since migration 022. Encrypted at rest since migration 032; decrypted transparently on read.
  * @property {string} password   Since migration 022. Encrypted at rest since migration 032; decrypted transparently on read.
  * @property {number|null} systemId       Identity part 1. The SYSTEM lookup_codes id — since migration 039 a server's System is lookup-backed, not free text.
@@ -445,6 +446,35 @@
  * @property {string} legacyServerName    The pre-identity free-text server name. A server has no name of its own — the triple names it — so this column is inert legacy plumbing now: read-only, never written again, exposed only so the original wording stays recoverable.
  * @property {string} legacyPort              Was migration 026's free-text SSH/RDP port. Inert legacy plumbing, same as legacyServerName (it was empty on every row when the field was retired).
  * @property {string} legacyCredentialLocation  Was migration 026's free-text credential-location reference. Inert legacy plumbing, same as legacyServerName (also empty on every row when retired).
+ * @property {ClientDatabase[]} databases The databases this server hosts (migration 071). Only on `clients:get`; create/update return the server without it.
+ * @property {string} notes
+ * @property {number} sortOrder
+ * @property {string} createdAt
+ * @property {string} updatedAt
+ */
+
+/**
+ * One database hosted on a client server (`clients:database-*`, migration 071).
+ * The server is the machine; this is the database on it and how to connect.
+ * Create takes the host server's id and inherits its client. Deleting the
+ * server deletes its databases (ON DELETE CASCADE). Update may send `serverId`
+ * to move it to another server of the same client. A create/update with no
+ * name, or a move to a server outside the client, resolves to
+ * `{ok: false, error}` instead of the record.
+ * @typedef {Object} ClientDatabase
+ * @property {number} id
+ * @property {number} companyId  The COMPANY lookup_codes id, taken from the server.
+ * @property {number} serverId   The client_servers id of the host server.
+ * @property {string} name       Database / SID / service name. Required.
+ * @property {string} environment 'PRODUCTION' | 'TEST' (reads "UAT"), since migration 073. The database's own, which can differ from its server's; anything else sent is stored as 'PRODUCTION'.
+ * @property {string} engine     Free text (e.g. 'Oracle', 'SQL Server').
+ * @property {string} version    Free text (e.g. '19c').
+ * @property {string} port       Free text.
+ * @property {string} username
+ * @property {string} password          Encrypted at rest; decrypted on read.
+ * @property {boolean} passwordUnreadable  True when this device cannot decrypt it.
+ * @property {string} connectionString  Encrypted at rest like `password`, since it often carries one.
+ * @property {boolean} connectionStringUnreadable
  * @property {string} notes
  * @property {number} sortOrder
  * @property {string} createdAt
@@ -562,6 +592,7 @@
  * @property {number} sortOrder   Position in every company dropdown app-wide.
  * @property {number} vpnCount
  * @property {number} serverCount
+ * @property {number} databaseCount  Databases hosted on this client's servers (migration 071).
  * @property {number} internalSystemCount
  * @property {ClientSearchRecord[]} records  One entry per auth/server/internal record
  *   this client owns — human-identifying fields only, never password/secretKey. Powers

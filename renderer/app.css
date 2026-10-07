@@ -1286,6 +1286,25 @@
     .cs-identity-preview .cs-identity-value { color: var(--text); font-weight: 600; }
     .cs-identity-preview.bad { color: var(--bad); }
     .cl-item-cred { display: flex; gap: 14px; flex-wrap: wrap; }
+    /* Databases hosted on a server (migration 071): a sub-list inside the
+       server card, each database its own row with its own actions. */
+    .cl-db-list { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); }
+    .cl-db-title { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--muted); }
+    .cl-db-title .lic { width: 13px; height: 13px; }
+    .cl-db-row {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+      background: var(--surface2); border-radius: var(--radius-sm); padding: 8px 10px; margin-top: 6px;
+    }
+    .cl-db-name { font-size: 13px; font-weight: 700; color: var(--text); }
+    .cs-access-ctl { display: inline-flex; align-self: flex-start; }
+    .cs-access-ctl .seg-btn { min-width: 64px; justify-content: center; }
+    .cl-access-pam { font-weight: 700; color: var(--primary); }
+    /* minmax(0, …) and min-width: 0 let the three inputs shrink below their
+       intrinsic width; plain 1fr overflowed the modal and clipped Port. */
+    .form-row.cdb-engine-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .form-row.cdb-engine-row .form-group { min-width: 0; }
+    .form-row.cdb-engine-row input { width: 100%; min-width: 0; box-sizing: border-box; }
+    .cdb-connection { font-family: Consolas, 'Courier New', monospace; font-size: 12px; min-height: 56px; }
     /* Click-to-copy values on a record card (address, user, host, …): the value
        reads as text in the stronger colour with a faint copy icon, and lights up
        on hover. The negative margin cancels the padding so lines stay aligned. */

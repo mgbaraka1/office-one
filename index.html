@@ -1416,25 +1416,14 @@
           <input id="cv-password" type="password" autocomplete="new-password" placeholder="VPN login password" />
         </div>
       </div>
-      <details class="modal-more">
-        <summary>Advanced details <span class="modal-more-hint">— expiry, credential location, notes</span></summary>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Expiry Date (optional)</label>
-          <input id="cv-expiry" type="date" />
-        </div>
-        <div class="form-group">
-          <label>Credential Location (optional)</label>
-          <input id="cv-cred-location" type="text" placeholder="e.g. Bitwarden — IT-Ops vault" />
-        </div>
-      </div>
+      <!-- Expiry date and credential location left the form; their columns stay
+           and an existing value is carried through on save, never cleared. -->
       <div class="form-row">
         <div class="form-group full">
           <label>Notes</label>
           <textarea id="cv-notes" placeholder="Reference notes only"></textarea>
         </div>
       </div>
-      </details>
     </div>
     <div class="modal-footer">
       <button class="btn" data-onclick="closeClientVpnModal()">Cancel</button>
@@ -1490,7 +1479,18 @@
           <input id="cs-os" type="text" placeholder="e.g. Ubuntu Server" />
         </div>
       </div>
+      <!-- How the server is reached. A PAM server's login lives in the PAM
+           vault, so its username/password row is hidden (values kept). -->
       <div class="form-row">
+        <div class="form-group full">
+          <label>Access</label>
+          <div class="seg-ctl cs-access-ctl" role="group" aria-label="How is this server accessed?">
+            <button type="button" class="seg-btn" id="cs-access-rdp" data-onclick="setServerAccessMethod('RDP')">RDP</button>
+            <button type="button" class="seg-btn" id="cs-access-pam" data-onclick="setServerAccessMethod('PAM')">PAM</button>
+          </div>
+        </div>
+      </div>
+      <div class="form-row" id="cs-credentials-row">
         <div class="form-group">
           <label>Username</label>
           <input id="cs-username" type="text" placeholder="e.g. admin" />
@@ -1510,6 +1510,82 @@
     <div class="modal-footer">
       <button class="btn" data-onclick="closeClientServerModal()">Cancel</button>
       <button class="btn primary" id="client-server-modal-submit" data-onclick="submitClientServerModal()">Add Server</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CLIENT DATABASE ADD/EDIT MODAL ══ -->
+<!-- A database hosted on a server (migration 071): the server is the machine,
+     this is the database on it and how to connect. -->
+<div id="client-database-modal-overlay" class="modal-overlay" data-onclick="clientDatabaseOverlayClick(event)">
+  <div id="client-database-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="client-database-modal-title">Add Database</span>
+      <button class="modal-close" data-onclick="closeClientDatabaseModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Server</label>
+          <select id="cdb-server" data-onchange="onDatabaseServerPicked()"></select>
+        </div>
+      </div>
+      <!-- The database's own environment; it can differ from its server's. -->
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Environment</label>
+          <div class="seg-ctl cs-access-ctl" role="group" aria-label="Is this a production or UAT database?">
+            <button type="button" class="seg-btn" id="cdb-env-production" data-onclick="setDatabaseEnvironment('PRODUCTION')">Production</button>
+            <button type="button" class="seg-btn" id="cdb-env-test" data-onclick="setDatabaseEnvironment('TEST')">UAT</button>
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Database / SID / Service Name</label>
+          <input id="cdb-name" type="text" dir="auto" placeholder="e.g. APPDB_PRD" />
+        </div>
+      </div>
+      <div class="form-row cdb-engine-row">
+        <div class="form-group">
+          <label>Engine</label>
+          <input id="cdb-engine" type="text" placeholder="e.g. Oracle" />
+        </div>
+        <div class="form-group">
+          <label>Version</label>
+          <input id="cdb-version" type="text" placeholder="e.g. 19c" />
+        </div>
+        <div class="form-group">
+          <label>Port</label>
+          <input id="cdb-port" type="text" placeholder="e.g. 1521" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Username</label>
+          <input id="cdb-username" type="text" placeholder="e.g. app_user" />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input id="cdb-password" type="password" autocomplete="new-password" placeholder="Login password" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Connection String</label>
+          <textarea id="cdb-connection" class="cdb-connection" dir="ltr" spellcheck="false" placeholder="e.g. jdbc:oracle:thin:@//10.0.0.5:1521/APPDB"></textarea>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Notes</label>
+          <textarea id="cdb-notes" placeholder="Anything worth remembering about this database"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-onclick="closeClientDatabaseModal()">Cancel</button>
+      <button class="btn primary" id="client-database-modal-submit" data-onclick="submitClientDatabaseModal()">Add Database</button>
     </div>
   </div>
 </div>

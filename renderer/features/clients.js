@@ -19,6 +19,7 @@ let clientsArrangeMode = false;   // "Arrange" — reveals per-card move up/down
 let currentClient = null;       // Client (from clients:get) shown in the detail view
 let clientVpnEditId = null;      // null = create mode in the Auth modal
 let clientServerEditId = null;   // null = create mode in the Server modal
+let clientDatabaseEditId = null;   // null = create mode in the Database modal
 let clientInternalEditId = null; // null = create mode in the Internal System modal
 let clientGroupRenameKind = null;    // 'server' | 'internal' — which section's group is being renamed
 let clientGroupRenameOldName = null; // the group's current systemName
@@ -484,8 +485,13 @@ const CLIENT_RECORD_INFO_FIELDS = {
   ],
   servers: [
     ['systemName', 'System'], ['roleLabel', 'Role'], ['environment', 'Environment'],
-    ['host', 'Host (IP)'], ['hostname', 'Hostname'], ['os', 'Operating System'],
+    ['host', 'Host (IP)'], ['hostname', 'Hostname'], ['os', 'Operating System'], ['accessMethod', 'Access'],
     ['username', 'Username'], ['password', 'Password', true], ['notes', 'Notes'],
+  ],
+  databases: [
+    ['name', 'Name'], ['engine', 'Engine'], ['version', 'Version'], ['port', 'Port'],
+    ['username', 'Username'], ['password', 'Password', true],
+    ['connectionString', 'Connection String', true], ['notes', 'Notes'],
   ],
   internal: [
     ['name', 'Name'], ['url', 'URL'], ['username', 'Username'], ['password', 'Password', true],
@@ -493,8 +499,10 @@ const CLIENT_RECORD_INFO_FIELDS = {
     ['secretKey', 'Secret Key', true], ['expiryDate', 'Expiry Date'], ['role', 'Role'], ['notes', 'Notes'],
   ],
 };
-const CLIENT_RECORD_ARRAY_KEY = {
-  auth: 'vpnConnections', servers: 'servers', internal: 'internalSystems',
+// Databases live inside their servers, so they are gathered from there.
+const CLIENT_RECORD_ARRAYS = {
+  auth: c => c.vpnConnections, servers: c => c.servers, internal: c => c.internalSystems,
+  databases: c => (c.servers || []).flatMap(s => s.databases || []),
 };
 let _clientRecordInfoCurrent = null; // { companyId, presetSearch } — for the "Open Client" footer button
 
@@ -512,12 +520,15 @@ async function openClientRecordInfoModal(record, presetSearch) {
   let client;
   try { client = await window.api.getClient(record.companyId); }
   catch { list.innerHTML = '<div class="cp-records-empty">Could not load record.</div>'; return; }
-  const arr = client ? client[CLIENT_RECORD_ARRAY_KEY[record.type]] : null;
+  const arr = client ? CLIENT_RECORD_ARRAYS[record.type]?.(client) : null;
   const full = Array.isArray(arr) ? arr.find(r => r.id === record.id) : null;
   if (!full) { list.innerHTML = '<div class="cp-records-empty">This record no longer exists.</div>'; return; }
 
   list.innerHTML = '';
+  // A PAM server's login lives in the PAM vault, so it is not shown here either.
+  const viaPam = record.type === 'servers' && full.accessMethod === 'PAM';
   (CLIENT_RECORD_INFO_FIELDS[record.type] || []).forEach(([key, label, sensitive]) => {
+    if (viaPam && (key === 'username' || key === 'password')) return;
     const value = full[key];
     // A credential this device holds no key for reads back empty — say so,
     // rather than letting it pass as '(empty)', which would mean "never set".
@@ -784,6 +795,13 @@ function renderClientDetailSections(c) {
     sAddGroupBtn.title = 'Group existing servers under a new (or existing) System name';
     sAddGroupBtn.addEventListener('click', () => openClientNewGroupModal('server'));
     sActions.appendChild(sAddGroupBtn);
+    // A database sits on a server, so there is nothing to add it to until one exists.
+    const sAddDbBtn = pjMk('button', 'btn');
+    sAddDbBtn.innerHTML = ic('database') + ' Add Database';
+    sAddDbBtn.disabled = allServers.length === 0;
+    if (sAddDbBtn.disabled) sAddDbBtn.title = 'Add a server first';
+    sAddDbBtn.addEventListener('click', () => openClientDatabaseModal(null, null));
+    sActions.appendChild(sAddDbBtn);
     const sAddBtn = pjMk('button', 'btn primary');
     sAddBtn.innerHTML = ic('plus') + ' Add Server';
     sAddBtn.addEventListener('click', () => openClientServerModal());
@@ -794,7 +812,9 @@ function renderClientDetailSections(c) {
     // identity (migration 038) — searching "Applications" should find them.
     // `environment` is deliberately left out: "Production" matches most servers,
     // which is noise rather than a search.
-    const shownServers = allServers.filter(s => textMatch([s.host, s.hostname, s.os, s.systemName, s.roleLabel], q));
+    // A server is also found by the databases it hosts.
+    const shownServers = allServers.filter(s => textMatch([s.host, s.hostname, s.os, s.systemName, s.roleLabel,
+      ...(s.databases || []).flatMap(d => [d.name, d.engine])], q));
     if (allServers.length === 0) {
       srvSec.appendChild(pjMk('div', 'cp-records-empty', 'No servers recorded yet.'));
     } else if (shownServers.length === 0) {
@@ -1160,14 +1180,19 @@ const VPN_CONFIRM_FIELDS = [
 ];
 const SERVER_CONFIRM_FIELDS = [
   ['host', 'Host (IP)'], ['environment', 'Environment'], ['os', 'Operating System'],
-  ['hostname', 'Hostname'], ['username', 'Username'], ['password', 'Password'],
+  ['hostname', 'Hostname'], ['accessMethod', 'Access'], ['username', 'Username'], ['password', 'Password'],
   ['systemName', 'System'],   // already a SYSTEM label on both sides of the diff
   ['role', 'Role', v => lkLabel('SERVER_ROLE', v)],
   ['notes', 'Notes'],
 ];
 const DATABASE_CONFIRM_FIELDS = [
-  ['name', 'Name'], ['engine', 'Engine'], ['host', 'Host'], ['port', 'Port'], ['username', 'Username'],
-  ['password', 'Password'], ['version', 'Version'], ['credentialLocation', 'Credential Location'], ['notes', 'Notes'],
+  ['serverId', 'Server', v => {
+    const s = (currentClient?.servers || []).find(x => String(x.id) === String(v));
+    return s ? serverIdentityText(s) : v;
+  }],
+  ['name', 'Name'], ['environment', 'Environment', srvEnvLabel],
+  ['engine', 'Engine'], ['version', 'Version'], ['port', 'Port'], ['username', 'Username'],
+  ['password', 'Password'], ['connectionString', 'Connection String'], ['notes', 'Notes'],
 ];
 const EXTERNAL_CONFIRM_FIELDS = [
   ['name', 'Name'], ['url', 'URL'], ['companyCode', 'Company Code'], ['secretKey', 'Secret Key'],
@@ -1430,8 +1455,11 @@ function srvEnvIsKnown(env) { return env === 'PRODUCTION' || env === 'TEST'; }
 // the record (history modal title, group checklist, toasts). A server has no
 // name of its own anymore: the triple IS its name.
 function serverIdentityText(s) {
+  // Joined into one string, the parts are invisible to the DOM translator — so
+  // each is translated on its own first.
+  const tr = text => window.ctI18n?.t?.(text) || text;
   return [lkLabel('SYSTEM', s.systemName) || '(no system)', lkLabel('SERVER_ROLE', s.role) || s.roleLabel || '(no role)',
-    srvEnvLabel(s.environment) || '(no environment)'].join(' - ');
+    srvEnvLabel(s.environment) || '(no environment)'].map(tr).join(' - ');
 }
 
 // The card's identity line — the server's title, and the same
@@ -1461,11 +1489,14 @@ function buildClientServerCard(s) {
   const card = pjMk('div', 'cl-item-card');
   const main = pjMk('div', 'cl-item-main');
   main.appendChild(buildServerIdentityLine(s));
-  if (s.host || s.hostname || s.os) {
+  const viaPam = s.accessMethod === 'PAM';
+  if (s.host || s.hostname || s.os || viaPam) {
     main.appendChild(clMetaLine([s.host && clCopyValue(s.host, 'Host (IP)'),
-      s.hostname && clCopyValue(s.hostname, 'Hostname'), s.os]));
+      s.hostname && clCopyValue(s.hostname, 'Hostname'), s.os, viaPam && pjMk('span', 'cl-access-pam', 'Via PAM')]));
   }
-  if (s.username || s.password || s.passwordUnreadable) {
+  // A PAM server's login lives in the PAM vault: any stored credentials stay
+  // kept but are not shown.
+  if (!viaPam && (s.username || s.password || s.passwordUnreadable)) {
     const cred = pjMk('div', 'cl-item-meta cl-item-cred');
     if (s.username) cred.appendChild(clCopyField('User:', s.username, 'Username'));
     if (s.password || s.passwordUnreadable) {
@@ -1475,6 +1506,8 @@ function buildClientServerCard(s) {
   }
   if (s.notes) main.appendChild(pjMk('div', 'cl-item-notes', s.notes));
   main.appendChild(pjMk('div', 'cl-item-updated', clUpdatedLabel(s)));
+  const dbList = buildServerDatabaseList(s);
+  if (dbList) main.appendChild(dbList);
   card.appendChild(main);
 
   const actions = pjMk('div', 'cl-item-actions');
@@ -1491,11 +1524,213 @@ function buildClientServerCard(s) {
   const delBtn = pjMk('button', 'cd-icon-btn danger');
   delBtn.innerHTML = ic('trash-2');
   delBtn.title = 'Delete';
+  // Its databases go with it, so the confirm says so.
+  const dbCount = (s.databases || []).length;
+  const delLabel = dbCount ? (window.ctI18n?.t?.('Delete with its {n} database(s)?', { n: dbCount })
+    || `Delete with its ${dbCount} database(s)?`) : undefined;
   delBtn.addEventListener('click', () =>
-    showDeleteConfirm(actions, () => deleteClientServerEntry(s.id), () => renderClientDetail(currentClient)));
+    showDeleteConfirm(actions, () => deleteClientServerEntry(s.id), () => renderClientDetail(currentClient), delLabel));
   actions.appendChild(delBtn);
   card.appendChild(actions);
   return card;
+}
+
+// ── Databases hosted on a server (migration 071) ──
+// The server card is the machine; each database on it is its own row with its
+// own connection details, listed inside the card.
+// Only a server that hosts a database gets the list; adding one is done from
+// the section's own "Add Database" button.
+function buildServerDatabaseList(s) {
+  const dbs = s.databases || [];
+  if (!dbs.length) return null;
+  const list = pjMk('div', 'cl-db-list');
+  const title = pjMk('div', 'cl-db-title');
+  title.innerHTML = ic('database');
+  title.appendChild(document.createTextNode('Databases'));
+  list.appendChild(title);
+  dbs.forEach(d => list.appendChild(buildClientDatabaseRow(s, d)));
+  return list;
+}
+
+function buildClientDatabaseRow(s, d) {
+  const row = pjMk('div', 'cl-db-row');
+  const main = pjMk('div', 'cl-item-main');
+  // dir="auto" goes on an inner span: on the block itself, a Latin name made the
+  // whole line LTR and pushed it to the far side of an Arabic card.
+  const name = pjMk('div', 'cl-db-name');
+  const nameText = pjMk('span', null, d.name);
+  nameText.dataset.userContent = ''; nameText.dir = 'auto';
+  name.appendChild(nameText);
+  // Its own environment, in the same colour the server line uses.
+  const env = d.environment === 'TEST' ? 'TEST' : 'PRODUCTION';
+  name.appendChild(document.createTextNode(' - '));
+  name.appendChild(pjMk('span', 'cl-srv-env-' + env.toLowerCase(), srvEnvLabel(env)));
+  main.appendChild(name);
+  const engine = [d.engine, d.version].filter(Boolean).join(' ');
+  if (engine || d.port) {
+    main.appendChild(clMetaLine([engine, d.port && clCopyField('Port', d.port, 'Port')]));
+  }
+  if (d.username || d.password || d.passwordUnreadable) {
+    const cred = pjMk('div', 'cl-item-meta cl-item-cred');
+    if (d.username) cred.appendChild(clCopyField('User:', d.username, 'Username'));
+    if (d.password || d.passwordUnreadable) {
+      cred.appendChild(buildClientSecretControl('Password', d.password, d.passwordUnreadable));
+    }
+    main.appendChild(cred);
+  }
+  // A connection string often carries the password, so it gets the same
+  // masked, self-clearing control rather than a plain copy value.
+  if (d.connectionString || d.connectionStringUnreadable) {
+    const conn = pjMk('div', 'cl-item-meta cl-item-cred');
+    conn.appendChild(buildClientSecretControl('Connection string', d.connectionString, d.connectionStringUnreadable));
+    main.appendChild(conn);
+  }
+  if (d.notes) main.appendChild(pjMk('div', 'cl-item-notes', d.notes));
+  row.appendChild(main);
+
+  const actions = pjMk('div', 'cl-item-actions');
+  const histBtn = pjMk('button', 'cd-icon-btn');
+  histBtn.innerHTML = ic('clock');
+  histBtn.title = 'View history';
+  histBtn.addEventListener('click', () => openClientHistoryModal('database', d.id, d.name));
+  actions.appendChild(histBtn);
+  const editBtn = pjMk('button', 'cd-icon-btn');
+  editBtn.innerHTML = ic('pencil');
+  editBtn.title = 'Edit';
+  editBtn.addEventListener('click', () => openClientDatabaseModal(s.id, d));
+  actions.appendChild(editBtn);
+  const delBtn = pjMk('button', 'cd-icon-btn danger');
+  delBtn.innerHTML = ic('trash-2');
+  delBtn.title = 'Delete';
+  delBtn.addEventListener('click', () =>
+    showDeleteConfirm(actions, () => deleteClientDatabaseEntry(d.id), () => renderClientDetail(currentClient)));
+  actions.appendChild(delBtn);
+  row.appendChild(actions);
+  return row;
+}
+
+// The API payload for a database, from a record or an undo snapshot.
+function clientDatabasePayload(d) {
+  return {
+    name: d.name, environment: d.environment, engine: d.engine, version: d.version, port: d.port, username: d.username,
+    password: d.password, connectionString: d.connectionString, notes: d.notes,
+  };
+}
+
+// Production / UAT toggle (migration 073).
+let clientDatabaseEnvironment = 'PRODUCTION';
+function setDatabaseEnvironment(env) {
+  clientDatabaseEnvironment = env === 'TEST' ? 'TEST' : 'PRODUCTION';
+  [['cdb-env-production', 'PRODUCTION'], ['cdb-env-test', 'TEST']].forEach(([id, value]) => {
+    const b = document.getElementById(id);
+    const on = clientDatabaseEnvironment === value;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
+}
+// A new database starts in its server's environment; still changeable, since
+// the two can differ. An edit keeps what it has.
+function onDatabaseServerPicked() {
+  if (clientDatabaseEditId != null) return;
+  const id = Number(document.getElementById('cdb-server').value);
+  const server = (currentClient?.servers || []).find(s => s.id === id);
+  if (server && srvEnvIsKnown(server.environment)) setDatabaseEnvironment(server.environment);
+}
+function findClientDatabase(id) {
+  return (currentClient?.servers || []).flatMap(s => s.databases || []).find(d => d.id === id);
+}
+
+// The Server picker: every server of this client, named by its identity. A
+// new database starts with none picked, so the choice is always deliberate.
+function fillDatabaseServerSelect(currentId) {
+  const sel = document.getElementById('cdb-server');
+  sel.innerHTML = '';
+  const blank = document.createElement('option');
+  blank.value = '';
+  blank.textContent = 'Select a server…';
+  sel.appendChild(blank);
+  (currentClient?.servers || []).forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = String(s.id);
+    // Already translated part by part, so the translator must leave it alone.
+    opt.dataset.userContent = ''; opt.textContent = serverIdentityText(s);
+    sel.appendChild(opt);
+  });
+  sel.value = currentId != null ? String(currentId) : '';
+}
+
+// `serverId` preselects the server (editing a database); null leaves it to pick.
+function openClientDatabaseModal(serverId, d) {
+  clientDatabaseEditId = d ? d.id : null;
+  document.getElementById('client-database-modal-title').textContent = d ? 'Edit Database' : 'Add Database';
+  document.getElementById('client-database-modal-submit').textContent = d ? 'Save Changes' : 'Add Database';
+  fillDatabaseServerSelect(serverId);
+  setDatabaseEnvironment(d ? d.environment : 'PRODUCTION');
+  document.getElementById('cdb-name').value = d ? (d.name || '') : '';
+  document.getElementById('cdb-engine').value = d ? (d.engine || '') : '';
+  document.getElementById('cdb-version').value = d ? (d.version || '') : '';
+  document.getElementById('cdb-port').value = d ? (d.port || '') : '';
+  document.getElementById('cdb-username').value = d ? (d.username || '') : '';
+  document.getElementById('cdb-password').value = d ? (d.password || '') : '';
+  document.getElementById('cdb-connection').value = d ? (d.connectionString || '') : '';
+  document.getElementById('cdb-notes').value = d ? (d.notes || '') : '';
+  clearErrorsIn('#client-database-modal');
+  document.getElementById('client-database-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById(serverId == null ? 'cdb-server' : 'cdb-name').focus(), 80);
+}
+function closeClientDatabaseModal() {
+  document.getElementById('client-database-modal-overlay').classList.remove('open');
+  clientDatabaseEditId = null;
+}
+function clientDatabaseOverlayClick(e) {
+  if (e.target === document.getElementById('client-database-modal-overlay')) closeClientDatabaseModal();
+}
+async function submitClientDatabaseModal() {
+  clearErrorsIn('#client-database-modal');
+  const serverId = Number(document.getElementById('cdb-server').value) || null;
+  const name = document.getElementById('cdb-name').value.trim();
+  let bad = false;
+  if (!serverId) { markError('cdb-server'); bad = true; }
+  if (!name) { markError('cdb-name'); bad = true; }
+  if (bad) return;
+  const data = {
+    serverId, name, environment: clientDatabaseEnvironment,
+    engine:   document.getElementById('cdb-engine').value.trim(),
+    version:  document.getElementById('cdb-version').value.trim(),
+    port:     document.getElementById('cdb-port').value.trim(),
+    username: document.getElementById('cdb-username').value.trim(),
+    password: document.getElementById('cdb-password').value.trim(),
+    connectionString: document.getElementById('cdb-connection').value.trim(),
+    notes:    document.getElementById('cdb-notes').value.trim(),
+  };
+  if (clientDatabaseEditId != null) {
+    const changes = diffClientFields(findClientDatabase(clientDatabaseEditId), data, DATABASE_CONFIRM_FIELDS);
+    if (changes.length && !(await confirmClientFieldChanges(changes))) return;
+  }
+  let res;
+  try {
+    if (clientDatabaseEditId != null) res = await window.api.updateClientDatabase(clientDatabaseEditId, data);
+    else res = await window.api.createClientDatabase(serverId, data);
+  } catch { toast('Could not save database'); return; }
+  if (!res || res.ok === false) { toast(res?.error || 'Could not save database'); return; }
+  closeClientDatabaseModal();
+  toast('Database saved');
+  await reloadCurrentClient();
+}
+async function deleteClientDatabaseEntry(id) {
+  const snapshot = findClientDatabase(id);
+  try { await window.api.deleteClientDatabase(id); }
+  catch { toast('Could not delete database'); renderClientDetail(currentClient); return; }
+  await reloadCurrentClient();
+  if (!snapshot) return;
+  showGenericUndo('Database deleted', async () => {
+    let res;
+    try { res = await window.api.createClientDatabase(snapshot.serverId, clientDatabasePayload(snapshot)); }
+    catch { toast('Could not restore database'); return; }
+    // Its server can have been deleted during the undo window.
+    if (!res || res.ok === false) { toast(res?.error || 'Could not restore database'); return; }
+    await reloadCurrentClient();
+  });
 }
 
 // ── Auth connection modal (VPN, PAM, etc.) ──
@@ -1509,10 +1744,7 @@ function openClientVpnModal(v) {
   document.getElementById('cv-port').value = v ? (v.port || '') : '';
   document.getElementById('cv-username').value = v ? (v.username || '') : '';
   document.getElementById('cv-password').value = v ? (v.password || '') : '';
-  document.getElementById('cv-expiry').value = v ? (v.expiryDate || '') : '';
-  document.getElementById('cv-cred-location').value = v ? (v.credentialLocation || '') : '';
   document.getElementById('cv-notes').value = v ? (v.notes || '') : '';
-  document.querySelector('#client-vpn-modal .modal-more').open = !!(v && (v.expiryDate || v.credentialLocation || v.notes));
   clearErrorsIn('#client-vpn-modal');
   document.getElementById('client-vpn-modal-overlay').classList.add('open');
   setTimeout(() => document.getElementById('cv-name').focus(), 80);
@@ -1528,6 +1760,10 @@ async function submitClientVpnModal() {
   clearErrorsIn('#client-vpn-modal');
   const connectionName = document.getElementById('cv-name').value.trim();
   if (!connectionName) { markError('cv-name'); return; }
+  // Expiry date and credential location are no longer on the form; an existing
+  // value rides along unchanged so saving never clears it.
+  const before = clientVpnEditId != null
+    ? (currentClient?.vpnConnections || []).find(v => v.id === clientVpnEditId) : null;
   const data = {
     connectionName,
     vpnType:  document.getElementById('cv-type').value.trim(),
@@ -1535,12 +1771,11 @@ async function submitClientVpnModal() {
     port:     document.getElementById('cv-port').value.trim(),
     username: document.getElementById('cv-username').value.trim(),
     password: document.getElementById('cv-password').value.trim(),
-    expiryDate: document.getElementById('cv-expiry').value || null,
-    credentialLocation: document.getElementById('cv-cred-location').value.trim(),
+    expiryDate: before?.expiryDate || null,
+    credentialLocation: before?.credentialLocation || '',
     notes:    document.getElementById('cv-notes').value.trim(),
   };
   if (clientVpnEditId != null) {
-    const before = (currentClient?.vpnConnections || []).find(v => v.id === clientVpnEditId);
     const changes = diffClientFields(before, data, VPN_CONFIRM_FIELDS);
     if (changes.length && !(await confirmClientFieldChanges(changes))) return;
   }
@@ -1635,8 +1870,28 @@ function renderServerIdentityPreview() {
     el.textContent = 'All three identify the server and must be unique for this client.';
     return;
   }
-  el.innerHTML = 'Identity: <span class="cs-identity-value">' +
-    esc(system) + ' - ' + esc(role) + ' - ' + esc(env) + '</span>';
+  // One text node per part, as on the card, so the translator sees
+  // "Production" on its own rather than inside "X - Y - Production".
+  const value = pjMk('span', 'cs-identity-value');
+  [system, role, env].forEach((text, i) => {
+    if (i) value.appendChild(document.createTextNode(' - '));
+    value.appendChild(pjMk('span', null, text));
+  });
+  el.replaceChildren(document.createTextNode('Identity: '), value);
+}
+
+// RDP / PAM toggle (migration 072). PAM hides the username/password row; the
+// fields keep their values, so switching back loses nothing.
+let clientServerAccessMethod = 'RDP';
+function setServerAccessMethod(method) {
+  clientServerAccessMethod = method === 'PAM' ? 'PAM' : 'RDP';
+  [['cs-access-rdp', 'RDP'], ['cs-access-pam', 'PAM']].forEach(([id, value]) => {
+    const b = document.getElementById(id);
+    const on = clientServerAccessMethod === value;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
+  document.getElementById('cs-credentials-row').hidden = clientServerAccessMethod === 'PAM';
 }
 
 function openClientServerModal(s) {
@@ -1647,6 +1902,7 @@ function openClientServerModal(s) {
   fillIdentitySelect('cs-system', 'SYSTEM', 'label', s ? s.systemName : '', 'Select a system…', 'system');
   fillIdentitySelect('cs-role', 'SERVER_ROLE', 'code', s ? s.role : '', 'Select a role…', 'role');
   fillServerEnvSelect(s);
+  setServerAccessMethod(s?.accessMethod === 'PAM' ? 'PAM' : 'RDP');
   document.getElementById('cs-hostname').value = s ? (s.hostname || '') : '';
   document.getElementById('cs-os').value = s ? (s.os || '') : '';
   document.getElementById('cs-username').value = s ? (s.username || '') : '';
@@ -1677,6 +1933,7 @@ async function submitClientServerModal() {
   if (bad) return;
   const data = {
     systemName, role, environment,
+    accessMethod: clientServerAccessMethod,
     host:        document.getElementById('cs-host').value.trim(),
     hostname:    document.getElementById('cs-hostname').value.trim(),
     os:          document.getElementById('cs-os').value.trim(),
@@ -1720,10 +1977,21 @@ async function deleteClientServerEntry(id) {
         host: snapshot.host, environment: snapshot.environment,
         systemName: snapshot.systemName, hostname: snapshot.hostname, os: snapshot.os, username: snapshot.username,
         password: snapshot.password, role: snapshot.role, notes: snapshot.notes,
+        accessMethod: snapshot.accessMethod,
       });
     } catch { toast('Could not restore server'); return; }
     // Its identity can have been taken by another server during the undo window.
     if (res && res.ok === false) { toast(res.error || 'Could not restore server'); return; }
+    // The delete took its databases with it; bring them back under the new id.
+    let lost = 0;
+    for (const d of snapshot.databases || []) {
+      try {
+        const r = await window.api.createClientDatabase(res.id, clientDatabasePayload(d));
+        if (!r || r.ok === false) lost++;
+      } catch { lost++; }
+    }
+    if (lost) toast(window.ctI18n?.t?.('Server restored, but {n} database(s) could not be', { n: lost })
+      || `Server restored, but ${lost} database(s) could not be`);
     await reloadCurrentClient();
   });
 }
@@ -1738,7 +2006,7 @@ function buildClientInternalSystemCard(s) {
     title.appendChild(pjMk('span', 'cl-env-badge ' + s.environment.toLowerCase(), envLabel));
   }
   main.appendChild(title);
-  if (s.url) main.appendChild(clMetaLine([clCopyValue(s.url, 'URL')]));
+  if (s.url) main.appendChild(clMetaLine([clCopyField('URL:', s.url, 'URL')]));
   if (s.username || s.password || s.passwordUnreadable) {
     const cred = pjMk('div', 'cl-item-meta cl-item-cred');
     if (s.username) cred.appendChild(clCopyField('User:', s.username, 'Username'));
