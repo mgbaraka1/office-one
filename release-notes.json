@@ -1,0 +1,1550 @@
+[
+  {
+    "version": "8.17.0",
+    "date": "2026-10-07",
+    "kind": "feat",
+    "title": {
+      "en": "A clearer guide, and release notes in the app",
+      "ar": "دليل أوضح، وملاحظات الإصدار داخل التطبيق"
+    },
+    "notes": [
+      {
+        "en": "“How This App Thinks” is redesigned: the diagram reads correctly in Arabic, the steps are up to date, and a new “Where everything lives” section opens any page.",
+        "ar": "أُعيد تصميم «كيف يعمل هذا التطبيق»: المخطط يُقرأ بشكل صحيح بالعربية، والخطوات محدّثة، وقسم جديد «أين تجد كل شيء» يفتح أي صفحة."
+      },
+      {
+        "en": "Settings → General shows “What’s New”: the installed version and what changed in it, in English and Arabic.",
+        "ar": "تعرض الإعدادات ← عام قسم «ما الجديد»: الإصدار المثبت وما تغيّر فيه بالعربية والإنجليزية."
+      },
+      {
+        "en": "A small signature at the bottom of the sidebar: “Made with love from Darsh”.",
+        "ar": "توقيع صغير أسفل القائمة الجانبية: «صنع بحب من درش»."
+      }
+    ],
+    "technical": [
+      "Release notes live in release-notes.json (committed, bilingual); test/release-notes-smoke.js requires an entry for the package version."
+    ]
+  },
+  {
+    "version": "8.16.0",
+    "date": "2026-10-07",
+    "kind": "feat",
+    "title": {
+      "en": "Databases on servers, RDP/PAM access, and an environment per database",
+      "ar": "قواعد البيانات على الخوادم، والوصول عبر RDP/PAM، وبيئة لكل قاعدة بيانات"
+    },
+    "notes": [
+      {
+        "en": "Record the databases on each server: name, engine, version, port, login and connection string. Add one with “Add Database” next to “Add Server”, then pick its server.",
+        "ar": "سجّل قواعد البيانات على كل خادم: الاسم والمحرك والإصدار والمنفذ وبيانات الدخول وسلسلة الاتصال. أضفها من زر «إضافة قاعدة بيانات» بجانب «إضافة خادم» ثم اختر الخادم."
+      },
+      {
+        "en": "A server card lists its databases only when it has some, and a database can move to another server of the same client.",
+        "ar": "تعرض بطاقة الخادم قواعد بياناته فقط عند وجودها، ويمكن نقل قاعدة البيانات إلى خادم آخر لنفس العميل."
+      },
+      {
+        "en": "Each server is reached by RDP or PAM; a PAM server hides its username and password.",
+        "ar": "لكل خادم طريقة وصول: RDP أو PAM، ويُخفي خادم PAM اسم المستخدم وكلمة المرور."
+      },
+      {
+        "en": "Each database is marked Production or UAT on its own, apart from its server.",
+        "ar": "تُحدَّد بيئة كل قاعدة بيانات (الإنتاج أو اختبار القبول) بشكل مستقل عن خادمها."
+      },
+      {
+        "en": "The auth connection form is simpler: no expiry date or credential location, and notes are always shown.",
+        "ar": "نموذج اتصال المصادقة أبسط: بلا تاريخ انتهاء أو موقع بيانات الدخول، والملاحظات ظاهرة دائماً."
+      },
+      {
+        "en": "Better Arabic: server names translate part by part, and URL reads “الرابط”.",
+        "ar": "تحسين العربية: تُترجم أجزاء اسم الخادم كلٌّ على حدة، وتظهر URL باسم «الرابط»."
+      }
+    ],
+    "technical": [
+      "Migration 071: client_databases revived with server_id (ON DELETE CASCADE) and an encrypted connection_string; Quick Find kind client-database.",
+      "Migration 072: client_servers.access_method (RDP | PAM, default RDP).",
+      "Migration 073: client_databases.environment (PRODUCTION | TEST), backfilled from each database's server."
+    ]
+  },
+  {
+    "version": "8.15.0",
+    "date": "2026-10-06",
+    "kind": "feat",
+    "title": {
+      "en": "Track each step as done or not yet, and export files as a ZIP"
+    },
+    "notes": [
+      {
+        "en": "Each stage is Done or Not done yet, picked with two clear buttons; marking the current stage not done moves the status back to the last done step."
+      },
+      {
+        "en": "The list and the Excel show the waiting step: status, done or not, person and notes."
+      },
+      {
+        "en": "Export menu: Excel only, or a ZIP with the Excel plus the newest version's files, one folder per client, named in the app language."
+      }
+    ],
+    "technical": []
+  },
+  {
+    "version": "8.14.0",
+    "date": "2026-10-06",
+    "kind": "feat",
+    "title": {
+      "en": "Add a pull-cord lamp to the sign-in screen"
+    },
+    "notes": [
+      {
+        "en": "The sign-in screen is a dark room with a lamp: pull or drag the cord (or type, or submit) to light the room and the card. Motion is spring physics on one animation loop that sleeps when settled, and it respects reduced motion."
+      },
+      {
+        "en": "Logging time to an existing task takes the client, system, project and department from the task, so an internal task no longer lands under the first client in the list."
+      },
+      {
+        "en": "Editing a project task can move it to another project or unlink it; only a new task created from a project is pinned to it."
+      },
+      {
+        "en": "A Project & Finance stage that is current but still undated shows a dashed dot."
+      },
+      {
+        "en": "The task grid's natural-size column is wider."
+      }
+    ],
+    "technical": []
+  },
+  {
+    "version": "8.13.0",
+    "date": "2026-10-06",
+    "kind": "feat",
+    "title": {
+      "en": "Download the filtered documents as a ZIP"
+    },
+    "notes": [
+      {
+        "en": "A \"Download ZIP\" menu above the list saves what the current filters and search show, one folder per item: the latest version of each document, or every version with older ones in an \"older versions\" subfolder. The renderer sends attachment ids only; the main process resolves and owner-checks each file. Missing files are skipped and counted. Also gives the documents in an item's panel more room."
+      }
+    ],
+    "technical": []
+  },
+  {
+    "version": "8.12.0",
+    "date": "2026-10-06",
+    "kind": "feat",
+    "title": {
+      "en": "Export a daily timesheet range as one ZIP"
+    },
+    "notes": [
+      {
+        "en": "The Daily Timesheet card takes an optional To date. With a range it skips the preview and saves one PDF per day, empty days included, into a single ZIP (up to 65 days). Each report goes to the main process in its own call, since every report embeds the print font and a whole range would exceed the IPC size cap."
+      }
+    ],
+    "technical": []
+  },
+  {
+    "version": "8.11.0",
+    "date": "2026-10-02",
+    "kind": "feat",
+    "title": {
+      "en": "Quick edits, deletable settings and a two-group sidebar"
+    },
+    "notes": [
+      {
+        "en": "Timesheet"
+      },
+      {
+        "en": "A session's time type and natural change in place from a small menu, the same anchored menu the status badge uses. It opens from the reading-side edge, stays inside the window and closes on Escape."
+      },
+      {
+        "en": "New-task form: Project and Sources are always visible instead of sitting under a collapsed \"More options\" block, with the form's normal row spacing."
+      },
+      {
+        "en": "Settings"
+      },
+      {
+        "en": "A catalog entry nothing uses can be deleted for good. The bin is greyed out while any record or setting references the entry; the delete is queued in the draft, undoable until Save, re-checked on save and written to the catalog history."
+      },
+      {
+        "en": "Usage is read from the schema's foreign keys plus the text columns and settings that store a lookup code."
+      },
+      {
+        "en": "Hide/re-enable uses an eye icon and hidden rows are dimmed."
+      },
+      {
+        "en": "The tab list scrolls when it is taller than the window."
+      },
+      {
+        "en": "Clients"
+      },
+      {
+        "en": "A client is shown by its name in the current language everywhere; the business code appears only on the client's own profile."
+      },
+      {
+        "en": "Address, port, username, host, URL and company code on a record card copy on click."
+      },
+      {
+        "en": "Navigation"
+      },
+      {
+        "en": "The sidebar is grouped into Internal and External, with Overview, Today and Reports above both."
+      },
+      {
+        "en": "Project & Finance"
+      },
+      {
+        "en": "The Excel export is named \"Offers and CRs dd-MM-yyyy\"."
+      }
+    ],
+    "technical": []
+  },
+  {
+    "version": "8.10.0",
+    "date": "2026-10-01",
+    "kind": "feat",
+    "title": {
+      "en": "Redesign task cards and the task detail popup"
+    },
+    "notes": [
+      {
+        "en": "Timesheet"
+      },
+      {
+        "en": "Card title reads company > system > project > task name, each lead-in part a link, replacing the separate pills."
+      },
+      {
+        "en": "Card totals and actions sit at the end edge so they line up down the page."
+      },
+      {
+        "en": "Remove the flat view, Repeat Last and the status filter chips."
+      },
+      {
+        "en": "One control height for the top bar and filter bar."
+      },
+      {
+        "en": "Task detail popup"
+      },
+      {
+        "en": "Wider, with the sessions table in the same card and column order as the Timesheet."
+      },
+      {
+        "en": "Stat cards show sessions, work time and over time as hours with the minutes beneath; the combined total is dropped."
+      },
+      {
+        "en": "History, merge and edit-sources are small outlined buttons."
+      },
+      {
+        "en": "Created date uses YYYY-MM-DD like the sessions table."
+      },
+      {
+        "en": "Right-to-left"
+      },
+      {
+        "en": "Table headers, top-bar actions, stat-card stripes and kbd hints follow the reading direction instead of being pinned to the left."
+      }
+    ],
+    "technical": []
+  },
+  {
+    "version": "8.9.0",
+    "date": "2026-10-01",
+    "kind": "feat",
+    "title": {
+      "en": "Search tasks by any source ref or url"
+    },
+    "notes": [
+      {
+        "en": "The task search bars and the task pickers matched only source refs, and mostly only the first one. A Jira source is url-only, so its issue key never matched. The search text now carries every source's ref and url, so an issue key, a full url, or part of an email subject finds the task."
+      },
+      {
+        "en": "Covers the Client Tasks and Internal Tasks search bars, the link-to-project list, and the shared task picker used by Add Record, session edit and merge."
+      }
+    ],
+    "technical": []
+  },
+  {
+    "version": "8.8.1",
+    "date": "2026-09-30",
+    "kind": "fix",
+    "title": {
+      "en": "Release Electron 42.10.0 security update as 8.8.1"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "8.8.0",
+    "date": "2026-09-30",
+    "kind": "feat",
+    "title": {
+      "en": "Group versions by name and remove tags"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "8.7.1",
+    "date": "2026-09-29",
+    "kind": "fix",
+    "title": {
+      "en": "Update undici to fix a security advisory"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "8.7.0",
+    "date": "2026-09-29",
+    "kind": "feat",
+    "title": {
+      "en": "Show Knowledge items on client and project pages"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "8.6.0",
+    "date": "2026-09-29",
+    "kind": "feat",
+    "title": {
+      "en": "Find documents by client and system"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "8.5.0",
+    "date": "2026-09-29",
+    "kind": "feat",
+    "title": {
+      "en": "Export a person, project or statement"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "8.4.0",
+    "date": "2026-09-29",
+    "kind": "feat",
+    "title": {
+      "en": "Add projects, statements and export"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "8.3.0",
+    "date": "2026-09-29",
+    "kind": "feat",
+    "title": {
+      "en": "Add Outsource module with resources and hourly rates"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "8.2.0",
+    "date": "2026-09-28",
+    "kind": "feat",
+    "title": {
+      "en": "Client contact channel and dated stages"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "8.1.0",
+    "date": "2026-09-28",
+    "kind": "feat",
+    "title": {
+      "en": "Add Project & Finance module for offers and change requests"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "8.0.0",
+    "date": "2026-09-28",
+    "kind": "feat",
+    "title": {
+      "en": "Remove Finance module"
+    },
+    "notes": [
+      {
+        "en": "Breaking: the Finance module and its data are removed."
+      }
+    ],
+    "technical": []
+  },
+  {
+    "version": "7.20.0",
+    "date": "2026-09-28",
+    "kind": "feat",
+    "title": {
+      "en": "Bundle the Cairo font and add currency symbols"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.19.0",
+    "date": "2026-09-27",
+    "kind": "feat",
+    "title": {
+      "en": "Add salary and over-time income to Overview"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.18.2",
+    "date": "2026-08-28",
+    "kind": "fix",
+    "title": {
+      "en": "Seed time and activity types on a new install"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.18.1",
+    "date": "2026-08-28",
+    "kind": "fix",
+    "title": {
+      "en": "Keep credentials readable after a machine key change"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.18.0",
+    "date": "2026-08-25",
+    "kind": "feat",
+    "title": {
+      "en": "Remove Create Hub and create items from each page"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.17.0",
+    "date": "2026-08-25",
+    "kind": "feat",
+    "title": {
+      "en": "Move app data to the office-one folder"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.16.0",
+    "date": "2026-08-25",
+    "kind": "feat",
+    "title": {
+      "en": "Manage companies from the Clients page"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.15.1",
+    "date": "2026-08-25",
+    "kind": "fix",
+    "title": {
+      "en": "Module failed to load"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.15.0",
+    "date": "2026-08-25",
+    "kind": "feat",
+    "title": {
+      "en": "Every account can do every action, with changes attributed"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.14.0",
+    "date": "2026-08-25",
+    "kind": "feat",
+    "title": {
+      "en": "Add finance summary"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.13.0",
+    "date": "2026-08-25",
+    "kind": "feat",
+    "title": {
+      "en": "Make Finance searchable and share one currency list"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.12.0",
+    "date": "2026-08-25",
+    "kind": "feat",
+    "title": {
+      "en": "Use the shared client list"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.11.0",
+    "date": "2026-08-25",
+    "kind": "feat",
+    "title": {
+      "en": "Add Finance to the app menu"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.10.0",
+    "date": "2026-08-18",
+    "kind": "feat",
+    "title": {
+      "en": "Add Finance module"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.9.1",
+    "date": "2026-08-11",
+    "kind": "fix",
+    "title": {
+      "en": "Modal content no longer cut off"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.9.0",
+    "date": "2026-08-11",
+    "kind": "feat",
+    "title": {
+      "en": "Search all linked sources"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.8.0",
+    "date": "2026-08-09",
+    "kind": "feat",
+    "title": {
+      "en": "Export timesheets to Excel"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.7.0",
+    "date": "2026-08-09",
+    "kind": "feat",
+    "title": {
+      "en": "Add weekly and monthly timesheets"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.6.1",
+    "date": "2026-08-09",
+    "kind": "fix",
+    "title": {
+      "en": "Safer lookup handling"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.6.0",
+    "date": "2026-08-09",
+    "kind": "feat",
+    "title": {
+      "en": "Separate Internal Work from client tasks"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.5.0",
+    "date": "2026-08-09",
+    "kind": "feat",
+    "title": {
+      "en": "New accounts must change their password"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.4.0",
+    "date": "2026-08-08",
+    "kind": "feat",
+    "title": {
+      "en": "Show names in English and Arabic"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.3.1",
+    "date": "2026-08-08",
+    "kind": "fix",
+    "title": {
+      "en": "Primary button colour and schema version check"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.3.0",
+    "date": "2026-08-07",
+    "kind": "feat",
+    "title": {
+      "en": "Rich text content"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.2.0",
+    "date": "2026-08-06",
+    "kind": "feat",
+    "title": {
+      "en": "Consistent numbers, refreshed colours and task ordering"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.1.1",
+    "date": "2026-08-06",
+    "kind": "fix",
+    "title": {
+      "en": "Keep login throttling across restarts and report fatal errors"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.1.0",
+    "date": "2026-08-06",
+    "kind": "feat",
+    "title": {
+      "en": "Reorganize the Overview page"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "7.0.0",
+    "date": "2026-08-05",
+    "kind": "feat",
+    "title": {
+      "en": "Rename the app to Office ONE"
+    },
+    "notes": [
+      {
+        "en": "Breaking: new app name and ID, installed as a new application."
+      }
+    ],
+    "technical": []
+  },
+  {
+    "version": "6.10.0",
+    "date": "2026-08-05",
+    "kind": "feat",
+    "title": {
+      "en": "Complete the Arabic translation"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "6.9.0",
+    "date": "2026-08-02",
+    "kind": "feat",
+    "title": {
+      "en": "Enforce data rules in the database and add bilingual lookups"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "6.8.0",
+    "date": "2026-08-02",
+    "kind": "feat",
+    "title": {
+      "en": "Add client profiles and Arabic translation"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "6.7.0",
+    "date": "2026-07-30",
+    "kind": "feat",
+    "title": {
+      "en": "Simplify the workspace and client pages"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "6.6.1",
+    "date": "2026-07-23",
+    "kind": "fix",
+    "title": {
+      "en": "Widen the sidebar menu and add the book icon"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "6.6.0",
+    "date": "2026-07-23",
+    "kind": "feat",
+    "title": {
+      "en": "Split the interface into modules and add workspace search"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "6.5.0",
+    "date": "2026-07-23",
+    "kind": "feat",
+    "title": {
+      "en": "Add Create Hub and workspace view settings"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "6.4.0",
+    "date": "2026-07-23",
+    "kind": "feat",
+    "title": {
+      "en": "Add Knowledge Hub"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "6.3.0",
+    "date": "2026-07-20",
+    "kind": "feat",
+    "title": {
+      "en": "Edit task sources from task detail"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "6.2.0",
+    "date": "2026-07-20",
+    "kind": "feat",
+    "title": {
+      "en": "Add account editor and remove project categories"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "6.1.0",
+    "date": "2026-07-18",
+    "kind": "feat",
+    "title": {
+      "en": "Refresh the interface"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "6.0.2",
+    "date": "2026-07-18",
+    "kind": "fix",
+    "title": {
+      "en": "Close credential and lookup isolation gaps"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "6.0.1",
+    "date": "2026-07-17",
+    "kind": "fix",
+    "title": {
+      "en": "Harden the app after a full security review"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "6.0.0",
+    "date": "2026-07-15",
+    "kind": "feat",
+    "title": {
+      "en": "Remove client Databases and External Services sections"
+    },
+    "notes": [
+      {
+        "en": "Breaking: these two client sections and their records are removed."
+      }
+    ],
+    "technical": []
+  },
+  {
+    "version": "5.2.0",
+    "date": "2026-07-15",
+    "kind": "feat",
+    "title": {
+      "en": "Identify servers by system, role and environment"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "5.1.1",
+    "date": "2026-07-14",
+    "kind": "fix",
+    "title": {
+      "en": "Remove per-session source from By Task view"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "5.1.0",
+    "date": "2026-07-14",
+    "kind": "feat",
+    "title": {
+      "en": "List every task source in the daily report"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "5.0.1",
+    "date": "2026-07-13",
+    "kind": "fix",
+    "title": {
+      "en": "Autosave no longer overwrites task links"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "5.0.0",
+    "date": "2026-07-09",
+    "kind": "feat",
+    "title": {
+      "en": "Remove Projects list, sub-projects and annual support"
+    },
+    "notes": [
+      {
+        "en": "Breaking: projects are managed from clients; sub-projects and annual support are retired."
+      }
+    ],
+    "technical": []
+  },
+  {
+    "version": "4.31.0",
+    "date": "2026-07-08",
+    "kind": "feat",
+    "title": {
+      "en": "Add sub-projects and annual support"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.30.1",
+    "date": "2026-07-07",
+    "kind": "fix",
+    "title": {
+      "en": "Correctness and design-token bugs from audit"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.30.0",
+    "date": "2026-07-07",
+    "kind": "feat",
+    "title": {
+      "en": "Restore last view on launch and faster navigation"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.29.0",
+    "date": "2026-07-07",
+    "kind": "feat",
+    "title": {
+      "en": "Remember UI state between launches"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.28.0",
+    "date": "2026-07-06",
+    "kind": "feat",
+    "title": {
+      "en": "Simpler daily logging"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.27.0",
+    "date": "2026-07-06",
+    "kind": "feat",
+    "title": {
+      "en": "Start a task automatically on its first session"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.26.0",
+    "date": "2026-07-06",
+    "kind": "feat",
+    "title": {
+      "en": "Context-aware task modal and type filter"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.25.0",
+    "date": "2026-07-06",
+    "kind": "feat",
+    "title": {
+      "en": "A task belongs to a project or a department, not both"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.24.0",
+    "date": "2026-07-06",
+    "kind": "feat",
+    "title": {
+      "en": "Add full backup buttons to sidebar and Maintenance"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.23.0",
+    "date": "2026-07-06",
+    "kind": "feat",
+    "title": {
+      "en": "Add full backup"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.22.0",
+    "date": "2026-07-06",
+    "kind": "feat",
+    "title": {
+      "en": "Simplify the task modal and source types"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.21.0",
+    "date": "2026-07-06",
+    "kind": "feat",
+    "title": {
+      "en": "Add structured task sources"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.20.1",
+    "date": "2026-07-06",
+    "kind": "other",
+    "title": {
+      "en": "Lighter task index for pickers"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.20.0",
+    "date": "2026-07-06",
+    "kind": "feat",
+    "title": {
+      "en": "Add Maintenance panel with restore, integrity check and cleanup"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.19.0",
+    "date": "2026-07-06",
+    "kind": "feat",
+    "title": {
+      "en": "Add keyboard shortcuts overlay and modal focus trap"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.18.0",
+    "date": "2026-07-06",
+    "kind": "feat",
+    "title": {
+      "en": "Add project, client, department and custom-range reports"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.17.0",
+    "date": "2026-07-06",
+    "kind": "feat",
+    "title": {
+      "en": "Show renewals and expiries in one attention center"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.16.0",
+    "date": "2026-07-06",
+    "kind": "feat",
+    "title": {
+      "en": "Encrypt client credentials at rest"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.15.0",
+    "date": "2026-07-05",
+    "kind": "feat",
+    "title": {
+      "en": "Add task merge"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.14.0",
+    "date": "2026-07-05",
+    "kind": "feat",
+    "title": {
+      "en": "Use one compact modal for adding sessions"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.13.0",
+    "date": "2026-07-05",
+    "kind": "feat",
+    "title": {
+      "en": "Make task detail a full session hub"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.12.0",
+    "date": "2026-07-05",
+    "kind": "feat",
+    "title": {
+      "en": "Add task search picker"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.11.0",
+    "date": "2026-07-05",
+    "kind": "feat",
+    "title": {
+      "en": "Add project categories and move work logs between tasks"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.10.0",
+    "date": "2026-07-05",
+    "kind": "feat",
+    "title": {
+      "en": "Add departments"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.9.1",
+    "date": "2026-07-05",
+    "kind": "fix",
+    "title": {
+      "en": "Make migrations safe to re-run"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.9.0",
+    "date": "2026-07-05",
+    "kind": "feat",
+    "title": {
+      "en": "Keep edit history for work logs, projects and subscriptions"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.8.1",
+    "date": "2026-07-05",
+    "kind": "fix",
+    "title": {
+      "en": "Prune old backups by file date"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.8.0",
+    "date": "2026-07-04",
+    "kind": "feat",
+    "title": {
+      "en": "Search across all client records"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.7.0",
+    "date": "2026-07-04",
+    "kind": "feat",
+    "title": {
+      "en": "Bulk-assign servers and systems to groups"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.6.0",
+    "date": "2026-07-03",
+    "kind": "feat",
+    "title": {
+      "en": "Add reference fields and edit history"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.5.0",
+    "date": "2026-07-03",
+    "kind": "feat",
+    "title": {
+      "en": "Log sessions against existing tasks"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.4.0",
+    "date": "2026-07-03",
+    "kind": "feat",
+    "title": {
+      "en": "Add access, database, service and system records"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.3.0",
+    "date": "2026-07-03",
+    "kind": "feat",
+    "title": {
+      "en": "Add Company Documents and Clients modules"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.2.0",
+    "date": "2026-07-02",
+    "kind": "feat",
+    "title": {
+      "en": "Add command palette and grouped task cards"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.1.0",
+    "date": "2026-07-02",
+    "kind": "feat",
+    "title": {
+      "en": "Faster session logging and task creation from projects"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "4.0.0",
+    "date": "2026-07-01",
+    "kind": "feat",
+    "title": {
+      "en": "Split work into tasks and work logs"
+    },
+    "notes": [
+      {
+        "en": "Breaking: timesheet rows become sessions logged against tasks."
+      }
+    ],
+    "technical": []
+  },
+  {
+    "version": "3.12.0",
+    "date": "2026-06-30",
+    "kind": "feat",
+    "title": {
+      "en": "Add Backup Projects zip export"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "3.11.0",
+    "date": "2026-06-30",
+    "kind": "feat",
+    "title": {
+      "en": "Attach files to project documents"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "3.10.0",
+    "date": "2026-06-30",
+    "kind": "feat",
+    "title": {
+      "en": "Make project document types configurable"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "3.9.0",
+    "date": "2026-06-29",
+    "kind": "feat",
+    "title": {
+      "en": "Link several systems to one project"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "3.8.0",
+    "date": "2026-06-29",
+    "kind": "feat",
+    "title": {
+      "en": "Add project companies and status"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "3.7.0",
+    "date": "2026-06-29",
+    "kind": "feat",
+    "title": {
+      "en": "Add Projects module"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "3.6.0",
+    "date": "2026-06-29",
+    "kind": "feat",
+    "title": {
+      "en": "Rename Project to System across the app"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "3.5.0",
+    "date": "2026-06-27",
+    "kind": "feat",
+    "title": {
+      "en": "Show the full calendar year in the heatmap"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "3.4.1",
+    "date": "2026-06-26",
+    "kind": "fix",
+    "title": {
+      "en": "Make icon usage consistent"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "3.4.0",
+    "date": "2026-06-25",
+    "kind": "feat",
+    "title": {
+      "en": "Refresh the design system and report PDFs"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "3.3.0",
+    "date": "2026-06-23",
+    "kind": "feat",
+    "title": {
+      "en": "Add read-only company and project views"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "3.2.1",
+    "date": "2026-06-23",
+    "kind": "fix",
+    "title": {
+      "en": "Remove unused lookup codes"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "3.2.0",
+    "date": "2026-06-23",
+    "kind": "feat",
+    "title": {
+      "en": "Move lookups into one shared coded catalog"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "3.1.0",
+    "date": "2026-06-22",
+    "kind": "feat",
+    "title": {
+      "en": "Pick the period by month"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "3.0.0",
+    "date": "2026-06-22",
+    "kind": "feat",
+    "title": {
+      "en": "Add user accounts and login"
+    },
+    "notes": [
+      {
+        "en": "Breaking: the app now requires signing in, and each account has its own data."
+      }
+    ],
+    "technical": []
+  },
+  {
+    "version": "2.2.1",
+    "date": "2026-06-21",
+    "kind": "fix",
+    "title": {
+      "en": "Tidy trend chart and heatmap stats"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "2.2.0",
+    "date": "2026-06-16",
+    "kind": "feat",
+    "title": {
+      "en": "Add weekday, over-time, flow and backlog views"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "2.1.0",
+    "date": "2026-06-16",
+    "kind": "feat",
+    "title": {
+      "en": "Add Not Yet backlog and merge Dashboard into Analytics"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "2.0.0",
+    "date": "2026-06-15",
+    "kind": "feat",
+    "title": {
+      "en": "Remove Licenses, Insurance and Open Tasks modules"
+    },
+    "notes": [
+      {
+        "en": "Breaking: these modules and their data are removed. Adds a Subscriptions report."
+      }
+    ],
+    "technical": []
+  },
+  {
+    "version": "1.5.5",
+    "date": "2026-06-15",
+    "kind": "fix",
+    "title": {
+      "en": "Block unexpected new windows and navigation"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "1.5.4",
+    "date": "2026-06-15",
+    "kind": "fix",
+    "title": {
+      "en": "Store minutes as numbers and speed up table rendering"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "1.5.3",
+    "date": "2026-06-15",
+    "kind": "fix",
+    "title": {
+      "en": "Speed up the open-task scan and keep its badge correct"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "1.5.2",
+    "date": "2026-06-15",
+    "kind": "fix",
+    "title": {
+      "en": "Show database and IPC errors instead of failing silently"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "1.5.1",
+    "date": "2026-06-15",
+    "kind": "fix",
+    "title": {
+      "en": "Track build icons so fresh clones build correctly"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "1.5.0",
+    "date": "2026-06-15",
+    "kind": "feat",
+    "title": {
+      "en": "Add daily timesheet and monthly over-time PDF reports"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "1.4.0",
+    "date": "2026-06-10",
+    "kind": "feat",
+    "title": {
+      "en": "Add analytics with trends, heatmap and breakdowns"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "1.3.0",
+    "date": "2026-06-10",
+    "kind": "feat",
+    "title": {
+      "en": "Add dashboard and light/dark theme"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "1.2.0",
+    "date": "2026-06-09",
+    "kind": "feat",
+    "title": {
+      "en": "Carry over unfinished work and rotate backups"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "1.1.1",
+    "date": "2026-06-09",
+    "kind": "fix",
+    "title": {
+      "en": "Form validation, list filters and database backup"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "1.1.0",
+    "date": "2026-06-09",
+    "kind": "feat",
+    "title": {
+      "en": "Store app data in SQLite"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "1.0.1",
+    "date": "2026-06-09",
+    "kind": "fix",
+    "title": {
+      "en": "Use local dates, keep removed list values, add README"
+    },
+    "notes": [],
+    "technical": []
+  },
+  {
+    "version": "1.0.0",
+    "date": "2026-06-09",
+    "kind": "feat",
+    "title": {
+      "en": "First version: timesheet, licenses, insurance, subscriptions"
+    },
+    "notes": [],
+    "technical": []
+  }
+]

@@ -1126,6 +1126,7 @@ async function initSettingsModule() {
   const activeTab = document.querySelector('#module-settings .stab.active')?.dataset.tab || 'general';
   syncSettingsSaveButton(activeTab);
   if (activeTab === 'users') renderUserManagement();
+  renderWhatsNew();
   try {
     const status = await window.api.getCredentialEncryptionStatus();
     document.getElementById('credential-encryption-banner').style.display = status.available ? 'none' : '';

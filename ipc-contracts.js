@@ -3,7 +3,7 @@
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const NO_ARGS = new Set([
-  'auth:status', 'auth:logout', 'auth:listUsers', 'app:version',
+  'auth:status', 'auth:logout', 'auth:listUsers', 'app:version', 'app:release-notes',
   'days:list', 'companies:list', 'systems:list', 'attention:list', 'activity:list',
   'lookups:get', 'subscriptions:list', 'tasks:list', 'tasks:index',
   'projects:list', 'projects:linkable-tasks', 'departments:list',

@@ -146,6 +146,13 @@ you end up out of step with a constraint SQLite is still enforcing.
   plain Node scripts with no framework.
 - Write commit messages that explain **why**. The existing history is the style
   guide.
+- Every version bump adds an entry to the top of `release-notes.json`, in the
+  same commit. It is what the app shows under Settings → General → What's New:
+  a title and notes in English (`en`) and Arabic (`ar`), written for the people
+  using the app, plus English-only `technical` lines for migrations and schema.
+  `test/release-notes-smoke.js` fails until the version in `package.json` has a
+  bilingual entry. Versions released before the file existed keep English-only
+  entries taken from their tag messages.
 - Never include real data — no database file, no backup bundle, no screenshot of
   a live client, and no real hostname, IP address or email anywhere in source.
   Client and company data belongs in the **database**, never in the code.
