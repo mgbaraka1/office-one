@@ -1,8 +1,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Clients (Auth + Server Information + Internal Systems) — headless data-layer
 // smoke test (Phase 6, verification gates 1-3; gate 4 is the CDP walkthrough).
-// The Databases and External Services sections were retired (UI + IPC + CRUD
-// removed, rows deleted); their tables survive in the schema, unread.
+// The External Services section was retired (UI + IPC + CRUD removed, rows
+// deleted); its table survives in the schema, unread. Databases came back in
+// migration 071, nested under the server that hosts them.
 //
 // Boots the app's data layer (db.js) DIRECTLY — no Electron/IPC/renderer.
 // SAFETY: never touches production. Copies the live DB into a throwaway temp
@@ -295,6 +296,20 @@ try {
     JSON.stringify(updatedSrv));
   record('updateClientServer: systemName changed in place', updatedSrv.systemName === sysTwo, JSON.stringify(updatedSrv));
 
+  // Access method (migration 072): RDP by default, PAM keeps the stored login.
+  record('createClientServer: access method defaults to RDP', srv.accessMethod === 'RDP', srv.accessMethod);
+  const pamSrv = db.updateClientServer(userId, srv.id, {
+    host: '10.0.0.6', environment: 'TEST', os: 'Ubuntu 24.04', hostname: 'app-srv-1-test',
+    // The form hides the login row but still sends its values.
+    accessMethod: 'PAM', username: 'admin2', password: 'new-srv-secret', systemName: sysTwo, role: 'APPLICATIONS', notes: 'moved to test',
+  });
+  record('updateClientServer: PAM is stored and the hidden login is kept',
+    pamSrv.accessMethod === 'PAM' && pamSrv.username === 'admin2' && pamSrv.password === 'new-srv-secret', JSON.stringify(pamSrv));
+  record('updateClientServer: the access change is in the history',
+    db.getClientFieldHistory(userId, 'server', srv.id).some(h => h.fieldName === 'Access' && h.oldValue === 'RDP' && h.newValue === 'PAM'), '');
+  const oddSrv = db.updateClientServer(userId, srv.id, { ...pamSrv, role: 'APPLICATIONS', accessMethod: 'SSH' });
+  record('updateClientServer: an unknown access method is stored as RDP', oddSrv.accessMethod === 'RDP', oddSrv.accessMethod);
+
   // ── Internal System CRUD ─────────────────────────────────────────────────────
   const int = db.createClientInternalSystem(userId, companyA, {
     name: 'RabbitMQ Portal - Production', url: 'http://10.0.0.20:15672/',
@@ -372,6 +387,83 @@ try {
     record('Ownership: another user cannot update this internal system', stolenInt === null, JSON.stringify(stolenInt));
   }
 
+  // ── Databases hosted on a server (migration 071) ─────────────────────────────
+  const dbFile = path.join(workDir, 'cooperation-tools.db');
+  const dbRec = db.createClientDatabase(userId, srv.id, {
+    name: 'APPDB_PRD', engine: 'Oracle', version: '19c', port: '1521', username: 'app_user',
+    password: 'db-secret', connectionString: 'jdbc:oracle:thin:app_user/db-secret@//10.0.0.6:1521/APPDB', notes: 'main',
+  });
+  record('createClientDatabase: persisted under its server, client taken from the server',
+    dbRec && dbRec.serverId === srv.id && dbRec.companyId === companyA && dbRec.name === 'APPDB_PRD'
+    && dbRec.engine === 'Oracle' && dbRec.version === '19c' && dbRec.port === '1521'
+    && dbRec.password === 'db-secret' && dbRec.connectionString.startsWith('jdbc:'), JSON.stringify(dbRec));
+  record('createClientDatabase: refuses a missing name and an unknown server',
+    db.createClientDatabase(userId, srv.id, { name: '  ' })?.ok === false
+    && db.createClientDatabase(userId, 999999999, { name: 'x' }) === null, '');
+  const clientADb = db.getClient(userId, companyA);
+  const srvWithDb = clientADb.servers.find(s => s.id === srv.id);
+  record('getClient: the server carries its databases; every server carries a list',
+    srvWithDb?.databases?.length === 1 && srvWithDb.databases[0].id === dbRec.id
+    && clientADb.servers.every(s => Array.isArray(s.databases)), JSON.stringify(srvWithDb?.databases));
+  const storedDb = readRow(dbFile, 'SELECT password, connection_string FROM client_databases WHERE id = ?', dbRec.id);
+  const cipherOn = storedDb.password !== 'db-secret';
+  record('createClientDatabase: connection string stored like the password (encrypted when a cipher is available)',
+    cipherOn ? !storedDb.connection_string.includes('db-secret') : storedDb.connection_string.includes('db-secret'),
+    'cipher=' + cipherOn);
+  const dbSearch = readRow(dbFile, "SELECT title, body FROM workspace_search WHERE kind = 'client-database' AND entity_id = ?",
+    companyA + ':' + dbRec.id);
+  record('Quick Find indexes the database, never its credentials',
+    dbSearch?.title === 'APPDB_PRD' && dbSearch.body.includes('Oracle')
+    && !dbSearch.body.includes('db-secret') && !dbSearch.body.includes('app_user'), JSON.stringify(dbSearch));
+  record('listClients: the database is a searchable record and counted',
+    db.listClients(userId).some(c => c.id === companyA && c.databaseCount >= 1
+      && c.records.some(r => r.type === 'databases' && r.id === dbRec.id)), '');
+
+  const updDb = db.updateClientDatabase(userId, dbRec.id, {
+    name: 'APPDB_PRD', engine: 'Oracle', version: '21c', port: '1522', username: 'app_user',
+    password: '', connectionString: '', notes: 'main',
+  });
+  record('updateClientDatabase: fields change in place, id stable', updDb?.id === dbRec.id
+    && updDb.version === '21c' && updDb.port === '1522', JSON.stringify(updDb));
+  const dbHistory = db.getClientFieldHistory(userId, 'database', dbRec.id);
+  record('updateClientDatabase: history records the change, credentials hidden',
+    dbHistory.some(h => h.fieldName === 'Version' && h.oldValue === '19c' && h.newValue === '21c')
+    && dbHistory.filter(h => h.fieldName === 'Connection String').every(h => h.oldValue === '(hidden)'),
+    JSON.stringify(dbHistory));
+  if (otherUserRow) {
+    record('Ownership: another user cannot update or add to this server\'s databases',
+      db.updateClientDatabase(otherUserRow.id, dbRec.id, { name: 'stolen' }) === null
+      && db.createClientDatabase(otherUserRow.id, srv.id, { name: 'stolen' }) === null, '');
+  }
+  // Its own environment (migration 073): Production by default, UAT on request,
+  // independent of the server's, and every change audited.
+  const envDb = db.updateClientDatabase(userId, dbRec.id, { ...updDb, environment: 'TEST' });
+  const envBack = db.updateClientDatabase(userId, dbRec.id, { ...updDb, environment: 'PRODUCTION' });
+  record('updateClientDatabase: environment is the database\'s own, defaulting to Production',
+    dbRec.environment === 'PRODUCTION' && envDb?.environment === 'TEST' && envBack?.environment === 'PRODUCTION'
+    && db.getClientFieldHistory(userId, 'database', dbRec.id).some(h => h.fieldName === 'Environment' && h.newValue === 'UAT'),
+    JSON.stringify({ created: dbRec.environment, uat: envDb?.environment, back: envBack?.environment }));
+
+  // Moving a database: allowed to another server of the same client only.
+  const srvTwo = db.createClientServer(userId, companyA, {
+    host: '10.0.0.7', environment: 'PRODUCTION', systemName: sysOne, role: 'APPLICATIONS',
+  });
+  const moved = db.updateClientDatabase(userId, dbRec.id, { ...updDb, serverId: srvTwo.id });
+  const movedBack = db.updateClientDatabase(userId, dbRec.id, { ...updDb, serverId: srv.id });
+  const foreignSrv = db.getClient(userId, companyB).servers[0];
+  const refusedMove = foreignSrv && companyA !== companyB
+    ? db.updateClientDatabase(userId, dbRec.id, { ...updDb, serverId: foreignSrv.id }) : { ok: false };
+  record('updateClientDatabase: moves to another server of the client, never to another client\'s',
+    moved?.serverId === srvTwo.id && movedBack?.serverId === srv.id && refusedMove?.ok === false,
+    JSON.stringify({ moved: moved?.serverId, back: movedBack?.serverId, refused: refusedMove }));
+  record('updateClientDatabase: the move is in the history, named by server identity',
+    db.getClientFieldHistory(userId, 'database', dbRec.id).some(h => h.fieldName === 'Server' && h.newValue.includes(sysOne)), '');
+  db.deleteClientServer(userId, srvTwo.id);
+  const dbTwo = db.createClientDatabase(userId, srv.id, { name: 'APPDB_RPT' });
+  record('deleteClientDatabase: removes only that database',
+    db.deleteClientDatabase(userId, dbTwo.id).ok
+    && db.getClient(userId, companyA).servers.find(s => s.id === srv.id).databases.map(d => d.id).join() === String(dbRec.id), '');
+
   // ── Delete ───────────────────────────────────────────────────────────────────
   const delVpnRes = db.deleteClientVpn(userId, vpn.id);
   const delSrvRes = db.deleteClientServer(userId, srv.id);
@@ -382,19 +474,21 @@ try {
     && !clientAFinal.vpnConnections.some(v => v.id === vpn.id) && !clientAFinal.servers.some(s => s.id === srv.id)
     && !clientAFinal.internalSystems.some(s => s.id === int.id),
     `vpnCount=${clientAFinal.vpnConnections.length} serverCount=${clientAFinal.servers.length} intCount=${clientAFinal.internalSystems.length}`);
+  record('deleteClientServer: its databases go with it, and leave Quick Find',
+    readRow(dbFile, 'SELECT COUNT(*) AS n FROM client_databases WHERE id = ?', dbRec.id).n === 0
+    && readRow(dbFile, "SELECT COUNT(*) AS n FROM workspace_search WHERE kind = 'client-database' AND entity_id = ?",
+      companyA + ':' + dbRec.id).n === 0, '');
 
-  // ── Retired sections: the two removed CRUD surfaces are gone, and getClient
-  //    no longer returns their arrays at all (not just an empty one).
-  const retiredFns = [
-    'createClientDatabase', 'updateClientDatabase', 'deleteClientDatabase',
-    'createClientExternalService', 'updateClientExternalService', 'deleteClientExternalService',
-  ];
-  record('Retired: db.js exposes no Database/External Service CRUD',
+  // ── Retired section: the removed External Services CRUD is gone, and getClient
+  //    no longer returns its array at all (not just an empty one). Databases are
+  //    not top-level either: they live on their server.
+  const retiredFns = ['createClientExternalService', 'updateClientExternalService', 'deleteClientExternalService'];
+  record('Retired: db.js exposes no External Service CRUD',
     retiredFns.every(fn => db[fn] === undefined),
     'still exported: ' + (retiredFns.filter(fn => db[fn] !== undefined).join(', ') || '(none)'));
-  record('Retired: getClient returns no databases/externalServices keys, and no count fields on listClients',
+  record('Retired: getClient returns no top-level databases/externalServices keys, and no externalServiceCount',
     !('databases' in clientAFinal) && !('externalServices' in clientAFinal)
-      && db.listClients(userId).every(c => !('databaseCount' in c) && !('externalServiceCount' in c)),
+      && db.listClients(userId).every(c => !('externalServiceCount' in c)),
     'clientKeys=' + Object.keys(clientAFinal).join(','));
 
 } catch (err) {

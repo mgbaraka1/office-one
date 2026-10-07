@@ -236,6 +236,9 @@ Landmarks worth knowing:
 | 068 | Knowledge Hub clients/systems — `knowledge_item_companies` / `knowledge_item_systems` (043's shape, dropped by 044, brought back); `knowledge_attachments.change_note`; `KNOWLEDGE_TYPE` `FIELD_MAPPING` seeded; the three knowledge search triggers recreated so the Quick Find subtitle is the client/system names and the body carries every client/system spelling, document names and the kind; link, attachment and lookup-rename triggers re-index the items they touch |
 | 069 | Knowledge Hub note search — the knowledge `_ai`/`_au` and `workspace_search_knowledge_attachments_au` triggers recreated so the Quick Find body carries each document version's `change_note`, and a note edit re-indexes its item |
 | 070 | Knowledge Hub active document — `knowledge_attachments.is_active` (default 0, every existing document inactive) and the partial unique index `idx_knowledge_attachments_one_active` (one active document per item). Withdrawn the same day: the column and index remain but nothing reads or writes them |
+| 071 | Databases hosted on a server — the retired `client_databases` comes back with `server_id` (FK to `client_servers`, ON DELETE CASCADE) and `connection_string` (encrypted at rest like `password`), index `idx_client_databases_server`, and Quick Find triggers under kind `client-database` (name, engine, version, port, notes; never credentials) |
+| 072 | Server access method — `client_servers.access_method` ('RDP' default, or 'PAM', CHECK-constrained). A PAM server's username/password stay stored but are not shown |
+| 073 | Database environment — `client_databases.environment` ('PRODUCTION' default, or 'TEST' shown as UAT, CHECK-constrained). The database's own, which can differ from its server's; existing rows were backfilled from their server |
 
 **A guarded seed is the right shape for a fresh-install gap.** Migration 003
 seeded some categories from "legacy blob ∪ values already in the data", both
@@ -590,8 +593,9 @@ from the OS region.
   [CONTRIBUTING.md](CONTRIBUTING.md): migration 035's Sub-Projects / Annual
   Support (whose `support_year_id` is still named by migration 048's live
   triggers, so the task write paths must keep passing it), Project Categories,
-  and `client_databases` / `client_external_services` (kept only so the
-  credential-encryption sweep still catches a legacy plaintext value).
+  and `client_external_services` (kept only so the credential-encryption sweep
+  still catches a legacy plaintext value). `client_databases` was retired too,
+  then revived by migration 071 nested under its host server.
 - **The DB filename `cooperation-tools.db` stays**, along with the legacy backup
   prefix acceptance — every existing install, snapshot and manifest already names
   them. It is reached through `db.DB_FILENAME`, not a literal.

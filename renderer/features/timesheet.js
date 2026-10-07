@@ -1296,7 +1296,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     closeModal(); closePrint(); closeMonthView(); closeSubModal(); closeSubSettings(); closeBacklogModal();
     closeProjectModal(); closeLinkModal(); closePalette(); closeTaskDetail(); closeCompanyDocModal();
-    closeClientVpnModal(); closeClientServerModal(); closeClientInternalModal(); closeClientGroupRenameModal(); closeClientNewGroupModal();
+    closeClientVpnModal(); closeClientServerModal(); closeClientDatabaseModal(); closeClientInternalModal(); closeClientGroupRenameModal(); closeClientNewGroupModal();
     closeClientRecordInfoModal(); cancelClientEditConfirm(); closeClientHistoryModal();
     closeSessionModal(); closeWlHistoryModal(); closeMergeModal(); closeShortcutsOverlay(); closeHowThinksOverlay();
     closeKnowledgeEditor(); closeKnowledgeDocumentModal();
@@ -1323,6 +1323,7 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('knowledge-document-modal-overlay').classList.contains('open')) submitKnowledgeDocument();
     if (document.getElementById('client-vpn-modal-overlay').classList.contains('open')) submitClientVpnModal();
     if (document.getElementById('client-server-modal-overlay').classList.contains('open')) submitClientServerModal();
+    if (document.getElementById('client-database-modal-overlay').classList.contains('open')) submitClientDatabaseModal();
     if (document.getElementById('client-internal-modal-overlay').classList.contains('open')) submitClientInternalModal();
     if (document.getElementById('client-group-rename-modal-overlay').classList.contains('open')) submitClientGroupRename();
     if (document.getElementById('client-new-group-modal-overlay').classList.contains('open')) submitClientNewGroupModal();

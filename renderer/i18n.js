@@ -99,7 +99,7 @@
     'Add Auth Connection': 'إضافة اتصال مصادقة', 'Connection Name': 'اسم الاتصال', 'Environment': 'البيئة',
     'Production': 'الإنتاج', 'UAT': 'اختبار القبول', 'IP Address': 'عنوان IP', 'Hostname': 'اسم المضيف',
     'Port': 'المنفذ', 'Operating System': 'نظام التشغيل', 'Role': 'الدور',
-    'Endpoint / URL': 'نقطة الاتصال / الرابط', 'Expiry Date (optional)': 'تاريخ الانتهاء (اختياري)',
+    'Endpoint / URL': 'نقطة الاتصال / الرابط', 'URL': 'الرابط', 'Expiry Date (optional)': 'تاريخ الانتهاء (اختياري)',
     'Credential Location (optional)': 'موقع بيانات الدخول (اختياري)', 'Secret Key (optional)': 'المفتاح السري (اختياري)',
     'Company Code (optional)': 'رمز الشركة (اختياري)',
     // The Clients empty state. Split around its <strong>, like every other
@@ -716,11 +716,31 @@
     '(no system)': '(بلا نظام)', '(no role)': '(بلا دور)', '(no environment)': '(بلا بيئة)',
     'Edit Auth Connection': 'تعديل اتصال المصادقة', 'Edit Server': 'تعديل الخادم',
     'Edit Internal System': 'تعديل النظام الداخلي',
+    // Databases hosted on a server (migration 071).
+    'Databases': 'قواعد البيانات', 'Database': 'قاعدة بيانات',
+    'Add Database': 'إضافة قاعدة بيانات', 'Edit Database': 'تعديل قاعدة البيانات',
+    'Server': 'الخادم', 'Select a server…': 'اختر خادمًا…', 'Add a server first': 'أضف خادمًا أولًا',
+    'Pick the server this database is on.': 'اختر الخادم الذي توجد عليه قاعدة البيانات هذه.', '(deleted server)': '(خادم محذوف)',
+    'Database / SID / Service Name': 'اسم قاعدة البيانات / SID / الخدمة',
+    'Connection String': 'سلسلة الاتصال', 'Connection string': 'سلسلة الاتصال', 'Connection string:': 'سلسلة الاتصال:',
+    'Database saved': 'تم حفظ قاعدة البيانات', 'Database deleted': 'تم حذف قاعدة البيانات',
+    'Could not save database': 'تعذر حفظ قاعدة البيانات', 'Could not delete database': 'تعذر حذف قاعدة البيانات',
+    'Could not restore database': 'تعذر استعادة قاعدة البيانات', 'A database needs a name.': 'قاعدة البيانات تحتاج إلى اسم.',
+    'Delete with its {n} database(s)?': 'حذف مع قواعد بياناته ({n})؟',
+    'Server restored, but {n} database(s) could not be': 'تمت استعادة الخادم، لكن تعذرت استعادة {n} من قواعد البيانات',
+    'Open client database': 'فتح قاعدة بيانات العميل',
+    // Server access method (migration 072); RDP and PAM stay as they are.
+    'RDP': 'RDP', 'PAM': 'PAM', 'Via PAM': 'عبر PAM',
+    'Is this a production or UAT database?': 'هل قاعدة البيانات هذه للإنتاج أم لاختبار القبول؟', 'How is this server accessed?': 'كيف يتم الوصول إلى هذا الخادم؟',
+    'Anything worth remembering about this database': 'أي ملاحظات مهمة حول قاعدة البيانات هذه',
+    'e.g. APPDB_PRD': 'مثال: APPDB_PRD', 'e.g. Oracle': 'مثال: Oracle', 'e.g. 19c': 'مثال: 19c',
+    'e.g. 1521': 'مثال: 1521', 'e.g. app_user': 'مثال: app_user',
+    'e.g. jdbc:oracle:thin:@//10.0.0.5:1521/APPDB': 'مثال: jdbc:oracle:thin:@//10.0.0.5:1521/APPDB',
     'VPN connection deleted': 'تم حذف اتصال VPN', 'Server deleted': 'تم حذف الخادم',
     'Internal system deleted': 'تم حذف النظام الداخلي',
     'That System / Role / Environment is already taken.': 'هذا النظام / الدور / البيئة مستخدم بالفعل.',
     'Password:': 'كلمة المرور:', 'Secret Key:': 'المفتاح السري:',
-    'User:': 'المستخدم:', 'Company Code:': 'رمز الشركة:', 'Credential location:': 'موقع بيانات الدخول:',
+    'User:': 'المستخدم:', 'URL:': 'الرابط:', 'Company Code:': 'رمز الشركة:', 'Credential location:': 'موقع بيانات الدخول:',
     // Shell: command palette, close/logout guards, and the account chip.
     'Save failed': 'فشل الحفظ', 'Account': 'حساب',
     'Close cancelled — your unsaved changes are still open.':
@@ -1130,7 +1150,7 @@
     meeting: 'الاجتماع', meetings: 'الاجتماعات', 'action item': 'بند العمل',
     // Lowercased secret labels, shared by the reveal/copy tooltips and the
     // "Could not copy …" failure toast.
-    password: 'كلمة المرور', 'secret key': 'المفتاح السري',
+    password: 'كلمة المرور', 'secret key': 'المفتاح السري', 'connection string': 'سلسلة الاتصال',
     session: 'الجلسة', settings: 'الإعدادات', sources: 'المصادر', subscriptions: 'الاشتراكات',
     'the record': 'السجل', 'the session': 'الجلسة', 'the task': 'المهمة', 'VPN connection': 'اتصال VPN',
     merge: 'الدمج'

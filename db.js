@@ -4438,12 +4438,19 @@ function countUnreadableCredentials() {
 const CREDENTIAL_COLUMNS = [
   ['client_vpn_connections', ['password']],
   ['client_servers', ['password']],
-  // Retired sections (no UI, no CRUD, no rows) — kept so the pass still catches
+  // Live again since migration 071, nested under a server. A connection string
+  // often carries a password, so it is treated as one.
+  ['client_databases', ['password', 'connection_string']],
+  // Retired section (no UI, no CRUD, no rows) — kept so the pass still catches
   // any legacy plaintext credential that outlived its section.
-  ['client_databases', ['password']],
   ['client_external_services', ['secret_key']],
   ['client_internal_systems', ['password', 'secret_key']],
 ];
+// A backup or bundle taken before migration 071 has no
+// client_databases.connection_string; the passes over such a file skip it.
+function credentialColumnExists(handle, table, column) {
+  return handle.prepare(`PRAGMA table_info(${table})`).all().some(c => c.name === column);
+}
 // Encrypts every still-plaintext password/secret_key across the five client_*
 // tables, in place. A no-op when no cipher is configured (returns early —
 // nothing to do). Called from migration 032 (the first pass, right after its
@@ -4459,6 +4466,8 @@ function encryptAllPendingCredentials() {
   tx(() => {
     CREDENTIAL_COLUMNS.forEach(([table, columns]) => {
       columns.forEach(column => {
+        // Migration 032 runs this pass before 071 has added connection_string.
+        if (!credentialColumnExists(db, table, column)) return;
         const rows = db.prepare(`SELECT id, ${column} AS v FROM ${table} WHERE ${column} IS NOT NULL AND ${column} != ''`).all();
         rows.forEach(row => {
           const enc = encryptCredentialValue(row.v);
@@ -4558,6 +4567,7 @@ function exportPortableCredentials(dbFile, passphrase) {
       const exists = target.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table);
       if (!exists) continue;
       for (const column of columns) {
+        if (!credentialColumnExists(target, table, column)) continue;
         const rows = target.prepare(`SELECT id, ${column} AS v FROM ${table} WHERE ${column} IS NOT NULL AND ${column} != ''`).all();
         for (const row of rows) {
           const read = readCredential(row.v);
@@ -4626,6 +4636,7 @@ function importPortableCredentials(dbFile, passphrase, envelope) {
       const exists = target.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table);
       if (!exists) continue;
       for (const column of columns) {
+        if (!credentialColumnExists(target, table, column)) continue;
         // PORTABLE_MARKER is a fixed literal with no LIKE wildcards in it, so a
         // plain prefix match needs no ESCAPE clause.
         const rows = target.prepare(
@@ -4678,6 +4689,7 @@ function sanitizeLegacyCredentialBackups() {
         const exists = backupDb.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table);
         if (!exists) continue;
         for (const column of columns) {
+          if (!credentialColumnExists(backupDb, table, column)) continue;
           const rows = backupDb.prepare(`SELECT id, ${column} AS v FROM ${table} WHERE ${column} IS NOT NULL AND ${column} != ''`).all();
           for (const row of rows) {
             const enc = encryptCredentialValue(row.v);
@@ -4725,6 +4737,7 @@ function clientServerToApi(r) {
   return {
     id: r.id, companyId: r.company_id, host: r.host, environment: r.environment,
     os: r.os, hostname: r.hostname, username: r.username,
+    accessMethod: r.access_method || 'RDP',
     password: pw.value, passwordUnreadable: pw.unreadable,
     systemId: r.system_id, systemName: lkLabel(r.system_id), systemActive: isLookupActive(r.system_id),
     legacySystemName: r.system_name || '',
@@ -4735,6 +4748,21 @@ function clientServerToApi(r) {
     // now — read-only, never written again (same convention as `role`/`system_name`).
     legacyServerName: r.server_name || '', legacyPort: r.port || '',
     legacyCredentialLocation: r.credential_location || '',
+    notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
+  };
+}
+// A database hosted on a server (migration 071). `host` and
+// `credential_location` are inert legacy columns from the retired section: the
+// host is the server's, so neither is written again.
+function clientDatabaseToApi(r) {
+  const pw = readCredential(r.password);
+  const cs = readCredential(r.connection_string);
+  return {
+    id: r.id, companyId: r.company_id, serverId: r.server_id, name: r.name,
+    environment: r.environment || 'PRODUCTION', engine: r.engine,
+    version: r.version || '', port: r.port, username: r.username,
+    password: pw.value, passwordUnreadable: pw.unreadable,
+    connectionString: cs.value, connectionStringUnreadable: cs.unreadable,
     notes: r.notes, sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
   };
 }
@@ -4754,11 +4782,12 @@ function clientInternalSystemToApi(r) {
 
 // ── Field-edit history (audit trail) ────────────────────────────────────────
 // One row per changed field on an UPDATE to any of the three client_* tables
-// that still have a UI (never on create/delete — delete-undo re-creates from a
+// that have a UI (never on create/delete — delete-undo re-creates from a
 // snapshot, which is a create, not an edit). `record_type` distinguishes which
-// table `record_id` points into (see migration 027 for why there's no FK); the
-// retired 'database'/'external' discriminators are never written again, but any
-// historical row carrying one is left in place, unread.
+// table `record_id` points into (see migration 027 for why there's no FK).
+// 'database' is live again since migration 071; the retired 'external'
+// discriminator is never written again, but any historical row carrying one is
+// left in place, unread.
 // Field-def lists below double as: (a) which columns participate in the
 // diff, (b) the human label shown in the confirm dialog / history view, and
 // (c) which fields are `sensitive` — those log a fixed '(hidden)' placeholder
@@ -4775,10 +4804,21 @@ const VPN_HISTORY_FIELDS = [
 const lkLabelOf = v => lkLabel(v == null || v === '' ? null : Number(v));
 const SERVER_HISTORY_FIELDS = [
   ['host', 'Host (IP)'], ['environment', 'Environment'], ['os', 'Operating System'],
-  ['hostname', 'Hostname'], ['username', 'Username'], ['password', 'Password', true],
+  ['hostname', 'Hostname'], ['access_method', 'Access'], ['username', 'Username'], ['password', 'Password', true],
   ['system_id', 'System', false, lkLabelOf],
   ['role_id', 'Role', false, lkLabelOf],
   ['notes', 'Notes'],
+];
+// The host server is recorded by its identity, not its id.
+const serverLabelOf = v => {
+  const r = v == null || v === '' ? null : db.prepare('SELECT system_id, role_id, environment FROM client_servers WHERE id = ?').get(Number(v));
+  return r ? serverIdentityLabel(r) : '(deleted server)';
+};
+const DATABASE_HISTORY_FIELDS = [
+  ['server_id', 'Server', false, serverLabelOf], ['name', 'Name'],
+  ['environment', 'Environment', false, v => (v === 'TEST' ? 'UAT' : 'Production')], ['engine', 'Engine'], ['version', 'Version'], ['port', 'Port'],
+  ['username', 'Username'], ['password', 'Password', true],
+  ['connection_string', 'Connection String', true], ['notes', 'Notes'],
 ];
 const INTERNAL_HISTORY_FIELDS = [
   ['name', 'Name'], ['url', 'URL'], ['username', 'Username'], ['password', 'Password', true],
@@ -4950,12 +4990,23 @@ function listClients(userId, includeArchived = false) {
   );
   // System/Role come from the lookup ids, not the inert legacy text columns
   // (migrations 038/039) — so this list stays searchable by a server's identity.
+  const srvRows = db.prepare('SELECT id, company_id, host, hostname, os, environment, system_id, role_id FROM client_servers WHERE user_id = ?').all(userId);
   const srv = groupClientRows(
-    db.prepare('SELECT id, company_id, host, hostname, os, environment, system_id, role_id FROM client_servers WHERE user_id = ?').all(userId),
+    srvRows,
     r => ({
       id: r.id, type: 'servers', typeLabel: 'Server', name: serverIdentityLabel(r),
       detail: [r.host, r.hostname, r.os].filter(Boolean).join(' · '),
       fields: [r.host, r.hostname, r.os, lkLabel(r.system_id), lkLabel(r.role_id)].filter(Boolean),
+    })
+  );
+  // A database is named by itself; its host server's identity is the detail.
+  const serverLabels = new Map(srvRows.map(r => [r.id, serverIdentityLabel(r)]));
+  const dbase = groupClientRows(
+    db.prepare('SELECT id, company_id, server_id, name, engine, version FROM client_databases WHERE user_id = ? AND server_id IS NOT NULL').all(userId),
+    r => ({
+      id: r.id, type: 'databases', typeLabel: 'Database', name: r.name || '(unnamed)',
+      detail: [[r.engine, r.version].filter(Boolean).join(' '), serverLabels.get(r.server_id)].filter(Boolean).join(' · '),
+      fields: [r.name, r.engine, r.version].filter(Boolean),
     })
   );
   const int_ = groupClientRows(
@@ -4970,10 +5021,11 @@ function listClients(userId, includeArchived = false) {
     id: c.id, code: c.code, label: c.label, nameEn: c.nameEn || c.label, nameAr: c.nameAr || '',
     isActive: c.isActive, sortOrder: c.sortOrder,
     vpnCount: vpn.counts.get(c.id) || 0, serverCount: srv.counts.get(c.id) || 0,
+    databaseCount: dbase.counts.get(c.id) || 0,
     internalSystemCount: int_.counts.get(c.id) || 0,
     records: [
       ...(vpn.records.get(c.id) || []), ...(srv.records.get(c.id) || []),
-      ...(int_.records.get(c.id) || []),
+      ...(dbase.records.get(c.id) || []), ...(int_.records.get(c.id) || []),
     ],
   }));
 }
@@ -5113,9 +5165,17 @@ function getClient(userId, companyId) {
   const vpnConnections = db.prepare(
     'SELECT * FROM client_vpn_connections WHERE company_id = ? AND user_id = ? ORDER BY sort_order, id'
   ).all(companyId, userId).map(clientVpnToApi);
+  // Each server carries the databases it hosts (migration 071).
+  const databasesByServer = new Map();
+  db.prepare(
+    'SELECT * FROM client_databases WHERE company_id = ? AND user_id = ? AND server_id IS NOT NULL ORDER BY sort_order, name, id'
+  ).all(companyId, userId).forEach(r => {
+    if (!databasesByServer.has(r.server_id)) databasesByServer.set(r.server_id, []);
+    databasesByServer.get(r.server_id).push(clientDatabaseToApi(r));
+  });
   const servers = db.prepare(
     'SELECT * FROM client_servers WHERE company_id = ? AND user_id = ? ORDER BY sort_order, id'
-  ).all(companyId, userId).map(clientServerToApi);
+  ).all(companyId, userId).map(r => ({ ...clientServerToApi(r), databases: databasesByServer.get(r.id) || [] }));
   const internalSystems = db.prepare(
     'SELECT * FROM client_internal_systems WHERE company_id = ? AND user_id = ? ORDER BY sort_order, id'
   ).all(companyId, userId).map(clientInternalSystemToApi);
@@ -5205,6 +5265,12 @@ function resolveServerIdentity(userId, companyId, data, excludeId) {
   return { ok: true, systemId, environment, roleId };
 }
 
+// How the server is reached (migration 072). Anything but 'PAM' is RDP, the
+// column default, so an older caller that never sends it keeps working.
+function serverAccessMethod(value) {
+  return value === 'PAM' ? 'PAM' : 'RDP';
+}
+
 function createClientServer(userId, companyId, data) {
   if (!isLookupId('COMPANY', Number(companyId))) return null;
   const identity = resolveServerIdentity(userId, companyId, data, null);
@@ -5214,10 +5280,11 @@ function createClientServer(userId, companyId, data) {
   // `credential_location`) are deliberately left out of the INSERT; the identity
   // triple names the server, and role_id/system_id are the live fields.
   const id = Number(db.prepare(
-    `INSERT INTO client_servers(user_id, company_id, host, environment, os, hostname, username, password, system_id, role_id, notes, sort_order, created_at, updated_at)
-     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+    `INSERT INTO client_servers(user_id, company_id, host, environment, os, hostname, access_method, username, password, system_id, role_id, notes, sort_order, created_at, updated_at)
+     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
   ).run(userId, companyId, data?.host ?? '', identity.environment, data?.os ?? '',
-        data?.hostname ?? '', data?.username ?? '', encryptCredentialValue(data?.password ?? ''), identity.systemId,
+        data?.hostname ?? '', serverAccessMethod(data?.accessMethod), data?.username ?? '',
+        encryptCredentialValue(data?.password ?? ''), identity.systemId,
         identity.roleId, data?.notes ?? '', now, now).lastInsertRowid);
   return clientServerToApi(db.prepare('SELECT * FROM client_servers WHERE id = ?').get(id));
 }
@@ -5229,23 +5296,94 @@ function updateClientServer(userId, id, data) {
   const before = { ...beforeRaw, password: decryptCredentialValue(beforeRaw.password) };
   const next = {
     host: data?.host ?? '', environment: identity.environment, os: data?.os ?? '',
-    hostname: data?.hostname ?? '', username: data?.username ?? '', password: data?.password ?? '', system_id: identity.systemId,
+    hostname: data?.hostname ?? '', access_method: serverAccessMethod(data?.accessMethod),
+    username: data?.username ?? '', password: data?.password ?? '', system_id: identity.systemId,
     role_id: identity.roleId, notes: data?.notes ?? '',
   };
   tx(() => {
     recordClientFieldHistory(userId, 'server', id, before, next, SERVER_HISTORY_FIELDS);
     db.prepare(
-      `UPDATE client_servers SET host = ?, environment = ?, os = ?, hostname = ?, username = ?, password = ?,
+      `UPDATE client_servers SET host = ?, environment = ?, os = ?, hostname = ?, access_method = ?, username = ?, password = ?,
          system_id = ?, role_id = ?, notes = ?, updated_at = ?
         WHERE id = ? AND user_id = ?`
-    ).run(next.host, next.environment, next.os, next.hostname, next.username,
+    ).run(next.host, next.environment, next.os, next.hostname, next.access_method, next.username,
           nextCredentialValue(beforeRaw.password, next.password),
           next.system_id, next.role_id, next.notes, new Date().toISOString(), id, userId);
   });
   return clientServerToApi(db.prepare('SELECT * FROM client_servers WHERE id = ?').get(id));
 }
+// Deleting a server takes its databases with it (ON DELETE CASCADE); the
+// renderer's undo re-creates both from its snapshot.
 function deleteClientServer(userId, id) {
   db.prepare('DELETE FROM client_servers WHERE id = ? AND user_id = ?').run(id, userId);
+  return { ok: true };
+}
+
+// ── Databases hosted on a server (migration 071) ─────────────────────────────
+// A database belongs to one server and inherits its client from it. Only the
+// name is required: it is how the database is told apart from its neighbours.
+const DATABASE_NAME_REQUIRED = 'A database needs a name.';
+const DATABASE_SERVER_REQUIRED = 'Pick the server this database is on.';
+// Its own environment (migration 073), same codes as a server's. Anything but
+// 'TEST' is PRODUCTION, the column default.
+function databaseEnvironment(value) {
+  return value === 'TEST' ? 'TEST' : 'PRODUCTION';
+}
+function createClientDatabase(userId, serverId, data) {
+  const server = db.prepare('SELECT id, company_id FROM client_servers WHERE id = ? AND user_id = ?').get(serverId, userId);
+  if (!server) return null;
+  const name = String(data?.name ?? '').trim();
+  if (!name) return { ok: false, error: DATABASE_NAME_REQUIRED };
+  const now = new Date().toISOString();
+  const id = Number(db.prepare(
+    `INSERT INTO client_databases(user_id, company_id, server_id, name, environment, engine, version, port, username, password,
+       connection_string, notes, sort_order, created_at, updated_at)
+     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+  ).run(userId, server.company_id, server.id, name, databaseEnvironment(data?.environment),
+        data?.engine ?? '', data?.version ?? '', data?.port ?? '',
+        data?.username ?? '', encryptCredentialValue(data?.password ?? ''),
+        encryptCredentialValue(data?.connectionString ?? ''), data?.notes ?? '', now, now).lastInsertRowid);
+  return clientDatabaseToApi(db.prepare('SELECT * FROM client_databases WHERE id = ?').get(id));
+}
+function updateClientDatabase(userId, id, data) {
+  const beforeRaw = db.prepare('SELECT * FROM client_databases WHERE id = ? AND user_id = ?').get(id, userId);
+  if (!beforeRaw) return null;
+  const name = String(data?.name ?? '').trim();
+  if (!name) return { ok: false, error: DATABASE_NAME_REQUIRED };
+  const before = {
+    ...beforeRaw, password: decryptCredentialValue(beforeRaw.password),
+    connection_string: decryptCredentialValue(beforeRaw.connection_string),
+  };
+  // Moving it to another server is allowed within the same client only. No
+  // serverId sent means it stays where it is.
+  let serverId = beforeRaw.server_id;
+  if (data?.serverId != null && Number(data.serverId) !== serverId) {
+    const target = db.prepare('SELECT id FROM client_servers WHERE id = ? AND user_id = ? AND company_id = ?')
+      .get(Number(data.serverId), userId, beforeRaw.company_id);
+    if (!target) return { ok: false, error: DATABASE_SERVER_REQUIRED };
+    serverId = target.id;
+  }
+  const next = {
+    server_id: serverId, environment: databaseEnvironment(data?.environment),
+    name, engine: data?.engine ?? '', version: data?.version ?? '', port: data?.port ?? '',
+    username: data?.username ?? '', password: data?.password ?? '',
+    connection_string: data?.connectionString ?? '', notes: data?.notes ?? '',
+  };
+  tx(() => {
+    recordClientFieldHistory(userId, 'database', id, before, next, DATABASE_HISTORY_FIELDS);
+    db.prepare(
+      `UPDATE client_databases SET server_id = ?, environment = ?, name = ?, engine = ?, version = ?, port = ?, username = ?, password = ?,
+         connection_string = ?, notes = ?, updated_at = ?
+        WHERE id = ? AND user_id = ?`
+    ).run(next.server_id, next.environment, next.name, next.engine, next.version, next.port, next.username,
+          nextCredentialValue(beforeRaw.password, next.password),
+          nextCredentialValue(beforeRaw.connection_string, next.connection_string),
+          next.notes, new Date().toISOString(), id, userId);
+  });
+  return clientDatabaseToApi(db.prepare('SELECT * FROM client_databases WHERE id = ?').get(id));
+}
+function deleteClientDatabase(userId, id) {
+  db.prepare('DELETE FROM client_databases WHERE id = ? AND user_id = ?').run(id, userId);
   return { ok: true };
 }
 // Both bulk-System writes below can break the identity triple's uniqueness by
@@ -7236,6 +7374,7 @@ module.exports = {
   countUnreadableCredentials, exportPortableCredentials, importPortableCredentials,
   readBackupCredentialEnvelope, createClientVpn, updateClientVpn, deleteClientVpn,
   createClientServer, updateClientServer, deleteClientServer,
+  createClientDatabase, updateClientDatabase, deleteClientDatabase,
   renameClientServerSystemGroup, assignClientServerGroup, createClientInternalSystem,
   updateClientInternalSystem, deleteClientInternalSystem, renameClientInternalSystemGroup,
   assignClientInternalGroup, loadLookups, saveLookups, getLookupsByCategory,

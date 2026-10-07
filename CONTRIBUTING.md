@@ -124,8 +124,11 @@ code still threading through them is residue, not an extension point:
   `support_year_id`, so the task write paths must keep passing it through.
   `db.js` carries the full explanation above `resolveParentProjectId`.
 - **Project Categories** (migration 031) — removed outright by migration 042.
-- **`client_databases` / `client_external_services`** — no UI and no rows, kept
-  only so the credential-encryption sweep still catches a legacy plaintext value.
+- **`client_external_services`** — no UI and no rows, kept only so the
+  credential-encryption sweep still catches a legacy plaintext value.
+  (`client_databases` was retired the same way, then brought back by migration
+  071 as the databases hosted on a server; its `host` and `credential_location`
+  columns stay unwritten.)
 - **`appGet`/`appSet` and `internalTaskWhere` in `db.js`** have no caller today.
   Each is the other half of a pair whose live half is used constantly, kept so
   the predicate or the K/V scope is never re-derived by hand. They carry an
