@@ -806,7 +806,12 @@ function buildProjectCard(p, onOpen) {
   const foot = pjMk('div', 'pj-card-foot');
   const count = pjMk('span', 'pj-card-count');
   count.innerHTML = ic('clipboard-list');
-  count.appendChild(document.createTextNode((p.taskCount || 0) + ' task' + (p.taskCount === 1 ? '' : 's')));
+  // Translated as one phrase with the number filled in; glued together in
+  // code, "12 tasks" was a string the translator could never match.
+  const taskCount = p.taskCount || 0;
+  const taskCountKey = taskCount === 1 ? '{n} task' : '{n} tasks';
+  count.appendChild(document.createTextNode(window.ctI18n?.t?.(taskCountKey, { n: taskCount })
+    || taskCountKey.replace('{n}', taskCount)));
   foot.appendChild(count);
   const open = pjMk('span', 'pj-card-open', 'Open');
   open.insertAdjacentHTML('beforeend', ic('chevron-right'));

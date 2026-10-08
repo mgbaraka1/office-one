@@ -292,12 +292,14 @@ contextBridge.exposeInMainWorld('api', {
   listClients: (includeArchived)      => ipcRenderer.invoke('clients:list', includeArchived),
   /** @returns {Promise<import('./ipc-types').Client|null>} */
   getClient:   (companyId)            => ipcRenderer.invoke('clients:get', companyId),
-  // Roster CRUD. `createClient` is the only path that ever sets a company code;
-  // `renameClient` deliberately takes names only, never a code.
+  // Roster CRUD. `renameClient` takes names only; a code changes only through
+  // `changeClientCode`, which refuses a code another client already uses.
   /** @returns {Promise<import('./ipc-types').ClientWriteResult>} */
   createClient: (data)                => ipcRenderer.invoke('clients:create', data),
   /** @returns {Promise<import('./ipc-types').ClientWriteResult>} */
   renameClient: (companyId, data)     => ipcRenderer.invoke('clients:rename', companyId, data),
+  /** @returns {Promise<import('./ipc-types').ClientWriteResult>} */
+  changeClientCode: (companyId, code) => ipcRenderer.invoke('clients:change-code', companyId, code),
   /** @returns {Promise<import('./ipc-types').ClientWriteResult>} */
   setClientActive: (companyId, isActive) => ipcRenderer.invoke('clients:set-active', companyId, isActive),
   /** @returns {Promise<{ok: boolean, error?: string}>} */

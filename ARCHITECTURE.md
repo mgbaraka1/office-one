@@ -477,10 +477,15 @@ deleted items never appear.
   records.
 
 **The Clients page owns the client roster.** The roster *is* the `COMPANY` lookup
-catalog, so this is the only place it is managed: **+ New Client** (the one place
-a company code is ever set), **Show archived**, **Arrange**, inline English/Arabic
+catalog, so this is the only place it is managed: **+ New Client** (where a
+company code is first set), **Show archived**, **Arrange**, inline English/Arabic
 name editing on a 300 ms debounce, and **Archive / Restore**. **Company Code** is
-rendered read-only with a lock glyph — never an input, anywhere. Duplicate-company
+shown read-only with an **Edit** button on the Overview tab; a change goes through
+an inline confirm and a 5-second undo toast (`changeClientCode`). It is safe
+because every record links to the client by lookup id, never by code text, and
+the knowledge search triggers re-index on `UPDATE OF code`. Codes stay unique
+case-insensitively; no other write path (`renameClient`, `saveLookups`) can
+change one. Duplicate-company
 merging lives in Settings → Maintenance.
 
 **Settings tabs** come from `renderer/settings-registry.js` (minus

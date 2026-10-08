@@ -66,11 +66,14 @@ function ensureKnowledgeIndex() {
     .finally(() => { knowledgeIndexLoading = null; refreshKnowledgeLinkedSections(); });
   return knowledgeIndexLoading;
 }
-// Items linked to any of these clients or systems, not archived. Items that
-// match both a client and a system come first, then the most recently updated.
+// Items linked to any of these clients or systems, not archived. An item tagged
+// with a client never shows for another client: a shared system alone is not
+// enough, one of its clients must be here too. Items that match both a client
+// and a system come first, then the most recently updated.
 function knowledgeItemsLinkedTo(companyIds = [], systemIds = []) {
   const clients = new Set(companyIds.map(Number)), systems = new Set(systemIds.map(Number));
   return knowledgeItems.filter(item => item.status !== 'ARCHIVED')
+    .filter(item => !(item.companies || []).length || item.companies.some(x => clients.has(x.id)))
     .map(item => ({ item, rank: ((item.companies || []).some(x => clients.has(x.id)) ? 1 : 0) + ((item.systems || []).some(x => systems.has(x.id)) ? 1 : 0) }))
     .filter(entry => entry.rank)
     .sort((a, b) => b.rank - a.rank || String(b.item.updatedAt).localeCompare(String(a.item.updatedAt)))

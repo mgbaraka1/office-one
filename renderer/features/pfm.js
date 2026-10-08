@@ -422,8 +422,7 @@ async function loadClientPfmRows(companyId) {
   clientPfmRows = Array.isArray(rows) ? rows : [];
   clientPfmFor = companyId;
   updateClientDetailTabCounts();
-  const overviewCount = document.querySelector('#client-detail-sections [data-overview-count="pfm"]');
-  if (overviewCount) overviewCount.textContent = String(clientPfmRows.length);
+  refreshClientOverviewBody();
   if (clientDetailTab === 'pfm' || clientDetailSearch) renderClientDetailSections(currentClient);
 }
 // Called by renderClientDetail: fetch when the rows are for another client or stale.

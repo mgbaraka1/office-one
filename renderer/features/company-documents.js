@@ -86,7 +86,9 @@ function buildCompanyDocCard(doc) {
   head.appendChild(icon);
 
   const titleWrap = pjMk('div', 'cd-card-title');
-  titleWrap.appendChild(pjMk('div', 'cd-card-name', doc.name || 'Untitled document'));
+  const nameEl = pjMk('div', 'cd-card-name', doc.name || 'Untitled document');
+  if (doc.name) { nameEl.title = doc.name; nameEl.dataset.userContent = ''; }
+  titleWrap.appendChild(nameEl);
   if (doc.category) titleWrap.appendChild(pjMk('span', 'cd-card-cat', lkLabel('COMPANY_DOCUMENT_CATEGORY', doc.category)));
   head.appendChild(titleWrap);
 
@@ -116,22 +118,38 @@ function buildCompanyDocCard(doc) {
 
   if (doc.notes) card.appendChild(pjMk('div', 'cd-notes', doc.notes));
 
-  const fileRow = pjMk('div', 'cd-file-row');
+  // The file as one chip: a type badge, the name without its extension, and
+  // size + upload date under it. Clicking a present file opens it.
+  const fileRow = pjMk(present ? 'button' : 'div', 'cd-file' + (f ? '' : ' is-empty') + (missing ? ' is-missing' : ''));
   if (!f) {
-    fileRow.textContent = 'No file uploaded';
+    fileRow.appendChild(pjMk('span', 'cd-file-badge', '—'));
+    fileRow.appendChild(pjMk('span', 'cd-file-name', 'No file uploaded'));
   } else {
-    fileRow.appendChild(pjMk('span', 'fname', f.originalName || '(file)'));
-    fileRow.appendChild(document.createTextNode(
-      ' · ' + fmtFileSize(f.size) + (f.uploadedAt ? ' · ' + new Date(f.uploadedAt).toLocaleDateString() : '')));
+    const full = f.originalName || '(file)';
+    const dot = full.lastIndexOf('.');
+    const ext = dot > 0 ? full.slice(dot + 1).toUpperCase().slice(0, 4) : 'FILE';
+    const base = dot > 0 ? full.slice(0, dot) : full;
+    fileRow.appendChild(pjMk('span', 'cd-file-badge', ext));
+    const text = pjMk('span', 'cd-file-text');
+    const fname = pjMk('span', 'cd-file-name', base);
+    fname.dataset.userContent = '';
+    text.appendChild(fname);
+    text.appendChild(pjMk('span', 'cd-file-meta', missing ? 'File missing from disk'
+      : fmtFileSize(f.size) + (f.uploadedAt ? ' · ' + new Date(f.uploadedAt).toLocaleDateString('en-GB') : '')));
+    fileRow.appendChild(text);
+    fileRow.title = present ? 'Open with default app' : full;
+    if (present) { fileRow.type = 'button'; fileRow.addEventListener('click', () => openCompanyDocFile(doc.id)); }
   }
   card.appendChild(fileRow);
-  if (missing) card.appendChild(pjMk('div', 'cd-file-warn', 'File missing from disk'));
 
+  // One row: the main action with a label, the rest as icon buttons.
   const actions = pjMk('div', 'cd-actions');
   const mkBtn = (cls, iconName, label, title, fn) => {
-    const b = pjMk('button', 'pj-doc-btn' + (cls ? ' ' + cls : ''));
+    const b = pjMk('button', 'pj-doc-btn' + (cls ? ' ' + cls : '') + (label ? '' : ' cd-act-icon'));
+    b.type = 'button';
     b.innerHTML = ic(iconName);
-    b.appendChild(document.createTextNode(label));
+    if (label) b.appendChild(document.createTextNode(label));
+    else b.setAttribute('aria-label', title);
     b.title = title;
     b.addEventListener('click', fn);
     return b;
@@ -139,12 +157,14 @@ function buildCompanyDocCard(doc) {
   if (!f) {
     actions.appendChild(mkBtn('primary', 'upload', 'Upload', 'Upload a file', () => uploadCompanyDocFile(doc.id)));
   } else {
+    if (present) actions.appendChild(mkBtn('primary', 'external-link', 'Open file', 'Open with default app', () => openCompanyDocFile(doc.id)));
+    else actions.appendChild(mkBtn('primary', 'upload', 'Replace', 'Replace with another file', () => uploadCompanyDocFile(doc.id)));
+    actions.appendChild(pjMk('span', 'cd-actions-gap'));
     if (present) {
-      actions.appendChild(mkBtn('', 'download', 'Download', 'Save a copy', () => downloadCompanyDocFile(doc.id)));
-      actions.appendChild(mkBtn('', 'external-link', 'Open', 'Open with default app', () => openCompanyDocFile(doc.id)));
+      actions.appendChild(mkBtn('', 'download', '', 'Save a copy', () => downloadCompanyDocFile(doc.id)));
+      actions.appendChild(mkBtn('', 'upload', '', 'Replace with another file', () => uploadCompanyDocFile(doc.id)));
     }
-    actions.appendChild(mkBtn('', 'upload', 'Replace', 'Replace with another file', () => uploadCompanyDocFile(doc.id)));
-    actions.appendChild(mkBtn('danger', 'trash-2', 'Remove file', 'Remove this file', () =>
+    actions.appendChild(mkBtn('danger', 'trash-2', '', 'Remove this file', () =>
       showDeleteConfirm(actions, () => removeCompanyDocFile(doc.id), () => renderCompanyDocsList())));
   }
   card.appendChild(actions);

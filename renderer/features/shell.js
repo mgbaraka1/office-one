@@ -811,6 +811,49 @@ async function startApp(user) {
   await init();
 }
 
+// ── Sidebar account menu ──
+// The account row opens a small menu (Settings, View & Comfort, Log Out, the
+// version). It is positioned `fixed` from the row's own box, so it also works
+// from the collapsed rail, where it opens beside the sidebar instead of above.
+function toggleAccountMenu() {
+  const menu = document.getElementById('sidebar-account-menu');
+  if (!menu) return;
+  if (!menu.hidden) { closeAccountMenu(); return; }
+  const row = document.getElementById('sidebar-user');
+  const box = row.getBoundingClientRect();
+  const rtl = document.documentElement.dir === 'rtl';
+  const rail = box.width < 120;
+  menu.style.left = menu.style.right = '';
+  if (rail) {
+    menu.style.bottom = (window.innerHeight - box.bottom) + 'px';
+    menu.style.width = '220px';
+    if (rtl) menu.style.right = (window.innerWidth - box.left + 8) + 'px';
+    else menu.style.left = (box.right + 8) + 'px';
+  } else {
+    menu.style.bottom = (window.innerHeight - box.top + 6) + 'px';
+    menu.style.width = box.width + 'px';
+    menu.style.left = box.left + 'px';
+  }
+  menu.hidden = false;
+  row.setAttribute('aria-expanded', 'true');
+  menu.querySelector('[role="menuitem"]')?.focus();
+}
+function closeAccountMenu({ focusRow = false } = {}) {
+  const menu = document.getElementById('sidebar-account-menu');
+  if (!menu || menu.hidden) return;
+  menu.hidden = true;
+  const row = document.getElementById('sidebar-user');
+  row?.setAttribute('aria-expanded', 'false');
+  if (focusRow) row?.focus();
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest?.('.sidebar-account')) closeAccountMenu();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeAccountMenu({ focusRow: true });
+});
+window.addEventListener('resize', () => closeAccountMenu());
+
 async function doLogout() {
   if (!confirmDiscardSettingsDraft()) return;
   const proceed = await flushPendingWithRecovery('logout', 'Logout cancelled — your unsaved changes are still open.');

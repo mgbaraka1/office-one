@@ -26,7 +26,7 @@
     'Today': 'اليوم', 'Tasks': 'المهام', 'External': 'خارجي',
     'Clients': 'العملاء', 'Subscriptions': 'الاشتراكات', 'Company Docs': 'مستندات الشركة',
     'Company Documents': 'مستندات الشركة', 'Knowledge Hub': 'مركز المعرفة',
-    'Overview': 'نظرة عامة', 'Reports': 'التقارير', 'Administration': 'الإدارة', 'Settings': 'الإعدادات',
+    'Overview': 'نظرة عامة', 'Workspace': 'مساحة العمل', 'Reports': 'التقارير', 'Administration': 'الإدارة', 'Settings': 'الإعدادات',
     'Quick Find': 'البحث السريع', 'View & Comfort': 'العرض والراحة',
     'Dark Mode': 'الوضع الداكن', 'Light Mode': 'الوضع الفاتح', 'Backup Data': 'نسخ البيانات احتياطياً',
     'Switch to Arabic': 'التبديل إلى العربية', 'Switch to English': 'التبديل إلى الإنجليزية',
@@ -295,6 +295,9 @@
     'No records match the current filters': 'لا توجد سجلات مطابقة للمرشحات الحالية',
     'No records for this {noun}': 'لا توجد سجلات لهذا {noun}',
     'worked {date}': 'تم العمل في {date}', '{n} session': '{n} جلسة', '{n} sessions': '{n} جلسات',
+    // "المهام: {n}" reads right for any number; Arabic counts would otherwise
+    // need different plural forms for 1, 2, 3-10 and 11+.
+    '{n} task': 'المهام: {n}', '{n} tasks': 'المهام: {n}',
     'Created {date}': 'تم الإنشاء في {date}', 'Active': 'نشط', 'Inactive': 'غير نشط',
     'Skip to main content': 'تخطي إلى المحتوى الرئيسي',
     'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس',
@@ -380,7 +383,7 @@
     'The total Over-Time for the period is {hours} across {dayPhrase}.': 'إجمالي الوقت الإضافي للفترة هو {hours} موزعة على {dayPhrase}.',
     'Subscriptions Report': 'تقرير الاشتراكات', 'Renewing ≤30d': 'تتجدد خلال ≤30 يوماً', 'Overdue': 'متأخرة',
     'No subscriptions recorded.': 'لا توجد اشتراكات مسجلة.', 'Recurring Spend by Currency': 'الإنفاق المتكرر حسب العملة',
-    'Monthly': 'شهري', 'Yearly': 'سنوي', 'No subscription costs recorded.': 'لا توجد تكاليف اشتراكات مسجلة.',
+    'Monthly': 'شهري', 'Yearly': 'سنوي', 'Biggest costs': 'الأعلى تكلفة', 'Previous month': 'الشهر السابق', 'Next month': 'الشهر التالي', 'From month': 'من شهر', 'To month': 'إلى شهر', 'No subscription costs recorded.': 'لا توجد تكاليف اشتراكات مسجلة.',
     'Report': 'تقرير', 'PDF saved': 'تم حفظ ملف PDF', 'Printing failed': 'فشلت الطباعة',
     'Save Excel': 'حفظ Excel', 'Excel saved': 'تم حفظ ملف Excel', 'Excel failed: ': 'فشل حفظ Excel: ',
     'Client / Organisation': 'العميل / المؤسسة', 'System / Department': 'النظام / القسم',
@@ -542,7 +545,6 @@
     'No document types configured — add them in Settings → Project Documents.': 'لم تُضبط أنواع مستندات — أضفها من الإعدادات ← مستندات المشروع.',
     'Create knowledge items first, or create an empty group now.': 'أنشئ عناصر معرفة أولاً، أو أنشئ مجموعة فارغة الآن.',
     'Your formatted preview will appear here.': 'ستظهر المعاينة المنسقة هنا.',
-    'Use the tabs above to manage this client’s projects, Knowledge Hub items, access records, servers, and internal systems. Search spans every tab without searching passwords or secret keys.': 'استخدم علامات التبويب أعلاه لإدارة مشاريع العميل وعناصر مركز المعرفة وسجلات الوصول والخوادم والأنظمة الداخلية. يشمل البحث كل التبويبات دون كلمات المرور أو المفاتيح السرية.',
     'Attachment saved': 'تم حفظ المرفق', 'Document added': 'تمت إضافة المستند', 'Document created': 'تم إنشاء المستند',
     'Document saved': 'تم حفظ المستند', 'Document removed': 'تمت إزالة المستند', 'Document restored': 'تمت استعادة المستند',
     'File saved': 'تم حفظ الملف', 'File replaced': 'تم استبدال الملف', 'File removed': 'تمت إزالة الملف',
@@ -587,7 +589,11 @@
     // Client detail view.
     'Servers': 'الخوادم', 'Projects': 'المشاريع', 'Access': 'الوصول',
     'Access records': 'سجلات الوصول', 'Internal systems': 'الأنظمة الداخلية',
-    'Add Access': 'إضافة وصول', 'Workspace summary': 'ملخص مساحة العمل',
+    'Add Access': 'إضافة وصول', 'Recent activity': 'آخر النشاطات', 'Edit code and names': 'تعديل الرمز والأسماء', 'Next 30 days': 'خلال 30 يوماً', 'Compared with the previous period': 'مقارنة بالفترة السابقة', 'Back to overview': 'العودة إلى النظرة العامة', 'Yesterday': 'أمس', 'Earlier': 'أقدم',
+    'All clear. Nothing needs attention.': 'كل شيء على ما يرام. لا شيء يحتاج إلى انتباه.', 'Expires today': 'تنتهي اليوم',
+    'Internal system': 'نظام داخلي', 'Untitled': 'بدون عنوان', 'Nothing has changed yet.': 'لا توجد تغييرات بعد.',
+    'Nothing recorded for this client yet': 'لا توجد سجلات لهذا العميل بعد',
+    'Open a section above to add its first record. Everything you add shows up here.': 'افتح أحد الأقسام أعلاه لإضافة أول سجل فيه. كل ما تضيفه يظهر هنا.',
     "Search this client's records…": 'ابحث في سجلات هذا العميل…',
     // Client roster management (create / rename / archive / arrange). Several of
     // these are built in template literals or set as .title/.textContent from
@@ -604,10 +610,14 @@
     'Archive this client?': 'أرشفة هذا العميل؟',
     'Client created': 'تم إنشاء العميل',
     'Client archived': 'تمت أرشفة العميل', 'Client restored': 'تمت استعادة العميل',
-    'Permanent — a company code cannot be changed after the client is created.':
-      'دائم — لا يمكن تغيير رمز الشركة بعد إنشاء العميل.',
-    'A company code is permanent — it keeps tasks, projects, invoices and infrastructure linked.':
-      'رمز الشركة دائم — فهو يبقي المهام والمشاريع والفواتير والبنية التحتية مرتبطة.',
+    'Must be unique. You can change it later from the client’s Overview tab.':
+      'يجب أن يكون فريدًا. يمكنك تغييره لاحقًا من تبويب نظرة عامة الخاص بالعميل.',
+    'Change company code': 'تغيير رمز الشركة',
+    'Change company code?': 'تغيير رمز الشركة؟',
+    'Company code changed': 'تم تغيير رمز الشركة',
+    'Could not change the company code': 'تعذّر تغيير رمز الشركة',
+    'Must be unique. Links stay intact; files already exported keep the old code.':
+      'يجب أن يكون فريدًا. تبقى الروابط سليمة؛ والملفات المصدّرة سابقًا تحتفظ بالرمز القديم.',
     'Hide this client from the roster and from company dropdowns. Nothing is deleted.':
       'إخفاء هذا العميل من القائمة ومن قوائم الشركات المنسدلة. لا يُحذف أي شيء.',
     'A client needs a company code': 'العميل يحتاج إلى رمز شركة',
@@ -1325,9 +1335,6 @@
     [/^Auth \((\d+)\)$/s, m => `المصادقة (${m[1]})`],
     [/^Server Information \((\d+)\)$/s, m => `معلومات الخوادم (${m[1]})`],
     [/^Internal Systems \((\d+)\)$/s, m => `الأنظمة الداخلية (${m[1]})`],
-    // Client card footer: "N auth · N servers · N internal · N projects".
-    [/^(\d+) auth · (\d+) servers? · (\d+) internal · (\d+) projects?$/s,
-      m => `${m[1]} وصول · ${m[2]} خادم · ${m[3]} نظام داخلي · ${m[4]} مشروع`],
     [/^Could not (load|save|delete|restore|open|remove|download|upload|create|add|update|link|unlink|merge|copy|mark|undo|duplicate) (.+)$/s, m => {
       const verbs = { load: 'تحميل', save: 'حفظ', delete: 'حذف', restore: 'استعادة', open: 'فتح', remove: 'إزالة', download: 'تنزيل', upload: 'رفع', create: 'إنشاء', add: 'إضافة', update: 'تحديث', link: 'ربط', unlink: 'إلغاء ربط', merge: 'دمج', copy: 'نسخ', mark: 'تحديد', undo: 'التراجع عن', duplicate: 'تكرار' };
       return `تعذر ${verbs[m[1]]} ${uiNounsAr[m[2]] || m[2]}`;
@@ -1395,6 +1402,9 @@
     [/^Documents \((.+)\)$/s, m => `المستندات (${m[1]})`], [/^PDF failed: (.+)$/s, m => `فشل PDF: ${m[1]}`],
     [/^Resource created, but the rate was not saved: (.+)$/s, m => `تم إنشاء المورد، لكن لم يُحفظ السعر: ${ar[m[1]] || m[1]}`],
     [/^(\d+) documents?( · .+)?$/s, m => `${m[1]} مستند${m[2] || ''}`], [/^Updated today$/s, () => 'تم التحديث اليوم'],
+    [/^(\d+) within 7 days$/s, m => `${m[1]} خلال 7 أيام`],
+    [/^Expired (\d+) days? ago$/s, m =>`انتهت منذ ${m[1]} يوم`], [/^Expires in (\d+) days?$/s, m => `تنتهي خلال ${m[1]} يوم`],
+    [/^\+(\d+) more$/s, m => `+${m[1]} أخرى`],
     [/^Updated yesterday$/s, () => 'تم التحديث أمس'], [/^Updated (\d+) days? ago$/s, m => `تم التحديث منذ ${m[1]} يوم`],
     [/^Updated (\d+) weeks? ago$/s, m => `تم التحديث منذ ${m[1]} أسبوع`], [/^Updated (.+)$/s, m => `تم التحديث ${m[1]}`],
     [/^Overdue — (.+)$/s, m => `متأخر — ${m[1]}`], [/^Renews soon — (.+)$/s, m => `يتجدد قريباً — ${m[1]}`],

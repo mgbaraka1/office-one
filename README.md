@@ -16,7 +16,7 @@ Everything runs on the device. There is no application server, no cloud sync, an
     <td width="50%"><a href="docs/screenshots/03-client-tasks.png"><img src="docs/screenshots/03-client-tasks.png" alt="The Client Tasks list with expanded work logs"></a><br><sub><b>Client Tasks</b> — every task with its dated work logs, filterable by company, system and project.</sub></td>
   </tr>
   <tr>
-    <td width="50%"><a href="docs/screenshots/04-clients.png"><img src="docs/screenshots/04-clients.png" alt="A client detail page with its record tabs"></a><br><sub><b>Clients</b> — a client's projects, offers and CRs, knowledge items, access records, servers, and internal systems. The company code is permanent and read-only.</sub></td>
+    <td width="50%"><a href="docs/screenshots/04-clients.png"><img src="docs/screenshots/04-clients.png" alt="A client detail page with its record tabs"></a><br><sub><b>Clients</b> — a client's projects, offers and CRs, knowledge items, access records, servers, and internal systems. The company code is unique and can be changed from the client's Overview tab.</sub></td>
     <td width="50%"><a href="docs/screenshots/05-knowledge-hub.png"><img src="docs/screenshots/05-knowledge-hub.png" alt="The Knowledge Hub"></a><br><sub><b>Knowledge Hub</b> — versioned documents found by client and system, with plain-text notes.</sub></td>
   </tr>
 </table>

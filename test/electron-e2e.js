@@ -369,16 +369,24 @@ async function run() {
         const created = (await window.api.listClients()).find(c => c.code === code);
         const detailOpen = currentClient?.id === created?.id;
 
-        // The identity editor: names are inputs, the code is not — and it is
-        // shown in Arabic, since this whole block runs with the UI in Arabic.
-        const identity = document.querySelector('#clients-detail-view .client-profile-summary');
-        const identityLocalized = !!identity && identity.textContent.includes('رمز الشركة')
+        // The identity lives in the page header: the code is a read-only chip
+        // and one Edit pencil opens the code and both names as inputs (a code
+        // change is confirmed on Save, never auto-saved) — shown in Arabic,
+        // since this whole block runs in Arabic.
+        const codeChip = document.querySelector('#clients-detail-view .cl-detail-head .cl-identity-code.is-chip');
+        // Read before Edit swaps the chip out for the inputs.
+        const codeChipTitle = codeChip?.title;
+        const codeChipShown = codeChip?.querySelector('b')?.textContent === code
+          && ![...document.querySelectorAll('#clients-detail-view input')].some(input => input.value === code);
+        document.getElementById('cl-identity-edit').click();
+        await new Promise(resolve => setTimeout(resolve, 50)); // the i18n observer localizes the new labels
+        const identity = document.querySelector('#clients-detail-view .cl-detail-head .client-profile-summary');
+        const identityLocalized = codeChipTitle === 'رمز الشركة' && !!identity
           && identity.textContent.includes('الاسم بالإنجليزية')
           && identity.textContent.includes('الاسم بالعربية');
-        const codeIsNotEditable = !!document.querySelector('#clients-detail-view .cl-identity-locked b')
-          && document.querySelectorAll('#clients-detail-view input.cl-identity-input').length === 2
-          && ![...document.querySelectorAll('#clients-detail-view input')]
-            .some(input => input.value === code);
+        const codeIsNotEditable = codeChipShown
+          && document.querySelectorAll('#clients-detail-view input.cl-identity-input').length === 3
+          && document.getElementById('cl-identity-code')?.value === code;
 
         // Rename through the real debounced input handler.
         const enInput = document.getElementById('cl-identity-name-en');
@@ -965,7 +973,7 @@ async function run() {
     await openClientDetail(client.id, '', 'knowledge');
     const clientListed = await until(() => titles('#client-detail-sections').includes('E2E client mapping sheet'));
     const clientOnlyLinked = !titles('#client-detail-sections').includes('E2E unrelated manual');
-    const tabCount = /\\(1\\)$/.test(document.querySelector('#client-detail-tabs [data-client-tab="knowledge"]')?.textContent || '');
+    const tabCount = document.querySelector('#client-detail-tabs [data-client-tab="knowledge"] b')?.textContent === '1';
     const section = document.querySelector('#client-detail-sections .kh-linked');
     const dt = new DataTransfer(); dt.items.add(new File(['runbook'], 'E2E_Client_Runbook_v1.0.txt', { type: 'text/plain' }));
     section.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
@@ -1015,8 +1023,8 @@ async function run() {
   }
 
   // The Clients page owns the COMPANY catalog: create, rename, archive and
-  // restore all have to work from that page, and the company code has to be
-  // unreachable once set.
+  // restore all have to work from that page, and the company code must never
+  // be changed by the debounced name auto-save.
   const roster = result.clientRoster;
   if (!roster.modalOpen) throw new Error('New Client modal did not open');
   if (!roster.codeNormalized) throw new Error(`Company code input did not normalize: ${JSON.stringify(roster)}`);
@@ -1024,7 +1032,7 @@ async function run() {
   if (!roster.detailOpen) throw new Error('Creating a client did not open its detail page');
   if (!roster.identityLocalized) throw new Error('The client identity editor is not localized into Arabic');
   if (!roster.codeIsNotEditable) {
-    throw new Error(`The company code is editable on the Clients page: ${JSON.stringify(roster)}`);
+    throw new Error(`The company code is not shown read-only with an Edit button: ${JSON.stringify(roster)}`);
   }
   if (roster.renamedTo !== 'E2E Roster Renamed') {
     throw new Error(`Inline client rename did not persist: ${JSON.stringify(roster)}`);
@@ -1171,7 +1179,7 @@ async function run() {
   console.log('PASS  The last-used Settings tab is remembered per account across a reload');
   console.log('PASS  Settings exposes no Companies tab — the Clients page owns the roster');
   console.log('PASS  A client is created from the Clients page, with a normalized company code');
-  console.log('PASS  The client identity editor is localized and keeps the company code read-only');
+  console.log('PASS  The client identity editor is localized and shows the company code read-only with Edit');
   console.log('PASS  An inline client rename persists without touching the company code');
   console.log('PASS  A client survives an archive/restore round trip from the Clients page');
   console.log('PASS  An offer is created, moved to its next status and auto-saved from the Project & Finance page');
