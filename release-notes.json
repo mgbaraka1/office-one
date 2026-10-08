@@ -1,5 +1,49 @@
 [
   {
+    "version": "8.18.0",
+    "date": "2026-10-08",
+    "kind": "feat",
+    "title": {
+      "en": "Change a client's code, client cards at a glance, and a new overview",
+      "ar": "تغيير رمز العميل، وبطاقات عملاء أوضح، ونظرة عامة جديدة"
+    },
+    "notes": [
+      {
+        "en": "Each client card shows four tiles: projects, access records, servers and systems, each with its count.",
+        "ar": "تعرض كل بطاقة عميل أربع مربعات: المشاريع وسجلات الوصول والخوادم والأنظمة، ولكل منها عددها."
+      },
+      {
+        "en": "The card reads fully in Arabic, and a type with nothing recorded is shown faded.",
+        "ar": "تظهر البطاقة بالعربية بالكامل، ويظهر النوع الذي لا يحتوي على سجلات بلون باهت."
+      },
+      {
+        "en": "A client's company code can now be changed from its Overview tab, with a confirm and an undo. Nothing loses its client.",
+        "ar": "يمكن الآن تغيير رمز شركة العميل من تبويب نظرة عامة، مع تأكيد وإمكانية التراجع. لا يفقد أي سجل ارتباطه بالعميل."
+      },
+      {
+        "en": "The client Overview is redesigned, with recent activity, items needing attention and related knowledge items.",
+        "ar": "أُعيد تصميم نظرة عامة للعميل، مع النشاط الأخير والعناصر التي تحتاج إلى انتباه وعناصر المعرفة ذات الصلة."
+      },
+      {
+        "en": "The Workspace dashboard is clearer: a custom month range with back and next buttons, one row of tiles, and over time shown as a line.",
+        "ar": "أصبحت لوحة مساحة العمل أوضح: نطاق أشهر مخصص مع زرّي السابق والتالي، وصف واحد من المربعات، والوقت الإضافي يظهر كخط."
+      },
+      {
+        "en": "The account row in the sidebar opens a menu with Settings, View & Comfort and Log Out.",
+        "ar": "يفتح صف الحساب في القائمة الجانبية قائمة تضم الإعدادات والعرض والراحة وتسجيل الخروج."
+      },
+      {
+        "en": "Company Documents shows each file as one tidy chip with its type, size and upload date.",
+        "ar": "تعرض مستندات الشركة كل ملف كبطاقة واحدة مرتبة تضم نوعه وحجمه وتاريخ رفعه."
+      }
+    ],
+    "technical": [
+      "Each tile is its own icon, number and label, so labels translate separately and counts stay in place in right-to-left text.",
+      "changeClientCode is the only path that changes a code; renameClient takes names only.",
+      "Task counts translate as one phrase; a misplaced translation rule above the i18n file header was removed."
+    ]
+  },
+  {
     "version": "8.17.0",
     "date": "2026-10-07",
     "kind": "feat",
