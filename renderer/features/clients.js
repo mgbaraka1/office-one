@@ -296,14 +296,25 @@ function buildClientCard(c, projectCount, index, total) {
   if (archived) head.appendChild(pjMk('span', 'cl-archived-badge', 'Archived'));
   card.appendChild(head);
 
-  const foot = pjMk('div', 'pj-card-foot');
-  const count = pjMk('span', 'pj-card-count');
-  count.innerHTML = ic('zap');
-  count.appendChild(document.createTextNode(
-    c.vpnCount + ' auth' + ' · ' + c.serverCount + ' server' + (c.serverCount === 1 ? '' : 's')
-    + ' · ' + c.internalSystemCount + ' internal'
-    + ' · ' + (projectCount || 0) + ' project' + (projectCount === 1 ? '' : 's')));
-  foot.appendChild(count);
+  // One chip per record type, each its own icon + number + label so the label
+  // translates on its own and the number never drifts under RTL bidi. Same
+  // icons as the detail view's section tiles; an empty type is dimmed.
+  const stats = pjMk('div', 'cl-card-stats');
+  [
+    ['folder', projectCount || 0, 'Projects'],
+    ['zap', c.vpnCount || 0, 'Access'],
+    ['server', c.serverCount || 0, 'Servers'],
+    ['layout-dashboard', c.internalSystemCount || 0, 'Systems'],
+  ].forEach(([icon, n, label]) => {
+    const chip = pjMk('span', 'cl-card-stat' + (n ? '' : ' is-empty'));
+    chip.innerHTML = ic(icon);
+    chip.appendChild(pjMk('b', 'cl-card-stat-n', String(n)));
+    chip.appendChild(pjMk('span', 'cl-card-stat-label', label));
+    stats.appendChild(chip);
+  });
+  card.appendChild(stats);
+
+  const foot = pjMk('div', 'pj-card-foot cl-card-foot');
 
   // An archived client's primary action is getting it back, so Restore takes
   // the slot "Open" normally holds. Opening it still works via the card body.

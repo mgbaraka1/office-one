@@ -2171,6 +2171,23 @@
     /* ── Client roster management (Clients page) ──
        The identity block on a client's Overview tab. The two names are inputs;
        the company code deliberately is not — it is permanent, and the lock
+    /* Client list card: four record-type stats, then a slim Open/Restore row. */
+    .cl-card-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+    .cl-card-stat {
+      display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: 6px;
+      min-width: 0; padding: 7px 9px; border-radius: var(--radius-sm);
+      background: var(--surface2); color: var(--text);
+    }
+    .cl-card-stat .lic { width: 14px; height: 14px; color: var(--primary); }
+    .cl-card-stat-n { font-size: 15px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+    .cl-card-stat-label {
+      grid-column: 1 / -1; margin-top: 2px; font-size: 10.5px; font-weight: 600; color: var(--muted);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .cl-card-stat.is-empty { background: transparent; box-shadow: inset 0 0 0 1px var(--border); }
+    .cl-card-stat.is-empty .lic,
+    .cl-card-stat.is-empty .cl-card-stat-n { color: var(--muted); opacity: .6; }
+    .pj-card-foot.cl-card-foot { justify-content: flex-end; padding-top: 8px; min-height: 26px; }
        glyph beside its caption is the visible reason why. */
     .client-profile-summary-field label {
       display: block; margin-bottom: 5px; color: var(--muted);
