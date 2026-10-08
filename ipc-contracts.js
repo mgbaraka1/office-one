@@ -169,6 +169,7 @@ const SIGNATURES = {
   'clients:get': ['id'],
   'clients:create': ['object'],
   'clients:rename': ['id', 'object'],
+  'clients:change-code': ['id', 'string'],
   'clients:set-active': ['id', 'boolean'],
   'clients:reorder': ['array'],
   'clients:vpn-create': ['id', 'object'],

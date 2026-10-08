@@ -56,8 +56,8 @@ try {
   const afterDupe = db.getLookupsByCategory('ENTRY_STATUS', true).find(item => item.id === target.id);
   check('the row keeps its original label after a duplicate-label skip', afterDupe.nameEn === target.nameEn);
 
-  // 3. A company code is write-once, so there is no such thing as an existing
-  //    row's code colliding: saveLookups ignores `code` on every update. What
+  // 3. A company code changes only through changeClientCode, so saveLookups
+  //    ignores `code` on every update and cannot make one collide. What
   //    still has to fail loudly is a NEW row claiming a code already in use.
   const companies = db.getLookupsByCategory('COMPANY', true);
   if (companies.length >= 2) {

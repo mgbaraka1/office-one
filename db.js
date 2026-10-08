@@ -5031,10 +5031,10 @@ function listClients(userId, includeArchived = false) {
 }
 
 // ── Client roster CRUD ────────────────────────────────────────────────────────
-// The roster IS the COMPANY lookup catalog, so these four write straight to
+// The roster IS the COMPANY lookup catalog, so these write straight to
 // lookup_codes. They live here rather than being folded into saveLookups
 // because the Clients page acts on one client at a time, and because a code
-// must be settable at creation while staying unreachable afterwards — a shape
+// is changed only through its own explicit call (changeClientCode) — a shape
 // the catalog editor's whole-category batch save cannot express.
 //
 // Like every other write on the shared catalog, `userId` is the ACTOR, not an
@@ -5082,10 +5082,9 @@ function createClient(userId, data) {
   return { ok: true, client: clientById(userId, id) };
 }
 
-// Names only. `code` is not a parameter and is not read from `data` — that is
-// the whole point: once created, a client's business code is permanent, so the
-// links every task, project, invoice and infrastructure row depend on cannot be
-// pulled out from under them.
+// Names only. `code` is not a parameter and is not read from `data`: the
+// debounced name auto-save must never change a code by accident. Codes change
+// only through changeClientCode, behind an explicit confirm.
 function renameClient(userId, companyId, data) {
   const id = Number(companyId);
   if (!isLookupId('COMPANY', id)) return { ok: false, error: 'Unknown client' };
@@ -5101,6 +5100,37 @@ function renameClient(userId, companyId, data) {
     const before = db.prepare(LOOKUP_SNAPSHOT_SQL).get(id);
     db.prepare('UPDATE lookup_codes SET label = ?, name_en = ?, name_ar = ? WHERE id = ?')
       .run(nameEn, nameEn, nameAr, id);
+    recordLookupHistory(userId, id, 'COMPANY', before, db.prepare(LOOKUP_SNAPSHOT_SQL).get(id));
+  });
+  if (error) return { ok: false, error };
+
+  lkInvalidate();
+  return { ok: true, client: clientById(userId, id) };
+}
+
+// The only way to change a code after creation. Safe because every task,
+// project, knowledge item and infrastructure row links to the client by its
+// lookup id, never by the code text; the knowledge search triggers re-index on
+// UPDATE OF code (migration 068). Same format and case-insensitive uniqueness
+// rules as createClient.
+function changeClientCode(userId, companyId, newCode) {
+  const id = Number(companyId);
+  if (!isLookupId('COMPANY', id)) return { ok: false, error: 'Unknown client' };
+  if (!canAccessLookup(userId, id)) return { ok: false, error: 'Unknown client' };
+
+  const code = String(newCode ?? '').trim().toUpperCase();
+  if (!COMPANY_CODE_RE.test(code)) {
+    return { ok: false, error: 'A company code must start with a letter or digit and use only letters, digits, _ and -' };
+  }
+
+  let error = null;
+  tx(() => {
+    const before = db.prepare(LOOKUP_SNAPSHOT_SQL).get(id);
+    if (before.code === code) return;
+    if (db.prepare('SELECT 1 FROM lookup_codes WHERE category = \'COMPANY\' AND code = ? COLLATE NOCASE AND id <> ?').get(code, id)) {
+      error = `Company code ${code} is already in use`; return;
+    }
+    db.prepare('UPDATE lookup_codes SET code = ? WHERE id = ?').run(code, id);
     recordLookupHistory(userId, id, 'COMPANY', before, db.prepare(LOOKUP_SNAPSHOT_SQL).get(id));
   });
   if (error) return { ok: false, error };
@@ -7367,7 +7397,7 @@ module.exports = {
   resolveKnowledgeAttachment, removeKnowledgeAttachment, restoreKnowledgeAttachment, updateKnowledgeAttachmentNote,
   purgeKnowledgeAttachment, purgeKnowledgeFiles, listKnowledgeGroups, createKnowledgeGroup,
   updateKnowledgeGroup, deleteKnowledgeGroup, listClients, getClient,
-  getClientFieldHistory, createClient, renameClient, setClientActive, reorderClients,
+  getClientFieldHistory, createClient, renameClient, changeClientCode, setClientActive, reorderClients,
   configureCredentialEncryption, allowPlaintextCredentialsForTests,
   disallowPlaintextCredentialsForTests, isCredentialEncryptionAvailable,
   encryptAllPendingCredentials, sanitizeLegacyCredentialBackups, readCredential,

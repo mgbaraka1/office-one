@@ -177,8 +177,8 @@ async function setClientArchived(companyId, isActive, { silent = false } = {}) {
 }
 
 // Inline rename from the client's own Overview tab, on the app-wide 300 ms
-// auto-save debounce. Names only — `code` is not sent and the channel would
-// ignore it if it were.
+// auto-save debounce. Names only — the code has its own confirmed edit
+// (buildClientIdentityEditor's Save), never this debounce.
 let _clientRenameTimer = null;
 function saveClientNamesDebounced(companyId) {
   clearTimeout(_clientRenameTimer);
@@ -219,7 +219,7 @@ async function saveClientNames(companyId) {
 }
 
 // ── New Client modal ──────────────────────────────────────────────────────────
-// Create only. The company code is set here and nowhere else, ever.
+// Create only. A code can be changed later from the client's Overview tab.
 function openClientCreateModal() {
   document.getElementById('cl-new-code').value = '';
   document.getElementById('cl-new-name-en').value = '';
@@ -630,16 +630,14 @@ function renderClientDetail(c) {
   crumbs.appendChild(pjMk('span', 'pj-crumb-here', companyDisplayName(c) || 'Untitled'));
   host.appendChild(crumbs);
 
-  const head = pjMk('div', 'pj-detail-head');
-  const titleBlock = pjMk('div', 'client-detail-identity');
-  titleBlock.appendChild(pjMk('div', 'pj-detail-title', companyDisplayName(c) || 'Untitled'));
-  // Show only the language-neutral code as the secondary line — never the
-  // other language's name (Arabic mode shows Arabic only, English shows English).
-  if (c.code) titleBlock.appendChild(pjMk('div', 'client-detail-alt', c.code));
-  head.appendChild(titleBlock);
+  // The header is the identity: the name (with a rename pencil), the code
+  // chip (with its own confirmed edit) and Archive. Shown on every tab.
+  const head = pjMk('div', 'pj-detail-head cl-detail-head');
+  head.appendChild(buildClientIdentityHeader(c));
+  head.appendChild(buildClientArchiveSlot(c));
   host.appendChild(head);
 
-  // Search + workspace-tab toolbar. Kept out of the re-rendered section
+  // Search toolbar, then the section tiles. Kept out of the re-rendered section
   // container so typing in the search box never rebuilds (and loses focus
   // on) the input itself — only #client-detail-sections is rebuilt below.
   const toolbar = pjMk('div', 'cl-detail-toolbar');
@@ -651,19 +649,8 @@ function renderClientDetail(c) {
   searchInput.value = clientDetailSearch;
   searchInput.addEventListener('input', applyClientDetailSearch);
   toolbar.appendChild(searchInput);
-  const typeChips = pjMk('div', 'seg-ctl workspace-tabs');
-  typeChips.id = 'client-detail-tabs';
-  typeChips.setAttribute('aria-label', 'Client workspace');
-  CLIENT_DETAIL_TYPES.forEach(t => {
-    const btn = pjMk('button', 'seg-btn' + (clientDetailTab === t.key ? ' active' : ''), t.label);
-    btn.type = 'button';
-    btn.dataset.clientTab = t.key;
-    btn.dataset.tabLabel = t.label;
-    btn.addEventListener('click', () => setClientDetailTab(t.key));
-    typeChips.appendChild(btn);
-  });
-  toolbar.appendChild(typeChips);
   host.appendChild(toolbar);
+  host.appendChild(buildClientSectionTiles(c));
   updateClientDetailTabCounts();
   ensureClientPfmRows(c.id);
   ensureKnowledgeIndex();
@@ -675,7 +662,44 @@ function renderClientDetail(c) {
   renderClientDetailSections(c);
 }
 
-// The tab strip's "(N)" suffixes, rewritten in place.
+// The section tiles are the client page's navigation: one per section, in the
+// same hues as the Overview timeline, each with its count. A tile opens its
+// section; clicking the open one goes back to the Overview.
+const CLIENT_SECTION_TILES = [
+  ['projects', 'Projects', 'folder', 'project'],
+  ['pfm', 'Offers & CRs', 'file-text', 'offer'],
+  ['knowledge', 'Knowledge Hub', 'book-open', 'knowledge'],
+  ['auth', 'Access records', 'zap', 'access'],
+  ['servers', 'Servers', 'server', 'server'],
+  ['internal', 'Internal systems', 'layout-dashboard', 'internal'],
+];
+function buildClientSectionTiles(c) {
+  const counts = clientDetailTabCounts(c);
+  const grid = pjMk('div', 'client-overview-grid');
+  grid.id = 'client-detail-tabs';
+  grid.setAttribute('aria-label', 'Client workspace');
+  CLIENT_SECTION_TILES.forEach(([key, label, icon, hue]) => {
+    const active = clientDetailTab === key;
+    const card = pjMk('button', 'client-overview-card cl-tl-' + hue + (active ? ' active' : '')
+      + (counts[key] ? '' : ' is-zero'));
+    card.type = 'button';
+    card.dataset.clientTab = key;
+    card.setAttribute('aria-pressed', String(active));
+    if (active) card.title = 'Back to overview';
+    card.addEventListener('click', () => setClientDetailTab(clientDetailTab === key ? 'overview' : key));
+    const tile = pjMk('span', 'cl-tl-icon');
+    tile.innerHTML = ic(icon);
+    card.appendChild(tile);
+    const text = pjMk('span', 'client-overview-text');
+    text.appendChild(pjMk('b', '', String(counts[key] || 0)));
+    text.appendChild(pjMk('span', '', label));
+    card.appendChild(text);
+    grid.appendChild(card);
+  });
+  return grid;
+}
+
+// Each section's record count, for the tiles.
 function clientDetailTabCounts(c) {
   return {
     projects: projectsList.filter(p => cpjPrimaryCompany(p)?.id === c.id).length,
@@ -694,15 +718,15 @@ function clientKnowledgeCount(companyId) {
 function refreshClientKnowledgeCount() {
   if (!currentClient) return;
   updateClientDetailTabCounts();
-  document.querySelectorAll('#client-detail-sections [data-overview-count="knowledge"]')
-    .forEach(n => { n.textContent = String(clientKnowledgeCount(currentClient.id)); });
+  refreshClientOverviewBody();
 }
 function updateClientDetailTabCounts() {
   if (!currentClient) return;
   const counts = clientDetailTabCounts(currentClient);
-  document.querySelectorAll('#client-detail-tabs .seg-btn').forEach(btn => {
-    const key = btn.dataset.clientTab;
-    btn.textContent = btn.dataset.tabLabel + (key === 'overview' ? '' : ' (' + (counts[key] || 0) + ')');
+  document.querySelectorAll('#client-detail-tabs [data-client-tab]').forEach(card => {
+    const n = counts[card.dataset.clientTab] || 0;
+    card.querySelector('b').textContent = String(n);
+    card.classList.toggle('is-zero', !n);
   });
 }
 
@@ -722,7 +746,7 @@ function renderClientDetailSections(c) {
   const vpns = Array.isArray(c.vpnConnections) ? c.vpnConnections : [];
 
   if (!q && clientDetailTab === 'overview') {
-    renderClientOverview(host, c, allServers, allInternalSystems, vpns);
+    renderClientOverview(host, c);
     return;
   }
   const showSection = key => !!q || clientDetailTab === key;
@@ -873,90 +897,118 @@ function renderClientDetailSections(c) {
   }
 }
 
-// The client's identity block: the permanent code, plus both names as live
-// inputs. Unlike the rest of the Overview tab this shows BOTH languages at
-// once, because here they are the fields being edited rather than a label
-// being displayed — you cannot maintain an Arabic name you cannot see.
-function buildClientIdentityEditor(c) {
-  const profile = pjMk('div', 'client-profile-summary');
+// The identity half of the header. View: the display name (current language
+// only — never the other one) with one Edit pencil, and the code as a chip.
+// Edit swaps it in place for the company code and BOTH names (you cannot
+// maintain an Arabic name you cannot see). Names auto-save on the usual
+// debounce; the code never does — Save asks "Change company code?" inline,
+// and changeClientCode raises the undo toast. Escape closes without touching
+// the code.
+function buildClientIdentityHeader(c) {
+  const block = pjMk('div', 'client-detail-identity');
+  const showView = () => {
+    block.innerHTML = '';
+    const row = pjMk('div', 'cl-title-row');
+    const title = pjMk('div', 'pj-detail-title', companyDisplayName(c) || 'Untitled');
+    title.dataset.userContent = '';
+    row.appendChild(title);
+    const edit = pjMk('button', 'row-btn cl-title-edit');
+    edit.type = 'button';
+    edit.id = 'cl-identity-edit';
+    edit.innerHTML = ic('pencil');
+    edit.title = 'Edit code and names';
+    edit.setAttribute('aria-label', 'Edit code and names');
+    edit.addEventListener('click', showEdit);
+    row.appendChild(edit);
+    block.appendChild(row);
+    const chip = pjMk('div', 'cl-identity-code is-chip');
+    chip.title = 'Company Code';
+    const code = pjMk('b', '', c.code || '—');
+    code.dataset.userContent = '';
+    chip.appendChild(code);
+    block.appendChild(chip);
+  };
+  const showEdit = () => {
+    block.innerHTML = '';
+    block.appendChild(buildClientIdentityEditor(c, showView));
+    document.getElementById('cl-identity-name-en')?.focus();
+  };
+  showView();
+  return block;
+}
 
-  // Code first, and deliberately not an input. Nothing in this app can change
-  // a company code after creation — it is what every task, project, invoice and
-  // server record is filed under.
-  const codeField = pjMk('div', 'client-profile-summary-field cl-identity-locked');
-  const codeCaption = pjMk('span', '');
-  codeCaption.appendChild(document.createTextNode('Company Code'));
-  codeCaption.insertAdjacentHTML('beforeend', ic('lock'));
-  codeField.appendChild(codeCaption);
-  const codeValue = pjMk('b', '', c.code || '—');
-  codeValue.dataset.userContent = '';
-  codeField.appendChild(codeValue);
-  codeField.title = 'A company code is permanent — it keeps tasks, projects, invoices and infrastructure linked.';
-  profile.appendChild(codeField);
-
-  const nameField = (caption, value, id, dir) => {
-    const field = pjMk('div', 'client-profile-summary-field');
+function buildClientIdentityEditor(c, close) {
+  const wrap = pjMk('div', 'cl-identity-editor');
+  const editor = pjMk('div', 'client-profile-summary');
+  const field = (caption, id, cls) => {
+    const f = pjMk('div', 'client-profile-summary-field' + (cls ? ' ' + cls : ''));
     const label = document.createElement('label');
     label.textContent = caption;
     label.setAttribute('for', id);
-    field.appendChild(label);
+    f.appendChild(label);
     const input = document.createElement('input');
     input.type = 'text';
     input.id = id;
     input.className = 'cl-identity-input';
-    input.value = value || '';
-    input.dir = dir;
     input.dataset.userContent = '';
-    input.addEventListener('input', () => saveClientNamesDebounced(c.id));
-    field.appendChild(input);
-    return field;
+    f.appendChild(input);
+    editor.appendChild(f);
+    return input;
   };
-  profile.appendChild(nameField('English Name', c.nameEn || c.label, 'cl-identity-name-en', 'ltr'));
-  profile.appendChild(nameField('Arabic Name', c.nameAr, 'cl-identity-name-ar', 'rtl'));
+  const codeInput = field('Company Code', 'cl-identity-code', 'cl-identity-code-field');
+  codeInput.dir = 'ltr';
+  codeInput.value = c.code || '';
+  codeInput.addEventListener('input', () => normalizeClientCodeInput(codeInput));
+  const enInput = field('English Name', 'cl-identity-name-en');
+  enInput.dir = 'ltr';
+  enInput.value = c.nameEn || c.label || '';
+  const arInput = field('Arabic Name', 'cl-identity-name-ar');
+  arInput.dir = 'rtl';
+  arInput.value = c.nameAr || '';
+  [enInput, arInput].forEach(input => input.addEventListener('input', () => saveClientNamesDebounced(c.id)));
 
-  return profile;
+  const acts = pjMk('div', 'cl-code-acts');
+  const renderActs = () => {
+    acts.innerHTML = '';
+    const save = pjMk('button', 'btn primary', 'Save');
+    save.type = 'button';
+    save.addEventListener('click', finish);
+    acts.appendChild(save);
+  };
+  // Flush the names first; English cannot be blank (saveClientNames marks it).
+  const flushNames = async () => {
+    clearTimeout(_clientRenameTimer);
+    await saveClientNames(c.id);
+    return !!enInput.value.trim();
+  };
+  const finish = async () => {
+    clearErrorsIn('#clients-detail-view');
+    if (!await flushNames()) return;
+    const code = codeInput.value.trim().toUpperCase();
+    if (!code) { markError('cl-identity-code'); toast('A client needs a company code'); return; }
+    if (code === c.code) { close(); return; }
+    showDeleteConfirm(acts, async () => {
+      if (await changeClientCode(c.id, code)) return;   // re-opens the client page
+      markError('cl-identity-code');
+      renderActs();
+    }, renderActs, 'Change company code?');
+  };
+  [codeInput, enInput, arInput].forEach(input => input.addEventListener('keydown', async e => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(); }
+    else if (e.key === 'Escape') { e.preventDefault(); if (await flushNames()) close(); }
+  }));
+  renderActs();
+  editor.appendChild(acts);
+  wrap.appendChild(editor);
+  wrap.appendChild(pjMk('span', 'modal-hint',
+    'Must be unique. Links stay intact; files already exported keep the old code.'));
+  return wrap;
 }
 
-function renderClientOverview(host, c, servers, internalSystems, vpns) {
-  host.appendChild(buildClientIdentityEditor(c));
-
-  const projects = projectsList.filter(p => cpjPrimaryCompany(p)?.id === c.id);
-  const grid = pjMk('div', 'client-overview-grid');
-  [
-    ['Projects', projects.length],
-    // Filled in place by loadClientPfmRows() when its fetch lands.
-    ['Offers & CRs', clientPfmCount(c.id), 'pfm'],
-    ['Knowledge Hub', clientKnowledgeCount(c.id), 'knowledge'],
-    ['Access records', vpns.length],
-    ['Servers', servers.length],
-    ['Internal systems', internalSystems.length],
-  ].forEach(([label, count, key]) => {
-    const card = pjMk('div', 'client-overview-card');
-    const n = pjMk('b', '', String(count));
-    if (key) n.dataset.overviewCount = key;
-    card.appendChild(n);
-    card.appendChild(pjMk('span', '', label));
-    grid.appendChild(card);
-  });
-  host.appendChild(grid);
-
-  const actions = pjMk('div', 'client-overview-actions');
-  [
-    ['plus', 'New Project', () => openProjectModal(), 'primary'],
-    ['briefcase', 'New Offer', () => openPfmModal(null, { kind: 'OFFER', companyId: c.id }), ''],
-    ['book-open', 'New Knowledge item', () => openKnowledgeEditor(null, null, { companyIds: [c.id] }), ''],
-    ['zap', 'Add Access', () => openClientVpnModal(), ''],
-    ['server', 'Add Server', () => openClientServerModal(), ''],
-    ['layout-dashboard', 'Add System', () => openClientInternalModal(), ''],
-  ].forEach(([icon, label, run, emphasis]) => {
-    const btn = pjMk('button', 'btn' + (emphasis ? ' ' + emphasis : ''));
-    btn.type = 'button'; btn.innerHTML = ic(icon) + label; btn.addEventListener('click', run);
-    actions.appendChild(btn);
-  });
-
-  // Archive sits apart from the "add something" buttons, and confirms inline
-  // before acting (plus the undo toast setClientArchived raises). Restoring an
-  // already-archived client needs neither.
+// Archive acts on the client itself, so it sits at the end of the header. It
+// confirms inline before acting (plus the undo toast setClientArchived raises).
+// Restoring an already-archived client needs neither.
+function buildClientArchiveSlot(c) {
   const archiveSlot = pjMk('div', 'cl-archive-slot');
   const renderArchiveAction = () => {
     archiveSlot.innerHTML = '';
@@ -977,16 +1029,238 @@ function renderClientOverview(host, c, servers, internalSystems, vpns) {
     archiveSlot.appendChild(archive);
   };
   renderArchiveAction();
-  actions.appendChild(archiveSlot);
-  host.appendChild(actions);
+  return archiveSlot;
+}
 
-  const note = pjMk('div', 'pj-section');
+// Returns true on success. The undo toast sets the old code back, through the
+// same uniqueness check (so it refuses only if another client took it since).
+async function changeClientCode(companyId, code, { silent = false } = {}) {
+  const before = currentClient && currentClient.id === companyId ? currentClient.code : null;
+  let res;
+  try { res = await window.api.changeClientCode(companyId, code); }
+  catch { res = null; }
+  if (!res?.ok) { toast(res?.error || 'Could not change the company code'); return false; }
+
+  await refreshCompanyCatalog();
+  clientsLoaded = false;
+  await loadClientsList();
+  if (currentClient && currentClient.id === companyId) openClientDetail(companyId);
+  if (!silent) {
+    toast('Company code changed', before ? {
+      actionLabel: 'Undo', duration: 5000,
+      onAction: () => changeClientCode(companyId, before, { silent: true }),
+    } : undefined);
+  }
+  return true;
+}
+
+function renderClientOverview(host, c) {
+  // Lives in its own container so it can be refilled in place when the
+  // Offers & CRs rows or the Knowledge Hub index land.
+  const body = pjMk('div', 'cl-overview-body');
+  body.id = 'cl-overview-body';
+  host.appendChild(body);
+  fillClientOverviewBody(body, c);
+}
+
+// Called when async client data (Offers & CRs, Knowledge Hub) arrives.
+function refreshClientOverviewBody() {
+  const body = document.getElementById('cl-overview-body');
+  if (body && currentClient) fillClientOverviewBody(body, currentClient);
+}
+
+function fillClientOverviewBody(body, c) {
+  body.innerHTML = '';
+  const counts = clientDetailTabCounts(c);
+
+  // Adding happens inside each section (open its tile). A brand-new client
+  // gets a short pointer to that instead of two empty panels. Only once
+  // every source has loaded, so a client with records never flashes it.
+  const allLoaded = projectsLoaded && knowledgeLoaded && clientPfmFor === c.id;
+  if (allLoaded && Object.values(counts).every(n => !n)) {
+    const guide = pjMk('div', 'pj-section cl-empty-guide');
+    const title = pjMk('div', 'pj-section-title');
+    title.innerHTML = ic('layers') + 'Nothing recorded for this client yet';
+    guide.appendChild(title);
+    guide.appendChild(pjMk('div', 'general-hint',
+      'Open a section above to add its first record. Everything you add shows up here.'));
+    body.appendChild(guide);
+    return;
+  }
+
+  // Two panels side by side; they stack on a narrow window.
+  const split = pjMk('div', 'cl-overview-split');
+  split.appendChild(buildClientNeedsAttention(c));
+  split.appendChild(buildClientRecentActivity(c));
+  body.appendChild(split);
+}
+
+// What to act on for this client: logins and offers that have expired or will
+// within 30 days, offers/CRs waiting on someone, and stored credentials this
+// device cannot read. Worst first; each row opens its record.
+const CLIENT_ATTENTION_LIMIT = 8;
+function buildClientNeedsAttention(c) {
+  const items = [];
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const daysUntil = dateStr => Math.round((new Date(dateStr + 'T00:00:00') - today) / 86400000);
+  const dueText = n => n < 0 ? 'Expired ' + (-n) + (n === -1 ? ' day ago' : ' days ago')
+    : n === 0 ? 'Expires today' : 'Expires in ' + n + (n === 1 ? ' day' : ' days');
+  // rank: 0 overdue, 1 due soon (ordered by date), 2 waiting, 3 unreadable.
+  const push = (rank, order, level, icon, kind, name, why, open) =>
+    items.push({ rank, order, level, icon, kind, name, why, open });
+  const checkDate = (dateStr, icon, kind, name, open) => {
+    if (!dateStr) return;
+    const n = daysUntil(dateStr);
+    if (isNaN(n) || n > 30) return;
+    push(n < 0 ? 0 : 1, n, n < 0 ? 'bad' : 'warn', icon, kind, name, dueText(n), open);
+  };
+
+  (c.vpnConnections || []).forEach(v => {
+    const open = () => openClientVpnModal(v);
+    checkDate(v.expiryDate, 'zap', 'Access', v.connectionName, open);
+    if (v.passwordUnreadable) push(3, 0, 'muted', 'lock', 'Access', v.connectionName, 'Cannot be read on this device', open);
+  });
+  (c.internalSystems || []).forEach(s => {
+    const open = () => openClientInternalModal(s);
+    checkDate(s.expiryDate, 'layout-dashboard', 'Internal system', s.name, open);
+    if (s.passwordUnreadable || s.secretKeyUnreadable)
+      push(3, 0, 'muted', 'lock', 'Internal system', s.name, 'Cannot be read on this device', open);
+  });
+  (c.servers || []).forEach(s => {
+    if (!s.passwordUnreadable || s.accessMethod === 'PAM') return;
+    push(3, 0, 'muted', 'lock', 'Server', [s.systemName, s.hostname || s.host].filter(Boolean).join(' · '),
+      'Cannot be read on this device', () => openClientServerModal(s));
+  });
+  if (clientPfmFor === c.id) clientPfmRows.filter(i => !i.isFinal && !i.archived).forEach(i => {
+    const name = [i.reference, i.title].filter(Boolean).join(' · ');
+    const open = () => openPfmDetail(i.id);
+    checkDate(i.validUntil, 'file-text', pfmKindLabel(i.kind), name, open);
+    if (i.nextStep) {
+      const who = [pfmStatusName(i.nextStep.status), i.nextStep.memberName].filter(Boolean).join(' · ');
+      push(2, 0, 'info', 'clipboard-list', pfmKindLabel(i.kind), name, who, open);
+    }
+  });
+
+  items.sort((a, b) => a.rank - b.rank || a.order - b.order);
+
+  const section = pjMk('div', 'pj-section');
+  const head = pjMk('div', 'pj-section-title');
+  head.innerHTML = ic('triangle-alert') + 'Needs attention';
+  if (items.length) head.appendChild(pjMk('span', 'cl-att-count', String(items.length)));
+  section.appendChild(head);
+  if (!items.length) {
+    const clear = pjMk('div', 'cl-att-clear');
+    clear.innerHTML = ic('circle-check');
+    clear.appendChild(pjMk('span', '', 'All clear. Nothing needs attention.'));
+    section.appendChild(clear);
+    return section;
+  }
+  const list = pjMk('div', 'cl-att-list');
+  items.slice(0, CLIENT_ATTENTION_LIMIT).forEach(it => {
+    const row = pjMk('button', 'cl-tl-row cl-att-' + it.level);
+    row.type = 'button';
+    row.addEventListener('click', it.open);
+    const icon = pjMk('span', 'cl-tl-icon');
+    icon.innerHTML = ic(it.icon);
+    row.appendChild(icon);
+    const main = pjMk('span', 'cl-tl-main');
+    const name = pjMk('span', 'cl-tl-name', it.name || 'Untitled');
+    if (it.name) name.dataset.userContent = '';
+    main.appendChild(name);
+    main.appendChild(pjMk('span', 'cl-tl-pill', it.kind));
+    row.appendChild(main);
+    const why = pjMk('span', 'cl-att-why', it.why);
+    // A waiting step names a status and a person, both record content.
+    if (it.rank === 2) why.dataset.userContent = '';
+    row.appendChild(why);
+    list.appendChild(row);
+  });
+  if (items.length > CLIENT_ATTENTION_LIMIT)
+    list.appendChild(pjMk('div', 'cl-att-more', '+' + (items.length - CLIENT_ATTENTION_LIMIT) + ' more'));
+  section.appendChild(list);
+  return section;
+}
+
+// The latest changes across every tab, newest first, grouped by calendar day.
+// Each row opens its record. Projects carry only a creation date, so that
+// stands in for their last change.
+const CLIENT_RECENT_LIMIT = 8;
+function buildClientRecentActivity(c) {
+  const entries = [];
+  const add = (record, type, icon, kind, name, open) => {
+    const when = new Date(record.updatedAt || record.createdAt || '');
+    if (!isNaN(when.getTime())) entries.push({ when, type, icon, kind, name, open });
+  };
+
+  projectsList.filter(p => cpjPrimaryCompany(p)?.id === c.id)
+    .forEach(p => add(p, 'project', 'folder', 'Project', p.name, () => openProjectById(p.id)));
+  if (clientPfmFor === c.id) clientPfmRows.forEach(i => add(i, i.kind === 'CR' ? 'cr' : 'offer',
+    i.kind === 'CR' ? 'pencil' : 'file-text', pfmKindLabel(i.kind),
+    [i.reference, i.title].filter(Boolean).join(' · '), () => openPfmDetail(i.id)));
+  if (knowledgeLoaded) knowledgeItemsLinkedTo([c.id])
+    .forEach(k => add(k, 'knowledge', 'book-open', 'Knowledge Hub', k.title, () => openKnowledgeInHub(k.id)));
+  (c.vpnConnections || []).forEach(v => add(v, 'access', 'zap', 'Access', v.connectionName, () => openClientVpnModal(v)));
+  (c.servers || []).forEach(s => add(s, 'server', 'server', 'Server',
+    [s.systemName, s.hostname || s.host].filter(Boolean).join(' · '), () => openClientServerModal(s)));
+  (c.internalSystems || []).forEach(s =>
+    add(s, 'internal', 'layout-dashboard', 'Internal system', s.name, () => openClientInternalModal(s)));
+
+  entries.sort((a, b) => b.when - a.when);
+
+  const section = pjMk('div', 'pj-section');
   const title = pjMk('div', 'pj-section-title');
-  title.innerHTML = ic('layers') + 'Workspace summary';
-  note.appendChild(title);
-  note.appendChild(pjMk('div', 'general-hint',
-    'Use the tabs above to manage this client’s projects, Knowledge Hub items, access records, servers, and internal systems. Search spans every tab without searching passwords or secret keys.'));
-  host.appendChild(note);
+  title.innerHTML = ic('clock') + 'Recent activity';
+  section.appendChild(title);
+  if (!entries.length) {
+    section.appendChild(pjMk('div', 'cp-records-empty', 'Nothing has changed yet.'));
+    return section;
+  }
+
+  // Buckets by local calendar day, so "Yesterday" means the date, not 24 hours.
+  const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+  const dayMs = 86400000;
+  const bucketOf = d => {
+    const t = d.getTime();
+    if (t >= startOfToday.getTime()) return 'Today';
+    if (t >= startOfToday.getTime() - dayMs) return 'Yesterday';
+    if (t >= startOfToday.getTime() - 6 * dayMs) return 'This week';
+    return 'Earlier';
+  };
+  // Western digits in Arabic too, matching the rest of the app.
+  const locale = document.documentElement.lang === 'ar' ? 'ar-u-nu-latn' : undefined;
+  const whenText = (d, bucket) =>
+    bucket === 'Today' || bucket === 'Yesterday' ? d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
+      : bucket === 'This week' ? d.toLocaleDateString(locale, { weekday: 'long' })
+        : d.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' });
+
+  let group = null, groupName = '';
+  entries.slice(0, CLIENT_RECENT_LIMIT).forEach(e => {
+    const bucket = bucketOf(e.when);
+    if (bucket !== groupName) {
+      groupName = bucket;
+      section.appendChild(pjMk('div', 'cl-tl-day', bucket));
+      group = pjMk('div', 'cl-tl-group');
+      section.appendChild(group);
+    }
+    const row = pjMk('button', 'cl-tl-row cl-tl-' + e.type);
+    row.type = 'button';
+    row.addEventListener('click', e.open);
+    const icon = pjMk('span', 'cl-tl-icon');
+    icon.innerHTML = ic(e.icon);
+    row.appendChild(icon);
+    const main = pjMk('span', 'cl-tl-main');
+    const name = pjMk('span', 'cl-tl-name', e.name || 'Untitled');
+    if (e.name) name.dataset.userContent = '';
+    main.appendChild(name);
+    main.appendChild(pjMk('span', 'cl-tl-pill', e.kind));
+    row.appendChild(main);
+    const when = pjMk('span', 'cl-tl-when', whenText(e.when, bucket));
+    when.dataset.userContent = '';
+    when.title = e.when.toLocaleString(locale);
+    row.appendChild(when);
+    group.appendChild(row);
+  });
+  return section;
 }
 
 function applyClientDetailSearch() {

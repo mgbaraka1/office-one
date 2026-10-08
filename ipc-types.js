@@ -632,8 +632,9 @@
 /**
  * What the client roster's write channels return. Never throws — a refusal
  * comes back as `{ ok: false, error }` and is never a partial write.
- * `clients:create` takes { code, nameEn, nameAr }; `clients:rename` and
- * `clients:set-active` cannot change a code, and no other channel can either.
+ * `clients:create` takes { code, nameEn, nameAr }; `clients:change-code` is the
+ * only channel that changes a code afterwards, and refuses one another client
+ * already uses (case-insensitive).
  * @typedef {Object} ClientWriteResult
  * @property {boolean} ok
  * @property {string} [error]           Human-readable refusal, shown via toast().

@@ -232,6 +232,34 @@ try {
   record('a company code survives rename, archive, restore and reorder untouched',
     codeAfterEverything === newCode, `code=${codeAfterEverything}`);
 
+  // changeClientCode is the one path that does change it: same format rule as
+  // create, case-insensitively unique, audited, and links survive (by id).
+  const otherCode = db.getLookupsByCategory('COMPANY', true).find(c => c.id !== newClientId)?.code;
+  const changedCode = 'CHANGED_' + stamp;
+  const changed = db.changeClientCode(userId, newClientId, changedCode.toLowerCase());
+  record('changeClientCode: changes the code, upper-cased',
+    changed.ok && changed.client.code === changedCode, JSON.stringify(changed));
+  record('changeClientCode: keeps the same client id and names',
+    changed.client?.id === newClientId && changed.client?.nameEn === 'Roster Renamed ' + stamp);
+  record('changeClientCode: records the change in lookup history',
+    db.getLookupCodeHistory(newClientId).some(h => h.fieldName === 'Code'
+      && h.oldValue === newCode && h.newValue === changedCode));
+  const sameAgain = db.changeClientCode(userId, newClientId, changedCode);
+  record('changeClientCode: setting the current code is a no-op success', sameAgain.ok === true, sameAgain.error);
+  const badChange = db.changeClientCode(userId, newClientId, 'has spaces!');
+  record('changeClientCode: rejects a malformed code', badChange.ok === false && !!badChange.error, badChange.error);
+  if (otherCode) {
+    const dupChange = db.changeClientCode(userId, newClientId, otherCode.toLowerCase());
+    record('changeClientCode: rejects a code another client uses (case-insensitive)',
+      dupChange.ok === false && /already in use/i.test(dupChange.error || ''), dupChange.error);
+  }
+  const unknownChange = db.changeClientCode(userId, 999999999, 'NOPE');
+  record('changeClientCode: rejects a non-COMPANY id', unknownChange.ok === false, unknownChange.error);
+  record('changeClientCode: refusals left the code alone',
+    db.listClients(userId, true).find(c => c.id === newClientId)?.code === changedCode);
+  const changedBack = db.changeClientCode(userId, newClientId, newCode);
+  record('changeClientCode: the old code can be set back (undo)', changedBack.ok && changedBack.client.code === newCode);
+
   // ── VPN CRUD ─────────────────────────────────────────────────────────────────
   const vpn = db.createClientVpn(userId, companyA, {
     connectionName: 'HQ Site-to-Site', vpnType: 'WireGuard', endpoint: 'vpn.acme.com',

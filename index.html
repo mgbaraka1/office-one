@@ -84,6 +84,7 @@
     <!-- Pages that cover both sides of the work sit above the two groups:
          Overview (the landing page everything reports into), Today (one
          timesheet for client and internal sessions alike) and Reports. -->
+    <div class="nav-section">Workspace</div>
     <button class="nav-item active" data-module="analytics" data-onclick="switchModule('analytics')" title="Overview">
       <span class="nav-icon" data-ic="layout-dashboard"></span><span class="nav-label">Overview</span>
     </button>
@@ -123,34 +124,42 @@
     </button>
   </nav>
   <div class="sidebar-footer">
-    <!-- Settings sits in the static footer rather than the scrolling module list:
-         it configures the app instead of being a place work happens, so it belongs
-         with the other always-present controls. Backup Data used to live here too
-         and is now a page inside Settings (tab "backup"); the standalone theme
-         toggle is now the Appearance choice inside View & Comfort. -->
-    <button class="nav-item" data-module="settings" data-onclick="switchModule('settings')" title="Settings">
-      <span class="nav-icon" data-ic="settings"></span><span class="nav-label">Settings</span>
-    </button>
-    <button id="workspace-view-btn" class="nav-item" data-onclick="openWorkspaceView()" title="Theme, workspace view, and eye comfort">
-      <span class="nav-icon" data-ic="eye"></span><span class="nav-label">View &amp; Comfort</span>
-    </button>
-    <div class="sidebar-user" id="sidebar-user" aria-label="Signed-in account">
-      <div class="sidebar-user-avatar" id="sidebar-user-avatar" aria-hidden="true"></div>
-      <div class="sidebar-user-copy">
-        <div class="sidebar-username" id="sidebar-username"></div>
-        <div class="sidebar-role" id="sidebar-role"></div>
+    <!-- One account row. It opens a small menu holding the always-present
+         controls that configure the app rather than being places work happens:
+         Settings, View & Comfort (theme, density, eye comfort), Log Out, and the
+         version with its signature line. Backup Data is a page inside Settings
+         (tab "backup"). The row lights up while Settings is open. -->
+    <div class="sidebar-account">
+      <button class="sidebar-user" id="sidebar-user" type="button" aria-label="Signed-in account"
+              aria-haspopup="menu" aria-expanded="false" aria-controls="sidebar-account-menu"
+              data-onclick="toggleAccountMenu()">
+        <span class="sidebar-user-avatar" id="sidebar-user-avatar" aria-hidden="true"></span>
+        <span class="sidebar-user-copy">
+          <span class="sidebar-username" id="sidebar-username"></span>
+          <span class="sidebar-role" id="sidebar-role"></span>
+        </span>
+        <span class="sidebar-user-more" data-ic="chevron-up" aria-hidden="true"></span>
+      </button>
+      <div class="sidebar-account-menu" id="sidebar-account-menu" role="menu" hidden>
+        <button class="nav-item" role="menuitem" data-module="settings" data-onclick="closeAccountMenu(); switchModule('settings')" title="Settings">
+          <span class="nav-icon" data-ic="settings"></span><span class="nav-label">Settings</span>
+        </button>
+        <button id="workspace-view-btn" class="nav-item" role="menuitem" data-onclick="closeAccountMenu(); openWorkspaceView()" title="Theme, workspace view, and eye comfort">
+          <span class="nav-icon" data-ic="eye"></span><span class="nav-label">View &amp; Comfort</span>
+        </button>
+        <div class="sidebar-account-sep" role="separator"></div>
+        <button id="logout-btn" class="nav-item" role="menuitem" data-onclick="closeAccountMenu(); doLogout()" title="Log out of this session">
+          <span class="nav-icon" data-ic="log-out"></span><span class="nav-label">Log Out</span>
+        </button>
+        <div class="sidebar-account-meta">
+          <div class="app-version" id="app-version" aria-label="Application version"></div>
+          <!-- Signature line: a heart and one short sentence under the version. -->
+          <div class="made-with-love" title="Made with love from Darsh">
+            <svg class="mwl-heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.5 2.9 4.5 6.6 4.5c2.1 0 3.6 1.1 4.4 2.5.8-1.4 2.3-2.5 4.4-2.5 3.7 0 5.7 4 4.2 7.3C19.5 16.4 12 21 12 21z" /></svg>
+            <span class="mwl-text">Made with love from Darsh</span>
+          </div>
+        </div>
       </div>
-    </div>
-    <button id="logout-btn" class="nav-item" data-onclick="doLogout()" title="Log out of this session">
-      <span class="nav-icon" data-ic="log-out"></span><span class="nav-label">Log Out</span>
-    </button>
-    <div class="app-version" id="app-version" aria-label="Application version"></div>
-    <!-- Signature line: a heart and one short sentence under the version. When
-         the sidebar is collapsed only the heart stays, with the text as its
-         tooltip. -->
-    <div class="made-with-love" title="Made with love from Darsh">
-      <svg class="mwl-heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.5 2.9 4.5 6.6 4.5c2.1 0 3.6 1.1 4.4 2.5.8-1.4 2.3-2.5 4.4-2.5 3.7 0 5.7 4 4.2 7.3C19.5 16.4 12 21 12 21z" /></svg>
-      <span class="mwl-text">Made with love from Darsh</span>
     </div>
   </div>
 </div>
@@ -168,9 +177,17 @@
       <button class="seg-btn" data-period="custom" data-onclick="setAnPeriod('custom')">Custom</button>
     </div>
     <div class="an-range" id="an-range">
-      <input type="month" id="an-from" data-onchange="renderAnalytics()" />
-      <span>→</span>
-      <input type="month" id="an-to" data-onchange="renderAnalytics()" />
+      <button type="button" class="an-step an-step-prev" data-onclick="stepAnRange(-1)" title="Previous month" aria-label="Previous month"><span data-ic="chevron-right"></span></button>
+      <label class="an-month">
+        <span data-ic="calendar"></span><span class="an-month-text" id="an-from-text" data-user-content></span>
+        <input type="month" id="an-from" aria-label="From month" data-onclick="openAnMonth('an-from')" data-onchange="renderAnalytics()" />
+      </label>
+      <span class="an-range-sep" data-ic="arrow-right"></span>
+      <label class="an-month">
+        <span data-ic="calendar"></span><span class="an-month-text" id="an-to-text" data-user-content></span>
+        <input type="month" id="an-to" aria-label="To month" data-onclick="openAnMonth('an-to')" data-onchange="renderAnalytics()" />
+      </label>
+      <button type="button" class="an-step an-step-next" data-onclick="stepAnRange(1)" title="Next month" aria-label="Next month"><span data-ic="chevron-right"></span></button>
     </div>
     <div class="topbar-right">
       <button class="btn" data-onclick="exportAnalyticsPDF()" title="Save this analytics view as PDF"><span data-ic="download"></span>PDF</button>
@@ -178,109 +195,107 @@
     </div>
   </div>
   <div class="an-scroll" id="an-scroll">
-    <!-- ── Overview: greeting + period-independent quick glance ── -->
-    <div class="dash-greeting">
-      <h1 id="dash-hello">Welcome back</h1>
-      <p id="dash-date"></p>
-    </div>
-    <div class="dash-launchpad" aria-label="Start a workflow">
-      <span class="dash-launchpad-label"><span data-ic="zap"></span>Quick actions</span>
-      <button class="dash-launch primary" data-onclick="startWorkLogEntry()"><span data-ic="clock"></span>Log Work</button>
-      <button class="dash-launch" data-onclick="openPalette()"><span data-ic="search"></span>Find Anything</button>
-    </div>
-    <div class="dash-stats" id="dash-stats"></div>
-
-    <!-- ── Time Tracking: everything driven by the selected period ── -->
-    <div class="an-section">
-      <span class="an-section-title"><span data-ic="trending-up"></span>Time Tracking</span>
-      <span class="an-section-line"></span>
-      <span class="an-period-tag" id="an-period-tag"></span>
-    </div>
-    <div class="an-kpis" id="an-kpis"></div>
-
-    <div class="an-grid">
-      <div class="an-card">
-        <div class="an-card-head"><span class="an-card-title">Daily Hours</span><span class="an-card-sub" id="an-trend-sub"></span></div>
-        <div id="an-trend"></div>
+    <!-- ── Hero: greeting, the two ways to start, and period-independent
+         "right now" chips (today, owed to Outsource, what needs attention). ── -->
+    <div class="dash-hero">
+      <div class="dash-greeting">
+        <h1 id="dash-hello">Welcome back</h1>
+        <p id="dash-date"></p>
       </div>
-      <div class="an-card">
-        <div class="an-card-head"><span class="an-card-title">Daily Over Time</span><span class="an-card-sub" id="an-trend-ot-sub"></span></div>
-        <div id="an-trend-ot"></div>
+      <div class="dash-launchpad" aria-label="Start a workflow">
+        <button class="dash-launch primary" data-onclick="startWorkLogEntry()"><span data-ic="clock"></span>Log Work</button>
+        <button class="dash-launch" data-onclick="openPalette()"><span data-ic="search"></span>Find Anything</button>
       </div>
+      <div class="dash-stats" id="dash-stats"></div>
     </div>
-
-    <div class="an-grid">
-      <div class="an-card">
-        <div class="an-card-head"><span class="an-card-title">Hours by Company</span><span class="an-card-sub" id="an-company-sub"></span></div>
-        <div id="an-company"></div>
-      </div>
-      <div class="an-card">
-        <div class="an-card-head"><span class="an-card-title">Hours by System</span><span class="an-card-sub" id="an-system-sub"></span></div>
-        <div id="an-system"></div>
-      </div>
-    </div>
-
-    <div class="an-section">
-      <span class="an-section-title"><span data-ic="layers"></span>More Breakdowns</span>
-      <span class="an-section-line"></span>
-    </div>
-    <div class="an-grid">
-      <div class="an-card">
-        <div class="an-card-head"><span class="an-card-title">Hours by Department</span><span class="an-card-sub" id="an-department-sub"></span></div>
-        <div id="an-department"></div>
-      </div>
-    </div>
-
-    <div class="an-grid">
-      <div class="an-card">
-        <div class="an-card-head"><span class="an-card-title">Time Breakdown</span><span class="an-card-sub" id="an-type-sub"></span></div>
-        <div id="an-type"></div>
-      </div>
-      <div class="an-card">
-        <div class="an-card-head"><span class="an-card-title">By Activity</span><span class="an-card-sub" id="an-activity-sub"></span></div>
-        <div id="an-activity"></div>
-      </div>
-    </div>
-
-    <!-- ── Activity: fixed 26-week heatmap (period-independent) ── -->
-    <div class="an-section">
-      <span class="an-section-title"><span data-ic="flame"></span>Activity</span>
-      <span class="an-section-line"></span>
-    </div>
-    <div class="an-card an-heat-card" style="margin-bottom:16px">
-      <div class="an-heat-left">
-        <div class="an-card-head"><span class="an-card-title">This Year</span><span class="an-card-sub" id="an-heat-sub"></span></div>
-        <div id="an-heat"></div>
-        <div class="an-heat-legend">
-          Less
-          <span class="an-heat-cell"></span>
-          <span class="an-heat-cell h1"></span>
-          <span class="an-heat-cell h2"></span>
-          <span class="an-heat-cell h3"></span>
-          <span class="an-heat-cell h4"></span>
-          More
+    <div class="an-main">
+        <div class="an-section">
+          <span class="an-section-title"><span data-ic="trending-up"></span>Time Tracking</span>
+          <span class="an-section-line"></span>
+          <span class="an-period-tag" id="an-period-tag"></span>
         </div>
-      </div>
-    </div>
-
-    <!-- ── Needs Attention: upcoming renewals + recurring spend ── -->
-    <div class="an-section">
-      <span class="an-section-title"><span data-ic="bell"></span>Needs Attention</span>
-      <span class="an-section-line"></span>
-    </div>
-    <div class="an-grid" style="margin-bottom:16px">
-      <div class="an-card">
-        <div class="an-card-head"><span class="an-card-title">Upcoming Renewals</span><span class="an-card-sub" id="dash-attention-sub"></span></div>
-        <div class="dash-attention" id="dash-attention"></div>
-      </div>
-      <div class="an-card">
-        <div class="an-card-head"><span class="an-card-title">Recurring Spend</span><span class="an-card-sub" id="an-spend-sub">Subscriptions</span></div>
-        <div id="an-spend"></div>
-      </div>
+        <div class="an-kpis" id="an-kpis"></div>
+        <div class="an-card">
+          <div class="an-card-head">
+            <span class="an-card-title">Daily Hours</span>
+            <span class="an-trend-legend" id="an-trend-legend"></span>
+            <span class="an-card-sub" id="an-trend-sub"></span>
+          </div>
+          <div id="an-trend"></div>
+        </div>
+        <div class="an-grid">
+          <div class="an-card">
+            <div class="an-card-head"><span class="an-card-title">Hours by Company</span><span class="an-card-sub" id="an-company-sub"></span></div>
+            <div id="an-company"></div>
+          </div>
+          <div class="an-card">
+            <div class="an-card-head"><span class="an-card-title">Hours by System</span><span class="an-card-sub" id="an-system-sub"></span></div>
+            <div id="an-system"></div>
+          </div>
+        </div>
+        <div class="an-section">
+          <span class="an-section-title"><span data-ic="layers"></span>More Breakdowns</span>
+          <span class="an-section-line"></span>
+        </div>
+        <div class="an-grid an-grid-3">
+          <div class="an-card">
+            <div class="an-card-head"><span class="an-card-title">Time Breakdown</span><span class="an-card-sub" id="an-type-sub"></span></div>
+            <div id="an-type"></div>
+          </div>
+          <div class="an-card">
+            <div class="an-card-head"><span class="an-card-title">By Activity</span><span class="an-card-sub" id="an-activity-sub"></span></div>
+            <div id="an-activity"></div>
+          </div>
+          <div class="an-card">
+            <div class="an-card-head"><span class="an-card-title">Hours by Department</span><span class="an-card-sub" id="an-department-sub"></span></div>
+            <div id="an-department"></div>
+          </div>
+        </div>
+        <!-- ── Activity: the whole calendar year (period-independent). ── -->
+        <div class="an-section">
+          <span class="an-section-title"><span data-ic="flame"></span>Activity</span>
+          <span class="an-section-line"></span>
+        </div>
+        <div class="an-card an-heat-card">
+          <div class="an-heat-left">
+            <div class="an-card-head"><span class="an-card-title">This Year</span><span class="an-card-sub" id="an-heat-sub"></span></div>
+            <div id="an-heat"></div>
+            <div class="an-heat-legend">
+              Less
+              <span class="an-heat-cell"></span>
+              <span class="an-heat-cell h1"></span>
+              <span class="an-heat-cell h2"></span>
+              <span class="an-heat-cell h3"></span>
+              <span class="an-heat-cell h4"></span>
+              More
+            </div>
+          </div>
+        </div>
+        <!-- ── Needs Attention + recurring spend close the page; the hero's
+             attention chip scrolls down to them. ── -->
+        <div class="an-section">
+          <span class="an-section-title"><span data-ic="bell"></span>Needs Attention</span>
+          <span class="an-section-line"></span>
+        </div>
+        <div class="an-grid">
+          <div class="an-card" id="dash-attention-card">
+            <div class="an-card-head">
+              <span class="an-card-title">Upcoming Renewals</span>
+              <span class="an-card-sub" id="dash-attention-sub"></span>
+            </div>
+            <div class="dash-attention" id="dash-attention"></div>
+          </div>
+          <div class="an-card">
+            <div class="an-card-head">
+              <span class="an-card-title">Recurring Spend</span>
+              <span class="an-card-sub" id="an-spend-sub">Subscriptions</span>
+            </div>
+            <div id="an-spend"></div>
+          </div>
+        </div>
     </div>
   </div>
 </div>
-
 <!-- ══ REPORTS MODULE ══ -->
 <div id="module-reports" class="app-module">
   <div id="reports-topbar" class="page-header">
@@ -1348,9 +1363,8 @@
 
 <!-- ══ NEW CLIENT MODAL ══
      Create only — there is no edit twin. Names are edited inline on the
-     client's own Overview tab, and the company code is never editable at all:
-     it is the stable business identity every task, project, invoice and
-     infrastructure row is filed under. -->
+     client's own Overview tab, and the company code is changed there too,
+     behind a confirm (every record links to the client by id, not by code). -->
 <div id="client-create-modal-overlay" class="modal-overlay" data-onclick="clientCreateOverlayClick(event)">
   <div id="client-create-modal" class="modal-box">
     <div class="modal-header">
@@ -1362,7 +1376,7 @@
         <div class="form-group full">
           <label>Company Code</label>
           <input id="cl-new-code" type="text" placeholder="e.g. ACME or 105" data-oninput="normalizeClientCodeInput(this)" />
-          <span class="modal-hint">Permanent — a company code cannot be changed after the client is created.</span>
+          <span class="modal-hint">Must be unique. You can change it later from the client’s Overview tab.</span>
         </div>
       </div>
       <div class="form-row">

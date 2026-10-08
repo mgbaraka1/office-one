@@ -442,13 +442,12 @@ async function renderOverview() {
   document.getElementById('dash-date').textContent =
     new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   // Today + month-to-date hours — aggregated in SQL (no day blobs shipped).
-  if (!document.getElementById('dash-stats').childElementCount) showSkeleton('dash-stats', 'cards', 2);
+  if (!document.getElementById('dash-stats').childElementCount) showSkeleton('dash-stats', 'cards', 1);
   const now = new Date();
   const today = fmt(now);
   const monthStart = fmt(new Date(now.getFullYear(), now.getMonth(), 1));
   const ov = await window.api.loadOverviewStats(today, monthStart);
-  const todayMin = ov.todayMin, todayRecs = ov.todayRecs, monthMin = ov.monthMin;
-  const daysLogged = ov.daysLogged;
+  const todayMin = ov.todayMin, todayRecs = ov.todayRecs;
 
   // Cross-module attention data — one aggregated read (attention:list) across
   // subscription renewals, Company Document renewals, and the two client_*
@@ -477,10 +476,12 @@ async function renderOverview() {
   });
   attention.sort((a, b) => a.days - b.days);
 
-  // Stat cards
-  const stats = [
-    { label: ic('clock') + ' Today',      value: (todayMin / 60).toFixed(1), unit: hourUnitWord(todayMin / 60), foot: `${todayRecs} record${todayRecs === 1 ? '' : 's'}`, cls: 'accent', go: 'timesheet' },
-    { label: ic('calendar') + ' This Month', value: (monthMin / 60).toFixed(1), unit: hourUnitWord(monthMin / 60), foot: `${daysLogged} day${daysLogged === 1 ? '' : 's'} logged`, cls: '', go: 'timesheet' },
+  // Hero chips: only what is true right now, whatever period is selected
+  // below. This month is not repeated here — the Time Tracking tiles show it.
+  const urgentCount = attention.filter(a => a.days <= 7).length;
+  const chips = [
+    { icon: 'clock', value: (todayMin / 60).toFixed(1), unit: hourUnitWord(todayMin / 60), label: 'Today',
+      foot: `${todayRecs} record${todayRecs === 1 ? '' : 's'}`, cls: 'accent', run: "switchModule('timesheet')" },
   ];
   // Outsource (Phase 6): what this login still owes external resources —
   // unbilled hours at their rates plus issued, unpaid statements. Only shown
@@ -490,25 +491,35 @@ async function renderOverview() {
   const owedTotals = (owed?.totals || []).filter(t => t.unpaidMinor > 0);
   if (owedTotals.length) {
     const money = t => anMoney(t.unpaidMinor) + ' ' + (CURRENCY_SYMBOLS[t.currency] || t.currency || '');
-    stats.push({
-      label: ic('users') + ' Owed to Outsource', value: anMoney(owedTotals[0].unpaidMinor),
-      unit: esc(CURRENCY_SYMBOLS[owedTotals[0].currency] || owedTotals[0].currency || ''),
+    chips.push({
+      icon: 'users', value: anMoney(owedTotals[0].unpaidMinor),
+      unit: esc(CURRENCY_SYMBOLS[owedTotals[0].currency] || owedTotals[0].currency || ''), label: 'Owed to Outsource',
       foot: owedTotals.length > 1 ? owedTotals.slice(1).map(money).join(' · ') : 'Unbilled hours + issued statements',
-      cls: 'outs-owed', go: 'outsource',
+      cls: 'outs-owed', run: "switchModule('outsource')",
     });
   }
-  document.getElementById('dash-stats').innerHTML = stats.map(s => `
-    <div class="dash-stat ${s.cls}" ${s.go ? `data-onclick="switchModule('${s.go}')"` : ''}>
-      <span class="ds-label">${s.label}</span>
-      <span class="ds-value">${esc(s.value)}${s.unit ? `<small> ${s.unit}</small>` : ''}</span>
-      <span class="ds-foot">${esc(s.foot)}</span>
-    </div>`).join('');
+  if (attention.length) {
+    chips.push({
+      icon: 'bell', value: String(attention.length), unit: '', label: 'Needs Attention',
+      foot: urgentCount ? `${urgentCount} within 7 days` : 'Next 30 days',
+      cls: urgentCount ? 'warn' : 'attn', run: 'focusDashAttention()',
+    });
+  }
+  document.getElementById('dash-stats').innerHTML = chips.map(c => `
+    <button type="button" class="dash-chip ${c.cls}" data-onclick="${c.run}">
+      <span class="dash-chip-icon">${ic(c.icon)}</span>
+      <span class="dash-chip-text">
+        <span class="dash-chip-value">${esc(c.value)}${c.unit ? `<small> ${c.unit}</small>` : ''}</span>
+        <span class="dash-chip-label">${c.label}</span>
+      </span>
+      <span class="dash-chip-foot">${esc(c.foot)}</span>
+    </button>`).join('');
 
   // Attention list
   document.getElementById('dash-attention-sub').textContent = attention.length ? `${attention.length} item${attention.length === 1 ? '' : 's'}` : '';
   const attEl = document.getElementById('dash-attention');
   if (!attention.length) {
-    attEl.innerHTML = `<div class="dash-empty"><span class="de-icon">${ic('circle-check')}</span>All clear — nothing due in the next 30 days.</div>`;
+    attEl.innerHTML = `<div class="dash-empty dash-empty-ok"><span class="de-icon">${ic('circle-check')}</span>All clear — nothing due in the next 30 days.</div>`;
   } else {
     attEl.innerHTML = attention.slice(0, 8).map((a, i) => {
       const cls = renewClass(a.days);
@@ -544,6 +555,16 @@ async function renderOverview() {
   setNavBadge('clients', urgent('clients'));
   setNavBadge('pfm', urgent('pfm'));
 
+}
+
+// The hero's attention chip: scroll down to the renewals card and flash it.
+function focusDashAttention() {
+  const card = document.getElementById('dash-attention-card');
+  if (!card) return;
+  card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  card.classList.remove('an-flash');
+  void card.offsetWidth;   // restart the animation on a repeat click
+  card.classList.add('an-flash');
 }
 
 function setNavBadge(module, count) {
@@ -592,6 +613,28 @@ function setAnPeriod(p) {
   renderAnalytics();
 }
 
+// The custom range's month pickers: the native input sits invisibly over a
+// label written in the app's language, and a click opens its picker.
+function openAnMonth(id) {
+  try { document.getElementById(id).showPicker(); } catch { /* picker already open or unsupported */ }
+}
+// Move the whole custom range one month back or forward.
+function stepAnRange(dir) {
+  const shift = id => {
+    const el = document.getElementById(id);
+    const [y, m] = (el.value || fmt(new Date()).slice(0, 7)).split('-').map(Number);
+    el.value = fmt(new Date(y, m - 1 + dir, 1)).slice(0, 7);
+  };
+  shift('an-from'); shift('an-to');
+  renderAnalytics();
+}
+function updateAnMonthText(fromM, toM) {
+  const locale = window.ctI18n?.getLanguage?.() === 'ar' ? 'ar-u-nu-latn' : 'en-US';
+  const text = v => { const [y, m] = v.split('-').map(Number); return new Date(y, m - 1, 1).toLocaleDateString(locale, { month: 'long', year: 'numeric' }); };
+  document.getElementById('an-from-text').textContent = text(fromM);
+  document.getElementById('an-to-text').textContent = text(toM);
+}
+
 // Resolve the active period to a {from, to, label} window of YYYY-MM-DD strings.
 function anRange() {
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -601,6 +644,7 @@ function anRange() {
     let fromM = document.getElementById('an-from').value || curM;
     let toM   = document.getElementById('an-to').value   || fromM;
     if (fromM > toM) { const x = fromM; fromM = toM; toM = x; }
+    updateAnMonthText(fromM, toM);
     const [fy, fmo] = fromM.split('-').map(Number);
     const [ty, tmo] = toM.split('-').map(Number);
     const from = fmt(new Date(fy, fmo - 1, 1));   // first day of from-month
@@ -657,7 +701,6 @@ async function renderAnalytics() {
     showSkeleton('an-company', 'text', 5);
     showSkeleton('an-system', 'text', 5);
     showSkeleton('an-trend', 'text', 4);
-    showSkeleton('an-trend-ot', 'text', 4);
   }
   const fetchFrom = heatFrom < from ? heatFrom : from;
   const fetchTo   = to > fmt(todayD) ? to : fmt(todayD);
@@ -675,17 +718,15 @@ async function renderAnalytics() {
   const dayMin = an.dayMin, dayOtMin = an.dayOtMin;
   const byCompany = an.byCompany, bySystem = an.bySystem, byType = an.byType, byNatural = an.byNatural;
   const byDepartment = an.byDepartment || {};
-  const totalMin = an.totalMin, recordCount = an.recordCount, activeDays = an.activeDays, doneCount = an.doneCount;
+  const totalMin = an.totalMin, recordCount = an.recordCount, activeDays = an.activeDays;
 
   const workMin = byType['WORK_TIME'] || 0;
   const otMin   = byType['OVERTIME'] || 0;
   const pct = (m) => totalMin ? Math.round((m / totalMin) * 100) : 0;
-  const completionRate = recordCount ? Math.round((doneCount / recordCount) * 100) : 0;
   const previousTotal = Number(previous?.totalMin || 0);
   const periodDelta = previousTotal
     ? Math.round(((totalMin - previousTotal) / previousTotal) * 100)
     : null;
-  const comparison = periodDelta == null ? 'no previous activity' : `${periodDelta >= 0 ? '+' : ''}${periodDelta}% vs previous period`;
 
   // ── KPIs ──
   // Client vs Internal — the one combined total
@@ -694,26 +735,36 @@ async function renderAnalytics() {
   // who never logs internal work doesn't see a permanent "0h" card.
   const internalMin = Number(an.internalMin || 0);
   const kpis = [
-    { label: 'Total Hours', val: (totalMin / 60).toFixed(1), unit: hourUnitWord(totalMin / 60), foot: `${recordCount} record${recordCount === 1 ? '' : 's'} · ${comparison}`, cls: 'accent' },
-    { label: timeTypeLabel('WORK_TIME', 'Work Time'), val: (workMin / 60).toFixed(1),  unit: hourUnitWord(workMin / 60), foot: `${pct(workMin)}% of total`, cls: '' },
-    { label: timeTypeLabel('OVERTIME', 'Over Time'),  val: (otMin / 60).toFixed(1),    unit: hourUnitWord(otMin / 60), foot: `${pct(otMin)}% of total`, cls: '' },
-    { label: 'Avg / Day',   val: activeDays ? (totalMin / 60 / activeDays).toFixed(1) : '0', unit: hourUnitWord(activeDays ? totalMin / 60 / activeDays : 0), foot: `${activeDays} active day${activeDays === 1 ? '' : 's'}`, cls: '' },
-    { label: 'Completion',  val: String(completionRate), unit: '%', foot: `${doneCount} of ${recordCount} done`, cls: '' },
-    ...(internalMin > 0 ? [{ label: 'Internal Work', val: (internalMin / 60).toFixed(1), unit: hourUnitWord(internalMin / 60), foot: `${pct(internalMin)}% of total`, cls: '' }] : []),
+    { label: 'Total Hours', icon: 'clock', hue: 'total', val: (totalMin / 60).toFixed(1), unit: hourUnitWord(totalMin / 60), foot: `${recordCount} record${recordCount === 1 ? '' : 's'}`, delta: periodDelta },
+    { label: timeTypeLabel('WORK_TIME', 'Work Time'), icon: 'briefcase', hue: 'work', val: (workMin / 60).toFixed(1),  unit: hourUnitWord(workMin / 60), foot: `${pct(workMin)}% of total`, share: pct(workMin) },
+    { label: timeTypeLabel('OVERTIME', 'Over Time'), icon: 'moon', hue: 'ot', val: (otMin / 60).toFixed(1),    unit: hourUnitWord(otMin / 60), foot: `${pct(otMin)}% of total`, share: pct(otMin) },
+    { label: 'Avg / Day', icon: 'activity', hue: 'avg', val: activeDays ? (totalMin / 60 / activeDays).toFixed(1) : '0', unit: hourUnitWord(activeDays ? totalMin / 60 / activeDays : 0), foot: `${activeDays} active day${activeDays === 1 ? '' : 's'}` },
     // Only shown once a salary + Over-Time hours are both present for the period —
     // an otHourlyMinor of 0 means the user has no salary configured yet (db.js's
     // getAnalytics), so there's nothing meaningful to show.
     ...(otMin > 0 && an.otHourlyMinor > 0 ? [{
-      label: 'Over-Time Income', val: anMoney(an.otIncomeMinor), unit: (CURRENCY_SYMBOLS[an.currencyCode] || an.currencyCode) || '',
+      label: 'Over-Time Income', icon: 'credit-card', hue: 'income', val: anMoney(an.otIncomeMinor), unit: (CURRENCY_SYMBOLS[an.currencyCode] || an.currencyCode) || '',
       foot: `${hoursPhrase(Math.round(otMin / 60 * 10) / 10)} × ${anMoney(an.otHourlyMinor)}${an.currencyCode ? ' ' + (CURRENCY_SYMBOLS[an.currencyCode] || an.currencyCode) : ''}/${window.ctI18n?.getLanguage?.() === 'ar' ? 'ساعة' : 'hour'}`,
-      cls: '',
     }] : []),
+    ...(internalMin > 0 ? [{ label: 'Internal Work', icon: 'building', hue: 'internal', val: (internalMin / 60).toFixed(1), unit: hourUnitWord(internalMin / 60), foot: `${pct(internalMin)}% of total`, share: pct(internalMin) }] : []),
   ];
+  // One even row of tiles; flex lets a wrapped row stretch rather than leave a
+  // hole. Total carries the change against the previous period of the same
+  // length as a ▲/▼ badge; a share of the total gets a thin bar in the tile's hue.
+  const deltaBadge = d => d == null ? ''
+    : `<span class="an-delta ${d > 0 ? 'up' : d < 0 ? 'down' : ''}" title="Compared with the previous period">${d > 0 ? '▲' : d < 0 ? '▼' : '•'} ${Math.abs(d)}%</span>`;
   document.getElementById('an-kpis').innerHTML = kpis.map(k => `
-    <div class="an-kpi ${k.cls}">
-      <span class="an-kpi-label">${esc(k.label)}</span>
-      <span class="an-kpi-val">${esc(k.val)}<small>${k.unit && k.unit !== '%' ? ' ' : ''}${k.unit}</small></span>
-      <span class="an-kpi-foot">${k.foot}</span>
+    <div class="an-tile an-tile-${k.hue}">
+      <span class="an-tile-icon">${ic(k.icon)}</span>
+      <span class="an-tile-text">
+        <span class="an-tile-top">
+          <span class="an-tile-val">${esc(k.val)}<small>${k.unit && k.unit !== '%' ? ' ' : ''}${k.unit}</small></span>
+          ${deltaBadge(k.delta)}
+        </span>
+        <span class="an-tile-label">${esc(k.label)}</span>
+        <span class="an-tile-foot" title="${esc(k.foot)}">${k.foot}</span>
+        ${k.share != null ? `<span class="an-tile-bar"><span style="width:${Math.min(100, k.share)}%"></span></span>` : ''}
+      </span>
     </div>`).join('');
 
   // ── Bar charts: company + system (each bar cross-links into Browse) ──
@@ -723,15 +774,15 @@ async function renderAnalytics() {
   // Department cross-links into All Tasks, since Browse has no equivalent slice.
   renderAnBars('an-department', byDepartment, 'an-department-sub', 'department');
 
-  // ── Daily hours + companion Over-Time trend ──
-  // These follow the selected period so the charts reflect the searched range.
-  document.getElementById('an-trend').innerHTML = anTrend(from, to, dayMin);
-  document.getElementById('an-trend-sub').textContent = label;
+  // ── Daily hours: total as the area, over time as a second line ──
+  // Follows the selected period. Drawn at the card's real width (see
+  // drawAnTrend), so its text is never stretched.
   const hasOt = Object.keys(dayOtMin).some(d => d >= from && d <= to && dayOtMin[d] > 0);
-  document.getElementById('an-trend-ot').innerHTML = hasOt
-    ? anTrend(from, to, dayOtMin)
-    : `<div class="an-empty">No over-time hours in this period.</div>`;
-  document.getElementById('an-trend-ot-sub').textContent = hasOt ? label : '';
+  _anTrendArgs = { from, to, dayMin, dayOtMin: hasOt ? dayOtMin : null };
+  drawAnTrend();
+  document.getElementById('an-trend-sub').textContent = label;
+  document.getElementById('an-trend-legend').innerHTML =
+    '<span class="an-leg an-leg-total">Total</span>' + (hasOt ? '<span class="an-leg an-leg-ot">Over Time</span>' : '');
 
   // ── Time breakdown donut (by time type) ──
   const typeSegs = Object.entries(byType)
@@ -775,8 +826,12 @@ function renderAnBars(elId, map, subId, linkKind) {
   if (!items.length) { el.innerHTML = `<div class="an-empty">No tracked time in this period.</div>`; return; }
   const top = items.slice(0, 8);
   const max = top[0][1];
-  const rows = items.map(([k, v]) => `<tr><td>${esc(visibleLabel(k))}</td><td>${esc(anFmtHrs(v))}</td></tr>`).join('');
-  el.innerHTML = `<div class="an-bars">${top.map(([k, v]) => anBarRow(k, v, max, anFmtHrs(v), null, linkKind, visibleLabel(k))).join('')}</div>
+  const total = items.reduce((sum, [, v]) => sum + v, 0);
+  // Every value in hours with one decimal, so a short entry reads "0.3 hours"
+  // in line with the rest instead of switching to minutes.
+  const hrs = v => (v / 60).toFixed(1) + ' ' + hourUnitWord(Math.round(v / 6) / 10);
+  const rows = items.map(([k, v]) => `<tr><td>${esc(visibleLabel(k))}</td><td>${esc(hrs(v))}</td></tr>`).join('');
+  el.innerHTML = `<div class="an-bars">${top.map(([k, v]) => anBarRow(k, v, max, hrs(v), Math.round((v / total) * 100), linkKind, visibleLabel(k))).join('')}</div>
     <details class="an-data-details"><summary>View data table</summary>
       <table class="an-data-table"><thead><tr><th>Category</th><th>Hours</th></tr></thead><tbody>${rows}</tbody></table>
     </details>`;
@@ -787,9 +842,10 @@ const AN_BAR_LINK_ATTRS = {
   systems:        (label, visible) => ` data-kind="systems" data-name="${esc(label)}" title="Browse all work for ${esc(visible)}" data-onclick="openBrowseSlice(this.dataset.kind, this.dataset.name)"`,
   department:     (label, visible) => ` data-name="${esc(label)}" title="Open Internal Work filtered to ${esc(visible)}" data-onclick="openAllTasksForDepartment(this.dataset.name)"`,
 };
-function anBarRow(label, value, max, display, color, linkKind, visibleLabel = label) {
-  const w = Math.max(2, Math.round((value / max) * 100));
-  const style = `width:${w}%${color ? `;background:${color}` : ''}`;
+// One bar: the label, the bar (scaled to the largest), the hours and that
+// row's share of the card's total.
+function anBarRow(label, value, max, display, share, linkKind, visibleLabel = label) {
+  const style = `width:${Math.max(2, Math.round((value / max) * 100))}%`;
   const linkFn = linkKind && AN_BAR_LINK_ATTRS[linkKind];
   const linkAttrs = linkFn ? linkFn(label, visibleLabel) : '';
   const tag = linkFn ? 'button' : 'div';
@@ -799,6 +855,7 @@ function anBarRow(label, value, max, display, color, linkKind, visibleLabel = la
       <span class="an-bar-label" title="${esc(visibleLabel)}">${esc(visibleLabel)}</span>
       <span class="an-bar-track"><span class="an-bar-fill" style="${style}"></span></span>
       <span class="an-bar-val">${esc(display)}</span>
+      <span class="an-bar-pct">${share}%</span>
     </${tag}>`;
 }
 
@@ -844,22 +901,41 @@ function anDonut(segments) {
     </div>`;
 }
 
+// The last trend drawn, so a resize can redraw it at the new width.
+let _anTrendArgs = null;
+function drawAnTrend() {
+  const el = document.getElementById('an-trend');
+  if (!el || !_anTrendArgs) return;
+  const { from, to, dayMin, dayOtMin } = _anTrendArgs;
+  el.innerHTML = anTrend(from, to, dayMin, dayOtMin, el.clientWidth);
+}
+let _anTrendWidth = 0;
+if (typeof ResizeObserver === 'function' && document.getElementById('an-trend')) {
+  new ResizeObserver(entries => {
+    const w = Math.round(entries[0]?.contentRect.width || 0);
+    if (w && Math.abs(w - _anTrendWidth) > 24) { _anTrendWidth = w; drawAnTrend(); }
+  }).observe(document.getElementById('an-trend'));
+}
+
 // SVG daily-hours trend over [from, to]. Adds a "nice" rounded y-axis, an
 // average reference line (over active days), an emphasised + labelled peak,
-// per-point hover tooltips, and a gradient area fill.
-function anTrend(from, to, dayMin) {
+// per-point hover tooltips, and a gradient area fill. `otMin`, when given,
+// adds over time as a second line on the same scale. The viewBox is the
+// drawn width in pixels, so labels keep their size instead of stretching.
+function anTrend(from, to, dayMin, otMin = null, width = 900) {
   const dates = [];
   const d = new Date(from + 'T00:00:00'), end = new Date(to + 'T00:00:00');
   while (d <= end) { dates.push(fmt(d)); d.setDate(d.getDate() + 1); }
   if (!dates.length) return `<div class="an-empty">No data.</div>`;
   const vals = dates.map(dt => (dayMin[dt] || 0) / 60);
+  const otVals = otMin ? dates.map(dt => (otMin[dt] || 0) / 60) : null;
   const rawMax = Math.max(0, ...vals);
   const maxV = Math.max(2, Math.ceil(rawMax / 2) * 2);   // round up to a clean even number
   const active = vals.filter(v => v > 0);
   const avg = active.length ? active.reduce((s, v) => s + v, 0) / active.length : 0;
   const peakIdx = vals.reduce((bi, v, i) => v > vals[bi] ? i : bi, 0);
 
-  const W = 900, H = 170, padL = 30, padR = 14, padT = 20, padB = 24;
+  const W = Math.max(320, Math.round(width) || 900), H = 200, padL = 30, padR = 14, padT = 22, padB = 26;
   const innerW = W - padL - padR, innerH = H - padT - padB;
   const n = dates.length;
   const x = i => padL + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
@@ -867,6 +943,7 @@ function anTrend(from, to, dayMin) {
 
   const pts = vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`);
   const linePath = `M ${pts.join(' L ')}`;
+  const otPath = otVals ? 'M ' + otVals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' L ') : '';
   const areaPath = `M ${x(0).toFixed(1)},${(padT + innerH).toFixed(1)} L ${pts.join(' L ')} L ${x(n - 1).toFixed(1)},${(padT + innerH).toFixed(1)} Z`;
 
   // y gridlines at 0, mid, max (clean integers thanks to the even maxV)
@@ -908,7 +985,7 @@ function anTrend(from, to, dayMin) {
     return `<tr><td>${date}</td><td>${hDisp} ${hDisp === '1.0' ? 'hour' : 'hours'}</td></tr>`;
   }).join('');
   const rawMaxDisp = rawMax.toFixed(1), avgDisp = avg.toFixed(1);
-  return `<svg class="an-trend" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Daily hours trend from ${from} to ${to}; peak ${rawMaxDisp} ${rawMaxDisp === '1.0' ? 'hour' : 'hours'}, average ${avgDisp} ${avgDisp === '1.0' ? 'hour' : 'hours'}">
+  return `<svg class="an-trend" viewBox="0 0 ${W} ${H}" role="img" aria-label="Daily hours trend from ${from} to ${to}; peak ${rawMaxDisp} ${rawMaxDisp === '1.0' ? 'hour' : 'hours'}, average ${avgDisp} ${avgDisp === '1.0' ? 'hour' : 'hours'}">
     <title>Daily hours trend from ${from} to ${to}</title>
     <defs><linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.30"/>
@@ -918,6 +995,7 @@ function anTrend(from, to, dayMin) {
     ${avgLine}
     <path class="an-trend-area" style="fill:url(#${gradId})" d="${areaPath}"/>
     <path class="an-trend-line" d="${linePath}"/>
+    ${otPath ? `<path class="an-trend-ot" d="${otPath}"/>` : ''}
     ${dots}
     ${peakLbl}
     ${xlabels}
@@ -979,23 +1057,39 @@ async function renderAnSpend() {
   const el = document.getElementById('an-spend');
   // Sum monthly + yearly equivalents per currency.
   const cur = {};   // currency -> { monthly, yearly }
+  const costed = [];   // each subscription with a cost, for the biggest-costs list
   subs.forEach(s => {
     const cost = parseFloat(String(s.cost).replace(/[^0-9.]/g, '')) || 0;
     if (!cost) return;
     const c = s.currency || 'USD';
     cur[c] = cur[c] || { monthly: 0, yearly: 0 };
-    if (s.billingCycle === 'YEARLY')      { cur[c].yearly += cost;       cur[c].monthly += cost / 12; }
-    else if (s.billingCycle === 'MONTHLY'){ cur[c].monthly += cost;      cur[c].yearly  += cost * 12; }
-    else { cur[c].yearly += cost; cur[c].monthly += cost / 12; }   // Custom → treat as yearly
+    let yearly;
+    if (s.billingCycle === 'MONTHLY') { cur[c].monthly += cost; cur[c].yearly += cost * 12; yearly = cost * 12; }
+    else { cur[c].yearly += cost; cur[c].monthly += cost / 12; yearly = cost; }   // Custom → treat as yearly
+    costed.push({ s, c, cost, yearly });
   });
   const entries = Object.entries(cur);
   document.getElementById('an-spend-sub').textContent = `${subs.length} subscription${subs.length === 1 ? '' : 's'}`;
   if (!entries.length) { el.innerHTML = `<div class="an-empty">No subscription costs recorded.</div>`; return; }
-  el.innerHTML = entries.map(([c, v]) => `
-    <div class="an-spend-row">
-      <span class="an-spend-cur">${esc(lkLabel('CURRENCY', c) || c)}</span>
-      <span class="an-spend-vals"><b>${v.monthly.toFixed(0)}</b> / mo &nbsp;·&nbsp; <b>${v.yearly.toFixed(0)}</b> / yr</span>
+  const sym = c => CURRENCY_SYMBOLS[c] || c;
+  // One total per currency (monthly big, yearly under it), then the three
+  // biggest subscriptions by yearly cost, then a way into the module.
+  const totals = entries.map(([c, v]) => `
+    <div class="an-spend-total">
+      <span class="an-spend-big">${v.monthly.toFixed(0)}<small> ${esc(sym(c))}</small></span>
+      <span class="an-spend-per">Monthly</span>
+      <span class="an-spend-year"><b>${v.yearly.toFixed(0)} ${esc(sym(c))}</b> Yearly</span>
     </div>`).join('');
+  const top = costed.sort((a, b) => b.yearly - a.yearly).slice(0, 3);
+  const list = top.map(({ s, c, cost }) => `
+    <div class="an-spend-item">
+      <span class="an-spend-name" data-user-content>${esc(s.name || 'Untitled')}</span>
+      <span class="an-spend-cycle">${esc(lkLabel('BILLING_CYCLE', s.billingCycle) || s.billingCycle || '')}</span>
+      <span class="an-spend-cost">${cost.toFixed(0)} ${esc(sym(c))}</span>
+    </div>`).join('');
+  el.innerHTML = `<div class="an-spend-totals">${totals}</div>
+    ${top.length ? `<div class="an-spend-head">Biggest costs</div><div class="an-spend-list">${list}</div>` : ''}
+    <button type="button" class="an-spend-link" data-onclick="switchModule('subscriptions')">Open Subscriptions</button>`;
 }
 
 // Export the current analytics view to PDF (light theme, self-contained HTML).

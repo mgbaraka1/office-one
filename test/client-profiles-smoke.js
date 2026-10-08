@@ -50,11 +50,11 @@ try {
   });
   const originalId = created.id;
 
-  // A company code is WRITE-ONCE. saveLookups used to run a COMPANY-specific
-  // UPDATE that included `code`, so an existing client's business code could be
-  // rewritten after the fact. It no longer can: no update path in db.js touches
-  // lookup_codes.code for any category. A caller that sends a changed code is
-  // not an error — the field is simply ignored, while the names still save.
+  // A company code changes only through changeClientCode. saveLookups used to
+  // run a COMPANY-specific UPDATE that included `code`, so a catalog save could
+  // rewrite it by accident. It no longer can: no other update path touches
+  // lookup_codes.code. A caller that sends a changed code is not an error —
+  // the field is simply ignored, while the names still save.
   db.saveLookups(user.id, { categories: { COMPANY: [{
     ...created, code: 'CLIENT_047_RENAMED', label: 'Renamed Client',
     nameEn: 'Renamed Client', nameAr: 'العميل بعد التعديل',
