@@ -104,14 +104,16 @@ Windows CI runs the full smoke suite, the E2E run, `npm run pack`, and a `npm au
 
 | Data | Windows location |
 |---|---|
-| Database | `%APPDATA%\office-one\cooperation-tools.db` (plus `-wal`/`-shm` while open) |
-| Project files | `%APPDATA%\office-one\projects\` |
-| Company-document files | `%APPDATA%\office-one\company_documents\` |
-| Knowledge Hub attachments | `%APPDATA%\office-one\knowledge_hub\` |
-| Offer / CR version files | `%APPDATA%\office-one\project_finance\` |
-| Rotating snapshots | `%APPDATA%\office-one\backups\` (newest five) |
+| Database | `D:\OfficeONE-Data\cooperation-tools.db` (plus `-wal`/`-shm` while open) |
+| Project files | `D:\OfficeONE-Data\projects\` |
+| Company-document files | `D:\OfficeONE-Data\company_documents\` |
+| Knowledge Hub attachments | `D:\OfficeONE-Data\knowledge_hub\` |
+| Offer / CR version files | `D:\OfficeONE-Data\project_finance\` |
+| Rotating snapshots | `D:\OfficeONE-Data\backups\` (newest five) |
 
-Electron derives that folder name from `package.json`'s `name`, so changing `name` moves where the app looks for its data. The rebrand from `timesheet` to `office-one` therefore ships with a one-time carry-over in `main.js` (`migrateLegacyUserDataDir`): on first launch it **copies** the database, uploads and snapshots out of a pre-rebrand `%APPDATA%\timesheet\` and leaves the original in place as a recovery point. It also carries across Chromium's `Local State`, which is emphatically not a disposable cache: it holds the key `safeStorage` encrypts every stored credential with, so a database that moves without it arrives intact and permanently unopenable. Two static-quality assertions keep the package name and that carry-over from ever drifting apart. The database filename itself stays `cooperation-tools.db` — it is the name every existing install, rotating snapshot and full-backup manifest already records.
+The folder is chosen by the user on first launch, not fixed: the app asks once — the folder that already holds `cooperation-tools.db`, or an empty folder for a new install — remembers it in `%APPDATA%\office-one-location.json`, and restarts itself so the choice takes effect before Chromium starts. `D:\OfficeONE-Data` above is this install's choice. If the remembered folder later goes missing (drive disconnected, folder moved) or loses its database, the app says so and offers **Choose another folder** or **Quit**; it never creates an empty database in its place. The `OFFICE_ONE_DATA_DIR` (or `OFFICEONE_DATA_DIR`) environment variable overrides all of this. Moving existing data to a new folder is a manual copy of the whole folder — `scripts/copy-officeone-data.ps1` does it and verifies it — and it must include `Local State` (see below).
+
+Before that move, the data lived in Electron's per-user folder, `%APPDATA%\office-one\`. Electron derives that folder name from `package.json`'s `name`, so changing `name` moves where the app looks for its data. The rebrand from `timesheet` to `office-one` therefore ships with a one-time carry-over in `main.js` (`migrateLegacyUserDataDir`): on first launch it **copies** the database, uploads and snapshots out of a pre-rebrand `%APPDATA%\timesheet\` and leaves the original in place as a recovery point. It also carries across Chromium's `Local State`, which is emphatically not a disposable cache: it holds the key `safeStorage` encrypts every stored credential with, so a database that moves without it arrives intact and permanently unopenable. Two static-quality assertions keep the package name and that carry-over from ever drifting apart. The database filename itself stays `cooperation-tools.db` — it is the name every existing install, rotating snapshot and full-backup manifest already records.
 
 For development or a portable install, override the location with `OFFICE_ONE_DATA_DIR` (see [.env.example](.env.example)); the former `COOPERATION_TOOLS_DATA_DIR` is still honoured. Packaged builds ignore `.env`.
 

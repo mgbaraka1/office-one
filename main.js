@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const db     = require('./db');
+const dataLocation = require('./data-location');
 const auth   = require('./auth');
 const { validateIpcArgs } = require('./ipc-contracts');
 const { createTimesheetWorkbook, createPfmWorkbook, createOutsStatementWorkbook, zip } = require('./xlsx');
@@ -24,23 +25,42 @@ if (isE2ERun) app.commandLine.appendSwitch('remote-debugging-port', String(e2ePo
 // format even for Arabic-mode users, rather than following the OS silently.
 app.commandLine.appendSwitch('lang', 'en-US');
 
-// Resolve any dev/portable data-directory override (see .env.example) BEFORE
-// requesting the single-instance lock below, so the lock is scoped to the
-// actual data directory this process will use rather than always the OS
-// default — a deliberately isolated run (the E2E harness, a dev override)
-// doesn't collide with a real production instance's lock, while two
-// processes aimed at the SAME data directory (including two production
-// launches) still correctly collide. Moved here from inside
-// app.whenReady() for exactly this reason; nothing reads app.getPath()
-// before this runs.
+// Resolve the data directory BEFORE requesting the single-instance lock below,
+// so the lock is scoped to the actual data directory this process will use —
+// a deliberately isolated run (the E2E harness, a dev override) doesn't
+// collide with a real production instance's lock, while two processes aimed
+// at the SAME data directory still correctly collide.
+//
+// And before 'ready', because userData must never change after it: Chromium
+// creates `Local State` — the key that opens every stored credential — in
+// whatever userData is when it starts. That is why choosing a folder ends in a
+// relaunch rather than a setPath() on the spot (see runDataFolderSetup()).
 loadDotEnv();
-// OFFICE_ONE_DATA_DIR is the current name; COOPERATION_TOOLS_DATA_DIR is still
-// honoured so an existing .env or CI runner keeps working after the rebrand.
+// OFFICE_ONE_DATA_DIR is the current name and wins; OFFICEONE_DATA_DIR is an
+// accepted spelling, and COOPERATION_TOOLS_DATA_DIR is still honoured so an
+// existing .env or CI runner keeps working after the rebrand. Any of them wins
+// over the saved location, and may point at an empty folder (tests rely on it).
 const dataDirOverride =
-  process.env.OFFICE_ONE_DATA_DIR || process.env.COOPERATION_TOOLS_DATA_DIR || '';
-if (dataDirOverride) {
-  app.setPath('userData', dataDirOverride);
-}
+  process.env.OFFICE_ONE_DATA_DIR || process.env.OFFICEONE_DATA_DIR ||
+  process.env.COOPERATION_TOOLS_DATA_DIR || '';
+
+// The remembered data folder lives here, outside every data folder. Dev runs
+// may redirect it (and the setup profile beside it) so testing the first-run
+// flow never touches the real file; packaged builds ignore that.
+const locationFile = (!app.isPackaged && process.env.OFFICE_ONE_LOCATION_FILE) ||
+  path.join(app.getPath('appData'), 'office-one-location.json');
+const startup = dataLocation.resolveStartup({ override: dataDirOverride, locationFile });
+
+// Setup mode (first launch, or the saved folder is gone) runs on a throwaway
+// profile: Chromium still writes `Local State`, caches and so on into userData,
+// and that must land neither in the old default folder nor in a folder that is
+// about to be chosen. No database is opened and safeStorage is never wired up
+// in this mode — see the whenReady() handler.
+const SETUP_PROFILE_DIRNAME = 'office-one-setup';
+const dataDir = startup.mode === 'setup'
+  ? path.join(path.dirname(locationFile), SETUP_PROFILE_DIRNAME)
+  : startup.dataDir;
+app.setPath('userData', dataDir);
 
 // Stop a second process from ever opening the same live cooperation-tools.db
 // concurrently. The first instance to reach this line keeps running and gets
@@ -359,6 +379,39 @@ ipcMain.handle('projects:download-document', authed(async (_e, projectId, docume
   if (canceled || !filePath) return { ok: false, canceled: true };
   try { fs.copyFileSync(r.absPath, filePath); return { ok: true, path: filePath }; }
   catch (err) { return { ok: false, error: String(err?.message || err) }; }
+}));
+// Export every uploaded document of a project into one ZIP. The renderer sends
+// each document type with the (translated) name it should get in the archive;
+// every type is resolved and owner-checked here, so no disk path crosses IPC.
+// Missing files are skipped and counted. Read-only; touches no app data.
+ipcMain.handle('projects:download-documents-zip', authed(async (_e, projectId, entries, defaultName) => {
+  const userId = auth.requireUserId();
+  const wanted = entries.slice(0, 200);
+  if (!wanted.length) return { ok: false, error: 'No documents to download' };
+  const files = [];
+  let skipped = 0, total = 0;
+  for (const entry of wanted) {
+    const r = db.resolveProjectDocumentFile(userId, projectId, String(entry?.documentType || ''));
+    if (!r.ok || !r.exists) { skipped++; continue; }
+    try { total += fs.statSync(r.absPath).size; } catch { skipped++; continue; }
+    if (total > KNOWLEDGE_ZIP_MAX_BYTES) return { ok: false, error: 'The documents are over 1 GB together' };
+    files.push({ absPath: r.absPath, path: zipPathSegment(entry.name || r.originalName, 'document') });
+  }
+  if (!files.length) return { ok: false, error: 'The documents are missing from disk' };
+  const safeDefaultName = path.basename(String(defaultName || 'project.zip')).slice(0, 180) || 'project.zip';
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    title: 'Save documents as ZIP',
+    defaultPath: safeDefaultName,
+    filters: [{ name: 'ZIP archive', extensions: ['zip'] }],
+  });
+  if (canceled || !filePath) return { ok: false, canceled: true };
+  try {
+    const zipEntries = readZipFiles(files);
+    fs.writeFileSync(filePath, zip(zipEntries));
+    return { ok: true, path: filePath, count: zipEntries.length, skipped };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err) };
+  }
 }));
 // Open with the OS default application.
 ipcMain.handle('projects:open-document', authed(async (_e, projectId, documentType) => {
@@ -1102,9 +1155,11 @@ const LEGACY_USER_DATA_DIRNAME = 'timesheet';
 
 function migrateLegacyUserDataDir() {
   try {
-    // An explicit override means the caller pointed us at a specific directory
-    // (dev, a portable install, the E2E harness). Never second-guess it.
-    if (dataDirOverride) return;
+    // The data directory is now always explicit — an env override or the
+    // folder the user chose — never Electron's own name-derived userData
+    // folder, so there is no sibling legacy folder to carry over from. Kept
+    // (and still ordered before openConnection) in case that ever changes.
+    if (dataDir) return;
 
     const currentDir = app.getPath('userData');
     const legacyDir  = path.join(path.dirname(currentDir), LEGACY_USER_DATA_DIRNAME);
@@ -1118,10 +1173,99 @@ function migrateLegacyUserDataDir() {
   }
 }
 
+// ── Choosing the data folder ─────────────────────────────────────────────────
+// Runs only in setup mode (see `startup` at the top): on first launch, or when
+// the saved folder has gone missing. Saves the choice and relaunches, so the
+// next process sets userData before 'ready' — never switched mid-run.
+//
+// Dev-only: OFFICE_ONE_TEST_PICK_DIR stands in for every dialog here (the
+// problem is logged, the folder is "picked") so the flow can be driven
+// unattended. Packaged builds ignore it.
+const testPickDir = !app.isPackaged ? (process.env.OFFICE_ONE_TEST_PICK_DIR || '') : '';
+
+function describeStartupProblem({ problem, savedDir, error }) {
+  if (problem === 'missing') {
+    return { message: 'The data folder cannot be found.',
+             detail: `Office ONE keeps its data in\n${savedDir}\n\nbut that folder is not there — the drive may be disconnected, or the folder was moved or deleted.` };
+  }
+  if (problem === 'no-database') {
+    return { message: 'The data folder has no database in it.',
+             detail: `Office ONE keeps its data in\n${savedDir}\n\nbut there is no ${dataLocation.DB_FILENAME} in it any more.` };
+  }
+  return { message: 'The saved data-folder setting cannot be read.',
+           detail: `${locationFile}\n\n${error || ''}` };
+}
+
+async function pickDataFolder() {
+  if (testPickDir) return testPickDir;
+  // Offer the pre-move default as the starting point when it holds data, so an
+  // existing install finds its folder in one click.
+  const legacyDefault = path.join(app.getPath('appData'), 'office-one');
+  const res = await dialog.showOpenDialog({
+    title: 'Choose where Office ONE stores its data',
+    buttonLabel: 'Use this folder',
+    defaultPath: fs.existsSync(path.join(legacyDefault, dataLocation.DB_FILENAME)) ? legacyDefault : app.getPath('documents'),
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  return res.canceled ? '' : res.filePaths[0];
+}
+
+// Shows `message` and returns true for "Choose another folder", false for "Quit"
+// (or whatever the caller's two buttons mean).
+async function ask(type, message, detail, buttons) {
+  if (testPickDir) { console.log(`[data-folder] ${message} ${detail.replace(/\s+/g, ' ')}`); return true; }
+  const r = await dialog.showMessageBox({ type, title: 'Office ONE', message, detail, buttons, defaultId: 0, cancelId: 1, noLink: true });
+  return r.response === 0;
+}
+
+async function runDataFolderSetup() {
+  const intro = startup.problem
+    ? { type: 'error', ...describeStartupProblem(startup), buttons: ['Choose another folder', 'Quit'] }
+    : { type: 'info', message: 'Choose where Office ONE stores its data.',
+        detail: 'Pick the folder that already holds your Office ONE data (it contains ' + dataLocation.DB_FILENAME +
+                '), or an empty folder to start a new install.\n\nYou are asked once; the app restarts afterwards.',
+        buttons: ['Choose folder', 'Quit'] };
+  if (!await ask(intro.type, intro.message, intro.detail, intro.buttons)) { app.exit(0); return; }
+
+  for (;;) {
+    const dir = await pickDataFolder();
+    if (!dir) { app.exit(0); return; }   // cancelled: nothing saved, nothing changed
+
+    const folder = dataLocation.classifyFolder(dir);
+    let createNew = false;
+    if (folder.kind === 'existing') {
+      if (!folder.hasKey && !await ask('warning', 'This folder has a database but no "Local State" file.',
+        'Saved client passwords and secret keys were encrypted with the key in that file, so they will not be readable here. ' +
+        'Copy "Local State" from the original data folder into this one first if you can.',
+        ['Use it anyway', 'Choose another folder'])) continue;
+    } else if (folder.kind === 'empty' || folder.kind === 'missing') {
+      createNew = true;   // a new install: the next boot may create the database here, once
+    } else {
+      // Refuse a busy folder with no database — almost always a misclick on Documents or a drive root.
+      await ask('warning', 'This folder is not empty and holds no Office ONE data.',
+        `${dir}\n\nChoose the folder that contains ${dataLocation.DB_FILENAME}, or an empty folder for a new install.`,
+        ['Choose another folder']);
+      if (testPickDir) { app.exit(1); return; }   // the stand-in would pick the same folder forever
+      continue;
+    }
+
+    if (createNew) fs.mkdirSync(dir, { recursive: true });
+    dataLocation.writeLocation(locationFile, { dataDir: dir, createNew });
+    console.log(`[data-folder] saved ${dir} (${createNew ? 'new install' : 'existing data'}) — relaunching`);
+    app.relaunch();
+    app.exit(0);
+    return;
+  }
+}
+
 app.whenReady().then(() => {
-  // The optional data-directory override (see .env.example) is resolved
-  // earlier now, before the single-instance lock request above — see that
-  // block's comment for why.
+  // The data directory is resolved earlier, before the single-instance lock
+  // request above — see that block's comment for why. In setup mode nothing
+  // below runs: no database, no safeStorage, just the folder choice.
+  if (startup.mode === 'setup') {
+    runDataFolderSetup().catch((err) => { reportFatalMainProcessError('data-folder setup', err); app.exit(1); });
+    return;
+  }
 
   // Boot the data layer in three explicit, sequential steps: open the embedded
   // SQLite connection, bring the schema to the latest version via the versioned
@@ -1148,6 +1292,11 @@ app.whenReady().then(() => {
     console.log('[paths] database file    :', db.dbPath());
     console.log('[paths] project files root:', db.projectsRootDir());
     db.applyMigrations();
+    // A new install's one allowed database creation has happened; from now on
+    // an empty saved folder is an error, not another fresh start.
+    if (startup.mode === 'saved' && startup.createNew) {
+      dataLocation.writeLocation(locationFile, { dataDir, createNew: false });
+    }
     const maintenance = db.runMaintenance();
     createWindow();
     if (maintenance?.backup?.ok === false) {

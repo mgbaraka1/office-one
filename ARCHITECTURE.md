@@ -632,10 +632,24 @@ npm run build:win  # NSIS + portable
 npm run pack       # unpacked dir (fast packaging sanity check)
 ```
 
-`OFFICE_ONE_DATA_DIR` (see `.env.example`) redirects the data directory in
-development; packaged builds ignore `.env`. `main.js` resolves it *before*
-requesting the single-instance lock, so an isolated dev/E2E run doesn't collide
-with a live instance. Setting it also **disables** the legacy-folder carry-over.
+The data directory is the user's choice, remembered in
+`%APPDATA%\office-one-location.json` (outside every data folder) and resolved by
+`data-location.js` *before* `ready` and before the single-instance lock, so an
+isolated dev/E2E run doesn't collide with a live instance. With no saved choice,
+or a saved folder that is gone or has lost its database, the app starts in
+**setup mode**: `userData` points at a throwaway `%APPDATA%\office-one-setup`
+profile, no database is opened and `safeStorage` is never wired up; after
+`ready` it asks for a folder, saves it and `app.relaunch()`es. `userData` is
+never changed after `ready`, because Chromium creates `Local State` — the
+credential key — wherever `userData` points when it starts. A database is only
+created in a folder picked as empty (`createNew`, cleared after the first
+successful boot). `OFFICE_ONE_DATA_DIR` (then `OFFICEONE_DATA_DIR`; see
+`.env.example`) overrides the saved choice and may point at an empty folder;
+packaged builds ignore `.env`, so there it must be a real environment variable.
+Dev-only, for testing the flow: `OFFICE_ONE_LOCATION_FILE` redirects the saved
+file (and the setup profile beside it), and `OFFICE_ONE_TEST_PICK_DIR` answers
+every setup dialog with that folder. The data directory is always explicit now,
+which **disables** the legacy-folder carry-over.
 
 `test/run-all.js` points `HOME`/`USERPROFILE` at a generated fixture profile and
 loads `test/test-bootstrap.js` via `NODE_OPTIONS --require`, so production data is

@@ -56,7 +56,7 @@ it), and CI runs on Windows.
 
 **Set `OFFICE_ONE_DATA_DIR` while developing.** Copy `.env.example` to `.env` and
 point it at a throwaway folder. Without it the app opens the same database your
-installed copy uses, and a stray migration or a destructive test is a real data
+installed copy uses (the folder saved in `%APPDATA%\office-one-location.json`), and a stray migration or a destructive test is a real data
 loss. See `.env.example`.
 
 ## The rules that CI enforces

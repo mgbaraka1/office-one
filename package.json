@@ -50,6 +50,7 @@
     "files": [
       "main.js",
       "db.js",
+      "data-location.js",
       "auth.js",
       "xlsx.js",
       "ipc-contracts.js",
