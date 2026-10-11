@@ -1,5 +1,41 @@
 [
   {
+    "version": "8.19.0",
+    "date": "2026-10-11",
+    "kind": "feat",
+    "title": {
+      "en": "Choose where your data is kept, a new date picker, and documents as one ZIP",
+      "ar": "اختيار مكان حفظ بياناتك، ومنتقي تاريخ جديد، والمستندات في ملف ZIP واحد"
+    },
+    "notes": [
+      {
+        "en": "On first launch the app asks where to keep its data: the folder that already holds it, or an empty folder for a new start. It remembers the choice and restarts once.",
+        "ar": "عند أول تشغيل يسأل التطبيق أين يحفظ بياناته: المجلد الذي يحتويها بالفعل، أو مجلد فارغ لبداية جديدة. ويتذكر الاختيار ويعيد التشغيل مرة واحدة."
+      },
+      {
+        "en": "If that folder later goes missing, for example a disconnected drive, the app says so and lets you choose another folder or quit. It never starts empty in its place.",
+        "ar": "إذا اختفى ذلك المجلد لاحقًا، مثل قرص غير متصل، يُعلمك التطبيق ويتيح لك اختيار مجلد آخر أو الخروج. ولا يبدأ أبدًا ببيانات فارغة بدلًا منه."
+      },
+      {
+        "en": "Date and month fields open a new calendar that matches the app, in English and Arabic.",
+        "ar": "تفتح حقول التاريخ والشهر تقويمًا جديدًا يطابق شكل التطبيق، بالعربية والإنجليزية."
+      },
+      {
+        "en": "A project's uploaded documents can be saved together as one ZIP with Export files.",
+        "ar": "يمكن حفظ المستندات المرفوعة للمشروع معًا في ملف ZIP واحد من خلال تصدير الملفات."
+      },
+      {
+        "en": "The sign-in screen shows the app version.",
+        "ar": "تعرض شاشة تسجيل الدخول إصدار التطبيق."
+      }
+    ],
+    "technical": [
+      "The chosen folder is saved in %APPDATA%\\office-one-location.json and applied before the app is ready, by relaunching, so the credential key in Local State is never created in the wrong folder.",
+      "A database is only created in a folder picked as empty; OFFICE_ONE_DATA_DIR still overrides the saved folder.",
+      "http-cache-semantics updated to 4.3.0 (GHSA-ch52-4w7c-c8xp), a build-time dependency not shipped in the installer."
+    ]
+  },
+  {
     "version": "8.18.0",
     "date": "2026-10-08",
     "kind": "feat",
