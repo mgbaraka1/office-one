@@ -65,6 +65,7 @@ const SIGNATURES = {
   'tasks:convert-to-internal': ['id', 'object'],
   'projects:upload-document': ['id', 'string'],
   'projects:download-document': ['id', 'string'],
+  'projects:download-documents-zip': ['id', 'array', 'string'],
   'projects:open-document': ['id', 'string'],
   'projects:remove-document': ['id', 'string'],
   'projects:restore-document': ['id', 'string', 'object'],

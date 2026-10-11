@@ -803,6 +803,8 @@
   // Timesheet, month view, record/task modals, and Company Documents.
   Object.assign(ar, {
     // Month-view column initials.
+    'Choose a date': 'اختر تاريخاً', 'Choose a month': 'اختر شهراً', 'Clear': 'مسح', 'This month': 'هذا الشهر',
+    'Previous year': 'السنة السابقة', 'Next year': 'السنة التالية',
     'Su': 'أحد', 'Mo': 'إثن', 'Tu': 'ثلا', 'We': 'أرب', 'Th': 'خمي', 'Fr': 'جمع', 'Sa': 'سبت',
     'Search your tasks…': 'ابحث في مهامك…', 'No project': 'بلا مشروع',
     'Edit Record': 'تعديل السجل', 'Edit Task': 'تعديل المهمة', 'New Project Task': 'مهمة مشروع جديدة',
@@ -838,6 +840,8 @@
     'Open file': 'فتح الملف', 'Open file ▾': 'فتح الملف ▾', 'Knowledge item': 'عنصر معرفة',
     'Export ▾': 'تصدير ▾', 'Excel only': 'Excel فقط', 'Excel + latest files (ZIP)': 'Excel + أحدث الملفات (ZIP)',
     'Export what the filters show': 'تصدير ما تعرضه عوامل التصفية',
+    'Export files': 'تصدير الملفات', 'Save every uploaded document as one ZIP': 'حفظ كل المستندات المرفوعة في ملف ZIP واحد',
+    'The documents are over 1 GB together': 'حجم المستندات معًا يتجاوز 1 جيجابايت',
     'Download ZIP ▾': 'تنزيل ZIP ▾', 'Latest versions': 'أحدث الإصدارات', 'All versions': 'كل الإصدارات',
     'No documents to download': 'لا توجد مستندات للتنزيل',
     'The documents are over 1 GB together — narrow the filter': 'حجم المستندات معاً يتجاوز 1 جيجابايت — ضيّق التصفية',

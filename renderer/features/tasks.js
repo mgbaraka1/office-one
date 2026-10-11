@@ -1014,6 +1014,14 @@ function renderProjectDetail(p) {
   dTitle.innerHTML = ic('file-text');
   dTitle.appendChild(document.createTextNode('Documents'));
   dHead.appendChild(dTitle);
+  const dActions = pjMk('div', 'pj-section-actions');
+  const exportBtn = pjMk('button', 'btn');
+  exportBtn.innerHTML = ic('download') + ' Export files';
+  exportBtn.title = 'Save every uploaded document as one ZIP';
+  exportBtn.disabled = !(p.documents || []).some(doc => doc.file?.exists);
+  exportBtn.addEventListener('click', () => exportProjectDocs(p));
+  dActions.appendChild(exportBtn);
+  dHead.appendChild(dActions);
   docs.appendChild(dHead);
 
   const docGrid = pjMk('div', 'pj-docs');
@@ -1350,6 +1358,20 @@ async function downloadDoc(documentType) {
   catch { toast('Could not download file'); return; }
   if (!res || res.canceled) return;
   toast(res.ok ? 'File saved' : (res.error || 'Could not download file'));
+}
+// Every present document into one ZIP, each named "<type> - <original name>"
+// so the archive still says which slot a file came from.
+async function exportProjectDocs(p) {
+  const entries = (p.documents || []).filter(doc => doc.file?.exists).map(doc => ({
+    documentType: doc.documentType,
+    name: (lkLabel('PROJECT_DOCUMENT', doc.documentType) || doc.label || doc.documentType) + ' - ' + (doc.file.originalName || 'document'),
+  }));
+  if (!entries.length) return;
+  let result;
+  try { result = await window.api.downloadProjectDocumentsZip(p.id, entries, `${p.name || 'project'} - ${fmt(new Date())}.zip`); }
+  catch { result = { ok: false, error: 'failed' }; }
+  if (result?.ok) toast(result.skipped ? `Saved ${result.count} documents · ${result.skipped} missing skipped` : `Saved ${result.count} documents`);
+  else if (!result?.canceled) toast('ZIP export failed: ' + (result?.error || 'failed'));
 }
 async function openDoc(documentType) {
   let res;

@@ -151,6 +151,7 @@ contextBridge.exposeInMainWorld('api', {
   uploadProjectDocument:   (projectId, documentType) => ipcRenderer.invoke('projects:upload-document', projectId, documentType),
   /** @returns {Promise<import('./ipc-types').FileResult>} */
   downloadProjectDocument: (projectId, documentType) => ipcRenderer.invoke('projects:download-document', projectId, documentType),
+  downloadProjectDocumentsZip: (projectId, entries, name) => ipcRenderer.invoke('projects:download-documents-zip', projectId, entries, name),
   openProjectDocument:     (projectId, documentType) => ipcRenderer.invoke('projects:open-document', projectId, documentType),
   /** @returns {Promise<import('./ipc-types').DocFileResult>} */
   removeProjectDocument:   (projectId, documentType) => ipcRenderer.invoke('projects:remove-document', projectId, documentType),

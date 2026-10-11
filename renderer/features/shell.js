@@ -692,6 +692,12 @@ function toggleAuthLamp(force) {
   authLamp.set(typeof force === 'boolean' ? force : !authLamp.isOn());
 }
 document.getElementById('auth-form').addEventListener('input', () => { if (!authLamp.isOn()) toggleAuthLamp(true); });
+window.api.appVersion().then(v => {
+  if (!v) return;
+  // Label and number as separate nodes, so the label translates on its own.
+  const el = document.getElementById('auth-version');
+  el.replaceChildren(pjMk('span', null, 'Version'), document.createTextNode(' ' + v));
+}).catch(() => {});
 
 function setAuthMode(mode) {
   _authMode = mode;
