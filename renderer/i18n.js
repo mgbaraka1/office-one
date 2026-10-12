@@ -1380,13 +1380,16 @@
     [/^Merged into (.+)$/s, m => `تم الدمج في ${arabicTranslation(m[1])}`],
     [/^Project restored, but couldn't relink: (.+)$/s, m => `تمت استعادة المشروع، لكن تعذّرت إعادة الربط: ${m[1]}`],
     // Task-card footer: "Acme · Billing  ·  3 sessions  ·  90 min (1.50 h)".
-    [/^(?:(.+?) {2}· {2})?(\d+) sessions?(?: {2}· {2}(\d+) min \(([\d.]+) h\))?$/s, m => {
+    // lookupKey() collapses the double spaces before matching, so accept any run.
+    [/^(?:(.+?) +· +)?(\d+) sessions?(?: +· +(\d+) min \(([\d.]+) h\))?$/s, m => {
       const parts = [];
       if (m[1]) parts.push(m[1]);
       parts.push(`${m[2]} جلسة`);
       if (m[3]) parts.push(`${m[3]} دقيقة (${m[4]} ساعة)`);
       return parts.join('  ·  ');
     }],
+    // Link-task picker row: "3 sessions · Acme · Billing".
+    [/^(\d+) sessions? · (.+)$/s, m => `${m[1]} جلسة · ${m[2]}`],
     [/^Browse all work for (.+)$/s, m => `تصفح كل العمل الخاص بـ ${m[1]}`],
     // Credential reveal/copy controls on the Clients page.
     [/^Show (.+) for 15 seconds$/s, m => `إظهار ${uiNounsAr[m[1]] || m[1]} لمدة 15 ثانية`],
