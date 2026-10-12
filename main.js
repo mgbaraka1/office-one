@@ -698,6 +698,7 @@ ipcMain.handle('pfm:file-purge',   authed((_e, fileId) => db.purgePfmFile(auth.r
 // ── Clients (Auth + Server Information + Databases per COMPANY lookup) ──
 ipcMain.handle('clients:list', authed((_e, includeArchived) => db.listClients(auth.requireUserId(), includeArchived)));
 ipcMain.handle('clients:get',  authed((_e, companyId)  => db.getClient(auth.requireUserId(), companyId)));
+ipcMain.handle('clients:system-web', authed(() => db.getClientSystemWeb(auth.requireUserId())));
 // The client roster IS the COMPANY lookup catalog, so these five write to the
 // shared, global lookup_codes table. Ungated like every other catalog write —
 // the safeguard is attribution (lookup_code_history), not permission.

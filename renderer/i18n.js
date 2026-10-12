@@ -766,6 +766,17 @@
     'Open client database': 'فتح قاعدة بيانات العميل',
     // Server access method (migration 072); RDP and PAM stay as they are.
     'RDP': 'RDP', 'PAM': 'PAM', 'Via PAM': 'عبر PAM',
+    // Systems web: which client uses which system.
+    'Cards': 'بطاقات', 'Systems web': 'شبكة الأنظمة', 'Show clients as': 'عرض العملاء كـ',
+    'Linked through': 'مرتبط عبر', 'Most shared': 'الأكثر مشاركة', 'Open client': 'فتح العميل',
+    'Click to keep it highlighted': 'انقر لإبقائه مميزًا', 'Could not load the systems web': 'تعذر تحميل شبكة الأنظمة',
+    'No client is linked to a system yet.': 'لا يوجد عميل مرتبط بنظام بعد.',
+    'Thicker line = more linked records': 'خط أسمك = سجلات مرتبطة أكثر',
+    'Darker system = used by more clients': 'نظام أغمق = يستخدمه عملاء أكثر',
+    'Not linked to any system yet:': 'غير مرتبط بأي نظام بعد:',
+    '{n} clients': '{n} عملاء', '{n} systems': '{n} أنظمة', '1 client': 'عميل واحد', '1 system': 'نظام واحد',
+    '{n} server(s)': '{n} خادم', '{n} project(s)': '{n} مشروع', '{n} task(s)': '{n} مهمة',
+    '{n} Knowledge Hub item(s)': '{n} عنصر في مركز المعرفة',
     // Server map: the Servers section drawn as a tree.
     'List': 'قائمة', 'Map': 'خريطة', 'Show servers as': 'عرض الخوادم كـ',
     'Environment differs from its server': 'البيئة تختلف عن بيئة الخادم',

@@ -630,6 +630,20 @@
  */
 
 /**
+ * One client ↔ system pair for the Systems web (`clients:system-web`), with
+ * how many of this login's records link the two. Ids only; the renderer names
+ * them from the catalog. A pair appears when any count is above zero.
+ * @typedef {Object} ClientSystemLink
+ * @property {number} companyId The COMPANY lookup_codes id.
+ * @property {number} systemId  The SYSTEM lookup_codes id.
+ * @property {number} servers   Servers of this client under this system.
+ * @property {number} projects  Projects linked to both.
+ * @property {number} tasks     Client tasks carrying both.
+ * @property {number} minutes   Minutes logged on those tasks.
+ * @property {number} knowledge Knowledge Hub items linked to both.
+ */
+
+/**
  * What the client roster's write channels return. Never throws — a refusal
  * comes back as `{ ok: false, error }` and is never a partial write.
  * `clients:create` takes { code, nameEn, nameAr }; `clients:change-code` is the

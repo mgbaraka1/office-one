@@ -1349,6 +1349,10 @@
     <!-- Roster actions. The client roster IS the COMPANY lookup catalog, so
          this is the one place it is created, archived and reordered. -->
     <div class="cl-list-actions">
+      <div class="seg-ctl" id="clients-view-ctl" role="group" aria-label="Show clients as">
+        <button type="button" class="seg-btn active" data-view="cards" data-onclick="setClientsView('cards')" aria-pressed="true"><span data-ic="layout-dashboard"></span>Cards</button>
+        <button type="button" class="seg-btn" data-view="web" data-onclick="setClientsView('web')" aria-pressed="false"><span data-ic="share-2"></span>Systems web</button>
+      </div>
       <button type="button" class="btn" id="clients-archived-btn" data-onclick="toggleClientsShowArchived()"><span data-ic="eye"></span>Show archived</button>
       <div class="seg-ctl" id="clients-sort-ctl" title="Order the cards by name — the saved order stays as it is">
         <button type="button" class="seg-btn active" data-sort="" data-onclick="setClientsSort('')">Custom</button>
@@ -1359,6 +1363,7 @@
       <button type="button" class="btn primary" data-onclick="openClientCreateModal()"><span data-ic="plus"></span>New Client</button>
     </div>
     <div class="pj-grid" id="clients-grid"></div>
+    <div id="clients-web" class="cl-web" hidden></div>
     <div id="clients-search-results" style="display:none"></div>
     <div id="clients-empty-state" class="empty-state" hidden>
       <div class="empty-state-inner">

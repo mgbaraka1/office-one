@@ -1473,6 +1473,53 @@
     .cs-access-ctl { display: inline-flex; align-self: flex-start; }
     .cs-access-ctl .seg-btn { min-width: 64px; justify-content: center; }
     .cl-access-pam { font-weight: 700; color: var(--primary); }
+    /* Systems web: clients on one side, systems on the other, a line per linked
+       pair. Nodes are HTML over an SVG of lines; both sides mirror in Arabic. */
+    .cl-web { margin-top: var(--space-2); }
+    .cl-web-sources { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
+    .cl-web-sources-label, .cl-web-headline-label {
+      font-size: var(--fs-caption); font-weight: 700; letter-spacing: var(--ls-caption); text-transform: uppercase; color: var(--muted);
+    }
+    .cl-web-headline { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
+    .cl-web-shared {
+      display: inline-flex; align-items: baseline; gap: 6px; padding: 5px 12px; border-radius: 999px; cursor: pointer;
+      border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border)); background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+      color: var(--text); font: inherit; font-size: var(--fs-sm);
+    }
+    .cl-web-shared span { font-size: var(--fs-caption); color: var(--muted); }
+    .cl-web-scroll {
+      overflow-x: auto; padding: var(--space-3); background: var(--surface);
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+    }
+    .cl-web-colheads {
+      display: flex; justify-content: space-between; margin-bottom: var(--space-2);
+      font-size: var(--fs-caption); font-weight: 700; letter-spacing: var(--ls-caption); text-transform: uppercase; color: var(--muted);
+    }
+    .cl-web-stage { position: relative; }
+    .cl-web-links { position: absolute; inset: 0; overflow: visible; }
+    .cl-web-line { fill: none; stroke: color-mix(in srgb, var(--muted) 45%, transparent); stroke-linecap: round; transition: stroke var(--speed), opacity var(--speed); }
+    .cl-web-hit { fill: none; stroke: transparent; stroke-width: 12; cursor: help; }
+    .cl-web-stage.has-focus .cl-web-link:not(.is-lit) { opacity: .12; }
+    .cl-web-link.is-lit .cl-web-line { stroke: var(--primary); }
+    .cl-web-node {
+      --share: 0%;
+      position: absolute; width: 210px; height: 32px; box-sizing: border-box;
+      display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
+      padding: 0 12px; border-radius: 999px; cursor: pointer; font: inherit; font-size: var(--fs-sm); color: var(--text);
+      border: 1px solid var(--border); background: var(--surface2); transition: opacity var(--speed), border-color var(--speed), box-shadow var(--speed);
+    }
+    .cl-web-node.is-client { inset-inline-start: 0; }
+    .cl-web-node.is-system {
+      inset-inline-end: 0;
+      background: color-mix(in srgb, var(--primary) var(--share), var(--surface));
+      border-color: color-mix(in srgb, var(--primary) calc(var(--share) + 10%), var(--border));
+    }
+    .cl-web-node:hover, .cl-web-node:focus-visible, .cl-web-node[aria-pressed="true"] { border-color: var(--primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 25%, transparent); outline: none; }
+    .cl-web-stage.has-focus .cl-web-node:not(.is-lit) { opacity: .35; }
+    .cl-web-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+    .cl-web-count { flex-shrink: 0; font-size: var(--fs-caption); color: var(--muted); }
+    .cl-web-legend { display: flex; flex-wrap: wrap; gap: 4px var(--space-4); margin-top: var(--space-2); font-size: var(--fs-caption); color: var(--muted); }
+    .cl-web-unlinked { margin-top: var(--space-2); font-size: var(--fs-caption); color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; }
     /* Server map: Client → System → Server → Database as a tree. Connectors are
        borders on logical sides, so the tree mirrors itself in Arabic. Each
        node's environment colour comes in through --env. */

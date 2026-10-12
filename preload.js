@@ -293,6 +293,7 @@ contextBridge.exposeInMainWorld('api', {
   listClients: (includeArchived)      => ipcRenderer.invoke('clients:list', includeArchived),
   /** @returns {Promise<import('./ipc-types').Client|null>} */
   getClient:   (companyId)            => ipcRenderer.invoke('clients:get', companyId),
+  getClientSystemWeb: ()               => ipcRenderer.invoke('clients:system-web'),
   // Roster CRUD. `renameClient` takes names only; a code changes only through
   // `changeClientCode`, which refuses a code another client already uses.
   /** @returns {Promise<import('./ipc-types').ClientWriteResult>} */

@@ -168,6 +168,7 @@ const SIGNATURES = {
   // archived" toggle, so existing no-arg callers stay valid.
   'clients:list': ['boolean?'],
   'clients:get': ['id'],
+  'clients:system-web': [],
   'clients:create': ['object'],
   'clients:rename': ['id', 'object'],
   'clients:change-code': ['id', 'string'],

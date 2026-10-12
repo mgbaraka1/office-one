@@ -5043,6 +5043,53 @@ function listClients(userId, includeArchived = false) {
 // { ok, ... } rather than throwing, so a refusal is never a partial write.
 const COMPANY_CODE_RE = /^[A-Z0-9][A-Z0-9_-]{0,63}$/;
 
+// ── Systems web: which client uses which system ──────────────────────────────
+// One row per (client, system) pair that anything of this login links: servers
+// (client_servers.system_id), projects (project_companies × project_systems),
+// client tasks (tasks.company_id + system_id, with their logged minutes) and
+// Knowledge Hub items (knowledge_item_companies × knowledge_item_systems).
+// Read-only; ids only — the renderer names them from the catalog it holds.
+function getClientSystemWeb(userId) {
+  const pairs = new Map();
+  const add = (rows, field) => rows.forEach(r => {
+    const key = r.companyId + ':' + r.systemId;
+    if (!pairs.has(key)) {
+      pairs.set(key, { companyId: r.companyId, systemId: r.systemId, servers: 0, projects: 0, tasks: 0, minutes: 0, knowledge: 0 });
+    }
+    const p = pairs.get(key);
+    p[field] += r.n;
+    if (field === 'tasks') p.minutes += r.minutes || 0;
+  });
+  add(db.prepare(
+    `SELECT company_id AS companyId, system_id AS systemId, COUNT(*) AS n
+       FROM client_servers WHERE user_id = ? AND system_id IS NOT NULL GROUP BY company_id, system_id`
+  ).all(userId), 'servers');
+  add(db.prepare(
+    `SELECT pc.company_id AS companyId, ps.system_id AS systemId, COUNT(DISTINCT p.id) AS n
+       FROM projects p
+       JOIN project_companies pc ON pc.project_id = p.id
+       JOIN project_systems ps ON ps.project_id = p.id
+      WHERE p.user_id = ? GROUP BY pc.company_id, ps.system_id`
+  ).all(userId), 'projects');
+  add(db.prepare(
+    `SELECT t.company_id AS companyId, t.system_id AS systemId, COUNT(*) AS n,
+            COALESCE((SELECT SUM(wl.minutes) FROM work_logs wl
+                       JOIN tasks t2 ON t2.id = wl.task_id
+                      WHERE t2.user_id = t.user_id AND t2.company_id = t.company_id AND t2.system_id = t.system_id), 0) AS minutes
+       FROM tasks t
+      WHERE t.user_id = ? AND t.company_id IS NOT NULL AND t.system_id IS NOT NULL
+      GROUP BY t.company_id, t.system_id`
+  ).all(userId), 'tasks');
+  add(db.prepare(
+    `SELECT kc.company_id AS companyId, ks.system_id AS systemId, COUNT(DISTINCT k.id) AS n
+       FROM knowledge_items k
+       JOIN knowledge_item_companies kc ON kc.item_id = k.id
+       JOIN knowledge_item_systems ks ON ks.item_id = k.id
+      WHERE k.user_id = ? GROUP BY kc.company_id, ks.system_id`
+  ).all(userId), 'knowledge');
+  return [...pairs.values()];
+}
+
 // One client, in the same shape listClients returns, for handing straight back
 // to the renderer after a write.
 function clientById(userId, companyId) {
@@ -7398,7 +7445,7 @@ module.exports = {
   updateKnowledgeItem, deleteKnowledgeItem, restoreKnowledgeItem, saveKnowledgeAttachment,
   resolveKnowledgeAttachment, removeKnowledgeAttachment, restoreKnowledgeAttachment, updateKnowledgeAttachmentNote,
   purgeKnowledgeAttachment, purgeKnowledgeFiles, listKnowledgeGroups, createKnowledgeGroup,
-  updateKnowledgeGroup, deleteKnowledgeGroup, listClients, getClient,
+  updateKnowledgeGroup, deleteKnowledgeGroup, listClients, getClient, getClientSystemWeb,
   getClientFieldHistory, createClient, renameClient, changeClientCode, setClientActive, reorderClients,
   configureCredentialEncryption, allowPlaintextCredentialsForTests,
   disallowPlaintextCredentialsForTests, isCredentialEncryptionAvailable,

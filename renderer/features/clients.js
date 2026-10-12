@@ -17,6 +17,10 @@ let clientRecordFilter = '';  // matches within each client's own records (auth/
 let clientsShowArchived = false;  // "Show archived" — includes soft-disabled (is_active = 0) clients
 let clientsArrangeMode = false;   // "Arrange" — reveals per-card move up/down controls
 let clientsSort = '';             // '' = the saved (Arrange) order, 'asc' / 'desc' = by name; view only
+let clientsView = 'cards';        // 'cards' | 'web' — the roster as cards, or as the Systems web
+let clientsWebLinks = null;       // clients:system-web rows; null = fetch on next draw
+const clientsWebSources = new Set(['servers', 'projects', 'tasks', 'knowledge']);
+let clientsWebPinned = null;      // system id kept highlighted by a click, or null
 let currentClient = null;       // Client (from clients:get) shown in the detail view
 let clientVpnEditId = null;      // null = create mode in the Auth modal
 let clientServerEditId = null;   // null = create mode in the Server modal
@@ -53,6 +57,7 @@ function invalidateClientsCatalog() {
 }
 
 function initClientsModule() {
+  clientsWebLinks = null;   // the web is rebuilt from fresh links on every visit
   showClientsListView();
   syncClientsToolbarState();
   // Projects are shown inside each client's detail (and counted on the list
@@ -107,6 +112,25 @@ function syncClientsToolbarState() {
     b.classList.toggle('active', active);
     b.setAttribute('aria-pressed', String(active));
   });
+  document.querySelectorAll('#clients-view-ctl .seg-btn').forEach(b => {
+    const active = b.dataset.view === clientsView;
+    b.classList.toggle('active', active);
+    b.setAttribute('aria-pressed', String(active));
+  });
+  // Search, name order and Arrange act on the cards only.
+  const web = clientsView === 'web';
+  const search = document.querySelector('#clients-list-view .cl-records-search-wrap');
+  if (search) search.hidden = web;
+  const sortCtl = document.getElementById('clients-sort-ctl');
+  if (sortCtl) sortCtl.hidden = web;
+  if (arrangeBtn) arrangeBtn.hidden = web;
+}
+
+function setClientsView(view) {
+  clientsView = view === 'web' ? 'web' : 'cards';
+  if (clientsView === 'web') { clientsArrangeMode = false; clientsWebLinks = null; }
+  syncClientsToolbarState();
+  renderClientsList();
 }
 
 // Name order is a view of the roster, not a write: the saved order (which
@@ -382,8 +406,19 @@ function renderClientsList() {
   const grid    = document.getElementById('clients-grid');
   const results = document.getElementById('clients-search-results');
   const empty   = document.getElementById('clients-empty-state');
+  const web     = document.getElementById('clients-web');
   grid.innerHTML = '';
   results.innerHTML = '';
+  web.hidden = true;
+
+  if (clientsView === 'web' && clientsList.length) {
+    grid.style.display = 'none';
+    results.style.display = 'none';
+    empty.hidden = true;
+    web.hidden = false;
+    renderClientsWeb(web);
+    return;
+  }
 
   if (clientsList.length === 0) {
     grid.style.display = 'none';
@@ -434,6 +469,258 @@ function renderClientsList() {
   results.style.display = '';
   renderClientSearchResults(matches, q);
 }
+
+// ══ SYSTEMS WEB ══
+// Clients on one side, systems on the other, a line wherever this login's
+// records link the two (servers, projects, client tasks, Knowledge Hub items).
+// A line's thickness is how many records link the pair; a system's shade is
+// how many clients use it, so a shared system — the one an outage hits
+// hardest — stands out. Order is barycentric (each side sorted by the mean
+// position of what it links to) so lines cross as little as possible.
+const CLIENTS_WEB_SOURCES = [['servers', 'Servers'], ['projects', 'Projects'], ['tasks', 'Tasks'], ['knowledge', 'Knowledge Hub']];
+const CLIENTS_WEB_ROW = 44;    // px per node row
+const CLIENTS_WEB_NODE_W = 210;
+
+async function renderClientsWeb(host) {
+  if (!clientsWebLinks) {
+    host.innerHTML = '';
+    host.appendChild(pjMk('div', 'cp-records-empty', 'Loading…'));
+    try { clientsWebLinks = await window.api.getClientSystemWeb(); }
+    catch { toast('Could not load the systems web'); clientsWebLinks = []; }
+    if (clientsView !== 'web' || host.hidden) return;
+  }
+  drawClientsWeb(host);
+}
+
+// "1 client" / "3 clients", "1 system" / "3 systems".
+function clientsWebCount(n, noun) {
+  const key = n === 1 ? '1 ' + noun : '{n} ' + noun + 's';
+  return window.ctI18n?.t?.(key, { n }) || key.replace('{n}', n);
+}
+
+function clientsWebWeight(l) {
+  return (clientsWebSources.has('servers') ? l.servers : 0) + (clientsWebSources.has('projects') ? l.projects : 0)
+    + (clientsWebSources.has('tasks') ? l.tasks : 0) + (clientsWebSources.has('knowledge') ? l.knowledge : 0);
+}
+
+// "Acme ↔ ERP" plus what links them, for a line's hover text.
+function clientsWebLinkText(l, clientName, systemName) {
+  const t = (text, vars) => window.ctI18n?.t?.(text, vars) || text.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+  const parts = [];
+  if (clientsWebSources.has('servers') && l.servers) parts.push(t('{n} server(s)', { n: l.servers }));
+  if (clientsWebSources.has('projects') && l.projects) parts.push(t('{n} project(s)', { n: l.projects }));
+  if (clientsWebSources.has('tasks') && l.tasks) {
+    parts.push(t('{n} task(s)', { n: l.tasks }) + (l.minutes ? ' (' + hoursPhrase(Math.round(l.minutes / 6) / 10) + ')' : ''));
+  }
+  if (clientsWebSources.has('knowledge') && l.knowledge) parts.push(t('{n} Knowledge Hub item(s)', { n: l.knowledge }));
+  return clientName + ' ↔ ' + systemName + '\n' + parts.join(' · ');
+}
+
+function drawClientsWeb(host) {
+  host.innerHTML = '';
+
+  // "Linked through" — which record types count as a link.
+  const sources = pjMk('div', 'cl-web-sources');
+  sources.appendChild(pjMk('span', 'cl-web-sources-label', 'Linked through'));
+  CLIENTS_WEB_SOURCES.forEach(([key, label]) => {
+    const on = clientsWebSources.has(key);
+    const b = pjMk('button', 'pfm-chip' + (on ? ' active' : ''), label);
+    b.type = 'button';
+    b.setAttribute('aria-pressed', String(on));
+    b.addEventListener('click', () => {
+      // At least one source stays on, or there would be nothing to draw.
+      if (on && clientsWebSources.size === 1) return;
+      if (on) clientsWebSources.delete(key); else clientsWebSources.add(key);
+      drawClientsWeb(host);
+    });
+    sources.appendChild(b);
+  });
+  host.appendChild(sources);
+
+  const shown = new Map(clientsList.map(c => [c.id, c]));
+  const links = (clientsWebLinks || [])
+    .filter(l => shown.has(l.companyId) && (LK.categories.SYSTEM || []).some(s => Number(s.id) === l.systemId))
+    .map(l => ({ ...l, w: clientsWebWeight(l) }))
+    .filter(l => l.w > 0);
+  if (!links.length) {
+    host.appendChild(pjMk('div', 'cp-records-empty', 'No client is linked to a system yet.'));
+    return;
+  }
+
+  const clients = new Map();
+  const systems = new Map();
+  const nodeOf = (map, id, name) => {
+    if (!map.has(id)) map.set(id, { id, name, links: [] });
+    return map.get(id);
+  };
+  links.forEach(l => {
+    nodeOf(clients, l.companyId, companyDisplayName(shown.get(l.companyId))).links.push(l);
+    nodeOf(systems, l.systemId, lkLabelById('SYSTEM', l.systemId)).links.push(l);
+  });
+  const lang = rptLanguage();
+  const byName = (a, b) => a.name.localeCompare(b.name, lang, { sensitivity: 'base', numeric: true });
+  let cOrder = [...clients.values()].sort((a, b) => b.links.length - a.links.length || byName(a, b));
+  let sOrder = [...systems.values()].sort((a, b) => b.links.length - a.links.length || byName(a, b));
+  const rank = order => new Map(order.map((n, i) => [n.id, i]));
+  const mean = (node, ranks, key) => {
+    let sum = 0, weight = 0;
+    node.links.forEach(l => { sum += ranks.get(l[key]) * l.w; weight += l.w; });
+    return weight ? sum / weight : 0;
+  };
+  for (let pass = 0; pass < 6; pass++) {
+    const cr = rank(cOrder);
+    sOrder = sOrder.map(n => ({ n, m: mean(n, cr, 'companyId') })).sort((a, b) => a.m - b.m).map(x => x.n);
+    const sr = rank(sOrder);
+    cOrder = cOrder.map(n => ({ n, m: mean(n, sr, 'systemId') })).sort((a, b) => a.m - b.m).map(x => x.n);
+  }
+
+  // Headline: the systems the most clients share.
+  const shared = [...systems.values()].filter(s => s.links.length > 1)
+    .sort((a, b) => b.links.length - a.links.length || byName(a, b)).slice(0, 3);
+  if (shared.length) {
+    const head = pjMk('div', 'cl-web-headline');
+    head.appendChild(pjMk('span', 'cl-web-headline-label', 'Most shared'));
+    shared.forEach(s => {
+      const chip = pjMk('button', 'cl-web-shared');
+      chip.type = 'button';
+      const name = pjMk('b', '', s.name);
+      name.dataset.userContent = '';
+      chip.appendChild(name);
+      chip.appendChild(pjMk('span', '', clientsWebCount(s.links.length, 'client')));
+      chip.addEventListener('click', () => { clientsWebPinned = clientsWebPinned === s.id ? null : s.id; drawClientsWeb(host); });
+      head.appendChild(chip);
+    });
+    host.appendChild(head);
+  }
+
+  // ── The stage: HTML nodes over an SVG of lines ──
+  const rows = Math.max(cOrder.length, sOrder.length);
+  const H = rows * CLIENTS_WEB_ROW;
+  // The box around the stage has 12px padding and a 1px border on each side.
+  const W = Math.max(560, (host.clientWidth || 900) - 26);
+  const rtl = document.documentElement.dir === 'rtl';
+  const yOf = (i, n) => (i + 0.5) * H / n;
+  const cy = new Map(cOrder.map((n, i) => [n.id, yOf(i, cOrder.length)]));
+  const sy = new Map(sOrder.map((n, i) => [n.id, yOf(i, sOrder.length)]));
+  const xIn = x => (rtl ? W - x : x);
+  const x1 = xIn(CLIENTS_WEB_NODE_W), x2 = xIn(W - CLIENTS_WEB_NODE_W);
+
+  const stage = pjMk('div', 'cl-web-stage');
+  stage.style.height = H + 'px';
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('class', 'cl-web-links');
+  svg.setAttribute('width', String(W));
+  svg.setAttribute('height', String(H));
+  svg.setAttribute('aria-hidden', 'true');
+  const maxW = Math.max(...links.map(l => l.w));
+  links.forEach(l => {
+    const a = cy.get(l.companyId), b = sy.get(l.systemId), mid = (x1 + x2) / 2;
+    const d = `M${x1},${a} C${mid},${a} ${mid},${b} ${x2},${b}`;
+    const g = document.createElementNS(NS, 'g');
+    g.setAttribute('class', 'cl-web-link');
+    g.dataset.c = l.companyId; g.dataset.s = l.systemId;
+    const line = document.createElementNS(NS, 'path');
+    line.setAttribute('d', d);
+    line.setAttribute('class', 'cl-web-line');
+    line.setAttribute('stroke-width', (1.5 + 6.5 * Math.sqrt(l.w / maxW)).toFixed(2));
+    // A wider invisible twin is the hover target, so a thin line is easy to hit.
+    const hit = document.createElementNS(NS, 'path');
+    hit.setAttribute('d', d);
+    hit.setAttribute('class', 'cl-web-hit');
+    const title = document.createElementNS(NS, 'title');
+    title.textContent = clientsWebLinkText(l, clients.get(l.companyId).name, systems.get(l.systemId).name);
+    hit.appendChild(title);
+    hit.addEventListener('mouseenter', () => lightUp({ c: l.companyId, s: l.systemId }));
+    hit.addEventListener('mouseleave', () => lightUp(null));
+    g.append(line, hit);
+    svg.appendChild(g);
+  });
+  stage.appendChild(svg);
+
+  // Light up one node's (or one line's) neighbourhood and dim the rest; with
+  // nothing hovered, the pinned system (if any) stays lit.
+  const lightUp = focus => {
+    const f = focus || (clientsWebPinned != null && systems.has(clientsWebPinned) ? { s: clientsWebPinned } : null);
+    stage.classList.toggle('has-focus', !!f);
+    const litC = new Set(), litS = new Set();
+    stage.querySelectorAll('.cl-web-link').forEach(g => {
+      const c = Number(g.dataset.c), s = Number(g.dataset.s);
+      const on = !!f && (f.c == null || f.c === c) && (f.s == null || f.s === s);
+      g.classList.toggle('is-lit', on);
+      if (on) { litC.add(c); litS.add(s); }
+    });
+    stage.querySelectorAll('.cl-web-node').forEach(n => {
+      const id = Number(n.dataset.id);
+      n.classList.toggle('is-lit', n.dataset.kind === 'client' ? litC.has(id) : litS.has(id));
+    });
+  };
+
+  const maxShare = Math.max(...sOrder.map(s => s.links.length));
+  const node = (kind, n, y) => {
+    const b = pjMk('button', 'cl-web-node is-' + kind);
+    b.type = 'button';
+    b.dataset.kind = kind; b.dataset.id = n.id;
+    b.style.top = (y - 16) + 'px';
+    const name = pjMk('span', 'cl-web-name', n.name);
+    name.dataset.userContent = ''; name.dir = 'auto';
+    b.appendChild(name);
+    b.appendChild(pjMk('span', 'cl-web-count',
+      kind === 'client' ? clientsWebCount(n.links.length, 'system') : clientsWebCount(n.links.length, 'client')));
+    const focus = kind === 'client' ? { c: n.id } : { s: n.id };
+    b.addEventListener('mouseenter', () => lightUp(focus));
+    b.addEventListener('mouseleave', () => lightUp(null));
+    b.addEventListener('focus', () => lightUp(focus));
+    b.addEventListener('blur', () => lightUp(null));
+    if (kind === 'client') {
+      b.title = 'Open client';
+      b.addEventListener('click', () => openClientDetail(n.id));
+    } else {
+      // Sequential shade: the more clients share a system, the stronger it is.
+      b.style.setProperty('--share', String(Math.round(8 + 34 * (n.links.length - 1) / Math.max(1, maxShare - 1))) + '%');
+      b.title = 'Click to keep it highlighted';
+      b.setAttribute('aria-pressed', String(clientsWebPinned === n.id));
+      b.addEventListener('click', () => { clientsWebPinned = clientsWebPinned === n.id ? null : n.id; lightUp(null); b.setAttribute('aria-pressed', String(clientsWebPinned === n.id)); });
+    }
+    return b;
+  };
+  cOrder.forEach(n => stage.appendChild(node('client', n, cy.get(n.id))));
+  sOrder.forEach(n => stage.appendChild(node('system', n, sy.get(n.id))));
+
+  const scroller = pjMk('div', 'cl-web-scroll');
+  const colHeads = pjMk('div', 'cl-web-colheads');
+  colHeads.append(pjMk('span', '', 'Clients'), pjMk('span', '', 'Systems'));
+  scroller.append(colHeads, stage);
+  colHeads.style.width = stage.style.width = W + 'px';
+  host.appendChild(scroller);
+  lightUp(null);
+
+  const legend = pjMk('div', 'cl-web-legend');
+  legend.append(pjMk('span', '', 'Thicker line = more linked records'),
+    pjMk('span', '', 'Darker system = used by more clients'));
+  host.appendChild(legend);
+
+  // Clients this view leaves out because nothing links them to a system.
+  const unlinked = clientsList.filter(c => !clients.has(c.id));
+  if (unlinked.length) {
+    const note = pjMk('div', 'cl-web-unlinked');
+    note.appendChild(pjMk('span', '', 'Not linked to any system yet:'));
+    const names = pjMk('span', '', unlinked.map(c => companyDisplayName(c)).join(', '));
+    names.dataset.userContent = '';
+    note.appendChild(names);
+    host.appendChild(note);
+  }
+}
+
+// The web is laid out to the page's width, so it is redrawn when that changes.
+let clientsWebResizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(clientsWebResizeTimer);
+  clientsWebResizeTimer = setTimeout(() => {
+    const host = document.getElementById('clients-web');
+    if (host && !host.hidden && clientsView === 'web' && clientsWebLinks) drawClientsWeb(host);
+  }, 150);
+});
 
 // Renders the records-search results table: one row per matched record
 // (across every client), clicking a row opens that client's detail view
