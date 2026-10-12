@@ -480,6 +480,44 @@
     :root[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
     :root[data-theme="dark"] input[type="month"]::-webkit-calendar-picker-indicator { filter: invert(.85); }
 
+    /* App-styled dropdown list for every single-choice <select>. Chromium's
+       customizable select keeps the native element (value, change events,
+       keyboard and type-to-find all unchanged); only its look is ours. */
+    @supports (appearance: base-select) {
+      select:not([multiple]):not([size]),
+      select:not([multiple]):not([size])::picker(select) { appearance: base-select; }
+      /* base-select drops the field background; keep what selects had before. */
+      :where(select:not([multiple]):not([size])) { background-color: Field; color: FieldText; }
+      select:not([multiple]):not([size]) { cursor: pointer; align-items: center; gap: 8px; }
+      select::picker-icon {
+        content: ''; width: 6px; height: 6px; margin-inline: auto 4px; rotate: none; flex-shrink: 0;
+        border: solid var(--muted); border-width: 0 1.6px 1.6px 0;
+        transform: translateY(-2px) rotate(45deg); transition: transform .15s var(--ease);
+      }
+      select:open::picker-icon { transform: translateY(2px) rotate(225deg); }
+      select:not([multiple]):not([size])::picker(select) {
+        margin-block: 6px; padding: 4px; max-height: min(320px, 50vh);
+        background: var(--input-focus-bg); color: var(--text);
+        border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow);
+        opacity: 1; transition: opacity .14s, translate .14s, overlay .14s allow-discrete, display .14s allow-discrete;
+      }
+      @starting-style {
+        select:not([multiple]):not([size]):open::picker(select) { opacity: 0; translate: 0 -4px; }
+      }
+      select option {
+        padding: 7px 10px; border-radius: 8px; gap: 8px;
+        font-size: 13px; cursor: pointer; transition: background .12s, color .12s;
+      }
+      select option:hover,
+      select option:focus-visible { outline: none; background: color-mix(in srgb, var(--primary) 10%, transparent); color: var(--primary); }
+      select option:checked { font-weight: 600; color: var(--primary); }
+      select option::checkmark { color: var(--primary); font-weight: 700; }
+      select option[value=""] { color: var(--muted); }
+      select option:disabled { opacity: .45; cursor: default; }
+      select optgroup { padding-top: 4px; }
+      select optgroup legend { padding: 6px 10px 2px; font-size: 11px; font-weight: 700; color: var(--muted); }
+    }
+
     .topbar-right { margin-inline-start: auto; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
     .btn {
@@ -1478,6 +1516,22 @@
     .ts-row-fields > div { flex: 1; min-width: 160px; }
     .ts-row-fields label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
     .ts-row-fields input { width: 100%; }
+    /* The row styles its own fields: in Task Detail it sits outside a
+       .form-group, so nothing else would. */
+    .ts-row .ts-row-head select,
+    .ts-row .ts-row-fields input {
+      min-height: 36px; padding: 7px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+      background: var(--input-focus-bg); color: var(--text); font: inherit; font-size: 13px; outline: none;
+    }
+    .ts-row .ts-row-head select { font-weight: 600; }
+    .ts-row .ts-row-fields input { text-align: start; }
+    .ts-row .ts-row-head select:hover,
+    .ts-row .ts-row-fields input:hover { border-color: color-mix(in srgb, var(--primary) 35%, var(--border)); }
+    .ts-row .ts-row-head select:focus,
+    .ts-row .ts-row-fields input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
+    .ts-row .ts-row-fields input::placeholder { color: var(--muted); opacity: .7; }
+    .ts-row-head .row-btn:hover { background: color-mix(in srgb, var(--bad) 12%, transparent); border-color: color-mix(in srgb, var(--bad) 28%, transparent); color: var(--bad); }
+    .ts-row-fields label { font-weight: 600; }
     .ts-empty-hint { font-size: 12.5px; color: var(--muted); margin-bottom: 8px; }
     .ts-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary-strong); font-weight: 600; }
     .ts-badge-more { color: var(--muted); font-weight: 500; }

@@ -633,7 +633,7 @@ function renderTaskSourceFields(fieldsEl, type, values = {}) {
     const refWrap = document.createElement('div');
     refWrap.innerHTML = `<label>${esc(def.refLabel)}</label>`;
     const refInput = document.createElement('input');
-    refInput.type = 'text'; refInput.className = 'ts-ref-input';
+    refInput.type = 'text'; refInput.className = 'ts-ref-input'; refInput.dir = 'auto';
     refInput.placeholder = def.refPlaceholder || '';
     refInput.value = values.ref || '';
     refWrap.appendChild(refInput);
@@ -644,7 +644,7 @@ function renderTaskSourceFields(fieldsEl, type, values = {}) {
     const urlWrap = document.createElement('div');
     urlWrap.innerHTML = `<label>${esc(def.urlLabel || 'URL')}</label>`;
     const urlInput = document.createElement('input');
-    urlInput.type = 'text'; urlInput.className = 'ts-url-input';
+    urlInput.type = 'text'; urlInput.className = 'ts-url-input'; urlInput.dir = 'ltr';
     urlInput.placeholder = 'https://...';
     urlInput.value = values.url || '';
     urlWrap.appendChild(urlInput);
@@ -656,7 +656,7 @@ function renderTaskSourceFields(fieldsEl, type, values = {}) {
     wrap.innerHTML = `<label>${esc(m.label)}</label>`;
     const inp = document.createElement('input');
     inp.type = m.type || 'text';
-    inp.className = 'ts-meta-input';
+    inp.className = 'ts-meta-input'; inp.dir = 'auto';
     inp.dataset.metaKey = m.key;
     inp.value = (values.meta && values.meta[m.key]) || '';
     wrap.appendChild(inp);

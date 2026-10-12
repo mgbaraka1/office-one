@@ -2023,6 +2023,18 @@ function buildOvertimeReportHTML(days, monthLabel, name) {
   const printedOn = new Date().toLocaleDateString(rptLocale(), { year: 'numeric', month: 'long', day: 'numeric' });
   const dayPhrase = rptLanguage() === 'ar' ? `${dayCount} يوم` : `${dayCount} day${dayCount === 1 ? '' : 's'}`;
 
+  // The amount, from the salary set in Settings → Users — the same
+  // (salary ÷ divisor) × multiplier rate as db.js's getAnalytics. Left out
+  // entirely while no salary is set. Worked from the printed hours and rate so
+  // the "hours × rate" line adds up exactly for whoever checks it.
+  const u = _currentUser || {};
+  const otHourlyMinor = u.salaryMinor > 0 ? Math.round((u.salaryMinor / (u.otRateDivisor || 240)) * (u.otRateMultiplier || 1.5)) : 0;
+  const showAmount = otHourlyMinor > 0 && totalMin > 0;
+  const money = minor => (Number(minor || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    + (u.salaryCurrency ? ' ' + u.salaryCurrency : '');
+  const amountStr = money(Math.round(Number(totalHrs) * otHourlyMinor));
+  const rateStr = money(otHourlyMinor);
+
   const body = otRows.length ? `
       ${rowsHTML}
       </tbody>
@@ -2031,7 +2043,11 @@ function buildOvertimeReportHTML(days, monthLabel, name) {
           <td colspan="6" style="text-align:right;font-size:10px;color:#666;text-transform:uppercase;letter-spacing:.4px">${esc(rptText('Total Over-Time'))}</td>
           <td style="text-align:right;font-weight:700">${totalMin}</td>
           <td style="text-align:right;font-weight:700">${totalHrs}</td>
-        </tr>
+        </tr>${showAmount ? `
+        <tr class="rpt-totals">
+          <td colspan="6" style="text-align:right;font-size:10px;color:#666;text-transform:uppercase;letter-spacing:.4px">${esc(rptText('Over-Time Amount'))} <span style="text-transform:none;letter-spacing:0">(${esc(totalHrs)} × ${esc(rateStr)})</span></td>
+          <td colspan="2" style="text-align:right;font-weight:800;color:#b91c1c;white-space:nowrap">${esc(amountStr)}</td>
+        </tr>` : ''}
       </tfoot>` : `
       <tr><td colspan="8" style="text-align:center;color:#999;padding:18px">${esc(rptText('No Over-Time recorded in {month}.', { month: monthLabel }))}</td></tr>
       </tbody>`;
@@ -2050,9 +2066,11 @@ function buildOvertimeReportHTML(days, monthLabel, name) {
     <p style="font-size:12px;color:#333;margin:0 0 14px;line-height:1.6">
       ${esc(rptText('Kindly find below the Over-Time hours logged during {month}, submitted for your review and approval.', { month: monthLabel }))}
       ${esc(rptText('The total Over-Time for the period is {hours} across {dayPhrase}.', { hours: rptHours(totalHrs), dayPhrase }))}
+      ${showAmount ? esc(rptText('At {rate} per hour, the Over-Time amount is {amount}.', { rate: rateStr, amount: amountStr })) : ''}
     </p>
     ${rptSummaryCards([
       { label: 'Total Over-Time', value: rptHours(totalHrs), color: totalMin > 0 ? '#b91c1c' : '#111' },
+      ...(showAmount ? [{ label: 'Over-Time Amount', value: esc(amountStr), color: '#b91c1c' }] : []),
       { label: 'Total Minutes',   value: totalMin },
       { label: 'Entries',         value: otRows.length },
       { label: 'Days',            value: dayCount },

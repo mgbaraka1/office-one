@@ -149,6 +149,7 @@ function login(username, password) {
       id: user.id, username: user.username, isAdmin: !!user.is_admin,
       nameEn: names.nameEn, nameAr: names.nameAr,
       mustChangePassword: !!user.must_change_password,
+      ...salaryToApi(user.id),
     },
   };
 }
@@ -161,7 +162,17 @@ function logout() {
 function currentUser() {
   if (!session) return null;
   const names = db.getUserDisplayName(session.userId);
-  return { id: session.userId, username: session.username, isAdmin: !!session.isAdmin, nameEn: names.nameEn, nameAr: names.nameAr };
+  return { id: session.userId, username: session.username, isAdmin: !!session.isAdmin, nameEn: names.nameEn, nameAr: names.nameAr, ...salaryToApi(session.userId) };
+}
+
+// The salary fields every user payload carries, so the renderer's
+// _currentUser has them whichever path set it (login, or a Settings save).
+function salaryToApi(userId) {
+  const salary = db.getUserSalarySettings(Number(userId));
+  return {
+    salaryMinor: salary.salaryMinor, salaryCurrency: salary.currencyCode,
+    otRateDivisor: salary.otRateDivisor, otRateMultiplier: salary.otRateMultiplier,
+  };
 }
 
 // The admin concept was removed: any authenticated account may perform any
@@ -175,7 +186,6 @@ function currentUser() {
 function userToApi(user) {
   if (!user) return null;
   const names = db.getUserDisplayName(Number(user.id));
-  const salary = db.getUserSalarySettings(Number(user.id));
   return {
     id: Number(user.id), username: user.username,
     nameEn: names.nameEn, nameAr: names.nameAr,
@@ -183,8 +193,7 @@ function userToApi(user) {
     isActive: !!(user.isActive ?? user.is_active),
     createdAt: user.createdAt ?? user.created_at ?? '',
     mustChangePassword: !!(user.mustChangePassword ?? user.must_change_password),
-    salaryMinor: salary.salaryMinor, salaryCurrency: salary.currencyCode,
-    otRateDivisor: salary.otRateDivisor, otRateMultiplier: salary.otRateMultiplier,
+    ...salaryToApi(user.id),
   };
 }
 

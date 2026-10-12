@@ -381,6 +381,8 @@
     'No Over-Time recorded in {month}.': 'لا يوجد وقت إضافي مسجل في {month}.',
     'Kindly find below the Over-Time hours logged during {month}, submitted for your review and approval.': 'يرجى الاطلاع أدناه على ساعات الوقت الإضافي المسجلة خلال {month} والمقدمة لمراجعتكم واعتمادكم.',
     'The total Over-Time for the period is {hours} across {dayPhrase}.': 'إجمالي الوقت الإضافي للفترة هو {hours} موزعة على {dayPhrase}.',
+    'At {rate} per hour, the Over-Time amount is {amount}.': 'وبسعر {rate} للساعة، يبلغ مبلغ الوقت الإضافي {amount}.',
+    'Over-Time Amount': 'مبلغ الوقت الإضافي',
     'Subscriptions Report': 'تقرير الاشتراكات', 'Renewing ≤30d': 'تتجدد خلال ≤30 يوماً', 'Overdue': 'متأخرة',
     'No subscriptions recorded.': 'لا توجد اشتراكات مسجلة.', 'Recurring Spend by Currency': 'الإنفاق المتكرر حسب العملة',
     'Monthly': 'شهري', 'Yearly': 'سنوي', 'Biggest costs': 'الأعلى تكلفة', 'Previous month': 'الشهر السابق', 'Next month': 'الشهر التالي', 'From month': 'من شهر', 'To month': 'إلى شهر', 'No subscription costs recorded.': 'لا توجد تكاليف اشتراكات مسجلة.',
