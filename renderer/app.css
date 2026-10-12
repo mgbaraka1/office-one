@@ -1372,6 +1372,7 @@
     .cl-server-identity .cl-item-muted { color: var(--muted); font-weight: 400; }
     .cl-server-identity .cl-srv-env-production { color: var(--good); }
     .cl-server-identity .cl-srv-env-test { color: var(--warn); }
+    .cl-server-identity .cl-srv-env-both { color: var(--primary); }
     /* Server identity: the three parts read as one "System - Role - Environment"
        line. The compound selector is load-bearing — it has to out-specify
        .form-row's `display: grid` (1fr 1fr), which is declared later in this

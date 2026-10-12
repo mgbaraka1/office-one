@@ -5267,9 +5267,11 @@ const SERVER_IDENTITY_INCOMPLETE = 'A server needs a System, a Role and an Envir
 
 // The triple as one human string — a server has no name of its own, so this is
 // what names it wherever one is needed (the records search). Mirrors the
-// renderer's own serverIdentityText()/srvEnvLabel(); TEST reads "UAT".
+// renderer's own serverIdentityText()/srvEnvLabel(); TEST reads "UAT", BOTH
+// "Production + UAT".
+const SERVER_ENV_LABELS = { PRODUCTION: 'Production', TEST: 'UAT', BOTH: 'Production + UAT' };
 function serverIdentityLabel(r) {
-  const env = r.environment === 'PRODUCTION' ? 'Production' : (r.environment === 'TEST' ? 'UAT' : r.environment);
+  const env = SERVER_ENV_LABELS[r.environment] || r.environment;
   return [lkLabel(r.system_id) || '(no system)', lkLabel(r.role_id) || '(no role)', env || '(no environment)'].join(' - ');
 }
 

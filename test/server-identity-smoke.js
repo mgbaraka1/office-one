@@ -280,6 +280,21 @@ systemName: sysA.label, role: 'APPLICATIONS', environment: 'PRODUCTION',
       `created=#${sameTripleOtherClient.id || '-'} (${coB.label})`);
   }
 
+  // ── Gate 9b — 'BOTH' (Production + UAT) is an environment of its own ────
+  {
+    // sysC has nothing under coA yet; give it a Production server first.
+    db.createClientServer(userId, coA.id, { systemName: sysC.label, role: 'SERVICES', environment: 'PRODUCTION' });
+    const both = db.createClientServer(userId, coA.id, { systemName: sysC.label, role: 'SERVICES', environment: 'BOTH' });
+    const dupe = db.createClientServer(userId, coA.id, { systemName: sysC.label, role: 'SERVICES', environment: 'BOTH' });
+    // The clients list names a server by its triple — BOTH must read as words.
+    const rec = db.listClients(userId, true).find(c => c.id === coA.id)
+      .records.find(r => r.type === 'servers' && r.id === both.id);
+    record('Gate 9b: a Production + UAT (BOTH) server sits beside a Production one with the same System/Role, a second BOTH is refused, and it is named "Production + UAT"',
+      !!both.id && both.environment === 'BOTH' && dupe.ok === false &&
+      !!rec && rec.name.endsWith(' - Production + UAT'),
+      `both=#${both.id || '-'} env=${both.environment} dupe=${dupe.ok} name="${rec ? rec.name : '(none)'}"`);
+  }
+
   // ── Gate 10 — bulk group moves can't smuggle in a collision ─────────────
   {
     // Two servers sharing Role+Environment but sitting under different Systems:

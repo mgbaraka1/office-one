@@ -97,7 +97,7 @@
     'Client / Project work': 'عمل العميل / المشروع', 'Open Client': 'فتح العميل', 'Add System': 'إضافة نظام',
     'Add Server': 'إضافة خادم', 'Add Internal System': 'إضافة نظام داخلي', 'Add Connection': 'إضافة اتصال',
     'Add Auth Connection': 'إضافة اتصال مصادقة', 'Connection Name': 'اسم الاتصال', 'Environment': 'البيئة',
-    'Production': 'الإنتاج', 'UAT': 'اختبار القبول', 'IP Address': 'عنوان IP', 'Hostname': 'اسم المضيف',
+    'Production': 'الإنتاج', 'UAT': 'اختبار القبول', 'Production + UAT': 'الإنتاج + اختبار القبول', 'IP Address': 'عنوان IP', 'Hostname': 'اسم المضيف',
     'Port': 'المنفذ', 'Operating System': 'نظام التشغيل', 'Role': 'الدور',
     'Endpoint / URL': 'نقطة الاتصال / الرابط', 'URL': 'الرابط', 'Expiry Date (optional)': 'تاريخ الانتهاء (اختياري)',
     'Credential Location (optional)': 'موقع بيانات الدخول (اختياري)', 'Secret Key (optional)': 'المفتاح السري (اختياري)',

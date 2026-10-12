@@ -429,7 +429,7 @@
  * @property {number} id
  * @property {number} companyId  The COMPANY lookup_codes id this belongs to.
  * @property {string} host       Free text IP/hostname.
- * @property {string} environment 'PRODUCTION' | 'TEST' (hardcoded, not lookup-driven). Identity part 3. May also be a 'nullN' placeholder on legacy data — see `role` below.
+ * @property {string} environment 'PRODUCTION' | 'TEST' | 'BOTH' (hardcoded, not lookup-driven; BOTH is one server serving Production and UAT, read "Production + UAT"). Identity part 3. May also be a 'nullN' placeholder on legacy data — see `role` below.
  * @property {string} os         Free text (e.g. 'Ubuntu 22.04').
  * @property {string} hostname   Free text — a separate hostname distinct from `host` (the IP). Since migration 022.
  * @property {string} accessMethod 'RDP' | 'PAM', since migration 072 (default 'RDP'; anything else sent is stored as 'RDP'). A PAM server's username/password are kept but not shown.

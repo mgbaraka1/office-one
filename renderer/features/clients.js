@@ -1301,7 +1301,7 @@ function clUpdatedLabel(record) {
 // non-empty System name into one entry per (systemName, environment) pair —
 // e.g. "RabbitMQ" gets a Production page and a Test/UAT page. Items with no
 // System name are returned in `ungrouped` and render flat as before.
-const SYSTEM_ENV_ORDER = ['PRODUCTION', 'TEST', ''];
+const SYSTEM_ENV_ORDER = ['PRODUCTION', 'TEST', 'BOTH', ''];
 function groupBySystemName(items) {
   const groups = new Map();
   const ungrouped = [];
@@ -1727,14 +1727,17 @@ function buildClientVpnCard(v) {
   return card;
 }
 
-// 'PRODUCTION'|'TEST' -> their display labels; anything else is one of migration
-// 038's nullN environment placeholders and shows as-is.
+// 'PRODUCTION'|'TEST'|'BOTH' -> their display labels; anything else is one of
+// migration 038's nullN environment placeholders and shows as-is. 'BOTH' is one
+// server serving Production and UAT alike — a value of its own, so it never
+// clashes with a separate Production or UAT server under the same System/Role.
 function srvEnvLabel(env) {
   if (env === 'PRODUCTION') return 'Production';
   if (env === 'TEST') return 'UAT';
+  if (env === 'BOTH') return 'Production + UAT';
   return env || '';
 }
-function srvEnvIsKnown(env) { return env === 'PRODUCTION' || env === 'TEST'; }
+function srvEnvIsKnown(env) { return env === 'PRODUCTION' || env === 'TEST' || env === 'BOTH'; }
 
 // Plain-text form of a server's identity — for anywhere that needs a name for
 // the record (history modal title, group checklist, toasts). A server has no
@@ -1919,7 +1922,9 @@ function onDatabaseServerPicked() {
   if (clientDatabaseEditId != null) return;
   const id = Number(document.getElementById('cdb-server').value);
   const server = (currentClient?.servers || []).find(s => s.id === id);
-  if (server && srvEnvIsKnown(server.environment)) setDatabaseEnvironment(server.environment);
+  // A database is Production or UAT on its own, so a shared ('BOTH') server
+  // leaves the current choice alone rather than picking one for it.
+  if (server && (server.environment === 'PRODUCTION' || server.environment === 'TEST')) setDatabaseEnvironment(server.environment);
 }
 function findClientDatabase(id) {
   return (currentClient?.servers || []).flatMap(s => s.databases || []).find(d => d.id === id);
@@ -2124,13 +2129,13 @@ function fillIdentitySelect(selectId, category, valueKey, current, blankText, ki
   sel.value = cur;
 }
 
-// The Environment select is a fixed Production/UAT pair, so a legacy row carrying
-// a nullN placeholder environment needs its value added back the same way.
+// The Environment select is a fixed Production/UAT/both set, so a legacy row
+// carrying a nullN placeholder environment needs its value added back the same way.
 function fillServerEnvSelect(s) {
   const sel = document.getElementById('cs-environment');
   sel.querySelectorAll('option[data-placeholder]').forEach(o => o.remove());
   const env = s ? (s.environment || '') : '';
-  if (env && env !== 'PRODUCTION' && env !== 'TEST') {
+  if (env && !srvEnvIsKnown(env)) {
     const opt = document.createElement('option');
     opt.value = env;
     opt.dataset.placeholder = '1';
