@@ -1,5 +1,57 @@
 [
   {
+    "version": "8.20.0",
+    "date": "2026-10-12",
+    "kind": "feat",
+    "title": {
+      "en": "Maps and wheels: see how clients, systems, offers and knowledge connect",
+      "ar": "خرائط وعجلات: شاهد كيف يرتبط العملاء والأنظمة والعروض والمعرفة"
+    },
+    "notes": [
+      {
+        "en": "Clients: switch to Systems web to see which client uses which system. Thicker lines mean more linked servers, projects, tasks and articles.",
+        "ar": "العملاء: انتقل إلى شبكة الأنظمة لترى أي عميل يستخدم أي نظام. الخط الأسمك يعني خوادم ومشاريع ومهام ومقالات مرتبطة أكثر."
+      },
+      {
+        "en": "A client's Servers section can be shown as a map: client, system, server and database as a tree, coloured by environment.",
+        "ar": "يمكن عرض قسم الخوادم لدى العميل كخريطة: العميل والنظام والخادم وقاعدة البيانات كشجرة، ملونة حسب البيئة."
+      },
+      {
+        "en": "Offers & CRs has a Pipeline view, one column per stage. Drag a card to another column to move it to that stage.",
+        "ar": "أصبح لصفحة العروض وطلبات التغيير عرض مسار، عمود لكل مرحلة. اسحب بطاقة إلى عمود آخر لنقلها إلى تلك المرحلة."
+      },
+      {
+        "en": "Knowledge Hub: switch to Wheel to see every article linked to its clients and systems. Articles linked to none are listed under it.",
+        "ar": "مركز المعرفة: انتقل إلى العجلة لترى كل مقالة مرتبطة بعملائها وأنظمتها. والمقالات غير المرتبطة بأي منها مذكورة أسفلها."
+      },
+      {
+        "en": "Settings has a new Catalog Map: every catalog entry sized by how much it is used, with unused entries and look-alike names marked for cleanup.",
+        "ar": "في الإعدادات خريطة قوائم جديدة: كل عنصر بحجم استخدامه، مع تمييز العناصر غير المستخدمة والأسماء المتشابهة لتنظيفها."
+      },
+      {
+        "en": "The Offers & CRs table sorts by any column, and client cards sort A to Z or Z to A.",
+        "ar": "يمكن ترتيب جدول العروض وطلبات التغيير حسب أي عمود، وترتيب بطاقات العملاء من أ إلى ي أو العكس."
+      },
+      {
+        "en": "A server can be Production + UAT, one machine serving both.",
+        "ar": "يمكن أن يكون الخادم للإنتاج + UAT، جهاز واحد يخدم الاثنين."
+      },
+      {
+        "en": "A client task's project can be changed from Task Detail, with undo.",
+        "ar": "يمكن تغيير مشروع مهمة العميل من تفاصيل المهمة، مع إمكانية التراجع."
+      },
+      {
+        "en": "The Over-Time report shows the amount when a salary is set, and dropdowns match the app's style.",
+        "ar": "يعرض تقرير الوقت الإضافي المبلغ عند تحديد الراتب، وأصبحت القوائم المنسدلة بنمط التطبيق."
+      }
+    ],
+    "technical": [
+      "New read-only clients:system-web query, scoped to the signed-in login; loadLookups now returns each entry's use count.",
+      "No schema change: the database stays at migration 073.",
+      "Session-count rows are translated whatever their spacing."
+    ]
+  },
+  {
     "version": "8.19.0",
     "date": "2026-10-11",
     "kind": "feat",
