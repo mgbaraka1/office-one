@@ -607,6 +607,8 @@
     'New Client': 'عميل جديد', '+ New Client': '+ عميل جديد',
     'Create Client': 'إنشاء عميل',
     'Show archived': 'إظهار المؤرشفة', 'Arrange': 'ترتيب',
+    'A–Z': 'أ–ي', 'Z–A': 'ي–أ',
+    'Order the cards by name — the saved order stays as it is': 'ترتيب البطاقات حسب الاسم — يبقى الترتيب المحفوظ كما هو',
     'Archived': 'مؤرشف', 'Restore': 'استعادة',
     'Archive Client': 'أرشفة العميل', 'Restore Client': 'استعادة العميل',
     'Archive this client?': 'أرشفة هذا العميل؟',

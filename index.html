@@ -1345,6 +1345,11 @@
          this is the one place it is created, archived and reordered. -->
     <div class="cl-list-actions">
       <button type="button" class="btn" id="clients-archived-btn" data-onclick="toggleClientsShowArchived()"><span data-ic="eye"></span>Show archived</button>
+      <div class="seg-ctl" id="clients-sort-ctl" title="Order the cards by name — the saved order stays as it is">
+        <button type="button" class="seg-btn active" data-sort="" data-onclick="setClientsSort('')">Custom</button>
+        <button type="button" class="seg-btn" data-sort="asc" data-onclick="setClientsSort('asc')">A–Z</button>
+        <button type="button" class="seg-btn" data-sort="desc" data-onclick="setClientsSort('desc')">Z–A</button>
+      </div>
       <button type="button" class="btn" id="clients-arrange-btn" data-onclick="toggleClientsArrange()"><span data-ic="rows-3"></span>Arrange</button>
       <button type="button" class="btn primary" data-onclick="openClientCreateModal()"><span data-ic="plus"></span>New Client</button>
     </div>

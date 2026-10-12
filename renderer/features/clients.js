@@ -16,6 +16,7 @@ let clientsLoaded = false;
 let clientRecordFilter = '';  // matches within each client's own records (auth/servers/internal)
 let clientsShowArchived = false;  // "Show archived" — includes soft-disabled (is_active = 0) clients
 let clientsArrangeMode = false;   // "Arrange" — reveals per-card move up/down controls
+let clientsSort = '';             // '' = the saved (Arrange) order, 'asc' / 'desc' = by name; view only
 let currentClient = null;       // Client (from clients:get) shown in the detail view
 let clientVpnEditId = null;      // null = create mode in the Auth modal
 let clientServerEditId = null;   // null = create mode in the Server modal
@@ -97,7 +98,30 @@ function syncClientsToolbarState() {
   if (arrangeBtn) {
     arrangeBtn.classList.toggle('active', clientsArrangeMode);
     arrangeBtn.setAttribute('aria-pressed', String(clientsArrangeMode));
+    // Moving a card only makes sense in the saved order it moves within.
+    arrangeBtn.disabled = !!clientsSort;
   }
+  document.querySelectorAll('#clients-sort-ctl .seg-btn').forEach(b => {
+    const active = (b.dataset.sort || '') === clientsSort;
+    b.classList.toggle('active', active);
+    b.setAttribute('aria-pressed', String(active));
+  });
+}
+
+// Name order is a view of the roster, not a write: the saved order (which
+// every company dropdown follows) only changes through Arrange.
+function setClientsSort(dir) {
+  clientsSort = dir || '';
+  if (clientsSort) clientsArrangeMode = false;
+  syncClientsToolbarState();
+  renderClientsList();
+}
+function clientsInViewOrder() {
+  if (!clientsSort) return clientsList;
+  const lang = rptLanguage();
+  const dir = clientsSort === 'desc' ? -1 : 1;
+  return clientsList.slice().sort((a, b) =>
+    dir * (companyDisplayName(a) || '').localeCompare(companyDisplayName(b) || '', lang, { sensitivity: 'base', numeric: true }));
 }
 
 function toggleClientsShowArchived() {
@@ -376,8 +400,13 @@ function renderClientsList() {
     grid.style.display = '';
     empty.hidden = true;
     const projCounts = clientProjectCounts();
-    clientsList.forEach((c, i) =>
-      grid.appendChild(buildClientCard(c, projCounts.get(c.id) || 0, i, clientsList.length)));
+    // Arrange's move buttons index into the saved order, so a name-sorted
+    // view passes no position and the card leaves them off.
+    const sorted = !!clientsSort;
+    clientsInViewOrder().forEach((c, i) =>
+      grid.appendChild(sorted
+        ? buildClientCard(c, projCounts.get(c.id) || 0)
+        : buildClientCard(c, projCounts.get(c.id) || 0, i, clientsList.length)));
     return;
   }
 
