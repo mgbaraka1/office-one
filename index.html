@@ -956,14 +956,14 @@
       <table id="pfm-table" class="pfm-table" style="display:none">
         <thead>
           <tr>
-            <th>Reference</th>
-            <th>Title</th>
-            <th>Client</th>
-            <th>Type</th>
-            <th>Status</th>
-            <th>Current Fees</th>
-            <th>Person</th>
-            <th>Updated</th>
+            <th data-pfm-sort="reference"><button type="button" class="pfm-sort-btn" data-onclick="setPfmSort('reference')">Reference</button></th>
+            <th data-pfm-sort="title"><button type="button" class="pfm-sort-btn" data-onclick="setPfmSort('title')">Title</button></th>
+            <th data-pfm-sort="client"><button type="button" class="pfm-sort-btn" data-onclick="setPfmSort('client')">Client</button></th>
+            <th data-pfm-sort="kind"><button type="button" class="pfm-sort-btn" data-onclick="setPfmSort('kind')">Type</button></th>
+            <th data-pfm-sort="status"><button type="button" class="pfm-sort-btn" data-onclick="setPfmSort('status')">Status</button></th>
+            <th data-pfm-sort="fees"><button type="button" class="pfm-sort-btn" data-onclick="setPfmSort('fees')">Current Fees</button></th>
+            <th data-pfm-sort="person"><button type="button" class="pfm-sort-btn" data-onclick="setPfmSort('person')">Person</button></th>
+            <th data-pfm-sort="updated"><button type="button" class="pfm-sort-btn" data-onclick="setPfmSort('updated')">Updated</button></th>
           </tr>
         </thead>
         <tbody id="pfm-tbody"></tbody>

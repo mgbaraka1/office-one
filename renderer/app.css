@@ -1143,6 +1143,17 @@
       text-align: start; font-size: var(--fs-caption); letter-spacing: var(--ls-caption); text-transform: uppercase;
       color: var(--muted); font-weight: 700; padding: 6px var(--space-3); white-space: nowrap;
     }
+    .pfm-sort-btn {
+      all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
+      font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; border-radius: 4px;
+    }
+    .pfm-sort-btn:hover { color: var(--text); }
+    .pfm-sort-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .pfm-sort-btn::after { content: '↕'; opacity: 0; font-size: 0.95em; }
+    .pfm-sort-btn:hover::after { opacity: 0.45; }
+    .pfm-table th[aria-sort] .pfm-sort-btn { color: var(--text); }
+    .pfm-table th[aria-sort="ascending"] .pfm-sort-btn::after { content: '↑'; opacity: 1; }
+    .pfm-table th[aria-sort="descending"] .pfm-sort-btn::after { content: '↓'; opacity: 1; }
     .pfm-table tbody td {
       padding: 10px var(--space-3); font-size: var(--fs-sm); color: var(--text); vertical-align: middle;
       background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);

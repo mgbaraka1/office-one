@@ -13,6 +13,7 @@ let pfmLoaded = false;
 let pfmCurrent = null;            // the item open in the detail view, or null
 let pfmMemberNames = [];
 const pfmFilter = { status: '', kind: '', companyId: '', search: '', archived: false };
+const pfmSort = { key: '', dir: 1 };   // key '' = the server's order (newest update first)
 let pfmModalEditId = null;        // null = create mode
 let pfmStageCtx = null;           // { mode: 'move' | 'edit', status }
 let pfmVersionEditId = null;      // null = new version
@@ -178,9 +179,60 @@ function renderPfmStatusChips(base) {
   codes.forEach(code => mkChip(code, pfmUserText('span', '', pfmStatusName(code)), base.filter(i => i.status === code).length));
 }
 
-// Exactly the rows the table shows (every filter, status chip included).
+// Column header click: ascending → descending → back to the default order.
+function setPfmSort(key) {
+  if (pfmSort.key !== key) { pfmSort.key = key; pfmSort.dir = 1; }
+  else if (pfmSort.dir === 1) pfmSort.dir = -1;
+  else pfmSort.key = '';
+  renderPfmList();
+}
+function renderPfmSortHeaders() {
+  document.querySelectorAll('#pfm-table th[data-pfm-sort]').forEach(th => {
+    const on = th.dataset.pfmSort === pfmSort.key;
+    if (on) th.setAttribute('aria-sort', pfmSort.dir === 1 ? 'ascending' : 'descending');
+    else th.removeAttribute('aria-sort');
+  });
+}
+// The value each column sorts by — what the row shows, not the raw field.
+// Status follows the catalog's own order, so it reads as the stage track does.
+function pfmSortValue(i, key) {
+  switch (key) {
+    case 'reference': return i.reference || '';
+    case 'title': return i.title || '';
+    case 'client': return lkLabelById('COMPANY', i.companyId) || i.company || '';
+    case 'kind': return pfmKindLabel(i.kind);
+    case 'status': {
+      const codes = pfmStatusOptions().map(o => o.code);
+      const at = codes.indexOf(pfmRowStep(i).status);
+      return at < 0 ? codes.length : at;
+    }
+    case 'fees': return i.currentVersion?.feesMinor ?? null;
+    case 'person': return pfmRowStep(i).person || '';
+    case 'updated': return i.updatedAt || '';
+    default: return '';
+  }
+}
+function pfmSortRows(rows) {
+  if (!pfmSort.key) return rows;
+  const key = pfmSort.key, dir = pfmSort.dir;
+  return rows
+    .map(i => ({ i, v: pfmSortValue(i, key) }))
+    .sort((a, b) => {
+      // Blanks always sink to the bottom, whichever way the column runs.
+      const ae = a.v === '' || a.v == null, be = b.v === '' || b.v == null;
+      if (ae || be) return ae === be ? 0 : ae ? 1 : -1;
+      const c = typeof a.v === 'number' && typeof b.v === 'number'
+        ? a.v - b.v
+        : String(a.v).localeCompare(String(b.v), undefined, { numeric: true, sensitivity: 'base' });
+      return c * dir;
+    })
+    .map(x => x.i);
+}
+
+// Exactly the rows the table shows, in the order it shows them (every filter,
+// status chip included) — the Excel export follows the same order.
 function pfmVisibleRows(base = pfmBaseRows()) {
-  return pfmFilter.status ? base.filter(i => i.status === pfmFilter.status) : base;
+  return pfmSortRows(pfmFilter.status ? base.filter(i => i.status === pfmFilter.status) : base);
 }
 
 function renderPfmList() {
@@ -190,6 +242,7 @@ function renderPfmList() {
   renderPfmStatusChips(base);
   const rows = pfmVisibleRows(base);
   renderPfmExportMenu(rows.length);
+  renderPfmSortHeaders();
 
   const table = document.getElementById('pfm-table');
   const body = document.getElementById('pfm-tbody');
