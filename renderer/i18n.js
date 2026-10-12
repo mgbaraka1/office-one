@@ -795,6 +795,14 @@
     'Clients are archived, not deleted': 'العملاء يُؤرشفون ولا يُحذفون', 'Can be deleted in Settings': 'يمكن حذفه من الإعدادات',
     'Looks like': 'يشبه', '1 use': 'استخدام واحد', '{n} uses': '{n} استخدامات',
     '{n} entries': '{n} عناصر', '{n} unused': '{n} غير مستخدمة', '{n} look-alike': '{n} متشابهة',
+    // Knowledge wheel: articles linked to clients and systems.
+    'Wheel': 'عجلة', 'Show knowledge as': 'عرض المعرفة كـ',
+    'Hover a name to trace its links. Click an article to open it.': 'مرّر فوق اسم لتتبّع روابطه. انقر مقالة لفتحها.',
+    'Knowledge wheel: articles and the clients and systems they are linked to': 'عجلة المعرفة: المقالات والعملاء والأنظمة المرتبطة بها',
+    'Client or system': 'عميل أو نظام', 'Not linked to a client or system': 'غير مرتبط بعميل أو نظام',
+    'Not linked to a client or system yet:': 'غير مرتبط بعميل أو نظام بعد:',
+    'Not linked to a client or system yet': 'غير مرتبط بعميل أو نظام بعد',
+    '1 article': 'مقالة واحدة', '{n} articles': '{n} مقالات',
     // Server map: the Servers section drawn as a tree.
     'List': 'قائمة', 'Map': 'خريطة', 'Show servers as': 'عرض الخوادم كـ',
     'Environment differs from its server': 'البيئة تختلف عن بيئة الخادم',

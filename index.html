@@ -782,9 +782,10 @@
   <div id="kh-list-view" class="kh-shell">
     <aside class="kh-filters" id="kh-filters"></aside>
     <div class="kh-main">
-      <div class="kh-summary"><span id="kh-result-count" role="status"></span><div class="kh-summary-actions"><span id="kh-zip-slot"></span><label><span class="sr-only">Sort knowledge items</span><select id="kh-sort" class="kh-sort" aria-label="Sort knowledge items" data-onchange="renderKnowledgeList()"><option value="updated">Recently updated</option><option value="title">Title</option><option value="documents">Most documents</option><option value="created">Recently created</option></select></label></div></div>
+      <div class="kh-summary"><span id="kh-result-count" role="status"></span><div class="kh-summary-actions"><div class="seg-ctl" id="kh-view-ctl" role="group" aria-label="Show knowledge as"><button type="button" class="seg-btn active" data-view="list" aria-pressed="true" data-onclick="setKnowledgeView('list')"><span data-ic="rows-3"></span>List</button><button type="button" class="seg-btn" data-view="wheel" aria-pressed="false" data-onclick="setKnowledgeView('wheel')"><span data-ic="share-2"></span>Wheel</button></div><span id="kh-zip-slot"></span><label><span class="sr-only">Sort knowledge items</span><select id="kh-sort" class="kh-sort" aria-label="Sort knowledge items" data-onchange="renderKnowledgeList()"><option value="updated">Recently updated</option><option value="title">Title</option><option value="documents">Most documents</option><option value="created">Recently created</option></select></label></div></div>
       <div id="kh-active-filters" class="kh-active-filters" aria-label="Active filters"></div>
       <div id="kh-list" class="kh-list"></div>
+      <div id="kh-wheel" class="kh-wheel" hidden></div>
       <div id="kh-empty" class="kh-empty" hidden><div class="kh-empty-inner"><span data-ic="book-open"></span><h3 id="kh-empty-title">No knowledge found</h3><p id="kh-empty-copy">Create a manual, integration guide, procedure, or troubleshooting note.</p><button id="kh-empty-clear" class="btn" data-onclick="resetKnowledgeFilters()" hidden>Clear filters</button></div></div>
     </div>
     <section id="kh-detail-view" class="kh-panel" aria-label="Knowledge item" hidden></section>
@@ -2689,6 +2690,7 @@
 <script src="renderer/vendor/dompurify/purify.min.js"></script>
 <script src="renderer/features/knowledge-sanitize.js"></script>
 <script src="renderer/features/knowledge.js"></script>
+<script src="renderer/features/knowledge-wheel.js"></script>
 <script src="renderer/features/company-documents.js"></script>
 <script src="renderer/features/pfm.js"></script>
 <script src="renderer/features/outsource.js"></script>

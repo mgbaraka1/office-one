@@ -7,6 +7,7 @@ let knowledgeDocumentItemId = null, knowledgeEditorFile = null, knowledgeDocumen
 let knowledgePendingDraft = null, knowledgeEditorStatus = 'PUBLISHED';
 let khCompaniesPicker = null, khSystemsPicker = null;
 let knowledgeUiRestored = false, knowledgeListFocus = null, knowledgeDropReady = false, knowledgeDragDepth = 0;
+let knowledgeView = 'list';   // list | wheel (knowledge-wheel.js)
 
 function knowledgeDocumentCount(item) { return Number(item.documentCount ?? item.documents?.length ?? 0); }
 function knowledgeStatusLabel(status) { return status === 'PUBLISHED' ? 'Ready' : status === 'ARCHIVED' ? 'Archived' : 'Draft'; }
@@ -26,6 +27,7 @@ function initKnowledgeModule() {
     knowledgeFilterSections = Object.assign({}, saved.sections || {});
     document.getElementById('kh-search').value = saved.query || '';
     document.getElementById('kh-sort').value = ['updated', 'title', 'documents', 'created'].includes(saved.sort) ? saved.sort : 'updated';
+    knowledgeView = saved.view === 'wheel' ? 'wheel' : 'list';
     knowledgeUiRestored = true;
   }
   setupKnowledgeFileDrop();
@@ -460,10 +462,16 @@ function renderKnowledgeList() {
     document.getElementById('kh-empty-copy').textContent = hasQuery ? 'Try fewer words, a document version, or a client or system name.' : filtered ? 'Remove a filter to broaden this view.' : 'Drop a file here, or click New item.';
     document.getElementById('kh-empty-clear').hidden = !hasQuery && !filtered;
   }
-  shown.forEach(item => list.appendChild(buildKnowledgeRow(item, q, main => { knowledgeListFocus = main; openKnowledgeDetail(item.id); })));
+  syncKnowledgeViewCtl();
+  const wheel = document.getElementById('kh-wheel');
+  const asWheel = knowledgeView === 'wheel' && shown.length > 0;
+  list.hidden = asWheel; wheel.hidden = !asWheel;
+  document.getElementById('kh-sort').closest('label').hidden = knowledgeView === 'wheel';
+  if (asWheel) drawKnowledgeWheel(wheel, shown);
+  else shown.forEach(item => list.appendChild(buildKnowledgeRow(item, q, main => { knowledgeListFocus = main; openKnowledgeDetail(item.id); })));
   renderKnowledgeZipButton(shown, documentCount);
   uiState.filters ||= {};
-  uiState.filters.knowledge = { filters: [...knowledgeFilters], query: q, sort, sections: knowledgeFilterSections };
+  uiState.filters.knowledge = { filters: [...knowledgeFilters], query: q, sort, sections: knowledgeFilterSections, view: knowledgeView };
   saveUiStateDebounced();
 }
 // "Download ZIP ▾" over the items the list currently shows: the latest version
