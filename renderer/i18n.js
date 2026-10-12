@@ -787,6 +787,8 @@
   // Tasks, sessions, projects and project documents — all built at runtime.
   Object.assign(ar, {
     'Add Session': 'إضافة جلسة', 'Edit sources': 'تعديل المصادر', 'Add Source': 'إضافة مصدر',
+    'Change project': 'تغيير المشروع', 'Project changed': 'تم تغيير المشروع',
+    'Could not change the project': 'تعذر تغيير المشروع', 'Could not restore the project': 'تعذرت استعادة المشروع',
     'Enter a whole number from 1 to 1440.': 'أدخل عدداً صحيحاً من 1 إلى 1440.',
     'Session moved to a different task': 'تم نقل الجلسة إلى مهمة أخرى', 'Session updated': 'تم تحديث الجلسة',
     'Session deleted': 'تم حذف الجلسة', 'Session deleted (task removed)': 'تم حذف الجلسة (وأُزيلت المهمة)',

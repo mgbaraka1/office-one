@@ -479,14 +479,23 @@ function renderTaskDetail(t) {
   sourcesField.appendChild(sourcesVal);
   grid.appendChild(field('Company', companyDisplayName(t.company)));
   grid.appendChild(field('System', lkLabel('SYSTEM', t.system)));
-  if (t.projectId != null) {
-    const tag = projectRowTag(t.projectId);
-    grid.appendChild(field('Project', tag || projectNameById(t.projectId)));
-  } else if (t.departmentId != null) {
-    const tag = departmentRowTag(t.departmentId);
+  if (t.kind === 'INTERNAL') {
+    const tag = t.departmentId != null ? departmentRowTag(t.departmentId) : null;
     grid.appendChild(field('Department', tag || t.department));
   } else {
-    grid.appendChild(field('Project', null));
+    // A client task's project can be corrected in place (a task logged
+    // against the wrong project); the head mirrors Sources' "Edit sources".
+    const projectField = field('Project', t.projectId != null ? (projectRowTag(t.projectId) || projectNameById(t.projectId)) : null);
+    const label = projectField.querySelector('.pj-field-label');
+    const head = pjMk('div', 'td-sources-head');
+    label.replaceWith(head);
+    head.appendChild(label);
+    const editProjectBtn = pjMk('button', 'td-merge-link');
+    editProjectBtn.type = 'button';
+    editProjectBtn.innerHTML = ic('pencil') + ' Change project';
+    editProjectBtn.addEventListener('click', () => renderTaskDetailProjectEditor(t, projectField));
+    head.appendChild(editProjectBtn);
+    grid.appendChild(projectField);
   }
   // Same YYYY-MM-DD form the sessions table below uses, in either language.
   grid.appendChild(field('Created', t.createdAt ? fmt(new Date(t.createdAt)) : null));
@@ -608,6 +617,59 @@ function renderTaskDetail(t) {
     card.appendChild(table);
     body.appendChild(card);
   }
+}
+
+// Switches Task Detail's Project field into a picker. Saves through the full
+// client-task write (updateTask), the one path allowed to change project_id;
+// the change lands in the task's history like any other field edit.
+function renderTaskDetailProjectEditor(task, host) {
+  host.innerHTML = '';
+  host.appendChild(pjMk('div', 'pj-field-label', 'Project'));
+  const sel = document.createElement('select');
+  sel.className = 'td-project-select';
+  const none = document.createElement('option');
+  none.value = ''; none.textContent = 'No project';
+  sel.appendChild(none);
+  projectFieldOptions(task.projectId)
+    .sort((a, b) => a.label.localeCompare(b.label, rptLanguage()))
+    .forEach(p => {
+      const o = document.createElement('option');
+      o.value = String(p.id); o.textContent = p.label; o.dataset.userContent = '';
+      sel.appendChild(o);
+    });
+  sel.value = task.projectId != null ? String(task.projectId) : '';
+  host.appendChild(sel);
+
+  const actions = pjMk('div', 'td-project-editor-actions');
+  const cancelBtn = pjMk('button', 'btn', 'Cancel');
+  cancelBtn.type = 'button';
+  cancelBtn.addEventListener('click', () => renderTaskDetail(task));
+  const saveBtn = pjMk('button', 'btn primary', 'Save');
+  saveBtn.type = 'button';
+  saveBtn.addEventListener('click', async () => {
+    const projectId = sel.value ? Number(sel.value) : null;
+    if (projectId === (task.projectId ?? null)) { renderTaskDetail(task); return; }
+    saveBtn.disabled = true;
+    try {
+      const res = await updateTaskInDomain(task, { projectId });
+      if (!res) throw new Error('not saved');
+    } catch {
+      saveBtn.disabled = false;
+      toast('Could not change the project');
+      return;
+    }
+    await reloadTimesheet();
+    await openTaskDetail(task.id);
+    showGenericUndo('Project changed', async () => {
+      try { await updateTaskInDomain(task, { projectId: task.projectId ?? null }); }
+      catch { toast('Could not restore the project'); return; }
+      await reloadTimesheet();
+      await openTaskDetail(task.id);
+    });
+  });
+  actions.append(cancelBtn, saveBtn);
+  host.appendChild(actions);
+  sel.focus();
 }
 
 // Switches Task Detail's read-only source badges into the shared structured
