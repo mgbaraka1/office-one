@@ -665,7 +665,8 @@
  * @property {string} [nameAr]  COMPANY only: explicit Arabic profile name.
  * @property {number} sortOrder Dropdown ordering.
  * @property {boolean} isActive Soft-disable flag.
- * @property {boolean} [inUse]     `lookups:get` only: a record or setting references this entry. */
+ * @property {boolean} [inUse]     `lookups:get` only: a record or setting references this entry.
+ * @property {number} [uses]       `lookups:get` only: how many records and settings reference it (the catalog map's size). */
 
 /**
  * The full lookup catalog returned by `lookups:get`. `categories` is keyed by the

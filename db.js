@@ -1022,10 +1022,11 @@ function setUserSalarySettings(userId, { salaryMinor, currencyCode, otRateDiviso
 function loadLookups(userId) {
   const categories = {};
   // inUse drives the Settings editor's delete button: an entry can be deleted
-  // for good only while nothing uses it (saveLookups re-checks on save).
+  // for good only while nothing uses it (saveLookups re-checks on save). uses
+  // is the same count, which sizes each entry on Settings' Catalog Map.
   const usage = lookupUsageCounts();
   for (const cat of LOOKUP_CATEGORIES) {
-    categories[cat] = getLookupsByCategory(cat, true, userId).map(o => ({ ...o, inUse: !!usage.get(o.id) }));
+    categories[cat] = getLookupsByCategory(cat, true, userId).map(o => ({ ...o, inUse: !!usage.get(o.id), uses: usage.get(o.id) || 0 }));
   }
   return {
     categories,

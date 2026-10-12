@@ -1592,7 +1592,9 @@ const LOOKUP_MERGE_CATEGORIES = Object.fromEntries(
   SETTINGS_CATALOG_TABS.filter(t => t.mergeable).map(t => [t.category, true])
 );
 
-function openMaintenanceMergeConfirm(row, dupeGroup) {
+// onDone runs after a successful merge; the duplicate list rescans by default,
+// and the catalog map passes its own redraw.
+function openMaintenanceMergeConfirm(row, dupeGroup, onDone = runMaintenanceLookupScan) {
   if (row.querySelector('.maint-confirm')) return;
   const confirmBox = pjMk('div', 'maint-confirm');
   confirmBox.style.flexWrap = 'wrap';
@@ -1618,7 +1620,7 @@ function openMaintenanceMergeConfirm(row, dupeGroup) {
     } catch { toast('Merge failed'); mergeBtn.disabled = false; mergeBtn.textContent = 'Merge Now'; return; }
     LK = await window.api.loadLookups(); // refresh the lookup cache client-side too
     toast('Merged');
-    runMaintenanceLookupScan();
+    onDone();
   });
   confirmBox.appendChild(label); confirmBox.appendChild(select); confirmBox.appendChild(mergeBtn); confirmBox.appendChild(cancelBtn);
   row.appendChild(confirmBox);
@@ -1652,6 +1654,7 @@ function switchTab(btn) {
   syncControlSemantics(document.getElementById('module-settings'));
   if (btn.dataset.tab === 'backup') renderBackupTab();
   if (btn.dataset.tab === 'maintenance') renderMaintenanceTab();
+  if (btn.dataset.tab === 'catalogMap') runCatalogMap();
   if (btn.dataset.tab === 'users') renderUserManagement();
   uiState.filters.settings = { tab: btn.dataset.tab };
   saveUiStateDebounced();
@@ -1660,7 +1663,7 @@ function switchTab(btn) {
 function syncSettingsSaveButton(tab) {
   const btn = document.getElementById('settings-save-btn');
   if (!btn) return;
-  btn.hidden = tab === 'maintenance' || tab === 'backup'
+  btn.hidden = tab === 'maintenance' || tab === 'backup' || tab === 'catalogMap'
     || tab === 'general' || tab === 'users';
   btn.textContent = 'Save Catalog Changes';
   document.getElementById('settings-save-status').textContent = '';
@@ -1706,6 +1709,7 @@ const SETTINGS_SEARCH_INDEX = [
   { tab: 'maintenance', selector: 'button[data-onclick="runSystemDiagnostics()"]', terms: 'diagnostics audit readiness recovery checks health' },
   { tab: 'maintenance', selector: 'button[data-onclick="runMaintenanceIntegrityCheck()"]', terms: 'integrity check corruption database' },
   { tab: 'maintenance', selector: 'button[data-onclick="runMaintenanceLookupScan()"]', terms: 'duplicates merge lookup scan dedupe' },
+  { tab: 'catalogMap', selector: '#maint-catalog-map', terms: 'catalog map usage unused look-alike duplicates merge cleanup' },
   { tab: 'maintenance', selector: '#maint-orphan-report', terms: 'orphan file sweep cleanup leftover' },
 ];
 

@@ -2715,6 +2715,71 @@
     .maint-result-bad { color: var(--bad); font-weight: 600; }
     .maint-violation-list { margin-top: 6px; font-size: 12px; color: var(--bad); }
 
+    /* Catalog map: each entry a tile sized by its use count (--t, 0..1 within
+       its category). Fill is one hue, light to dark; unused tiles are dashed and
+       empty; look-alikes carry a copy badge and light up together on hover. */
+    #maint-catalog-map { position: relative; }
+    .cat-map-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; margin: 4px 0 8px; }
+    .cat-map-stats { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+    .cat-map-stat {
+      display: flex; align-items: baseline; gap: 6px; padding: 6px 12px;
+      border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface2);
+      font-size: 12px; color: var(--muted);
+    }
+    .cat-map-stat strong { font-size: 18px; color: var(--text); font-variant-numeric: tabular-nums; }
+    .cat-map-stat.is-unused { border-style: dashed; }
+    .cat-map-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 11.5px; color: var(--muted); margin-bottom: 10px; }
+    .cat-map-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+    .cat-map-swatch { width: 18px; height: 12px; border-radius: 3px; border: 1px solid var(--border); background: var(--surface); }
+    .cat-map-swatch.is-used { background: color-mix(in srgb, var(--primary) 45%, var(--surface)); border-color: color-mix(in srgb, var(--primary) 60%, var(--border)); }
+    .cat-map-swatch.is-unused { border: 1.5px dashed var(--muted); background: transparent; }
+    .cat-map-swatch.is-alike { border: 2px solid var(--warn); }
+    .cat-map-swatch.is-hidden { opacity: .45; background: color-mix(in srgb, var(--primary) 30%, var(--surface)); }
+    .cat-map-group {
+      border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface);
+      padding: 10px 12px 12px; margin-bottom: 10px;
+    }
+    .cat-map-group-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .cat-map-group-title { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 13px; color: var(--text); }
+    .cat-map-group-title svg { width: 15px; height: 15px; color: var(--primary); }
+    .cat-map-group-meta { font-size: 11.5px; color: var(--muted); flex: 1; }
+    .cat-map-group-head .btn { padding: 4px 10px; font-size: 12px; }
+    .cat-map-group-head .btn svg { width: 13px; height: 13px; }
+    .cat-map-tiles { display: flex; flex-wrap: wrap; gap: 2px; align-items: flex-end; }
+    .cat-map-tile {
+      --t: 0;
+      position: relative; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start;
+      width: calc(96px + 140px * var(--t)); height: calc(34px + 34px * var(--t));
+      padding: 4px 7px; border-radius: 4px; cursor: pointer; text-align: start;
+      border: 1px solid color-mix(in srgb, var(--primary) calc(25% + 45% * var(--t)), var(--border));
+      background: color-mix(in srgb, var(--primary) calc(10% + 45% * var(--t)), var(--surface));
+      color: var(--text); font: inherit; transition: opacity var(--speed), box-shadow var(--speed);
+    }
+    .cat-map-tile.is-unused { background: transparent; border: 1.5px dashed var(--muted); color: var(--muted); }
+    .cat-map-tile.is-hidden { opacity: .45; }
+    .cat-map-tile.is-alike { box-shadow: inset 0 0 0 1px var(--warn); border-color: var(--warn); }
+    .cat-map-tile:hover, .cat-map-tile:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+    .cat-map-tile-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; line-height: 1.25; }
+    .cat-map-tile-count { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; line-height: 1.1; }
+    .cat-map-tile:not(.is-unused) .cat-map-tile-count { color: var(--text); opacity: .75; }
+    .cat-map-tile-badge { position: absolute; top: 3px; inset-inline-end: 3px; width: 11px; height: 11px; color: var(--warn); }
+    .cat-map-tile.is-alike .cat-map-tile-name { padding-inline-end: 12px; }
+    .cat-map-group.has-focus .cat-map-tile:not(.is-lit) { opacity: .3; }
+    .cat-map-tile.is-lit { outline: 2px solid var(--warn); outline-offset: 1px; opacity: 1; }
+    .cat-map-pairs { margin-top: 10px; }
+    .cat-map-pairs-title { font-size: var(--fs-caption, 11px); letter-spacing: var(--ls-caption, .4px); text-transform: uppercase; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+    .cat-map-pair .maint-row-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+    .cat-map-pair-sep { color: var(--warn); font-weight: 700; }
+    .cat-map-pair-uses { font-size: 11px; font-weight: 400; color: var(--muted); }
+    .cat-map-tip {
+      position: absolute; z-index: 20; pointer-events: none; min-width: 160px; max-width: 280px;
+      padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+      background: var(--surface); color: var(--text); font-size: 12px; box-shadow: 0 6px 20px rgba(0,0,0,.18);
+    }
+    .cat-map-tip-title { font-weight: 700; margin-bottom: 2px; }
+    .cat-map-tip-row { color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; }
+    .cat-map-tip-row strong { color: var(--text); }
+
     /* ══ SETTINGS MODULE (page) ══ */
     #module-settings .settings-body { background: var(--bg); }
 

@@ -2073,6 +2073,7 @@
       <div class="settings-group-label admin-only">Catalogs</div>
       <!-- No Companies tab: the client roster IS the COMPANY catalog, and it is
            created/renamed/archived/reordered on the Clients page instead. -->
+      <button class="stab" data-tab="catalogMap"    data-onclick="switchTab(this)"><span class="stab-icon" data-ic="layout-dashboard"></span> Catalog Map</button>
       <button class="stab" data-tab="systems"       data-onclick="switchTab(this)"><span class="stab-icon" data-ic="folder"></span> Systems</button>
       <button class="stab" data-tab="natural"       data-onclick="switchTab(this)"><span class="stab-icon" data-ic="tag"></span> Natural</button>
       <button class="stab" data-tab="timeType"      data-onclick="switchTab(this)"><span class="stab-icon" data-ic="alarm-clock"></span> Time Type</button>
@@ -2252,6 +2253,18 @@
           <p class="general-hint">Auto-rotated snapshots taken on launch (newest 5 kept). Restoring replaces the
             live database and restarts the app — a safety copy of the current data is always taken first.</p>
           <div id="maint-backups-list"></div>
+        </div>
+      </div>
+      <div class="settings-panel" id="tab-catalogMap">
+        <div class="maint-section">
+          <div class="maint-section-head">
+            <span data-ic="layout-dashboard"></span><span>Catalog Map</span>
+            <button class="btn" style="margin-left:auto" data-onclick="runCatalogMap()">Refresh</button>
+          </div>
+          <p class="general-hint">Every catalog entry as a tile, sized by how many records use it. Dashed tiles
+            are unused; linked tiles look alike and may be the same thing typed twice. Read-only — nothing
+            changes until you pick an action.</p>
+          <div id="maint-catalog-map"></div>
         </div>
       </div>
       <div class="settings-panel" id="tab-maintenance">
@@ -2680,6 +2693,7 @@
 <script src="renderer/features/pfm.js"></script>
 <script src="renderer/features/outsource.js"></script>
 <script src="renderer/features/clients.js"></script>
+<script src="renderer/features/catalog-map.js"></script>
 <script src="renderer/features/date-picker.js"></script>
 <script src="renderer/features/shell.js"></script>
 <div id="app-toast" class="app-toast" role="status" aria-live="polite"></div>
