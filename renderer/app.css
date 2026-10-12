@@ -1408,6 +1408,54 @@
     .cs-access-ctl { display: inline-flex; align-self: flex-start; }
     .cs-access-ctl .seg-btn { min-width: 64px; justify-content: center; }
     .cl-access-pam { font-weight: 700; color: var(--primary); }
+    /* Server map: Client → System → Server → Database as a tree. Connectors are
+       borders on logical sides, so the tree mirrors itself in Arabic. Each
+       node's environment colour comes in through --env. */
+    .cl-map-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+    .cl-map-key { display: inline-flex; align-items: center; gap: 6px; }
+    .cl-map-key i { width: 10px; height: 10px; border-radius: 3px; background: var(--env); }
+    .cl-map-scroll { overflow: auto; padding: 4px 2px 12px; }
+    .cl-map-tree, .cl-map-children { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+    .cl-map-tree li { display: flex; align-items: center; position: relative; padding-block: 4px; }
+    .cl-map-children { position: relative; padding-inline-start: 22px; }
+    .cl-map-children > li { padding-inline-start: 22px; }
+    .cl-map-children::before, .cl-map-children > li::before, .cl-map-children > li::after {
+      content: ''; position: absolute; inset-inline-start: 0;
+      border-color: color-mix(in srgb, var(--muted) 45%, transparent); border-style: solid; border-width: 0;
+    }
+    .cl-map-children::before, .cl-map-children > li::after { top: 50%; width: 22px; border-top-width: 2px; }
+    .cl-map-children > li::before { top: 0; bottom: 0; border-inline-start-width: 2px; }
+    .cl-map-children > li:first-child::before { top: 50%; }
+    .cl-map-children > li:last-child::before { bottom: 50%; }
+    .cl-map-children > li:only-child::before { display: none; }
+    .cl-map-node {
+      --env: var(--border);
+      display: flex; flex-direction: column; gap: 3px; flex-shrink: 0;
+      min-width: 150px; max-width: 240px; padding: 7px 10px;
+      background: var(--surface); color: var(--text); font: inherit; text-align: start;
+      border: 1px solid var(--border); border-inline-start: 4px solid var(--env); border-radius: var(--radius-sm);
+    }
+    button.cl-map-node { cursor: pointer; transition: border-color var(--speed), background var(--speed); }
+    button.cl-map-node:hover { background: var(--surface2); border-color: var(--primary); border-inline-start-color: var(--env); }
+    .cl-map-node.is-client { --env: var(--primary); background: color-mix(in srgb, var(--primary) 10%, var(--surface)); }
+    .cl-map-node.is-system { --env: var(--muted); }
+    .cl-map-env-production { --env: var(--good); }
+    .cl-map-env-test { --env: var(--warn); }
+    .cl-map-env-both { --env: var(--primary); }
+    .cl-map-env-unknown { --env: var(--muted); }
+    .cl-map-line { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 13px; font-weight: 700; }
+    .cl-map-line .lic { width: 14px; height: 14px; flex-shrink: 0; color: var(--env); }
+    .cl-map-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cl-map-env { margin-inline-start: auto; padding-inline-start: 8px; font-size: 11px; color: var(--env); white-space: nowrap; }
+    .cl-map-sub { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+    .cl-map-mono { font-family: Consolas, 'Courier New', monospace; }
+    .cl-map-access {
+      align-self: flex-start; padding: 1px 7px; border-radius: 999px; font-size: 10px; font-weight: 700;
+      background: var(--surface2); color: var(--muted);
+    }
+    .cl-map-access.is-pam { background: color-mix(in srgb, var(--primary) 18%, transparent); color: var(--primary); }
+    .cl-map-warn-tag { display: inline-flex; margin-inline-start: auto; }
+    .cl-map-line .lic.cl-map-warn, .cl-map-warn { width: 13px; height: 13px; color: var(--bad); }
     /* minmax(0, …) and min-width: 0 let the three inputs shrink below their
        intrinsic width; plain 1fr overflowed the modal and clipped Port. */
     .form-row.cdb-engine-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }

@@ -766,6 +766,9 @@
     'Open client database': 'فتح قاعدة بيانات العميل',
     // Server access method (migration 072); RDP and PAM stay as they are.
     'RDP': 'RDP', 'PAM': 'PAM', 'Via PAM': 'عبر PAM',
+    // Server map: the Servers section drawn as a tree.
+    'List': 'قائمة', 'Map': 'خريطة', 'Show servers as': 'عرض الخوادم كـ',
+    'Environment differs from its server': 'البيئة تختلف عن بيئة الخادم',
     'Is this a production or UAT database?': 'هل قاعدة البيانات هذه للإنتاج أم لاختبار القبول؟', 'How is this server accessed?': 'كيف يتم الوصول إلى هذا الخادم؟',
     'Anything worth remembering about this database': 'أي ملاحظات مهمة حول قاعدة البيانات هذه',
     'e.g. APPDB_PRD': 'مثال: APPDB_PRD', 'e.g. Oracle': 'مثال: Oracle', 'e.g. 19c': 'مثال: 19c',

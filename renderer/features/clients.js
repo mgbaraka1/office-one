@@ -21,6 +21,7 @@ let currentClient = null;       // Client (from clients:get) shown in the detail
 let clientVpnEditId = null;      // null = create mode in the Auth modal
 let clientServerEditId = null;   // null = create mode in the Server modal
 let clientDatabaseEditId = null;   // null = create mode in the Database modal
+let clientServersView = 'list';    // 'list' | 'map' — how the Servers section is drawn
 let clientInternalEditId = null; // null = create mode in the Internal System modal
 let clientGroupRenameKind = null;    // 'server' | 'internal' — which section's group is being renamed
 let clientGroupRenameOldName = null; // the group's current systemName
@@ -854,6 +855,19 @@ function renderClientDetailSections(c) {
     sTitle.appendChild(document.createTextNode('Server Information (' + allServers.length + ')'));
     sHead.appendChild(sTitle);
     const sActions = pjMk('div', 'pj-section-actions');
+    const sView = pjMk('div', 'seg-ctl');
+    sView.setAttribute('role', 'group');
+    sView.setAttribute('aria-label', 'Show servers as');
+    [['list', 'rows-3', 'List'], ['map', 'layers', 'Map']].forEach(([view, icon, label]) => {
+      const b = pjMk('button', 'seg-btn' + (clientServersView === view ? ' active' : ''));
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(clientServersView === view));
+      b.innerHTML = ic(icon);
+      b.appendChild(document.createTextNode(label));
+      b.addEventListener('click', () => { clientServersView = view; renderClientDetailSections(c); });
+      sView.appendChild(b);
+    });
+    sActions.appendChild(sView);
     const sAddGroupBtn = pjMk('button', 'btn');
     sAddGroupBtn.innerHTML = ic('plus') + ' New Group';
     sAddGroupBtn.title = 'Group existing servers under a new (or existing) System name';
@@ -883,6 +897,8 @@ function renderClientDetailSections(c) {
       srvSec.appendChild(pjMk('div', 'cp-records-empty', 'No servers recorded yet.'));
     } else if (shownServers.length === 0) {
       srvSec.appendChild(pjMk('div', 'cp-records-empty', 'No servers match your search.'));
+    } else if (clientServersView === 'map') {
+      srvSec.appendChild(buildClientServerMap(c, shownServers));
     } else {
       const { groups: serverGroups, ungrouped: ungroupedServers } = groupBySystemName(shownServers);
       serverGroups.forEach(g => srvSec.appendChild(buildSystemGroupCard(g, buildClientServerCard, 'server')));
@@ -1850,6 +1866,113 @@ function buildClientServerCard(s) {
   actions.appendChild(delBtn);
   card.appendChild(actions);
   return card;
+}
+
+// ── Server map: the Servers section drawn as a tree ──
+// Client → System → Server → Database, left to right (mirrored in Arabic).
+// Colour is the environment; a database whose environment differs from its
+// server's is flagged, since that is easy to miss in the list. Identity and
+// host only — never a username, password or connection string. A server or
+// database node opens its edit modal.
+function buildClientServerMap(c, servers) {
+  const wrap = pjMk('div', 'cl-map');
+  const legend = pjMk('div', 'cl-map-legend');
+  [['production', 'Production'], ['test', 'UAT'], ['both', 'Production + UAT']].forEach(([env, label]) => {
+    const item = pjMk('span', 'cl-map-key cl-map-env-' + env);
+    item.appendChild(pjMk('i'));
+    item.appendChild(document.createTextNode(label));
+    legend.appendChild(item);
+  });
+  const mismatchKey = pjMk('span', 'cl-map-key');
+  mismatchKey.innerHTML = ic('triangle-alert', 'cl-map-warn');
+  mismatchKey.appendChild(document.createTextNode('Environment differs from its server'));
+  legend.appendChild(mismatchKey);
+  wrap.appendChild(legend);
+
+  const userText = (cls, text) => {
+    const el = pjMk('span', cls, text);
+    el.dataset.userContent = ''; el.dir = 'auto';
+    return el;
+  };
+  const envClass = env => 'cl-map-env-' + (srvEnvIsKnown(env) ? env.toLowerCase() : 'unknown');
+  const branch = (node, children) => {
+    const li = pjMk('li');
+    li.appendChild(node);
+    if (children && children.length) {
+      const ul = pjMk('ul', 'cl-map-children');
+      children.forEach(child => ul.appendChild(child));
+      li.appendChild(ul);
+    }
+    return li;
+  };
+
+  const dbNode = (s, d) => {
+    const env = d.environment === 'TEST' ? 'TEST' : 'PRODUCTION';
+    const node = pjMk('button', 'cl-map-node is-db ' + envClass(env));
+    node.type = 'button';
+    node.title = 'Edit Database';
+    const head = pjMk('span', 'cl-map-line');
+    head.innerHTML = ic('database');
+    head.appendChild(userText('cl-map-name', d.name));
+    // A shared server holds either kind, so only a one-environment server can disagree.
+    if (srvEnvIsKnown(s.environment) && s.environment !== 'BOTH' && s.environment !== env) {
+      const warn = pjMk('span', 'cl-map-warn-tag');
+      warn.innerHTML = ic('triangle-alert', 'cl-map-warn');
+      warn.title = 'Environment differs from its server';
+      head.appendChild(warn);
+    }
+    node.appendChild(head);
+    const engine = [d.engine, d.version].filter(Boolean).join(' ');
+    if (engine || d.port) node.appendChild(userText('cl-map-sub', [engine, d.port].filter(Boolean).join(' : ')));
+    node.addEventListener('click', () => openClientDatabaseModal(s.id, d));
+    return branch(node);
+  };
+
+  const serverNode = s => {
+    const node = pjMk('button', 'cl-map-node is-server ' + envClass(s.environment));
+    node.type = 'button';
+    node.title = 'Edit Server';
+    const head = pjMk('span', 'cl-map-line');
+    head.innerHTML = ic('server');
+    head.appendChild(userText('cl-map-name', lkLabel('SERVER_ROLE', s.role) || s.roleLabel || '(no role)'));
+    head.appendChild(pjMk('span', 'cl-map-env', srvEnvLabel(s.environment) || '(no environment)'));
+    node.appendChild(head);
+    const where = [s.hostname, s.host].filter(Boolean).join(' · ');
+    if (where) node.appendChild(userText('cl-map-sub cl-map-mono', where));
+    node.appendChild(pjMk('span', 'cl-map-access' + (s.accessMethod === 'PAM' ? ' is-pam' : ''),
+      s.accessMethod === 'PAM' ? 'PAM' : 'RDP'));
+    node.addEventListener('click', () => openClientServerModal(s));
+    return branch(node, (s.databases || []).map(d => dbNode(s, d)));
+  };
+
+  const systemNode = (name, list) => {
+    const node = pjMk('div', 'cl-map-node is-system');
+    const head = pjMk('span', 'cl-map-line');
+    head.innerHTML = ic('layers');
+    if (name) head.appendChild(userText('cl-map-name', lkLabel('SYSTEM', name)));
+    else head.appendChild(pjMk('span', 'cl-map-name cl-item-muted', '(no system)'));
+    node.appendChild(head);
+    return branch(node, list.map(serverNode));
+  };
+
+  const { groups, ungrouped } = groupBySystemName(servers);
+  const systems = groups.map(g => systemNode(g.name, g.envs.flatMap(e => e.items)));
+  if (ungrouped.length) {
+    const byEnv = (a, b) => SYSTEM_ENV_ORDER.indexOf(a.environment || '') - SYSTEM_ENV_ORDER.indexOf(b.environment || '');
+    systems.push(systemNode('', ungrouped.slice().sort(byEnv)));
+  }
+
+  const root = pjMk('div', 'cl-map-node is-client');
+  const rootHead = pjMk('span', 'cl-map-line');
+  rootHead.innerHTML = ic('building-2');
+  rootHead.appendChild(userText('cl-map-name', companyDisplayName(c) || 'Untitled'));
+  root.appendChild(rootHead);
+  const tree = pjMk('ul', 'cl-map-tree');
+  tree.appendChild(branch(root, systems));
+  const scroller = pjMk('div', 'cl-map-scroll');
+  scroller.appendChild(tree);
+  wrap.appendChild(scroller);
+  return wrap;
 }
 
 // ── Databases hosted on a server (migration 071) ──
