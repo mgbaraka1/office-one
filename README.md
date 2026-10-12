@@ -16,7 +16,7 @@ Everything runs on the device. There is no application server, no cloud sync, an
     <td width="50%"><a href="docs/screenshots/03-client-tasks.png"><img src="docs/screenshots/03-client-tasks.png" alt="The Client Tasks list with expanded work logs"></a><br><sub><b>Client Tasks</b> — every task with its dated work logs, filterable by company, system and project.</sub></td>
   </tr>
   <tr>
-    <td width="50%"><a href="docs/screenshots/04-clients.png"><img src="docs/screenshots/04-clients.png" alt="A client detail page with its record tabs"></a><br><sub><b>Clients</b> — a client's projects, offers and CRs, knowledge items, access records, servers, and internal systems. The company code is unique and can be changed from the client's Overview tab.</sub></td>
+    <td width="50%"><a href="docs/screenshots/04-clients.png"><img src="docs/screenshots/04-clients.png" alt="A client's overview with record counts and recent activity"></a><br><sub><b>Clients</b> — a client's projects, offers and CRs, knowledge items, access records, servers and internal systems at a glance, with what needs attention and what changed recently.</sub></td>
     <td width="50%"><a href="docs/screenshots/05-knowledge-hub.png"><img src="docs/screenshots/05-knowledge-hub.png" alt="The Knowledge Hub"></a><br><sub><b>Knowledge Hub</b> — versioned documents found by client and system, with plain-text notes.</sub></td>
   </tr>
 </table>
@@ -24,6 +24,25 @@ Everything runs on the device. There is no application server, no cloud sync, an
 The whole interface is bilingual, including a full right-to-left layout. The same Overview in Arabic:
 
 ![The Overview dashboard in Arabic, laid out right to left](docs/screenshots/06-arabic-rtl.png)
+
+### Maps
+
+Five views that draw how things connect, each a switch on a page you already use:
+
+<table>
+  <tr>
+    <td width="50%"><a href="docs/screenshots/07-systems-web.png"><img src="docs/screenshots/07-systems-web.png" alt="The Systems web linking clients to the systems they use"></a><br><sub><b>Systems web</b> (Clients) — which client uses which system; a thicker line means more linked servers, projects, tasks and articles.</sub></td>
+    <td width="50%"><a href="docs/screenshots/08-server-map.png"><img src="docs/screenshots/08-server-map.png" alt="A client's servers drawn as a tree"></a><br><sub><b>Server map</b> (a client's Servers) — client, system, server and database as a tree, coloured by environment.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><a href="docs/screenshots/09-offers-pipeline.png"><img src="docs/screenshots/09-offers-pipeline.png" alt="Offers and CRs as a pipeline, one column per stage"></a><br><sub><b>Pipeline</b> (Offers &amp; CRs) — one column per stage with its value; drag a card to move it to another stage.</sub></td>
+    <td width="50%"><a href="docs/screenshots/10-knowledge-wheel.png"><img src="docs/screenshots/10-knowledge-wheel.png" alt="The Knowledge wheel linking articles to clients and systems"></a><br><sub><b>Knowledge wheel</b> (Knowledge Hub) — articles by type around a circle, linked to their clients and systems; unlinked ones stand out.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><a href="docs/screenshots/11-catalog-map.png"><img src="docs/screenshots/11-catalog-map.png" alt="The Catalog Map with entries sized by use"></a><br><sub><b>Catalog Map</b> (Settings) — every catalog entry sized by how much it is used, with unused entries and look-alike names marked for cleanup.</sub></td>
+    <td width="50%"></td>
+  </tr>
+</table>
 
 > Screenshots are captured from a throwaway account seeded with fictional demo
 > data — no real client, credential or figure appears in them.
