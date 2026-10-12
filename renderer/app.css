@@ -1190,6 +1190,71 @@
     .pfm-status-sent     { background: var(--prog);    color: var(--prog-text); }
     .pfm-status-accepted { background: var(--done);    color: var(--done-text); }
     .pfm-status-rejected { background: var(--blocked); color: var(--blocked-text); }
+    /* Pipeline: one column per status, each in its status pill's colour
+       (--stage), with a "value by stage" bar per currency above them. */
+    .pfm-stage-ready    { --stage: var(--open-text); }
+    .pfm-stage-sent     { --stage: var(--prog-text); }
+    .pfm-stage-accepted { --stage: var(--done-text); }
+    .pfm-stage-rejected { --stage: var(--blocked-text); }
+    .pfm-stage-other    { --stage: var(--muted); }
+    .pfm-pipe-summary {
+      display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-4);
+      padding: var(--space-3) var(--space-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    }
+    .pfm-pipe-headline { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px var(--space-4); }
+    .pfm-pipe-headline-label { font-size: var(--fs-caption); font-weight: 700; letter-spacing: var(--ls-caption); text-transform: uppercase; color: var(--muted); }
+    .pfm-pipe-headline-value { font-size: 20px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+    .pfm-pipe-bar-row { display: grid; grid-template-columns: minmax(110px, max-content) 1fr; align-items: center; gap: var(--space-3); }
+    .pfm-pipe-bar-total { font-size: var(--fs-caption); font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .pfm-pipe-bar { display: flex; gap: 2px; height: 12px; }
+    .pfm-pipe-seg { flex-basis: 0; min-width: 4px; background: var(--stage); }
+    .pfm-pipe-seg:first-child { border-start-start-radius: 4px; border-end-start-radius: 4px; }
+    .pfm-pipe-seg:last-child { border-start-end-radius: 4px; border-end-end-radius: 4px; }
+    .pfm-pipe-seg:hover { filter: brightness(1.12); }
+    .pfm-pipe-legend { display: flex; flex-wrap: wrap; gap: 4px var(--space-4); font-size: var(--fs-caption); color: var(--muted); }
+    .pfm-pipe-key { display: inline-flex; align-items: center; gap: 6px; }
+    .pfm-pipe-key i { width: 10px; height: 10px; border-radius: 3px; background: var(--stage); }
+    .pfm-pipe-cols {
+      display: grid; grid-auto-flow: column; grid-auto-columns: minmax(200px, 1fr); gap: var(--space-3);
+      overflow-x: auto; padding-bottom: var(--space-2); align-items: start;
+    }
+    .pfm-pipe-col {
+      display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-2);
+      background: var(--surface2); border-radius: var(--radius-sm); border-top: 3px solid var(--stage);
+    }
+    .pfm-pipe-head { padding: 4px 6px 6px; }
+    .pfm-pipe-head-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: 6px; }
+    .pfm-pipe-total { font-size: 15px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+    .pfm-pipe-unpriced { font-size: var(--fs-caption); color: var(--muted); }
+    .pfm-pipe-cards { display: flex; flex-direction: column; gap: var(--space-2); }
+    .pfm-pipe-empty { padding: var(--space-3); text-align: center; font-size: var(--fs-caption); color: var(--muted); }
+    .pfm-pipe-card {
+      display: flex; flex-direction: column; gap: 5px; width: 100%; padding: 10px 12px; text-align: start;
+      background: var(--surface); color: var(--text); font: inherit; font-size: var(--fs-sm); cursor: pointer;
+      border: 1px solid var(--border); border-radius: var(--radius-sm); transition: border-color var(--speed), background var(--speed);
+    }
+    .pfm-pipe-card:hover, .pfm-pipe-card:focus-visible {
+      border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); background: color-mix(in srgb, var(--primary) 4%, var(--surface));
+    }
+    .pfm-pipe-card.archived { opacity: .62; }
+    .pfm-pipe-card[draggable="true"] { cursor: grab; }
+    .pfm-pipe-card.is-dragging { opacity: .4; }
+    /* While a card is dragged, every column shows it can take a drop; the one
+       under the pointer lights up in its own colour. */
+    .pfm-pipeline.is-dragging .pfm-pipe-col { outline: 2px dashed transparent; outline-offset: -2px; transition: outline-color var(--speed), background var(--speed); }
+    .pfm-pipe-col.is-drop-target { outline-color: var(--stage) !important; background: color-mix(in srgb, var(--stage) 10%, var(--surface2)); }
+    .pfm-pipe-card-top { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+    .pfm-pipe-title { font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .pfm-pipe-client { font-size: var(--fs-caption); color: var(--muted); }
+    .pfm-pipe-fees { font-weight: 700; }
+    .pfm-pipe-track { height: 6px; border-radius: 4px; background: color-mix(in srgb, var(--muted) 18%, transparent); overflow: hidden; }
+    .pfm-pipe-fill { display: block; height: 100%; border-radius: 4px; background: var(--stage); }
+    .pfm-pipe-foot { display: flex; justify-content: space-between; gap: var(--space-2); font-size: var(--fs-caption); }
+    .pfm-pipe-stale {
+      display: flex; align-items: center; gap: 5px; font-size: var(--fs-caption); font-weight: 600; color: var(--text);
+      padding: 3px 8px; border-radius: 6px; background: color-mix(in srgb, var(--warn) 18%, transparent);
+    }
+    .pfm-pipe-stale .lic { width: 12px; height: 12px; color: var(--warn); }
     .pj-detail-title .pfm-kind, .pj-detail-title .pfm-status { font-size: var(--fs-caption); letter-spacing: 0; }
     .pfm-ident { min-width: 0; }
     .pfm-detail-sub { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-1); font-size: var(--fs-body); color: var(--muted); }

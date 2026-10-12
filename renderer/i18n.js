@@ -790,6 +790,11 @@
   // Tasks, sessions, projects and project documents — all built at runtime.
   Object.assign(ar, {
     'Add Session': 'إضافة جلسة', 'Edit sources': 'تعديل المصادر', 'Add Source': 'إضافة مصدر',
+    // Offers & CRs pipeline view.
+    'Table': 'جدول', 'Pipeline': 'مسار المراحل', 'Show offers as': 'عرض العروض كـ',
+    'Open value': 'القيمة المفتوحة', 'Nothing here': 'لا شيء هنا',
+    '{n} without fees': '{n} بلا رسوم', 'No update for {n} days': 'بلا تحديث منذ {n} يومًا',
+    'Drag to another stage to move it': 'اسحبه إلى مرحلة أخرى لنقله',
     'Change project': 'تغيير المشروع', 'Project changed': 'تم تغيير المشروع',
     'Could not change the project': 'تعذر تغيير المشروع', 'Could not restore the project': 'تعذرت استعادة المشروع',
     'Enter a whole number from 1 to 1440.': 'أدخل عدداً صحيحاً من 1 إلى 1440.',

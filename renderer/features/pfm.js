@@ -14,6 +14,9 @@ let pfmCurrent = null;            // the item open in the detail view, or null
 let pfmMemberNames = [];
 const pfmFilter = { status: '', kind: '', companyId: '', search: '', archived: false };
 const pfmSort = { key: '', dir: 1 };   // key '' = the server's order (newest update first)
+let pfmView = 'table';            // 'table' | 'pipeline'
+const PFM_STALE_DAYS = 30;        // an open item untouched this long is flagged in the pipeline
+let pfmDragItem = null;           // the pipeline card being dragged, or null
 let pfmModalEditId = null;        // null = create mode
 let pfmStageCtx = null;           // { mode: 'move' | 'edit', status }
 let pfmVersionEditId = null;      // null = new version
@@ -247,7 +250,11 @@ function renderPfmList() {
   const table = document.getElementById('pfm-table');
   const body = document.getElementById('pfm-tbody');
   const empty = document.getElementById('pfm-empty-state');
+  const pipeline = document.getElementById('pfm-pipeline');
+  // The pipeline's columns are the status breakdown, so it has no chips.
+  document.getElementById('pfm-status-chips').hidden = pfmView === 'pipeline';
   body.innerHTML = '';
+  pipeline.hidden = true;
   if (!rows.length) {
     table.style.display = 'none';
     empty.hidden = false;
@@ -256,9 +263,230 @@ function renderPfmList() {
     else p.textContent = 'Nothing matches these filters';
     return;
   }
-  table.style.display = '';
   empty.hidden = true;
+  if (pfmView === 'pipeline') {
+    table.style.display = 'none';
+    pipeline.hidden = false;
+    renderPfmPipeline(pipeline, rows);
+    return;
+  }
+  table.style.display = '';
   rows.forEach(i => body.appendChild(buildPfmRow(i)));
+}
+
+// ── Pipeline: one column per status, with the money in each ──
+// Table ↔ Pipeline. The pipeline shows every status, so a status chip picked
+// in the table is dropped rather than left filtering out of sight (the Excel
+// export follows what is shown).
+function setPfmView(view) {
+  pfmView = view === 'pipeline' ? 'pipeline' : 'table';
+  if (pfmView === 'pipeline') pfmFilter.status = '';
+  document.querySelectorAll('#pfm-view-ctl .seg-btn').forEach(b => {
+    const active = b.dataset.view === pfmView;
+    b.classList.toggle('active', active);
+    b.setAttribute('aria-pressed', String(active));
+  });
+  renderPfmList();
+}
+
+// Sums an item list's current fees per currency, largest first. Items with no
+// fees yet are counted apart rather than read as zero.
+function pfmTotalsByCurrency(items) {
+  const totals = new Map();
+  let unpriced = 0;
+  items.forEach(i => {
+    const v = i.currentVersion;
+    if (!v || v.feesMinor == null) { unpriced++; return; }
+    const cur = v.currency || '';
+    totals.set(cur, (totals.get(cur) || 0) + v.feesMinor);
+  });
+  return { list: [...totals].map(([currency, minor]) => ({ currency, minor })).sort((a, b) => b.minor - a.minor), unpriced };
+}
+function pfmMoney(minor, currency) { return pfmFees({ feesMinor: minor, currency }); }
+function pfmDaysSince(value) {
+  const t = value ? new Date(value).getTime() : NaN;
+  return Number.isNaN(t) ? 0 : Math.floor((Date.now() - t) / 86_400_000);
+}
+// Stage colour: the seeded statuses use their pill's colour; one added in
+// Settings has no colour of its own and stays neutral.
+function pfmStageClass(code) {
+  return ['READY', 'SENT', 'ACCEPTED', 'REJECTED'].includes(code) ? 'pfm-stage-' + code.toLowerCase() : 'pfm-stage-other';
+}
+
+function renderPfmPipeline(host, rows) {
+  host.innerHTML = '';
+  const codes = pfmStatusOptions().map(o => o.code);
+  rows.forEach(i => { if (i.status && !codes.includes(i.status)) codes.push(i.status); });
+  const byStatus = new Map(codes.map(code => [code, rows.filter(i => i.status === code)]));
+  host.appendChild(buildPfmValueSummary(codes, byStatus, rows));
+
+  // Each card's bar is its fees against the largest one in the same currency.
+  const maxByCurrency = new Map();
+  rows.forEach(i => {
+    const v = i.currentVersion;
+    if (v && v.feesMinor != null) maxByCurrency.set(v.currency || '', Math.max(maxByCurrency.get(v.currency || '') || 0, v.feesMinor));
+  });
+
+  // A card can be dropped on any active status but its own; a status
+  // soft-disabled in Settings keeps its column but takes no moves.
+  const movable = new Set(pfmStatusOptions().map(o => o.code));
+  const cols = pjMk('div', 'pfm-pipe-cols');
+  codes.forEach(code => {
+    const items = byStatus.get(code);
+    const col = pjMk('section', 'pfm-pipe-col ' + pfmStageClass(code));
+    col.setAttribute('aria-label', pfmStatusName(code));
+    const accepts = () => pfmDragItem && pfmDragItem.status !== code && movable.has(code);
+    col.addEventListener('dragover', e => {
+      if (!accepts()) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      col.classList.add('is-drop-target');
+    });
+    col.addEventListener('dragleave', e => { if (!col.contains(e.relatedTarget)) col.classList.remove('is-drop-target'); });
+    col.addEventListener('drop', e => {
+      col.classList.remove('is-drop-target');
+      if (!accepts()) return;
+      e.preventDefault();
+      const item = pfmDragItem;
+      pfmDragItem = null;
+      pfmDropOnStage(item.id, code);
+    });
+    const head = pjMk('div', 'pfm-pipe-head');
+    const top = pjMk('div', 'pfm-pipe-head-top');
+    top.append(pfmStatusPill(code), pjMk('span', 'pfm-chip-count', String(items.length)));
+    head.appendChild(top);
+    const { list, unpriced } = pfmTotalsByCurrency(items);
+    list.forEach(t => head.appendChild(pfmUserText('div', 'pfm-pipe-total', pfmMoney(t.minor, t.currency))));
+    if (unpriced) {
+      head.appendChild(pjMk('div', 'pfm-pipe-unpriced',
+        window.ctI18n?.t?.('{n} without fees', { n: unpriced }) || `${unpriced} without fees`));
+    }
+    col.appendChild(head);
+    const cards = pjMk('div', 'pfm-pipe-cards');
+    if (!items.length) cards.appendChild(pjMk('div', 'pfm-pipe-empty', 'Nothing here'));
+    items.forEach(i => cards.appendChild(buildPfmPipeCard(i, maxByCurrency)));
+    col.appendChild(cards);
+    cols.appendChild(col);
+  });
+  host.appendChild(cols);
+}
+
+// "Value by stage": one bar per currency, split by status. Open value (every
+// status but Accepted/Rejected) is the headline, since that is what is still
+// in play. Each segment names its status and amount on hover.
+function buildPfmValueSummary(codes, byStatus, rows) {
+  const box = pjMk('div', 'pfm-pipe-summary');
+  const open = pfmTotalsByCurrency(rows.filter(i => !PFM_FINAL.has(i.status))).list;
+  const headline = pjMk('div', 'pfm-pipe-headline');
+  headline.appendChild(pjMk('span', 'pfm-pipe-headline-label', 'Open value'));
+  if (!open.length) headline.appendChild(pjMk('span', 'pfm-pipe-headline-value', '—'));
+  open.forEach(t => headline.appendChild(pfmUserText('span', 'pfm-pipe-headline-value', pfmMoney(t.minor, t.currency))));
+  box.appendChild(headline);
+
+  pfmTotalsByCurrency(rows).list.forEach(({ currency, minor: total }) => {
+    if (!total) return;
+    const bar = pjMk('div', 'pfm-pipe-bar');
+    bar.setAttribute('role', 'img');
+    const parts = [];
+    codes.forEach(code => {
+      const amount = byStatus.get(code)
+        .filter(i => i.currentVersion?.feesMinor != null && (i.currentVersion.currency || '') === currency)
+        .reduce((sum, i) => sum + i.currentVersion.feesMinor, 0);
+      if (!amount) return;
+      const seg = pjMk('span', 'pfm-pipe-seg ' + pfmStageClass(code));
+      seg.style.flexGrow = String(amount);
+      const label = pfmStatusName(code) + ': ' + pfmMoney(amount, currency) + ' (' + Math.round(amount / total * 100) + '%)';
+      seg.title = label;
+      seg.dataset.userContent = '';
+      parts.push(label);
+      bar.appendChild(seg);
+    });
+    bar.setAttribute('aria-label', parts.join(', '));
+    // Each currency's bar is named by its total, so two bars never read as one scale.
+    const row = pjMk('div', 'pfm-pipe-bar-row');
+    row.append(pfmUserText('span', 'pfm-pipe-bar-total', pfmMoney(total, currency)), bar);
+    box.appendChild(row);
+  });
+
+  const legend = pjMk('div', 'pfm-pipe-legend');
+  codes.forEach(code => {
+    const key = pjMk('span', 'pfm-pipe-key ' + pfmStageClass(code));
+    key.appendChild(pjMk('i'));
+    key.appendChild(pfmUserText('span', '', pfmStatusName(code)));
+    legend.appendChild(key);
+  });
+  box.appendChild(legend);
+  return box;
+}
+
+// A drop opens the same "Move to" window as the detail page, for the full
+// record (the list row carries no stages to prefill from). Nothing moves
+// until it is confirmed there; Cancel leaves the card where it was.
+async function pfmDropOnStage(id, code) {
+  let item;
+  try { item = await window.api.getPfmItem(id); }
+  catch { toast('Could not open this offer or CR'); return; }
+  if (!item) { toast('This offer or CR no longer exists'); loadPfmList(); return; }
+  openPfmStageModal('move', code, item);
+}
+
+function buildPfmPipeCard(i, maxByCurrency) {
+  const card = pjMk('button', 'pfm-pipe-card' + (i.archived ? ' archived' : ''));
+  card.type = 'button';
+  card.dataset.pfmId = i.id;
+  card.addEventListener('click', () => openPfmDetail(i.id));
+  card.draggable = true;
+  card.title = 'Drag to another stage to move it';
+  card.addEventListener('dragstart', e => {
+    pfmDragItem = i;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(i.id));
+    card.classList.add('is-dragging');
+    document.getElementById('pfm-pipeline').classList.add('is-dragging');
+  });
+  card.addEventListener('dragend', () => {
+    pfmDragItem = null;
+    card.classList.remove('is-dragging');
+    const host = document.getElementById('pfm-pipeline');
+    host.classList.remove('is-dragging');
+    host.querySelectorAll('.is-drop-target').forEach(c => c.classList.remove('is-drop-target'));
+  });
+
+  const top = pjMk('div', 'pfm-pipe-card-top');
+  top.appendChild(pfmUserText('span', 'pfm-ref', i.reference));
+  top.appendChild(pjMk('span', 'pfm-kind pfm-kind-' + i.kind.toLowerCase(), pfmKindLabel(i.kind)));
+  if (i.archived) top.appendChild(pjMk('span', 'pfm-archived-tag', 'Archived'));
+  card.appendChild(top);
+  card.appendChild(pfmUserText('div', 'pfm-pipe-title', i.title));
+  const client = lkLabelById('COMPANY', i.companyId) || i.company;
+  if (client) card.appendChild(pfmUserText('div', 'pfm-pipe-client', client));
+
+  const v = i.currentVersion;
+  if (v && v.feesMinor != null) {
+    card.appendChild(pfmUserText('div', 'pfm-pipe-fees pfm-fees', pfmFees(v)));
+    const max = maxByCurrency.get(v.currency || '') || 0;
+    const track = pjMk('div', 'pfm-pipe-track');
+    const fill = pjMk('span', 'pfm-pipe-fill');
+    fill.style.width = (max ? Math.max(2, v.feesMinor / max * 100) : 0) + '%';
+    track.appendChild(fill);
+    card.appendChild(track);
+  }
+
+  const step = pfmRowStep(i);
+  const foot = pjMk('div', 'pfm-pipe-foot');
+  if (step.person) foot.appendChild(pfmUserText('span', '', step.person));
+  foot.appendChild(pjMk('span', 'pfm-muted', pfmFmtDate(i.updatedAt)));
+  card.appendChild(foot);
+
+  const idle = pfmDaysSince(i.updatedAt);
+  if (!PFM_FINAL.has(i.status) && !i.archived && idle >= PFM_STALE_DAYS) {
+    const stale = pjMk('div', 'pfm-pipe-stale');
+    stale.innerHTML = ic('clock');
+    stale.appendChild(document.createTextNode(
+      window.ctI18n?.t?.('No update for {n} days', { n: idle }) || `No update for ${idle} days`));
+    card.appendChild(stale);
+  }
+  return card;
 }
 
 function buildPfmRow(i) {
@@ -1153,10 +1381,10 @@ function buildPfmHistorySection(item) {
 }
 
 // ══ STAGE MODAL — "Move to" and "Edit stage" ══
-function openPfmStageModal(mode, code) {
-  const item = pfmCurrent;
+// `item` is the open offer by default; the pipeline passes the card it dropped.
+function openPfmStageModal(mode, code, item = pfmCurrent) {
   if (!item) return;
-  pfmStageCtx = { mode, status: code };
+  pfmStageCtx = { mode, status: code, item };
   const stage = (item.stages || []).find(s => s.status === code);
   document.getElementById('pfm-stage-verb').textContent = mode === 'move' ? 'Move to' : 'Stage:';
   document.getElementById('pfm-stage-status').textContent = pfmStatusName(code);
@@ -1195,9 +1423,9 @@ function pfmStageOverlayClick(e) {
   if (e.target === document.getElementById('pfm-stage-overlay')) closePfmStageModal();
 }
 async function submitPfmStageModal() {
-  const item = pfmCurrent;
   const ctx = pfmStageCtx;
-  if (!item || !ctx) return;
+  const item = ctx?.item;
+  if (!item) return;
   clearErrorsIn('#pfm-stage-modal');
   const planned = ctx.mode === 'edit' && document.getElementById('pfm-stage-planned').checked;
   const date = document.getElementById('pfm-stage-date').value;

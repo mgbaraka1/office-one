@@ -950,6 +950,10 @@
       <select id="pfm-client-filter" class="pfm-client-filter" data-onchange="setPfmClientFilter()"></select>
       <button type="button" class="btn" id="pfm-archived-btn" data-onclick="togglePfmArchived()" aria-pressed="false"><span data-ic="eye"></span>Show archived</button>
       <div class="pfm-export-btn" id="pfm-export-slot"></div>
+      <div class="seg-ctl" id="pfm-view-ctl" role="group" aria-label="Show offers as">
+        <button type="button" class="seg-btn active" data-view="table" data-onclick="setPfmView('table')" aria-pressed="true"><span data-ic="table"></span>Table</button>
+        <button type="button" class="seg-btn" data-view="pipeline" data-onclick="setPfmView('pipeline')" aria-pressed="false"><span data-ic="layout-dashboard"></span>Pipeline</button>
+      </div>
     </div>
     <div class="pfm-chips" id="pfm-status-chips" aria-label="Filter by status"></div>
     <div class="pfm-table-wrap">
@@ -969,6 +973,7 @@
         <tbody id="pfm-tbody"></tbody>
       </table>
     </div>
+    <div id="pfm-pipeline" class="pfm-pipeline" hidden></div>
     <div id="pfm-empty-state" class="empty-state" hidden>
       <div class="empty-state-inner">
         <span data-ic="briefcase"></span>
