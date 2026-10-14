@@ -420,9 +420,10 @@
  * One server recorded against a client (`clients:server-*`).
  *
  * Since migration 038 a server is IDENTIFIED by the triple systemName - role -
- * environment: all three are required on write, and the triple must be unique
- * within a client (validated in db.js's resolveServerIdentity for a readable
- * error, and by a UNIQUE index on the table). A create/update whose triple is
+ * environment: all three are required on write. Since migration 077 the triple
+ * plus `host` (the IP) must be unique within a client, so two servers of one
+ * kind can coexist when their IPs differ (validated in db.js's resolveServerIdentity for a readable
+ * error, and by a UNIQUE index on the table). A create/update whose identity is
  * incomplete or already taken resolves to `{ok: false, error}` instead of the
  * record — the same convention `projects:link-task` uses.
  * @typedef {Object} ClientServer
@@ -433,6 +434,10 @@
  * @property {string} os         Free text (e.g. 'Ubuntu 22.04').
  * @property {string} hostname   Free text — a separate hostname distinct from `host` (the IP). Since migration 022.
  * @property {string} accessMethod 'RDP' | 'PAM', since migration 072 (default 'RDP'; anything else sent is stored as 'RDP'). A PAM server's username/password are kept but not shown.
+ * @property {string} status     'ACTIVE' | 'INACTIVE', since migration 076 (default 'ACTIVE'; anything else sent is stored as 'ACTIVE').
+ * @property {string[]} linkedServers   IPs or hostnames of the servers this one is linked to, since migration 076. Plain strings, no details; trimmed, empties and case-insensitive repeats dropped on write.
+ * @property {string[]} workloads       What runs on the server (sites, services, apps), since migration 076. Same rules as linkedServers.
+ * @property {string[]} externalParties Outside parties it integrates with (e.g. a payment gateway), since migration 076. Same rules as linkedServers.
  * @property {string} username   Since migration 022. Encrypted at rest since migration 032; decrypted transparently on read.
  * @property {string} password   Since migration 022. Encrypted at rest since migration 032; decrypted transparently on read.
  * @property {number|null} systemId       Identity part 1. The SYSTEM lookup_codes id — since migration 039 a server's System is lookup-backed, not free text.

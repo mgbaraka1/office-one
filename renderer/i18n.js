@@ -514,7 +514,7 @@
     'Edit session': 'تعديل الجلسة', 'Delete session': 'حذف الجلسة', 'Edit task': 'تعديل المهمة', 'Delete task': 'حذف المهمة',
     'Group existing servers under a new (or existing) System name': 'تجميع الخوادم الموجودة تحت اسم نظام جديد أو موجود',
     'Group existing internal systems under a new (or existing) System name': 'تجميع الأنظمة الداخلية الموجودة تحت اسم نظام جديد أو موجود',
-    'All three identify the server and must be unique for this client.': 'تُعرّف الحقول الثلاثة الخادم ويجب أن تكون فريدة لهذا العميل.',
+    'With the IP, these identify the server and must be unique for this client.': 'تُعرّف هذه الحقول مع عنوان IP الخادم ويجب أن تكون فريدة لهذا العميل.',
     'Label (e.g. Bookings)': 'التسمية (مثال: Bookings)',
 
     'Could not load data — some views may be empty': 'تعذر تحميل البيانات — قد تكون بعض العروض فارغة',
@@ -766,6 +766,21 @@
     'Open client database': 'فتح قاعدة بيانات العميل',
     // Server access method (migration 072); RDP and PAM stay as they are.
     'RDP': 'RDP', 'PAM': 'PAM', 'Via PAM': 'عبر PAM',
+    // Server status and lists (migration 076).
+    'Not Active': 'غير نشط', 'Is this server in use?': 'هل هذا الخادم قيد الاستخدام؟',
+    'Linked Servers': 'الخوادم المرتبطة', 'Workloads': 'أعباء العمل', 'External Parties': 'الجهات الخارجية',
+    'IP or hostname': 'عنوان IP أو اسم المضيف', 'Workload name': 'اسم عبء العمل',
+    'Show less': 'عرض أقل', '+{n} more': '+{n} أخرى',
+    // Server wheel (Client → Servers → Wheel).
+    'No system': 'بدون نظام', 'Other hosts': 'مضيفون آخرون', 'External party': 'جهة خارجية',
+    "Host not among this client's servers": 'مضيف ليس من خوادم هذا العميل',
+    'Hover a server to trace its links. Click one to open it.': 'مرّر فوق خادم لتتبع روابطه. انقر عليه لفتحه.',
+    'Server wheel: servers, the hosts they link to and the external parties they talk to': 'عجلة الخوادم: الخوادم والمضيفون المرتبطون بها والجهات الخارجية التي تتصل بها',
+    'No linked servers or external parties yet:': 'لا توجد خوادم مرتبطة أو جهات خارجية بعد:',
+    '1 linked server': 'خادم مرتبط واحد', '{n} linked servers': '{n} خوادم مرتبطة',
+    '1 external party': 'جهة خارجية واحدة', '{n} external parties': '{n} جهات خارجية',
+    '1 server': 'خادم واحد', '{n} servers': '{n} خوادم',
+    'Party name, e.g. Payment Service': 'اسم الجهة، مثل خدمة الدفع',
     // Systems web: which client uses which system.
     'Cards': 'بطاقات', 'Systems web': 'شبكة الأنظمة', 'Show clients as': 'عرض العملاء كـ',
     'Linked through': 'مرتبط عبر', 'Most shared': 'الأكثر مشاركة', 'Open client': 'فتح العميل',
@@ -813,7 +828,8 @@
     'e.g. jdbc:oracle:thin:@//10.0.0.5:1521/APPDB': 'مثال: jdbc:oracle:thin:@//10.0.0.5:1521/APPDB',
     'VPN connection deleted': 'تم حذف اتصال VPN', 'Server deleted': 'تم حذف الخادم',
     'Internal system deleted': 'تم حذف النظام الداخلي',
-    'That System / Role / Environment is already taken.': 'هذا النظام / الدور / البيئة مستخدم بالفعل.',
+    'That System / Role / Environment and IP is already taken.': 'هذا النظام / الدور / البيئة وعنوان IP مستخدم بالفعل.',
+    'A server with this System / Role / Environment and IP already exists for this client.': 'يوجد بالفعل خادم بهذا النظام / الدور / البيئة وعنوان IP لهذا العميل.',
     'Password:': 'كلمة المرور:', 'Secret Key:': 'المفتاح السري:',
     'User:': 'المستخدم:', 'URL:': 'الرابط:', 'Company Code:': 'رمز الشركة:', 'Credential location:': 'موقع بيانات الدخول:',
     // Shell: command palette, close/logout guards, and the account chip.

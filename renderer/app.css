@@ -1473,6 +1473,45 @@
     .cs-access-ctl { display: inline-flex; align-self: flex-start; }
     .cs-access-ctl .seg-btn { min-width: 64px; justify-content: center; }
     .cl-access-pam { font-weight: 700; color: var(--primary); }
+    /* Server status and lists (migration 076). A Not Active server stays
+       listed, dimmed, with a badge on its identity line. */
+    .cs-status-ctl { display: inline-flex; align-self: flex-start; }
+    .cs-status-ctl .seg-btn { min-width: 88px; justify-content: center; }
+    .cl-item-card.cl-srv-inactive { border-style: dashed; }
+    .cl-item-card.cl-srv-inactive .cl-item-main { opacity: .6; }
+    .cl-srv-status-badge {
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px;
+      padding: 2px 8px; border-radius: 999px; background: var(--surface2); color: var(--muted);
+    }
+    .cl-srv-list { display: flex; align-items: flex-start; gap: 8px; margin-top: 6px; font-size: 12px; }
+    .cl-srv-list-label { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; padding-top: 2px; color: var(--muted); font-weight: 600; }
+    .cl-srv-list-label .lic { width: 13px; height: 13px; }
+    .cl-srv-list-chips { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+    .cl-srv-chip {
+      font: inherit; font-size: 12px; line-height: 1.4; color: var(--text); cursor: pointer;
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 999px; padding: 1px 9px;
+      max-width: 100%; overflow-wrap: anywhere; text-align: start;
+    }
+    .cl-srv-chip:hover { border-color: var(--primary); }
+    .cl-srv-list-count {
+      font-size: 10.5px; font-weight: 700; color: var(--muted); background: var(--surface2);
+      border-radius: 999px; padding: 0 6px; font-variant-numeric: tabular-nums;
+    }
+    .cl-srv-chip.cl-srv-chip-more { color: var(--primary); border-style: dashed; background: transparent; font-weight: 600; }
+    /* The modal's list editor: one row per item, then the add box. */
+    .cs-list { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px; }
+    .cs-list-items { list-style: none; margin: 0; padding: 0; max-height: 196px; overflow-y: auto; }
+    .cs-list-items:empty { display: none; }
+    .cs-list-item {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 3px 4px 3px 10px; border-radius: var(--radius-sm); font-size: 13px;
+    }
+    .cs-list-item:nth-child(odd) { background: var(--surface2); }
+    .cs-list-item-text { min-width: 0; overflow-wrap: anywhere; }
+    .cs-list-item .cd-icon-btn { flex: 0 0 auto; }
+    .cs-list-items:not(:empty) + .cs-list-add { margin-top: 6px; }
+    .cs-list-add { display: flex; gap: 6px; }
+    .cs-list-add input { flex: 1; min-width: 0; }
     /* Systems web: clients on one side, systems on the other, a line per linked
        pair. Nodes are HTML over an SVG of lines; both sides mirror in Arabic. */
     .cl-web { margin-top: var(--space-2); }
@@ -2235,6 +2274,14 @@
       padding: 3px 10px; border-radius: 999px; cursor: pointer;
     }
     .kw-unlinked-item:hover { border-color: var(--primary); color: var(--primary); }
+    /* Server wheel (server-wheel.js) reuses the Knowledge wheel's look. An
+       outside host is a hollow square, a Not Active server a hollow dot, and a
+       server-to-server line is drawn a touch stronger than one to a hub. */
+    .cl-srv-wheel { margin-top: 4px; }
+    .kw-node.sw-host .kw-dot { fill: var(--surface); stroke: var(--text); stroke-width: 1.6; }
+    .kw-node.is-article.sw-inactive .kw-dot { fill: var(--surface); stroke: var(--kw); stroke-width: 2; }
+    .kw-edge.sw-edge-server { stroke-width: 1.8; opacity: .65; }
+    .kw-swatch.sw-swatch-host { background: var(--surface); border: 1.6px solid var(--text); }
     .kh-row { width: 100%; border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius); padding: 15px 16px; color: var(--text); display: flex; align-items: center; gap: 12px; transition: border-color .15s, transform .15s, box-shadow .15s; }
     .kh-row-main { flex: 1; min-width: 0; display: grid; grid-template-columns: 42px minmax(0,1fr) auto; gap: 13px; border: 0; background: none; padding: 0; color: inherit; font: inherit; text-align: start; cursor: pointer; }
     .kh-row-actions { flex-shrink: 0; }

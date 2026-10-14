@@ -4733,12 +4733,37 @@ function clientVpnToApi(r) {
 // current value, but never an offerable choice. `legacyRole`/`legacySystemName`
 // are the pre-lookup free text — read-only, never written again, kept so a
 // mapped value's original wording stays visible.
+// A server's three plain lists (migration 076): linked servers, workloads,
+// external parties. Stored as a JSON array of trimmed, non-empty strings, each
+// kept once (case-insensitive) in the order given.
+function serverListToColumn(value) {
+  const seen = new Set();
+  const list = (Array.isArray(value) ? value : []).map(v => String(v ?? '').trim()).filter(v => {
+    const key = v.toLowerCase();
+    if (!v || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return JSON.stringify(list);
+}
+function serverListFromColumn(text) {
+  const list = safeParse(text, []);
+  return Array.isArray(list) ? list.filter(v => typeof v === 'string') : [];
+}
+// The audit trail records a list as its items, comma-separated.
+function serverListLabelOf(text) {
+  return serverListFromColumn(text).join(', ');
+}
 function clientServerToApi(r) {
   const pw = readCredential(r.password);
   return {
     id: r.id, companyId: r.company_id, host: r.host, environment: r.environment,
     os: r.os, hostname: r.hostname, username: r.username,
     accessMethod: r.access_method || 'RDP',
+    status: r.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
+    linkedServers: serverListFromColumn(r.linked_servers),
+    workloads: serverListFromColumn(r.workloads),
+    externalParties: serverListFromColumn(r.external_parties),
     password: pw.value, passwordUnreadable: pw.unreadable,
     systemId: r.system_id, systemName: lkLabel(r.system_id), systemActive: isLookupActive(r.system_id),
     legacySystemName: r.system_name || '',
@@ -4808,11 +4833,15 @@ const SERVER_HISTORY_FIELDS = [
   ['hostname', 'Hostname'], ['access_method', 'Access'], ['username', 'Username'], ['password', 'Password', true],
   ['system_id', 'System', false, lkLabelOf],
   ['role_id', 'Role', false, lkLabelOf],
+  ['status', 'Status', false, v => (v === 'INACTIVE' ? 'Not Active' : 'Active')],
+  ['linked_servers', 'Linked Servers', false, serverListLabelOf],
+  ['workloads', 'Workloads', false, serverListLabelOf],
+  ['external_parties', 'External Parties', false, serverListLabelOf],
   ['notes', 'Notes'],
 ];
 // The host server is recorded by its identity, not its id.
 const serverLabelOf = v => {
-  const r = v == null || v === '' ? null : db.prepare('SELECT system_id, role_id, environment FROM client_servers WHERE id = ?').get(Number(v));
+  const r = v == null || v === '' ? null : db.prepare('SELECT system_id, role_id, environment, host FROM client_servers WHERE id = ?').get(Number(v));
   return r ? serverIdentityLabel(r) : '(deleted server)';
 };
 const DATABASE_HISTORY_FIELDS = [
@@ -4991,13 +5020,17 @@ function listClients(userId, includeArchived = false) {
   );
   // System/Role come from the lookup ids, not the inert legacy text columns
   // (migrations 038/039) — so this list stays searchable by a server's identity.
-  const srvRows = db.prepare('SELECT id, company_id, host, hostname, os, environment, system_id, role_id FROM client_servers WHERE user_id = ?').all(userId);
+  const srvRows = db.prepare(
+    'SELECT id, company_id, host, hostname, os, environment, system_id, role_id, linked_servers, workloads, external_parties FROM client_servers WHERE user_id = ?'
+  ).all(userId);
   const srv = groupClientRows(
     srvRows,
     r => ({
       id: r.id, type: 'servers', typeLabel: 'Server', name: serverIdentityLabel(r),
       detail: [r.host, r.hostname, r.os].filter(Boolean).join(' · '),
-      fields: [r.host, r.hostname, r.os, lkLabel(r.system_id), lkLabel(r.role_id)].filter(Boolean),
+      fields: [r.host, r.hostname, r.os, lkLabel(r.system_id), lkLabel(r.role_id),
+        ...serverListFromColumn(r.linked_servers), ...serverListFromColumn(r.workloads),
+        ...serverListFromColumn(r.external_parties)].filter(Boolean),
     })
   );
   // A database is named by itself; its host server's identity is the detail.
@@ -5307,20 +5340,25 @@ function deleteClientVpn(userId, id) {
 }
 
 // ── Server identity: System - Role - Environment ─────────────────────────────
-// Since migration 038 a server is identified by that triple: all three required,
-// unique within a client. Enforced here so the UI gets a readable message, and
+// Since migration 038 a server is identified by that triple: all three required.
+// Since migration 077 the triple plus the IP (host) is what must be unique
+// within a client, so several servers of one kind can sit side by side as long
+// as their IPs differ. Enforced here so the UI gets a readable message, and
 // again by a UNIQUE index on the table so a bug can't slip a duplicate past this.
-const SERVER_IDENTITY_ERROR = 'A server with this System / Role / Environment already exists for this client.';
+const SERVER_IDENTITY_ERROR = 'A server with this System / Role / Environment and IP already exists for this client.';
 const SERVER_IDENTITY_INCOMPLETE = 'A server needs a System, a Role and an Environment.';
 
 // The triple as one human string — a server has no name of its own, so this is
-// what names it wherever one is needed (the records search). Mirrors the
-// renderer's own serverIdentityText()/srvEnvLabel(); TEST reads "UAT", BOTH
-// "Production + UAT".
+// what names it wherever one is needed (the records search). The IP follows in
+// brackets when there is one, since two servers can share the triple (077).
+// Mirrors the renderer's own serverIdentityText()/srvEnvLabel(); TEST reads
+// "UAT", BOTH "Production + UAT".
 const SERVER_ENV_LABELS = { PRODUCTION: 'Production', TEST: 'UAT', BOTH: 'Production + UAT' };
 function serverIdentityLabel(r) {
   const env = SERVER_ENV_LABELS[r.environment] || r.environment;
-  return [lkLabel(r.system_id) || '(no system)', lkLabel(r.role_id) || '(no role)', env || '(no environment)'].join(' - ');
+  const triple = [lkLabel(r.system_id) || '(no system)', lkLabel(r.role_id) || '(no role)', env || '(no environment)'].join(' - ');
+  const host = String(r.host ?? '').trim();
+  return host ? triple + ' (' + host + ')' : triple;
 }
 
 // Resolves + validates the identity triple out of an incoming payload.
@@ -5339,8 +5377,9 @@ function resolveServerIdentity(userId, companyId, data, excludeId) {
         AND system_id IS ?
         AND role_id IS ?
         AND LOWER(TRIM(environment)) = LOWER(TRIM(?))
+        AND LOWER(TRIM(host)) = LOWER(TRIM(?))
         AND id IS NOT ?`
-  ).get(userId, companyId, systemId, roleId, environment, excludeId ?? null);
+  ).get(userId, companyId, systemId, roleId, environment, String(data?.host ?? ''), excludeId ?? null);
   if (clash) return { ok: false, error: SERVER_IDENTITY_ERROR, conflictId: clash.id };
   return { ok: true, systemId, environment, roleId };
 }
@@ -5349,6 +5388,10 @@ function resolveServerIdentity(userId, companyId, data, excludeId) {
 // column default, so an older caller that never sends it keeps working.
 function serverAccessMethod(value) {
   return value === 'PAM' ? 'PAM' : 'RDP';
+}
+// Active or not (migration 076). Anything but 'INACTIVE' is ACTIVE, the default.
+function serverStatus(value) {
+  return value === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE';
 }
 
 function createClientServer(userId, companyId, data) {
@@ -5360,12 +5403,15 @@ function createClientServer(userId, companyId, data) {
   // `credential_location`) are deliberately left out of the INSERT; the identity
   // triple names the server, and role_id/system_id are the live fields.
   const id = Number(db.prepare(
-    `INSERT INTO client_servers(user_id, company_id, host, environment, os, hostname, access_method, username, password, system_id, role_id, notes, sort_order, created_at, updated_at)
-     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+    `INSERT INTO client_servers(user_id, company_id, host, environment, os, hostname, access_method, username, password, system_id, role_id,
+       status, linked_servers, workloads, external_parties, notes, sort_order, created_at, updated_at)
+     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
   ).run(userId, companyId, data?.host ?? '', identity.environment, data?.os ?? '',
         data?.hostname ?? '', serverAccessMethod(data?.accessMethod), data?.username ?? '',
         encryptCredentialValue(data?.password ?? ''), identity.systemId,
-        identity.roleId, data?.notes ?? '', now, now).lastInsertRowid);
+        identity.roleId, serverStatus(data?.status), serverListToColumn(data?.linkedServers),
+        serverListToColumn(data?.workloads), serverListToColumn(data?.externalParties),
+        data?.notes ?? '', now, now).lastInsertRowid);
   return clientServerToApi(db.prepare('SELECT * FROM client_servers WHERE id = ?').get(id));
 }
 function updateClientServer(userId, id, data) {
@@ -5378,17 +5424,21 @@ function updateClientServer(userId, id, data) {
     host: data?.host ?? '', environment: identity.environment, os: data?.os ?? '',
     hostname: data?.hostname ?? '', access_method: serverAccessMethod(data?.accessMethod),
     username: data?.username ?? '', password: data?.password ?? '', system_id: identity.systemId,
-    role_id: identity.roleId, notes: data?.notes ?? '',
+    role_id: identity.roleId, status: serverStatus(data?.status),
+    linked_servers: serverListToColumn(data?.linkedServers), workloads: serverListToColumn(data?.workloads),
+    external_parties: serverListToColumn(data?.externalParties), notes: data?.notes ?? '',
   };
   tx(() => {
     recordClientFieldHistory(userId, 'server', id, before, next, SERVER_HISTORY_FIELDS);
     db.prepare(
       `UPDATE client_servers SET host = ?, environment = ?, os = ?, hostname = ?, access_method = ?, username = ?, password = ?,
-         system_id = ?, role_id = ?, notes = ?, updated_at = ?
+         system_id = ?, role_id = ?, status = ?, linked_servers = ?, workloads = ?, external_parties = ?,
+         notes = ?, updated_at = ?
         WHERE id = ? AND user_id = ?`
     ).run(next.host, next.environment, next.os, next.hostname, next.access_method, next.username,
           nextCredentialValue(beforeRaw.password, next.password),
-          next.system_id, next.role_id, next.notes, new Date().toISOString(), id, userId);
+          next.system_id, next.role_id, next.status, next.linked_servers, next.workloads,
+          next.external_parties, next.notes, new Date().toISOString(), id, userId);
   });
   return clientServerToApi(db.prepare('SELECT * FROM client_servers WHERE id = ?').get(id));
 }
@@ -5466,22 +5516,23 @@ function deleteClientDatabase(userId, id) {
   db.prepare('DELETE FROM client_databases WHERE id = ? AND user_id = ?').run(id, userId);
   return { ok: true };
 }
-// Both bulk-System writes below can break the identity triple's uniqueness by
+// Both bulk-System writes below can break the identity's uniqueness by
 // moving rows under a System name that already has a row with the same
-// Role + Environment — so each dry-runs the resulting triples first and refuses
+// Role + Environment + IP — so each dry-runs the resulting triples first and refuses
 // the whole batch rather than letting the UNIQUE index throw a raw SQLite error
 // halfway through. Returns the clashing rows so the UI can name them.
 function serverGroupMoveConflicts(userId, companyId, movingIds, systemId) {
   const rows = db.prepare(
-    'SELECT id, system_id, role_id, environment FROM client_servers WHERE user_id = ? AND company_id = ?'
+    'SELECT id, system_id, role_id, environment, host FROM client_servers WHERE user_id = ? AND company_id = ?'
   ).all(userId, companyId);
   const moving = new Set(movingIds.map(Number));
-  const key = (sys, roleId, env) => [sys, roleId, String(env ?? '').trim().toLowerCase()].join('|');
+  const norm = v => String(v ?? '').trim().toLowerCase();
+  const key = (sys, roleId, env, host) => [sys, roleId, norm(env), norm(host)].join('|');
   const taken = new Map();
   const conflicts = [];
   for (const r of rows) {
     const sys = moving.has(r.id) ? systemId : r.system_id;
-    const k = key(sys, r.role_id, r.environment);
+    const k = key(sys, r.role_id, r.environment, r.host);
     // Named by the identity the row would END UP with, since that's the triple
     // that would collide — not the one it has right now.
     const identity = serverIdentityLabel({ ...r, system_id: sys });

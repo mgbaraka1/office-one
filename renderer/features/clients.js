@@ -25,7 +25,7 @@ let currentClient = null;       // Client (from clients:get) shown in the detail
 let clientVpnEditId = null;      // null = create mode in the Auth modal
 let clientServerEditId = null;   // null = create mode in the Server modal
 let clientDatabaseEditId = null;   // null = create mode in the Database modal
-let clientServersView = 'list';    // 'list' | 'map' — how the Servers section is drawn
+let clientServersView = 'list';    // 'list' | 'map' | 'wheel' — how the Servers section is drawn
 let clientInternalEditId = null; // null = create mode in the Internal System modal
 let clientGroupRenameKind = null;    // 'server' | 'internal' — which section's group is being renamed
 let clientGroupRenameOldName = null; // the group's current systemName
@@ -814,6 +814,8 @@ const CLIENT_RECORD_INFO_FIELDS = {
   servers: [
     ['systemName', 'System'], ['roleLabel', 'Role'], ['environment', 'Environment'],
     ['host', 'Host (IP)'], ['hostname', 'Hostname'], ['os', 'Operating System'], ['accessMethod', 'Access'],
+    ['status', 'Status'], ['linkedServers', 'Linked Servers'], ['workloads', 'Workloads'],
+    ['externalParties', 'External Parties'],
     ['username', 'Username'], ['password', 'Password', true], ['notes', 'Notes'],
   ],
   databases: [
@@ -857,7 +859,10 @@ async function openClientRecordInfoModal(record, presetSearch) {
   const viaPam = record.type === 'servers' && full.accessMethod === 'PAM';
   (CLIENT_RECORD_INFO_FIELDS[record.type] || []).forEach(([key, label, sensitive]) => {
     if (viaPam && (key === 'username' || key === 'password')) return;
-    const value = full[key];
+    // A server's lists (migration 076) copy as one item per line; its status reads as words.
+    let value = full[key];
+    if (Array.isArray(value)) value = value.join('\n');
+    else if (record.type === 'servers' && key === 'status') value = srvStatusLabel(value);
     // A credential this device holds no key for reads back empty — say so,
     // rather than letting it pass as '(empty)', which would mean "never set".
     const locked = sensitive && !value && full[key + 'Unreadable'];
@@ -1145,7 +1150,7 @@ function renderClientDetailSections(c) {
     const sView = pjMk('div', 'seg-ctl');
     sView.setAttribute('role', 'group');
     sView.setAttribute('aria-label', 'Show servers as');
-    [['list', 'rows-3', 'List'], ['map', 'layers', 'Map']].forEach(([view, icon, label]) => {
+    [['list', 'rows-3', 'List'], ['map', 'layers', 'Map'], ['wheel', 'share-2', 'Wheel']].forEach(([view, icon, label]) => {
       const b = pjMk('button', 'seg-btn' + (clientServersView === view ? ' active' : ''));
       b.type = 'button';
       b.setAttribute('aria-pressed', String(clientServersView === view));
@@ -1177,15 +1182,18 @@ function renderClientDetailSections(c) {
     // identity (migration 038) — searching "Applications" should find them.
     // `environment` is deliberately left out: "Production" matches most servers,
     // which is noise rather than a search.
-    // A server is also found by the databases it hosts.
+    // A server is also found by the databases it hosts, and by its three lists (076).
     const shownServers = allServers.filter(s => textMatch([s.host, s.hostname, s.os, s.systemName, s.roleLabel,
-      ...(s.databases || []).flatMap(d => [d.name, d.engine])], q));
+      ...(s.databases || []).flatMap(d => [d.name, d.engine]),
+      ...(s.linkedServers || []), ...(s.workloads || []), ...(s.externalParties || [])], q));
     if (allServers.length === 0) {
       srvSec.appendChild(pjMk('div', 'cp-records-empty', 'No servers recorded yet.'));
     } else if (shownServers.length === 0) {
       srvSec.appendChild(pjMk('div', 'cp-records-empty', 'No servers match your search.'));
     } else if (clientServersView === 'map') {
       srvSec.appendChild(buildClientServerMap(c, shownServers));
+    } else if (clientServersView === 'wheel') {
+      srvSec.appendChild(buildServerWheel(shownServers));
     } else {
       const { groups: serverGroups, ungrouped: ungroupedServers } = groupBySystemName(shownServers);
       serverGroups.forEach(g => srvSec.appendChild(buildSystemGroupCard(g, buildClientServerCard, 'server')));
@@ -1800,6 +1808,9 @@ const SERVER_CONFIRM_FIELDS = [
   ['hostname', 'Hostname'], ['accessMethod', 'Access'], ['username', 'Username'], ['password', 'Password'],
   ['systemName', 'System'],   // already a SYSTEM label on both sides of the diff
   ['role', 'Role', v => lkLabel('SERVER_ROLE', v)],
+  ['status', 'Status', v => srvStatusLabel(v)],
+  ['linkedServers', 'Linked Servers', clListStr], ['workloads', 'Workloads', clListStr],
+  ['externalParties', 'External Parties', clListStr],
   ['notes', 'Notes'],
 ];
 const DATABASE_CONFIRM_FIELDS = [
@@ -1824,9 +1835,17 @@ const INTERNAL_CONFIRM_FIELDS = [
 
 // String form of a field value for diffing/display — arrays (subServices)
 // compare/display as JSON since a plain String() on an array of objects is unreadable.
+// A server's plain lists (migration 076) read as their items, comma-separated.
+// diffClientFields hands the formatter the JSON string form, so parse it back.
+function clListStr(v) {
+  if (typeof v === 'string' && v.startsWith('[')) { try { v = JSON.parse(v); } catch { /* shown as is */ } }
+  return Array.isArray(v) ? v.join(', ') : clFieldStr(v);
+}
+function srvStatusLabel(v) { return v === 'INACTIVE' ? 'Not Active' : 'Active'; }
 function clFieldStr(v) {
   if (v == null) return '';
-  if (Array.isArray(v)) return JSON.stringify(v);
+  // An empty list is an empty field: filling it for the first time is not an edit.
+  if (Array.isArray(v)) return v.length ? JSON.stringify(v) : '';
   return String(v);
 }
 
@@ -2072,14 +2091,17 @@ function srvEnvLabel(env) {
 function srvEnvIsKnown(env) { return env === 'PRODUCTION' || env === 'TEST' || env === 'BOTH'; }
 
 // Plain-text form of a server's identity — for anywhere that needs a name for
-// the record (history modal title, group checklist, toasts). A server has no
-// name of its own anymore: the triple IS its name.
+// the record (history modal title, group checklist, database picker, toasts).
+// A server has no name of its own: the triple names it, and since migration 077
+// the IP follows in brackets, because two servers can share the triple.
 function serverIdentityText(s) {
   // Joined into one string, the parts are invisible to the DOM translator — so
   // each is translated on its own first.
   const tr = text => window.ctI18n?.t?.(text) || text;
-  return [lkLabel('SYSTEM', s.systemName) || '(no system)', lkLabel('SERVER_ROLE', s.role) || s.roleLabel || '(no role)',
+  const triple = [lkLabel('SYSTEM', s.systemName) || '(no system)', lkLabel('SERVER_ROLE', s.role) || s.roleLabel || '(no role)',
     srvEnvLabel(s.environment) || '(no environment)'].map(tr).join(' - ');
+  const host = String(s.host ?? '').trim();
+  return host ? triple + ' (' + host + ')' : triple;
 }
 
 // The card's identity line — the server's title, and the same
@@ -2106,9 +2128,12 @@ function buildServerIdentityLine(s) {
 }
 
 function buildClientServerCard(s) {
-  const card = pjMk('div', 'cl-item-card');
+  const inactive = s.status === 'INACTIVE';
+  const card = pjMk('div', 'cl-item-card' + (inactive ? ' cl-srv-inactive' : ''));
   const main = pjMk('div', 'cl-item-main');
-  main.appendChild(buildServerIdentityLine(s));
+  const identity = buildServerIdentityLine(s);
+  if (inactive) identity.appendChild(pjMk('span', 'cl-srv-status-badge', 'Not Active'));
+  main.appendChild(identity);
   const viaPam = s.accessMethod === 'PAM';
   if (s.host || s.hostname || s.os || viaPam) {
     main.appendChild(clMetaLine([s.host && clCopyValue(s.host, 'Host (IP)'),
@@ -2124,6 +2149,11 @@ function buildClientServerCard(s) {
     }
     main.appendChild(cred);
   }
+  [['linkedServers', 'Linked Servers', 'share-2'], ['workloads', 'Workloads', 'layers'],
+    ['externalParties', 'External Parties', 'plug']].forEach(([key, label, icon]) => {
+    const list = buildServerListLine(s[key], label, icon);
+    if (list) main.appendChild(list);
+  });
   if (s.notes) main.appendChild(pjMk('div', 'cl-item-notes', s.notes));
   main.appendChild(pjMk('div', 'cl-item-updated', clUpdatedLabel(s)));
   const dbList = buildServerDatabaseList(s);
@@ -2153,6 +2183,45 @@ function buildClientServerCard(s) {
   actions.appendChild(delBtn);
   card.appendChild(actions);
   return card;
+}
+
+// One of a server's plain lists (migration 076) as a labelled row of chips,
+// each click-to-copy, with the item count beside the label. A long list shows
+// its first few chips and a "+N more" chip that expands it in place, so one
+// busy server does not swamp the card. Nothing when the list is empty.
+const SERVER_LIST_PREVIEW = 6;
+function buildServerListLine(items, label, icon) {
+  if (!Array.isArray(items) || !items.length) return null;
+  const tr = (text, vars) => window.ctI18n?.t?.(text, vars) || text.replace('{n}', vars?.n);
+  const row = pjMk('div', 'cl-srv-list');
+  const head = pjMk('span', 'cl-srv-list-label');
+  head.innerHTML = ic(icon);
+  head.appendChild(pjMk('span', null, label));
+  head.appendChild(pjMk('span', 'cl-srv-list-count', String(items.length)));
+  row.appendChild(head);
+  const chips = pjMk('div', 'cl-srv-list-chips');
+  const render = expanded => {
+    const shown = expanded || items.length <= SERVER_LIST_PREVIEW + 1 ? items : items.slice(0, SERVER_LIST_PREVIEW);
+    chips.replaceChildren();
+    shown.forEach(item => {
+      const chip = pjMk('button', 'cl-srv-chip', item);
+      chip.type = 'button';
+      chip.dataset.userContent = ''; chip.dir = 'auto';
+      chip.title = 'Click to copy';
+      chip.addEventListener('click', () => copyClientFieldValue(item, label));
+      chips.appendChild(chip);
+    });
+    if (shown.length === items.length && !expanded) return;
+    const toggle = pjMk('button', 'cl-srv-chip cl-srv-chip-more',
+      expanded ? tr('Show less') : tr('+{n} more', { n: items.length - shown.length }));
+    toggle.type = 'button';
+    toggle.setAttribute('aria-expanded', String(!!expanded));
+    toggle.addEventListener('click', () => render(!expanded));
+    chips.appendChild(toggle);
+  };
+  render(false);
+  row.appendChild(chips);
+  return row;
 }
 
 // ── Server map: the Servers section drawn as a tree ──
@@ -2596,7 +2665,7 @@ function renderServerIdentityPreview() {
   const env = srvEnvLabel(document.getElementById('cs-environment').value);
   el.classList.remove('bad');
   if (!system || !role || !env) {
-    el.textContent = 'All three identify the server and must be unique for this client.';
+    el.textContent = 'With the IP, these identify the server and must be unique for this client.';
     return;
   }
   // One text node per part, as on the card, so the translator sees
@@ -2607,6 +2676,83 @@ function renderServerIdentityPreview() {
     value.appendChild(pjMk('span', null, text));
   });
   el.replaceChildren(document.createTextNode('Identity: '), value);
+}
+
+// Active / Not Active toggle (migration 076).
+let clientServerStatus = 'ACTIVE';
+function setServerStatus(status) {
+  clientServerStatus = status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE';
+  [['cs-status-active', 'ACTIVE'], ['cs-status-inactive', 'INACTIVE']].forEach(([id, value]) => {
+    const b = document.getElementById(id);
+    const on = clientServerStatus === value;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
+}
+// A server list editor (migration 076): an add box plus one row per item,
+// each with its own remove button. Enter or Add takes the box's text; pasting
+// several lines adds each line as its own item. Repeats (any case) are skipped.
+const SERVER_LIST_IDS = ['cs-linked-servers', 'cs-workloads', 'cs-external-parties'];
+function serverListItems(id) {
+  return [...document.querySelectorAll('#' + id + ' .cs-list-item-text')].map(el => el.textContent);
+}
+function addServerListItems(id, values) {
+  const ul = document.querySelector('#' + id + ' .cs-list-items');
+  const have = new Set(serverListItems(id).map(v => v.toLowerCase()));
+  values.map(v => String(v ?? '').trim()).filter(Boolean).forEach(value => {
+    if (have.has(value.toLowerCase())) return;
+    have.add(value.toLowerCase());
+    const li = pjMk('li', 'cs-list-item');
+    const text = pjMk('span', 'cs-list-item-text', value);
+    text.dataset.userContent = ''; text.dir = 'auto';
+    li.appendChild(text);
+    const remove = pjMk('button', 'cd-icon-btn danger');
+    remove.type = 'button';
+    remove.innerHTML = ic('x');
+    remove.title = 'Remove';
+    remove.setAttribute('aria-label', (window.ctI18n?.t?.('Remove') || 'Remove') + ' ' + value);
+    remove.addEventListener('click', () => li.remove());
+    li.appendChild(remove);
+    ul.appendChild(li);
+  });
+  // A long list scrolls inside its box; keep the newest item in view.
+  ul.scrollTop = ul.scrollHeight;
+}
+function takeServerListInput(id) {
+  const input = document.getElementById(id + '-input');
+  addServerListItems(id, input.value.split(/\r?\n/));
+  input.value = '';
+  input.focus();
+}
+function wireServerListEditors() {
+  SERVER_LIST_IDS.forEach(id => {
+    const box = document.getElementById(id);
+    if (box.dataset.wired) return;
+    box.dataset.wired = '1';
+    const input = document.getElementById(id + '-input');
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); takeServerListInput(id); }
+    });
+    input.addEventListener('paste', e => {
+      const text = e.clipboardData?.getData('text') || '';
+      if (!/\r?\n/.test(text.trim())) return;
+      e.preventDefault();
+      addServerListItems(id, text.split(/\r?\n/));
+    });
+    box.querySelector('.cs-list-add-btn').addEventListener('click', () => takeServerListInput(id));
+  });
+}
+function fillServerListEditor(id, items) {
+  document.querySelector('#' + id + ' .cs-list-items').replaceChildren();
+  document.getElementById(id + '-input').value = '';
+  addServerListItems(id, items || []);
+}
+// Text still sitting in the add box counts too, so nothing typed is lost on save.
+function readServerListInput(id) {
+  const pending = document.getElementById(id + '-input').value;
+  if (pending.trim()) addServerListItems(id, [pending]);
+  document.getElementById(id + '-input').value = '';
+  return serverListItems(id);
 }
 
 // RDP / PAM toggle (migration 072). PAM hides the username/password row; the
@@ -2632,6 +2778,11 @@ function openClientServerModal(s) {
   fillIdentitySelect('cs-role', 'SERVER_ROLE', 'code', s ? s.role : '', 'Select a role…', 'role');
   fillServerEnvSelect(s);
   setServerAccessMethod(s?.accessMethod === 'PAM' ? 'PAM' : 'RDP');
+  setServerStatus(s?.status);
+  wireServerListEditors();
+  fillServerListEditor('cs-linked-servers', s?.linkedServers);
+  fillServerListEditor('cs-workloads', s?.workloads);
+  fillServerListEditor('cs-external-parties', s?.externalParties);
   document.getElementById('cs-hostname').value = s ? (s.hostname || '') : '';
   document.getElementById('cs-os').value = s ? (s.os || '') : '';
   document.getElementById('cs-username').value = s ? (s.username || '') : '';
@@ -2663,6 +2814,10 @@ async function submitClientServerModal() {
   const data = {
     systemName, role, environment,
     accessMethod: clientServerAccessMethod,
+    status: clientServerStatus,
+    linkedServers:   readServerListInput('cs-linked-servers'),
+    workloads:       readServerListInput('cs-workloads'),
+    externalParties: readServerListInput('cs-external-parties'),
     host:        document.getElementById('cs-host').value.trim(),
     hostname:    document.getElementById('cs-hostname').value.trim(),
     os:          document.getElementById('cs-os').value.trim(),
@@ -2681,12 +2836,12 @@ async function submitClientServerModal() {
     else res = await window.api.createClientServer(currentClient.id, data);
   } catch { toast('Could not save server'); return; }
   // A rejected identity comes back as {ok:false,error} rather than throwing — the
-  // modal stays open with the three parts flagged so the clash can be fixed.
+  // modal stays open with the identity parts and the IP flagged so the clash can be fixed.
   if (res && res.ok === false) {
-    ['cs-system', 'cs-role', 'cs-environment'].forEach(markError);
+    ['cs-system', 'cs-role', 'cs-environment', 'cs-host'].forEach(markError);
     const preview = document.getElementById('cs-identity-preview');
     preview.classList.add('bad');
-    preview.textContent = res.error || 'That System / Role / Environment is already taken.';
+    preview.textContent = res.error || 'That System / Role / Environment and IP is already taken.';
     return;
   }
   closeClientServerModal();
@@ -2706,7 +2861,9 @@ async function deleteClientServerEntry(id) {
         host: snapshot.host, environment: snapshot.environment,
         systemName: snapshot.systemName, hostname: snapshot.hostname, os: snapshot.os, username: snapshot.username,
         password: snapshot.password, role: snapshot.role, notes: snapshot.notes,
-        accessMethod: snapshot.accessMethod,
+        accessMethod: snapshot.accessMethod, status: snapshot.status,
+        linkedServers: snapshot.linkedServers, workloads: snapshot.workloads,
+        externalParties: snapshot.externalParties,
       });
     } catch { toast('Could not restore server'); return; }
     // Its identity can have been taken by another server during the undo window.

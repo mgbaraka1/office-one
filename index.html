@@ -1539,6 +1539,55 @@
           <input id="cs-password" type="password" autocomplete="new-password" placeholder="Login password" />
         </div>
       </div>
+      <!-- Active / Not Active (migration 076). A Not Active server stays listed,
+           dimmed, so its details are still there. -->
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Status</label>
+          <div class="seg-ctl cs-status-ctl" role="group" aria-label="Is this server in use?">
+            <button type="button" class="seg-btn" id="cs-status-active" data-onclick="setServerStatus('ACTIVE')">Active</button>
+            <button type="button" class="seg-btn" id="cs-status-inactive" data-onclick="setServerStatus('INACTIVE')">Not Active</button>
+          </div>
+        </div>
+      </div>
+      <!-- Three plain lists (migration 076): type an item and press Enter or Add;
+           each item is its own row with a remove button. -->
+      <div class="form-row">
+        <div class="form-group full">
+          <label for="cs-linked-servers-input">Linked Servers</label>
+          <div class="cs-list" id="cs-linked-servers">
+            <ul class="cs-list-items"></ul>
+            <div class="cs-list-add">
+              <input id="cs-linked-servers-input" type="text" placeholder="IP or hostname" />
+              <button type="button" class="btn cs-list-add-btn">Add</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label for="cs-workloads-input">Workloads</label>
+          <div class="cs-list" id="cs-workloads">
+            <ul class="cs-list-items"></ul>
+            <div class="cs-list-add">
+              <input id="cs-workloads-input" type="text" placeholder="Workload name" />
+              <button type="button" class="btn cs-list-add-btn">Add</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label for="cs-external-parties-input">External Parties</label>
+          <div class="cs-list" id="cs-external-parties">
+            <ul class="cs-list-items"></ul>
+            <div class="cs-list-add">
+              <input id="cs-external-parties-input" type="text" placeholder="Party name, e.g. Payment Service" />
+              <button type="button" class="btn cs-list-add-btn">Add</button>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="form-row">
         <div class="form-group full">
           <label>Notes</label>
@@ -2691,6 +2740,7 @@
 <script src="renderer/features/knowledge-sanitize.js"></script>
 <script src="renderer/features/knowledge.js"></script>
 <script src="renderer/features/knowledge-wheel.js"></script>
+<script src="renderer/features/server-wheel.js"></script>
 <script src="renderer/features/company-documents.js"></script>
 <script src="renderer/features/pfm.js"></script>
 <script src="renderer/features/outsource.js"></script>

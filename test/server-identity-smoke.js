@@ -30,6 +30,9 @@
 //   9. The same triple under a DIFFERENT client is allowed (scoped per client).
 //  10. assignClientServerGroup/renameClientServerSystemGroup refuse a bulk move
 //      that would collide, without half-applying it.
+//  11. Since migration 077 the IP is part of the identity: the same triple on a
+//      different IP is allowed (create, update, bulk move), the same IP in any
+//      case/spacing is still refused, and the IP names the server.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const fs   = require('node:fs');
@@ -318,6 +321,26 @@ systemName: sysC.label, role: 'DATABASES', environment: 'PRODUCTION',
       assign.ok === false && rename.ok === false && untouched &&
       ok.ok === true && ok.count === 1 && g1After.systemName === sysA.label,
       `assign=${assign.ok} rename=${rename.ok} rowsUntouched=${untouched} cleanMove=${ok.ok}/${ok.count} g1System=${g1After.systemName}`);
+  }
+
+  // ── Gate 11 — the IP tells servers with the same triple apart (077) ────
+  {
+    const base = { systemName: sysB.label, role: 'SERVICES', environment: 'PRODUCTION' };
+    const a = db.createClientServer(userId, coA.id, { ...base, host: '10.9.0.1' });
+    const b = db.createClientServer(userId, coA.id, { ...base, host: '10.9.0.2' });
+    const sameIp = db.createClientServer(userId, coA.id, { ...base, host: ' 10.9.0.1 ' });
+    // b may not be moved onto a's IP, but may move to a third one.
+    const moveClash = db.updateClientServer(userId, b.id, { ...base, host: '10.9.0.1' });
+    const moveFree = db.updateClientServer(userId, b.id, { ...base, host: '10.9.0.3' });
+    // Two same-triple servers with different IPs fold into one System cleanly.
+    const bulk = db.assignClientServerGroup(userId, coA.id, [a.id, b.id], sysC.label);
+    const idx = raw.prepare("SELECT sql FROM sqlite_master WHERE name = 'idx_client_servers_identity'").get().sql;
+    const named = db.listClients(userId).flatMap(c => c.records || [])
+      .some(r => r.type === 'servers' && r.name.endsWith('(10.9.0.1)'));
+    record('Gate 11: the same triple on a different IP is allowed, the same IP (any case/spacing) is refused, and the IP names the server',
+      a.id > 0 && b.id > 0 && sameIp.ok === false && moveClash.ok === false && moveFree.host === '10.9.0.3' &&
+      bulk.ok === true && bulk.count === 2 && /host/.test(idx) && named,
+      `a=#${a.id} b=#${b.id} sameIp=${sameIp.ok} moveClash=${moveClash.ok} moveFree=${moveFree.host} bulk=${bulk.ok}/${bulk.count} indexHasHost=${/host/.test(idx)} named=${named}`);
   }
 
   raw.close();

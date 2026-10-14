@@ -239,6 +239,8 @@ Landmarks worth knowing:
 | 071 | Databases hosted on a server — the retired `client_databases` comes back with `server_id` (FK to `client_servers`, ON DELETE CASCADE) and `connection_string` (encrypted at rest like `password`), index `idx_client_databases_server`, and Quick Find triggers under kind `client-database` (name, engine, version, port, notes; never credentials) |
 | 072 | Server access method — `client_servers.access_method` ('RDP' default, or 'PAM', CHECK-constrained). A PAM server's username/password stay stored but are not shown |
 | 073 | Database environment — `client_databases.environment` ('PRODUCTION' default, or 'TEST' shown as UAT, CHECK-constrained). The database's own, which can differ from its server's; existing rows were backfilled from their server |
+| 076 | Server lists and status — `client_servers.linked_servers`, `workloads`, `external_parties` (JSON arrays of plain strings, default '[]') and `status` ('ACTIVE' default, or 'INACTIVE', CHECK-constrained). The two `workspace_search_client_servers_*` insert/update triggers recreated so Quick Find also searches the three lists |
+| 077 | Server identity includes the IP — `idx_client_servers_identity` re-keyed onto (user, client, system, role, environment, host), host case- and space-insensitive. Two servers may share System / Role / Environment when their IPs differ; servers with no IP still collide on the triple alone |
 
 **A guarded seed is the right shape for a fresh-install gap.** Migration 003
 seeded some categories from "legacy blob ∪ values already in the data", both

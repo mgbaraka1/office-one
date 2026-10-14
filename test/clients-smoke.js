@@ -338,6 +338,32 @@ try {
   const oddSrv = db.updateClientServer(userId, srv.id, { ...pamSrv, role: 'APPLICATIONS', accessMethod: 'SSH' });
   record('updateClientServer: an unknown access method is stored as RDP', oddSrv.accessMethod === 'RDP', oddSrv.accessMethod);
 
+  // Status and the three lists (migration 076): all optional.
+  record('createClientServer: status defaults to ACTIVE with empty lists',
+    srv.status === 'ACTIVE' && [srv.linkedServers, srv.workloads, srv.externalParties].every(l => Array.isArray(l) && !l.length),
+    JSON.stringify(srv));
+  const listSrv = db.updateClientServer(userId, srv.id, {
+    ...oddSrv, status: 'INACTIVE',
+    linkedServers: [' 10.0.0.9 ', 'db-host-1', '', 'DB-HOST-1'],
+    workloads: ['PortalSite', 'PortalApi'], externalParties: ['PartyZulu'],
+  });
+  record('updateClientServer: status and lists stored, trimmed, blanks and repeats dropped',
+    listSrv.status === 'INACTIVE' && JSON.stringify(listSrv.linkedServers) === '["10.0.0.9","db-host-1"]'
+    && JSON.stringify(listSrv.workloads) === '["PortalSite","PortalApi"]'
+    && JSON.stringify(listSrv.externalParties) === '["PartyZulu"]', JSON.stringify(listSrv));
+  const srvHist = db.getClientFieldHistory(userId, 'server', srv.id);
+  record('updateClientServer: status and list changes are in the history',
+    srvHist.some(h => h.fieldName === 'Status' && h.oldValue === 'Active' && h.newValue === 'Not Active')
+    && srvHist.some(h => h.fieldName === 'Workloads' && h.newValue === 'PortalSite, PortalApi'), JSON.stringify(srvHist.slice(0, 6)));
+  record('updateClientServer: an unknown status is stored as ACTIVE',
+    db.updateClientServer(userId, srv.id, { ...listSrv, status: 'GONE' }).status === 'ACTIVE', '');
+  const srvSearch = readRow(path.join(workDir, 'cooperation-tools.db'), "SELECT body FROM workspace_search WHERE kind = 'client-server' AND entity_id = ?",
+    `${companyA}:${srv.id}`);
+  record('Quick Find: a server is found by its lists',
+    !!srvSearch && /PartyZulu/.test(srvSearch.body) && /PortalApi/.test(srvSearch.body) && /db-host-1/.test(srvSearch.body),
+    srvSearch?.body);
+  db.updateClientServer(userId, srv.id, { ...oddSrv });
+
   // ── Internal System CRUD ─────────────────────────────────────────────────────
   const int = db.createClientInternalSystem(userId, companyA, {
     name: 'Queue Console - Production', url: 'http://10.0.0.20:15672/',
