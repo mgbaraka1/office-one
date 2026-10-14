@@ -363,12 +363,14 @@
 /**
  * A Company Document card (`companydocs:*`). Unlike ProjectDocument (a fixed
  * catalog slot per project), each row IS the user-created entity — deleting it
- * deletes the card, not just its file.
+ * deletes the card, not just its file. A Template (`templates:*`) is the same
+ * card with kind 'TEMPLATE', a TEMPLATE_CATEGORY and never a renewal date.
  * @typedef {Object} CompanyDocument
  * @property {number} id
+ * @property {'DOCUMENT'|'TEMPLATE'} kind
  * @property {string} name         User-entered title (e.g. 'VAT Certificate').
- * @property {string} category     A COMPANY_DOCUMENT_CATEGORY lookup code, or '' if unset.
- * @property {string} renewalDate  YYYY-MM-DD, or '' if not tracked.
+ * @property {string} category     A COMPANY_DOCUMENT_CATEGORY (or, for a template, TEMPLATE_CATEGORY) lookup code, or '' if unset.
+ * @property {string} renewalDate  YYYY-MM-DD, or '' if not tracked (always '' for a template).
  * @property {string} notes
  * @property {number} sortOrder
  * @property {string} createdAt
@@ -377,7 +379,7 @@
  */
 
 /**
- * Write shape for `companydocs:create` / `companydocs:update`.
+ * Write shape for `companydocs:create` / `companydocs:update` / `templates:create`.
  * @typedef {Object} CompanyDocumentInput
  * @property {string} name
  * @property {string} [category]     A COMPANY_DOCUMENT_CATEGORY lookup code; unknown/empty → unset.
@@ -1111,7 +1113,7 @@
 /**
  * One account-scoped entry in Overview's Recent Changes feed.
  * @typedef {Object} RecentActivityItem
- * @property {'task'|'session'|'project'|'knowledge'|'company-document'} kind
+ * @property {'task'|'session'|'project'|'knowledge'|'company-document'|'template'} kind
  * @property {number} id
  * @property {number|null} parentId
  * @property {string} title

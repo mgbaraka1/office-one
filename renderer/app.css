@@ -1190,12 +1190,18 @@
     .pfm-status-sent     { background: var(--prog);    color: var(--prog-text); }
     .pfm-status-accepted { background: var(--done);    color: var(--done-text); }
     .pfm-status-rejected { background: var(--blocked); color: var(--blocked-text); }
+    /* Delivery (migration 074): approvals read as won, an unpaid invoice as
+       waiting, a paid one as done. */
+    .pfm-status-uat_approved, .pfm-status-production_approved, .pfm-status-paid { background: var(--done); color: var(--done-text); }
+    .pfm-status-invoiced { background: var(--prog); color: var(--prog-text); }
     /* Pipeline: one column per status, each in its status pill's colour
        (--stage), with a "value by stage" bar per currency above them. */
     .pfm-stage-ready    { --stage: var(--open-text); }
     .pfm-stage-sent     { --stage: var(--prog-text); }
     .pfm-stage-accepted { --stage: var(--done-text); }
     .pfm-stage-rejected { --stage: var(--blocked-text); }
+    .pfm-stage-uat_approved, .pfm-stage-production_approved, .pfm-stage-paid { --stage: var(--done-text); }
+    .pfm-stage-invoiced { --stage: var(--prog-text); }
     .pfm-stage-other    { --stage: var(--muted); }
     .pfm-pipe-summary {
       display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-4);
@@ -1296,6 +1302,31 @@
     .pfm-step-state.is-pending { color: var(--muted); border: 1px dashed var(--border); }
     .pfm-step-date { font-size: var(--fs-caption); color: var(--muted); }
     .pfm-step-note { font-size: var(--fs-caption); color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* Documents: one row per step — the step and its date, then its files
+       (the Offer row holds the version cards). Stacks on a narrow window. */
+    .pfm-doc-rows { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+    .pfm-doc-row { display: grid; grid-template-columns: minmax(150px, 200px) 1fr; gap: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface); }
+    .pfm-doc-row + .pfm-doc-row { border-top: 1px solid var(--border); }
+    .pfm-doc-step { display: flex; flex-direction: column; gap: 2px; padding-top: 4px; }
+    .pfm-doc-step-name { font-weight: 700; font-size: var(--fs-sm); }
+    .pfm-doc-step-date { font-size: var(--fs-caption); }
+    .pfm-step-files { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
+    .pfm-step-files .pfm-file-errors { flex-basis: 100%; margin-top: 0; }
+    @media (max-width: 720px) { .pfm-doc-row { grid-template-columns: 1fr; gap: var(--space-2); } }
+    /* Inside the Offer row a version is a flat line, not a boxed card: the
+       current one leads, older ones are quieter, a hairline between them. */
+    .pfm-offer-versions { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); min-width: 0; }
+    .pfm-offer-versions .pfm-version-list { gap: 0; align-self: stretch; }
+    .pfm-offer-versions .pfm-version,
+    .pfm-offer-versions .pfm-version.current { border: 0; border-radius: 0; box-shadow: none; background: none; padding: var(--space-2) 0; }
+    html[dir="rtl"] .pfm-offer-versions .pfm-version.current { box-shadow: none; }
+    .pfm-offer-versions .pfm-version + .pfm-version { border-top: 1px dashed var(--border); }
+    .pfm-offer-versions .pfm-version:not(.current) { opacity: .72; }
+    .pfm-offer-versions .pfm-version:first-child { padding-top: 2px; }
+    .pfm-offer-versions .pfm-files { margin-top: var(--space-2); }
+    .pfm-version-empty { font-size: var(--fs-sm); padding-top: 4px; }
+    .pfm-project-link { display: inline-flex; align-items: center; gap: 4px; background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+    .pfm-project-link .lic { width: 14px; height: 14px; }
     .pfm-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3) var(--space-4); }
     .pfm-form-grid .form-group.full { grid-column: 1 / -1; }
     .pfm-form-grid .form-group[hidden] { display: none; }
@@ -3263,7 +3294,7 @@
     #timer-stop-btn:hover { background: var(--good); color: #fff; border-color: var(--good); }
 
     /* ══ UNDO TOAST ══ */
-    #undo-toast, #sub-undo-toast, #project-undo-toast, #companydoc-undo-toast, #knowledge-undo-toast {
+    #undo-toast, #sub-undo-toast, #project-undo-toast, #companydoc-undo-toast, #template-undo-toast, #knowledge-undo-toast {
       position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
       background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
       padding: 13px 22px; display: none; align-items: center; gap: 12px;
@@ -3272,17 +3303,17 @@
       animation: toastIn .2s var(--ease);
       white-space: nowrap;
     }
-    #undo-toast.visible, #sub-undo-toast.visible, #project-undo-toast.visible, #companydoc-undo-toast.visible, #knowledge-undo-toast.visible { display: flex; }
+    #undo-toast.visible, #sub-undo-toast.visible, #project-undo-toast.visible, #companydoc-undo-toast.visible, #template-undo-toast.visible, #knowledge-undo-toast.visible { display: flex; }
     @keyframes toastIn {
       from { opacity: 0; transform: translateX(-50%) translateY(8px); }
       to   { opacity: 1; transform: translateX(-50%) translateY(0); }
     }
-    #undo-toast-btn, #sub-undo-toast-btn, #project-undo-toast-btn, #companydoc-undo-toast-btn, #knowledge-undo-toast-btn {
+    #undo-toast-btn, #sub-undo-toast-btn, #project-undo-toast-btn, #companydoc-undo-toast-btn, #template-undo-toast-btn, #knowledge-undo-toast-btn {
       background: var(--primary); border: none; border-radius: 8px;
       padding: 3px 12px; font-size: 12px; font-weight: 700;
       color: #fff; cursor: pointer; font-family: inherit; transition: background var(--speed);
     }
-    #undo-toast-btn:hover, #sub-undo-toast-btn:hover, #project-undo-toast-btn:hover, #companydoc-undo-toast-btn:hover, #knowledge-undo-toast-btn:hover { background: var(--primary-strong); }
+    #undo-toast-btn:hover, #sub-undo-toast-btn:hover, #project-undo-toast-btn:hover, #companydoc-undo-toast-btn:hover, #template-undo-toast-btn:hover, #knowledge-undo-toast-btn:hover { background: var(--primary-strong); }
 
     /* ══ CROSS-LINKS (clickable data → related views) ══ */
     .cell-link {
@@ -3773,6 +3804,7 @@
     #module-internal-tasks .page-title::after { content: 'Plan, connect, and continue work'; }
     #module-knowledge .page-title::after { content: 'Your searchable operational memory'; }
     #companydocs-topbar .page-title::after { content: 'Company records and renewal readiness'; }
+    #templates-topbar .page-title::after { content: 'Reusable files to start new work from'; }
     #clients-topbar .page-title::after { content: 'Projects, access, infrastructure, and systems'; }
     #settings-topbar .page-title::after { content: 'Workspace behavior and managed catalogs'; }
     .page-title .lic,

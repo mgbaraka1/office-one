@@ -106,6 +106,9 @@
     <button class="nav-item" data-module="companydocs" data-onclick="switchModule('companydocs')" title="Company Documents">
       <span class="nav-icon" data-ic="calendar-check"></span><span class="nav-label">Company Docs</span><span class="nav-badge" id="nav-badge-companydocs"></span>
     </button>
+    <button class="nav-item" data-module="templates" data-onclick="switchModule('templates')" title="Templates">
+      <span class="nav-icon" data-ic="layout-template"></span><span class="nav-label">Templates</span>
+    </button>
     <button class="nav-item" data-module="knowledge" data-onclick="switchModule('knowledge')" title="Knowledge Hub">
       <span class="nav-icon" data-ic="book-open"></span><span class="nav-label">Knowledge Hub</span><span class="nav-badge" id="nav-badge-knowledge"></span>
     </button>
@@ -928,6 +931,66 @@
   <button id="companydoc-undo-toast-btn" data-onclick="undoDeleteCompanyDoc()">Undo</button>
 </div>
 
+<!-- ══ TEMPLATES MODULE ══ -->
+<div id="module-templates" class="app-module">
+  <div id="templates-topbar" class="page-header">
+    <span class="page-title"><span class="ti-ic" data-ic="layout-template"></span>Templates</span>
+    <div class="topbar-right">
+      <input type="text" id="templates-filter" class="mod-search" placeholder="Search templates…" data-oninput="applyTemplateFilter()">
+      <button class="btn primary" data-onclick="openTemplateModal()"><span data-ic="plus"></span>New Template</button>
+    </div>
+  </div>
+  <div class="pj-scroll">
+    <div class="cd-grid" id="templates-grid"></div>
+    <div id="templates-empty-state" class="empty-state" hidden>
+      <div class="empty-state-inner">
+        <span data-ic="layout-template"></span>
+        <p>No templates yet — click <strong>+ New Template</strong> to add a template</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TEMPLATE ADD/EDIT MODAL ══ -->
+<div id="template-modal-overlay" class="modal-overlay" data-onclick="templateOverlayClick(event)">
+  <div id="template-modal" class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="template-modal-title">New Template</span>
+      <button class="modal-close" data-onclick="closeTemplateModal()" data-ic="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Name</label>
+          <input id="tpl-name" type="text" placeholder="e.g. Service Agreement" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Category</label>
+          <select id="tpl-category"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Notes</label>
+          <textarea id="tpl-notes" placeholder="When to use this template, what to fill in"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-onclick="closeTemplateModal()">Cancel</button>
+      <button class="btn primary" id="template-modal-submit" data-onclick="submitTemplateModal()">Add Template</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TEMPLATE DELETE UNDO TOAST ══ -->
+<div id="template-undo-toast" role="status" aria-live="polite">
+  <span>Template deleted</span>
+  <button id="template-undo-toast-btn" data-onclick="undoDeleteTemplate()">Undo</button>
+</div>
+
 <!-- ══ PROJECT & FINANCE MODULE (Offers & CRs) ══ -->
 <div id="module-pfm" class="app-module">
   <div id="pfm-topbar" class="page-header">
@@ -1226,11 +1289,17 @@
       <div class="form-row">
         <div class="form-group">
           <label for="pfm-company">Client</label>
-          <select id="pfm-company"></select>
+          <select id="pfm-company" data-onchange="pfmCompanyChanged()"></select>
         </div>
         <div class="form-group">
           <label for="pfm-valid-until">Valid Until (optional)</label>
           <input id="pfm-valid-until" type="date" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label for="pfm-project">Project (optional)</label>
+          <select id="pfm-project"></select>
         </div>
       </div>
       <div class="form-row" id="pfm-first-member-group">
@@ -2133,6 +2202,7 @@
       <button class="stab" data-tab="projectStatus" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="clipboard-list"></span> Project Status</button>
       <button class="stab" data-tab="projectDocument" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="file-text"></span> Project Documents</button>
       <button class="stab" data-tab="companyDocCategory" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="calendar-check"></span> Company Doc Categories</button>
+      <button class="stab" data-tab="templateCategory" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="layout-template"></span> Template Categories</button>
       <button class="stab" data-tab="knowledgeType" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="book-open"></span> Knowledge Types</button>
       <button class="stab" data-tab="department"    data-onclick="switchTab(this)"><span class="stab-icon" data-ic="building"></span> Department</button>
       <button class="stab" data-tab="taskSourceType" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="external-link"></span> Task Source Types</button>
@@ -2260,6 +2330,7 @@
       <div class="settings-panel" id="tab-projectStatus"></div>
       <div class="settings-panel" id="tab-projectDocument"></div>
       <div class="settings-panel" id="tab-companyDocCategory"></div>
+      <div class="settings-panel" id="tab-templateCategory"></div>
       <div class="settings-panel" id="tab-knowledgeType"></div>
       <div class="settings-panel" id="tab-department"></div>
       <div class="settings-panel" id="tab-taskSourceType"></div>
@@ -2717,6 +2788,7 @@
         <button type="button" class="ht-module" data-onclick="openHowThinksModule('pfm')"><span data-ic="briefcase"></span><span class="ht-module-text"><b>Project &amp; Finance</b><span>Offers and change requests, followed step by step.</span></span></button>
         <button type="button" class="ht-module" data-onclick="openHowThinksModule('outsource')"><span data-ic="users"></span><span class="ht-module-text"><b>Outsource</b><span>Outsourced people, their rates and their logged time.</span></span></button>
         <button type="button" class="ht-module" data-onclick="openHowThinksModule('companydocs')"><span data-ic="calendar-check"></span><span class="ht-module-text"><b>Company Docs</b><span>The company's own documents and when they renew.</span></span></button>
+        <button type="button" class="ht-module" data-onclick="openHowThinksModule('templates')"><span data-ic="layout-template"></span><span class="ht-module-text"><b>Templates</b><span>Reusable files to start new work from.</span></span></button>
         <button type="button" class="ht-module" data-onclick="openHowThinksModule('subscriptions')"><span data-ic="credit-card"></span><span class="ht-module-text"><b>Subscriptions</b><span>Paid services and their renewal dates.</span></span></button>
       </div>
       <p class="general-hint ht-quickfind-tip"><span data-ic="search"></span>Lost? <kbd>Ctrl K</kbd> finds any task, project, client record or page by name.</p>
@@ -2742,6 +2814,7 @@
 <script src="renderer/features/knowledge-wheel.js"></script>
 <script src="renderer/features/server-wheel.js"></script>
 <script src="renderer/features/company-documents.js"></script>
+<script src="renderer/features/templates.js"></script>
 <script src="renderer/features/pfm.js"></script>
 <script src="renderer/features/outsource.js"></script>
 <script src="renderer/features/clients.js"></script>

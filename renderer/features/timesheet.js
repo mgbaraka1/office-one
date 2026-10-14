@@ -1295,7 +1295,7 @@ document.addEventListener('keydown', e => {
 
   if (e.key === 'Escape') {
     closeModal(); closePrint(); closeMonthView(); closeSubModal(); closeSubSettings(); closeBacklogModal();
-    closeProjectModal(); closeLinkModal(); closePalette(); closeTaskDetail(); closeCompanyDocModal();
+    closeProjectModal(); closeLinkModal(); closePalette(); closeTaskDetail(); closeCompanyDocModal(); closeTemplateModal();
     closeClientVpnModal(); closeClientServerModal(); closeClientDatabaseModal(); closeClientInternalModal(); closeClientGroupRenameModal(); closeClientNewGroupModal();
     closeClientRecordInfoModal(); cancelClientEditConfirm(); closeClientHistoryModal();
     closeSessionModal(); closeWlHistoryModal(); closeMergeModal(); closeShortcutsOverlay(); closeHowThinksOverlay();
@@ -1319,6 +1319,7 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('backlog-modal-overlay').classList.contains('open')) submitBacklogModal();
     if (document.getElementById('project-modal-overlay').classList.contains('open')) submitProjectModal();
     if (document.getElementById('companydoc-modal-overlay').classList.contains('open')) submitCompanyDocModal();
+    if (document.getElementById('template-modal-overlay').classList.contains('open')) submitTemplateModal();
     if (document.getElementById('knowledge-modal-overlay').classList.contains('open')) saveKnowledgeEditor();
     if (document.getElementById('knowledge-document-modal-overlay').classList.contains('open')) submitKnowledgeDocument();
     if (document.getElementById('client-vpn-modal-overlay').classList.contains('open')) submitClientVpnModal();
@@ -1339,6 +1340,7 @@ document.addEventListener('keydown', e => {
       else if (activeModule === 'timesheet')     openModal();
       else if (activeModule === 'clients' || activeModule === 'projects') openProjectModal();
       else if (activeModule === 'companydocs')   openCompanyDocModal();
+      else if (activeModule === 'templates')     openTemplateModal();
       else if (activeModule === 'knowledge')     openKnowledgeEditor();
       else if (activeModule === 'all-tasks')     openBacklogModal();
       else if (activeModule === 'internal-tasks') openInternalTaskModal();
@@ -2624,6 +2626,9 @@ function switchModule(name) {
   } else if (name === 'companydocs') {
     setAppTitle('Company Documents');
     initCompanyDocsModule();
+  } else if (name === 'templates') {
+    setAppTitle('Templates');
+    initTemplatesModule();
   } else if (name === 'pfm') {
     setAppTitle('Project & Finance');
     initPfmModule();

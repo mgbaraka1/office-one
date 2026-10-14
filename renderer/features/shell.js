@@ -27,6 +27,7 @@ const PAL_PAGES = [
 
   { icon: 'credit-card',      label: 'Subscriptions', go: 'subscriptions' },
   { icon: 'calendar-check',   label: 'Company Documents', go: 'companydocs' },
+  { icon: 'layout-template',  label: 'Templates',     go: 'templates' },
   { icon: 'book-open',        label: 'Knowledge Hub', go: 'knowledge' },
   { icon: 'settings',         label: 'Settings',      go: 'settings' },
 ];
@@ -286,6 +287,7 @@ function renderPalette() {
     project: ['clipboard-list', 'Open project'],
     knowledge: ['book-open', 'Open Knowledge Hub'],
     'company-document': ['calendar-check', 'Open Company Docs'],
+    template: ['layout-template', 'Open Templates'],
     subscription: ['credit-card', 'Open Subscriptions'],
     'client-auth': ['shield', 'Open client access'],
     'client-server': ['server', 'Open client server'],
@@ -320,6 +322,9 @@ function renderPalette() {
         } else if (result.kind === 'company-document') {
           switchModule('companydocs');
           scrollToAndHighlight('[data-doc-id="' + result.id + '"]');
+        } else if (result.kind === 'template') {
+          switchModule('templates');
+          scrollToAndHighlight('[data-template-id="' + result.id + '"]');
         } else if (result.kind === 'subscription') {
           switchModule('subscriptions');
           scrollToAndHighlight('[data-sub-id="' + result.id + '"]');

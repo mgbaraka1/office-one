@@ -196,6 +196,51 @@ try {
   const sweptGone = !fs.existsSync(path.join(userDataDirOf(workDir), 'company_documents', '999999'));
   record('Orphan sweep: stray id folder removed at boot maintenance', sweptGone, 'gone=' + sweptGone);
 
+  // ── Templates (migration 075: the same cards with kind 'TEMPLATE') ────────
+  const tplCategories = db.getLookupsByCategory('TEMPLATE_CATEGORY');
+  record('Templates: TEMPLATE_CATEGORY has 7 active options', tplCategories.length === 7,
+    tplCategories.map(c => c.code).join(','));
+  const tpl = db.createCompanyDocument(userId, {
+    name: 'Service Agreement', category: 'CONTRACT', renewalDate: '2027-01-01', notes: 'starter',
+  }, 'TEMPLATE');
+  record('Templates: created with its kind and category, never a renewal date', tpl.kind === 'TEMPLATE'
+    && tpl.category === 'CONTRACT' && tpl.renewalDate === '', JSON.stringify(tpl));
+  const docWithTplCat = db.createCompanyDocument(userId, { name: 'Wrong catalog', category: 'CONTRACT' });
+  record('Templates: a document cannot take a template category', docWithTplCat.category === '' && docWithTplCat.kind === 'DOCUMENT',
+    JSON.stringify(docWithTplCat));
+  db.deleteCompanyDocument(userId, docWithTplCat.id);
+  record('Templates: each list holds only its own kind',
+    db.listCompanyDocuments(userId, 'TEMPLATE').some(d => d.id === tpl.id)
+      && !db.listCompanyDocuments(userId).some(d => d.id === tpl.id), '');
+  const tplUpdated = db.updateCompanyDocument(userId, tpl.id, { name: 'Service Agreement v2', category: 'LEGAL', renewalDate: '2027-01-01' });
+  record('Templates: update keeps the kind, checks the template catalog, drops a renewal date',
+    tplUpdated.kind === 'TEMPLATE' && tplUpdated.category === '' && tplUpdated.renewalDate === '', JSON.stringify(tplUpdated));
+  const xlsx = path.join(workDir, 'rates.xlsx');
+  fs.writeFileSync(xlsx, Buffer.from([0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0]));
+  const tplUpload = db.saveCompanyDocumentFile(userId, tpl.id, xlsx);
+  const docForXlsx = db.createCompanyDocument(userId, { name: 'Doc xlsx' });
+  const docUpload = db.saveCompanyDocumentFile(userId, docForXlsx.id, xlsx);
+  record('Templates: a template takes an .xlsx, a document still does not',
+    tplUpload.ok && tplUpload.document.file.mimeType.includes('spreadsheet') && docUpload.ok === false,
+    JSON.stringify({ tpl: tplUpload.ok, doc: docUpload }));
+  db.deleteCompanyDocument(userId, docForXlsx.id);
+  const pptx = path.join(workDir, 'deck.pptx');
+  fs.writeFileSync(pptx, Buffer.from([0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0]));
+  const fakePpt = path.join(workDir, 'fake.ppt');
+  fs.writeFileSync(fakePpt, 'not an OLE file');
+  const pptxRes = db.saveCompanyDocumentFile(userId, tpl.id, pptx);
+  const fakeRes = db.saveCompanyDocumentFile(userId, tpl.id, fakePpt);
+  record('Templates: a template takes a .pptx, a .ppt with the wrong contents is refused',
+    pptxRes.ok && pptxRes.document.file.mimeType.includes('presentation') && fakeRes.ok === false,
+    JSON.stringify({ pptx: pptxRes.ok, fake: fakeRes }));
+  record('Templates: Quick Find indexes a template as kind template',
+    db.searchWorkspace(userId, 'Service Agreement').some(h => h.kind === 'template' && h.id === tpl.id), '');
+  record('Templates: no attention item for a template',
+    !db.getAttentionItems(userId).some(a => a.id === tpl.id), '');
+  db.deleteCompanyDocument(userId, tpl.id);
+  record('Templates: delete clears its search row',
+    !db.searchWorkspace(userId, 'Service Agreement').some(h => h.id === tpl.id), '');
+
 } catch (err) {
   exitCode = 1;
   console.error('FATAL:', err);

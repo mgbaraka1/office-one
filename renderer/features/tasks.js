@@ -927,6 +927,7 @@ async function openProjectDetail(id) {
   catch { toast('Could not open project'); return; }
   if (!project) { toast('Project not found'); await loadProjectsList(); backToClientsFromProject(null); return; }
   currentProject = project;
+  projectPfmFor = null;   // its Offers & CRs are fetched fresh on every open
   showProjectDetailView();
   renderProjectDetail(project);
 }
@@ -1069,7 +1070,19 @@ function renderProjectDetail(p) {
   if (!allLogs.length) timeSec.appendChild(pjMk('div', 'cp-records-empty', 'No sessions logged on this project yet.'));
   host.appendChild(timeSec);
 
-  // ── Documents section ──
+  // ── Offers & CRs linked to this project (pfm.js). Their stages carry the
+  // quotation, approvals and invoices that used to be project documents. ──
+  host.appendChild(buildProjectPfmSection(p));
+
+  // ── Documents section — only while the project still holds a document
+  // that migration 074 did not move (a custom document type, or a project
+  // with no client); new projects file theirs on an Offer or CR. ──
+  if ((p.documents || []).some(doc => doc.file)) host.appendChild(buildProjectDocsSection(p));
+
+  appendProjectLinkedSections(host, p);
+}
+
+function buildProjectDocsSection(p) {
   const docs = pjMk('div', 'pj-section');
   const dHead = pjMk('div', 'pj-section-head');
   const dTitle = pjMk('div', 'pj-section-title');
@@ -1087,13 +1100,13 @@ function renderProjectDetail(p) {
   docs.appendChild(dHead);
 
   const docGrid = pjMk('div', 'pj-docs');
-  if (!(p.documents || []).length) {
-    docs.appendChild(pjMk('div', 'cp-records-empty', 'No document types configured — add them in Settings → Project Documents.'));
-  }
-  (p.documents || []).forEach(doc => docGrid.appendChild(buildDocCard(doc)));
+  (p.documents || []).filter(doc => doc.file).forEach(doc => docGrid.appendChild(buildDocCard(doc)));
   docs.appendChild(docGrid);
-  host.appendChild(docs);
+  return docs;
+}
 
+// The Knowledge Hub items and the Tasks under a project's detail view.
+function appendProjectLinkedSections(host, p) {
   // ── Knowledge Hub items linked to this project's clients or systems ──
   host.appendChild(buildKnowledgeLinkedSection({
     companyIds: (p.companies || []).map(x => x.id), systemIds: (p.systems || []).map(x => x.id),
@@ -1508,7 +1521,12 @@ async function submitProjectModal() {
 // ── Delete + undo (re-creates the project on undo: no hard loss) ──
 async function deleteCurrentProject() {
   if (!currentProject) return;
-  const snapshot = currentProject;   // full object (profile + docs + tasks)
+  // Full object (profile + docs + tasks), plus the Offers & CRs linked to it:
+  // the delete unlinks them (SET NULL) and an undo links them again.
+  let pfmIds = [];
+  try { pfmIds = ((await window.api.listPfmItems({ projectId: currentProject.id, includeArchived: true })) || []).map(i => i.id); }
+  catch { /* nothing to relink */ }
+  const snapshot = { ...currentProject, pfmIds };
   try { await window.api.deleteProject(snapshot.id); }
   catch { toast('Could not delete project'); buildDetailActions(document.querySelector('.pj-detail-actions')); return; }
   showProjectUndoToast(snapshot);
@@ -1551,6 +1569,7 @@ async function undoDeleteProject() {
       .filter(d => d.file)
       .map(d => ({ documentType: d.documentType, file: d.file }));
     if (fileDocs.length) await window.api.restoreProjectFiles(snap.id, created.id, fileDocs);
+    if (snap.pfmIds?.length) await window.api.relinkPfmProject(created.id, snap.pfmIds);
     // Milestone 9: a task can no longer be linked to a Project it's already
     // linked to a Department for (mutual exclusivity) — linkProjectTask
     // returns {ok:false} instead of throwing in that case, so a task

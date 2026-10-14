@@ -17,7 +17,9 @@
 // path escape blocked, and the orphan sweep of the project_finance/ tree.
 // Phase 5 adds Quick Find (migration 063's FTS triggers through edit, delete,
 // undo and purge) and the Attention items (follow-up after 7 days on Sent,
-// validity 3 days before it ends).
+// validity 3 days before it ends). Migration 074 adds the delivery flow
+// (Rejected only out of Sent), stage files, the optional project link with its
+// relink on a project-delete undo, and the move of project documents onto Offers.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const fs   = require('node:fs');
@@ -52,26 +54,31 @@ try {
   const conn = db.getConnection();
   const count = sql => conn.prepare(sql).get().n;
 
-  // ── Migration 062 ───────────────────────────────────────────────────────
+  // ── Migrations 062 + 074 ────────────────────────────────────────────────
+  const FLOW = ['PREPARE', 'READY', 'SENT', 'ACCEPTED', 'UAT_APPROVED', 'PRODUCTION_APPROVED', 'INVOICED', 'PAID', 'REJECTED'];
   const statuses = db.getLookupsByCategory('PFM_STATUS').map(o => o.code);
-  record('Migration: PFM_STATUS seeded in stage order',
-    JSON.stringify(statuses) === JSON.stringify(['PREPARE', 'READY', 'SENT', 'ACCEPTED', 'REJECTED']), JSON.stringify(statuses));
+  record('Migration: PFM_STATUS holds the delivery flow in stage order, Rejected last',
+    JSON.stringify(statuses) === JSON.stringify(FLOW), JSON.stringify(statuses));
   const arabic = readRow(dbFile, "SELECT name_ar FROM lookup_codes WHERE category = 'PFM_STATUS' AND code = 'SENT'");
   record('Migration: seeded statuses carry Arabic names', arabic?.name_ar === 'مُرسل', JSON.stringify(arabic));
+  const acceptedName = readRow(dbFile, "SELECT name_en, name_ar FROM lookup_codes WHERE category = 'PFM_STATUS' AND code = 'ACCEPTED'");
+  record('Migration 074: Accepted reads as the quote approval',
+    acceptedName?.name_en === 'Accepted (Quote Approval)' && acceptedName?.name_ar === 'مقبول (اعتماد العرض)', JSON.stringify(acceptedName));
   const tables = conn.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'pfm_%' ORDER BY name").all().map(r => r.name);
-  record('Migration: all five pfm_ tables exist',
-    JSON.stringify(tables) === JSON.stringify(['pfm_history', 'pfm_items', 'pfm_stages', 'pfm_version_files', 'pfm_versions']), JSON.stringify(tables));
+  record('Migration: all six pfm_ tables exist',
+    JSON.stringify(tables) === JSON.stringify(['pfm_history', 'pfm_items', 'pfm_stage_files', 'pfm_stages', 'pfm_version_files', 'pfm_versions']), JSON.stringify(tables));
   const triggersBefore = count("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'trigger'");
-  record('Migration: 8 lookup-category triggers installed',
-    count("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_pfm_%_category'") === 8);
+  record('Migration: 10 lookup-category triggers installed',
+    count("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_pfm_%_category'") === 10);
   const head = count('SELECT MAX(version) AS n FROM schema_migrations');
   record('Migration: schema head is at least 62', head >= 62, `head=${head}`);
 
   // Guarded seed + idempotency: re-running 062's up() by hand must not add rows.
   require('../migrations/062_project_finance').up(conn);
+  require('../migrations/074_pfm_delivery_flow').up(conn);
   db.applyMigrations();
   record('Migration: re-running is a no-op (no duplicate statuses or triggers)',
-    count("SELECT COUNT(*) AS n FROM lookup_codes WHERE category = 'PFM_STATUS'") === 5
+    count("SELECT COUNT(*) AS n FROM lookup_codes WHERE category = 'PFM_STATUS'") === FLOW.length
       && count("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'trigger'") === triggersBefore);
 
   // ── Setup ───────────────────────────────────────────────────────────────
@@ -179,14 +186,14 @@ try {
     JSON.stringify(sentStage));
   record('Status: an unknown status is refused', !db.setPfmStatus(userId, offer.id, { status: 'NOPE' }).ok);
   const accepted = db.setPfmStatus(userId, offer.id, { status: 'ACCEPTED', memberName: 'person b ', note: 'signed' });
-  record('Status: ACCEPTED is final', accepted.ok && accepted.item.isFinal, JSON.stringify(accepted.item?.status));
+  record('Status: ACCEPTED is no longer final (delivery follows it)', accepted.ok && !accepted.item.isFinal, JSON.stringify(accepted.item?.status));
   const redated = db.savePfmStage(userId, offer.id, { status: 'PREPARE', doneOn: '2090-01-01' });
   record('Stage: dating an earlier stage never moves the status back',
     redated.ok && redated.item.status === 'ACCEPTED', JSON.stringify(redated.item?.status));
-  db.savePfmStage(userId, offer.id, { status: 'REJECTED', memberName: 'Temp' });
-  const cleared = db.savePfmStage(userId, offer.id, { status: 'REJECTED', memberName: '' });
+  db.savePfmStage(userId, offer.id, { status: 'UAT_APPROVED', memberName: 'Temp' });
+  const cleared = db.savePfmStage(userId, offer.id, { status: 'UAT_APPROVED', memberName: '' });
   record('Stage: a stage emptied of everything is removed',
-    cleared.ok && !cleared.item.stages.some(s => s.status === 'REJECTED'), JSON.stringify(cleared.item?.stages));
+    cleared.ok && !cleared.item.stages.some(s => s.status === 'UAT_APPROVED'), JSON.stringify(cleared.item?.stages));
   const stageOf = (res, code) => res.item.stages.find(s => s.status === code);
   const undone = db.savePfmStage(userId, offer.id, { status: 'ACCEPTED', doneOn: '' });
   record('Stage: marking the current stage not done steps the status back to the last done stage',
@@ -207,11 +214,21 @@ try {
   const firstUndone = db.savePfmStage(userId, offer.id, { status: 'PREPARE', doneOn: '' });
   record('Stage: the first status has nothing before it, so it stays current',
     firstUndone.ok && firstUndone.item.status === 'PREPARE', JSON.stringify(firstUndone.item?.status));
-  db.setPfmStatus(userId, offer.id, { status: 'ACCEPTED', date: '2090-01-09' });
+  // Rejected is the other way out of Sent (migration 074), never after Accepted.
+  db.setPfmStatus(userId, offer.id, { status: 'SENT', date: '2090-01-09' });
   const rejected = db.setPfmStatus(userId, offer.id, { status: 'REJECTED', date: '2090-01-10' });
-  record('Status: switching between final statuses un-does the other one',
-    rejected.ok && stageOf(rejected, 'ACCEPTED')?.doneOn === '', JSON.stringify(rejected.item?.stages));
-  db.setPfmStatus(userId, offer.id, { status: 'ACCEPTED', date: '2090-01-11' });
+  record('Status: Sent → Rejected is allowed and final', rejected.ok && rejected.item.isFinal, JSON.stringify(rejected.item?.status));
+  const deliverWhileRejected = db.savePfmStage(userId, offer.id, { status: 'ACCEPTED', doneOn: '2090-01-10' });
+  record('Status: a rejected item cannot date a delivery stage',
+    !deliverWhileRejected.ok && /rejected/.test(deliverWhileRejected.error), JSON.stringify(deliverWhileRejected));
+  const reopened = db.setPfmStatus(userId, offer.id, { status: 'ACCEPTED', date: '2090-01-11' });
+  record('Status: moving a rejected item to Accepted un-does the rejection',
+    reopened.ok && reopened.item.status === 'ACCEPTED' && stageOf(reopened, 'REJECTED')?.doneOn === '', JSON.stringify(reopened.item?.stages));
+  const lateReject = db.setPfmStatus(userId, offer.id, { status: 'REJECTED' });
+  const lateRejectStage = db.savePfmStage(userId, offer.id, { status: 'REJECTED', doneOn: '2090-01-12' });
+  record('Status: an accepted item can not be rejected (move or dated stage)',
+    !lateReject.ok && !lateRejectStage.ok && /cannot be rejected/.test(lateReject.error)
+      && db.getPfmItem(userId, offer.id).status === 'ACCEPTED', JSON.stringify([lateReject, lateRejectStage]));
   const names = db.listPfmMemberNames(userId);
   record('Stage: past names are suggested once each (case/space folded)',
     names.filter(n => n.trim().toLowerCase() === 'person b').length === 1 && names.includes('Person A'), JSON.stringify(names));
@@ -367,7 +384,7 @@ try {
   record('History: create, edits, status, stage and version events recorded',
     ['Created', 'Title', 'Valid Until', 'Status', 'Sent: Person', 'Sent: Date', 'Version Added', 'v1: Fees', 'Deleted', 'Restored']
       .every(f => fields.has(f))
-      && history.some(h => h.field === 'Status' && h.newValue === 'Accepted') && history[0].changedBy === 'fixture-user',
+      && history.some(h => h.field === 'Status' && /^Accepted/.test(h.newValue)) && history[0].changedBy === 'fixture-user',
     JSON.stringify([...fields]));
   db.deletePfmItem(userId, offer.id);
   const purged = db.purgePfmItem(userId, offer.id);
@@ -441,13 +458,119 @@ try {
   const archivedQuiet = expiry('2090-04-08').length === 0;
   db.unarchivePfmItem(userId, validItem.id);
   db.setPfmStatus(userId, validItem.id, { status: 'ACCEPTED' });
-  record('Attention: archived or final items stay quiet', archivedQuiet && expiry('2090-04-08').length === 0);
+  record('Attention: archived or accepted items stay quiet', archivedQuiet && expiry('2090-04-08').length === 0);
+  db.setPfmStatus(userId, validItem.id, { status: 'INVOICED' });
+  record('Attention: a delivery stage after Accepted stays quiet too', expiry('2090-04-08').length === 0);
   record('Attention: another login sees none of them', att(otherId, '2090-05-01').length === 0);
   const now = new Date();
   const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const dueToday = db.createPfmItem(userId, { kind: 'OFFER', reference: 'ATT-TODAY', title: 't', companyId: companyA, validUntil: localToday }).item;
   record('Attention: getAttentionItems includes Project & Finance items',
     db.getAttentionItems(userId).some(a => a.type === 'pfmExpiry' && a.id === dueToday.id));
+
+  // ── Delivery flow (migration 074) ───────────────────────────────────────
+  const flowItem = db.createPfmItem(userId, { kind: 'CR', reference: 'FLOW-1', title: 'Delivery', companyId: companyA }).item;
+  db.setPfmStatus(userId, flowItem.id, { status: 'SENT' });
+  db.setPfmStatus(userId, flowItem.id, { status: 'ACCEPTED' });
+  const walked = ['UAT_APPROVED', 'PRODUCTION_APPROVED', 'INVOICED', 'PAID'].map(code => db.setPfmStatus(userId, flowItem.id, { status: code }));
+  record('Flow: Accepted → UAT → Production → Invoiced → Paid, only Paid is final',
+    walked.every(r => r.ok) && walked[3].item.status === 'PAID' && walked[3].item.isFinal && !walked[2].item.isFinal,
+    JSON.stringify(walked.map(r => r.item?.status)));
+
+  // ── Stage files ─────────────────────────────────────────────────────────
+  const invoicedId = conn.prepare("SELECT id FROM lookup_codes WHERE category = 'PFM_STATUS' AND code = 'INVOICED'").get().id;
+  const stageDir = path.join(pfmRoot, String(flowItem.id), 'stages', String(invoicedId));
+  const stageAdd = db.addPfmStageFiles(userId, flowItem.id, 'INVOICED', [goodPdf, fakePdf]);
+  const invoiceFile = stageAdd.item?.stageFiles?.find(f => f.status === 'INVOICED');
+  record('Stage files: each passes or fails on its own, stored under stages/{status}/',
+    stageAdd.ok && JSON.stringify(stageAdd.results.map(r => r.ok)) === '[true,false]' && invoiceFile?.originalName === 'offer.pdf'
+      && invoiceFile.exists && fs.existsSync(path.join(stageDir, path.basename(invoiceFile.path))), JSON.stringify(stageAdd));
+  record('Stage files: unknown status and another login are refused',
+    !db.addPfmStageFiles(userId, flowItem.id, 'NOPE', [goodPdf]).ok && !db.addPfmStageFiles(otherId, flowItem.id, 'INVOICED', [goodPdf]).ok
+      && !db.resolvePfmStageFile(otherId, invoiceFile.id).ok && !db.removePfmStageFile(otherId, invoiceFile.id).ok);
+  const stageResolved = db.resolvePfmStageFile(userId, invoiceFile.id);
+  record('Stage files: resolve stays inside the stage folder',
+    stageResolved.ok && stageResolved.exists && path.dirname(stageResolved.absPath) === stageDir, JSON.stringify(stageResolved));
+  conn.prepare('UPDATE pfm_stage_files SET file_path = ? WHERE id = ?').run(path.join('..', '..', 'evil.pdf'), invoiceFile.id);
+  const stageEscape = db.resolvePfmStageFile(userId, invoiceFile.id);
+  conn.prepare('UPDATE pfm_stage_files SET file_path = ? WHERE id = ?').run(invoiceFile.path, invoiceFile.id);
+  record('Stage files: path escape blocked', !stageEscape.ok && /invalid/i.test(stageEscape.error), JSON.stringify(stageEscape));
+  const stageRemoved = db.removePfmStageFile(userId, invoiceFile.id);
+  const stageRestored = db.restorePfmStageFile(userId, invoiceFile.id);
+  record('Stage files: remove hides it, undo brings it back',
+    stageRemoved.ok && stageRemoved.item.stageFiles.length === 0 && stageRestored.ok && stageRestored.item.stageFiles.length === 1);
+  record('Stage files: part of the ZIP export',
+    db.listPfmLatestFiles(userId, [flowItem.id])[0].files.some(f => f.originalName === 'offer.pdf' && f.exists));
+  fs.writeFileSync(path.join(stageDir, 'stray.pdf'), 'x');
+  const stageSweep = db.runMaintenance().pfmFiles;
+  record('Stage files: orphan sweep removes a stray file, keeps the real one',
+    !fs.existsSync(path.join(stageDir, 'stray.pdf')) && fs.existsSync(stageResolved.absPath), JSON.stringify(stageSweep));
+  record('Stage files: diagnostics see the stored file', db.getSystemDiagnostics().missingFiles.every(m => m.table !== 'pfm_stage_files'));
+  record('Trigger: a wrong-category stage-file status is rejected',
+    /wrong lookup category/.test(tryWrite(`UPDATE pfm_stage_files SET status_id = ${companyA} WHERE id = ${invoiceFile.id}`)));
+  db.removePfmStageFile(userId, invoiceFile.id);
+  record('Stage files: purge after remove deletes the row and the bytes',
+    db.purgePfmStageFile(userId, invoiceFile.id).ok && !fs.existsSync(stageResolved.absPath)
+      && count(`SELECT COUNT(*) AS n FROM pfm_stage_files WHERE id = ${invoiceFile.id}`) === 0);
+
+  // ── Project link ────────────────────────────────────────────────────────
+  const project = db.createProject(userId, { name: 'Generic project', companyIds: [companyA] });
+  const bare = db.createProject(userId, { name: 'Project without client', companyIds: [] });
+  const othersProject = db.createProject(otherId, { name: 'Other login project', companyIds: [companyA] });
+  const linked = db.updatePfmItem(userId, flowItem.id, { projectId: project.id });
+  record('Project: links to a project the client is on',
+    linked.ok && linked.item.projectId === project.id && linked.item.projectName === 'Generic project', JSON.stringify(linked));
+  record('Project: a project not on the client, or another login\'s, is refused',
+    /project of this client/.test(db.updatePfmItem(userId, flowItem.id, { projectId: bare.id }).error || '')
+      && !db.updatePfmItem(userId, flowItem.id, { projectId: othersProject.id }).ok);
+  record('Project: the list filters by project, and the link is in the history',
+    db.listPfmItems(userId, { projectId: project.id }).map(i => i.id).join() === String(flowItem.id)
+      && db.getPfmHistory(userId, flowItem.id).some(h => h.field === 'Project' && h.newValue === 'Generic project'));
+  const withProject = db.createPfmItem(userId, { kind: 'OFFER', reference: 'FLOW-2', title: 't', companyId: companyA, projectId: project.id });
+  record('Project: an item can be created already linked', withProject.ok && withProject.item.projectId === project.id);
+  db.deleteProject(userId, project.id);
+  const unlinked = db.getPfmItem(userId, flowItem.id);
+  const again = db.createProject(userId, { name: 'Generic project', companyIds: [companyA] });
+  record('Project: another login cannot relink', !db.relinkPfmProject(otherId, again.id, [flowItem.id]).ok);
+  const relinked = db.relinkPfmProject(userId, again.id, [flowItem.id, withProject.item.id]);
+  record('Project: deleting it unlinks, undo (re-created project) links again',
+    unlinked.projectId === null && relinked.ok && relinked.count === 2 && db.getPfmItem(userId, flowItem.id).projectId === again.id,
+    JSON.stringify(relinked));
+
+  // ── Migration 074: project documents move onto an Offer ─────────────────
+  const docProject = db.createProject(userId, { name: 'Project with documents', companyIds: [companyA] });
+  const docDir = path.join(workDir, 'projects', String(docProject.id), 'documents');
+  fs.mkdirSync(docDir, { recursive: true });
+  const putDoc = (type, name, bytes, day) => {
+    const rel = path.join('projects', String(docProject.id), 'documents', `${type}-1.pdf`);
+    fs.writeFileSync(path.join(workDir, rel), bytes);
+    conn.prepare(`INSERT INTO project_documents(project_id, document_type, is_available, file_path, original_name, file_size, mime_type, uploaded_at)
+                  VALUES (?, ?, 1, ?, ?, ?, 'application/pdf', ?)`).run(docProject.id, type, rel, name, Buffer.byteLength(bytes), `2090-06-${day}T10:00:00.000Z`);
+    return rel;
+  };
+  const quoteRel = putDoc('QUOTATION', 'quote.pdf', '%PDF-1.4\nquote\n', '01');
+  putDoc('QUOTATION_APPROVAL', 'approval.pdf', '%PDF-1.4\napproval\n', '03');
+  putDoc('INVOICE', 'invoice.pdf', '%PDF-1.4\ninvoice\n', '09');
+  require('../migrations/074_pfm_delivery_flow').up(conn, { userDataDir: workDir });
+  const movedRow = db.listPfmItems(userId, { projectId: docProject.id })[0];
+  const moved = movedRow && db.getPfmItem(userId, movedRow.id);
+  const bytesOf = rel => fs.readFileSync(path.join(workDir, rel), 'utf8');
+  record('Move: one Offer per project, linked, at its furthest stage, dated by upload',
+    moved?.kind === 'OFFER' && moved.reference === `PRJ-${docProject.id}` && moved.title === 'Project with documents'
+      && moved.status === 'INVOICED' && moved.stages.find(s => s.status === 'SENT')?.doneOn === '2090-06-01'
+      && moved.stages.find(s => s.status === 'ACCEPTED')?.doneOn === '2090-06-03', JSON.stringify(moved));
+  const v1File = moved?.versions[0]?.files[0];
+  record('Move: the quotation is version V1, the approval and invoice are stage files, bytes identical',
+    moved?.versions.length === 1 && moved.versions[0].label === 'V1' && v1File?.originalName === 'quote.pdf'
+      && bytesOf(v1File.path) === '%PDF-1.4\nquote\n'
+      && moved.stageFiles.map(f => f.status + ':' + f.originalName).join() === 'ACCEPTED:approval.pdf,INVOICED:invoice.pdf'
+      && bytesOf(moved.stageFiles[1].path) === '%PDF-1.4\ninvoice\n', JSON.stringify(moved?.stageFiles));
+  record('Move: the project\'s document rows go, the original files stay on disk',
+    count(`SELECT COUNT(*) AS n FROM project_documents WHERE project_id = ${docProject.id}`) === 0
+      && fs.existsSync(path.join(workDir, quoteRel)) && !db.getProject(userId, docProject.id).documents.some(d => d.file));
+  const itemsBefore = count('SELECT COUNT(*) AS n FROM pfm_items');
+  require('../migrations/074_pfm_delivery_flow').up(conn, { userDataDir: workDir });
+  record('Move: re-running moves nothing again', count('SELECT COUNT(*) AS n FROM pfm_items') === itemsBefore);
 
   // ── Integrity ───────────────────────────────────────────────────────────
   const fk = conn.prepare('PRAGMA foreign_key_check').all();

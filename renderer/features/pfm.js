@@ -5,9 +5,11 @@
 // and filters client-side, so the status chips always show honest counts for
 // whatever the other filters leave.
 //
-// Status logic compares CODES only (ACCEPTED / REJECTED are final); the order
-// of the stage track is the catalog's own order, so a status the user adds in
-// Settings (e.g. "On Hold") simply appears in it.
+// Status logic compares CODES only. The flow (migration 074) runs Prepare →
+// Ready → Sent → Accepted → UAT Approved → Production Approved → Invoiced →
+// Invoice Paid; Rejected is the other way out of Sent (never after Accepted).
+// Invoice Paid and Rejected are final. The track follows the catalog's own
+// order, so a status the user adds in Settings (e.g. "On Hold") appears in it.
 let pfmItems = [];
 let pfmLoaded = false;
 let pfmCurrent = null;            // the item open in the detail view, or null
@@ -23,7 +25,8 @@ let pfmVersionEditId = null;      // null = new version
 let pfmFileErrors = new Map();    // versionId → [{ name, error }] from the last "Add files"
 let _pfmSaveTimer = null;
 
-const PFM_FINAL = new Set(['ACCEPTED', 'REJECTED']);
+const PFM_FINAL = new Set(['PAID', 'REJECTED']);
+let pfmStageFileErrors = new Map(); // status code → [{ name, error }] from the last stage "Add files"
 
 function initPfmModule() {
   showPfmListView();
@@ -35,6 +38,13 @@ function initPfmModule() {
 function pfmKindLabel(kind) { return kind === 'CR' ? 'CR' : 'Offer'; }
 function pfmStatusOptions() { return lkOptions('PFM_STATUS'); }
 function pfmStatusName(code) { return lkLabel('PFM_STATUS', code) || code || ''; }
+// Accepted or any stage after it — Rejected included, since it sorts last.
+// What is not decided yet is the open pipeline.
+function pfmIsDecided(code) {
+  const codes = pfmStatusOptions().map(o => o.code);
+  const accepted = codes.indexOf('ACCEPTED');
+  return accepted >= 0 && codes.indexOf(code) >= accepted;
+}
 // The step a list row shows: the one waiting on someone (first not-done stage
 // with a person or note), else the current status. Status chips still count
 // by the real current status.
@@ -310,7 +320,8 @@ function pfmDaysSince(value) {
 // Stage colour: the seeded statuses use their pill's colour; one added in
 // Settings has no colour of its own and stays neutral.
 function pfmStageClass(code) {
-  return ['READY', 'SENT', 'ACCEPTED', 'REJECTED'].includes(code) ? 'pfm-stage-' + code.toLowerCase() : 'pfm-stage-other';
+  return ['READY', 'SENT', 'ACCEPTED', 'UAT_APPROVED', 'PRODUCTION_APPROVED', 'INVOICED', 'PAID', 'REJECTED'].includes(code)
+    ? 'pfm-stage-' + code.toLowerCase() : 'pfm-stage-other';
 }
 
 function renderPfmPipeline(host, rows) {
@@ -372,11 +383,11 @@ function renderPfmPipeline(host, rows) {
 }
 
 // "Value by stage": one bar per currency, split by status. Open value (every
-// status but Accepted/Rejected) is the headline, since that is what is still
+// status before Accepted — not yet won or rejected) is the headline, since that is what is still
 // in play. Each segment names its status and amount on hover.
 function buildPfmValueSummary(codes, byStatus, rows) {
   const box = pjMk('div', 'pfm-pipe-summary');
-  const open = pfmTotalsByCurrency(rows.filter(i => !PFM_FINAL.has(i.status))).list;
+  const open = pfmTotalsByCurrency(rows.filter(i => !pfmIsDecided(i.status))).list;
   const headline = pjMk('div', 'pfm-pipe-headline');
   headline.appendChild(pjMk('span', 'pfm-pipe-headline-label', 'Open value'));
   if (!open.length) headline.appendChild(pjMk('span', 'pfm-pipe-headline-value', '—'));
@@ -615,7 +626,36 @@ function populatePfmCompanySelect(currentId) {
   sel.value = currentId ? String(currentId) : '';
 }
 
-// `preset` on create: { kind, companyId } (the client tab passes its client).
+// The optional Project: this login's projects that the chosen client is on.
+// Loaded once per modal open; a client change re-filters and drops a project
+// that is not on the new client.
+let pfmProjectChoices = [];
+async function loadPfmProjectChoices() {
+  try { pfmProjectChoices = (await window.api.listProjects()) || []; }
+  catch { pfmProjectChoices = []; }
+}
+function populatePfmProjectSelect(companyId, currentId) {
+  const sel = document.getElementById('pfm-project');
+  sel.innerHTML = '';
+  const none = document.createElement('option');
+  none.value = ''; none.textContent = 'No project';
+  sel.appendChild(none);
+  const mine = pfmProjectChoices.filter(p => (p.companies || []).some(c => Number(c.id) === Number(companyId)));
+  mine.forEach(p => {
+    const o = document.createElement('option');
+    o.dataset.userContent = ''; o.value = String(p.id); o.textContent = p.name;
+    sel.appendChild(o);
+  });
+  sel.value = mine.some(p => Number(p.id) === Number(currentId)) ? String(currentId) : '';
+  sel.disabled = !companyId;
+}
+function pfmCompanyChanged() {
+  populatePfmProjectSelect(Number(document.getElementById('pfm-company').value) || null,
+    Number(document.getElementById('pfm-project').value) || null);
+}
+
+// `preset` on create: { kind, companyId, projectId } (the client tab passes
+// its client, the project page its client and itself).
 function openPfmModal(item, preset = {}) {
   pfmModalEditId = item ? item.id : null;
   const kind = item ? item.kind : (preset.kind || 'OFFER');
@@ -628,6 +668,15 @@ function openPfmModal(item, preset = {}) {
   document.getElementById('pfm-first-member').value = '';
   document.getElementById('pfm-first-member-group').hidden = !!item;
   populatePfmCompanySelect(item ? item.companyId : preset.companyId);
+  // The modal opens at once; the project list fills in when it has loaded,
+  // for whichever client is chosen by then.
+  const wantedProject = item ? item.projectId : preset.projectId;
+  populatePfmProjectSelect(item ? item.companyId : preset.companyId, wantedProject);
+  loadPfmProjectChoices().then(() => {
+    const sel = document.getElementById('pfm-project');
+    populatePfmProjectSelect(Number(document.getElementById('pfm-company').value) || null,
+      Number(sel.value) || wantedProject);
+  });
   clearErrorsIn('#pfm-modal');
   document.getElementById('pfm-modal-overlay').classList.add('open');
   setTimeout(() => document.getElementById('pfm-reference').focus(), 80);
@@ -650,6 +699,7 @@ async function submitPfmModal() {
     title: document.getElementById('pfm-title').value.trim(),
     companyId: Number(document.getElementById('pfm-company').value) || null,
     validUntil: document.getElementById('pfm-valid-until').value || '',
+    projectId: Number(document.getElementById('pfm-project').value) || null,
   };
   let bad = false;
   if (!data.reference) { markError('pfm-reference'); bad = true; }
@@ -667,6 +717,7 @@ async function submitPfmModal() {
     const msg = res?.error || 'Could not save the offer or CR';
     if (/Reference/i.test(msg)) markError('pfm-reference', msg);
     else if (/title/i.test(msg)) markError('pfm-title', msg);
+    else if (/project/i.test(msg)) markError('pfm-project', msg);
     else if (/client/i.test(msg)) markError('pfm-company', msg);
     else if (/date/i.test(msg)) markError('pfm-valid-until', msg);
     else toast(msg);
@@ -683,9 +734,75 @@ async function submitPfmModal() {
 function pfmAfterWrite(item) {
   pfmLoaded = false;
   clientPfmFor = null;
+  projectPfmFor = null;
   if (item && pfmCurrent && pfmCurrent.id === item.id) { pfmCurrent = item; renderPfmDetail(); }
   if (activeModule === 'pfm' && !pfmCurrent) loadPfmList();
   if (activeModule === 'clients' && currentClient) loadClientPfmRows(currentClient.id);
+  if (activeModule === 'projects' && currentProject) loadProjectPfmRows(currentProject.id);
+}
+
+// ══ PROJECT PAGE — "Offers & CRs" (migration 074) ══
+// The Offers and CRs linked to the open project, with their stage and
+// documents a click away. Fetched per project open, like the client tab.
+let projectPfmRows = [];
+let projectPfmFor = null;         // project id projectPfmRows belongs to, or null = stale
+let projectPfmHost = null;        // the section element to refill
+async function loadProjectPfmRows(projectId) {
+  let rows;
+  try { rows = await window.api.listPfmItems({ projectId, includeArchived: true }); }
+  catch { rows = []; }
+  if (!currentProject || currentProject.id !== projectId) return;
+  projectPfmRows = Array.isArray(rows) ? rows : [];
+  projectPfmFor = projectId;
+  if (projectPfmHost?.isConnected) projectPfmHost.replaceWith(buildProjectPfmSection(currentProject));
+}
+function buildProjectPfmSection(p) {
+  const rows = projectPfmFor === p.id ? projectPfmRows : [];
+  const section = pjMk('div', 'pj-section');
+  projectPfmHost = section;
+  const head = pjMk('div', 'pj-section-head');
+  const title = pjMk('div', 'pj-section-title');
+  title.innerHTML = ic('briefcase');
+  title.appendChild(document.createTextNode('Offers & CRs (' + rows.length + ')'));
+  head.appendChild(title);
+  const acts = pjMk('div', 'pj-section-actions');
+  const companyId = (p.companies || [])[0]?.id ?? null;
+  [['CR', 'New CR', ''], ['OFFER', 'New Offer', 'primary']].forEach(([kind, label, emphasis]) => {
+    const b = pjMk('button', 'btn' + (emphasis ? ' ' + emphasis : ''));
+    b.type = 'button';
+    b.innerHTML = ic('plus');
+    b.appendChild(document.createTextNode(label));
+    b.addEventListener('click', () => openPfmModal(null, { kind, companyId, projectId: p.id }));
+    acts.appendChild(b);
+  });
+  head.appendChild(acts);
+  section.appendChild(head);
+
+  if (projectPfmFor !== p.id) {
+    const loading = pjMk('div');
+    section.appendChild(loading);
+    showSkeleton(loading, 'text', 2);
+    loadProjectPfmRows(p.id);
+    return section;
+  }
+  if (!rows.length) {
+    section.appendChild(pjMk('div', 'cp-records-empty', 'No offers or CRs linked to this project yet.'));
+    return section;
+  }
+  const wrap = pjMk('div', 'pfm-table-wrap');
+  const table = pjMk('table', 'pfm-table');
+  const thead = document.createElement('thead');
+  const hr = document.createElement('tr');
+  ['Reference', 'Title', 'Client', 'Type', 'Status', 'Current Fees', 'Person', 'Updated']
+    .forEach(label => hr.appendChild(pjMk('th', '', label)));
+  thead.appendChild(hr);
+  table.appendChild(thead);
+  const body = document.createElement('tbody');
+  rows.forEach(i => body.appendChild(buildPfmRow(i)));
+  table.appendChild(body);
+  wrap.appendChild(table);
+  section.appendChild(wrap);
+  return section;
 }
 
 // ══ CLIENT DETAIL TAB — "Offers & CRs" (plan D4) ══
@@ -766,7 +883,7 @@ async function openPfmDetail(id) {
   catch { toast('Could not open this offer or CR'); return; }
   if (!item) { toast('This offer or CR no longer exists'); loadPfmList(); return; }
   if (activeModule !== 'pfm') switchModule('pfm');
-  if (pfmCurrent?.id !== item.id) pfmFileErrors = new Map();
+  if (pfmCurrent?.id !== item.id) { pfmFileErrors = new Map(); pfmStageFileErrors = new Map(); }
   pfmCurrent = item;
   showPfmDetailView();
   renderPfmDetail();
@@ -778,15 +895,19 @@ function backToPfmList() {
   loadPfmList();
 }
 
-// Statuses the "Move to" buttons offer: the next one in catalog order — or,
-// when the next one is final, every final status after the current one
+// Statuses the "Move to" buttons offer: the next one in catalog order,
+// skipping Rejected — plus Rejected beside Accepted when Accepted is next
 // (Sent → Accepted | Rejected). Nothing once the item is final.
 function pfmNextStatuses(current) {
   const codes = pfmStatusOptions().map(o => o.code);
   if (PFM_FINAL.has(current)) return [];
-  const after = codes.slice(codes.indexOf(current) + 1);
-  if (!after.length) return [];
-  return PFM_FINAL.has(after[0]) ? after.filter(c => PFM_FINAL.has(c)) : [after[0]];
+  const next = codes.slice(codes.indexOf(current) + 1).find(c => c !== 'REJECTED');
+  if (!next) return [];
+  return next === 'ACCEPTED' && codes.includes('REJECTED') ? [next, 'REJECTED'] : [next];
+}
+// "Change status…" never offers Rejected once the item is Accepted or further.
+function pfmCanMoveTo(item, code) {
+  return !(code === 'REJECTED' && pfmIsDecided(item.status) && item.status !== 'REJECTED');
 }
 
 function renderPfmDetail() {
@@ -818,6 +939,16 @@ function renderPfmDetail() {
   sub.appendChild(pfmUserText('span', '', item.title));
   sub.appendChild(pjMk('span', 'pfm-dot', '·'));
   sub.appendChild(pfmUserText('span', '', lkLabelById('COMPANY', item.companyId) || item.company));
+  if (item.projectId) {
+    sub.appendChild(pjMk('span', 'pfm-dot', '·'));
+    const proj = pjMk('button', 'pfm-project-link cell-link');
+    proj.type = 'button';
+    proj.innerHTML = ic('clipboard-list');
+    proj.appendChild(pfmUserText('span', '', item.projectName));
+    proj.title = 'Open project';
+    proj.addEventListener('click', () => { flushPfmPending(); openProjectById(item.projectId); });
+    sub.appendChild(proj);
+  }
   const fees = pfmFees(item.currentVersion);
   if (fees) { sub.appendChild(pjMk('span', 'pfm-dot', '·')); sub.appendChild(pfmUserText('span', 'pfm-fees', fees)); }
   ident.appendChild(sub);
@@ -833,7 +964,8 @@ function renderPfmDetail() {
     b.addEventListener('click', () => openPfmStageModal('move', code));
     actions.appendChild(b);
   });
-  const others = pfmStatusOptions().filter(o => o.code !== item.status && !pfmNextStatuses(item.status).includes(o.code));
+  const others = pfmStatusOptions().filter(o => o.code !== item.status && !pfmNextStatuses(item.status).includes(o.code)
+    && pfmCanMoveTo(item, o.code));
   if (others.length) {
     const sel = document.createElement('select');
     sel.className = 'pfm-other-status';
@@ -877,7 +1009,7 @@ function renderPfmDetail() {
 
   host.appendChild(buildPfmStageTrack(item));
   host.appendChild(buildPfmContactSection(item));
-  host.appendChild(buildPfmVersionsSection(item));
+  host.appendChild(buildPfmDocumentsSection(item));
   host.appendChild(buildPfmHistorySection(item));
 }
 
@@ -892,8 +1024,19 @@ function buildPfmStageTrack(item) {
   section.appendChild(sh);
 
   const byStatus = new Map((item.stages || []).map(s => [s.status, s]));
-  const codes = pfmStatusOptions().map(o => o.code);
-  (item.stages || []).forEach(s => { if (!codes.includes(s.status)) codes.push(s.status); });
+  const filesBy = new Map();
+  (item.stageFiles || []).forEach(f => { if (!filesBy.has(f.status)) filesBy.set(f.status, []); filesBy.get(f.status).push(f); });
+  const all = pfmStatusOptions().map(o => o.code);
+  [...byStatus.keys(), ...filesBy.keys()].forEach(code => { if (!all.includes(code)) all.push(code); });
+  // Rejected is the other way out of Sent: it shows only on an item that took
+  // it (or holds a record on it), and a rejected item hides the delivery
+  // stages it never reached.
+  const rejected = item.status === 'REJECTED';
+  const holds = code => byStatus.has(code) || filesBy.has(code);
+  const codes = all.filter(code => {
+    if (code === 'REJECTED') return rejected || holds(code);
+    return !(rejected && pfmIsDecided(code)) || holds(code);
+  });
   const currentIdx = codes.indexOf(item.status);
 
   const track = pjMk('ol', 'pfm-track');
@@ -928,6 +1071,36 @@ function buildPfmStageTrack(item) {
   });
   section.appendChild(track);
   return section;
+}
+
+// One stage's files in the Documents table: chips (open / remove with Undo),
+// an "Add files" button, and the failures from the last add.
+function buildPfmStageFiles(item, code, files) {
+  const box = pjMk('div', 'pfm-step-files');
+  files.forEach(f => box.appendChild(buildPfmFileChip(f, {
+    open: () => openPfmStageFileUi(f.id), remove: () => removePfmStageFileUi(f.id),
+  })));
+  const add = pjMk('button', 'pj-doc-btn pfm-add-files');
+  add.type = 'button';
+  add.innerHTML = ic('upload');
+  add.appendChild(document.createTextNode('Add files'));
+  add.title = 'Add files to this stage';
+  add.addEventListener('click', () => addPfmStageFilesUi(item.id, code, add));
+  box.appendChild(add);
+  const errors = pfmStageFileErrors.get(code);
+  if (errors?.length) {
+    const list = pjMk('div', 'pfm-file-errors');
+    list.setAttribute('role', 'alert');
+    errors.forEach(e => {
+      const row = pjMk('div', 'pfm-file-error');
+      row.innerHTML = ic('triangle-alert');
+      row.appendChild(pfmUserText('span', 'pfm-file-error-name', e.name));
+      row.appendChild(pjMk('span', '', e.error));
+      list.appendChild(row);
+    });
+    box.appendChild(list);
+  }
+  return box;
 }
 
 // ── Client contact + channel (auto-saved) ──
@@ -1070,31 +1243,63 @@ function flushPfmPending() {
 async function pfmBeforeWrite() { await flushPfmPending(); }
 
 // ── Versions (newest first; the top one is "Current") + their files ──
-function buildPfmVersionsSection(item) {
-  const section = pjMk('div', 'pj-section pfm-versions');
+// ── Documents: one row per step of the flow ──
+// The Offer row holds the versions (fees + the offer's files); each row after
+// it is a delivery stage with its own files: PO / Approval (the Accepted
+// stage), UAT, Production, Invoice, Invoice Paid. Every row always shows, so
+// the next document due is plain; a status added in Settings that holds files
+// gets a row too.
+function pfmDocumentStages(item) {
+  const codes = pfmStatusOptions().map(o => o.code).filter(c => pfmIsDecided(c) && c !== 'REJECTED');
+  (item.stageFiles || []).forEach(f => { if (!codes.includes(f.status)) codes.push(f.status); });
+  return codes;
+}
+// The Accepted row is named for its document; the rest use their status name.
+const pfmDocumentLabel = code => (code === 'ACCEPTED' ? { text: 'PO / Approval', ui: true } : { text: pfmStatusName(code), ui: false });
+// `label` is { text, ui }: UI wording goes through the dictionary, a status
+// name (already in the app language, from the catalog) is left as it is.
+function buildPfmDocRow(label, date, content, cls = '') {
+  const row = pjMk('div', 'pfm-doc-row' + (cls ? ' ' + cls : ''));
+  const head = pjMk('div', 'pfm-doc-step');
+  head.appendChild(label.ui ? pjMk('span', 'pfm-doc-step-name', label.text) : pfmUserText('span', 'pfm-doc-step-name', label.text));
+  if (date) head.appendChild(pjMk('span', 'pfm-muted pfm-doc-step-date', pfmFmtDate(date)));
+  row.append(head, content);
+  return row;
+}
+function buildPfmDocumentsSection(item) {
+  const section = pjMk('div', 'pj-section pfm-versions pfm-documents');
   const sh = pjMk('div', 'pj-section-head');
   const st = pjMk('div', 'pj-section-title');
-  st.innerHTML = ic('layers');
-  st.appendChild(document.createTextNode('Versions'));
+  st.innerHTML = ic('file-text');
+  st.appendChild(document.createTextNode('Documents'));
   sh.appendChild(st);
-  const acts = pjMk('div', 'pj-section-actions');
-  const add = pjMk('button', 'btn primary pfm-version-add');
+  section.appendChild(sh);
+
+  // The Offer row: its versions as flat lines (newest = current on top), and
+  // "New Version" inside the row it belongs to.
+  const rows = pjMk('div', 'pfm-doc-rows');
+  const versions = item.versions || [];
+  const offer = pjMk('div', 'pfm-offer-versions');
+  const list = pjMk('div', 'pfm-version-list');
+  if (!versions.length) list.appendChild(pjMk('div', 'pfm-muted pfm-version-empty', 'No versions yet — add one to record the fees and files.'));
+  versions.forEach((v, idx) => list.appendChild(buildPfmVersionCard(v, idx === 0, versions[idx + 1])));
+  offer.appendChild(list);
+  const add = pjMk('button', 'pj-doc-btn pfm-version-add');
   add.type = 'button';
   add.innerHTML = ic('plus');
   add.appendChild(document.createTextNode('New Version'));
   add.addEventListener('click', () => openPfmVersionModal(null));
-  acts.appendChild(add);
-  sh.appendChild(acts);
-  section.appendChild(sh);
+  offer.appendChild(add);
+  rows.appendChild(buildPfmDocRow({ text: pfmKindLabel(item.kind), ui: true }, versions[0]?.date || '', offer, 'pfm-doc-row-offer'));
 
-  const versions = item.versions || [];
-  if (!versions.length) {
-    section.appendChild(pjMk('div', 'cp-records-empty', 'No versions yet — add one to record the fees and files.'));
-    return section;
-  }
-  const list = pjMk('div', 'pfm-version-list');
-  versions.forEach((v, idx) => list.appendChild(buildPfmVersionCard(v, idx === 0, versions[idx + 1])));
-  section.appendChild(list);
+  const byStatus = new Map((item.stages || []).map(s => [s.status, s]));
+  const filesBy = new Map();
+  (item.stageFiles || []).forEach(f => { if (!filesBy.has(f.status)) filesBy.set(f.status, []); filesBy.get(f.status).push(f); });
+  pfmDocumentStages(item).forEach(code => {
+    rows.appendChild(buildPfmDocRow(pfmDocumentLabel(code), byStatus.get(code)?.doneOn || '',
+      buildPfmStageFiles(item, code, filesBy.get(code) || [])));
+  });
+  section.appendChild(rows);
   return section;
 }
 
@@ -1181,7 +1386,8 @@ function buildPfmVersionCard(v, isCurrent, prev) {
 }
 
 // One file: click the name to open it; × asks inline, then removes with Undo.
-function buildPfmFileChip(f) {
+// `actions` swaps in the stage-file calls; a version file uses the defaults.
+function buildPfmFileChip(f, actions = { open: () => openPfmFileUi(f.id), remove: () => removePfmFileUi(f.id) }) {
   const chip = pjMk('span', 'pfm-file' + (f.exists ? '' : ' missing'));
   const render = () => {
     chip.innerHTML = '';
@@ -1191,14 +1397,14 @@ function buildPfmFileChip(f) {
     open.innerHTML = ic(f.exists ? 'file-text' : 'triangle-alert');
     open.appendChild(pfmUserText('span', 'pfm-file-name', f.originalName || '(file)'));
     open.appendChild(pjMk('span', 'pfm-file-size', fmtFileSize(f.size)));
-    open.addEventListener('click', () => openPfmFileUi(f.id));
+    open.addEventListener('click', actions.open);
     chip.appendChild(open);
     const x = pjMk('button', 'pfm-file-x');
     x.type = 'button';
     x.innerHTML = ic('x');
     x.title = 'Remove file';
     x.setAttribute('aria-label', 'Remove file');
-    x.addEventListener('click', () => showDeleteConfirm(chip, () => removePfmFileUi(f.id), render, 'Remove?'));
+    x.addEventListener('click', () => showDeleteConfirm(chip, actions.remove, render, 'Remove?'));
     chip.appendChild(x);
   };
   render();
@@ -1248,6 +1454,50 @@ async function removePfmFileUi(fileId) {
       if (restored?.ok) pfmAfterWrite(restored.item);
     },
     onExpire: () => window.api.purgePfmFile(fileId).catch(() => {}),
+  });
+}
+
+// ── Stage files: same flow as version files, keyed by the stage's status ──
+async function openPfmStageFileUi(fileId) {
+  let res;
+  try { res = await window.api.openPfmStageFile(fileId); }
+  catch { toast('Could not open file'); return; }
+  if (!res?.ok) toast(res?.error || 'Could not open file');
+}
+async function addPfmStageFilesUi(itemId, code, btn) {
+  await pfmBeforeWrite();
+  if (btn) btn.disabled = true;
+  let res;
+  try { res = await window.api.addPfmStageFiles(itemId, code); }
+  catch { toast('Could not add files'); if (btn) btn.disabled = false; return; }
+  if (btn) btn.disabled = false;
+  if (res?.canceled) return;
+  const results = res?.results || [];
+  const failed = results.filter(r => !r.ok);
+  const added = results.length - failed.length;
+  if (failed.length) pfmStageFileErrors.set(code, failed.map(r => ({ name: r.name, error: r.error })));
+  else pfmStageFileErrors.delete(code);
+  if (!results.length) { toast(res?.error || 'Could not add files'); return; }
+  if (added) toast(added === 1 ? '1 file added' : `${added} files added`);
+  else toast('No files were added');
+  if (res.item) pfmAfterWrite(res.item);
+  else if (pfmCurrent) renderPfmDetail();
+}
+async function removePfmStageFileUi(fileId) {
+  await pfmBeforeWrite();
+  let res;
+  try { res = await window.api.removePfmStageFile(fileId); }
+  catch { toast('Could not remove file'); return; }
+  if (!res?.ok) { toast(res?.error || 'Could not remove file'); if (pfmCurrent) renderPfmDetail(); return; }
+  pfmAfterWrite(res.item);
+  toast('File removed', {
+    actionLabel: 'Undo', duration: 5000,
+    onAction: async () => {
+      const restored = await window.api.restorePfmStageFile(fileId).catch(() => null);
+      toast(restored?.ok ? 'File restored' : (restored?.error || 'Could not restore the file'));
+      if (restored?.ok) pfmAfterWrite(restored.item);
+    },
+    onExpire: () => window.api.purgePfmStageFile(fileId).catch(() => {}),
   });
 }
 

@@ -26,7 +26,7 @@ const crypto = require('node:crypto');
 // table under one of these category discriminators. The renderer fetches options
 // per-category and stores a stable `code` (logic fields) or display `label`
 // (company/system/activity) — never a hardcoded string.
-const LOOKUP_CATEGORIES = ['COMPANY', 'SYSTEM', 'ACTIVITY_TYPE', 'TIME_TYPE', 'ENTRY_STATUS', 'CURRENCY', 'BILLING_CYCLE', 'PROJECT_STATUS', 'PROJECT_DOCUMENT', 'COMPANY_DOCUMENT_CATEGORY', 'KNOWLEDGE_TYPE', 'DEPARTMENT', 'TASK_SOURCE_TYPE', 'SERVER_ROLE', 'PFM_STATUS'];
+const LOOKUP_CATEGORIES = ['COMPANY', 'SYSTEM', 'ACTIVITY_TYPE', 'TIME_TYPE', 'ENTRY_STATUS', 'CURRENCY', 'BILLING_CYCLE', 'PROJECT_STATUS', 'PROJECT_DOCUMENT', 'COMPANY_DOCUMENT_CATEGORY', 'TEMPLATE_CATEGORY', 'KNOWLEDGE_TYPE', 'DEPARTMENT', 'TASK_SOURCE_TYPE', 'SERVER_ROLE', 'PFM_STATUS'];
 
 let db;          // DatabaseSync instance
 let userDataDir; // resolved userData folder (backups, db file)
@@ -315,7 +315,9 @@ function applyMigrations() {
       const stamp = new Date().toISOString().replace(/[:.]/g, '-');
       backup(path.join(dir, `cooperation-tools-PRE-MIGRATION-${m.version}-${stamp}.db`));
     }
-    const run = () => { m.up(db); record.run(m.version, m.name, new Date().toISOString()); };
+    // A migration that moves stored files (074) needs the data folder; the
+    // rest ignore the second argument.
+    const run = () => { m.up(db, { userDataDir }); record.run(m.version, m.name, new Date().toISOString()); };
     if (m.manualTransaction) run();   // migration owns its own tx/PRAGMA sequencing
     else tx(run);
   }
@@ -441,11 +443,13 @@ function sweepOrphanPfmFiles() {
     const items = new Set(db.prepare('SELECT id FROM pfm_items').all().map(r => String(r.id)));
     const versionItem = new Map(db.prepare('SELECT id, item_id FROM pfm_versions').all().map(r => [String(r.id), String(r.item_id)]));
     const known = new Set(db.prepare('SELECT file_path FROM pfm_version_files').all().map(r => path.normalize(r.file_path)));
+    const stageKnown = new Set(db.prepare('SELECT file_path FROM pfm_stage_files').all().map(r => path.normalize(r.file_path)));
     for (const itemName of fs.readdirSync(root)) {
       if (!/^\d+$/.test(itemName)) continue;
       const itemDir = path.join(root, itemName);
       if (!items.has(itemName)) { fs.rmSync(itemDir, { recursive: true, force: true }); removed.push(itemName); continue; }
       for (const versionName of fs.readdirSync(itemDir)) {
+        if (versionName === 'stages') { removed.push(...sweepOrphanPfmStageFiles(root, itemName, stageKnown)); continue; }
         if (!/^\d+$/.test(versionName)) continue;
         const versionDir = path.join(itemDir, versionName);
         if (versionItem.get(versionName) !== itemName) {
@@ -459,6 +463,22 @@ function sweepOrphanPfmFiles() {
       }
     }
   } catch { /* non-critical */ }
+  return removed;
+}
+// A live item's stages/{statusId}/ folder: drops every file no
+// pfm_stage_files row points at (a status folder left empty goes too).
+function sweepOrphanPfmStageFiles(root, itemName, known) {
+  const removed = [];
+  const stagesDir = path.join(root, itemName, 'stages');
+  for (const statusName of fs.readdirSync(stagesDir)) {
+    const statusDir = path.join(stagesDir, statusName);
+    for (const fileName of fs.readdirSync(statusDir)) {
+      if (known.has(path.normalize(path.join('project_finance', itemName, 'stages', statusName, fileName)))) continue;
+      fs.rmSync(path.join(statusDir, fileName), { recursive: true, force: true });
+      removed.push(`${itemName}/stages/${statusName}/${fileName}`);
+    }
+    if (!fs.readdirSync(statusDir).length) fs.rmSync(statusDir, { recursive: true, force: true });
+  }
   return removed;
 }
 function sweepOrphanKnowledgeFiles() {
@@ -890,7 +910,7 @@ function getAttentionItems(userId) {
 //  - E2 follow-up: still SENT, PFM_FOLLOW_UP_DAYS after the Sent stage's date.
 //    `date` is that follow-up day, so the badge reads "Today" / "Nd overdue".
 //  - E3 validity: `valid_until` is PFM_EXPIRY_WARN_DAYS away or already past,
-//    and the item is not yet Accepted / Rejected.
+//    and the item is not yet Accepted (or further) / Rejected.
 // Archived items and items inside their delete-undo window are left out.
 const PFM_FOLLOW_UP_DAYS = 7;
 const PFM_EXPIRY_WARN_DAYS = 3;
@@ -916,7 +936,7 @@ function pfmAttentionItems(userId, today = pfmLocalToday()) {
       const due = pfmAddDays(r.stage_on, PFM_FOLLOW_UP_DAYS);
       if (pfmDayDiff(due, today) >= 0) items.push({ type: 'pfmFollowUp', id: r.id, title, date: due, module: 'pfm' });
     }
-    if (!PFM_FINAL_STATUS_CODES.has(status) && isValidDateStr(r.valid_until || '')
+    if (!pfmIsDecided(r.status_id) && isValidDateStr(r.valid_until || '')
         && pfmDayDiff(today, r.valid_until) <= PFM_EXPIRY_WARN_DAYS) {
       items.push({ type: 'pfmExpiry', id: r.id, title, date: r.valid_until, module: 'pfm' });
     }
@@ -953,7 +973,9 @@ function getRecentActivity(userId, requestedLimit = 16) {
        SELECT 'knowledge', k.id, NULL, k.title, 'Knowledge item updated', k.updated_at, 'knowledge'
          FROM knowledge_items k WHERE k.user_id = ?
        UNION ALL
-       SELECT 'company-document', d.id, NULL, d.name, 'Company document updated', d.updated_at, 'companydocs'
+       SELECT CASE d.kind WHEN 'TEMPLATE' THEN 'template' ELSE 'company-document' END, d.id, NULL, d.name,
+              CASE d.kind WHEN 'TEMPLATE' THEN 'Template updated' ELSE 'Company document updated' END, d.updated_at,
+              CASE d.kind WHEN 'TEMPLATE' THEN 'templates' ELSE 'companydocs' END
          FROM company_documents d WHERE d.user_id = ?
      ) ORDER BY changedAt DESC LIMIT ?`
   ).all(userId, userId, userId, userId, userId, limit).map(row => ({
@@ -1117,7 +1139,8 @@ function getLookupCodeHistory(lookupId) {
 const LOOKUP_TEXT_REFERENCES = {
   PROJECT_STATUS:            ['SELECT status AS v, COUNT(*) AS n FROM projects GROUP BY status'],
   PROJECT_DOCUMENT:          ['SELECT document_type AS v, COUNT(*) AS n FROM project_documents GROUP BY document_type'],
-  COMPANY_DOCUMENT_CATEGORY: ['SELECT category AS v, COUNT(*) AS n FROM company_documents WHERE category IS NOT NULL GROUP BY category'],
+  COMPANY_DOCUMENT_CATEGORY: ["SELECT category AS v, COUNT(*) AS n FROM company_documents WHERE kind = 'DOCUMENT' AND category IS NOT NULL GROUP BY category"],
+  TEMPLATE_CATEGORY:         ["SELECT category AS v, COUNT(*) AS n FROM company_documents WHERE kind = 'TEMPLATE' AND category IS NOT NULL GROUP BY category"],
   CURRENCY:                  ["SELECT value AS v, COUNT(*) AS n FROM user_settings WHERE key IN ('subscriptions_default_currency', 'salary_currency') GROUP BY value"],
 };
 
@@ -1344,6 +1367,12 @@ const KNOWLEDGE_DOC_TYPES = {
   txt:  'text/plain',
 };
 const KNOWLEDGE_DOC_EXTENSIONS = Object.keys(KNOWLEDGE_DOC_TYPES);
+// Templates take everything the Knowledge Hub does, plus PowerPoint.
+const TEMPLATE_DOC_TYPES = {
+  ...KNOWLEDGE_DOC_TYPES,
+  ppt:  'application/vnd.ms-powerpoint',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+};
 const MAX_DOCUMENT_BYTES = 100 * 1024 * 1024;
 
 function safeDocumentType(documentType) {
@@ -1865,6 +1894,13 @@ function restoreProjectFiles(userId, oldProjectId, newProjectId, fileDocs) {
 // its file on disk so it survives the renderer's 5 s undo window;
 // purgeCompanyDocumentFiles/restoreCompanyDocumentFile mirror the Projects
 // delete/undo pattern (including the SQLite rowid-reuse caveat).
+//
+// Templates (migration 075) are the same cards with kind = 'TEMPLATE': a
+// TEMPLATE_CATEGORY instead of a COMPANY_DOCUMENT_CATEGORY, and no renewal
+// date. Only list and create take a kind; everything else works on a card by
+// id, and update reads the kind from the row it changes.
+const COMPANY_DOCUMENT_CATEGORIES = { DOCUMENT: 'COMPANY_DOCUMENT_CATEGORY', TEMPLATE: 'TEMPLATE_CATEGORY' };
+function companyDocumentKind(kind) { return kind === 'TEMPLATE' ? 'TEMPLATE' : 'DOCUMENT'; }
 
 function ownsCompanyDocument(userId, id) {
   return !!db.prepare('SELECT 1 FROM company_documents WHERE id = ? AND user_id = ?').get(id, userId);
@@ -1873,7 +1909,7 @@ function ownsCompanyDocument(userId, id) {
 function companyDocumentToApi(r) {
   const hasFile = !!r.file_path;
   return {
-    id: r.id, name: r.name, category: r.category || '', renewalDate: r.renewal_date || '',
+    id: r.id, kind: r.kind || 'DOCUMENT', name: r.name, category: r.category || '', renewalDate: r.renewal_date || '',
     notes: r.notes || '', sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
     file: hasFile ? {
       path: r.file_path, originalName: r.original_name || '', size: r.file_size || 0,
@@ -1883,34 +1919,39 @@ function companyDocumentToApi(r) {
   };
 }
 
-// All of the user's company documents, newest first — the list view's payload.
-function listCompanyDocuments(userId) {
+// All of the user's cards of one kind, newest first — the list view's payload.
+function listCompanyDocuments(userId, kind = 'DOCUMENT') {
   return db.prepare(
-    'SELECT * FROM company_documents WHERE user_id = ? ORDER BY created_at DESC, id DESC'
-  ).all(userId).map(companyDocumentToApi);
+    'SELECT * FROM company_documents WHERE user_id = ? AND kind = ? ORDER BY created_at DESC, id DESC'
+  ).all(userId, companyDocumentKind(kind)).map(companyDocumentToApi);
 }
 function getCompanyDocument(userId, id) {
   const r = db.prepare('SELECT * FROM company_documents WHERE id = ? AND user_id = ?').get(id, userId);
   return r ? companyDocumentToApi(r) : null;
 }
-function createCompanyDocument(userId, data) {
+function createCompanyDocument(userId, data, kind = 'DOCUMENT') {
   const now = new Date().toISOString();
-  const category = lkId('COMPANY_DOCUMENT_CATEGORY', data?.category) != null ? data.category : null;
+  const k = companyDocumentKind(kind);
+  const category = lkId(COMPANY_DOCUMENT_CATEGORIES[k], data?.category) != null ? data.category : null;
+  const renewalDate = k === 'DOCUMENT' ? (data?.renewalDate || null) : null;
   const id = Number(db.prepare(
-    `INSERT INTO company_documents(user_id, name, category, renewal_date, notes, sort_order, created_at, updated_at)
-     VALUES(?, ?, ?, ?, ?, 0, ?, ?)`
-  ).run(userId, data?.name ?? '', category, data?.renewalDate || null, data?.notes ?? '', now, now).lastInsertRowid);
+    `INSERT INTO company_documents(user_id, kind, name, category, renewal_date, notes, sort_order, created_at, updated_at)
+     VALUES(?, ?, ?, ?, ?, ?, 0, ?, ?)`
+  ).run(userId, k, data?.name ?? '', category, renewalDate, data?.notes ?? '', now, now).lastInsertRowid);
   return getCompanyDocument(userId, id);
 }
 // Update a card's profile fields in place (file untouched). Returns the
 // refreshed card, or null if the caller doesn't own it.
 function updateCompanyDocument(userId, id, data) {
-  if (!ownsCompanyDocument(userId, id)) return null;
-  const category = lkId('COMPANY_DOCUMENT_CATEGORY', data?.category) != null ? data.category : null;
+  const row = db.prepare('SELECT kind FROM company_documents WHERE id = ? AND user_id = ?').get(id, userId);
+  if (!row) return null;
+  const k = companyDocumentKind(row.kind);
+  const category = lkId(COMPANY_DOCUMENT_CATEGORIES[k], data?.category) != null ? data.category : null;
+  const renewalDate = k === 'DOCUMENT' ? (data?.renewalDate || null) : null;
   db.prepare(
     `UPDATE company_documents SET name = ?, category = ?, renewal_date = ?, notes = ?, updated_at = ?
       WHERE id = ? AND user_id = ?`
-  ).run(data?.name ?? '', category, data?.renewalDate || null, data?.notes ?? '', new Date().toISOString(), id, userId);
+  ).run(data?.name ?? '', category, renewalDate, data?.notes ?? '', new Date().toISOString(), id, userId);
   return getCompanyDocument(userId, id);
 }
 // In-memory record of which user just deleted which company-document id — same
@@ -1929,22 +1970,29 @@ function deleteCompanyDocument(userId, id) {
 }
 
 // Copy a chosen file into the card's folder and record its metadata. Validates
-// ownership and the extension allowlist (shared with Project Documents). If a
+// ownership and the extension allowlist (shared with Project Documents; a
+// template also takes the Knowledge Hub's spreadsheets and text). If a
 // file already exists for this card it is a REPLACE: the new file is written
 // first, then the old one removed (best-effort). Returns
 // { ok, document } | { ok:false, error }.
 function saveCompanyDocumentFile(userId, id, srcPath) {
-  if (!ownsCompanyDocument(userId, id)) return { ok: false, error: 'Document not found' };
+  const card = db.prepare('SELECT kind FROM company_documents WHERE id = ? AND user_id = ?').get(id, userId);
+  if (!card) return { ok: false, error: 'Document not found' };
+  const isTemplate = card.kind === 'TEMPLATE';
+  const types = isTemplate ? TEMPLATE_DOC_TYPES : PROJECT_DOC_TYPES;
   const ext = fileExt(srcPath);
-  if (!PROJECT_DOC_EXTENSIONS.includes(ext)) {
-    return { ok: false, error: `Unsupported file type (.${ext || '?'}). Allowed: ${PROJECT_DOC_EXTENSIONS.join(', ')}` };
+  if (!Object.hasOwn(types, ext)) {
+    return { ok: false, error: `Unsupported file type (.${ext || '?'}). Allowed: ${Object.keys(types).join(', ')}` };
   }
   let size;
   try { size = fs.statSync(srcPath).size; }
   catch { return { ok: false, error: 'Could not read the selected file' }; }
   if (size <= 0 || size > MAX_DOCUMENT_BYTES) return { ok: false, error: 'File must be between 1 byte and 100 MB' };
   try {
-    if (!uploadHeaderMatches(srcPath, ext)) return { ok: false, error: 'The file contents do not match its extension' };
+    // .ppt is an OLE file like .doc, .pptx a ZIP like .docx.
+    const headerExt = ext === 'ppt' ? 'doc' : ext === 'pptx' ? 'docx' : ext;
+    const matches = isTemplate ? knowledgeUploadHeaderMatches(srcPath, headerExt) : uploadHeaderMatches(srcPath, ext);
+    if (!matches) return { ok: false, error: 'The file contents do not match its extension' };
   } catch { return { ok: false, error: 'Could not validate the selected file' }; }
 
   const prev = db.prepare(`SELECT file_path, original_name, file_size, mime_type, uploaded_at
@@ -1965,7 +2013,7 @@ function saveCompanyDocumentFile(userId, id, srcPath) {
       `UPDATE company_documents
           SET file_path = ?, original_name = ?, file_size = ?, mime_type = ?, uploaded_at = ?, updated_at = ?
         WHERE id = ? AND user_id = ?`
-    ).run(relPath, path.basename(srcPath), size, PROJECT_DOC_TYPES[ext], new Date().toISOString(),
+    ).run(relPath, path.basename(srcPath), size, types[ext], new Date().toISOString(),
           new Date().toISOString(), id, userId);
   } catch (err) {
     // Metadata write failed — don't leave the just-copied orphan on disk.
@@ -2094,7 +2142,7 @@ function restoreCompanyDocumentFile(userId, oldId, newId, fileMeta) {
         SET file_path = ?, original_name = ?, file_size = ?, mime_type = ?, uploaded_at = ?, updated_at = ?
       WHERE id = ? AND user_id = ?`
   ).run(relPath, fileMeta.originalName || path.basename(relPath), fileMeta.size || 0,
-        fileMeta.mimeType || PROJECT_DOC_TYPES[fileExt(relPath)] || '', fileMeta.uploadedAt || new Date().toISOString(),
+        fileMeta.mimeType || TEMPLATE_DOC_TYPES[fileExt(relPath)] || '', fileMeta.uploadedAt || new Date().toISOString(),
         new Date().toISOString(), newId, userId);
   return { ok: true, document: getCompanyDocument(userId, newId) };
 }
@@ -3746,6 +3794,7 @@ function getSystemDiagnostics() {
     ['company_documents', 'file_path'],
     ['knowledge_attachments', 'file_path'],
     ['pfm_version_files', 'file_path'],
+    ['pfm_stage_files', 'file_path'],
   ]) {
     const rows = db.prepare(`SELECT id, ${column} AS filePath FROM "${table}" WHERE ${column} IS NOT NULL AND ${column} != ''`).all();
     for (const row of rows) {
@@ -4013,6 +4062,7 @@ function inspectFullBackup(bundleDir) {
       ['company_documents', 'file_path'],
       ['knowledge_attachments', 'file_path'],
       ['pfm_version_files', 'file_path'],
+      ['pfm_stage_files', 'file_path'],
     ];
     for (const [table, column] of refs) {
       const exists = candidate.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table);
@@ -5662,9 +5712,12 @@ function assignClientInternalGroup(userId, companyId, recordIds, groupName) {
 // rather than throwing (the client roster's convention), so a refusal is never
 // a partial write. A delete only stamps `deleted_at`; undo clears it and purge
 // removes the row, so an undo keeps every id, child row and history link.
-// Logic compares status CODES only — ACCEPTED/REJECTED are the final ones.
+// Logic compares status CODES only. The flow (migration 074) is Prepare →
+// Ready → Sent → Accepted → UAT Approved → Production Approved → Invoiced →
+// Invoice Paid, with Rejected as the other way out of Sent; Invoice Paid and
+// Rejected are the final ones.
 const PFM_KINDS = new Set(['OFFER', 'CR']);
-const PFM_FINAL_STATUS_CODES = new Set(['ACCEPTED', 'REJECTED']);
+const PFM_FINAL_STATUS_CODES = new Set(['PAID', 'REJECTED']);
 const PFM_MAX_TEXT = 200;
 // How the client raised it (migration 064). The reference is the email
 // title/subject for EMAIL and the ticket URL for JIRA.
@@ -5764,10 +5817,12 @@ function pfmTouchItem(userId, itemId, now) {
 const PFM_ITEM_HISTORY_FIELDS = [
   ['kind', 'Type'], ['reference', 'Reference'], ['title', 'Title'], ['company', 'Client'],
   ['contactName', 'Client Contact Name'], ['channel', 'Channel'], ['channelRef', 'Channel Reference'],
-  ['validUntil', 'Valid Until'], ['notes', 'Notes'],
+  ['validUntil', 'Valid Until'], ['notes', 'Notes'], ['project', 'Project'],
 ];
+const pfmProjectName = id => (id == null ? '' : db.prepare('SELECT name FROM projects WHERE id = ?').get(id)?.name || '');
 function pfmItemSnapshot(r) {
   return {
+    project: pfmProjectName(r.project_id),
     kind: r.kind, reference: r.reference, title: r.title, company: lkLabel(r.company_id),
     contactName: r.client_contact_name, channel: r.client_channel || '',
     channelRef: r.client_channel_ref || '', validUntil: r.valid_until || '', notes: r.notes,
@@ -5800,6 +5855,7 @@ function pfmItemToApi(r, extra = {}) {
     id: r.id, kind: r.kind, reference: r.reference, title: r.title,
     companyId: r.company_id, company: lkLabel(r.company_id), status,
     isFinal: PFM_FINAL_STATUS_CODES.has(status),
+    projectId: r.project_id ?? null, projectName: pfmProjectName(r.project_id),
     contactName: r.client_contact_name, channel: r.client_channel || '',
     channelRef: r.client_channel_ref || '', validUntil: r.valid_until || '', notes: r.notes,
     archived: !!r.archived_at, archivedAt: r.archived_at || '',
@@ -5838,6 +5894,10 @@ function pfmItemWriteFields(userId, data, before) {
   }
   if (companyId == null) return { error: 'Choose a client' };
 
+  const project = pfmProjectField(userId, data, before, companyId);
+  if (project.error) return { error: project.error };
+  const projectId = project.value;
+
   let validUntil = before?.valid_until ?? null;
   if (has('validUntil')) {
     const d = pfmDate(data.validUntil, 'Valid until');
@@ -5851,12 +5911,43 @@ function pfmItemWriteFields(userId, data, before) {
   if (channelError) return { error: channelError };
 
   return { fields: {
-    kind, reference, reference_key: lookupLabelKey(reference), title, company_id: companyId,
+    kind, reference, reference_key: lookupLabelKey(reference), title, company_id: companyId, project_id: projectId,
     client_contact_name: pick('contactName', 'client_contact_name'),
     client_channel: channel, client_channel_ref: channelRef,
     valid_until: validUntil, notes: pick('notes', 'notes'),
   } };
 }
+// Optional project (migration 074): one of this login's projects that the
+// client is on. A client change that strands the old project is refused, so
+// the form sends the new project (or none) along with the new client.
+function pfmProjectField(userId, data, before, companyId) {
+  const sent = data != null && Object.hasOwn(data, 'projectId');
+  let id = before?.project_id ?? null;
+  if (sent) id = data.projectId == null || data.projectId === '' ? null : Number(data.projectId);
+  if (id == null) return { value: null };
+  const onClient = db.prepare(
+    `SELECT 1 FROM projects p JOIN project_companies pc ON pc.project_id = p.id
+      WHERE p.id = ? AND p.user_id = ? AND pc.company_id = ?`
+  ).get(id, userId, companyId);
+  if (onClient) return { value: id };
+  return { error: sent ? 'Choose a project of this client' : 'The linked project is not for this client — choose another project or none' };
+}
+// Undoing a project delete re-creates it under a new id; the Offers and CRs
+// that pointed at the old one (set to NULL by the delete) point at it again.
+// Only this login's items that are still unlinked and on one of its clients.
+function relinkPfmProject(userId, projectId, itemIds) {
+  if (!db.prepare('SELECT 1 FROM projects WHERE id = ? AND user_id = ?').get(Number(projectId), userId)) {
+    return { ok: false, error: 'Project not found' };
+  }
+  const stmt = db.prepare(
+    `UPDATE pfm_items SET project_id = ? WHERE id = ? AND user_id = ? AND project_id IS NULL
+        AND company_id IN (SELECT company_id FROM project_companies WHERE project_id = ?)`
+  );
+  let count = 0;
+  tx(() => { (Array.isArray(itemIds) ? itemIds : []).forEach(id => { count += stmt.run(Number(projectId), Number(id), userId, Number(projectId)).changes; }); });
+  return { ok: true, count };
+}
+
 // D6: one pool per login across Offers AND CRs, capitals/spaces ignored.
 // Archived and in-undo-window rows still hold their reference.
 function pfmReferenceConflict(userId, referenceKey, exceptId = null) {
@@ -5877,6 +5968,7 @@ function listPfmItems(userId, filters = {}) {
   const kind = pfmText(filters.kind).toUpperCase();
   if (PFM_KINDS.has(kind)) { where.push('i.kind = ?'); params.push(kind); }
   if (filters.companyId != null && filters.companyId !== '') { where.push('i.company_id = ?'); params.push(Number(filters.companyId)); }
+  if (filters.projectId != null && filters.projectId !== '') { where.push('i.project_id = ?'); params.push(Number(filters.projectId)); }
   if (filters.status) {
     const statusId = pfmStatusId(filters.status, { activeOnly: false });
     if (statusId == null) return [];
@@ -5928,7 +6020,10 @@ function getPfmItem(userId, id) {
   const versions = db.prepare(
     'SELECT * FROM pfm_versions WHERE item_id = ? AND deleted_at IS NULL ORDER BY sort_order DESC, id DESC'
   ).all(r.id).map(v => pfmVersionToApi(v, filesOf.all(v.id).map(pfmFileToApi)));
-  return pfmItemToApi(r, { stages, versions, currentVersion: versions[0] || null });
+  const stageFiles = db.prepare(
+    'SELECT * FROM pfm_stage_files WHERE item_id = ? AND deleted_at IS NULL ORDER BY status_id, sort_order, id'
+  ).all(r.id).map(pfmStageFileToApi);
+  return pfmItemToApi(r, { stages, versions, stageFiles, currentVersion: versions[0] || null });
 }
 
 // data: item fields + optional `status` (code; default = the first active
@@ -5950,11 +6045,11 @@ function createPfmItem(userId, data) {
     error = pfmReferenceConflict(userId, f.reference_key);
     if (error) return null;
     const newId = Number(db.prepare(
-      `INSERT INTO pfm_items(user_id, kind, reference, reference_key, title, company_id, status_id,
+      `INSERT INTO pfm_items(user_id, kind, reference, reference_key, title, company_id, project_id, status_id,
          client_contact_name, client_channel, client_channel_ref, valid_until, notes,
          created_by, updated_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(userId, f.kind, f.reference, f.reference_key, f.title, f.company_id, statusId,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(userId, f.kind, f.reference, f.reference_key, f.title, f.company_id, f.project_id, statusId,
       f.client_contact_name, f.client_channel, f.client_channel_ref, f.valid_until, f.notes,
       userId, userId, now, now).lastInsertRowid);
     db.prepare(
@@ -5985,11 +6080,11 @@ function updatePfmItem(userId, id, data) {
     PFM_ITEM_HISTORY_FIELDS.forEach(([key, label]) =>
       recordPfmItemEdit(userId, before.id, label, oldSnap[key], newSnap[key], now));
     db.prepare(
-      `UPDATE pfm_items SET kind = ?, reference = ?, reference_key = ?, title = ?, company_id = ?,
+      `UPDATE pfm_items SET kind = ?, reference = ?, reference_key = ?, title = ?, company_id = ?, project_id = ?,
          client_contact_name = ?, client_channel = ?, client_channel_ref = ?, valid_until = ?,
          notes = ?, updated_by = ?, updated_at = ?
        WHERE id = ? AND user_id = ?`
-    ).run(f.kind, f.reference, f.reference_key, f.title, f.company_id, f.client_contact_name,
+    ).run(f.kind, f.reference, f.reference_key, f.title, f.company_id, f.project_id, f.client_contact_name,
       f.client_channel, f.client_channel_ref, f.valid_until, f.notes, userId, now, before.id, userId);
   });
   if (error) return { ok: false, error };
@@ -6018,7 +6113,25 @@ function pfmUpsertStage(userId, itemId, statusId, data, now) {
 }
 
 function pfmStatusOrder(statusId) { return lk().idTo.get(statusId)?.sort_order ?? 0; }
-function pfmIsFinalStatus(statusId) { return ['ACCEPTED', 'REJECTED'].includes(lk().idTo.get(statusId)?.code); }
+function pfmIsFinalStatus(statusId) { return PFM_FINAL_STATUS_CODES.has(lk().idTo.get(statusId)?.code); }
+const pfmIsRejected = statusId => lk().idTo.get(statusId)?.code === 'REJECTED';
+// Accepted or any stage after it — Rejected included, since it sorts last.
+function pfmIsDecided(statusId) {
+  const accepted = lkId('PFM_STATUS', 'ACCEPTED');
+  return accepted != null && pfmStatusOrder(statusId) >= pfmStatusOrder(accepted);
+}
+// Rejected only ever follows Sent: an item that is Accepted (or further) can
+// not be rejected, and a rejected one records no delivery stage until it is
+// moved back. `targetId` is the stage being moved to or dated.
+function pfmFlowError(currentId, targetId) {
+  if (pfmIsRejected(targetId) && pfmIsDecided(currentId) && !pfmIsRejected(currentId)) {
+    return 'An accepted Offer or CR cannot be rejected';
+  }
+  if (pfmIsRejected(currentId) && pfmIsDecided(targetId) && !pfmIsRejected(targetId)) {
+    return 'This Offer or CR is rejected — move it back to Sent first';
+  }
+  return null;
+}
 
 // The item now sits at `statusId`, so no stage after it can be done: every
 // later stage — and, at a final status, the other final one — loses its date
@@ -6050,6 +6163,10 @@ function setPfmStatus(userId, id, data) {
   if (!before) return { ok: false, error: 'Offer or CR not found' };
   const statusId = pfmStatusId(data?.status);
   if (statusId == null) return { ok: false, error: 'Unknown status' };
+  if (pfmIsRejected(statusId)) {
+    const flowError = pfmFlowError(before.status_id, statusId);
+    if (flowError) return { ok: false, error: flowError };
+  }
   const date = pfmDate(data?.date, 'Date');
   if (date.error) return { ok: false, error: date.error };
   const now = new Date().toISOString();
@@ -6081,6 +6198,10 @@ function savePfmStage(userId, itemId, data) {
     const d = pfmDate(data.doneOn, 'Date');
     if (d.error) return { ok: false, error: d.error };
     stage.doneOn = d.value;
+  }
+  if (stage.doneOn) {
+    const flowError = pfmFlowError(item.status_id, statusId);
+    if (flowError) return { ok: false, error: flowError };
   }
   // Giving a LATER stage a date means it happened, so the status follows it —
   // otherwise the track shows "Ready, done" while the item still says Prepare.
@@ -6286,17 +6407,26 @@ function pfmFileAbsPath(itemId, versionId, relPath) {
   return abs;
 }
 
+// The checks every Project & Finance upload passes: extension allowlist,
+// size, magic bytes. Returns { ext, size, originalName } or { error }.
+function pfmCheckUpload(srcPath) {
+  const originalName = path.basename(String(srcPath || ''));
+  const ext = fileExt(srcPath);
+  if (!KNOWLEDGE_DOC_EXTENSIONS.includes(ext)) return { error: `Unsupported file type (.${ext || '?'})` };
+  let size;
+  try { size = fs.statSync(srcPath).size; } catch { return { error: 'Could not read the selected file' }; }
+  if (size <= 0 || size > MAX_DOCUMENT_BYTES) return { error: 'File must be between 1 byte and 100 MB' };
+  try { if (!knowledgeUploadHeaderMatches(srcPath, ext)) return { error: 'The file contents do not match its extension' }; }
+  catch { return { error: 'Could not validate the selected file' }; }
+  return { ext, size, originalName };
+}
+
 function addPfmVersionFile(userId, versionId, srcPath) {
   const v = pfmOwnedVersion(userId, versionId);
   if (!v) return { ok: false, error: 'Version not found' };
-  const originalName = path.basename(String(srcPath || ''));
-  const ext = fileExt(srcPath);
-  if (!KNOWLEDGE_DOC_EXTENSIONS.includes(ext)) return { ok: false, error: `Unsupported file type (.${ext || '?'})` };
-  let size;
-  try { size = fs.statSync(srcPath).size; } catch { return { ok: false, error: 'Could not read the selected file' }; }
-  if (size <= 0 || size > MAX_DOCUMENT_BYTES) return { ok: false, error: 'File must be between 1 byte and 100 MB' };
-  try { if (!knowledgeUploadHeaderMatches(srcPath, ext)) return { ok: false, error: 'The file contents do not match its extension' }; }
-  catch { return { ok: false, error: 'Could not validate the selected file' }; }
+  const check = pfmCheckUpload(srcPath);
+  if (check.error) return { ok: false, error: check.error };
+  const { ext, size, originalName } = check;
 
   const relPath = path.join('project_finance', String(v.item_id), String(v.id), `${Date.now()}-${crypto.randomInt(1e9)}.${ext}`);
   let absPath;
@@ -6341,20 +6471,25 @@ function resolvePfmFile(userId, fileId) {
   catch { return { ok: false, error: 'Stored file path is invalid' }; }
   return { ok: true, absPath, originalName: f.original_name, exists: fs.existsSync(absPath) };
 }
-// The newest version's files of each owned item, for the list's ZIP export.
-// Unknown or other users' ids are skipped; a file missing from disk comes
-// back with exists: false.
+// The newest version's files of each owned item, then its stage files (the
+// approvals and invoices), for the list's ZIP export. Unknown or other users'
+// ids are skipped; a file missing from disk comes back with exists: false.
 function listPfmLatestFiles(userId, itemIds) {
   const filesOf = db.prepare(
     'SELECT * FROM pfm_version_files WHERE version_id = ? AND deleted_at IS NULL ORDER BY sort_order, id'
   );
+  const stageFilesOf = db.prepare('SELECT * FROM pfm_stage_files WHERE item_id = ? AND deleted_at IS NULL ORDER BY status_id, sort_order, id');
+  const entry = (absOf, f) => {
+    let absPath = null;
+    try { absPath = absOf(f); } catch { /* invalid stored path: reported missing */ }
+    return { absPath, originalName: f.original_name || path.basename(f.file_path), exists: !!absPath && fs.existsSync(absPath) };
+  };
   return (Array.isArray(itemIds) ? itemIds : []).map(id => pfmOwnedItem(userId, Number(id))).filter(Boolean).map(r => {
     const v = pfmCurrentVersion(r.id);
-    const files = v ? filesOf.all(v.id).map(f => {
-      let absPath = null;
-      try { absPath = pfmFileAbsPath(r.id, v.id, f.file_path); } catch { /* invalid stored path: reported missing */ }
-      return { absPath, originalName: f.original_name || path.basename(f.file_path), exists: !!absPath && fs.existsSync(absPath) };
-    }) : [];
+    const files = [
+      ...(v ? filesOf.all(v.id).map(f => entry(x => pfmFileAbsPath(r.id, v.id, x.file_path), f)) : []),
+      ...stageFilesOf.all(r.id).map(f => entry(x => pfmStageFileAbsPath(r.id, x.status_id, x.file_path), f)),
+    ];
     return { itemId: r.id, company: lkLabel(r.company_id), reference: r.reference, title: r.title, version: v?.label || '', files };
   });
 }
@@ -6377,6 +6512,103 @@ function purgePfmFile(userId, fileId) {
   if (!f) return { ok: false };
   db.prepare('DELETE FROM pfm_version_files WHERE id = ? AND deleted_at IS NOT NULL').run(f.id);
   try { fs.rmSync(pfmFileAbsPath(f.item_id, f.version_id, f.file_path), { force: true }); } catch {}
+  return { ok: true };
+}
+
+// ── Stage files (migration 074) ──
+// The approval, the UAT sign-off, the invoice… — files on a stage rather than
+// on a version. Keyed by (item, status), not by the pfm_stages row, since an
+// empty stage row is removed. Bytes live at
+// <userData>/project_finance/{itemId}/stages/{statusId}/{stamp}-{rand}.{ext};
+// the same checks, soft remove and purge as version files.
+function pfmStageDir(itemId, statusId) {
+  return path.join(pfmItemDir(itemId), 'stages', String(statusId));
+}
+function pfmStageFileAbsPath(itemId, statusId, relPath) {
+  const abs = resolveStoredPath(relPath);
+  resolveInside(pfmStageDir(itemId, statusId), abs);
+  return abs;
+}
+function pfmStageFileToApi(f) {
+  return {
+    id: f.id, status: lkCode(f.status_id), path: f.file_path, originalName: f.original_name || '',
+    size: f.file_size || 0, mimeType: f.mime_type || '', sortOrder: f.sort_order, uploadedAt: f.uploaded_at,
+    exists: (() => { try { return fs.existsSync(resolveStoredPath(f.file_path)); } catch { return false; } })(),
+  };
+}
+function pfmOwnedStageFile(userId, fileId, { deleted = false } = {}) {
+  return db.prepare(
+    `SELECT f.* FROM pfm_stage_files f JOIN pfm_items i ON i.id = f.item_id
+      WHERE f.id = ? AND i.user_id = ? AND i.deleted_at IS NULL AND f.deleted_at IS ${deleted ? 'NOT ' : ''}NULL`
+  ).get(Number(fileId), userId) || null;
+}
+function addPfmStageFile(userId, item, statusId, srcPath) {
+  const check = pfmCheckUpload(srcPath);
+  if (check.error) return { ok: false, error: check.error };
+  const { ext, size, originalName } = check;
+  const relPath = path.join('project_finance', String(item.id), 'stages', String(statusId), `${Date.now()}-${crypto.randomInt(1e9)}.${ext}`);
+  let absPath;
+  try { absPath = pfmStageFileAbsPath(item.id, statusId, relPath); }
+  catch { return { ok: false, error: 'Stored file path is invalid' }; }
+  try { fs.mkdirSync(path.dirname(absPath), { recursive: true }); fs.copyFileSync(srcPath, absPath); }
+  catch (err) { return { ok: false, error: 'Could not save the file: ' + String(err?.message || err) }; }
+  try {
+    const now = new Date().toISOString();
+    const id = tx(() => {
+      const sort = db.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM pfm_stage_files WHERE item_id = ? AND status_id = ?').get(item.id, statusId).n;
+      const newId = Number(db.prepare(
+        `INSERT INTO pfm_stage_files(item_id, status_id, file_path, original_name, file_size, mime_type, sort_order, uploaded_by, uploaded_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(item.id, statusId, relPath, originalName, size, KNOWLEDGE_DOC_TYPES[ext], sort, userId, now).lastInsertRowid);
+      recordPfmHistory(userId, item.id, 'file', newId, 'File Added', '', `${lkLabel(statusId)}: ${originalName}`, now);
+      pfmTouchItem(userId, item.id, now);
+      return newId;
+    });
+    return { ok: true, fileId: id };
+  } catch (err) {
+    try { fs.rmSync(absPath, { force: true }); } catch {}
+    return { ok: false, error: String(err?.message || err) };
+  }
+}
+// Several files onto one stage; each succeeds or fails on its own.
+function addPfmStageFiles(userId, itemId, statusCode, srcPaths) {
+  const item = pfmOwnedItem(userId, itemId);
+  if (!item) return { ok: false, error: 'Offer or CR not found', results: [] };
+  const statusId = pfmStatusId(statusCode, { activeOnly: false });
+  if (statusId == null) return { ok: false, error: 'Unknown status', results: [] };
+  const results = (Array.isArray(srcPaths) ? srcPaths : []).map(p => {
+    const r = addPfmStageFile(userId, item, statusId, p);
+    return { name: path.basename(String(p || '')), ok: r.ok, error: r.error || '', fileId: r.fileId ?? null };
+  });
+  return { ok: results.some(r => r.ok), results, item: getPfmItem(userId, item.id) };
+}
+function resolvePfmStageFile(userId, fileId) {
+  const f = pfmOwnedStageFile(userId, fileId);
+  if (!f) return { ok: false, error: 'File not found' };
+  let absPath;
+  try { absPath = pfmStageFileAbsPath(f.item_id, f.status_id, f.file_path); }
+  catch { return { ok: false, error: 'Stored file path is invalid' }; }
+  return { ok: true, absPath, originalName: f.original_name, exists: fs.existsSync(absPath) };
+}
+function setPfmStageFileDeleted(userId, fileId, deleted) {
+  const f = pfmOwnedStageFile(userId, fileId, { deleted: !deleted });
+  if (!f) return { ok: false, error: 'File not found' };
+  const now = new Date().toISOString();
+  tx(() => {
+    recordPfmHistory(userId, f.item_id, 'file', f.id, deleted ? 'File Removed' : 'File Restored', '',
+      `${lkLabel(f.status_id)}: ${f.original_name}`, now);
+    db.prepare('UPDATE pfm_stage_files SET deleted_at = ? WHERE id = ?').run(deleted ? now : null, f.id);
+    pfmTouchItem(userId, f.item_id, now);
+  });
+  return { ok: true, item: getPfmItem(userId, f.item_id) };
+}
+const removePfmStageFile = (userId, fileId) => setPfmStageFileDeleted(userId, fileId, true);
+const restorePfmStageFile = (userId, fileId) => setPfmStageFileDeleted(userId, fileId, false);
+function purgePfmStageFile(userId, fileId) {
+  const f = pfmOwnedStageFile(userId, fileId, { deleted: true });
+  if (!f) return { ok: false };
+  db.prepare('DELETE FROM pfm_stage_files WHERE id = ? AND deleted_at IS NOT NULL').run(f.id);
+  try { fs.rmSync(pfmStageFileAbsPath(f.item_id, f.status_id, f.file_path), { force: true }); } catch {}
   return { ok: true };
 }
 
@@ -6415,6 +6647,7 @@ function purgeDeletedPfmRecords() {
     items: db.prepare('DELETE FROM pfm_items WHERE deleted_at IS NOT NULL').run().changes,
     versions: db.prepare('DELETE FROM pfm_versions WHERE deleted_at IS NOT NULL').run().changes,
     files: db.prepare('DELETE FROM pfm_version_files WHERE deleted_at IS NOT NULL').run().changes,
+    stageFiles: db.prepare('DELETE FROM pfm_stage_files WHERE deleted_at IS NOT NULL').run().changes,
   }));
 }
 
@@ -7522,6 +7755,7 @@ module.exports = {
   createPfmVersion, updatePfmVersion, deletePfmVersion, restorePfmVersion, purgePfmVersion,
   getPfmHistory, listPfmMemberNames, addPfmVersionFiles, resolvePfmFile, listPfmLatestFiles, removePfmFile,
   restorePfmFile, purgePfmFile, pfmRootDir, pfmAttentionItems,
+  addPfmStageFiles, resolvePfmStageFile, removePfmStageFile, restorePfmStageFile, purgePfmStageFile, relinkPfmProject,
   parseOutsMinutes, listOutsResources, getOutsResource, createOutsResource, updateOutsResource,
   setOutsResourceActive, deleteOutsResource, restoreOutsResource, purgeOutsResource, addOutsRate,
   updateOutsRate, deleteOutsRate, restoreOutsRate, purgeOutsRate, createOutsEntry, updateOutsEntry,

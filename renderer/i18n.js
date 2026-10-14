@@ -256,6 +256,15 @@
     'Offers & CRs': 'العروض وطلبات التغيير',
     'No offers or CRs for this client yet.': 'لا توجد عروض أو طلبات تغيير لهذا العميل بعد.',
     'No offers or CRs match your search.': 'لا توجد عروض أو طلبات تغيير تطابق بحثك.',
+    // Delivery flow + project link (migration 074)
+    'Project (optional)': 'المشروع (اختياري)',
+    'Choose a project of this client': 'اختر مشروعاً لهذا العميل',
+    'The linked project is not for this client — choose another project or none': 'المشروع المرتبط ليس لهذا العميل — اختر مشروعاً آخر أو بلا مشروع',
+    'No offers or CRs linked to this project yet.': 'لا توجد عروض أو طلبات تغيير مرتبطة بهذا المشروع بعد.',
+    'Add files to this stage': 'إضافة ملفات إلى هذه المرحلة',
+    'PO / Approval': 'أمر الشراء / الاعتماد',
+    'An accepted Offer or CR cannot be rejected': 'لا يمكن رفض عرض أو طلب تغيير مقبول',
+    'This Offer or CR is rejected — move it back to Sent first': 'هذا العرض أو طلب التغيير مرفوض — أعِده إلى مرحلة الإرسال أولاً',
     'New offer': 'عرض جديد',
     'Open offer / CR': 'فتح العرض / طلب التغيير',
     'Sent, no answer — follow up': 'أُرسل دون رد — تابِع',
@@ -561,7 +570,17 @@
     'Sub-Services': 'الخدمات الفرعية', 'Save Sources': 'حفظ المصادر', 'Add new…': 'إضافة جديد…', '+ Add': '+ إضافة',
     'Filter groups or tags…': 'تصفية المجموعات أو الوسوم…', 'Merge into another task…': 'الدمج في مهمة أخرى…',
     'Remove': 'إزالة', 'Restore…': 'استعادة…', 'Saving… try again in a moment': 'جارٍ الحفظ… حاول مجدداً بعد لحظة',
-    '— No category —': '— بلا فئة —', '← Knowledge Hub': 'مركز المعرفة →'
+    '— No category —': '— بلا فئة —', '← Knowledge Hub': 'مركز المعرفة →',
+    // Templates (Company Document cards of kind TEMPLATE).
+    'Templates': 'القوالب', 'Template Categories': 'فئات القوالب', 'New Template': 'قالب جديد',
+    '+ New Template': '+ قالب جديد', 'Edit Template': 'تعديل القالب', 'Add Template': 'إضافة قالب',
+    'Search templates…': 'البحث في القوالب…', 'e.g. Service Agreement': 'مثال: اتفاقية خدمة',
+    'When to use this template, what to fill in': 'متى يُستخدم هذا القالب وما الذي يجب تعبئته',
+    'No templates yet — click': 'لا توجد قوالب بعد — انقر', 'to add a template': 'لإضافة قالب', 'No templates match your search': 'لا توجد قوالب تطابق بحثك',
+    'Untitled template': 'قالب بلا اسم', 'Template created': 'تم إنشاء القالب', 'Template saved': 'تم حفظ القالب',
+    'Template deleted': 'تم حذف القالب', 'Template restored': 'تمت استعادة القالب', 'Template updated': 'تم تحديث القالب',
+    'Open Templates': 'فتح القوالب', 'Reusable files to start new work from': 'ملفات قابلة لإعادة الاستخدام لبدء عمل جديد',
+    'Reusable files to start new work from.': 'ملفات قابلة لإعادة الاستخدام لبدء عمل جديد.'
   });
 
   // Dashboard, analytics, and dropdown labels generated at runtime by the
@@ -1255,7 +1274,7 @@
     password: 'كلمة المرور', 'secret key': 'المفتاح السري', 'connection string': 'سلسلة الاتصال',
     session: 'الجلسة', settings: 'الإعدادات', sources: 'المصادر', subscriptions: 'الاشتراكات',
     'the record': 'السجل', 'the session': 'الجلسة', 'the task': 'المهمة', 'VPN connection': 'اتصال VPN',
-    merge: 'الدمج'
+    merge: 'الدمج', templates: 'القوالب', template: 'القالب'
   };
   // Module ids as they appear in the Needs Attention meta line ("Renews ·
   // subscriptions"), which the renderer emits raw alongside the row kind.

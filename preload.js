@@ -179,6 +179,13 @@ contextBridge.exposeInMainWorld('api', {
   purgeCompanyDocumentFile: (id, relPath) => ipcRenderer.invoke('companydocs:purge-document-file', id, relPath),
   purgeCompanyDocumentFiles: (id)                    => ipcRenderer.invoke('companydocs:purge-files', id),
   restoreCompanyDocumentFile: (oldId, newId, fileMeta) => ipcRenderer.invoke('companydocs:restore-file', oldId, newId, fileMeta),
+  // ── Templates (Company Document cards of kind TEMPLATE; the rest go through the companydocs calls) ──
+  /** @returns {Promise<import('./ipc-types').CompanyDocument[]>} */
+  listTemplates:  ()     => ipcRenderer.invoke('templates:list'),
+  /** @returns {Promise<import('./ipc-types').CompanyDocument>} */
+  createTemplate: (data) => ipcRenderer.invoke('templates:create', data),
+  /** @returns {Promise<import('./ipc-types').CompanyDocFileResult>} */
+  uploadTemplate: (id)   => ipcRenderer.invoke('templates:upload-document', id),
 
   // ── Knowledge Hub ──
   listKnowledgeItems:   ()              => ipcRenderer.invoke('knowledge:list'),
@@ -232,6 +239,12 @@ contextBridge.exposeInMainWorld('api', {
   removePfmFile:      (fileId)           => ipcRenderer.invoke('pfm:file-remove', fileId),
   restorePfmFile:     (fileId)           => ipcRenderer.invoke('pfm:file-restore', fileId),
   purgePfmFile:       (fileId)           => ipcRenderer.invoke('pfm:file-purge', fileId),
+  addPfmStageFiles:   (itemId, status)   => ipcRenderer.invoke('pfm:stage-files-add', itemId, status),
+  openPfmStageFile:   (fileId)           => ipcRenderer.invoke('pfm:stage-file-open', fileId),
+  removePfmStageFile: (fileId)           => ipcRenderer.invoke('pfm:stage-file-remove', fileId),
+  restorePfmStageFile: (fileId)          => ipcRenderer.invoke('pfm:stage-file-restore', fileId),
+  purgePfmStageFile:  (fileId)           => ipcRenderer.invoke('pfm:stage-file-purge', fileId),
+  relinkPfmProject:   (projectId, ids)   => ipcRenderer.invoke('pfm:relink-project', projectId, ids),
   exportPfmExcel:     (data, name)       => ipcRenderer.invoke('pfm:export-xlsx', data, name),
   exportPfmZip:       (data, ids, name)  => ipcRenderer.invoke('pfm:export-zip', data, ids, name),
 

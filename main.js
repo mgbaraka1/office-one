@@ -353,6 +353,7 @@ ipcMain.handle('tasks:convert-to-internal',    authed((_e, id, data) => db.conve
 // the user only sees permitted types (the db layer re-validates regardless).
 const DOC_UPLOAD_EXTENSIONS = ['pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'gif', 'webp'];
 const KNOWLEDGE_UPLOAD_EXTENSIONS = [...DOC_UPLOAD_EXTENSIONS, 'xls', 'xlsx', 'txt'];
+const TEMPLATE_UPLOAD_EXTENSIONS = [...KNOWLEDGE_UPLOAD_EXTENSIONS, 'ppt', 'pptx'];
 // Upload (and replace — db.saveProjectDocumentFile deletes the prior file on conflict).
 ipcMain.handle('projects:upload-document', authed(async (_e, projectId, documentType) => {
   const { canceled, filePaths } = await dialog.showOpenDialog(win, {
@@ -483,6 +484,29 @@ ipcMain.handle('companydocs:purge-document-file', authed((_e, id, relPath) =>
 // lapses, or move it onto the re-created card's new id when the user undoes.
 ipcMain.handle('companydocs:purge-files',   authed((_e, id)                     => db.purgeCompanyDocumentFiles(auth.requireUserId(), id)));
 ipcMain.handle('companydocs:restore-file',  authed((_e, oldId, newId, fileMeta) => db.restoreCompanyDocumentFile(auth.requireUserId(), oldId, newId, fileMeta)));
+
+// ── Templates (company_documents rows with kind 'TEMPLATE') ──
+// Only listing, creating and the upload dialog differ; every other card and
+// file action goes through the companydocs:* handlers above by id.
+ipcMain.handle('templates:list',   authed(()         => db.listCompanyDocuments(auth.requireUserId(), 'TEMPLATE')));
+ipcMain.handle('templates:create', authed((_e, data) => db.createCompanyDocument(auth.requireUserId(), data, 'TEMPLATE')));
+ipcMain.handle('templates:upload-document', authed(async (_e, id) => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    title: 'Choose a template to upload',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Documents, spreadsheets, slides & images', extensions: TEMPLATE_UPLOAD_EXTENSIONS },
+      { name: 'PDF',    extensions: ['pdf'] },
+      { name: 'Word',   extensions: ['doc', 'docx'] },
+      { name: 'Excel',  extensions: ['xls', 'xlsx'] },
+      { name: 'PowerPoint', extensions: ['ppt', 'pptx'] },
+      { name: 'Text',   extensions: ['txt'] },
+      { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },
+    ],
+  });
+  if (canceled || !filePaths?.[0]) return { ok: false, canceled: true };
+  return db.saveCompanyDocumentFile(auth.requireUserId(), id, filePaths[0]);
+}));
 
 // ── Knowledge Hub ──
 ipcMain.handle('knowledge:list',    authed(()             => db.listKnowledgeItems(auth.requireUserId())));
@@ -694,6 +718,34 @@ ipcMain.handle('pfm:file-open', authed(async (_e, fileId) => {
 ipcMain.handle('pfm:file-remove',  authed((_e, fileId) => db.removePfmFile(auth.requireUserId(), fileId)));
 ipcMain.handle('pfm:file-restore', authed((_e, fileId) => db.restorePfmFile(auth.requireUserId(), fileId)));
 ipcMain.handle('pfm:file-purge',   authed((_e, fileId) => db.purgePfmFile(auth.requireUserId(), fileId)));
+// Stage files (the approval, the invoice…): same dialog and rules as pfm:files-add.
+ipcMain.handle('pfm:stage-files-add', authed(async (_e, itemId, status) => {
+  const e2eFiles = isE2ERun ? process.env.OFFICE_ONE_E2E_PFM_FILES : null;
+  const { canceled, filePaths } = e2eFiles
+    ? { canceled: false, filePaths: e2eFiles.split(path.delimiter).filter(Boolean) }
+    : await dialog.showOpenDialog(win, {
+        title: 'Add files to this stage', properties: ['openFile', 'multiSelections'],
+        filters: [
+          { name: 'Supported files', extensions: KNOWLEDGE_UPLOAD_EXTENSIONS },
+          { name: 'PDF', extensions: ['pdf'] }, { name: 'Word', extensions: ['doc', 'docx'] },
+          { name: 'Excel', extensions: ['xls', 'xlsx'] }, { name: 'Text', extensions: ['txt'] },
+          { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },
+        ],
+      });
+  if (canceled || !filePaths?.length) return { ok: false, canceled: true, results: [] };
+  return db.addPfmStageFiles(auth.requireUserId(), itemId, String(status || ''), filePaths);
+}));
+ipcMain.handle('pfm:stage-file-open', authed(async (_e, fileId) => {
+  const r = db.resolvePfmStageFile(auth.requireUserId(), fileId);
+  if (!r.ok) return r;
+  if (!r.exists) return { ok: false, error: 'The file is missing from disk' };
+  const error = await shell.openPath(r.absPath);
+  return error ? { ok: false, error } : { ok: true };
+}));
+ipcMain.handle('pfm:stage-file-remove',  authed((_e, fileId) => db.removePfmStageFile(auth.requireUserId(), fileId)));
+ipcMain.handle('pfm:stage-file-restore', authed((_e, fileId) => db.restorePfmStageFile(auth.requireUserId(), fileId)));
+ipcMain.handle('pfm:stage-file-purge',   authed((_e, fileId) => db.purgePfmStageFile(auth.requireUserId(), fileId)));
+ipcMain.handle('pfm:relink-project', authed((_e, projectId, itemIds) => db.relinkPfmProject(auth.requireUserId(), projectId, itemIds)));
 
 // ── Clients (Auth + Server Information + Databases per COMPANY lookup) ──
 ipcMain.handle('clients:list', authed((_e, includeArchived) => db.listClients(auth.requireUserId(), includeArchived)));

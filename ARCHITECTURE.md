@@ -15,6 +15,7 @@ Office ONE is an offline, multi-user Electron desktop app covering:
 - **Client Tasks** and **Internal Work** — two separate task domains (project work vs. department work).
 - **Clients** — bilingual client profiles plus VPN connections, servers and internal systems; client **Projects** with tracked documents and linked tasks live under each client.
 - **Subscriptions** and **Company Documents** — recurring spend and renewal-tracked files.
+- **Templates** — reusable files (Word, Excel, PDF…) to start new work from: the same cards as Company Documents, stored as `company_documents` rows with `kind = 'TEMPLATE'`, their own `TEMPLATE_CATEGORY` catalog, no renewal date, and Excel/PowerPoint/text uploads allowed.
 - **Knowledge Hub** — a document shelf found by client and system: drop a file to add it (a matching name becomes the next version, with an optional "what changed" note that can be edited later with a 5-second undo, and is searchable in the Hub and Quick Find), items open in a side panel, plain-text notes. Tags are retired: nothing reads or writes them. Versions of one document are grouped by name with the version set aside ("Guide v1.0" and "Guide v1.4" are one document); at the same number a plain version ranks above one with extra words ("1.4" above "1.4 changes"). The list's Open file opens the latest version, with a menu when an item has several documents. Each client page has a Knowledge Hub tab and each project page a Knowledge Hub section listing the items linked to its clients or systems; a file dropped there or a New item started there is pre-linked. Groups remain in the schema but have no UI; older rich-text notes still render and turn into plain text on their next edit.
 - **Project & Finance** — Offers and Change Requests (CRs): a status stage trail, fee-bearing versions with uploaded files, follow-up/expiry reminders and Excel export.
 - **Outsource** — external resources paid by the hour: Person → Projects → Entries (a keyboard-first timesheet grid per project), an hourly rate history, statements (draft → issued → paid) with Excel/PDF export, and an Overview "owed" tile.
@@ -118,7 +119,9 @@ Both junctions are in `LOOKUP_MERGE_TARGETS`, so merging a client or system repo
 
 **Project & Finance** (migration 062, `pfm_` prefix — shares nothing with the
 retired Finance tables, §5): `pfm_items` (one row per Offer or CR), `pfm_stages`
-(who/when per status), `pfm_versions`, `pfm_version_files`, `pfm_history`.
+(who/when per status), `pfm_versions`, `pfm_version_files`, `pfm_history`, and
+`pfm_stage_files` (074: the approval, UAT sign-off, invoice… on a stage, keyed by
+item + status, bytes under `project_finance/{item}/stages/{status}/`).
 
 - Rows are **private per login** (`user_id`), like tasks.
 - `reference` is typed by the user; its folded `reference_key` is unique per
@@ -126,7 +129,16 @@ retired Finance tables, §5): `pfm_items` (one row per Offer or CR), `pfm_stages
   login cannot probe for another's hidden references.
 - The stage person is **free text** (the UI offers a datalist of names already
   used), not a lookup. Status is the `PFM_STATUS` lookup; stage order is its
-  `sort_order`, and `ACCEPTED`/`REJECTED` are final.
+  `sort_order`. Since 074 the flow carries delivery too: Prepare → Ready → Sent →
+  Accepted (the quote approval) → UAT Approved → Production Approved → Invoiced →
+  Invoice Paid, with `REJECTED` (sorted last) the other way out of Sent — refused
+  once an item is Accepted or further. `PAID` and `REJECTED` are final.
+- An item may link to **one project** (`project_id`, ON DELETE SET NULL), only a
+  project of this login that its client is on. A project-delete undo re-creates
+  the project under a new id, so the renderer relinks (`relinkPfmProject`).
+- Project documents live here now: 074 moved each project's quotation (as
+  version V1) and approvals/invoices (as stage files) onto one Offer per project,
+  and the project page shows its linked Offers & CRs instead of document slots.
 - The client contact is a name plus a **channel**: `EMAIL` (reference = title/subject) or
   `JIRA` (reference = an http(s) URL), the Task Sources split (064).
 - Fees are **integer minor units** (never REAL) plus a `CURRENCY` lookup.
@@ -239,6 +251,8 @@ Landmarks worth knowing:
 | 071 | Databases hosted on a server — the retired `client_databases` comes back with `server_id` (FK to `client_servers`, ON DELETE CASCADE) and `connection_string` (encrypted at rest like `password`), index `idx_client_databases_server`, and Quick Find triggers under kind `client-database` (name, engine, version, port, notes; never credentials) |
 | 072 | Server access method — `client_servers.access_method` ('RDP' default, or 'PAM', CHECK-constrained). A PAM server's username/password stay stored but are not shown |
 | 073 | Database environment — `client_databases.environment` ('PRODUCTION' default, or 'TEST' shown as UAT, CHECK-constrained). The database's own, which can differ from its server's; existing rows were backfilled from their server |
+| 074 | Offers & CRs delivery flow — four `PFM_STATUS` codes after Accepted (UAT_APPROVED, PRODUCTION_APPROVED, INVOICED, PAID; Rejected re-sorted last), `pfm_items.project_id` (ON DELETE SET NULL) + index, `pfm_stage_files` with its category triggers, and the move of every project's documents onto one linked Offer (bytes copied, originals left on disk, moved `project_documents` rows deleted). Destructive, so the runner snapshots first; the runner now passes `{ userDataDir }` as `up()`'s second argument for this |
+| 075 | Templates — `company_documents.kind` ('DOCUMENT' default, or 'TEMPLATE', CHECK-constrained), a seeded `TEMPLATE_CATEGORY` lookup category, and the three `workspace_search_company_documents_*` triggers recreated so a template indexes as kind `template`. Files share `company_documents/{id}/` and every backup/restore path |
 | 076 | Server lists and status — `client_servers.linked_servers`, `workloads`, `external_parties` (JSON arrays of plain strings, default '[]') and `status` ('ACTIVE' default, or 'INACTIVE', CHECK-constrained). The two `workspace_search_client_servers_*` insert/update triggers recreated so Quick Find also searches the three lists |
 | 077 | Server identity includes the IP — `idx_client_servers_identity` re-keyed onto (user, client, system, role, environment, host), host case- and space-insensitive. Two servers may share System / Role / Environment when their IPs differ; servers with no IP still collide on the triple alone |
 
@@ -444,6 +458,7 @@ other outside parties):
 | Internal | `internal-tasks` | **Internal Work** (by department) |
 | | `subscriptions` | **Subscriptions** |
 | | `companydocs` | **Company Docs** |
+| | `templates` | **Templates** |
 | | `knowledge` | **Knowledge Hub** |
 | External | `clients` | **Clients** |
 | | `all-tasks` | **Client Tasks** |

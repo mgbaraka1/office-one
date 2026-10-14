@@ -36,6 +36,7 @@ const SETTINGS_CATALOG_TABS = [
   { key: 'projectStatus', category: 'PROJECT_STATUS', valueField: 'code', label: 'Project Status', icon: 'clipboard-list', editor: 'lookup' },
   { key: 'projectDocument', category: 'PROJECT_DOCUMENT', valueField: 'code', label: 'Project Documents', icon: 'file-text', editor: 'lookup' },
   { key: 'companyDocCategory', category: 'COMPANY_DOCUMENT_CATEGORY', valueField: 'code', label: 'Company Doc Categories', icon: 'calendar-check', editor: 'lookup' },
+  { key: 'templateCategory', category: 'TEMPLATE_CATEGORY', valueField: 'code', label: 'Template Categories', icon: 'layout-template', editor: 'lookup' },
   { key: 'knowledgeType', category: 'KNOWLEDGE_TYPE', valueField: 'code', label: 'Knowledge Types', icon: 'book-open', editor: 'lookup' },
   { key: 'department', category: 'DEPARTMENT', valueField: 'label', label: 'Department', icon: 'building', editor: 'lookup' },
   { key: 'taskSourceType', category: 'TASK_SOURCE_TYPE', valueField: 'code', label: 'Task Source Types', icon: 'external-link', editor: 'lookup' },

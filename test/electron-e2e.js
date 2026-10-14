@@ -1045,7 +1045,7 @@ async function run() {
   }
 
   const pfm = result.pfm;
-  if (!pfm.modalOpen || !pfm.detailOpen || pfm.startStatus !== 'PREPARE' || pfm.trackSteps !== 5) {
+  if (!pfm.modalOpen || !pfm.detailOpen || pfm.startStatus !== 'PREPARE' || pfm.trackSteps !== 8) {
     throw new Error(`Creating an offer from the Project & Finance page failed: ${JSON.stringify(pfm)}`);
   }
   if (!pfm.stageModalOpen || pfm.movedStatus !== 'READY' || pfm.movedMember !== 'E2E Person Two') {
