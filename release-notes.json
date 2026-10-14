@@ -1,5 +1,52 @@
 [
   {
+    "version": "8.21.0",
+    "date": "2026-10-14",
+    "kind": "feat",
+    "title": {
+      "en": "Richer server records, a Servers wheel, offers through to payment, and Templates",
+      "ar": "سجلات خوادم أغنى، وعجلة للخوادم، وعروض حتى السداد، وقوالب"
+    },
+    "notes": [
+      {
+        "en": "Each server can list its linked servers, workloads and external parties. Long lists stay short on the card, with Show more.",
+        "ar": "يمكن لكل خادم أن يسرد الخوادم المرتبطة به وأعباء العمل والجهات الخارجية. القوائم الطويلة تبقى مختصرة في البطاقة مع زر عرض المزيد."
+      },
+      {
+        "en": "A server can be marked Active or Not Active. Not Active servers are dimmed and labelled.",
+        "ar": "يمكن تحديد الخادم كنشط أو غير نشط. الخوادم غير النشطة تظهر باهتة مع تسمية توضح ذلك."
+      },
+      {
+        "en": "Two servers can share the same System, Role and Environment as long as their IPs differ.",
+        "ar": "يمكن لخادمين أن يتشاركا النظام والدور والبيئة نفسها ما دام عنوانا IP مختلفين."
+      },
+      {
+        "en": "A client's Servers section has a new Wheel view showing which servers connect to each other and to external parties.",
+        "ar": "في قسم الخوادم لدى العميل عرض عجلة جديد يوضح أي الخوادم مرتبطة ببعضها وبالجهات الخارجية."
+      },
+      {
+        "en": "Offers & CRs continue past Accepted: UAT Approved, Production Approved, Invoiced and Invoice Paid, each stage with its own files.",
+        "ar": "تستمر العروض وطلبات التغيير بعد القبول: اعتماد UAT، واعتماد الإنتاج، وإصدار الفاتورة، وسداد الفاتورة، ولكل مرحلة ملفاتها."
+      },
+      {
+        "en": "An offer can be linked to a project, and a project's documents now live on its linked offers.",
+        "ar": "يمكن ربط العرض بمشروع، وأصبحت مستندات المشروع محفوظة في العروض المرتبطة به."
+      },
+      {
+        "en": "New Templates section beside Company Docs for reusable files, with its own categories.",
+        "ar": "قسم قوالب جديد بجانب مستندات الشركة للملفات القابلة لإعادة الاستخدام، بفئات خاصة به."
+      },
+      {
+        "en": "Quick Find also searches server lists: linked servers, workloads and external parties.",
+        "ar": "يبحث البحث السريع أيضاً في قوائم الخوادم: الخوادم المرتبطة وأعباء العمل والجهات الخارجية."
+      }
+    ],
+    "technical": [
+      "Migrations 074–077: offer delivery stages and stage files, document templates, server lists and status, and server identity keyed on IP.",
+      "074 moves project documents onto linked offers; the runner takes a snapshot first."
+    ]
+  },
+  {
     "version": "8.20.0",
     "date": "2026-10-12",
     "kind": "feat",
