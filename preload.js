@@ -317,6 +317,12 @@ contextBridge.exposeInMainWorld('api', {
   changeClientCode: (companyId, code) => ipcRenderer.invoke('clients:change-code', companyId, code),
   /** @returns {Promise<import('./ipc-types').ClientWriteResult>} */
   setClientActive: (companyId, isActive) => ipcRenderer.invoke('clients:set-active', companyId, isActive),
+  /** @returns {Promise<{ok: boolean, count?: number, error?: string}>} */
+  getClientLinkCount: (companyId) => ipcRenderer.invoke('clients:link-count', companyId),
+  /** @returns {Promise<{ok: boolean, error?: string}>} */
+  deleteClient: (companyId) => ipcRenderer.invoke('clients:delete', companyId),
+  /** @returns {Promise<import('./ipc-types').ClientWriteResult>} */
+  restoreDeletedClient: (companyId) => ipcRenderer.invoke('clients:restore-deleted', companyId),
   /** @returns {Promise<{ok: boolean, error?: string}>} */
   reorderClients: (orderedIds)        => ipcRenderer.invoke('clients:reorder', orderedIds),
   createClientVpn: (companyId, data)  => ipcRenderer.invoke('clients:vpn-create', companyId, data),

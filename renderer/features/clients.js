@@ -17,7 +17,7 @@ let clientRecordFilter = '';  // matches within each client's own records (auth/
 let clientsShowArchived = false;  // "Show archived" — includes soft-disabled (is_active = 0) clients
 let clientsArrangeMode = false;   // "Arrange" — reveals per-card move up/down controls
 let clientsSort = '';             // '' = the saved (Arrange) order, 'asc' / 'desc' = by name; view only
-let clientsView = 'cards';        // 'cards' | 'web' — the roster as cards, or as the Systems web
+let clientsView = 'cards';        // 'cards' | 'web' | 'wheel' — the roster as cards, or as the Systems web / wheel
 let clientsWebLinks = null;       // clients:system-web rows; null = fetch on next draw
 const clientsWebSources = new Set(['servers', 'projects', 'tasks', 'knowledge']);
 let clientsWebPinned = null;      // system id kept highlighted by a click, or null
@@ -118,7 +118,7 @@ function syncClientsToolbarState() {
     b.setAttribute('aria-pressed', String(active));
   });
   // Search, name order and Arrange act on the cards only.
-  const web = clientsView === 'web';
+  const web = clientsView !== 'cards';
   const search = document.querySelector('#clients-list-view .cl-records-search-wrap');
   if (search) search.hidden = web;
   const sortCtl = document.getElementById('clients-sort-ctl');
@@ -127,8 +127,8 @@ function syncClientsToolbarState() {
 }
 
 function setClientsView(view) {
-  clientsView = view === 'web' ? 'web' : 'cards';
-  if (clientsView === 'web') { clientsArrangeMode = false; clientsWebLinks = null; }
+  clientsView = view === 'web' || view === 'wheel' ? view : 'cards';
+  if (clientsView !== 'cards') { clientsArrangeMode = false; clientsWebLinks = null; }
   syncClientsToolbarState();
   renderClientsList();
 }
@@ -411,7 +411,7 @@ function renderClientsList() {
   results.innerHTML = '';
   web.hidden = true;
 
-  if (clientsView === 'web' && clientsList.length) {
+  if (clientsView !== 'cards' && clientsList.length) {
     grid.style.display = 'none';
     results.style.display = 'none';
     empty.hidden = true;
@@ -487,7 +487,7 @@ async function renderClientsWeb(host) {
     host.appendChild(pjMk('div', 'cp-records-empty', 'Loading…'));
     try { clientsWebLinks = await window.api.getClientSystemWeb(); }
     catch { toast('Could not load the systems web'); clientsWebLinks = []; }
-    if (clientsView !== 'web' || host.hidden) return;
+    if (clientsView === 'cards' || host.hidden) return;
   }
   drawClientsWeb(host);
 }
@@ -591,6 +591,13 @@ function drawClientsWeb(host) {
       head.appendChild(chip);
     });
     host.appendChild(head);
+  }
+
+  // The same model drawn around a circle (systems-wheel.js).
+  if (clientsView === 'wheel') {
+    drawSystemsWheel(host, { clients, systems, cOrder, sOrder, links });
+    clientsWebUnlinkedNote(host, clients);
+    return;
   }
 
   // ── The stage: HTML nodes over an SVG of lines ──
@@ -699,8 +706,11 @@ function drawClientsWeb(host) {
   legend.append(pjMk('span', '', 'Thicker line = more linked records'),
     pjMk('span', '', 'Darker system = used by more clients'));
   host.appendChild(legend);
+  clientsWebUnlinkedNote(host, clients);
+}
 
-  // Clients this view leaves out because nothing links them to a system.
+// Clients the web and wheel leave out because nothing links them to a system.
+function clientsWebUnlinkedNote(host, clients) {
   const unlinked = clientsList.filter(c => !clients.has(c.id));
   if (unlinked.length) {
     const note = pjMk('div', 'cl-web-unlinked');
@@ -718,7 +728,7 @@ window.addEventListener('resize', () => {
   clearTimeout(clientsWebResizeTimer);
   clientsWebResizeTimer = setTimeout(() => {
     const host = document.getElementById('clients-web');
-    if (host && !host.hidden && clientsView === 'web' && clientsWebLinks) drawClientsWeb(host);
+    if (host && !host.hidden && clientsView !== 'cards' && clientsWebLinks) drawClientsWeb(host);
   }, 150);
 });
 
@@ -1367,9 +1377,55 @@ function buildClientArchiveSlot(c) {
     archive.addEventListener('click', () =>
       showDeleteConfirm(archiveSlot, () => setClientArchived(c.id, false), renderArchiveAction, 'Archive this client?'));
     archiveSlot.appendChild(archive);
+    archiveSlot.appendChild(buildClientDeleteButton(c, archiveSlot, renderArchiveAction));
   };
   renderArchiveAction();
   return archiveSlot;
+}
+
+// Delete is offered only to a client nothing points at. It starts disabled and
+// is enabled once the main process confirms zero links; deleteClient re-checks
+// inside its own write, so this is a hint, never the guard.
+function buildClientDeleteButton(c, slot, rerender) {
+  const del = pjMk('button', 'btn');
+  del.type = 'button';
+  del.innerHTML = ic('trash-2') + 'Delete Client';
+  del.disabled = true;
+  del.title = 'Checking for linked records…';
+  window.api.getClientLinkCount(c.id).then(res => {
+    if (!del.isConnected || !res?.ok) return;
+    del.disabled = res.count > 0;
+    del.title = res.count > 0
+      ? 'This client is still linked to other records. Archive it instead.'
+      : 'Nothing is linked to this client, so it can be deleted.';
+  }).catch(() => {});
+  del.addEventListener('click', () =>
+    showDeleteConfirm(slot, () => deleteClientPermanently(c.id), rerender, 'Delete this client?'));
+  return del;
+}
+
+async function deleteClientPermanently(companyId) {
+  let res;
+  try { res = await window.api.deleteClient(companyId); }
+  catch { res = null; }
+  if (!res?.ok) { toast(res?.error || 'Could not delete this client'); return false; }
+
+  await refreshCompanyCatalog();
+  clientsLoaded = false;
+  backToClientsList();
+  toast('Client deleted', {
+    actionLabel: 'Undo', duration: 5000,
+    onAction: async () => {
+      let r;
+      try { r = await window.api.restoreDeletedClient(companyId); }
+      catch { r = null; }
+      if (!r?.ok) { toast(r?.error || 'Could not restore this client'); return; }
+      await refreshCompanyCatalog();
+      clientsLoaded = false;
+      openClientDetail(companyId);
+    },
+  });
+  return true;
 }
 
 // Returns true on success. The undo toast sets the old code back, through the

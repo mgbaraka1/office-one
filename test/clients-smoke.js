@@ -260,6 +260,31 @@ try {
   const changedBack = db.changeClientCode(userId, newClientId, newCode);
   record('changeClientCode: the old code can be set back (undo)', changedBack.ok && changedBack.client.code === newCode);
 
+  // Delete is for a client nothing points at; one link of any kind blocks it.
+  const delCode = 'DEL_' + stamp;
+  const delId = db.createClient(userId, { code: delCode, nameEn: 'Delete Smoke ' + stamp }).client.id;
+  record('getClientLinkCount: a brand-new client has no links',
+    db.getClientLinkCount(userId, delId).count === 0, JSON.stringify(db.getClientLinkCount(userId, delId)));
+  const linkVpn = db.createClientVpn(userId, delId, { connectionName: 'Blocks delete' });
+  record('getClientLinkCount: counts an infrastructure row',
+    db.getClientLinkCount(userId, delId).count === 1);
+  const blocked = db.deleteClient(userId, delId);
+  record('deleteClient: refuses a client that is still linked',
+    blocked.ok === false && db.listClients(userId, true).some(c => c.id === delId), blocked.error);
+  db.deleteClientVpn(userId, linkVpn.id);
+  const deleted = db.deleteClient(userId, delId);
+  record('deleteClient: deletes an unlinked client',
+    deleted.ok && !db.listClients(userId, true).some(c => c.id === delId), JSON.stringify(deleted));
+  record('restoreDeletedClient: refuses another account',
+    db.restoreDeletedClient(userId + 1000, delId).ok === false);
+  const undone = db.restoreDeletedClient(userId, delId);
+  record('restoreDeletedClient: undo brings it back under the same id and code',
+    undone.ok && undone.client?.id === delId && undone.client?.code === delCode, JSON.stringify(undone));
+  record('restoreDeletedClient: a second undo is a no-op refusal',
+    db.restoreDeletedClient(userId, delId).ok === false);
+  record('deleteClient: rejects a non-COMPANY id', db.deleteClient(userId, 999999999).ok === false);
+  db.deleteClient(userId, delId);
+
   // ── VPN CRUD ─────────────────────────────────────────────────────────────────
   const vpn = db.createClientVpn(userId, companyA, {
     connectionName: 'HQ Site-to-Site', vpnType: 'WireGuard', endpoint: 'vpn.acme.com',
@@ -414,7 +439,7 @@ try {
 
   // ── Per-company isolation ────────────────────────────────────────────────────
   db.createClientServer(userId, companyB, { host: '10.1.1.1', environment: 'PRODUCTION', os: 'Windows Server 2022', systemName: sysOne, role: 'SERVICES', notes: '' });
-  db.createClientInternalSystem(userId, companyB, { name: 'Other Client Portal', url: 'http://10.2.2.2/', username: 'x', password: 'y', notes: '' });
+  db.createClientInternalSystem(userId, companyB, { name: 'Northwind Intranet', url: 'http://10.2.2.2/', username: 'x', password: 'y', notes: '' });
   const clientAAfter = db.getClient(userId, companyA);
   const clientBAfter = db.getClient(userId, companyB);
   if (companyA !== companyB) {
@@ -423,9 +448,9 @@ try {
     record('Per-company isolation: company B sees its own server',
       clientBAfter.servers.some(s => s.host === '10.1.1.1'), '');
     record('Per-company isolation: company A does not see company B\'s internal system',
-      !clientAAfter.internalSystems.some(s => s.name === 'Other Client Portal'), '');
+      !clientAAfter.internalSystems.some(s => s.name === 'Northwind Intranet'), '');
     record('Per-company isolation: company B sees its own internal system',
-      clientBAfter.internalSystems.some(s => s.name === 'Other Client Portal'), '');
+      clientBAfter.internalSystems.some(s => s.name === 'Northwind Intranet'), '');
   } else {
     record('Per-company isolation: skipped (only one COMPANY lookup in this DB)', true, '');
   }

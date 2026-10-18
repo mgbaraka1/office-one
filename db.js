@@ -5288,6 +5288,86 @@ function setClientActive(userId, companyId, isActive) {
   return { ok: true, client: clientById(userId, id) };
 }
 
+// How many records anywhere still point at this client. A hard delete is only
+// offered at zero. lookupUsageCounts reads every lookup_codes foreign key from
+// the schema, so a table a later migration adds is counted without touching
+// this. It skips CASCADE references, and the company profile is one of them,
+// so a profile with anything filled in is counted here as a link too.
+function clientLinkCount(companyId) {
+  const id = Number(companyId);
+  let n = lookupUsageCounts().get(id) || 0;
+  const p = db.prepare('SELECT * FROM company_profiles WHERE company_id = ?').get(id);
+  if (p && [p.contact_name, p.contact_email, p.contact_phone, p.address, p.tax_number, p.notes]
+    .some(v => String(v || '').trim())) n += 1;
+  return n;
+}
+
+function getClientLinkCount(userId, companyId) {
+  const id = Number(companyId);
+  if (!isLookupId('COMPANY', id) || !canAccessLookup(userId, id)) return { ok: false, error: 'Unknown client' };
+  return { ok: true, count: clientLinkCount(id) };
+}
+
+// Deleted clients awaiting the renderer's 5 s undo: companyId -> { userId,
+// row, profile, access }. Only an unused client can be deleted, so the lookup
+// row plus its CASCADE rows is everything there is to put back.
+const pendingClientDeletes = new Map();
+
+function deleteClient(userId, companyId) {
+  const id = Number(companyId);
+  if (!isLookupId('COMPANY', id) || !canAccessLookup(userId, id)) return { ok: false, error: 'Unknown client' };
+  let error = null;
+  tx(() => {
+    // Re-checked inside the write: the disabled button is a hint, never the guard.
+    if (clientLinkCount(id) > 0) { error = 'This client is still linked to other records'; return; }
+    const row = db.prepare('SELECT * FROM lookup_codes WHERE id = ?').get(id);
+    const profile = db.prepare('SELECT * FROM company_profiles WHERE company_id = ?').get(id) || null;
+    const access = db.prepare('SELECT * FROM lookup_code_user_access WHERE lookup_id = ?').all(id);
+    db.prepare('DELETE FROM lookup_codes WHERE id = ?').run(id);
+    // The audit trail outlives the row it describes (lookup_id is not an FK).
+    db.prepare(
+      `INSERT INTO lookup_code_history(user_id, lookup_id, category, field_name, old_value, new_value, changed_at)
+       VALUES (?, ?, 'COMPANY', 'Deleted', ?, '', ?)`
+    ).run(userId, id, `${row.code} — ${row.label}`, new Date().toISOString());
+    pendingClientDeletes.set(id, { userId, row, profile, access });
+  });
+  if (error) return { ok: false, error };
+  lkInvalidate();
+  return { ok: true };
+}
+
+// Undo of deleteClient: puts the row back under its old id, so anything the
+// renderer still holds for it stays valid.
+function restoreDeletedClient(userId, companyId) {
+  const id = Number(companyId);
+  const pending = pendingClientDeletes.get(id);
+  if (!pending || pending.userId !== userId) return { ok: false, error: 'Nothing to restore' };
+  const { row, profile, access } = pending;
+  let error = null;
+  tx(() => {
+    if (db.prepare('SELECT 1 FROM lookup_codes WHERE id = ?').get(id)
+      || db.prepare('SELECT 1 FROM lookup_codes WHERE category = \'COMPANY\' AND code = ? COLLATE NOCASE').get(row.code)) {
+      error = `Company code ${row.code} is already in use`; return;
+    }
+    if (lookupLabelCollides('COMPANY', row.label)) { error = `A client named ${row.label} already exists`; return; }
+    const cols = Object.keys(row);
+    db.prepare(`INSERT INTO lookup_codes(${cols.join(', ')}) VALUES(${cols.map(() => '?').join(', ')})`)
+      .run(...cols.map(k => row[k]));
+    if (profile) {
+      const pc = Object.keys(profile);
+      db.prepare(`INSERT INTO company_profiles(${pc.join(', ')}) VALUES(${pc.map(() => '?').join(', ')})`)
+        .run(...pc.map(k => profile[k]));
+    }
+    const ins = db.prepare('INSERT OR IGNORE INTO lookup_code_user_access(lookup_id, user_id, created_at) VALUES(?, ?, ?)');
+    access.forEach(a => ins.run(a.lookup_id, a.user_id, a.created_at));
+    recordLookupHistory(userId, id, 'COMPANY', null, db.prepare(LOOKUP_SNAPSHOT_SQL).get(id));
+  });
+  if (error) return { ok: false, error };
+  pendingClientDeletes.delete(id);
+  lkInvalidate();
+  return { ok: true, client: clientById(userId, id) };
+}
+
 // Rewrites sort_order from the given id order — this is what decides the order
 // of every company dropdown in the app. Ids that aren't COMPANY rows are
 // skipped rather than rejected, so a stale list from an open tab reorders what
@@ -7732,6 +7812,7 @@ module.exports = {
   purgeKnowledgeAttachment, purgeKnowledgeFiles, listKnowledgeGroups, createKnowledgeGroup,
   updateKnowledgeGroup, deleteKnowledgeGroup, listClients, getClient, getClientSystemWeb,
   getClientFieldHistory, createClient, renameClient, changeClientCode, setClientActive, reorderClients,
+  getClientLinkCount, deleteClient, restoreDeletedClient,
   configureCredentialEncryption, allowPlaintextCredentialsForTests,
   disallowPlaintextCredentialsForTests, isCredentialEncryptionAvailable,
   encryptAllPendingCredentials, sanitizeLegacyCredentialBackups, readCredential,

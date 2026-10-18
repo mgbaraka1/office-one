@@ -14,14 +14,26 @@
 
 <!-- ══ AUTH GATE (setup on first run / login each session) ══ -->
 <div id="auth-overlay">
-  <button type="button" class="auth-lamp" id="auth-lamp" aria-label="Toggle the lamp" aria-pressed="false">
-    <span class="lamp-floor"></span>
-    <span class="lamp-beam"><i></i><i></i><i></i><i></i><i></i><i></i></span>
-    <span class="lamp-shade"></span>
-    <span class="lamp-stem"></span>
-    <span class="lamp-base"></span>
-    <span class="lamp-cord"><span class="lamp-knob"></span></span>
-  </button>
+  <div class="auth-scene">
+    <!-- Today, as plain lettering in the room that the lamp lights up.
+         Filled and kept current by authToday in shell.js; its text is already
+         localized by Intl, so the dictionary pass skips it. -->
+    <div class="auth-today" id="auth-today" data-i18n-ignore>
+      <div class="today-weekday" id="auth-today-weekday"></div>
+      <div class="today-num" id="auth-today-num"></div>
+      <div class="today-month" id="auth-today-month"></div>
+      <div class="today-hijri" id="auth-today-hijri"></div>
+      <time class="today-clock" id="auth-today-clock"></time>
+    </div>
+    <button type="button" class="auth-lamp" id="auth-lamp" aria-label="Toggle the lamp" aria-pressed="false">
+      <span class="lamp-floor"></span>
+      <span class="lamp-beam"><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <span class="lamp-shade"></span>
+      <span class="lamp-stem"></span>
+      <span class="lamp-base"></span>
+      <span class="lamp-cord"><span class="lamp-knob"></span></span>
+    </button>
+  </div>
   <form class="auth-card" id="auth-form" data-onsubmit="submitAuth(event)" autocomplete="off">
     <div class="auth-brand">OFFICE <span>ONE</span></div>
     <div class="auth-language" role="group" aria-label="Choose language">
@@ -36,7 +48,11 @@
     </div>
     <div class="auth-field">
       <label for="auth-password" id="auth-password-label">Password</label>
-      <input id="auth-password" type="password" autocomplete="current-password" />
+      <div class="auth-input-wrap">
+        <input id="auth-password" type="password" autocomplete="current-password" />
+        <button type="button" class="auth-reveal" id="auth-reveal" title="Show password" aria-pressed="false"><span data-ic="eye"></span></button>
+      </div>
+      <div class="auth-caps" id="auth-caps" hidden>Caps Lock is on</div>
     </div>
     <div class="auth-field" id="auth-confirm-field" style="display:none">
       <label for="auth-confirm">Confirm password</label>
@@ -1422,6 +1438,7 @@
       <div class="seg-ctl" id="clients-view-ctl" role="group" aria-label="Show clients as">
         <button type="button" class="seg-btn active" data-view="cards" data-onclick="setClientsView('cards')" aria-pressed="true"><span data-ic="layout-dashboard"></span>Cards</button>
         <button type="button" class="seg-btn" data-view="web" data-onclick="setClientsView('web')" aria-pressed="false"><span data-ic="share-2"></span>Systems web</button>
+        <button type="button" class="seg-btn" data-view="wheel" data-onclick="setClientsView('wheel')" aria-pressed="false"><span data-ic="circle"></span>Systems wheel</button>
       </div>
       <button type="button" class="btn" id="clients-archived-btn" data-onclick="toggleClientsShowArchived()"><span data-ic="eye"></span>Show archived</button>
       <div class="seg-ctl" id="clients-sort-ctl" title="Order the cards by name — the saved order stays as it is">
@@ -2813,6 +2830,7 @@
 <script src="renderer/features/knowledge.js"></script>
 <script src="renderer/features/knowledge-wheel.js"></script>
 <script src="renderer/features/server-wheel.js"></script>
+<script src="renderer/features/systems-wheel.js"></script>
 <script src="renderer/features/company-documents.js"></script>
 <script src="renderer/features/templates.js"></script>
 <script src="renderer/features/pfm.js"></script>

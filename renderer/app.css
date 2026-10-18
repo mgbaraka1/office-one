@@ -531,6 +531,11 @@
     .btn:hover { background: var(--elevate); border-color: color-mix(in srgb, var(--border) 60%, var(--text)); }
     .btn:active { transform: scale(.96); }
     .btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--primary-glow); }
+    /* Doubled :disabled outranks every later .btn:hover/.btn:active override. */
+    .btn:disabled:disabled, .btn:disabled:disabled:hover, .btn:disabled:disabled:active {
+      opacity: .45; cursor: not-allowed; transform: none; box-shadow: none;
+    }
+    .btn:not(.primary):disabled:disabled:hover { background: var(--surface); border-color: var(--border); }
     .btn.primary { background: var(--primary); border-color: transparent; color: #fff; box-shadow: 0 6px 18px -6px var(--primary-glow); }
     .btn.primary:hover { background: var(--primary-strong); border-color: transparent; }
     .btn.today-btn { background: color-mix(in srgb, var(--primary) 12%, transparent); border-color: color-mix(in srgb, var(--primary) 30%, transparent); color: var(--primary); font-weight: 700; }
@@ -2313,6 +2318,10 @@
     .kw-node.is-article.sw-inactive .kw-dot { fill: var(--surface); stroke: var(--kw); stroke-width: 2; }
     .kw-edge.sw-edge-server { stroke-width: 1.8; opacity: .65; }
     .kw-swatch.sw-swatch-host { background: var(--surface); border: 1.6px solid var(--text); }
+    /* Systems wheel (systems-wheel.js): clients take the accent, systems are
+       squares shaded inline by how many clients share them. */
+    .cl-sys-wheel { --kw: var(--primary); }
+    .kw-swatch.cl-sys-swatch { background: color-mix(in srgb, var(--primary) 60%, var(--muted)); }
     .kh-row { width: 100%; border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius); padding: 15px 16px; color: var(--text); display: flex; align-items: center; gap: 12px; transition: border-color .15s, transform .15s, box-shadow .15s; }
     .kh-row-main { flex: 1; min-width: 0; display: grid; grid-template-columns: 42px minmax(0,1fr) auto; gap: 13px; border: 0; background: none; padding: 0; color: inherit; font: inherit; text-align: start; cursor: pointer; }
     .kh-row-actions { flex-shrink: 0; }
@@ -2655,7 +2664,7 @@
       display: flex; justify-content: flex-end; gap: 4px;
       margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border);
     }
-    .cl-archive-slot { display: inline-flex; align-items: center; margin-inline-start: auto; }
+    .cl-archive-slot { display: inline-flex; align-items: center; gap: var(--space-2); margin-inline-start: auto; }
 
     /* The client header is the identity: name + rename pencil, the code as a
        chip under it, Archive at the far end. Rename swaps the name for both
@@ -4519,6 +4528,54 @@
     #auth-overlay .auth-btn { transition: background .3s ease, transform .2s ease; }
     #auth-overlay .auth-btn:active { transform: scale(.985); }
 
+    /* Today's date hangs in the dark above the lamp, centred on it. */
+    .auth-scene { position: relative; display: flex; flex-direction: column; align-items: center; gap: 26px; flex: 0 0 auto; }
+
+    /* Today: no object, only lettering in the room. Unlit it sits as dim as
+       the dark shade; lit it takes the shade's cream and a warm glow. The
+       colours and glow are mixed by --lamp, so they rise and breathe with it. */
+    .auth-today {
+      --lit: clamp(0, var(--lamp), 1);
+      --glow: color-mix(in srgb, rgba(246,198,122,.55) calc(var(--lit) * 100%), transparent);
+      text-align: center; line-height: 1.25;
+      color: color-mix(in srgb, #fbf3e2 calc(var(--lit) * 100%), #5d5f63);
+      text-shadow: 0 0 22px var(--glow);
+      font-variant-numeric: tabular-nums; cursor: default; user-select: none;
+    }
+    .today-weekday {
+      font-size: 15px; font-weight: 600; letter-spacing: 2.5px; text-transform: uppercase;
+      color: color-mix(in srgb, #f6c67a calc(var(--lit) * 100%), #6a6660);
+    }
+    :root[dir="rtl"] .today-weekday { letter-spacing: 0; font-size: 18px; }
+    .today-num { font-size: 72px; font-weight: 200; line-height: 1; margin: 2px 0 4px; }
+    .today-month { font-size: 17px; font-weight: 500; }
+    .today-hijri {
+      margin-top: 3px; font-size: 12.5px;
+      color: color-mix(in srgb, #b9ad97 calc(var(--lit) * 100%), #4e5054);
+    }
+    /* A thin line of light, then the time. */
+    .today-clock {
+      display: block; margin-top: 14px; padding-top: 10px; font-size: 14px; font-weight: 600;
+      letter-spacing: 1px; color: color-mix(in srgb, #f6c67a calc(var(--lit) * 100%), #6a6660);
+      border-top: 1px solid transparent;
+      border-image: linear-gradient(to right, transparent, color-mix(in srgb, rgba(246,198,122,.6) calc(var(--lit) * 100%), rgba(255,255,255,.08)), transparent) 1;
+    }
+
+    /* Password: an eye button inside the field, and a Caps Lock hint. */
+    .auth-input-wrap { position: relative; }
+    #auth-overlay .auth-input-wrap input { padding-inline-end: 44px; }
+    .auth-reveal {
+      position: absolute; inset-inline-end: 6px; top: 50%; transform: translateY(-50%);
+      display: grid; place-items: center; width: 32px; height: 32px; padding: 0;
+      border: 0; border-radius: 7px; background: transparent; color: #a7a39b; cursor: pointer;
+      transition: color .2s ease, background .2s ease;
+    }
+    .auth-reveal:hover { color: #f8f4ec; background: rgba(255,255,255,.07); }
+    .auth-reveal:focus-visible { outline: 2px solid var(--lamp-light); outline-offset: 1px; }
+    .auth-reveal .lic { width: 17px; height: 17px; }
+    .auth-caps { margin-top: 6px; font-size: 11.5px; font-weight: 600; color: var(--lamp-light); }
+    .auth-caps[hidden] { display: none; }
+
     .auth-lamp {
       position: relative; flex: 0 0 auto; width: 170px; height: 300px;
       padding: 0; border: 0; background: none; cursor: grab; touch-action: none;
@@ -4610,7 +4667,7 @@
        comes from authLamp.flare()). */
     #auth-overlay.leaving { opacity: 0; transition: opacity .55s cubic-bezier(.4, 0, .2, 1); }
 
-    @media (max-width: 760px) { .auth-lamp { display: none; } }
+    @media (max-width: 760px) { .auth-scene { display: none; } }
     @media (prefers-reduced-motion: reduce) {
       #auth-overlay *, #auth-overlay *::before, #auth-overlay *::after,
       #auth-overlay::before { transition: none !important; animation: none !important; }

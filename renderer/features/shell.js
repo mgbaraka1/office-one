@@ -704,12 +704,68 @@ window.api.appVersion().then(v => {
   el.replaceChildren(pjMk('span', null, 'Version'), document.createTextNode(' ' + v));
 }).catch(() => {});
 
+// Today on the desk calendar by the lamp: weekday, Gregorian and Hijri dates and a clock,
+// formatted by Intl in the login language (Western digits in Arabic too,
+// matching the rest of the app). Re-rendered on the minute, so it rolls over
+// at midnight, and on a language switch. Ticks are skipped while the overlay
+// is hidden, so it costs nothing once the app is open.
+const authToday = (() => {
+  const $ = (id) => document.getElementById(id);
+  const fmt = (lang, cal, opts) => new Intl.DateTimeFormat(
+    (lang === 'ar' ? 'ar' : 'en-GB') + '-u-ca-' + cal + '-nu-latn', opts);
+  function greeting(hour) {
+    return hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  }
+  function render() {
+    const now = new Date();
+    const lang = window.ctI18n?.getLanguage?.() || 'en';
+    $('auth-today-month').textContent = fmt(lang, 'gregory', { month: 'long', year: 'numeric' }).format(now);
+    $('auth-today-num').textContent = String(now.getDate());
+    $('auth-today-weekday').textContent = fmt(lang, 'gregory', { weekday: 'long' }).format(now);
+    $('auth-today-hijri').textContent = fmt(lang, 'islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' }).format(now);
+    const clock = $('auth-today-clock');
+    clock.textContent = fmt(lang, 'gregory', { hour: 'numeric', minute: '2-digit', hour12: true }).format(now);
+    clock.dateTime = now.toISOString();
+    if (_authMode === 'login') $('auth-heading').textContent = greeting(now.getHours());
+  }
+  function tick() {
+    if ($('auth-overlay').classList.contains('active')) render();
+    setTimeout(tick, 60000 - (Date.now() % 60000) + 50);
+  }
+  document.addEventListener('ct:languagechange', render);
+  render();
+  tick();
+  return { render, greeting };
+})();
+
+// Show/hide the password and warn about Caps Lock. Both password fields
+// share the toggle, so the confirm field never disagrees with the first.
+(() => {
+  const reveal = document.getElementById('auth-reveal');
+  const caps = document.getElementById('auth-caps');
+  const fields = ['auth-password', 'auth-confirm'].map(id => document.getElementById(id));
+  reveal.addEventListener('click', () => {
+    const show = fields[0].type === 'password';
+    fields.forEach(f => { f.type = show ? 'text' : 'password'; });
+    reveal.setAttribute('aria-pressed', String(show));
+    reveal.title = show ? 'Hide password' : 'Show password';
+    reveal.innerHTML = ic(show ? 'eye-off' : 'eye');
+    fields[0].focus();
+  });
+  const checkCaps = (e) => { if (e.getModifierState) caps.hidden = !e.getModifierState('CapsLock'); };
+  fields.forEach(f => {
+    f.addEventListener('keydown', checkCaps);
+    f.addEventListener('keyup', checkCaps);
+    f.addEventListener('blur', () => { caps.hidden = true; });
+  });
+})();
+
 function setAuthMode(mode) {
   _authMode = mode;
   const setup = mode === 'setup';
   const forceChange = mode === 'force-change';
   document.getElementById('auth-heading').textContent = setup ? 'Create your account'
-    : forceChange ? 'Choose a new password' : 'Welcome back';
+    : forceChange ? 'Choose a new password' : authToday.greeting(new Date().getHours());
   document.getElementById('auth-sub').textContent = setup
     ? 'This is the first account on this device'
     : forceChange ? 'Your password was set by an administrator. Choose a new one to continue.'
@@ -784,6 +840,7 @@ async function submitAuth(e) {
   }
   overlay.classList.remove('active', 'leaving');
   passEl.value = ''; if (confEl) confEl.value = '';
+  if (passEl.type !== 'password') document.getElementById('auth-reveal').click();
   _pendingForceChangeUser = null; _pendingForceChangePassword = '';
   await startApp(res.user);
 }

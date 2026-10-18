@@ -14,7 +14,7 @@ let pfmItems = [];
 let pfmLoaded = false;
 let pfmCurrent = null;            // the item open in the detail view, or null
 let pfmMemberNames = [];
-const pfmFilter = { status: '', kind: '', companyId: '', search: '', archived: false };
+const pfmFilter = { statuses: [], kind: '', companyId: '', search: '', archived: false };
 const pfmSort = { key: '', dir: 1 };   // key '' = the server's order (newest update first)
 let pfmView = 'table';            // 'table' | 'pipeline'
 const PFM_STALE_DAYS = 30;        // an open item untouched this long is flagged in the pipeline
@@ -133,8 +133,12 @@ function setPfmClientFilter() {
   pfmFilter.companyId = document.getElementById('pfm-client-filter').value || '';
   renderPfmList();
 }
+// Status chips are multi-select: each click toggles one status in or out;
+// "All" clears the set.
 function setPfmStatusFilter(code) {
-  pfmFilter.status = pfmFilter.status === code ? '' : (code || '');
+  if (!code) pfmFilter.statuses = [];
+  else if (pfmFilter.statuses.includes(code)) pfmFilter.statuses = pfmFilter.statuses.filter(c => c !== code);
+  else pfmFilter.statuses = [...pfmFilter.statuses, code];
   renderPfmList();
 }
 function togglePfmArchived() {
@@ -177,9 +181,10 @@ function renderPfmStatusChips(base) {
   const host = document.getElementById('pfm-status-chips');
   host.innerHTML = '';
   const mkChip = (code, labelNode, n) => {
-    const b = pjMk('button', 'pfm-chip' + (pfmFilter.status === code ? ' active' : ''));
+    const on = code ? pfmFilter.statuses.includes(code) : !pfmFilter.statuses.length;
+    const b = pjMk('button', 'pfm-chip' + (on ? ' active' : ''));
     b.type = 'button';
-    b.setAttribute('aria-pressed', pfmFilter.status === code ? 'true' : 'false');
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
     b.appendChild(labelNode);
     b.appendChild(pjMk('span', 'pfm-chip-count', String(n)));
     b.addEventListener('click', () => setPfmStatusFilter(code));
@@ -245,7 +250,8 @@ function pfmSortRows(rows) {
 // Exactly the rows the table shows, in the order it shows them (every filter,
 // status chip included) — the Excel export follows the same order.
 function pfmVisibleRows(base = pfmBaseRows()) {
-  return pfmSortRows(pfmFilter.status ? base.filter(i => i.status === pfmFilter.status) : base);
+  const picked = pfmFilter.statuses;
+  return pfmSortRows(picked.length ? base.filter(i => picked.includes(i.status)) : base);
 }
 
 function renderPfmList() {
@@ -290,7 +296,7 @@ function renderPfmList() {
 // export follows what is shown).
 function setPfmView(view) {
   pfmView = view === 'pipeline' ? 'pipeline' : 'table';
-  if (pfmView === 'pipeline') pfmFilter.status = '';
+  if (pfmView === 'pipeline') pfmFilter.statuses = [];
   document.querySelectorAll('#pfm-view-ctl .seg-btn').forEach(b => {
     const active = b.dataset.view === pfmView;
     b.classList.toggle('active', active);
@@ -559,7 +565,7 @@ async function exportPfmExcel(withFiles) {
   const tr = key => rptText(key);
   const filters = [];
   if (pfmFilter.kind) filters.push(tr(pfmFilter.kind === 'CR' ? 'CRs' : 'Offers'));
-  if (pfmFilter.status) filters.push(pfmStatusName(pfmFilter.status));
+  if (pfmFilter.statuses.length) filters.push(pfmFilter.statuses.map(pfmStatusName).join(', '));
   if (pfmFilter.companyId) filters.push(lkLabelById('COMPANY', Number(pfmFilter.companyId)) || '');
   if (pfmFilter.search) filters.push('"' + pfmFilter.search + '"');
   if (pfmFilter.archived) filters.push(tr('Including archived'));
