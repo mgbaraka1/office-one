@@ -1,5 +1,48 @@
 [
   {
+    "version": "8.22.0",
+    "date": "2026-10-18",
+    "kind": "feat",
+    "title": {
+      "en": "Code Notes in the Knowledge Hub, a Systems wheel, and a desk calendar on login",
+      "ar": "ملاحظات برمجية في مركز المعرفة، وعجلة للأنظمة، وتقويم مكتبي في شاشة الدخول"
+    },
+    "notes": [
+      {
+        "en": "New kind Code Note: write notes in Markdown with headings, lists, tables and code blocks in color.",
+        "ar": "نوع جديد: ملاحظة برمجية. اكتب ملاحظاتك بصيغة Markdown مع عناوين وقوائم وجداول وكتل برمجية ملوّنة."
+      },
+      {
+        "en": "Every code block has a Copy button. Blanks like {{db}} open a small form first, remember your last values and suggest the linked clients' servers and databases.",
+        "ar": "لكل كتلة برمجية زر نسخ. الفراغات مثل {{db}} تفتح نموذجاً صغيراً أولاً، وتتذكر آخر القيم، وتقترح خوادم وقواعد بيانات العملاء المرتبطين."
+      },
+      {
+        "en": "The editor has a toolbar for code blocks, bold, headings, lists and separators, plus Make blank and a preview.",
+        "ar": "في المحرر شريط أدوات للكتل البرمجية والخط العريض والعناوين والقوائم والفواصل، مع زر تحويل إلى فراغ ومعاينة."
+      },
+      {
+        "en": "Import many Markdown files at once, link them all to systems or to clients, and undo the whole import in one click. Export any note back to Markdown.",
+        "ar": "استورد ملفات Markdown كثيرة دفعة واحدة، واربطها كلها بأنظمة أو بعملاء، وتراجع عن الاستيراد كاملاً بنقرة واحدة. وصدّر أي ملاحظة إلى Markdown."
+      },
+      {
+        "en": "Clients: a new Systems wheel view, and deleting a client now asks inline and can be undone for 5 seconds.",
+        "ar": "العملاء: عرض عجلة جديد للأنظمة، وحذف العميل يطلب التأكيد في مكانه ويمكن التراجع عنه خلال 5 ثوانٍ."
+      },
+      {
+        "en": "Projects & Finance: pick more than one status at a time; All clears them.",
+        "ar": "المشاريع والمالية: اختر أكثر من حالة في الوقت نفسه، وزر الكل يلغي الاختيار."
+      },
+      {
+        "en": "The login screen shows a desk calendar with the weekday, Gregorian and Hijri dates, a clock and a greeting.",
+        "ar": "تعرض شاشة الدخول تقويماً مكتبياً باليوم والتاريخين الميلادي والهجري وساعة وتحية."
+      }
+    ],
+    "technical": [
+      "Migration 078 seeds the Code Note kind; no table change.",
+      "marked and highlight.js are vendored for offline use; notes are sanitized with DOMPurify."
+    ]
+  },
+  {
     "version": "8.21.0",
     "date": "2026-10-14",
     "kind": "feat",
