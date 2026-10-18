@@ -795,6 +795,7 @@
     <div class="topbar-right">
       <label class="sr-only" for="kh-search">Search Knowledge Hub</label>
       <input type="search" id="kh-search" class="mod-search" placeholder="Search titles, clients, systems, or documents…" data-oninput="renderKnowledgeList()">
+      <button class="btn" id="kh-import-btn" data-onclick="openCodeNoteImport()" title="Add many Markdown notes at once"><span data-ic="upload"></span>Import .md</button>
       <button class="btn primary" id="kh-create-btn" data-onclick="openKnowledgeEditor()"><span data-ic="plus"></span>New item</button>
     </div>
   </div>
@@ -811,6 +812,7 @@
     <div id="kh-drop-hint" class="kh-drop-hint" hidden><span data-ic="upload"></span><span id="kh-drop-hint-text">Drop to add this file</span></div>
   </div>
   <input type="file" id="kh-file-input" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.png,.jpg,.jpeg,.gif,.webp" hidden>
+  <input type="file" id="cn-import-input" accept=".md,.markdown,.pdf,.doc,.docx,.xls,.xlsx,.txt,.png,.jpg,.jpeg,.gif,.webp" multiple hidden>
 </div>
 
 <div id="knowledge-modal-overlay" class="modal-overlay" data-onclick="knowledgeEditorOverlayClick(event)">
@@ -828,9 +830,21 @@
         <div class="kh-dropzone" id="kh-editor-drop"><span data-ic="upload"></span><span class="kh-dropzone-text" id="kh-editor-file-label">Drop a file here, or</span><button type="button" class="btn small" data-onclick="chooseKnowledgeFile('editor')">Choose file…</button><button type="button" class="btn small" id="kh-editor-file-clear" data-onclick="setKnowledgeEditorFile(null)" hidden>Remove</button></div>
         <div class="modal-hint">Optional. You can add files and new versions later.</div>
       </div></div>
-      <div class="form-row"><div class="form-group full"><label for="kh-notes-input">Notes</label>
+      <div class="form-row"><div class="form-group full"><label for="kh-notes-input" id="kh-notes-label">Notes</label>
+        <div id="kh-md-toolbar" class="kh-md-toolbar" role="toolbar" aria-label="Markdown tools" hidden>
+          <span class="kh-md-group"><select id="kh-md-lang" class="kh-md-lang" aria-label="Code block language" data-md-edit><option value="sql">SQL</option><option value="powershell">PowerShell</option><option value="bash">Bash</option><option value="javascript">JavaScript</option><option value="python">Python</option><option value="json">JSON</option><option value="xml">XML</option><option value="">Plain text</option></select><button type="button" class="btn small" data-md-edit data-onclick="codeNoteCodeBlock()" title="Insert a code block"><span data-ic="code"></span>Code block</button></span>
+          <button type="button" class="btn small icon-only" data-md-edit data-onclick="codeNoteBold()" title="Bold, or a label for the code block below it"><span data-ic="bold"></span></button>
+          <button type="button" class="btn small icon-only" data-md-edit data-onclick="codeNoteHeading()" title="Heading"><span data-ic="heading"></span></button>
+          <button type="button" class="btn small icon-only" data-md-edit data-onclick="codeNoteList()" title="Bulleted list"><span data-ic="list"></span></button>
+          <button type="button" class="btn small icon-only" data-md-edit data-onclick="codeNoteSeparator()" title="Separator line"><span data-ic="minus"></span></button>
+          <button type="button" class="btn small" data-md-edit data-onclick="makeCodeNoteBlank()" title="Turn the selected value into a blank you fill in when you copy"><span data-ic="braces"></span>Make blank</button>
+          <span class="kh-md-spacer"></span>
+          <button type="button" class="btn small" id="kh-md-preview-btn" aria-pressed="false" data-onclick="toggleCodeNotePreview()"><span data-ic="eye"></span>Preview</button>
+        </div>
         <textarea id="kh-notes-input" class="kh-notes-input" maxlength="200000" placeholder="Anything worth remembering: steps, contacts, gotchas…"></textarea>
-        <div class="modal-hint">Plain text. Links starting with https:// open in your browser. Do not store passwords or secret keys here.</div>
+        <div id="kh-md-preview" class="kh-content kh-md-preview" hidden></div>
+        <div class="modal-hint" id="kh-notes-hint-text">Plain text. Links starting with https:// open in your browser. Do not store passwords or secret keys here.</div>
+        <div class="modal-hint" id="kh-notes-hint-md" hidden>Markdown. Every code block gets a Copy button, and a bold line right above a block becomes its label. Write {{name}} for a blank you fill in when copying, or {{name:default}}. Do not store passwords or secret keys here.</div>
       </div></div>
       <details id="kh-more" class="kh-more"><summary>More</summary>
         <div class="form-row"><div class="form-group full"><label for="kh-summary-input">Summary</label><textarea id="kh-summary-input" maxlength="2000" placeholder="One line shown under the title in the list"></textarea></div></div>
@@ -876,6 +890,41 @@
       <div class="form-row"><div class="form-group full"><label for="kh-document-note" id="kh-document-note-label">Note</label><textarea id="kh-document-note" class="kh-change-note-input" maxlength="1000" rows="3" placeholder="Optional"></textarea></div></div>
     </div>
     <div class="modal-footer"><button class="btn" data-onclick="closeKnowledgeDocumentModal()">Cancel</button><button class="btn primary" id="kh-document-submit" data-onclick="submitKnowledgeDocument()">Add</button></div>
+  </div>
+</div>
+
+<div id="code-note-fill-overlay" class="modal-overlay" data-onclick="codeNoteFillOverlayClick(event)">
+  <div id="code-note-fill-modal" class="modal-box">
+    <div class="modal-header"><span class="modal-title">Fill in the blanks</span><button class="modal-close" data-onclick="closeCodeNoteFill()" data-ic="x"></button></div>
+    <div class="modal-body">
+      <div id="cn-fill-label" class="cn-fill-label" data-user-content hidden></div>
+      <div id="cn-fill-fields" class="cn-fill-fields"></div>
+      <div class="cn-fill-preview-title">What gets copied</div>
+      <pre id="cn-fill-preview" class="cn-code cn-fill-preview" dir="ltr" data-user-content></pre>
+    </div>
+    <div class="modal-footer"><button class="btn" data-onclick="closeCodeNoteFill()">Cancel</button><button class="btn primary" data-onclick="submitCodeNoteFill()"><span data-ic="copy"></span>Copy</button></div>
+  </div>
+</div>
+
+<div id="code-note-import-overlay" class="modal-overlay" data-onclick="codeNoteImportOverlayClick(event)">
+  <div id="code-note-import-modal" class="modal-box">
+    <div class="modal-header"><span class="modal-title">Import Markdown notes</span><button class="modal-close" data-onclick="closeCodeNoteImport()" data-ic="x"></button></div>
+    <div class="modal-body">
+      <div class="kh-dropzone" id="cn-import-drop"><span data-ic="upload"></span><span class="kh-dropzone-text">Drop .md files here, with any files they embed, or</span><button type="button" class="btn small" data-onclick="chooseCodeNoteImportFiles()">Choose files…</button></div>
+      <div class="modal-hint">Each .md file becomes one Code Note, titled with its file name. A file a note embeds, like ![[Checklist.xlsx]], is attached to it when you include that file too. Your files are only read, never changed.</div>
+      <div class="cn-import-links">
+        <span class="cn-import-links-label">Link every note to</span>
+        <div class="seg-ctl" id="cn-import-link-kind">
+          <button type="button" class="seg-btn" data-kind="none" data-onclick="setCodeNoteImportLink('none')">No link</button>
+          <button type="button" class="seg-btn" data-kind="SYSTEM" data-onclick="setCodeNoteImportLink('SYSTEM')">Systems</button>
+          <button type="button" class="seg-btn" data-kind="COMPANY" data-onclick="setCodeNoteImportLink('COMPANY')">Clients</button>
+        </div>
+        <div id="cn-import-link-picker"></div>
+      </div>
+      <div id="cn-import-empty" class="cp-records-empty">No .md files chosen yet.</div>
+      <div id="cn-import-list" class="cn-import-list"></div>
+    </div>
+    <div class="modal-footer"><span id="cn-import-count" class="cn-import-count" role="status"></span><button class="btn" data-onclick="closeCodeNoteImport()">Cancel</button><button class="btn primary" id="cn-import-go" data-onclick="runCodeNoteImport()" disabled>Import</button></div>
   </div>
 </div>
 
@@ -2828,6 +2877,10 @@
 <script src="renderer/vendor/dompurify/purify.min.js"></script>
 <script src="renderer/features/knowledge-sanitize.js"></script>
 <script src="renderer/features/knowledge.js"></script>
+<script src="renderer/vendor/marked/marked.umd.js"></script>
+<script src="renderer/vendor/highlight/highlight.min.js"></script>
+<script src="renderer/vendor/highlight/powershell.min.js"></script>
+<script src="renderer/features/code-notes.js"></script>
 <script src="renderer/features/knowledge-wheel.js"></script>
 <script src="renderer/features/server-wheel.js"></script>
 <script src="renderer/features/systems-wheel.js"></script>

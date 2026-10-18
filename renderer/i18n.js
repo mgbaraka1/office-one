@@ -479,6 +479,37 @@
     'What this item helps someone understand or do': 'ما الذي يساعد هذا العنصر على فهمه أو تنفيذه',
     'Formatting tools': 'أدوات التنسيق', 'Heading': 'عنوان', 'Bulleted list': 'قائمة نقطية',
     'Numbered list': 'قائمة مرقمة', 'Code block': 'كتلة برمجية',
+    // Code Notes (migration 078): Markdown notes with copyable code blocks.
+    // Language names are the same in both languages.
+    'SQL': 'SQL', 'PowerShell': 'PowerShell', 'Bash': 'Bash', 'JavaScript': 'JavaScript', 'Python': 'Python', 'JSON': 'JSON', 'XML': 'XML',
+    'Plain text': 'نص عادي', 'Import .md': 'استيراد Markdown', 'Add many Markdown notes at once': 'أضف عدة ملاحظات Markdown دفعة واحدة',
+    'Markdown tools': 'أدوات Markdown', 'Code block language': 'لغة الكتلة البرمجية', 'Insert a code block': 'إدراج كتلة برمجية',
+    'Bold, or a label for the code block below it': 'خط عريض، أو عنوان للكتلة البرمجية التي تحته', 'Separator line': 'خط فاصل',
+    'Turn the selected value into a blank you fill in when you copy': 'حوّل القيمة المحددة إلى فراغ تملؤه عند النسخ',
+    'Make blank': 'اجعلها فراغاً', 'Note (Markdown)': 'الملاحظة (Markdown)',
+    'Markdown. Every code block gets a Copy button, and a bold line right above a block becomes its label. Write {{name}} for a blank you fill in when copying, or {{name:default}}. Do not store passwords or secret keys here.':
+      'بتنسيق Markdown. لكل كتلة برمجية زر نسخ، والسطر العريض فوق الكتلة مباشرة يصبح عنوانها. اكتب {{name}} لفراغ تملؤه عند النسخ، أو {{name:default}}. لا تحفظ كلمات المرور أو المفاتيح السرية هنا.',
+    'Copy': 'نسخ', 'Fill & copy': 'املأ وانسخ', 'Copy this block': 'نسخ هذه الكتلة', 'Fill in the blanks, then copy': 'املأ الفراغات ثم انسخ',
+    'Blanks you fill in when you copy': 'فراغات تملؤها عند النسخ', 'Code copied': 'تم نسخ الكود',
+    'Could not copy to clipboard': 'تعذّر النسخ إلى الحافظة', 'Fill in the blanks': 'املأ الفراغات', 'What gets copied': 'ما سيُنسخ',
+    'Fill in this blank.': 'املأ هذا الفراغ.', 'Filled in and copied': 'تم الملء والنسخ',
+    'No item has this title yet': 'لا يوجد عنصر بهذا العنوان بعد', 'This file is not attached to the item': 'هذا الملف غير مرفق بالعنصر',
+    'Select a value first, such as a database name': 'حدّد قيمة أولاً، مثل اسم قاعدة بيانات', 'Made 1 blank': 'تم إنشاء فراغ واحد',
+    'Export .md': 'تصدير Markdown', 'Note saved as a .md file': 'تم حفظ الملاحظة كملف Markdown', 'Could not export the note': 'تعذّر تصدير الملاحظة',
+    'Import Markdown notes': 'استيراد ملاحظات Markdown', 'Link every note to': 'ربط كل الملاحظات بـ', 'No link': 'بدون ربط',
+'Drop .md files here, with any files they embed, or': 'أسقط ملفات Markdown هنا مع أي ملفات تتضمنها، أو',
+    'Choose files…': 'اختر ملفات…',
+    'Each .md file becomes one Code Note, titled with its file name. A file a note embeds, like ![[Checklist.xlsx]], is attached to it when you include that file too. Your files are only read, never changed.':
+      'كل ملف Markdown يصبح ملاحظة برمجية واحدة بعنوان اسم الملف. الملف الذي تتضمنه الملاحظة، مثل ![[Checklist.xlsx]]، يُرفق بها إذا أضفت ذلك الملف أيضاً. ملفاتك تُقرأ فقط ولا تُغيَّر أبداً.',
+    'No .md files chosen yet.': 'لم يتم اختيار ملفات Markdown بعد.', 'Import': 'استيراد', 'Import this file': 'استيراد هذا الملف',
+    'attached': 'مرفق', 'not in this selection': 'غير موجود في هذا الاختيار', 'Could not read': 'تعذّرت القراءة',
+    'Over 200,000 characters': 'أكثر من 200,000 حرف', 'Already in the Hub': 'موجود في المركز',
+    'What to do with the item that has this title': 'ما العمل بالعنصر الذي يحمل هذا العنوان', 'Skip': 'تخطٍّ',
+    'Replace its note': 'استبدال ملاحظته', 'New': 'جديد', 'That is too much at once. Import fewer files.': 'هذا كثير دفعة واحدة. استورد ملفات أقل.',
+    'Could not import the notes': 'تعذّر استيراد الملاحظات', 'Import 1 note': 'استيراد ملاحظة واحدة', 'Imported 1 note': 'تم استيراد ملاحظة واحدة',
+    'Import undone': 'تم التراجع عن الاستيراد', 'Could not undo the import': 'تعذّر التراجع عن الاستيراد',
+    'This import can no longer be undone': 'لم يعد بالإمكان التراجع عن هذا الاستيراد', 'No notes to import': 'لا توجد ملاحظات للاستيراد',
+    'Every note needs a title': 'كل ملاحظة تحتاج إلى عنوان', 'A note chosen for replacing no longer exists': 'الملاحظة المختارة للاستبدال لم تعد موجودة',
     'Write prerequisites, steps, notes, and troubleshooting guidance…': 'اكتب المتطلبات والخطوات والملاحظات وإرشادات استكشاف الأخطاء…',
     'Add a tag and press Enter': 'أضف وسماً واضغط Enter', 'Filter groups…': 'تصفية المجموعات…',
     'What belongs in this group': 'ما الذي ينتمي إلى هذه المجموعة', 'Filter knowledge items…': 'تصفية عناصر المعرفة…',
@@ -1472,6 +1503,14 @@
     [/^(.+) will be deleted once its sessions move\.$/s,
       m => `${arabicTranslation(m[1])} ستُحذف بمجرد نقل جلساتها.`],
     [/^Merged into (.+)$/s, m => `تم الدمج في ${arabicTranslation(m[1])}`],
+    // Code Notes: counts in the editor, the import dialog and its toast.
+    [/^Made (\d+) blanks$/, m => `تم إنشاء ${m[1]} فراغات`],
+    [/^Import (\d+) notes$/, m => `استيراد ${m[1]} ملاحظات`],
+    [/^(\d+) of (\d+) notes will be imported(?: · (\d+) other files)?$/,
+      m => `سيتم استيراد ${m[1]} من ${m[2]} ملاحظات` + (m[3] ? ` · ${m[3]} ملفات أخرى` : '')],
+    [/^Imported (\d+) notes?(?: · (\d+) files? attached)?(?: · (\d+) files? not added)?$/,
+      m => `تم استيراد ${m[1]} ${m[1] === '1' ? 'ملاحظة' : 'ملاحظات'}` + (m[2] ? ` · أُرفق ${m[2]} ${m[2] === '1' ? 'ملف' : 'ملفات'}` : '')
+        + (m[3] ? ` · لم يُضف ${m[3]} ${m[3] === '1' ? 'ملف' : 'ملفات'}` : '')],
     [/^Project restored, but couldn't relink: (.+)$/s, m => `تمت استعادة المشروع، لكن تعذّرت إعادة الربط: ${m[1]}`],
     // Task-card footer: "Acme · Billing  ·  3 sessions  ·  90 min (1.50 h)".
     // lookupKey() collapses the double spaces before matching, so accept any run.

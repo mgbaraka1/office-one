@@ -214,6 +214,12 @@ contextBridge.exposeInMainWorld('api', {
   purgeKnowledgeAttachment:    (itemId, relPath) => ipcRenderer.invoke('knowledge:purge-attachment', itemId, relPath),
   updateKnowledgeAttachmentNote: (attachmentId, note) => ipcRenderer.invoke('knowledge:update-attachment-note', attachmentId, note),
   purgeKnowledgeFiles:         (itemId) => ipcRenderer.invoke('knowledge:purge-files', itemId),
+  // ── Code Notes ──
+  importCodeNotes:        (entries) => ipcRenderer.invoke('knowledge:import-code-notes', entries),
+  undoCodeNoteImport:     (token)   => ipcRenderer.invoke('knowledge:undo-code-note-import', token),
+  forgetCodeNoteImport:   (token)   => ipcRenderer.invoke('knowledge:forget-code-note-import', token),
+  codeNoteSuggestions:    (itemId)  => ipcRenderer.invoke('knowledge:code-note-suggestions', itemId),
+  exportKnowledgeMarkdown: (id)     => ipcRenderer.invoke('knowledge:export-markdown', id),
 
   // Project & Finance (Offers & CRs)
   listPfmItems:       (filters)          => ipcRenderer.invoke('pfm:list', filters),

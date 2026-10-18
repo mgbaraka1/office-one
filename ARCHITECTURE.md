@@ -16,7 +16,7 @@ Office ONE is an offline, multi-user Electron desktop app covering:
 - **Clients** — bilingual client profiles plus VPN connections, servers and internal systems; client **Projects** with tracked documents and linked tasks live under each client.
 - **Subscriptions** and **Company Documents** — recurring spend and renewal-tracked files.
 - **Templates** — reusable files (Word, Excel, PDF…) to start new work from: the same cards as Company Documents, stored as `company_documents` rows with `kind = 'TEMPLATE'`, their own `TEMPLATE_CATEGORY` catalog, no renewal date, and Excel/PowerPoint/text uploads allowed.
-- **Knowledge Hub** — a document shelf found by client and system: drop a file to add it (a matching name becomes the next version, with an optional "what changed" note that can be edited later with a 5-second undo, and is searchable in the Hub and Quick Find), items open in a side panel, plain-text notes. Tags are retired: nothing reads or writes them. Versions of one document are grouped by name with the version set aside ("Guide v1.0" and "Guide v1.4" are one document); at the same number a plain version ranks above one with extra words ("1.4" above "1.4 changes"). The list's Open file opens the latest version, with a menu when an item has several documents. Each client page has a Knowledge Hub tab and each project page a Knowledge Hub section listing the items linked to its clients or systems; a file dropped there or a New item started there is pre-linked. Groups remain in the schema but have no UI; older rich-text notes still render and turn into plain text on their next edit.
+- **Knowledge Hub** — a document shelf found by client and system: drop a file to add it (a matching name becomes the next version, with an optional "what changed" note that can be edited later with a 5-second undo, and is searchable in the Hub and Quick Find), items open in a side panel, plain-text notes. **Code Notes** (kind `CODE_NOTE`, 078) hold Markdown instead: each fenced code block is shown with syntax colours and its own Copy button, a bold line right above a block is its label, and `{{name}}` / `{{name:default}}` in a block is a blank filled in (with remembered values, and server/database suggestions from the linked clients) when copying. `[[Note]]` links to the item with that title and `![[file.xlsx]]` to a document of the item. Import .md takes many files at once (one note per file, titled with the file name; a duplicate title is skipped or its note replaced; embedded files in the selection are attached; every note can optionally be linked to chosen systems or to chosen clients, never both, preset from the Hub's filter) and is undone in one click, links included; Export .md saves a note back out. Tags are retired: nothing reads or writes them. Versions of one document are grouped by name with the version set aside ("Guide v1.0" and "Guide v1.4" are one document); at the same number a plain version ranks above one with extra words ("1.4" above "1.4 changes"). The list's Open file opens the latest version, with a menu when an item has several documents. Each client page has a Knowledge Hub tab and each project page a Knowledge Hub section listing the items linked to its clients or systems; a file dropped there or a New item started there is pre-linked. Groups remain in the schema but have no UI; older rich-text notes still render and turn into plain text on their next edit.
 - **Project & Finance** — Offers and Change Requests (CRs): a status stage trail, fee-bearing versions with uploaded files, follow-up/expiry reminders and Excel export.
 - **Outsource** — external resources paid by the hour: Person → Projects → Entries (a keyboard-first timesheet grid per project), an hourly rate history, statements (draft → issued → paid) with Excel/PDF export, and an Overview "owed" tile.
 - **Overview / Reports** — read-only analytics, PDF/CSV/Excel export.
@@ -34,7 +34,7 @@ lives **only** in the main-process session and is never trusted from the rendere
 | Storage | `node:sqlite` `DatabaseSync` — built into Node 24, ships inside Electron |
 | Hashing | `bcryptjs` (pure JS; the only runtime dependency) |
 | Renderer | Vanilla HTML/CSS/classic-script JS, system fonts |
-| Vendored 3rd-party JS | DOMPurify, Knowledge Hub only (`renderer/vendor/`) — renders older rich-text notes |
+| Vendored 3rd-party JS | Knowledge Hub only (`renderer/vendor/`): DOMPurify (older rich-text notes and Code Notes), marked (Code Note Markdown), highlight.js common bundle + PowerShell (code colours) |
 | Packaging | `electron-builder` → Windows NSIS + portable |
 
 No bundler, no transpilation, no native addons. `engines.node` is `>=24` and CI
@@ -62,16 +62,17 @@ renderer/
   core.js            Icons, shared state, modals/focus traps, toasts, lookups, pickers
   app.css            All application styling (design tokens in :root)
   features/          timesheet.js, tasks.js, workspace.js, clients.js, knowledge.js,
-                     knowledge-sanitize.js, company-documents.js, pfm.js, outsource.js,
+                     knowledge-sanitize.js, code-notes.js, company-documents.js, pfm.js, outsource.js,
                      shell.js
-  vendor/            dompurify/
+  vendor/            dompurify/, marked/, highlight/
 migrations/          000_baseline.js … 066_outsource.js (append-only)
 test/                40 *-smoke.js suites + run-all.js + electron-e2e.js + helpers
 ```
 
 Renderer scripts are **ordered classic scripts**, not modules — load order in
 `index.html` matters (`core.js` before every feature file; DOMPurify before
-`knowledge-sanitize.js` before `knowledge.js`). Any new top-level path must be
+`knowledge-sanitize.js` before `knowledge.js`, then marked and highlight.js before
+`code-notes.js`). Any new top-level path must be
 added to `package.json` → `build.files` or it will be missing from packaged builds.
 
 ## 4. Database
@@ -255,6 +256,7 @@ Landmarks worth knowing:
 | 075 | Templates — `company_documents.kind` ('DOCUMENT' default, or 'TEMPLATE', CHECK-constrained), a seeded `TEMPLATE_CATEGORY` lookup category, and the three `workspace_search_company_documents_*` triggers recreated so a template indexes as kind `template`. Files share `company_documents/{id}/` and every backup/restore path |
 | 076 | Server lists and status — `client_servers.linked_servers`, `workloads`, `external_parties` (JSON arrays of plain strings, default '[]') and `status` ('ACTIVE' default, or 'INACTIVE', CHECK-constrained). The two `workspace_search_client_servers_*` insert/update triggers recreated so Quick Find also searches the three lists |
 | 077 | Server identity includes the IP — `idx_client_servers_identity` re-keyed onto (user, client, system, role, environment, host), host case- and space-insensitive. Two servers may share System / Role / Environment when their IPs differ; servers with no IP still collide on the triple alone |
+| 078 | Code Notes — `KNOWLEDGE_TYPE` `CODE_NOTE` seeded ("Code Note" / "ملاحظة برمجية", sorted last). No table change: a code note is a knowledge item with `content_format = 'markdown'` (the column carries no CHECK), and its code is already indexed by the knowledge search triggers |
 
 **A guarded seed is the right shape for a fresh-install gap.** Migration 003
 seeded some categories from "legacy blob ∪ values already in the data", both
@@ -528,7 +530,7 @@ theme is **not** in `workspaceViewPrefs` — it lives on `documentElement[data-t
 
 ## 8. IPC
 
-174 channels, named `domain:action`. Domains: `auth`, `app`, `days`, `companies`,
+246 channels, named `domain:action`. Domains: `auth`, `app`, `days`, `companies`,
 `systems`, `analytics`, `attention`, `activity`, `lookups`, `subscriptions`,
 `tasks`, `search`, `worklogs`, `day`, `projects`, `departments`, `internal`,
 `companydocs`, `knowledge`, `pfm` (24 channels), `clients`, `ui`, `preferences`, `db`,
@@ -688,8 +690,8 @@ nothing closes it and the file stays locked for the rest of the process.
 ⚠️ **`run-all.js` stops at the first failure**, so a single green run can hide a
 second bug behind the first fix.
 
-`npm test` alone does not prove the Knowledge Hub sanitizer works; run
-`npm run test:e2e` for that.
+`npm test` alone does not prove the Knowledge Hub sanitizer works, nor how Code
+Notes render; run `npm run test:e2e` for that.
 
 CI (`ci.yml`, windows-latest, Node 24) runs `npm ci` → `npm run lint` →
 `npm test` → `npm run test:e2e` → `npm run pack` → `npm audit --omit=dev

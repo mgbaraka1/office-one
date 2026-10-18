@@ -255,8 +255,10 @@ gate('Knowledge Hub keeps navigation and empty states focused',
   && html.includes('id="kh-empty-title"')
   && html.includes('id="kh-empty-clear"')
   && html.includes('function resetKnowledgeFilters()'));
+// Document-first for every kind but a Code Note, whose Markdown note leads.
 gate('Knowledge detail is document-first and supports adding a new version',
-  html.indexOf("const files = pjMk('section', 'kh-section')") < html.indexOf("if (item.content)")
+  html.indexOf("const files = pjMk('section', 'kh-section')") < html.indexOf("if (!markdown && item.content) page.appendChild(buildKnowledgeContentSection(item, 'Notes'))")
+  && html.indexOf("if (markdown && item.content) page.appendChild(buildKnowledgeContentSection(item, 'Note'))") < html.indexOf("const files = pjMk('section', 'kh-section')")
   && html.includes('function buildKnowledgeDocumentFamily(item, files)')
   && html.includes("khButton('New version'")
   && html.includes('function openKnowledgeDocumentModal(itemId, documentName'));
@@ -266,12 +268,12 @@ gate('Knowledge item duplication creates stable numbered copy titles',
 gate('Knowledge item delete replaces an older undo safely',
   html.includes('const previous = knowledgeUndo')
   && html.includes('purgeKnowledgeFiles(previous.oldId)'));
-gate('Knowledge Hub notes are plain text (no rich editor), with safe links and recoverable drafts',
+gate('Knowledge Hub notes are plain text (no rich editor) unless a Code Note, with safe links and recoverable drafts',
   html.includes('id="kh-notes-input"')
   && !html.includes('id="kh-content-editor"') && !html.includes('vendor/quill/')
-  && html.includes("contentFormat: 'text'")
+  && html.includes("contentFormat: codeNoteEditorActive() ? 'markdown' : 'text'")
   && html.includes('function knowledgeNotesFromItem(data)')
-  && html.includes('function renderKnowledgeContent(host, value, format)')
+  && html.includes('function renderKnowledgeContent(host, value, format, item)')
   && html.includes('knowledgeDraftCache = knowledgeEditorSnapshot()')
   && html.includes('function recoverKnowledgeDraft()'));
 gate('Knowledge Hub supports combined accessible filters and highlighted search snippets',

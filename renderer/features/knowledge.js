@@ -263,6 +263,9 @@ function setupKnowledgeFileDrop() {
     if (!knowledgeDragHasFiles(event)) return;
     event.preventDefault();
     const toPanel = onPanel(event.target); clear();
+    // .md files (with any files they embed) go to Import .md, however many.
+    const dropped = [...(event.dataTransfer?.files || [])];
+    if (dropped.some(isCodeNoteMarkdownFile)) { openCodeNoteImport(dropped); return; }
     const file = knowledgeDroppedFile(event); if (file) handleKnowledgeDrop(file, toPanel);
   });
 }
@@ -380,6 +383,8 @@ function filterKnowledgeFacetButtons(value) {
 }
 function knowledgeContentPlainText(item) {
   const raw = String(item?.content || '');
+  // Markdown keeps its words (code included) and loses only fence lines and bold marks.
+  if (item?.contentFormat === 'markdown') return raw.replace(/^\s*```.*$/gm, '').replace(/\*\*/g, '');
   if (item?.contentFormat !== 'html' || !raw) return raw;
   const scratch = document.createElement('div');
   scratch.innerHTML = sanitizeKnowledgeHtml(raw);
@@ -508,7 +513,7 @@ async function downloadKnowledgeZip(items, allVersions) {
 function buildKnowledgeRow(item, q, onOpen) {
   const row = pjMk('div', 'kh-row' + (item.id === knowledgeCurrentId ? ' active' : '')); row.dataset.knowledgeId = item.id;
   const main = pjMk('button', 'kh-row-main'); main.type = 'button';
-  const icon = pjMk('span', 'kh-row-icon'); icon.innerHTML = ic(item.type === 'TROUBLESHOOTING' ? 'wrench' : item.type === 'INTEGRATION_GUIDE' ? 'plug' : 'book-open');
+  const icon = pjMk('span', 'kh-row-icon'); icon.innerHTML = ic(isCodeNoteItem(item) ? 'code' : item.type === 'TROUBLESHOOTING' ? 'wrench' : item.type === 'INTEGRATION_GUIDE' ? 'plug' : 'book-open');
   const copy = pjMk('div'), title = pjMk('div', 'kh-row-title');
   appendHighlightedText(title, item.title, q); copy.appendChild(title);
   const subtitle = q ? knowledgeRowSubtitle(item, q) : item.summary;
@@ -603,23 +608,29 @@ async function openKnowledgeDetail(id) {
   actions.append(khButton('Edit', 'primary', () => openKnowledgeEditor(item)), khButton('Add document', '', () => openKnowledgeDocumentModal(item.id)));
   actions.appendChild(buildKnowledgeOverflow([
     { label: 'Duplicate', run: () => duplicateKnowledgeItem(item) },
+    ...(item.content ? [{ label: 'Export .md', run: () => exportKnowledgeMarkdown(item) }] : []),
     ...(item.status === 'DRAFT' ? [{ label: 'Mark as ready', run: () => setKnowledgeStatus(item, 'PUBLISHED') }] : []),
     { label: item.status === 'ARCHIVED' ? 'Restore from archive' : 'Archive', run: () => setKnowledgeStatus(item, item.status === 'ARCHIVED' ? 'PUBLISHED' : 'ARCHIVED') },
     { label: 'Delete item', danger: true, run: () => showDeleteConfirm(actions, () => deleteKnowledgeItem(item), () => openKnowledgeDetail(item.id)) },
   ]));
   head.append(copy, actions); page.appendChild(head);
+  // A Code Note is its note first; its documents come after, when it has any.
+  const markdown = item.contentFormat === 'markdown';
+  if (markdown && item.content) page.appendChild(buildKnowledgeContentSection(item, 'Note'));
   const files = pjMk('section', 'kh-section');
   files.appendChild(pjMk('h3', '', 'Documents (' + item.documents.length + ')'));
   knowledgeDocumentFamilies(item.documents).forEach(family => files.appendChild(buildKnowledgeDocumentFamily(item, family)));
   files.appendChild(pjMk('div', 'kh-drop-tip', item.documents.length
     ? 'Drop a file on this panel to add it. A matching name becomes the next version.'
     : 'No documents yet. Drop a file on this panel, or use Add document.'));
-  page.appendChild(files);
-  if (item.content) {
-    const content = pjMk('section', 'kh-section'), rendered = pjMk('div', 'kh-content');
-    content.append(pjMk('h3', '', 'Notes'), rendered); renderKnowledgeContent(rendered, item.content, item.contentFormat); page.appendChild(content);
-  }
+  if (!markdown || item.documents.length || !item.content) page.appendChild(files);
+  if (!markdown && item.content) page.appendChild(buildKnowledgeContentSection(item, 'Notes'));
   host.appendChild(page); back.focus();
+}
+function buildKnowledgeContentSection(item, heading) {
+  const content = pjMk('section', 'kh-section'), rendered = pjMk('div', 'kh-content');
+  content.append(pjMk('h3', '', heading), rendered); renderKnowledgeContent(rendered, item.content, item.contentFormat, item);
+  return content;
 }
 function closeKnowledgeDetail() {
   knowledgeCurrentId = null; knowledgeCurrentItem = null; showKnowledgeListView(); renderKnowledgeList();
@@ -705,8 +716,9 @@ function appendKnowledgeInline(parent, text) {
   }
   parent.appendChild(document.createTextNode(text.slice(last)));
 }
-function renderKnowledgeContent(host, value, format) {
-  if (format === 'html') renderKnowledgeContentHtml(host, value);
+function renderKnowledgeContent(host, value, format, item) {
+  if (format === 'markdown') renderCodeNoteContent(host, value, item);
+  else if (format === 'html') renderKnowledgeContentHtml(host, value);
   else renderKnowledgeContentText(host, value);
 }
 function renderKnowledgeContentHtml(host, value) {
@@ -776,7 +788,7 @@ function knowledgeEditorSnapshot() {
   return {
     itemId: knowledgeEditId, title: document.getElementById('kh-title-input').value,
     type: document.getElementById('kh-type-input').value, status: knowledgeEditorStatus,
-    summary: document.getElementById('kh-summary-input').value, content: document.getElementById('kh-notes-input').value, contentFormat: 'text',
+    summary: document.getElementById('kh-summary-input').value, content: document.getElementById('kh-notes-input').value, contentFormat: codeNoteEditorActive() ? 'markdown' : 'text',
     companyIds: khCompaniesPicker?.getSelectedIds() || [], systemIds: khSystemsPicker?.getSelectedIds() || [],
     savedAt: new Date().toISOString(),
   };
@@ -793,6 +805,8 @@ function applyKnowledgeEditorData(data) {
   khSystemsPicker = buildKnowledgeLinkPicker('kh-systems', 'SYSTEM', data?.systemIds || (data?.systems || []).map(x => x.id), 'Search systems…');
   document.getElementById('kh-notes-input').value = knowledgeNotesFromItem(data);
   document.getElementById('kh-more').open = !!String(data?.summary || '').trim();
+  knowledgeEditorFormat = data?.contentFormat === 'markdown' ? 'markdown' : 'text';
+  showCodeNotePreview(false); syncCodeNoteEditor();
 }
 function recoverKnowledgeDraft() {
   if (!knowledgePendingDraft) return;
@@ -821,6 +835,7 @@ function openKnowledgeEditor(item, file, preset) {
   document.getElementById('kh-editor-file-row').hidden = !!item;
   const type = document.getElementById('kh-type-input'); type.innerHTML = '<option value="">No kind</option>';
   lkOptions('KNOWLEDGE_TYPE').forEach(option => { const el = document.createElement('option'); el.dataset.userContent = ''; el.value = option.code; el.textContent = lookupDisplayName(option); type.appendChild(el); });
+  type.onchange = syncCodeNoteEditor;
   applyKnowledgeEditorData(item || { status: 'PUBLISHED', companyIds: preset?.companyIds || [], systemIds: preset?.systemIds || [] });
   clearErrorsIn('#knowledge-modal'); setKnowledgeEditorFile(item ? null : file);
   const draft = knowledgeDraftCache;
@@ -847,7 +862,7 @@ async function saveKnowledgeEditor() {
   const editing = knowledgeEditId, file = editing ? null : knowledgeEditorFile;
   const data = {
     title, type: document.getElementById('kh-type-input').value, status: knowledgeEditorStatus,
-    summary: document.getElementById('kh-summary-input').value.trim(), content: document.getElementById('kh-notes-input').value.replace(/\s+$/, ''), contentFormat: 'text',
+    summary: document.getElementById('kh-summary-input').value.trim(), content: document.getElementById('kh-notes-input').value.replace(/\s+$/, ''), contentFormat: codeNoteEditorActive() ? 'markdown' : 'text',
     companyIds: khCompaniesPicker.getSelectedIds(), systemIds: khSystemsPicker.getSelectedIds(),
   };
   try {

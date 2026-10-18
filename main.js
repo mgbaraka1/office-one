@@ -602,6 +602,26 @@ ipcMain.handle('knowledge:restore-attachment', authed((_e, itemId, fileMeta) => 
 ipcMain.handle('knowledge:update-attachment-note', authed((_e, attachmentId, note) => db.updateKnowledgeAttachmentNote(auth.requireUserId(), attachmentId, note)));
 ipcMain.handle('knowledge:purge-attachment', authed((_e, itemId, relPath) => db.purgeKnowledgeAttachment(auth.requireUserId(), itemId, relPath)));
 ipcMain.handle('knowledge:purge-files', authed((_e, itemId) => db.purgeKnowledgeFiles(auth.requireUserId(), itemId)));
+// ── Code Notes ──
+ipcMain.handle('knowledge:import-code-notes', authed((_e, entries) => db.importCodeNotes(auth.requireUserId(), entries)));
+ipcMain.handle('knowledge:undo-code-note-import', authed((_e, token) => db.undoCodeNoteImport(auth.requireUserId(), token)));
+ipcMain.handle('knowledge:forget-code-note-import', authed((_e, token) => db.forgetCodeNoteImport(auth.requireUserId(), token)));
+ipcMain.handle('knowledge:code-note-suggestions', authed((_e, itemId) => db.codeNoteSuggestions(auth.requireUserId(), itemId)));
+// Saves an item's note as a .md file. The text is read here by id, so the
+// renderer never supplies what gets written, only where (through the dialog).
+ipcMain.handle('knowledge:export-markdown', authed(async (_e, id) => {
+  const item = db.getKnowledgeItem(auth.requireUserId(), id);
+  if (!item) return { ok: false, error: 'Knowledge item not found' };
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    title: 'Export note as Markdown',
+    defaultPath: zipPathSegment(item.title, 'note') + '.md',
+    filters: [{ name: 'Markdown', extensions: ['md'] }],
+  });
+  if (canceled || !filePath) return { ok: false, canceled: true };
+  const text = String(item.content || '');
+  try { fs.writeFileSync(filePath, text.endsWith('\n') ? text : text + '\n', 'utf8'); return { ok: true, path: filePath }; }
+  catch (err) { return { ok: false, error: String(err?.message || err) }; }
+}));
 
 // ── Project & Finance (Offers & CRs) — private per login, like tasks ──
 ipcMain.handle('pfm:list',           authed((_e, filters)        => db.listPfmItems(auth.requireUserId(), filters || {})));

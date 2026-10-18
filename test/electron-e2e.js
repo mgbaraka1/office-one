@@ -860,6 +860,110 @@ async function run() {
     throw new Error(`Knowledge Hub HTML sanitizer failed: ${JSON.stringify(sanitize)}`);
   }
 
+  // Code Notes (migration 078) in the real renderer: Markdown → marked →
+  // DOMPurify → copyable code blocks; the fill-in form; the Markdown editor;
+  // Import .md with its undo. Every note here is made up.
+  const codeNotes = await evaluate(`(async () => {
+    const tr = key => window.ctI18n?.t?.(key) ?? key;
+    const wait = async test => { for (let i = 0; i < 60 && !test(); i++) await new Promise(r => setTimeout(r, 50)); return !!test(); };
+    closePalette(); switchModule('knowledge');
+    const target = await window.api.createKnowledgeItem({ title: 'E2E Contoso index check', type: 'CODE_NOTE', status: 'PUBLISHED', content: 'SELECT 1', contentFormat: 'markdown' });
+    await loadKnowledgeItems();
+    const item = knowledgeItems.find(entry => entry.id === target.id);
+    const host = document.createElement('div'); document.body.appendChild(host);
+    renderCodeNoteContent(host, [
+      '**Set DB offline**', '\\u0060\\u0060\\u0060 sql', 'ALTER DATABASE {{db}} SET OFFLINE -- <img src=x onerror="window.__cnPwned = 1">', '\\u0060\\u0060\\u0060',
+      '<script>window.__cnPwned = 2</script><img src="x" onerror="window.__cnPwned = 3">', '',
+      '<a href="javascript:window.__cnPwned = 4">bad</a> See [[E2E Contoso index check]] and [[E2E nowhere note]], file ![[E2E Missing.xlsx]].', '',
+      'مرحبا بالعالم',
+    ].join('\\n'), item);
+    await new Promise(r => setTimeout(r, 50));
+    const block = host.querySelector('.cn-block'), links = [...host.querySelectorAll('a')];
+    const render = {
+      noScriptOrImg: !host.querySelector('script, img') && window.__cnPwned === undefined,
+      noJsUrl: !links.some(a => /^javascript:/i.test(a.getAttribute('href') || '')),
+      oneBlock: host.querySelectorAll('.cn-block').length === 1,
+      labelled: block?.querySelector('.cn-block-label')?.textContent === 'Set DB offline' && !host.querySelector(':scope > p > strong'),
+      codeIsText: (block?.querySelector('code')?.textContent || '').includes('<img src=x') && !!block?.querySelector('.hljs-keyword'),
+      blankMarked: block?.querySelector('mark.cn-blank')?.textContent === '{{db}}',
+      fillButton: block?.querySelector('.cn-copy')?.textContent.trim() === tr('Fill & copy'),
+      noteLink: links.some(a => a.classList.contains('cn-wikilink') && !a.classList.contains('missing') && a.textContent === 'E2E Contoso index check'),
+      missingNote: links.some(a => a.classList.contains('cn-wikilink') && a.classList.contains('missing')),
+      missingFile: links.some(a => a.classList.contains('cn-embed') && a.classList.contains('missing')),
+      rtl: [...host.querySelectorAll('p')].some(p => p.textContent === 'مرحبا بالعالم' && p.getAttribute('dir') === 'auto'),
+      codeLtr: block?.querySelector('pre')?.getAttribute('dir') === 'ltr',
+    };
+    // Copy opens the fill-in form; the value is used everywhere and remembered.
+    block.querySelector('.cn-copy').click();
+    const overlay = document.getElementById('code-note-fill-overlay');
+    const input = document.querySelector('#cn-fill-fields input[data-blank="db"]');
+    input.value = 'Northwind_Test'; input.dispatchEvent(new Event('input', { bubbles: true }));
+    const fill = {
+      opened: overlay.classList.contains('open'),
+      preview: document.getElementById('cn-fill-preview').textContent.includes('ALTER DATABASE Northwind_Test SET OFFLINE'),
+    };
+    await submitCodeNoteFill();
+    fill.closed = !overlay.classList.contains('open');
+    fill.remembered = uiState.codeNoteValues?.['n' + target.id]?.db === 'Northwind_Test';
+    host.remove();
+    // The editor becomes a Markdown editor for a Code Note.
+    openKnowledgeEditor(null);
+    const type = document.getElementById('kh-type-input'); type.value = 'CODE_NOTE'; type.dispatchEvent(new Event('change', { bubbles: true }));
+    const notes = document.getElementById('kh-notes-input');
+    notes.value = 'SELECT 1 FROM HR_TEST; -- HR_TEST and HR_TESTING';
+    notes.setSelectionRange(0, notes.value.length); codeNoteCodeBlock();
+    const at = notes.value.indexOf('HR_TEST'); notes.setSelectionRange(at, at + 7); makeCodeNoteBlank();
+    toggleCodeNotePreview();
+    const editor = {
+      toolbar: !document.getElementById('kh-md-toolbar').hidden && notes.classList.contains('kh-notes-md'),
+      fenced: notes.value.startsWith('\\u0060\\u0060\\u0060sql\\n'),
+      blanks: notes.value.split('{{HR_TEST}}').length === 3 && notes.value.includes('HR_TESTING'),
+      preview: !!document.querySelector('#kh-md-preview .cn-block') && document.querySelectorAll('#kh-md-preview mark.cn-blank').length === 2,
+      format: knowledgeEditorSnapshot().contentFormat === 'markdown',
+    };
+    closeKnowledgeEditor(true); discardKnowledgeDraft();
+    // The detail panel leads with the note and offers Export .md.
+    await openKnowledgeDetail(target.id);
+    const panel = document.getElementById('kh-detail-view');
+    const detail = {
+      noteFirst: panel.querySelector('.kh-section h3')?.textContent === tr('Note'),
+      exportOffered: [...panel.querySelectorAll('.kh-overflow-menu button')].some(b => b.textContent === tr('Export .md')),
+      codeIcon: !!document.querySelector('#kh-list .kh-row[data-knowledge-id="' + target.id + '"] .kh-row-icon'),
+    };
+    closeKnowledgeDetail();
+    // Import .md: a new note imports, the same title is skipped by default, undo removes the new one.
+    // Opened from a Hub filtered by a system, every note is linked to that system.
+    const linkSystem = lkOptions('SYSTEM').find(o => o.isActive), savedFilters = knowledgeFilters;
+    knowledgeFilters = new Set(['SYSTEM:' + linkSystem.id]);
+    openCodeNoteImport([
+      new File(['\\u0060\\u0060\\u0060sql\\nDBCC SQLPERF(LOGSPACE)\\n\\u0060\\u0060\\u0060\\n![[E2E sheet.xlsx]]\\n'], 'E2E Northwind log size.md'),
+      new File(['\\u0060\\u0060\\u0060\\nx\\n\\u0060\\u0060\\u0060'], 'E2E Contoso index check.md'),
+    ]);
+    await wait(() => (codeNoteImport?.rows || []).length === 2);
+    const rows = [...document.querySelectorAll('#cn-import-list .cn-import-row')];
+    const importing = {
+      listed: rows.length === 2,
+      duplicateFlagged: rows.some(row => row.textContent.includes(tr('Already in the Hub')) && row.querySelector('select')?.value === 'skip'),
+      embedMissing: rows.some(row => row.querySelector('.cn-import-embed.missing')),
+      button: document.getElementById('cn-import-go').textContent === tr('Import 1 note'),
+      systemPreset: codeNoteImport.linkKind === 'SYSTEM' && JSON.stringify(codeNoteImport.linkPicker.getSelectedIds()) === JSON.stringify([linkSystem.id])
+        && document.querySelector('#cn-import-link-kind .seg-btn.active')?.dataset.kind === 'SYSTEM',
+    };
+    knowledgeFilters = savedFilters;
+    await runCodeNoteImport();
+    const imported = knowledgeItems.find(entry => entry.title === 'E2E Northwind log size');
+    importing.imported = imported?.type === 'CODE_NOTE' && imported.contentFormat === 'markdown'
+      && knowledgeItems.filter(entry => entry.title === 'E2E Contoso index check').length === 1;
+    importing.linked = (imported?.systems || []).some(link => link.id === linkSystem.id);
+    document.querySelector('#app-toast .toast-action-btn')?.click();
+    importing.undone = await wait(() => !knowledgeItems.some(entry => entry.title === 'E2E Northwind log size'));
+    await window.api.deleteKnowledgeItem(target.id); await loadKnowledgeItems();
+    return { render, fill, editor, detail, importing };
+  })()`);
+  for (const [area, checks] of Object.entries(codeNotes)) {
+    if (!Object.values(checks).every(Boolean)) throw new Error(`Code Notes ${area} failed: ${JSON.stringify(checks)}`);
+  }
+
   // Knowledge Hub shelf (Phase 2): a real file goes in through <input type=file>
   // (set over CDP, so it carries a disk path) and reaches main via preload's
   // webUtils; a second file with a matching name becomes the next version.
@@ -1164,6 +1268,9 @@ async function run() {
   console.log('PASS  Context-isolated preload IPC created and searched a knowledge item');
   console.log('PASS  Knowledge Hub links an item to a client, finds it by the Arabic client name, and filters the list by client');
   console.log('PASS  Knowledge Hub HTML sanitizer strips scripts/handlers/img/js-urls/style while keeping the safe subset');
+  console.log('PASS  Code Notes render Markdown safely: labelled, coloured code blocks with Copy, blanks, wiki links, embeds, RTL text');
+  console.log('PASS  Code Notes fill in blanks before copying and remember the values; the editor becomes a Markdown editor with tools and preview');
+  console.log('PASS  Import .md flags a duplicate title, imports the new note as a Code Note, and its undo removes it');
   console.log('PASS  Knowledge Hub adds a real picked file, refuses a page-made File, versions a matching drop as 1.1 with a "what changed" note, and edits that note');
   console.log('PASS  Knowledge Hub opens items in a side panel beside the list, with plain-text notes and one-click Open');
   console.log('PASS  Client and project pages list their Knowledge Hub items; a drop or New item there is pre-linked and stays on the page');

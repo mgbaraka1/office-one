@@ -11,3 +11,16 @@ const KNOWLEDGE_SANITIZE_CONFIG = {
 function sanitizeKnowledgeHtml(html) {
   return window.DOMPurify.sanitize(String(html || ''), KNOWLEDGE_SANITIZE_CONFIG);
 }
+
+// Code Notes (Markdown, see code-notes.js): what marked can produce from a note,
+// minus images, inputs and anything with a URL other than a link's href. Raw
+// HTML written inside a note goes through this too. Wiki links and embeds come
+// out of marked as `#kh-note:` / `#kh-file:` fragment links, wired up after.
+const CODE_NOTE_SANITIZE_CONFIG = {
+  ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'del', 's', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote', 'pre', 'code', 'a', 'span', 'hr', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
+  ALLOWED_ATTR: ['href', 'class', 'title', 'align', 'start'],
+  ALLOW_DATA_ATTR: false,
+};
+function sanitizeCodeNoteHtml(html) {
+  return window.DOMPurify.sanitize(String(html || ''), CODE_NOTE_SANITIZE_CONFIG);
+}

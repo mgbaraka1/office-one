@@ -124,7 +124,7 @@ module.exports = [
     ignores: [
       'node_modules/**',
       'dist/**',
-      'renderer/vendor/**', // DOMPurify, vendored verbatim — not ours to lint.
+      'renderer/vendor/**', // DOMPurify, marked, highlight.js: vendored verbatim, not ours to lint.
     ],
   },
 

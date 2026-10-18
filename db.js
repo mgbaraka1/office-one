@@ -2206,7 +2206,8 @@ function knowledgeLinks(kind, userId = null, itemId = null) {
       ORDER BY lc.sort_order, lc.label`
   ).all(itemId != null ? itemId : userId);
 }
-function knowledgeContentFormat(value) { return value === 'html' ? 'html' : 'text'; }
+// 'markdown' is a Code Note (migration 078); 'html' is a legacy rich-text note.
+function knowledgeContentFormat(value) { return value === 'html' || value === 'markdown' ? value : 'text'; }
 function listKnowledgeItems(userId) {
   const rows = db.prepare('SELECT * FROM knowledge_items WHERE user_id = ? ORDER BY updated_at DESC, id DESC').all(userId);
   if (!rows.length) return [];
@@ -2469,6 +2470,127 @@ function purgeKnowledgeFiles(userId, itemId) {
   pendingKnowledgeDeletes.delete(n);
   try { fs.rmSync(knowledgeItemDir(n), { recursive: true, force: true }); } catch {}
   return { ok: true };
+}
+
+// ── Code Notes (migration 078) ──
+// Many .md files become Markdown knowledge items of kind CODE_NOTE in one
+// transaction. An entry with `replaceId` overwrites that item's note in place
+// (its title, links and documents stay). The renderer then attaches each
+// note's embedded files through the usual upload. The whole import can be
+// undone while its toast is up: new items are removed and replaced notes get
+// their old text, kind and date back, minus any document added since the
+// import started. The record lives in memory only, like a pending delete.
+const MAX_CODE_NOTE_IMPORT = 500;
+const MAX_CODE_NOTE_CHARS = 200000;
+const pendingCodeNoteImports = new Map(); // token -> { userId, startedAt, createdIds, replaced }
+function importCodeNotes(userId, entries) {
+  const list = (Array.isArray(entries) ? entries : []).slice(0, MAX_CODE_NOTE_IMPORT).map(entry => ({
+    title: String(entry?.title || '').trim().slice(0, 300),
+    content: String(entry?.content ?? '').replace(/\r\n?/g, '\n').slice(0, MAX_CODE_NOTE_CHARS),
+    replaceId: entry?.replaceId != null ? Number(entry.replaceId) : null,
+    links: { companies: entry?.companyIds, systems: entry?.systemIds },
+  }));
+  if (!list.length) return { ok: false, error: 'No notes to import' };
+  if (list.some(entry => !entry.title)) return { ok: false, error: 'Every note needs a title' };
+  // The kind may have been switched off or removed in Settings; the notes still import.
+  const typeId = lkIdForUser(userId, 'KNOWLEDGE_TYPE', 'CODE_NOTE');
+  const startedAt = new Date().toISOString();
+  const ids = [], createdIds = [], replaced = [], addedLinks = [];
+  // Client / system links are added, never removed: a replaced note keeps the
+  // links it had. Each link actually added is recorded so undo can take it back.
+  const addLinks = (itemId, links) => Object.entries(links).forEach(([kind, values]) => {
+    const [table, column, category] = KNOWLEDGE_LINK_TABLES[kind];
+    const link = db.prepare(`INSERT OR IGNORE INTO ${table}(item_id, ${column}) VALUES(?, ?)`);
+    new Set((Array.isArray(values) ? values : []).slice(0, 100).map(Number)).forEach(id => {
+      if (!Number.isInteger(id) || !isLookupId(category, id) || !canAccessLookup(userId, id)) return;
+      if (link.run(itemId, id).changes) addedLinks.push({ kind, itemId, id });
+    });
+  });
+  try {
+    tx(() => {
+      const find = db.prepare('SELECT id, type_id, content, content_format, updated_at FROM knowledge_items WHERE id = ? AND user_id = ?');
+      const update = db.prepare('UPDATE knowledge_items SET type_id = ?, content = ?, content_format = ?, updated_at = ? WHERE id = ? AND user_id = ?');
+      const insert = db.prepare(
+        `INSERT INTO knowledge_items(user_id, title, type_id, status, summary, content, content_format, created_at, updated_at)
+         VALUES(?, ?, ?, 'PUBLISHED', '', ?, 'markdown', ?, ?)`
+      );
+      for (const entry of list) {
+        if (entry.replaceId != null) {
+          const before = find.get(entry.replaceId, userId);
+          if (!before) throw new Error('A note chosen for replacing no longer exists');
+          update.run(typeId ?? before.type_id, entry.content, 'markdown', startedAt, before.id, userId);
+          replaced.push({ ...before });
+          ids.push(before.id);
+        } else {
+          const id = Number(insert.run(userId, entry.title, typeId, entry.content, startedAt, startedAt).lastInsertRowid);
+          createdIds.push(id);
+          ids.push(id);
+        }
+        addLinks(ids[ids.length - 1], entry.links);
+      }
+    });
+  } catch (err) { return { ok: false, error: String(err?.message || err) }; }
+  const token = crypto.randomUUID();
+  pendingCodeNoteImports.set(token, { userId, startedAt, createdIds, replaced, addedLinks });
+  return { ok: true, token, ids };
+}
+function undoCodeNoteImport(userId, token) {
+  const key = String(token || ''), record = pendingCodeNoteImports.get(key);
+  if (!record || record.userId !== userId) return { ok: false, error: 'This import can no longer be undone' };
+  pendingCodeNoteImports.delete(key);
+  const files = [];
+  tx(() => {
+    const added = db.prepare('SELECT file_path FROM knowledge_attachments WHERE item_id = ? AND user_id = ? AND uploaded_at >= ?');
+    const dropAdded = db.prepare('DELETE FROM knowledge_attachments WHERE item_id = ? AND user_id = ? AND uploaded_at >= ?');
+    const restore = db.prepare('UPDATE knowledge_items SET type_id = ?, content = ?, content_format = ?, updated_at = ? WHERE id = ? AND user_id = ?');
+    const remove = db.prepare('DELETE FROM knowledge_items WHERE id = ? AND user_id = ?');
+    for (const before of record.replaced) {
+      added.all(before.id, userId, record.startedAt).forEach(row => files.push({ itemId: before.id, path: row.file_path }));
+      dropAdded.run(before.id, userId, record.startedAt);
+      restore.run(before.type_id, before.content, before.content_format, before.updated_at, before.id, userId);
+    }
+    // New items take their links with them (ON DELETE CASCADE); replaced ones lose only what the import added.
+    record.addedLinks.forEach(({ kind, itemId, id }) => {
+      const [table, column] = KNOWLEDGE_LINK_TABLES[kind];
+      db.prepare(`DELETE FROM ${table} WHERE item_id = ? AND ${column} = ?`).run(itemId, id);
+    });
+    record.createdIds.forEach(id => remove.run(id, userId));
+  });
+  files.forEach(file => {
+    try { const abs = resolveStoredPath(file.path); resolveInside(knowledgeItemDir(file.itemId), abs); fs.rmSync(abs, { force: true }); } catch { /* best effort */ }
+  });
+  record.createdIds.forEach(id => { try { fs.rmSync(knowledgeItemDir(id), { recursive: true, force: true }); } catch { /* best effort */ } });
+  return { ok: true, removed: record.createdIds.length, restored: record.replaced.length };
+}
+// The toast closed: the import stays.
+function forgetCodeNoteImport(userId, token) {
+  const key = String(token || '');
+  if (pendingCodeNoteImports.get(key)?.userId === userId) pendingCodeNoteImports.delete(key);
+  return { ok: true };
+}
+// Values offered for a note's {{server}} / {{db}} blanks: the servers and
+// databases of the clients the note is linked to. Read-only.
+function codeNoteSuggestions(userId, itemId) {
+  const empty = { servers: [], databases: [] };
+  if (!ownsKnowledgeItem(userId, itemId)) return empty;
+  const companyIds = db.prepare('SELECT company_id FROM knowledge_item_companies WHERE item_id = ?').all(itemId).map(row => row.company_id);
+  if (!companyIds.length) return empty;
+  const marks = companyIds.map(() => '?').join(', ');
+  const servers = db.prepare(
+    `SELECT id, hostname, host, server_name FROM client_servers
+      WHERE user_id = ? AND company_id IN (${marks}) ORDER BY sort_order, id`
+  ).all(userId, ...companyIds);
+  const serverIds = servers.map(row => row.id);
+  const databases = db.prepare(
+    `SELECT name FROM client_databases
+      WHERE user_id = ? AND (company_id IN (${marks})${serverIds.length ? ` OR server_id IN (${serverIds.map(() => '?').join(', ')})` : ''})
+      ORDER BY sort_order, id`
+  ).all(userId, ...companyIds, ...serverIds);
+  const unique = values => [...new Set(values.map(value => String(value ?? '').trim()).filter(Boolean))].slice(0, 200);
+  return {
+    servers: unique(servers.flatMap(row => [row.hostname, row.host, row.server_name])),
+    databases: unique(databases.map(row => row.name)),
+  };
 }
 
 function knowledgeGroupToApi(r) {
@@ -7809,7 +7931,7 @@ module.exports = {
   restoreCompanyDocumentFile, listKnowledgeItems, getKnowledgeItem, createKnowledgeItem,
   updateKnowledgeItem, deleteKnowledgeItem, restoreKnowledgeItem, saveKnowledgeAttachment,
   resolveKnowledgeAttachment, removeKnowledgeAttachment, restoreKnowledgeAttachment, updateKnowledgeAttachmentNote,
-  purgeKnowledgeAttachment, purgeKnowledgeFiles, listKnowledgeGroups, createKnowledgeGroup,
+  purgeKnowledgeAttachment, purgeKnowledgeFiles, importCodeNotes, undoCodeNoteImport, forgetCodeNoteImport, codeNoteSuggestions, listKnowledgeGroups, createKnowledgeGroup,
   updateKnowledgeGroup, deleteKnowledgeGroup, listClients, getClient, getClientSystemWeb,
   getClientFieldHistory, createClient, renameClient, changeClientCode, setClientActive, reorderClients,
   getClientLinkCount, deleteClient, restoreDeletedClient,

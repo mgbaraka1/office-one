@@ -89,7 +89,7 @@ Five views that draw how things connect, each a switch on a page you already use
 | Storage | Node's built-in `node:sqlite` (`DatabaseSync`) |
 | Password hashing | `bcryptjs` (pure JS — no native modules) |
 | UI | Vanilla HTML, CSS, and classic-script JavaScript; system fonts |
-| Third-party renderer JS | Vendored DOMPurify (Knowledge Hub only) |
+| Third-party renderer JS | Vendored DOMPurify, marked and highlight.js (Knowledge Hub only) |
 | Packaging | `electron-builder` (Windows NSIS + portable) |
 
 `bcryptjs` is the only runtime dependency. There is no bundler, no transpilation step, and no native addon to compile — a fresh clone installs and runs.
@@ -163,7 +163,7 @@ A credential this machine holds no key for is shown as *"Cannot be read on this 
 - Permission requests are denied, renderer-created windows are denied, and navigation away from the app page is blocked.
 - Uploaded files are ownership-checked, path-contained inside the data directory, capped at 100 MB, and validated by both extension and file-signature magic bytes.
 - Database restore accepts only a listed snapshot and validates SQLite integrity, foreign keys, required tables and schema compatibility. Full Restore additionally validates its manifest, SHA-256 checksums, and every database-referenced attachment before touching live data.
-- Older Knowledge Hub rich-text notes are sanitized through a fixed DOMPurify allowlist before rendering; new notes are plain text.
+- Older Knowledge Hub rich-text notes, and the HTML that Code Note Markdown turns into, are sanitized through fixed DOMPurify allowlists before rendering (no images, scripts, styles or event handlers); other notes are plain text.
 - A dropped or picked Knowledge Hub file reaches the main process only as a `File`: preload resolves its disk path with `webUtils.getPathForFile`, so the page can never name an arbitrary path, and main still checks type, size and file header.
 - There is deliberately **no** email or token password-reset flow — the app has no network layer. If the last active account forgets its password, recovery is a manual local procedure: generate a bcrypt hash with the app's own `bcryptjs` dependency and write it into `users.password_hash` directly via `node:sqlite`. This is also why the last active account can never be deactivated.
 
