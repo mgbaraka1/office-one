@@ -1,5 +1,39 @@
 [
   {
+    "version": "8.23.0",
+    "date": "2026-10-20",
+    "kind": "feat",
+    "title": {
+      "en": "Tags are back in the Knowledge Hub, and a focus view for the open item",
+      "ar": "عودة الوسوم إلى مركز المعرفة، وعرض تركيز للعنصر المفتوح"
+    },
+    "notes": [
+      {
+        "en": "Add tags to any item. Filter by several tags at once, or type #tag in the Hub search to match tags only.",
+        "ar": "أضف وسوماً إلى أي عنصر. صفِّ بعدة وسوم معاً، أو اكتب #وسم في بحث المركز لمطابقة الوسوم فقط."
+      },
+      {
+        "en": "Every item needs a home: a client, a system, or at least one tag.",
+        "ar": "كل عنصر يحتاج إلى مكان: عميل أو نظام أو وسم واحد على الأقل."
+      },
+      {
+        "en": "Markdown import can tag every note, and suggests the folder name when the files share one folder.",
+        "ar": "يمكن لاستيراد Markdown وسم كل الملاحظات، ويقترح اسم المجلد عندما تكون الملفات في مجلد واحد."
+      },
+      {
+        "en": "Quick Find and the Knowledge wheel now show tags.",
+        "ar": "البحث السريع وعجلة المعرفة يعرضان الوسوم الآن."
+      },
+      {
+        "en": "A new button lets the open item take the whole page.",
+        "ar": "زر جديد يجعل العنصر المفتوح يملأ الصفحة كلها."
+      }
+    ],
+    "technical": [
+      "Migration 079 recreates the knowledge search triggers to index tags and adds three tag triggers; no table change."
+    ]
+  },
+  {
     "version": "8.22.0",
     "date": "2026-10-18",
     "kind": "feat",
