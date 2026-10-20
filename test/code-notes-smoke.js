@@ -74,6 +74,18 @@ try {
   const kinds = run("[codeNoteSuggestionKind('Database_Name'), codeNoteSuggestionKind('db'), codeNoteSuggestionKind('server'), codeNoteSuggestionKind('Host_IP'), codeNoteSuggestionKind('days')]");
   record('Blank names pick database or server suggestions', JSON.stringify(kinds) === JSON.stringify(['databases', 'databases', 'servers', 'servers', '']), JSON.stringify(kinds));
 
+  // The import asks for a tag only when a note would end up with no client, system or tag.
+  const needsTag = state => run(`codeNoteImport = ${JSON.stringify(state)}; codeNoteImportNeedsTag()`);
+  const newRow = { include: true, problem: '', existing: null, action: 'skip' };
+  const replaceRow = existing => ({ include: true, problem: '', existing, action: 'replace' });
+  record('Import needs a tag for a new note with no link, and not once it has one',
+    needsTag({ tags: [], rows: [newRow] }) === true && needsTag({ tags: ['Gizmos'], rows: [newRow] }) === false);
+  record('Replacing a note that already has a tag or system needs no new tag; one with none does',
+    needsTag({ tags: [], rows: [replaceRow({ tags: ['Gadgets'] })] }) === false
+    && needsTag({ tags: [], rows: [replaceRow({ systems: [{ id: 1 }] })] }) === false
+    && needsTag({ tags: [], rows: [replaceRow({ tags: [], companies: [], systems: [] })] }) === true);
+  run('codeNoteImport = null');
+
   // ── Data layer ──
   db.openConnection(workDir); db.applyMigrations();
   const raw = new DatabaseSync(path.join(workDir, 'cooperation-tools.db'));
@@ -84,18 +96,18 @@ try {
     head >= 78 && db.getLookupsByCategory('KNOWLEDGE_TYPE').some(x => x.code === 'CODE_NOTE' && x.nameAr === 'ملاحظة برمجية'), `head=${head}`);
 
   const markdown = '# Backup steps\n\n**Full backup**\n```sql\nBACKUP DATABASE {{db}} TO DISK = N\'D:\\\\Backups\\\\{{db}}.bak\'\n```\n';
-  const note = db.createKnowledgeItem(user.id, { title: 'Fabrikam backup steps', type: 'CODE_NOTE', status: 'PUBLISHED', content: markdown, contentFormat: 'markdown' });
+  const note = db.createKnowledgeItem(user.id, { title: 'Fabrikam backup steps', type: 'CODE_NOTE', status: 'PUBLISHED', content: markdown, contentFormat: 'markdown', tags: ['SQL'] });
   record('A Code Note keeps its Markdown and its format', note.type === 'CODE_NOTE' && note.contentFormat === 'markdown' && note.content === markdown,
     JSON.stringify({ type: note.type, format: note.contentFormat }));
-  const plain = db.createKnowledgeItem(user.id, { title: 'Plain smoke note', content: 'x', contentFormat: 'rtf' });
+  const plain = db.createKnowledgeItem(user.id, { title: 'Plain smoke note', content: 'x', contentFormat: 'rtf', tags: ['Smoke'] });
   record('An unknown format is still stored as plain text', plain.contentFormat === 'text');
   record('Quick Find reaches the code inside a note', db.searchWorkspace(user.id, 'BACKUP DATABASE').some(hit => hit.kind === 'knowledge' && hit.id === note.id));
 
   // Import: two new notes, one replacing the note above.
   const imported = db.importCodeNotes(user.id, [
-    { title: 'Contoso index check', content: '```sql\r\nSELECT 1\r\n```', replaceId: null },
-    { title: 'Northwind log size', content: '```sql\nDBCC SQLPERF(LOGSPACE)\n```' },
-    { title: 'Fabrikam backup steps', content: '```sql\nSELECT 2\n```', replaceId: note.id },
+    { title: 'Contoso index check', content: '```sql\r\nSELECT 1\r\n```', replaceId: null, tags: ['SQL'] },
+    { title: 'Northwind log size', content: '```sql\nDBCC SQLPERF(LOGSPACE)\n```', tags: ['SQL'] },
+    { title: 'Fabrikam backup steps', content: '```sql\nSELECT 2\n```', replaceId: note.id, tags: ['SQL'] },
   ]);
   const listed = db.listKnowledgeItems(user.id);
   const first = listed.find(item => item.id === imported.ids?.[0]), replaced = db.getKnowledgeItem(user.id, note.id);
@@ -127,7 +139,11 @@ try {
     && db.searchWorkspace(user.id, 'BACKUP DATABASE').some(hit => hit.id === note.id));
   record('An undo works once', !db.undoCodeNoteImport(user.id, imported.token).ok);
 
-  const kept = db.importCodeNotes(user.id, [{ title: 'Kept smoke note', content: 'a' }]);
+  const kept = db.importCodeNotes(user.id, [{ title: 'Kept smoke note', content: 'a', tags: ['Smoke'] }]);
+  const before = db.listKnowledgeItems(user.id).length;
+  const homeless = db.importCodeNotes(user.id, [{ title: 'Homeless import', content: 'a' }, { title: 'Tagged import', content: 'b', tags: ['Gizmos'] }]);
+  record('Import refuses a note with no client, system or tag, and saves none of the batch',
+    !homeless.ok && /add a tag/.test(homeless.error) && db.listKnowledgeItems(user.id).length === before, JSON.stringify(homeless));
   db.forgetCodeNoteImport(user.id, kept.token);
   record('Once its toast closes, an import stays', !db.undoCodeNoteImport(user.id, kept.token).ok && db.getKnowledgeItem(user.id, kept.ids[0]) !== null);
   record('Import refuses an entry with no title, and a replace target that is gone',
@@ -170,6 +186,20 @@ try {
   db.undoCodeNoteImport(user.id, linkedImport.token);
   record('Undo removes the links it added and keeps the ones a note already had',
     linkIds(db.getKnowledgeItem(user.id, preLinked.id)) === JSON.stringify([[], [system.id]]), linkIds(db.getKnowledgeItem(user.id, preLinked.id)));
+
+  // Import tags every note; a replaced note keeps its own tags, and undo takes back only the added ones.
+  const preTagged = db.createKnowledgeItem(user.id, { title: 'Gadgets cleanup', content: 'old', tags: ['Gadgets'] });
+  const taggedImport = db.importCodeNotes(user.id, [
+    { title: 'Gadgets ps', content: 'gadgets ps', tags: ['#Gizmos', 'gadgets'] },
+    { title: 'Gadgets cleanup', content: 'new', replaceId: preTagged.id, tags: ['Gizmos'] },
+  ]);
+  const tagsOf = id => (db.getKnowledgeItem(user.id, id)?.tags || []).join();
+  record('Import tags each note, reusing an existing tag\'s spelling',
+    taggedImport.ok && tagsOf(taggedImport.ids[0]) === 'Gadgets,Gizmos' && tagsOf(preTagged.id) === 'Gadgets,Gizmos',
+    tagsOf(taggedImport.ids?.[0]) + ' / ' + tagsOf(preTagged.id));
+  db.undoCodeNoteImport(user.id, taggedImport.token);
+  record('Undo removes the tags it added and keeps the ones a note already had',
+    tagsOf(preTagged.id) === 'Gadgets' && db.getKnowledgeItem(user.id, taggedImport.ids[0]) === null, tagsOf(preTagged.id));
 } catch (err) { exitCode = 2; console.error('FATAL:', err); }
 finally { try { db.close(); } catch {} try { fs.rmSync(workDir, { recursive: true, force: true }); } catch {} }
 

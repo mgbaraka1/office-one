@@ -24,7 +24,7 @@ try {
   db.createTaskSource(userId, task.id, { type: 'EMAIL', ref: `${marker} source subject` });
   const project = db.createProject(userId, { name: `${marker} project`, description: 'Indexed project body' });
   const knowledge = db.createKnowledgeItem(userId, {
-    title: `${marker} handbook`, status: 'PUBLISHED', summary: 'Indexed knowledge body',
+    title: `${marker} handbook`, status: 'PUBLISHED', summary: 'Indexed knowledge body', tags: ['Handbook'],
   });
   const document = db.createCompanyDocument(userId, {
     name: `${marker} certificate`, notes: 'Indexed document body',
@@ -40,7 +40,7 @@ try {
     }],
     defaultCurrency: 'USD',
   });
-  db.createKnowledgeItem(otherUserId, { title: `${marker} private other-user item` });
+  db.createKnowledgeItem(otherUserId, { title: `${marker} private other-user item`, tags: ['Private'] });
   const company = db.getLookupsByCategory('COMPANY', true)[0];
   const vpn = db.createClientVpn(userId, company.id, {
     connectionName: `${marker} secure access`, vpnType: 'VPN', endpoint: 'vpn.nebula.invalid',

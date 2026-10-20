@@ -1,10 +1,11 @@
 // ══ KNOWLEDGE WHEEL (Knowledge Hub → Wheel) ═══════════════════════════════════
 // The items the list would show, drawn around a circle: articles on one side in
 // coloured arcs by type, the clients and systems they are linked to on the
-// other, and a curved line for every link. Hovering a name traces its links;
-// clicking an article opens it, clicking a client or system keeps its links lit.
-// An article with no client or system is drawn hollow and listed underneath —
-// it is the one nobody will find by browsing.
+// other, and a curved line for every link. Tags (#SQL) are hubs too, in an arc
+// of their own after Systems. Hovering a name traces its links; clicking an
+// article opens it, clicking a client, system or tag keeps its links lit. An
+// article with none of them is drawn hollow and listed underneath — it is the
+// one nobody will find by browsing.
 
 let knowledgeWheelItems = [];
 let knowledgeWheelPinned = null;   // node key kept highlighted after a click
@@ -41,7 +42,7 @@ function kwTruncate(text, max) {
 }
 
 // Arcs in drawing order: one per knowledge type (catalog order, untyped last),
-// then Clients, then Systems. Each node is { key, kind, label, item|link }.
+// then Clients, then Systems, then Tags. Each node is { key, kind, label, item|link }.
 function knowledgeWheelModel(items) {
   const typeOrder = (LK.categories.KNOWLEDGE_TYPE || []).map(o => o.code);
   const byType = new Map();
@@ -68,6 +69,14 @@ function knowledgeWheelModel(items) {
     }));
     if (hubs.size) arcs.push({ kind, label, slot: 0, nodes: [...hubs.values()] });
   });
+  // One hub per tag, whatever its case on each item.
+  const tags = new Map();
+  items.forEach(item => (item.tags || []).forEach(tag => {
+    const id = tag.toLowerCase();
+    if (!tags.has(id)) tags.set(id, { key: 't' + id, kind: 'tags', label: '#' + tag, items: [] });
+    tags.get(id).items.push(item);
+  }));
+  if (tags.size) arcs.push({ kind: 'tags', label: 'Tags', slot: 0, nodes: [...tags.values()] });
   return arcs;
 }
 
@@ -145,7 +154,7 @@ function drawKnowledgeWheel(host, items) {
 
   const svg = kwSvg('svg', {
     class: 'kw-svg', viewBox: `0 0 ${f(W)} ${f(H)}`, role: 'img', direction: 'ltr',
-    'aria-label': 'Knowledge wheel: articles and the clients and systems they are linked to',
+    'aria-label': 'Knowledge wheel: articles and the clients, systems and tags they are linked to',
   });
   svg.style.maxWidth = W + 'px';
   host.appendChild(svg);
@@ -252,7 +261,7 @@ function drawKnowledgeWheel(host, items) {
     item.appendChild(pjMk('span', 'kw-legend-count', String(arc.nodes.length)));
     legend.appendChild(item);
   });
-  [['kw-swatch-hub', 'Client or system'], ['kw-swatch-hollow', 'Not linked to a client or system']].forEach(([cls, label]) => {
+  [['kw-swatch-hub', 'Client, system or tag'], ['kw-swatch-hollow', 'No client, system or tag']].forEach(([cls, label]) => {
     const item = pjMk('span', 'kw-legend-item');
     item.appendChild(pjMk('span', 'kw-swatch ' + cls));
     item.appendChild(pjMk('span', null, label));
@@ -262,7 +271,7 @@ function drawKnowledgeWheel(host, items) {
 
   if (unlinked.length) {
     const note = pjMk('div', 'kw-unlinked');
-    note.appendChild(pjMk('span', 'kw-unlinked-title', 'Not linked to a client or system yet:'));
+    note.appendChild(pjMk('span', 'kw-unlinked-title', 'No client, system or tag yet:'));
     unlinked.forEach(item => {
       const b = pjMk('button', 'kw-unlinked-item', item.title);
       b.type = 'button';
@@ -294,9 +303,10 @@ function knowledgeWheelHighlight(svg, info, node, arc, edgesByKey, nodeEls) {
   info.appendChild(name);
   let detail;
   if (node.kind === 'article') {
-    const c = (node.item.companies || []).length, s = (node.item.systems || []).length;
-    detail = !c && !s ? (window.ctI18n?.t('Not linked to a client or system yet') || 'Not linked to a client or system yet')
-      : [knowledgeWheelCount(c, '1 client', '{n} clients'), knowledgeWheelCount(s, '1 system', '{n} systems')].join(' · ');
+    const c = (node.item.companies || []).length, s = (node.item.systems || []).length, t = (node.item.tags || []).length;
+    detail = !c && !s && !t ? (window.ctI18n?.t('No client, system or tag yet') || 'No client, system or tag yet')
+      : [knowledgeWheelCount(c, '1 client', '{n} clients'), knowledgeWheelCount(s, '1 system', '{n} systems'),
+        ...(t ? [knowledgeWheelCount(t, '1 tag', '{n} tags')] : [])].join(' · ');
     const type = pjMk('span', 'kw-info-type', arc.label);
     if (arc.code) type.dataset.userContent = '';
     info.appendChild(type);

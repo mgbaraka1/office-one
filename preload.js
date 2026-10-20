@@ -206,6 +206,14 @@ contextBridge.exposeInMainWorld('api', {
     if (!filePath) return Promise.resolve({ ok: false, error: 'Drop or choose a file saved on this computer' });
     return ipcRenderer.invoke('knowledge:upload-file', itemId, filePath, meta);
   },
+  // Only the name of the folder a picked/dropped file sits in ("Gizmos"), never
+  // its path: the Markdown import offers it as a tag.
+  fileFolderName: (file) => {
+    let filePath = '';
+    try { filePath = webUtils.getPathForFile(file); } catch { /* not a real File */ }
+    const parts = String(filePath || '').split(/[\\/]+/).filter(Boolean);
+    return parts.length >= 2 && !/:$/.test(parts[parts.length - 2]) ? parts[parts.length - 2] : '';
+  },
   downloadKnowledgeAttachment: (attachmentId) => ipcRenderer.invoke('knowledge:download-attachment', attachmentId),
   downloadKnowledgeZip: (entries, name) => ipcRenderer.invoke('knowledge:download-zip', entries, name),
   openKnowledgeAttachment:     (attachmentId) => ipcRenderer.invoke('knowledge:open-attachment', attachmentId),

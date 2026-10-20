@@ -2340,6 +2340,15 @@
     .kh-pill.overdue { color: var(--bad); background: var(--error-bg); border-color: color-mix(in srgb, var(--bad) 25%, var(--border)); }
     .kh-pill.kh-pill-client { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 30%, var(--border)); }
     .kh-pill.kh-pill-system { color: var(--text); }
+    .kh-pill.kh-pill-tag { border-style: dashed; }
+    /* Tag entry: #tokens and a text box in one bordered field. */
+    .kh-token-field { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-height: 40px; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); cursor: text; }
+    .kh-token-field:focus-within { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-glow); }
+    .kh-token-field.field-error { border-color: var(--bad); }
+    .kh-tokens { display: contents; }
+    .kh-token { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 4px 7px; background: var(--primary-glow); color: var(--primary); font-size: 11px; font-weight: 750; }
+    .kh-token button { border: 0; background: none; color: inherit; cursor: pointer; padding: 0; line-height: 1; font: inherit; }
+    .kh-token-field input { flex: 1; min-width: 150px; border: 0; padding: 3px; background: transparent; box-shadow: none !important; }
     .kh-detail-links { margin: 6px 0 2px; }
     button.kh-pill { cursor: pointer; font-family: inherit; }
     button.kh-pill:hover { border-color: var(--primary); color: var(--primary); }
@@ -2479,6 +2488,7 @@
     #cn-import-drop { margin-bottom: 6px; }
     .cn-import-links { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; }
     .cn-import-links-label { font-size: var(--fs-sm); color: var(--muted); }
+    .cn-import-tags { display: grid; gap: 6px; margin-top: 12px; }
     #cn-import-link-picker { flex: 1 1 100%; }
     .cn-import-list { display: flex; flex-direction: column; margin-top: 10px; max-height: 50vh; overflow: auto; }
     .cn-import-row { display: flex; align-items: flex-start; gap: 10px; padding: 9px 4px; border-top: 1px solid var(--border); }
@@ -2522,6 +2532,12 @@
     .kh-panel .kh-section { padding: 14px 16px; }
     .kh-drop-tip { color: var(--muted); font-size: 11.5px; margin-top: 4px; }
     .kh-shell.has-panel .kh-row-date { display: none; }
+    /* Focus mode: the open item takes the whole shell; the reading column stays a comfortable width. */
+    .kh-shell.has-panel.kh-panel-wide { grid-template-columns: minmax(0, 1fr); }
+    .kh-shell.kh-panel-wide .kh-filters, .kh-shell.kh-panel-wide .kh-main { display: none; }
+    .kh-shell.kh-panel-wide .kh-panel { border-inline-start: 0; }
+    .kh-shell.kh-panel-wide .kh-detail { max-width: 1040px; margin-inline: auto; }
+    .kh-panel-bar { gap: 4px; }
     .kh-shell.kh-dragging .kh-main { outline: 2px dashed color-mix(in srgb, var(--primary) 55%, transparent); outline-offset: -8px; }
     .kh-drop-hint { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 5; pointer-events: none; display: flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: 999px; background: var(--primary); color: #fff; font-weight: 700; font-size: 12.5px; box-shadow: var(--shadow); }
     .kh-drop-hint[hidden] { display: none; }

@@ -442,6 +442,9 @@ function codeNoteEmbeds(markdown) {
 function setupCodeNoteImport() {
   if (codeNoteImportReady) return;
   codeNoteImportReady = true;
+  setupKnowledgeTagInput(document.getElementById('cn-import-tags-input'),
+    value => { if (codeNoteImport && pushKnowledgeTag(codeNoteImport.tags, value)) { codeNoteImport.tagsTouched = true; renderCodeNoteImport(); } },
+    () => { if (codeNoteImport?.tags.length) { codeNoteImport.tags.pop(); codeNoteImport.tagsTouched = true; renderCodeNoteImport(); } });
   const input = document.getElementById('cn-import-input'), zone = document.getElementById('cn-import-drop');
   input.onchange = () => { addCodeNoteImportFiles(input.files); input.value = ''; };
   zone.addEventListener('dragover', event => { if (!knowledgeDragHasFiles(event)) return; event.preventDefault(); zone.classList.add('over'); });
@@ -453,7 +456,8 @@ function setupCodeNoteImport() {
 }
 function openCodeNoteImport(files) {
   setupCodeNoteImport();
-  codeNoteImport = { files: [], rows: [], busy: false };
+  codeNoteImport = { files: [], rows: [], busy: false, tags: [], tagsTouched: false };
+  fillKnowledgeTagSuggestions('cn-import-tag-suggestions');
   // Opened from a filtered Hub (a system's or a client's page), the import starts linked to it.
   const preset = kind => [...knowledgeFilters].filter(key => key.startsWith(kind + ':')).map(key => Number(key.slice(kind.length + 1))).filter(Number.isInteger);
   const systems = preset('SYSTEM'), clients = preset('CLIENT');
@@ -477,7 +481,8 @@ function setCodeNoteImportLink(kind, selected = []) {
   if (kind === 'none') { host.innerHTML = ''; codeNoteImport.linkPicker = null; return; }
   const options = lkOptions(kind, true).filter(o => o.isActive)
     .map(o => ({ id: o.id, label: kind === 'COMPANY' ? companyDisplayName(o) : lookupDisplayName(o) }));
-  codeNoteImport.linkPicker = buildTagPicker(host, options, selected, kind === 'COMPANY' ? 'Search clients…' : 'Search systems…', () => {}, { autoSelectSingle: false });
+  codeNoteImport.linkPicker = buildTagPicker(host, options, selected, kind === 'COMPANY' ? 'Search clients…' : 'Search systems…', () => renderCodeNoteImport(), { autoSelectSingle: false });
+  renderCodeNoteImport();
 }
 function chooseCodeNoteImportFiles() { document.getElementById('cn-import-input').click(); }
 async function addCodeNoteImportFiles(list) {
@@ -485,7 +490,25 @@ async function addCodeNoteImportFiles(list) {
   const same = (a, b) => a.name === b.name && a.size === b.size && a.lastModified === b.lastModified;
   [...list].filter(file => file?.name).forEach(file => { if (!codeNoteImport.files.some(known => same(known, file))) codeNoteImport.files.push(file); });
   await buildCodeNoteImportRows();
+  suggestCodeNoteImportTag();
   renderCodeNoteImport();
+}
+// Notes from one Obsidian folder ("Gizmos") are tagged with it, until the tags are edited by hand.
+function suggestCodeNoteImportTag() {
+  const state = codeNoteImport; if (!state || state.tagsTouched) return;
+  const folders = new Set(state.rows.map(row => { try { return window.api.fileFolderName(row.file); } catch { return ''; } }));
+  const folder = folders.size === 1 ? [...folders][0] : '';
+  state.tags = [];
+  if (folder) pushKnowledgeTag(state.tags, folder);
+}
+// A note with no client, system or tag can't be saved. A replaced note keeps what it had.
+function codeNoteImportNeedsTag() {
+  const state = codeNoteImport; if (!state) return false;
+  if (state.tags.length || (state.linkPicker?.getSelectedIds() || []).length) return false;
+  return codeNoteImportChosen().some(row => {
+    const item = row.existing && row.action === 'replace' ? row.existing : null;
+    return !item || !((item.companies || []).length || (item.systems || []).length || (item.tags || []).length);
+  });
 }
 async function buildCodeNoteImportRows() {
   const state = codeNoteImport, previous = new Map(state.rows.map(row => [row.file, row]));
@@ -555,16 +578,21 @@ function renderCodeNoteImport() {
     } else status.appendChild(pjMk('span', 'kh-pill', 'New'));
     line.append(check, copy, status); list.appendChild(line);
   });
-  const chosen = codeNoteImportChosen().length;
-  document.getElementById('cn-import-count').textContent = notes
-    ? `${chosen} of ${notes} notes will be imported` + (others ? ` · ${others} other files` : '') : '';
+  renderKnowledgeTagTokens(document.getElementById('cn-import-tag-tokens'), state.tags, () => { state.tagsTouched = true; renderCodeNoteImport(); });
+  const chosen = codeNoteImportChosen().length, needsTag = chosen > 0 && codeNoteImportNeedsTag();
+  document.getElementById('cn-import-tag-field').classList.toggle('field-error', needsTag);
+  document.getElementById('cn-import-count').textContent = !notes ? ''
+    : needsTag ? 'Add a tag, or link the notes to systems or clients'
+    : `${chosen} of ${notes} notes will be imported` + (others ? ` · ${others} other files` : '');
   const go = document.getElementById('cn-import-go');
-  go.disabled = !chosen || state.busy;
+  go.disabled = !chosen || needsTag || state.busy;
   go.textContent = chosen === 1 ? 'Import 1 note' : `Import ${chosen} notes`;
 }
 async function runCodeNoteImport() {
   const state = codeNoteImport, chosen = codeNoteImportChosen();
-  if (!state || !chosen.length || state.busy) return;
+  const typed = document.getElementById('cn-import-tags-input');
+  if (state && typed.value.trim()) { pushKnowledgeTag(state.tags, typed.value); typed.value = ''; state.tagsTouched = true; }
+  if (!state || !chosen.length || state.busy || codeNoteImportNeedsTag()) { renderCodeNoteImport(); return; }
   const bytes = chosen.reduce((sum, row) => sum + row.content.length * 2, 0);
   if (bytes > 10 * 1024 * 1024) { toast('That is too much at once. Import fewer files.'); return; }
   state.busy = true; renderCodeNoteImport();
@@ -574,7 +602,7 @@ async function runCodeNoteImport() {
   try {
     result = await window.api.importCodeNotes(chosen.map(row => ({
       title: row.title, content: row.content, replaceId: row.existing && row.action === 'replace' ? row.existing.id : null,
-      companyIds, systemIds,
+      companyIds, systemIds, tags: state.tags,
     })));
   } catch { result = null; }
   if (!result?.ok) { state.busy = false; renderCodeNoteImport(); toast(result?.error || 'Could not import the notes'); return; }

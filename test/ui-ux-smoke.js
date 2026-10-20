@@ -218,14 +218,15 @@ gate('HTML hidden state cannot be overridden by component display rules',
   html.includes('[hidden] { display: none !important; }')
   && html.includes('function showKnowledgeListView()')
   && html.includes('function showKnowledgeDetailView()'));
-gate('Knowledge Hub is found by client and system; tags are retired everywhere',
+gate('Knowledge Hub is found by client, system and tag; an item with none of them cannot be saved',
   html.includes("appendKnowledgeFilterSection(host, 'clients', 'Clients'")
   && html.includes("appendKnowledgeFilterSection(host, 'systems', 'Systems'")
+  && html.includes("appendKnowledgeFilterSection(host, 'tags', 'Tags'")
   && html.includes('id="kh-companies"') && html.includes('id="kh-systems"')
   && html.includes('id="kh-more"')
-  && !html.includes("appendKnowledgeFilterSection(host, 'tags'")
-  && !html.includes("'TAG:") && !html.includes('knowledgeEditorTags')
-  && !html.includes('id="kh-tag-tokens"') && !html.includes('id="kh-tags-input"')
+  && html.includes('id="kh-tag-tokens"') && html.includes('id="kh-tags-input"')
+  && html.includes("markError('kh-tag-field', 'Link a client or a system, or add a tag')")
+  && html.includes('id="cn-import-tags-input"')
   && !html.includes('id="kh-company-checks"')
   && !html.includes('id="kh-system-checks"')
   && !html.includes('id="kh-project-checks"'));

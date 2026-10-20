@@ -2148,8 +2148,9 @@ function restoreCompanyDocumentFile(userId, oldId, newId, fileMeta) {
 }
 
 // ── Knowledge Hub ────────────────────────────────────────────────────────────
-// User-owned articles with client/system links, groups, and version-labeled documents. Files live under
-// <userData>/knowledge_hub/{itemId}/attachments/.
+// User-owned articles with client/system links, tags, groups, and version-labeled documents. Files live under
+// <userData>/knowledge_hub/{itemId}/attachments/. Every item belongs somewhere:
+// it links a client or a system, or it carries at least one tag (2026-10-19).
 const KNOWLEDGE_STATUSES = new Set(['DRAFT', 'PUBLISHED', 'ARCHIVED']);
 const pendingKnowledgeDeletes = new Map(); // deleted item id -> user id
 
@@ -2178,10 +2179,14 @@ function knowledgeItemToApi(r) {
        JOIN knowledge_groups g ON g.id = gi.group_id
       WHERE gi.item_id = ? AND g.user_id = ? ORDER BY g.sort_order, g.name COLLATE NOCASE`
   ).all(itemId, r.user_id).map(x => ({ id: x.id, name: x.name }));
+  const tags = db.prepare(
+    `SELECT kt.name FROM knowledge_item_tags kit JOIN knowledge_tags kt ON kt.id = kit.tag_id
+      WHERE kit.item_id = ? AND kt.user_id = ? ORDER BY kt.name COLLATE NOCASE`
+  ).all(itemId, r.user_id).map(x => x.name);
   return {
     id: itemId, title: r.title || '', type: lkCode(r.type_id), typeLabel: lkLabel(r.type_id),
     status: r.status, summary: r.summary || '', content: r.content || '', contentFormat: r.content_format || 'text',
-    createdAt: r.created_at, updatedAt: r.updated_at, documents, groups,
+    createdAt: r.created_at, updatedAt: r.updated_at, documents, tags, groups,
     companies: knowledgeLinks('companies', null, itemId).map(({ itemId: _, ...x }) => x),
     systems: knowledgeLinks('systems', null, itemId).map(({ itemId: _, ...x }) => x),
   };
@@ -2211,7 +2216,17 @@ function knowledgeContentFormat(value) { return value === 'html' || value === 'm
 function listKnowledgeItems(userId) {
   const rows = db.prepare('SELECT * FROM knowledge_items WHERE user_id = ? ORDER BY updated_at DESC, id DESC').all(userId);
   if (!rows.length) return [];
-  const groupsByItem = new Map(), documentsByItem = new Map();
+  const tagsByItem = new Map(), groupsByItem = new Map(), documentsByItem = new Map();
+  db.prepare(
+    `SELECT kit.item_id, kt.name FROM knowledge_item_tags kit
+       JOIN knowledge_tags kt ON kt.id = kit.tag_id
+       JOIN knowledge_items k ON k.id = kit.item_id
+      WHERE k.user_id = ? AND kt.user_id = ?
+      ORDER BY kt.name COLLATE NOCASE`
+  ).all(userId, userId).forEach(row => {
+    if (!tagsByItem.has(row.item_id)) tagsByItem.set(row.item_id, []);
+    tagsByItem.get(row.item_id).push(row.name);
+  });
   db.prepare(
     `SELECT gi.item_id, g.id, g.name FROM knowledge_group_items gi
        JOIN knowledge_groups g ON g.id = gi.group_id
@@ -2248,7 +2263,7 @@ function listKnowledgeItems(userId) {
       id: row.id, title: row.title || '', type: lkCode(row.type_id), typeLabel: lkLabel(row.type_id),
       status: row.status, summary: row.summary || '', content: row.content || '', contentFormat: row.content_format || 'text',
       createdAt: row.created_at, updatedAt: row.updated_at,
-      groups: groupsByItem.get(row.id) || [],
+      tags: tagsByItem.get(row.id) || [], groups: groupsByItem.get(row.id) || [],
       companies: linksByItem.companies.get(row.id) || [], systems: linksByItem.systems.get(row.id) || [],
       documents, documentCount: documents.length,
     };
@@ -2258,8 +2273,38 @@ function getKnowledgeItem(userId, id) {
   const r = db.prepare('SELECT * FROM knowledge_items WHERE id = ? AND user_id = ?').get(id, userId);
   return r ? knowledgeItemToApi(r) : null;
 }
+// A tag as stored: no leading '#', single spaces, at most 60 characters.
+const MAX_KNOWLEDGE_TAGS = 30;
+function knowledgeTagName(value) { return String(value ?? '').trim().replace(/^#+/, '').replace(/\s+/g, ' ').trim().slice(0, 60); }
+function knowledgeTagNames(values) {
+  const seen = new Set(), names = [];
+  (Array.isArray(values) ? values : []).forEach(value => {
+    const name = knowledgeTagName(value), key = name.toLowerCase();
+    if (name && !seen.has(key) && names.length < MAX_KNOWLEDGE_TAGS) { seen.add(key); names.push(name); }
+  });
+  return names;
+}
+// The tag's id, created on first use. A tag keeps the spelling it was first given
+// (name is NOCASE), and is never rewritten here, which would re-index its items.
+function knowledgeTagId(userId, name) {
+  db.prepare('INSERT OR IGNORE INTO knowledge_tags(user_id, name, created_at) VALUES(?, ?, ?)').run(userId, name, new Date().toISOString());
+  return db.prepare('SELECT id FROM knowledge_tags WHERE user_id = ? AND name = ?').get(userId, name).id;
+}
+const KNOWLEDGE_NEEDS_HOME = 'Link a client or a system, or add a tag';
+function knowledgeItemHasHome(itemId) {
+  return !!db.prepare(
+    `SELECT 1 WHERE EXISTS(SELECT 1 FROM knowledge_item_companies WHERE item_id = ?1)
+        OR EXISTS(SELECT 1 FROM knowledge_item_systems WHERE item_id = ?1)
+        OR EXISTS(SELECT 1 FROM knowledge_item_tags WHERE item_id = ?1)`
+  ).get(itemId);
+}
 function setKnowledgeChildren(userId, itemId, data) {
-  // Client / system links are replaced only when the caller sends them, like groups.
+  // Tags, like client / system links and groups, are replaced only when the caller sends them.
+  if (Object.hasOwn(data || {}, 'tags')) {
+    db.prepare('DELETE FROM knowledge_item_tags WHERE item_id = ?').run(itemId);
+    const addTag = db.prepare('INSERT OR IGNORE INTO knowledge_item_tags(item_id, tag_id) VALUES(?, ?)');
+    knowledgeTagNames(data.tags).forEach(name => addTag.run(itemId, knowledgeTagId(userId, name)));
+  }
   [['companies', 'companyIds'], ['systems', 'systemIds']].forEach(([kind, field]) => {
     if (!Object.hasOwn(data || {}, field)) return;
     const [table, column, category] = KNOWLEDGE_LINK_TABLES[kind];
@@ -2286,6 +2331,8 @@ function setKnowledgeChildren(userId, itemId, data) {
       addGroup.run(groupId, itemId, nextSort.get(groupId).n);
     });
   }
+  // Checked last, inside the caller's transaction, so a refused save changes nothing.
+  if (!knowledgeItemHasHome(itemId)) throw new Error(KNOWLEDGE_NEEDS_HOME);
 }
 function createKnowledgeItem(userId, data) {
   const title = String(data?.title || '').trim();
@@ -2329,7 +2376,7 @@ function restoreKnowledgeItem(userId, oldId, snapshot) {
   if (pendingKnowledgeDeletes.get(Number(oldId)) !== userId) return { ok: false, error: 'Not authorized to restore this item' };
   const restored = createKnowledgeItem(userId, {
     title: snapshot?.title, type: snapshot?.type, status: snapshot?.status, summary: snapshot?.summary,
-    content: snapshot?.content, contentFormat: snapshot?.contentFormat,
+    content: snapshot?.content, contentFormat: snapshot?.contentFormat, tags: snapshot?.tags || [],
     companyIds: (snapshot?.companies || []).map(x => x.id), systemIds: (snapshot?.systems || []).map(x => x.id),
   });
   pendingKnowledgeDeletes.delete(Number(oldId));
@@ -2489,15 +2536,16 @@ function importCodeNotes(userId, entries) {
     content: String(entry?.content ?? '').replace(/\r\n?/g, '\n').slice(0, MAX_CODE_NOTE_CHARS),
     replaceId: entry?.replaceId != null ? Number(entry.replaceId) : null,
     links: { companies: entry?.companyIds, systems: entry?.systemIds },
+    tags: knowledgeTagNames(entry?.tags),
   }));
   if (!list.length) return { ok: false, error: 'No notes to import' };
   if (list.some(entry => !entry.title)) return { ok: false, error: 'Every note needs a title' };
   // The kind may have been switched off or removed in Settings; the notes still import.
   const typeId = lkIdForUser(userId, 'KNOWLEDGE_TYPE', 'CODE_NOTE');
   const startedAt = new Date().toISOString();
-  const ids = [], createdIds = [], replaced = [], addedLinks = [];
-  // Client / system links are added, never removed: a replaced note keeps the
-  // links it had. Each link actually added is recorded so undo can take it back.
+  const ids = [], createdIds = [], replaced = [], addedLinks = [], addedTags = [];
+  // Client / system links and tags are added, never removed: a replaced note keeps
+  // the ones it had. Each one actually added is recorded so undo can take it back.
   const addLinks = (itemId, links) => Object.entries(links).forEach(([kind, values]) => {
     const [table, column, category] = KNOWLEDGE_LINK_TABLES[kind];
     const link = db.prepare(`INSERT OR IGNORE INTO ${table}(item_id, ${column}) VALUES(?, ?)`);
@@ -2506,6 +2554,13 @@ function importCodeNotes(userId, entries) {
       if (link.run(itemId, id).changes) addedLinks.push({ kind, itemId, id });
     });
   });
+  const addTags = (itemId, names) => {
+    const tag = db.prepare('INSERT OR IGNORE INTO knowledge_item_tags(item_id, tag_id) VALUES(?, ?)');
+    names.forEach(name => {
+      const tagId = knowledgeTagId(userId, name);
+      if (tag.run(itemId, tagId).changes) addedTags.push({ itemId, tagId });
+    });
+  };
   try {
     tx(() => {
       const find = db.prepare('SELECT id, type_id, content, content_format, updated_at FROM knowledge_items WHERE id = ? AND user_id = ?');
@@ -2526,12 +2581,15 @@ function importCodeNotes(userId, entries) {
           createdIds.push(id);
           ids.push(id);
         }
-        addLinks(ids[ids.length - 1], entry.links);
+        const itemId = ids[ids.length - 1];
+        addLinks(itemId, entry.links);
+        addTags(itemId, entry.tags);
+        if (!knowledgeItemHasHome(itemId)) throw new Error(KNOWLEDGE_NEEDS_HOME);
       }
     });
   } catch (err) { return { ok: false, error: String(err?.message || err) }; }
   const token = crypto.randomUUID();
-  pendingCodeNoteImports.set(token, { userId, startedAt, createdIds, replaced, addedLinks });
+  pendingCodeNoteImports.set(token, { userId, startedAt, createdIds, replaced, addedLinks, addedTags });
   return { ok: true, token, ids };
 }
 function undoCodeNoteImport(userId, token) {
@@ -2554,6 +2612,8 @@ function undoCodeNoteImport(userId, token) {
       const [table, column] = KNOWLEDGE_LINK_TABLES[kind];
       db.prepare(`DELETE FROM ${table} WHERE item_id = ? AND ${column} = ?`).run(itemId, id);
     });
+    const dropTag = db.prepare('DELETE FROM knowledge_item_tags WHERE item_id = ? AND tag_id = ?');
+    (record.addedTags || []).forEach(({ itemId, tagId }) => dropTag.run(itemId, tagId));
     record.createdIds.forEach(id => remove.run(id, userId));
   });
   files.forEach(file => {

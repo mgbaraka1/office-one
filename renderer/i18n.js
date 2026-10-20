@@ -716,6 +716,7 @@
     'Open client system': 'فتح نظام العميل', '(untitled)': '(بلا عنوان)', 'Workspace': 'مساحة العمل',
     'No matches — try a page name, task, project, or a date like 2026-07-01':
       'لا توجد نتائج — جرّب اسم صفحة أو مهمة أو مشروع أو تاريخاً مثل 2026-07-01',
+    'Focus on this item': 'التركيز على هذا العنصر', 'Back to split view': 'العودة إلى العرض المقسّم',
     'Add document': 'إضافة مستند', 'Duplicate as draft': 'تكرار كمسودة',
     'Mark as ready': 'التحديد كجاهز', 'Move back to draft': 'الإعادة إلى مسودة',
     'Archive': 'أرشفة', 'Restore as draft': 'استعادة كمسودة', 'Delete item': 'حذف العنصر',
@@ -881,6 +882,11 @@
     'Client or system': 'عميل أو نظام', 'Not linked to a client or system': 'غير مرتبط بعميل أو نظام',
     'Not linked to a client or system yet:': 'غير مرتبط بعميل أو نظام بعد:',
     'Not linked to a client or system yet': 'غير مرتبط بعميل أو نظام بعد',
+    // The wheel draws tags as hubs too (2026-10-20).
+    'Client, system or tag': 'عميل أو نظام أو وسم', 'No client, system or tag': 'بلا عميل أو نظام أو وسم',
+    'No client, system or tag yet:': 'بلا عميل أو نظام أو وسم بعد:', 'No client, system or tag yet': 'بلا عميل أو نظام أو وسم بعد',
+    '1 tag': 'وسم واحد', '{n} tags': '{n} وسوم',
+    'Knowledge wheel: articles and the clients, systems and tags they are linked to': 'عجلة المعرفة: المقالات والعملاء والأنظمة والوسوم المرتبطة بها',
     '1 article': 'مقالة واحدة', '{n} articles': '{n} مقالات',
     // Server map: the Servers section drawn as a tree.
     'List': 'قائمة', 'Map': 'خريطة', 'Show servers as': 'عرض الخوادم كـ',
@@ -996,6 +1002,13 @@
     'Filter Knowledge Hub clients and systems': 'تصفية عملاء وأنظمة مركز المعرفة',
     'Try fewer words, a document version, or a client or system name.': 'جرّب كلمات أقل، أو إصدار مستند، أو اسم عميل أو نظام.',
     'Copy created with the same clients and systems': 'تم إنشاء نسخة بنفس العملاء والأنظمة',
+    // Knowledge Hub tags are back (2026-10-19): an item with no client or system needs one.
+    'Any word to file it by. Needed when no client or system is linked.': 'أي كلمة تُصنّفه بها. مطلوب عند عدم ربط عميل أو نظام.',
+    'Link a client or a system, or add a tag': 'اربط عميلاً أو نظاماً، أو أضف وسماً',
+    'Try fewer words, a document version, a client or system name, or a #tag.': 'جرّب كلمات أقل، أو إصدار مستند، أو اسم عميل أو نظام، أو #وسماً.',
+    'Remove tag': 'إزالة الوسم', 'Tag every note': 'وسم كل الملاحظات',
+    'Filled in from the folder name when the files share one folder. Needed when the notes link to no client or system.': 'يُملأ من اسم المجلد عندما تكون الملفات في مجلد واحد. مطلوب عند عدم ربط الملاحظات بعميل أو نظام.',
+    'Add a tag, or link the notes to systems or clients': 'أضف وسماً، أو اربط الملاحظات بأنظمة أو عملاء',
     // Knowledge Hub on client and project pages (Phase 4).
     'Show in Knowledge Hub': 'عرض في مركز المعرفة', 'New Knowledge item': 'عنصر معرفة جديد',
     'No Knowledge Hub items for this client yet.': 'لا توجد عناصر في مركز المعرفة لهذا العميل بعد.',
@@ -1435,6 +1448,7 @@
     [/^(.+) · (.+) · Added (.+)$/s, m => `${m[1]} · ${m[2]} · أُضيف ${m[3]}`],
     [/^(.+) \(Archived\)$/s, m => `${m[1]} (مؤرشف)`],
     [/^Show everything for (.+)$/s, m => `عرض كل ما يخص ${m[1]}`],
+    [/^Show everything tagged (.+)$/s, m => `عرض كل ما يحمل الوسم ${m[1]}`],
     [/^New version of (.+) \(latest (.+)\)$/s, m => `إصدار جديد من ${m[1]} (الأحدث ${m[2]})`],
     [/^(\d+) of (\d+) done$/s, m => `${m[1]} من ${m[2]} مكتمل`],
     // Daily Timesheet range → ZIP export progress and result toasts.

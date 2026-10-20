@@ -179,13 +179,14 @@ async function run() {
     const created = await window.api.createKnowledgeItem({
       title: 'Electron E2E searchable handbook',
       status: 'PUBLISHED',
-      summary: 'Chromium bridge verification'
+      summary: 'Chromium bridge verification',
+      tags: ['E2E'],
     });
     const hits = await window.api.searchWorkspace('searchable handbook', 10);
     // Knowledge Hub is found by client (migration 068): link, search by the Arabic
     // client name, then filter the real list by that client.
     const linkedDoc = await window.api.createKnowledgeItem({ title: 'E2E client mapping sheet', status: 'PUBLISHED', companyIds: [profile.id] });
-    const unlinkedDoc = await window.api.createKnowledgeItem({ title: 'E2E unrelated manual', status: 'PUBLISHED' });
+    const unlinkedDoc = await window.api.createKnowledgeItem({ title: 'E2E unrelated manual', status: 'PUBLISHED', tags: ['Manual'] });
     const clientHits = await window.api.searchWorkspace('عميل الاختبار', 10);
     switchModule('knowledge');
     await loadKnowledgeItems();
@@ -867,7 +868,7 @@ async function run() {
     const tr = key => window.ctI18n?.t?.(key) ?? key;
     const wait = async test => { for (let i = 0; i < 60 && !test(); i++) await new Promise(r => setTimeout(r, 50)); return !!test(); };
     closePalette(); switchModule('knowledge');
-    const target = await window.api.createKnowledgeItem({ title: 'E2E Contoso index check', type: 'CODE_NOTE', status: 'PUBLISHED', content: 'SELECT 1', contentFormat: 'markdown' });
+    const target = await window.api.createKnowledgeItem({ title: 'E2E Contoso index check', type: 'CODE_NOTE', status: 'PUBLISHED', content: 'SELECT 1', contentFormat: 'markdown', tags: ['SQL'] });
     await loadKnowledgeItems();
     const item = knowledgeItems.find(entry => entry.id === target.id);
     const host = document.createElement('div'); document.body.appendChild(host);
@@ -982,8 +983,19 @@ async function run() {
     openKnowledgeEditor(null, file);
     const title = document.getElementById('kh-title-input').value;
     document.getElementById('kh-notes-input').value = 'Ask the vendor first. https://example.com/mapping';
+    // No client, no system, no tag: the editor refuses and points at Tags.
+    await saveKnowledgeEditor();
+    const refusedUntilTagged = document.getElementById('knowledge-modal-overlay').classList.contains('open')
+      && document.getElementById('kh-tag-field').classList.contains('field-error')
+      && !knowledgeItems.some(entry => entry.title === 'E2E Field Mapping');
+    const tagInput = document.getElementById('kh-tags-input');
+    tagInput.value = '#E2E shelf'; tagInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     await saveKnowledgeEditor();
     const item = knowledgeItems.find(entry => entry.title === 'E2E Field Mapping');
+    knowledgeFilters = new Set(['TAG:e2e shelf']); renderKnowledgeList();
+    const tagFilter = [...document.querySelectorAll('#kh-list [data-knowledge-id]')].map(r => Number(r.dataset.knowledgeId)).join() === String(item?.id)
+      && !!document.querySelector('#kh-filters .kh-filter-btn.active')?.textContent.includes('#E2E shelf');
+    knowledgeFilters = new Set(); renderKnowledgeList(); await openKnowledgeDetail(item?.id);
     const row = document.querySelector('#kh-list [data-knowledge-id="' + item?.id + '"]');
     const link = document.querySelector('#kh-detail-view .kh-content a');
     return {
@@ -993,6 +1005,8 @@ async function run() {
       plainNotes: item?.contentFormat === 'text',
       // The e2e catalog has a single system; the picker must not link it on its own.
       noAutoLink: item?.systems?.length === 0 && item?.companies?.length === 0,
+      refusedUntilTagged, tagFilter,
+      tagged: item?.tags?.join() === 'E2E shelf',
       bareLink: link?.title === 'https://example.com/mapping',
       panelBesideList: !document.getElementById('kh-detail-view').hidden
         && document.getElementById('kh-list-view').classList.contains('has-panel') && !!row && row.classList.contains('active'),

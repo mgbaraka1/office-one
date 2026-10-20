@@ -54,7 +54,7 @@ try {
 
   // 2. In use through a foreign key → refused, row kept, flagged for the editor.
   const used = add('KNOWLEDGE_TYPE', 'Used Type');
-  const item = db.createKnowledgeItem(user.id, { title: 'Lookup delete fixture', type: used.code });
+  const item = db.createKnowledgeItem(user.id, { title: 'Lookup delete fixture', type: used.code, tags: ['Fixture'] });
   check('an entry a record points at is flagged in use', flags('KNOWLEDGE_TYPE', used.id)?.inUse === true);
   const refused = remove(used.id);
   check('deleting an in-use entry is skipped and the row survives',

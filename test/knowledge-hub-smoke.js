@@ -55,7 +55,31 @@ try {
     summary:'How to connect to Claims API', content:'Prerequisites\n1. Request access\n2. Configure the client',
     tags:['API','Claims','api'],
   });
-  record('Create persists article fields; tags are retired and ignored', created.title === 'Claims API Integration' && created.type === 'INTEGRATION_GUIDE' && created.status === 'PUBLISHED' && !Object.hasOwn(created, 'tags'), JSON.stringify(created));
+  record('Create persists article fields and tags, folding a duplicate tag', created.title === 'Claims API Integration' && created.type === 'INTEGRATION_GUIDE' && created.status === 'PUBLISHED' && created.tags.join() === 'API,Claims', JSON.stringify(created.tags));
+
+  // Tags are back (079): an item with no client or system must carry one.
+  record('Migration 079 is applied', head >= 79, `head=${head}`);
+  const before = db.listKnowledgeItems(user.id).length;
+  let refused = null; try { db.createKnowledgeItem(user.id, { title: 'Homeless note', tags: ['  ', '#'] }); } catch (err) { refused = err; }
+  record('An item with no client, system or tag is refused, and nothing is saved',
+    /add a tag/.test(refused?.message || '') && db.listKnowledgeItems(user.id).length === before, String(refused?.message));
+  const tagOnly = db.createKnowledgeItem(user.id, { title: 'Tag-only smoke note', content: 'grep -r', tags: ['#Gizmos', ' Shell   tools '] });
+  record('A tag alone is enough; "#" and extra spaces are dropped', tagOnly.tags.join() === 'Gizmos,Shell tools', JSON.stringify(tagOnly.tags));
+  const reused = db.createKnowledgeItem(user.id, { title: 'Second Gizmos note', tags: ['gizmos'] });
+  record('A tag typed in another case reuses the first spelling', reused.tags.join() === 'Gizmos', JSON.stringify(reused.tags));
+  record('The list index carries tags', db.listKnowledgeItems(user.id).find(item => item.id === tagOnly.id)?.tags.join() === 'Gizmos,Shell tools');
+  const tagHit = db.searchWorkspace(user.id, 'Shell tools').find(hit => hit.kind === 'knowledge' && hit.id === tagOnly.id);
+  record('Quick Find finds an item by its tag and shows its tags when it has no client or system',
+    tagHit?.subtitle === '#Gizmos · #Shell tools', JSON.stringify(tagHit));
+  let emptied = null; try { db.updateKnowledgeItem(user.id, tagOnly.id, { ...tagOnly, tags: [] }); } catch (err) { emptied = err; }
+  record('Removing the last tag of an unlinked item is refused and keeps the tags',
+    !!emptied && db.getKnowledgeItem(user.id, tagOnly.id).tags.length === 2);
+  const archivedTagOnly = db.updateKnowledgeItem(user.id, tagOnly.id, { title: tagOnly.title, status: 'ARCHIVED' });
+  record('An update that does not send tags keeps them', archivedTagOnly.status === 'ARCHIVED' && archivedTagOnly.tags.length === 2);
+  const retagged = db.updateKnowledgeItem(user.id, tagOnly.id, { ...archivedTagOnly, tags: ['Gadgets'] });
+  record('Changing tags re-indexes Quick Find',
+    db.searchWorkspace(user.id, 'Gadgets').some(hit => hit.id === retagged.id) && !db.searchWorkspace(user.id, 'Shell tools').some(hit => hit.id === retagged.id));
+  db.deleteKnowledgeItem(user.id, tagOnly.id); db.deleteKnowledgeItem(user.id, reused.id);
   record('Knowledge item exposes client and system links but no project links',
     Array.isArray(created.companies) && Array.isArray(created.systems) && !Object.hasOwn(created, 'projects'));
 
@@ -77,7 +101,7 @@ try {
     JSON.stringify(searchable.slice(0, 3)));
   record('The Quick Find subtitle names the client and system',
     searchable.find(hit => hit.kind === 'knowledge' && hit.id === linked.id)?.subtitle.includes(' · '));
-  const cleared = db.updateKnowledgeItem(user.id, linked.id, { ...statusOnly, companyIds: [], systemIds: [systems[1]?.id].filter(Boolean) });
+  const cleared = db.updateKnowledgeItem(user.id, linked.id, { ...statusOnly, companyIds: [], systemIds: [systems[1]?.id].filter(Boolean), tags: ['Mapping'] });
   record('Sending links replaces them', cleared.companies.length === 0 && cleared.systems.length === (systems[1] ? 1 : 0));
   record('Unlinking a client drops it from Quick Find',
     !db.searchWorkspace(user.id, companies[0].code).some(hit => hit.kind === 'knowledge' && hit.id === linked.id));
@@ -99,7 +123,7 @@ try {
   record('Create without contentFormat defaults to legacy text', created.contentFormat === 'text');
 
   const htmlItem = db.createKnowledgeItem(user.id, {
-    title:'Rich Text Article', status:'DRAFT', content:'<p>Hello <strong>world</strong></p>', contentFormat:'html',
+    title:'Rich Text Article', status:'DRAFT', content:'<p>Hello <strong>world</strong></p>', contentFormat:'html', tags:['Legacy'],
   });
   record('Create with contentFormat html round-trips', htmlItem.contentFormat === 'html' && htmlItem.content.includes('<strong>world</strong>'));
   record('List index also reports contentFormat', db.listKnowledgeItems(user.id).find(item => item.id === htmlItem.id)?.contentFormat === 'html');
@@ -108,7 +132,7 @@ try {
   db.deleteKnowledgeItem(user.id, htmlItem.id);
 
   const updated = db.updateKnowledgeItem(user.id, created.id, { ...created, title:'Claims API Integration v2', status:'DRAFT', tags:['Deployment'] });
-  record('Update replaces the profile', updated.title.endsWith('v2') && updated.status === 'DRAFT' && !Object.hasOwn(updated, 'tags'));
+  record('Update replaces the profile and the tags', updated.title.endsWith('v2') && updated.status === 'DRAFT' && updated.tags.join() === 'Deployment');
   record('Update without contentFormat defaults to text (matches legacy plain-text save path)', updated.contentFormat === 'text');
 
   const group = db.createKnowledgeGroup(user.id, { name:'API Playbooks', description:'Reusable integration material', itemIds:[created.id] });
@@ -168,7 +192,7 @@ try {
   const deleted = db.deleteKnowledgeItem(user.id, created.id);
   record('Delete removes the row but retains its file during undo window', deleted.ok && db.getKnowledgeItem(user.id, created.id) === null && fs.existsSync(path.join(workDir, deleted.snapshot.documents[0].path)));
   const restored = db.restoreKnowledgeItem(user.id, created.id, deleted.snapshot);
-  record('Delete undo restores article, group, and versioned document', restored.ok && restored.item.title.endsWith('v2') && restored.item.groups[0]?.name === 'API Playbooks' && restored.item.documents[0]?.version === '2.4' && restored.item.documents[0].exists
+  record('Delete undo restores article, tags, group, and versioned document', restored.ok && restored.item.title.endsWith('v2') && restored.item.tags.join() === 'Deployment' && restored.item.groups[0]?.name === 'API Playbooks' && restored.item.documents[0]?.version === '2.4' && restored.item.documents[0].exists
     && restored.item.documents[0].changeNote === 'Mapped 12 new fields'
     && !Object.hasOwn(restored.item.documents[0], 'isActive'));
 

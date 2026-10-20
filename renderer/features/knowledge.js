@@ -4,10 +4,11 @@ let knowledgeFilters = new Set(), knowledgeFilterSections = {}, knowledgeFilterS
 let knowledgeCurrentId = null, knowledgeCurrentItem = null, knowledgeEditId = null;
 let knowledgeUndo = null, knowledgeUndoTimer = null, knowledgeEditorDirty = false;
 let knowledgeDocumentItemId = null, knowledgeEditorFile = null, knowledgeDocumentFile = null, knowledgeFileTarget = 'editor';
-let knowledgePendingDraft = null, knowledgeEditorStatus = 'PUBLISHED';
+let knowledgeEditorTags = [], knowledgePendingDraft = null, knowledgeEditorStatus = 'PUBLISHED';
 let khCompaniesPicker = null, khSystemsPicker = null;
 let knowledgeUiRestored = false, knowledgeListFocus = null, knowledgeDropReady = false, knowledgeDragDepth = 0;
 let knowledgeView = 'list';   // list | wheel (knowledge-wheel.js)
+let knowledgePanelWide = false;   // focus mode: the open item takes the whole page
 
 function knowledgeDocumentCount(item) { return Number(item.documentCount ?? item.documents?.length ?? 0); }
 function knowledgeStatusLabel(status) { return status === 'PUBLISHED' ? 'Ready' : status === 'ARCHIVED' ? 'Archived' : 'Draft'; }
@@ -17,12 +18,13 @@ function knowledgeLinkPill(kind, link, tag = 'span') {
   const pill = pjMk(tag, 'kh-pill kh-pill-' + (kind === 'companies' ? 'client' : 'system'), knowledgeLinkName(kind, link));
   pill.dataset.userContent = ''; return pill;
 }
+function knowledgeTagPill(tag, el = 'span') { const pill = pjMk(el, 'kh-pill kh-pill-tag', '#' + tag); pill.dataset.userContent = ''; return pill; }
 function initKnowledgeModule() {
   if (!knowledgeUiRestored) {
     const saved = uiState.filters?.knowledge || {};
     // Groups and the Draft/Ready facets are retired; only Archived survives as a status filter.
     const restored = (Array.isArray(saved.filters) ? saved.filters : [])
-      .filter(key => /^(TYPE|CLIENT|SYSTEM):/.test(key) || key === 'STATUS:ARCHIVED');
+      .filter(key => /^(TYPE|CLIENT|SYSTEM|TAG):/.test(key) || key === 'STATUS:ARCHIVED');
     knowledgeFilters = new Set(restored);
     knowledgeFilterSections = Object.assign({}, saved.sections || {});
     document.getElementById('kh-search').value = saved.query || '';
@@ -40,12 +42,23 @@ function initKnowledgeModule() {
 function showKnowledgeListView() {
   const panel = document.getElementById('kh-detail-view');
   panel.hidden = true; panel.innerHTML = '';
-  document.getElementById('kh-list-view').classList.remove('has-panel');
+  document.getElementById('kh-list-view').classList.remove('has-panel', 'kh-panel-wide');
   document.querySelectorAll('#kh-list .kh-row.active').forEach(row => row.classList.remove('active'));
 }
 function showKnowledgeDetailView() {
   document.getElementById('kh-detail-view').hidden = false;
   document.getElementById('kh-list-view').classList.add('has-panel');
+  document.getElementById('kh-list-view').classList.toggle('kh-panel-wide', knowledgePanelWide);
+}
+function toggleKnowledgePanelWide(button) {
+  knowledgePanelWide = !knowledgePanelWide;
+  document.getElementById('kh-list-view').classList.toggle('kh-panel-wide', knowledgePanelWide);
+  setKnowledgeWideButton(button);
+}
+function setKnowledgeWideButton(button) {
+  const label = knowledgePanelWide ? 'Back to split view' : 'Focus on this item';
+  button.title = window.ctI18n ? window.ctI18n.t(label) : label; button.setAttribute('aria-pressed', String(knowledgePanelWide));
+  button.innerHTML = ic(knowledgePanelWide ? 'minimize-2' : 'maximize-2');
 }
 async function loadKnowledgeItems(openId) {
   try { knowledgeItems = (await window.api.listKnowledgeItems()) || []; knowledgeLoaded = true; }
@@ -291,13 +304,14 @@ function setKnowledgeFileLabel(id, file) {
 }
 function knowledgeFilterDimension(key) {
   return key.startsWith('TYPE:') ? 'TYPE' : key.startsWith('STATUS:') ? 'STATUS'
-    : key.startsWith('CLIENT:') ? 'CLIENT' : 'SYSTEM';
+    : key.startsWith('CLIENT:') ? 'CLIENT' : key.startsWith('SYSTEM:') ? 'SYSTEM' : 'TAG';
 }
 function toggleKnowledgeFilter(key) {
   const dimension = knowledgeFilterDimension(key);
   if (knowledgeFilters.has(key)) knowledgeFilters.delete(key);
   else {
-    [...knowledgeFilters].forEach(current => {
+    // Tags narrow together (Gizmos + Gadgets); every other facet picks one value.
+    if (dimension !== 'TAG') [...knowledgeFilters].forEach(current => {
       if (knowledgeFilterDimension(current) === dimension) knowledgeFilters.delete(current);
     });
     knowledgeFilters.add(key);
@@ -308,7 +322,7 @@ function appendKnowledgeFilterSection(host, id, title, entries, limit = 8) {
   if (!entries.length) return;
   const section = pjMk('div', 'kh-filter-section' + (knowledgeFilterSections[id] ? ' collapsed' : ''));
   section.dataset.filterId = id;
-  if (id === 'clients' || id === 'systems') section.dataset.searchable = 'true';
+  if (id === 'clients' || id === 'systems' || id === 'tags') section.dataset.searchable = 'true';
   const heading = pjMk('div', 'kh-filter-title'), label = pjMk('span', '', title);
   const toggle = pjMk('button', 'kh-filter-toggle', knowledgeFilterSections[id] ? '▸' : '▾');
   toggle.title = (knowledgeFilterSections[id] ? 'Expand ' : 'Collapse ') + title;
@@ -321,6 +335,7 @@ function appendKnowledgeFilterSection(host, id, title, entries, limit = 8) {
     const b = pjMk('button', 'kh-filter-btn' + (active ? ' active' : ''));
     b.setAttribute('aria-pressed', String(active));
     b.dataset.filterLabel = entry.label.toLowerCase();
+    if (entry.userContent) b.dataset.userContent = '';
     b.dataset.overflow = String(index >= limit);
     b.hidden = index >= limit && !knowledgeFilterShowAll[id];
     b.append(document.createTextNode(entry.label), pjMk('span', '', String(entry.count)));
@@ -347,6 +362,16 @@ function knowledgeLinkFacet(kind, prefix) {
   return [...counts.entries()].sort((a, b) => a[1].label.localeCompare(b[1].label))
     .map(([id, entry]) => ({ key: prefix + id, label: entry.label, count: entry.count }));
 }
+// One facet entry per tag on a non-archived item, most used first. Keys are lower case.
+function knowledgeTagFacet() {
+  const counts = new Map();
+  knowledgeItems.filter(x => x.status !== 'ARCHIVED').forEach(item => (item.tags || []).forEach(tag => {
+    const key = tag.toLowerCase(), current = counts.get(key);
+    counts.set(key, { label: current?.label || tag, count: (current?.count || 0) + 1 });
+  }));
+  return [...counts.entries()].sort((a, b) => b[1].count - a[1].count || a[1].label.localeCompare(b[1].label))
+    .map(([key, tag]) => ({ key: 'TAG:' + key, label: '#' + tag.label, count: tag.count, userContent: true }));
+}
 function renderKnowledgeFilters() {
   const host = document.getElementById('kh-filters'); host.innerHTML = '';
   const browse = pjMk('div', 'kh-filter-section'), heading = pjMk('div', 'kh-filter-title', 'Browse');
@@ -356,12 +381,13 @@ function renderKnowledgeFilters() {
   all.onclick = () => { knowledgeFilters.clear(); renderKnowledgeList(); };
   browse.append(heading, all);
   const facetSearch = document.createElement('input'); facetSearch.type = 'search'; facetSearch.className = 'mod-search';
-  facetSearch.style.cssText = 'width:100%;min-width:0;margin-top:8px'; facetSearch.placeholder = 'Filter clients or systems…';
-  facetSearch.setAttribute('aria-label', 'Filter Knowledge Hub clients and systems');
+  facetSearch.style.cssText = 'width:100%;min-width:0;margin-top:8px'; facetSearch.placeholder = 'Filter clients, systems, or tags…';
+  facetSearch.setAttribute('aria-label', 'Filter Knowledge Hub clients, systems, and tags');
   facetSearch.oninput = () => filterKnowledgeFacetButtons(facetSearch.value);
   browse.appendChild(facetSearch); host.appendChild(browse);
   appendKnowledgeFilterSection(host, 'clients', 'Clients', knowledgeLinkFacet('companies', 'CLIENT:'));
   appendKnowledgeFilterSection(host, 'systems', 'Systems', knowledgeLinkFacet('systems', 'SYSTEM:'));
+  appendKnowledgeFilterSection(host, 'tags', 'Tags', knowledgeTagFacet(), 10);
   const types = lkOptions('KNOWLEDGE_TYPE').map(type => ({
     key: 'TYPE:' + type.code, label: lookupDisplayName(type),
     count: knowledgeItems.filter(x => x.type === type.code && x.status !== 'ARCHIVED').length,
@@ -391,7 +417,10 @@ function knowledgeContentPlainText(item) {
   return scratch.textContent.replace(/\s+/g, ' ').trim();
 }
 function knowledgeMatches(item, q) {
-  return textMatch([item.title, item.summary, knowledgeContentPlainText(item), item.typeLabel,
+  // "#giz" finds the items tagged Gizmos, and nothing else.
+  const query = String(q || '').trim();
+  if (query.startsWith('#')) return (item.tags || []).some(tag => tag.toLowerCase().includes(query.slice(1).toLowerCase()));
+  return textMatch([item.title, item.summary, knowledgeContentPlainText(item), item.typeLabel, ...(item.tags || []),
     ...['companies', 'systems'].flatMap(kind => (item[kind] || []).flatMap(x => [x.code, x.label, x.nameEn, x.nameAr])),
     ...(item.documents || []).flatMap(x => [x.name, x.version, x.originalName, x.changeNote])], q);
 }
@@ -400,11 +429,13 @@ function knowledgePassesFilters(item) {
   const types = [...knowledgeFilters].filter(x => x.startsWith('TYPE:')).map(x => x.slice(5));
   const clients = [...knowledgeFilters].filter(x => x.startsWith('CLIENT:')).map(x => Number(x.slice(7)));
   const systems = [...knowledgeFilters].filter(x => x.startsWith('SYSTEM:')).map(x => Number(x.slice(7)));
+  const tags = [...knowledgeFilters].filter(x => x.startsWith('TAG:')).map(x => x.slice(4));
   if (!status.length && item.status === 'ARCHIVED') return false;
   if (status.length && !status.includes(item.status)) return false;
   if (types.length && !types.includes(item.type)) return false;
   if (clients.length && !clients.some(id => (item.companies || []).some(link => link.id === id))) return false;
   if (systems.length && !systems.some(id => (item.systems || []).some(link => link.id === id))) return false;
+  if (tags.length && !tags.every(tag => (item.tags || []).some(value => value.toLowerCase() === tag))) return false;
   return true;
 }
 function knowledgeRowSubtitle(item, q = '') {
@@ -441,7 +472,9 @@ function renderKnowledgeActiveFilters() {
     else if (key.startsWith('STATUS:')) label = knowledgeStatusLabel(key.slice(7));
     else if (key.startsWith('CLIENT:')) label = lkLabelById('COMPANY', key.slice(7)) || 'Client';
     else if (key.startsWith('SYSTEM:')) label = lkLabelById('SYSTEM', key.slice(7)) || 'System';
+    else if (key.startsWith('TAG:')) label = '#' + (knowledgeItems.flatMap(x => x.tags || []).find(tag => tag.toLowerCase() === key.slice(4)) || key.slice(4));
     const chip = pjMk('button', 'kh-filter-chip', label + ' ×'); chip.title = 'Remove filter ' + label;
+    if (key.startsWith('TAG:')) chip.dataset.userContent = '';
     chip.onclick = () => toggleKnowledgeFilter(key); host.appendChild(chip);
   });
 }
@@ -464,7 +497,7 @@ function renderKnowledgeList() {
   if (!shown.length) {
     const hasQuery = !!q, filtered = knowledgeFilters.size > 0;
     document.getElementById('kh-empty-title').textContent = hasQuery ? 'No search results' : filtered ? 'Nothing in this view' : 'No knowledge yet';
-    document.getElementById('kh-empty-copy').textContent = hasQuery ? 'Try fewer words, a document version, or a client or system name.' : filtered ? 'Remove a filter to broaden this view.' : 'Drop a file here, or click New item.';
+    document.getElementById('kh-empty-copy').textContent = hasQuery ? 'Try fewer words, a document version, a client or system name, or a #tag.' : filtered ? 'Remove a filter to broaden this view.' : 'Drop a file here, or click New item.';
     document.getElementById('kh-empty-clear').hidden = !hasQuery && !filtered;
   }
   syncKnowledgeViewCtl();
@@ -521,6 +554,7 @@ function buildKnowledgeRow(item, q, onOpen) {
   const meta = pjMk('div', 'kh-meta'), families = knowledgeDocumentFamilies(item.documents);
   if (item.status !== 'PUBLISHED') meta.appendChild(pjMk('span', 'kh-pill ' + item.status.toLowerCase(), knowledgeStatusLabel(item.status)));
   ['companies', 'systems'].forEach(kind => (item[kind] || []).forEach(link => meta.appendChild(knowledgeLinkPill(kind, link))));
+  (item.tags || []).forEach(tag => meta.appendChild(knowledgeTagPill(tag)));
   if (item.typeLabel || item.type) meta.appendChild(pjMk('span', 'kh-pill', lkLabel('KNOWLEDGE_TYPE', item.type) || item.typeLabel));
   if (families.length === 1) meta.appendChild(pjMk('span', 'kh-version-pill', formatKnowledgeVersion(families[0][0].version)));
   else if (families.length > 1) meta.appendChild(pjMk('span', 'kh-pill', families.length + ' documents'));
@@ -585,7 +619,10 @@ async function openKnowledgeDetail(id) {
   knowledgeCurrentItem = item; host.innerHTML = '';
   const page = pjMk('div', 'kh-detail'), bar = pjMk('div', 'kh-panel-bar'), back = pjMk('button', 'kh-panel-close');
   back.type = 'button'; back.title = 'Close'; back.innerHTML = ic('x');
-  back.onclick = closeKnowledgeDetail; bar.appendChild(back); page.appendChild(bar);
+  back.onclick = closeKnowledgeDetail;
+  const wide = pjMk('button', 'kh-panel-close'); wide.type = 'button';
+  setKnowledgeWideButton(wide); wide.onclick = () => toggleKnowledgePanelWide(wide);
+  bar.append(wide, back); page.appendChild(bar);
   const head = pjMk('div', 'kh-detail-head'), copy = pjMk('div'), badges = pjMk('div', 'kh-meta');
   if (item.status !== 'PUBLISHED') badges.appendChild(pjMk('span', 'kh-pill ' + item.status.toLowerCase(), knowledgeStatusLabel(item.status)));
   if (item.typeLabel || item.type) badges.appendChild(pjMk('span', 'kh-pill', lkLabel('KNOWLEDGE_TYPE', item.type) || item.typeLabel));
@@ -600,6 +637,12 @@ async function openKnowledgeDetail(id) {
     };
     links.appendChild(chip);
   }));
+  // A tag chip adds that tag to the list's filters.
+  (item.tags || []).forEach(tag => {
+    const chip = knowledgeTagPill(tag, 'button'); chip.title = 'Show everything tagged ' + tag;
+    chip.onclick = () => { knowledgeFilters.add('TAG:' + tag.toLowerCase()); renderKnowledgeList(); };
+    links.appendChild(chip);
+  });
   copy.append(badges, pjMk('h1', '', item.title));
   if (links.childElementCount) copy.appendChild(links);
   if (item.summary) copy.appendChild(pjMk('div', 'kh-detail-summary', item.summary));
@@ -777,6 +820,54 @@ function knowledgeNotesFromItem(data) {
   scratch.querySelectorAll('p, h1, h2, h3, li, pre, blockquote').forEach(block => block.append('\n'));
   return scratch.textContent.replace(/\n{3,}/g, '\n\n').trim();
 }
+// ── Tags ──
+// Free text, at most 30 an item. An item with no client and no system needs one.
+function normalizeKnowledgeTag(value) { return String(value || '').trim().replace(/^#+/, '').replace(/\s+/g, ' ').trim().slice(0, 60); }
+function knowledgeKnownTags() {
+  const byKey = new Map();
+  knowledgeItems.forEach(item => (item.tags || []).forEach(tag => { if (!byKey.has(tag.toLowerCase())) byKey.set(tag.toLowerCase(), tag); }));
+  return [...byKey.values()].sort((a, b) => a.localeCompare(b));
+}
+// Adds `value` to `list` unless it is blank, already there, or the list is full.
+// An existing tag keeps its spelling: typing "gizmos" reuses "Gizmos".
+function pushKnowledgeTag(list, value) {
+  const tag = normalizeKnowledgeTag(value);
+  if (!tag || list.length >= 30 || list.some(x => x.toLowerCase() === tag.toLowerCase())) return false;
+  list.push(knowledgeKnownTags().find(x => x.toLowerCase() === tag.toLowerCase()) || tag);
+  return true;
+}
+// Draws `list` as removable #tokens into `host`; `onChange` runs after a removal.
+function renderKnowledgeTagTokens(host, list, onChange) {
+  host.innerHTML = '';
+  list.forEach((tag, index) => {
+    const token = pjMk('span', 'kh-token'); token.dataset.userContent = ''; token.appendChild(document.createTextNode('#' + tag));
+    const remove = pjMk('button', '', '×'); remove.type = 'button'; remove.title = 'Remove tag'; remove.setAttribute('aria-label', 'Remove tag');
+    remove.onclick = event => { event.stopPropagation(); list.splice(index, 1); onChange(); };
+    token.appendChild(remove); host.appendChild(token);
+  });
+}
+// Wires a tag text box: Enter or comma adds, Backspace in an empty box removes the last.
+function setupKnowledgeTagInput(input, add, removeLast) {
+  input.onkeydown = event => {
+    if ((event.key === 'Enter' || event.key === ',') && !event.isComposing) { event.preventDefault(); event.stopPropagation(); add(input.value); input.value = ''; }
+    else if (event.key === 'Backspace' && !input.value) removeLast();
+  };
+  input.onblur = () => { if (input.value.trim()) { add(input.value); input.value = ''; } };
+}
+// A click anywhere in a tag field, other than on a token, types into it.
+function focusKnowledgeTagInput(event) {
+  if (event.target.closest('.kh-token')) return;
+  event.target.closest('.kh-token-field')?.querySelector('input')?.focus();
+}
+function fillKnowledgeTagSuggestions(listId) {
+  const list = document.getElementById(listId); list.innerHTML = '';
+  knowledgeKnownTags().forEach(tag => { const option = document.createElement('option'); option.value = tag; list.appendChild(option); });
+}
+function addKnowledgeTag(value) { if (pushKnowledgeTag(knowledgeEditorTags, value)) { renderKnowledgeEditorTags(); markKnowledgeEditorDirty(); } }
+function renderKnowledgeEditorTags() {
+  renderKnowledgeTagTokens(document.getElementById('kh-tag-tokens'), knowledgeEditorTags, () => { renderKnowledgeEditorTags(); markKnowledgeEditorDirty(); });
+  if (knowledgeEditorTags.length) clearFieldError(document.getElementById('kh-tag-field'));
+}
 // Clients / systems pickers. A link to a since-disabled code stays selectable so
 // saving the editor never drops it silently.
 function buildKnowledgeLinkPicker(hostId, category, selectedIds, placeholder) {
@@ -790,7 +881,7 @@ function knowledgeEditorSnapshot() {
     type: document.getElementById('kh-type-input').value, status: knowledgeEditorStatus,
     summary: document.getElementById('kh-summary-input').value, content: document.getElementById('kh-notes-input').value, contentFormat: codeNoteEditorActive() ? 'markdown' : 'text',
     companyIds: khCompaniesPicker?.getSelectedIds() || [], systemIds: khSystemsPicker?.getSelectedIds() || [],
-    savedAt: new Date().toISOString(),
+    tags: [...knowledgeEditorTags], savedAt: new Date().toISOString(),
   };
 }
 function markKnowledgeEditorDirty() {
@@ -804,6 +895,7 @@ function applyKnowledgeEditorData(data) {
   khCompaniesPicker = buildKnowledgeLinkPicker('kh-companies', 'COMPANY', data?.companyIds || (data?.companies || []).map(x => x.id), 'Search clients…');
   khSystemsPicker = buildKnowledgeLinkPicker('kh-systems', 'SYSTEM', data?.systemIds || (data?.systems || []).map(x => x.id), 'Search systems…');
   document.getElementById('kh-notes-input').value = knowledgeNotesFromItem(data);
+  knowledgeEditorTags = [...(data?.tags || [])]; renderKnowledgeEditorTags();
   document.getElementById('kh-more').open = !!String(data?.summary || '').trim();
   knowledgeEditorFormat = data?.contentFormat === 'markdown' ? 'markdown' : 'text';
   showCodeNotePreview(false); syncCodeNoteEditor();
@@ -836,17 +928,21 @@ function openKnowledgeEditor(item, file, preset) {
   const type = document.getElementById('kh-type-input'); type.innerHTML = '<option value="">No kind</option>';
   lkOptions('KNOWLEDGE_TYPE').forEach(option => { const el = document.createElement('option'); el.dataset.userContent = ''; el.value = option.code; el.textContent = lookupDisplayName(option); type.appendChild(el); });
   type.onchange = syncCodeNoteEditor;
-  applyKnowledgeEditorData(item || { status: 'PUBLISHED', companyIds: preset?.companyIds || [], systemIds: preset?.systemIds || [] });
+  applyKnowledgeEditorData(item || { status: 'PUBLISHED', tags: [], companyIds: preset?.companyIds || [], systemIds: preset?.systemIds || [] });
+  fillKnowledgeTagSuggestions('kh-tag-suggestions');
+  setupKnowledgeTagInput(document.getElementById('kh-tags-input'), addKnowledgeTag, () => {
+    if (knowledgeEditorTags.length) { knowledgeEditorTags.pop(); renderKnowledgeEditorTags(); markKnowledgeEditorDirty(); }
+  });
   clearErrorsIn('#knowledge-modal'); setKnowledgeEditorFile(item ? null : file);
   const draft = knowledgeDraftCache;
   knowledgePendingDraft = draft && Number(draft.itemId || 0) === Number(knowledgeEditId || 0) ? draft : null;
   document.getElementById('kh-recovery').hidden = !knowledgePendingDraft;
   const overlay = document.getElementById('knowledge-modal-overlay'); overlay.classList.add('open');
   overlay.oninput = event => {
-    if (event.target.closest('.tag-picker')) return;
+    if (event.target.id === 'kh-tags-input' || event.target.closest('.tag-picker')) return;
     markKnowledgeEditorDirty();
   };
-  overlay.onchange = event => { if (!event.target.closest('.tag-picker')) markKnowledgeEditorDirty(); };
+  overlay.onchange = event => { if (event.target.id !== 'kh-tags-input' && !event.target.closest('.tag-picker')) markKnowledgeEditorDirty(); };
   setTimeout(() => document.getElementById('kh-title-input').focus(), 60);
 }
 function closeKnowledgeEditor(force) {
@@ -857,13 +953,17 @@ function closeKnowledgeEditor(force) {
 }
 function knowledgeEditorOverlayClick(event) { if (event.target === document.getElementById('knowledge-modal-overlay')) closeKnowledgeEditor(); }
 async function saveKnowledgeEditor() {
+  const tagInput = document.getElementById('kh-tags-input'); if (tagInput.value.trim()) { addKnowledgeTag(tagInput.value); tagInput.value = ''; }
   clearErrorsIn('#knowledge-modal'); const title = document.getElementById('kh-title-input').value.trim();
   if (!title) { markError('kh-title-input'); return; }
+  if (!khCompaniesPicker.getSelectedIds().length && !khSystemsPicker.getSelectedIds().length && !knowledgeEditorTags.length) {
+    markError('kh-tag-field', 'Link a client or a system, or add a tag'); tagInput.focus(); return;
+  }
   const editing = knowledgeEditId, file = editing ? null : knowledgeEditorFile;
   const data = {
     title, type: document.getElementById('kh-type-input').value, status: knowledgeEditorStatus,
     summary: document.getElementById('kh-summary-input').value.trim(), content: document.getElementById('kh-notes-input').value.replace(/\s+$/, ''), contentFormat: codeNoteEditorActive() ? 'markdown' : 'text',
-    companyIds: khCompaniesPicker.getSelectedIds(), systemIds: khSystemsPicker.getSelectedIds(),
+    companyIds: khCompaniesPicker.getSelectedIds(), systemIds: khSystemsPicker.getSelectedIds(), tags: [...knowledgeEditorTags],
   };
   try {
     const saved = editing ? await window.api.updateKnowledgeItem(editing, data) : await window.api.createKnowledgeItem(data);
@@ -888,10 +988,10 @@ async function duplicateKnowledgeItem(item) {
   try {
     const copy = await window.api.createKnowledgeItem({
       title: nextKnowledgeCopyTitle(item.title), type: item.type, status: item.status === 'ARCHIVED' ? 'PUBLISHED' : item.status,
-      summary: item.summary, content: item.content, contentFormat: item.contentFormat,
+      summary: item.summary, content: item.content, contentFormat: item.contentFormat, tags: item.tags || [],
       companyIds: (item.companies || []).map(x => x.id), systemIds: (item.systems || []).map(x => x.id),
     });
-    toast('Copy created with the same clients and systems'); await loadKnowledgeItems(copy.id);
+    toast('Copy created with the same clients, systems, and tags'); await loadKnowledgeItems(copy.id);
   } catch { toast('Could not duplicate item'); }
 }
 async function setKnowledgeStatus(item, status) {

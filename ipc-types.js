@@ -774,6 +774,7 @@
  * @property {string} summary
  * @property {string} content
  * @property {'text'|'html'} contentFormat  'text' = plain-text notes (all new saves since Phase 2); 'html' = older sanitized rich-text notes, shown as-is and turned into plain text on the next edit.
+ * @property {string[]} tags  Free-text tags, A→Z (knowledge_tags, back since 079). An item with no client and no system needs at least one.
  * @property {Array<{id:number,name:string}>} groups
  * @property {Array<KnowledgeLink>} companies  Linked clients (COMPANY lookups, migration 068).
  * @property {Array<KnowledgeLink>} systems    Linked SYSTEM lookups (migration 068).
@@ -795,6 +796,7 @@
  * @property {string} summary
  * @property {string} content
  * @property {'text'|'html'} contentFormat
+ * @property {string[]} tags
  * @property {Array<{id:number,name:string}>} groups
  * @property {Array<KnowledgeLink>} companies
  * @property {Array<KnowledgeLink>} systems

@@ -794,7 +794,7 @@
     <span class="page-title"><span class="ti-ic" data-ic="book-open"></span>Knowledge Hub</span>
     <div class="topbar-right">
       <label class="sr-only" for="kh-search">Search Knowledge Hub</label>
-      <input type="search" id="kh-search" class="mod-search" placeholder="Search titles, clients, systems, or documents…" data-oninput="renderKnowledgeList()">
+      <input type="search" id="kh-search" class="mod-search" placeholder="Search titles, clients, systems, documents, or tags…" data-oninput="renderKnowledgeList()">
       <button class="btn" id="kh-import-btn" data-onclick="openCodeNoteImport()" title="Add many Markdown notes at once"><span data-ic="upload"></span>Import .md</button>
       <button class="btn primary" id="kh-create-btn" data-onclick="openKnowledgeEditor()"><span data-ic="plus"></span>New item</button>
     </div>
@@ -824,6 +824,9 @@
       <div class="form-row">
         <div class="form-group"><label>Clients</label><div id="kh-companies"></div></div>
         <div class="form-group"><label>Systems</label><div id="kh-systems"></div></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full"><label for="kh-tags-input">Tags</label><div id="kh-tag-field" class="kh-token-field" data-onclick="focusKnowledgeTagInput(event)"><div id="kh-tag-tokens" class="kh-tokens"></div><input id="kh-tags-input" list="kh-tag-suggestions" maxlength="60" placeholder="Add a tag and press Enter"><datalist id="kh-tag-suggestions"></datalist></div><div class="modal-hint">Any word to file it by. Needed when no client or system is linked.</div></div>
       </div>
       <div class="form-row"><div class="form-group"><label for="kh-type-input">Document kind</label><select id="kh-type-input"></select></div></div>
       <div class="form-row" id="kh-editor-file-row"><div class="form-group full"><label>File</label>
@@ -920,6 +923,11 @@
           <button type="button" class="seg-btn" data-kind="COMPANY" data-onclick="setCodeNoteImportLink('COMPANY')">Clients</button>
         </div>
         <div id="cn-import-link-picker"></div>
+      </div>
+      <div class="cn-import-tags">
+        <label class="cn-import-links-label" for="cn-import-tags-input">Tag every note</label>
+        <div id="cn-import-tag-field" class="kh-token-field" data-onclick="focusKnowledgeTagInput(event)"><div id="cn-import-tag-tokens" class="kh-tokens"></div><input id="cn-import-tags-input" list="cn-import-tag-suggestions" maxlength="60" placeholder="Add a tag and press Enter"><datalist id="cn-import-tag-suggestions"></datalist></div>
+        <div class="modal-hint">Filled in from the folder name when the files share one folder. Needed when the notes link to no client or system.</div>
       </div>
       <div id="cn-import-empty" class="cp-records-empty">No .md files chosen yet.</div>
       <div id="cn-import-list" class="cn-import-list"></div>
