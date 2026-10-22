@@ -143,7 +143,7 @@ try {
   });
   record('seed: credential round-trips under its own machine key',
     vpn.password === SECRET && vpn.passwordUnreadable === false,
-    `value="${vpn.password}" unreadable=${vpn.passwordUnreadable}`);
+    `valueMatches=${vpn.password === SECRET} unreadable=${vpn.passwordUnreadable === true}`);
 
   const storedA = readPassword(dbFilePath, vpn.id);
 
@@ -155,12 +155,12 @@ try {
     `unreadable=${foreign.unreadable} reason=${foreign.reason}`);
   record('Gate 1b: its ciphertext is NEVER handed back as the value',
     foreign.value === '' && !String(foreign.value).includes('enc:v1:'),
-    `value="${foreign.value}"`);
+    `valueEmpty=${foreign.value === ''}`);
 
   const apiRow = db.getClient(userId, companyId).vpnConnections.find(v => v.id === vpn.id);
   record('Gate 1c: the API surfaces the unreadable flag instead of the blob',
     apiRow && apiRow.password === '' && apiRow.passwordUnreadable === true,
-    `password="${apiRow?.password}" flag=${apiRow?.passwordUnreadable}`);
+    `passwordEmpty=${apiRow?.password === ''} flag=${apiRow?.passwordUnreadable === true}`);
 
   // ── Gate 2 — an unrelated save must not destroy what it cannot read ────────
   db.updateClientVpn(userId, vpn.id, {
@@ -169,7 +169,7 @@ try {
   const afterEdit = readPassword(dbFilePath, vpn.id);
   record('Gate 2: an unrelated edit preserves an unreadable credential',
     afterEdit === storedA,
-    afterEdit === storedA ? 'ciphertext untouched' : `DESTROYED: was ${storedA.length}B, now "${afterEdit}"`);
+    afterEdit === storedA ? 'ciphertext untouched' : 'DESTROYED: the stored ciphertext was changed by the edit');
 
   // ── Build a bundle copy carrying only credentials this test owns ──────────
   // db.backup(), NOT copyFileSync: the connection is in WAL mode, so a raw file
@@ -213,7 +213,7 @@ try {
   const restored = readPassword(bundleDb, vpn.id);
   record('Gate 5b: the restored credential is re-wrapped under the RECEIVING machine key',
     restored.startsWith('enc:v1:') && db.readCredential(restored).value === SECRET,
-    `prefix=${restored.slice(0, 7)} plaintext="${db.readCredential(restored).value}"`);
+    `encrypted=${restored.startsWith('enc:v1:')} plaintextMatches=${db.readCredential(restored).value === SECRET}`);
 
   record('Gate 5c: machine A can no longer read what machine B re-wrapped',
     (() => {

@@ -198,7 +198,7 @@ try {
       role: 'APPLICATIONS', environment: 'PRODUCTION',
     });
     record('Gate 6c: a System that is not a SYSTEM lookup row is refused (free text no longer accepted)',
-      res.ok === false, `result=${JSON.stringify(res)}`);
+      res?.ok === false, `ok=${res?.ok} error=${res?.error}`);
   }
 
   // A client to write test rows against, and a second one for gate 9.

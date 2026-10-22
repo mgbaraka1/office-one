@@ -806,7 +806,7 @@ async function run() {
           shownWithInactive, refusedDelete, goneAfterDelete, backAfterUndo, owedTile,
         };
       })(),
-      passwordRotation: await (async () => {
+      forcedChange: await (async () => {
         // Forced password rotation: an
         // admin-created account carries an admin-assigned password, so login
         // must force its owner to replace it before the app becomes usable.
@@ -1229,7 +1229,7 @@ async function run() {
     throw new Error(`The Outsource statement Excel export was not written (${outsXlsx.length} bytes)`);
   }
 
-  const rotation = result.passwordRotation;
+  const rotation = result.forcedChange;
   if (!rotation.ipcFlagsCreation) throw new Error('An admin-created account was not flagged to change its password on next login');
   if (!rotation.ipcFlagsLogin) throw new Error('Login did not surface the must-change-password flag over the real IPC bridge');
   if (!rotation.domState.usernameFieldHidden || !rotation.domState.confirmFieldVisible ||

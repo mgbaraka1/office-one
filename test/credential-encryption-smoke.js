@@ -106,7 +106,7 @@ try {
   const rawPlainRow = readRow(dbFilePath, 'SELECT password FROM client_vpn_connections WHERE id = ?', plainVpn.id);
   record('Gate 1b: with no cipher, password round-trips unchanged and is stored as literal plain text',
     plainVpn.password === 'plain-pw-123' && rawPlainRow.password === 'plain-pw-123',
-    `apiValue="${plainVpn.password}" rawStoredValue="${rawPlainRow.password}"`);
+    `apiValueMatches=${plainVpn.password === 'plain-pw-123'} rawStoredMatches=${rawPlainRow.password === 'plain-pw-123'}`);
 
   // Seed one plaintext credential per table via a normal create call (still no
   // cipher) — these simulate pre-existing rows written before encryption was
@@ -138,7 +138,7 @@ try {
   // A refused create returns {ok:false}, not a record — without this the later
   // gates would quietly skip whichever table failed to seed instead of failing.
   for (const [k, v] of Object.entries(seeded)) {
-    if (!v || !v.id) throw new Error(`could not seed the ${k} record: ${JSON.stringify(v)}`);
+    if (!v || !v.id) throw new Error(`could not seed the ${k} record (got ${v ? 'a record with no id' : String(v)})`);
   }
 
   // ── Gate 2 — configure the fake cipher, apply migrations for the first time ─
@@ -192,7 +192,7 @@ try {
     const internalApi = db.getClient(userId, companyId).internalSystems.find(v => v.id === seeded.internal.id);
     record('Gate 2f: getClient decrypts transparently — the renderer never sees ciphertext',
       vpnApi && vpnApi.password === 'seed-vpn-pw' && internalApi && internalApi.password === 'seed-int-pw' && internalApi.secretKey === 'seed-int-secret',
-      `vpnPassword="${vpnApi && vpnApi.password}" internalPassword="${internalApi && internalApi.password}" internalSecret="${internalApi && internalApi.secretKey}"`);
+      `vpnPasswordMatches=${!!vpnApi && vpnApi.password === 'seed-vpn-pw'} internalPasswordMatches=${!!internalApi && internalApi.password === 'seed-int-pw'} internalSecretMatches=${!!internalApi && internalApi.secretKey === 'seed-int-secret'}`);
   } else {
     record('Gate 2c-2f: skipped (this DB copy already had migration 032 applied before this run)', true, 'alreadyAt032=true');
   }
@@ -210,7 +210,7 @@ try {
     const rawCheck = readRow(dbFilePath, 'SELECT password AS v FROM client_vpn_connections WHERE id = ?', seeded.vpn.id);
     record('Gate 3: encryptAllPendingCredentials() catches a manually-downgraded plaintext value on a later call (self-healing, not one-shot)',
       res.encrypted >= 1 && rawCheck.v.startsWith('enc:v1:') && !rawCheck.v.includes('downgraded-plain-pw'),
-      `encryptedCount=${res.encrypted} rawValue="${rawCheck.v.slice(0, 20)}..."`);
+      `encryptedCount=${res.encrypted} rawStoredEncrypted=${rawCheck.v.startsWith('enc:v1:')}`);
   }
 
   // Older releases already left plaintext rollback copies on disk. Simulate
@@ -238,14 +238,14 @@ try {
   const rawVpn2 = readRow(dbFilePath, 'SELECT password FROM client_vpn_connections WHERE id = ?', vpn2.id);
   const roundTripOk = vpn2.password === 'rt-secret-1' && rawVpn2.password.startsWith('enc:v1:') && !rawVpn2.password.includes('rt-secret-1');
   record('Gate 4a: createClientVpn encrypts on write, getClient/ToApi decrypts on read (round-trip transparent)',
-    roundTripOk, `apiPassword="${vpn2.password}" rawStored="${rawVpn2.password.slice(0, 20)}..."`);
+    roundTripOk, `apiPasswordMatches=${vpn2.password === 'rt-secret-1'} rawStoredEncrypted=${rawVpn2.password.startsWith('enc:v1:')}`);
 
   const updated = db.updateClientVpn(userId, vpn2.id, { connectionName: 'CE round-trip vpn v2', password: 'rt-secret-2' });
   const historyRows = db.getClientFieldHistory(userId, 'vpn', vpn2.id);
   const pwHistoryRow = historyRows.find(r => r.fieldName === 'Password');
   record('Gate 4b: updateClientVpn re-encrypts the new password; client_field_history still only ever stores \'(hidden)\'',
     updated.password === 'rt-secret-2' && !!pwHistoryRow && pwHistoryRow.oldValue === '(hidden)' && pwHistoryRow.newValue === '(hidden)',
-    `updatedPassword="${updated.password}" historyOld="${pwHistoryRow && pwHistoryRow.oldValue}" historyNew="${pwHistoryRow && pwHistoryRow.newValue}"`);
+    `updatedPasswordMatches=${updated.password === 'rt-secret-2'} historyHidden=${!!pwHistoryRow && pwHistoryRow.oldValue === '(hidden)' && pwHistoryRow.newValue === '(hidden)'}`);
 
   // Saving with the SAME password again must not spuriously record a history
   // row (the diff must compare decrypted plaintext, not ciphertext-vs-plaintext).

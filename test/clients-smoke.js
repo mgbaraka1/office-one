@@ -32,6 +32,19 @@ const db = require('../db');
 const results = [];
 function record(flow, pass, details) { results.push({ flow, pass, details }); }
 
+// A record as text for a result line, with its credentials shown only as
+// set/empty: test output is public in CI logs, so no credential value is printed.
+function shown(rec) {
+  if (!rec || typeof rec !== 'object') return String(rec);
+  const { password, passwordUnreadable, secretKey, secretKeyUnreadable, connectionString, ...rest } = rec;
+  const mark = v => (v ? '(set)' : '(empty)');
+  return JSON.stringify({
+    ...rest, password: mark(password), passwordUnreadable: passwordUnreadable === true,
+    secretKey: mark(secretKey), secretKeyUnreadable: secretKeyUnreadable === true,
+    connectionString: mark(connectionString),
+  });
+}
+
 // Guards against reading/copying the REAL production DB when this file is
 // run directly (node test/<this file>) instead of via run-all.js — see
 // test-bootstrap.js.
@@ -291,9 +304,9 @@ try {
     port: '51820', username: 'hq-admin', password: 'S3cret!', notes: 'primary link',
   });
   record('createClientVpn: persisted with fields', vpn && vpn.companyId === companyA
-    && vpn.connectionName === 'HQ Site-to-Site' && vpn.vpnType === 'WireGuard', JSON.stringify(vpn));
+    && vpn.connectionName === 'HQ Site-to-Site' && vpn.vpnType === 'WireGuard', shown(vpn));
   record('createClientVpn: persists port/username/password (migration 018)',
-    vpn && vpn.port === '51820' && vpn.username === 'hq-admin' && vpn.password === 'S3cret!', JSON.stringify(vpn));
+    vpn && vpn.port === '51820' && vpn.username === 'hq-admin' && vpn.password === 'S3cret!', shown(vpn));
 
   const badVpn = db.createClientVpn(userId, 999999999, { connectionName: 'nope' });
   record('createClientVpn: rejects a non-COMPANY companyId', badVpn === null, String(badVpn));
@@ -307,10 +320,10 @@ try {
     port: '500', username: 'hq-admin2', password: 'N3wSecret!', notes: 'updated',
   });
   record('updateClientVpn: fields changed in place, id stable', updatedVpn.id === vpn.id
-    && updatedVpn.connectionName === 'HQ Site-to-Site v2' && updatedVpn.vpnType === 'IPSec', JSON.stringify(updatedVpn));
+    && updatedVpn.connectionName === 'HQ Site-to-Site v2' && updatedVpn.vpnType === 'IPSec', shown(updatedVpn));
   record('updateClientVpn: port/username/password changed in place',
     updatedVpn.port === '500' && updatedVpn.username === 'hq-admin2' && updatedVpn.password === 'N3wSecret!',
-    JSON.stringify(updatedVpn));
+    shown(updatedVpn));
 
   // ── Server CRUD ──────────────────────────────────────────────────────────────
   // Since migration 038 a server is identified by systemName - role - environment:
@@ -331,11 +344,11 @@ try {
     role: 'APPLICATIONS', notes: 'main app box',
   });
   record('createClientServer: persisted with fields', srv && srv.companyId === companyA
-    && srv.host === '10.0.0.5' && srv.environment === 'PRODUCTION', JSON.stringify(srv));
+    && srv.host === '10.0.0.5' && srv.environment === 'PRODUCTION', shown(srv));
   record('createClientServer: persists hostname/username/password (migration 022)',
-    srv && srv.hostname === 'app-srv-1' && srv.username === 'admin' && srv.password === 'srv-secret', JSON.stringify(srv));
+    srv && srv.hostname === 'app-srv-1' && srv.username === 'admin' && srv.password === 'srv-secret', shown(srv));
   record('createClientServer: persists systemName (migration 023, lookup-backed since 039)',
-    srv && srv.systemName === sysOne, JSON.stringify(srv));
+    srv && srv.systemName === sysOne, shown(srv));
 
   const updatedSrv = db.updateClientServer(userId, srv.id, {
     host: '10.0.0.6', environment: 'TEST', os: 'Ubuntu 24.04',
@@ -343,11 +356,11 @@ try {
     role: 'APPLICATIONS', notes: 'moved to test',
   });
   record('updateClientServer: fields changed in place, id stable', updatedSrv.id === srv.id
-    && updatedSrv.environment === 'TEST' && updatedSrv.os === 'Ubuntu 24.04', JSON.stringify(updatedSrv));
+    && updatedSrv.environment === 'TEST' && updatedSrv.os === 'Ubuntu 24.04', shown(updatedSrv));
   record('updateClientServer: hostname/username/password changed in place',
     updatedSrv.hostname === 'app-srv-1-test' && updatedSrv.username === 'admin2' && updatedSrv.password === 'new-srv-secret',
-    JSON.stringify(updatedSrv));
-  record('updateClientServer: systemName changed in place', updatedSrv.systemName === sysTwo, JSON.stringify(updatedSrv));
+    shown(updatedSrv));
+  record('updateClientServer: systemName changed in place', updatedSrv.systemName === sysTwo, shown(updatedSrv));
 
   // Access method (migration 072): RDP by default, PAM keeps the stored login.
   record('createClientServer: access method defaults to RDP', srv.accessMethod === 'RDP', srv.accessMethod);
@@ -357,7 +370,7 @@ try {
     accessMethod: 'PAM', username: 'admin2', password: 'new-srv-secret', systemName: sysTwo, role: 'APPLICATIONS', notes: 'moved to test',
   });
   record('updateClientServer: PAM is stored and the hidden login is kept',
-    pamSrv.accessMethod === 'PAM' && pamSrv.username === 'admin2' && pamSrv.password === 'new-srv-secret', JSON.stringify(pamSrv));
+    pamSrv.accessMethod === 'PAM' && pamSrv.username === 'admin2' && pamSrv.password === 'new-srv-secret', shown(pamSrv));
   record('updateClientServer: the access change is in the history',
     db.getClientFieldHistory(userId, 'server', srv.id).some(h => h.fieldName === 'Access' && h.oldValue === 'RDP' && h.newValue === 'PAM'), '');
   const oddSrv = db.updateClientServer(userId, srv.id, { ...pamSrv, role: 'APPLICATIONS', accessMethod: 'SSH' });
@@ -366,7 +379,7 @@ try {
   // Status and the three lists (migration 076): all optional.
   record('createClientServer: status defaults to ACTIVE with empty lists',
     srv.status === 'ACTIVE' && [srv.linkedServers, srv.workloads, srv.externalParties].every(l => Array.isArray(l) && !l.length),
-    JSON.stringify(srv));
+    shown(srv));
   const listSrv = db.updateClientServer(userId, srv.id, {
     ...oddSrv, status: 'INACTIVE',
     linkedServers: [' 10.0.0.9 ', 'db-host-1', '', 'DB-HOST-1'],
@@ -375,7 +388,7 @@ try {
   record('updateClientServer: status and lists stored, trimmed, blanks and repeats dropped',
     listSrv.status === 'INACTIVE' && JSON.stringify(listSrv.linkedServers) === '["10.0.0.9","db-host-1"]'
     && JSON.stringify(listSrv.workloads) === '["PortalSite","PortalApi"]'
-    && JSON.stringify(listSrv.externalParties) === '["PartyZulu"]', JSON.stringify(listSrv));
+    && JSON.stringify(listSrv.externalParties) === '["PartyZulu"]', shown(listSrv));
   const srvHist = db.getClientFieldHistory(userId, 'server', srv.id);
   record('updateClientServer: status and list changes are in the history',
     srvHist.some(h => h.fieldName === 'Status' && h.oldValue === 'Active' && h.newValue === 'Not Active')
@@ -397,11 +410,11 @@ try {
   });
   record('createClientInternalSystem: persisted with fields', int && int.companyId === companyA
     && int.name === 'Queue Console - Production' && int.username === 'svc-portal' && int.password === 'svc-portal',
-    JSON.stringify(int));
+    shown(int));
   record('createClientInternalSystem: persists systemName/environment (migration 023)',
-    int && int.systemName === 'RabbitMQ' && int.environment === 'PRODUCTION', JSON.stringify(int));
+    int && int.systemName === 'RabbitMQ' && int.environment === 'PRODUCTION', shown(int));
   record('createClientInternalSystem: persists companyCode/secretKey (migration 024)',
-    int && int.companyCode === '105' && int.secretKey === 'int-secret', JSON.stringify(int));
+    int && int.companyCode === '105' && int.secretKey === 'int-secret', shown(int));
   record('createClientInternalSystem: subServices defaults to [] when omitted (migration 025)',
     Array.isArray(int.subServices) && int.subServices.length === 0, JSON.stringify(int.subServices));
 
@@ -431,11 +444,11 @@ try {
   });
   record('updateClientInternalSystem: fields changed in place, id stable', updatedInt.id === int.id
     && updatedInt.url === 'http://10.0.0.10:15672/' && updatedInt.username === 'svc-portal-2' && updatedInt.password === 'newpass',
-    JSON.stringify(updatedInt));
+    shown(updatedInt));
   record('updateClientInternalSystem: systemName/environment changed in place',
-    updatedInt.systemName === 'RabbitMQ v2' && updatedInt.environment === 'TEST', JSON.stringify(updatedInt));
+    updatedInt.systemName === 'RabbitMQ v2' && updatedInt.environment === 'TEST', shown(updatedInt));
   record('updateClientInternalSystem: companyCode/secretKey changed in place (migration 024)',
-    updatedInt.companyCode === '106' && updatedInt.secretKey === 'new-int-secret', JSON.stringify(updatedInt));
+    updatedInt.companyCode === '106' && updatedInt.secretKey === 'new-int-secret', shown(updatedInt));
 
   // ── Per-company isolation ────────────────────────────────────────────────────
   db.createClientServer(userId, companyB, { host: '10.1.1.1', environment: 'PRODUCTION', os: 'Windows Server 2022', systemName: sysOne, role: 'SERVICES', notes: '' });
@@ -459,11 +472,11 @@ try {
   const otherUserRow = readRow(path.join(workDir, 'cooperation-tools.db'), 'SELECT id FROM users WHERE id != ? LIMIT 1', userId);
   if (otherUserRow) {
     const stolenVpn = db.updateClientVpn(otherUserRow.id, vpn.id, { connectionName: 'stolen' });
-    record('Ownership: another user cannot update this VPN connection', stolenVpn === null, JSON.stringify(stolenVpn));
+    record('Ownership: another user cannot update this VPN connection', stolenVpn === null, shown(stolenVpn));
     const stolenSrv = db.updateClientServer(otherUserRow.id, srv.id, { host: 'stolen' });
-    record('Ownership: another user cannot update this server', stolenSrv === null, JSON.stringify(stolenSrv));
+    record('Ownership: another user cannot update this server', stolenSrv === null, shown(stolenSrv));
     const stolenInt = db.updateClientInternalSystem(otherUserRow.id, int.id, { name: 'stolen' });
-    record('Ownership: another user cannot update this internal system', stolenInt === null, JSON.stringify(stolenInt));
+    record('Ownership: another user cannot update this internal system', stolenInt === null, shown(stolenInt));
   }
 
   // ── Databases hosted on a server (migration 071) ─────────────────────────────
@@ -475,7 +488,7 @@ try {
   record('createClientDatabase: persisted under its server, client taken from the server',
     dbRec && dbRec.serverId === srv.id && dbRec.companyId === companyA && dbRec.name === 'APPDB_PRD'
     && dbRec.engine === 'Oracle' && dbRec.version === '19c' && dbRec.port === '1521'
-    && dbRec.password === 'db-secret' && dbRec.connectionString.startsWith('jdbc:'), JSON.stringify(dbRec));
+    && dbRec.password === 'db-secret' && dbRec.connectionString.startsWith('jdbc:'), shown(dbRec));
   record('createClientDatabase: refuses a missing name and an unknown server',
     db.createClientDatabase(userId, srv.id, { name: '  ' })?.ok === false
     && db.createClientDatabase(userId, 999999999, { name: 'x' }) === null, '');
@@ -483,7 +496,7 @@ try {
   const srvWithDb = clientADb.servers.find(s => s.id === srv.id);
   record('getClient: the server carries its databases; every server carries a list',
     srvWithDb?.databases?.length === 1 && srvWithDb.databases[0].id === dbRec.id
-    && clientADb.servers.every(s => Array.isArray(s.databases)), JSON.stringify(srvWithDb?.databases));
+    && clientADb.servers.every(s => Array.isArray(s.databases)), JSON.stringify((srvWithDb?.databases || []).map(shown)));
   const storedDb = readRow(dbFile, 'SELECT password, connection_string FROM client_databases WHERE id = ?', dbRec.id);
   const cipherOn = storedDb.password !== 'db-secret';
   record('createClientDatabase: connection string stored like the password (encrypted when a cipher is available)',
@@ -503,7 +516,7 @@ try {
     password: '', connectionString: '', notes: 'main',
   });
   record('updateClientDatabase: fields change in place, id stable', updDb?.id === dbRec.id
-    && updDb.version === '21c' && updDb.port === '1522', JSON.stringify(updDb));
+    && updDb.version === '21c' && updDb.port === '1522', shown(updDb));
   const dbHistory = db.getClientFieldHistory(userId, 'database', dbRec.id);
   record('updateClientDatabase: history records the change, credentials hidden',
     dbHistory.some(h => h.fieldName === 'Version' && h.oldValue === '19c' && h.newValue === '21c')
@@ -534,7 +547,7 @@ try {
     ? db.updateClientDatabase(userId, dbRec.id, { ...updDb, serverId: foreignSrv.id }) : { ok: false };
   record('updateClientDatabase: moves to another server of the client, never to another client\'s',
     moved?.serverId === srvTwo.id && movedBack?.serverId === srv.id && refusedMove?.ok === false,
-    JSON.stringify({ moved: moved?.serverId, back: movedBack?.serverId, refused: refusedMove }));
+    JSON.stringify({ moved: moved?.serverId, back: movedBack?.serverId, refused: refusedMove?.ok }));
   record('updateClientDatabase: the move is in the history, named by server identity',
     db.getClientFieldHistory(userId, 'database', dbRec.id).some(h => h.fieldName === 'Server' && h.newValue.includes(sysOne)), '');
   db.deleteClientServer(userId, srvTwo.id);
