@@ -267,7 +267,7 @@ function buildReadonlyRow(r, i) {
 async function loadSubscriptionsData() {
   if (!subsLoaded) {
     document.getElementById('sub-table').style.display = '';
-    showTableSkeleton('sub-tbody', 7);
+    showTableSkeleton('sub-tbody', 5);
   }
   let data;
   try { data = await window.api.loadSubscriptions(); }
@@ -332,7 +332,7 @@ function toggleTheme() {
 // Per-account, same convention as theme above. Focus Mode is not persisted at
 // all (neither per-account nor per-machine), so navigation is always present
 // again after a fresh launch.
-const WORKSPACE_VIEW_DEFAULTS = Object.freeze({ density: 'balanced', canvas: 'calm', motion: 'reduced' });
+const WORKSPACE_VIEW_DEFAULTS = Object.freeze({ density: 'balanced', canvas: 'calm', motion: 'reduced', scale: '100' });
 let workspaceViewPrefs = Object.assign({}, WORKSPACE_VIEW_DEFAULTS);
 function loadWorkspaceViewPrefs() {
   try {
@@ -340,6 +340,7 @@ function loadWorkspaceViewPrefs() {
     if (['compact','balanced','spacious'].includes(stored.density)) workspaceViewPrefs.density = stored.density;
     if (['calm','structured'].includes(stored.canvas)) workspaceViewPrefs.canvas = stored.canvas;
     if (['gentle','reduced'].includes(stored.motion)) workspaceViewPrefs.motion = stored.motion;
+    if (['80','90','100','110'].includes(stored.scale)) workspaceViewPrefs.scale = stored.scale;
   } catch (e) {
     workspaceViewPrefs = Object.assign({}, WORKSPACE_VIEW_DEFAULTS);
   }
@@ -349,6 +350,7 @@ function applyWorkspaceViewPreferences() {
   document.body.classList.toggle('workspace-calm', workspaceViewPrefs.canvas === 'calm');
   document.body.classList.toggle('workspace-structured', workspaceViewPrefs.canvas === 'structured');
   document.body.classList.toggle('workspace-reduced-motion', workspaceViewPrefs.motion === 'reduced');
+  applyUiScale(workspaceViewPrefs.scale);
   document.querySelectorAll('[data-workspace-choice]:not([data-workspace-choice^="theme:"])').forEach(btn => {
     const [key, value] = btn.dataset.workspaceChoice.split(':');
     btn.setAttribute('aria-pressed', String(workspaceViewPrefs[key] === value));
@@ -360,6 +362,7 @@ function setWorkspaceView(key, value) {
     density: ['compact','balanced','spacious'],
     canvas: ['calm','structured'],
     motion: ['gentle','reduced'],
+    scale: ['80','90','100','110'],
   };
   if (!allowed[key]?.includes(value)) return;
   workspaceViewPrefs[key] = value;
@@ -470,7 +473,7 @@ async function renderOverview() {
   const attention = [];
   rawAttention.forEach(a => {
     const d = daysUntil(a.date);
-    if (d === null || d > 30) return;
+    if (d === null || d > 30 || isPageHidden(a.module)) return;
     const meta = ATTENTION_META[a.type] || { icon: ic('bell'), kind: 'Due' };
     attention.push({ icon: meta.icon, title: a.title, days: d, module: a.module, kind: meta.kind, companyId: a.companyId ?? null, clientId: a.clientId ?? null, id: a.id, type: a.type });
   });
@@ -479,7 +482,7 @@ async function renderOverview() {
   // Hero chips: only what is true right now, whatever period is selected
   // below. This month is not repeated here — the Time Tracking tiles show it.
   const urgentCount = attention.filter(a => a.days <= 7).length;
-  const chips = [
+  const chips = isPageHidden('timesheet') ? [] : [
     { icon: 'clock', value: (todayMin / 60).toFixed(1), unit: hourUnitWord(todayMin / 60), label: 'Today',
       foot: `${todayRecs} record${todayRecs === 1 ? '' : 's'}`, cls: 'accent', run: "switchModule('timesheet')" },
   ];
@@ -487,7 +490,9 @@ async function renderOverview() {
   // unbilled hours at their rates plus issued, unpaid statements. Only shown
   // once something is owed; a second currency goes in the foot.
   let owed = null;
-  try { owed = await window.api.getOutsUnpaidSummary(); } catch { owed = null; }
+  if (!isPageHidden('outsource')) {
+    try { owed = await window.api.getOutsUnpaidSummary(); } catch { owed = null; }
+  }
   const owedTotals = (owed?.totals || []).filter(t => t.unpaidMinor > 0);
   if (owedTotals.length) {
     const money = t => anMoney(t.unpaidMinor) + ' ' + (CURRENCY_SYMBOLS[t.currency] || t.currency || '');
@@ -1315,12 +1320,152 @@ function renewLabel(daysLeft) {
   return `in ${daysLeft}d`;
 }
 
-function addInterval(dateStr, cycle) {
+// One billing cycle after dateStr (dir = -1: one cycle before). '' for a Custom cycle.
+function addInterval(dateStr, cycle, dir = 1) {
   const d = new Date(dateStr + 'T00:00:00');
-  if (cycle === 'MONTHLY') d.setMonth(d.getMonth() + 1);
-  else if (cycle === 'YEARLY') d.setFullYear(d.getFullYear() + 1);
-  else return '';
+  const months = (cycle === 'MONTHLY' ? 1 : cycle === 'YEARLY' ? 12 : 0) * dir;
+  if (!months) return '';
+  // Clamp to the target month's last day, so Jan 31 → Feb 28 rather than Mar 3.
+  const day = d.getDate();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + months);
+  d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
   return fmt(d);
+}
+
+// A subscription's cost as a number, and what it comes to per year.
+// Custom cycles are counted as yearly (same rule as the Overview spend card).
+function subCost(s) {
+  return parseFloat(String(s.cost == null ? '' : s.cost).replace(/[^0-9.]/g, '')) || 0;
+}
+function subYearlyCost(s) {
+  const cost = subCost(s);
+  return s.billingCycle === 'MONTHLY' ? cost * 12 : cost;
+}
+function subCurrencyLabel(code) {
+  return lkLabel('CURRENCY', code || 'USD') || code || 'USD';
+}
+function subMoney(n) {
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// The one date that matters for a row: the renewal date, or the end date when
+// there is no renewal. kind: 'renews' | 'ends' | 'ended' | null.
+function subNextDate(s) {
+  if (s.renewalDate) return { date: s.renewalDate, kind: 'renews' };
+  if (s.endDate) return { date: s.endDate, kind: daysUntil(s.endDate) < 0 ? 'ended' : 'ends' };
+  return { date: null, kind: null };
+}
+
+// Renewals more than 30 days out are plain text; only near or overdue ones get a coloured pill.
+function subBadge(next) {
+  const badge = document.createElement('span');
+  if (next.kind === 'ended') {
+    badge.className = 'renew-badge ended';
+    badge.textContent = 'Ended';
+    return badge;
+  }
+  const days = daysUntil(next.date);
+  const cls = renewClass(days);
+  badge.className = 'renew-badge ' + (cls === 'ok' ? 'later' : cls);
+  badge.textContent = subCountdown(days, next.date);
+  return badge;
+}
+
+// Countdown in days up to a month out ("in 12d"), then in months/years
+// ("in 8 months", "in 1 year 11 months"). Overdue stays exact in days.
+function subCountdown(days, dateStr) {
+  if (days === null || days <= 30) return renewLabel(days);
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  const d = new Date(dateStr + 'T00:00:00');
+  let m = (d.getFullYear() - t.getFullYear()) * 12 + d.getMonth() - t.getMonth();
+  if (d.getDate() < t.getDate()) m--;
+  m = Math.max(m, 1);
+  const y = Math.floor(m / 12), r = m % 12;
+  const mo = n => `${n} month${n === 1 ? '' : 's'}`;
+  const yr = n => `${n} year${n === 1 ? '' : 's'}`;
+  return 'in ' + (y && r ? `${yr(y)} ${mo(r)}` : y ? yr(y) : mo(r));
+}
+
+// How far through the current term a renewing subscription is, 0–1.
+// The term runs from one cycle before the renewal date up to it. null when
+// there is no renewal date or the cycle is Custom.
+function subTermProgress(sub) {
+  if (!sub.renewalDate) return null;
+  const start = addInterval(sub.renewalDate, sub.billingCycle, -1);
+  if (!start) return null;
+  const a = new Date(start + 'T00:00:00'), b = new Date(sub.renewalDate + 'T00:00:00');
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  return Math.min(1, Math.max(0, (now - a) / (b - a)));
+}
+
+// Column sort. key '' = default (soonest renewal first). Header click:
+// ascending → descending → back to the default, as on Project & Finance.
+let subSort = { key: '', dir: 1 };
+function setSubSort(key) {
+  if (subSort.key !== key) { subSort.key = key; subSort.dir = 1; }
+  else if (subSort.dir === 1) subSort.dir = -1;
+  else subSort.key = '';
+  renderSubscriptions();
+}
+function renderSubSortHeaders() {
+  document.querySelectorAll('#sub-table th[data-sub-sort]').forEach(th => {
+    if (th.dataset.subSort === subSort.key) th.setAttribute('aria-sort', subSort.dir === 1 ? 'ascending' : 'descending');
+    else th.removeAttribute('aria-sort');
+  });
+}
+function compareSubs(a, b) {
+  const key = subSort.key || 'next';
+  const dir = subSort.key ? subSort.dir : 1;
+  if (key === 'name') return dir * String(a.name || '').localeCompare(String(b.name || ''));
+  if (key === 'cost') return dir * (subYearlyCost(a) - subYearlyCost(b));
+  if (key === 'cycle') return dir * String(lkLabel('BILLING_CYCLE', a.billingCycle) || '').localeCompare(String(lkLabel('BILLING_CYCLE', b.billingCycle) || ''));
+  // next: ended rows and rows with no date always go last, whichever direction.
+  const da = subNextDate(a), db = subNextDate(b);
+  const rank = n => (!n.date ? 2 : n.kind === 'ended' ? 1 : 0);
+  if (rank(da) !== rank(db)) return rank(da) - rank(db);
+  if (!da.date || !db.date) return 0;
+  return dir * da.date.localeCompare(db.date);
+}
+
+// ── Subscriptions: totals strip ──
+function renderSubTotals() {
+  const bar = document.getElementById('sub-totals');
+  if (!bar) return;
+  if (subscriptions.length === 0) { bar.hidden = true; return; }
+  bar.hidden = false;
+
+  const perCur = {};   // currency -> yearly total
+  subscriptions.forEach(s => {
+    const yearly = subYearlyCost(s);
+    if (!yearly) return;
+    const c = s.currency || 'USD';
+    perCur[c] = (perCur[c] || 0) + yearly;
+  });
+  const lines = fn => {
+    const entries = Object.entries(perCur);
+    if (!entries.length) return '<span class="sub-total-line">—</span>';
+    return entries.map(([c, y]) =>
+      `<span class="sub-total-line">${esc(subCurrencyLabel(c))} ${esc(subMoney(fn(y)))}</span>`).join('');
+  };
+  document.getElementById('sub-total-year').innerHTML = lines(y => y);
+  document.getElementById('sub-total-month').innerHTML = lines(y => y / 12);
+
+  // Next renewal: the soonest row that hasn't ended (an overdue one counts — it needs attention most).
+  const upcoming = subscriptions.map(s => ({ s, next: subNextDate(s) }))
+    .filter(x => x.next.date && x.next.kind !== 'ended')
+    .sort((a, b) => a.next.date.localeCompare(b.next.date))[0];
+  const nextVal = document.getElementById('sub-next-date');
+  const nextMeta = document.getElementById('sub-next-meta');
+  nextMeta.innerHTML = '';
+  if (!upcoming) { nextVal.textContent = '—'; return; }
+  nextVal.textContent = upcoming.next.date;
+  const name = document.createElement('span');
+  name.className = 'sub-next-name';
+  name.setAttribute('data-user-content', '');
+  name.textContent = upcoming.s.name || '—';
+  nextMeta.appendChild(name);
+  nextMeta.appendChild(subBadge(upcoming.next));
 }
 
 // ── Subscriptions: render ──
@@ -1329,6 +1474,8 @@ function renderSubscriptions() {
   const table = document.getElementById('sub-table');
   const empty = document.getElementById('sub-empty-state');
   tbody.innerHTML = '';
+  renderSubTotals();
+  renderSubSortHeaders();
 
   if (subscriptions.length === 0) {
     table.style.display = 'none';
@@ -1338,43 +1485,113 @@ function renderSubscriptions() {
   table.style.display = '';
   empty.hidden = true;
 
-  const sorted = subscriptions.slice().sort((a, b) => {
-    const da = daysUntil(a.renewalDate), db = daysUntil(b.renewalDate);
-    if (da === null) return 1;
-    if (db === null) return -1;
-    return da - db;
-  }).filter(s => textMatch([s.name, s.cost, s.currency, lkLabel('BILLING_CYCLE', s.billingCycle), s.endDate, s.renewalDate], subFilter));
+  // Each currency's yearly total, for the "share of spend" line; only shown
+  // when a currency has more than one costed subscription.
+  const curTotals = {};
+  subscriptions.forEach(s => {
+    const y = subYearlyCost(s); if (!y) return;
+    const c = s.currency || 'USD';
+    curTotals[c] = curTotals[c] || { sum: 0, n: 0 };
+    curTotals[c].sum += y; curTotals[c].n++;
+  });
+
+  const sorted = subscriptions.slice().sort(compareSubs).filter(s => textMatch([s.name, s.cost, s.currency, lkLabel('BILLING_CYCLE', s.billingCycle), s.endDate, s.renewalDate], subFilter));
 
   if (sorted.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="no-matches">No matches</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="no-matches">No matches</td></tr>';
     return;
   }
 
   sorted.forEach(sub => {
     const tr = document.createElement('tr');
     tr.dataset.subId = sub.id;   // Milestone 11 — palette deep-link scroll+highlight target
+    const next = subNextDate(sub);
+    if (next.kind === 'ended') tr.classList.add('sub-ended');
+    // Click (or Enter on) the row to edit; clicks inside the action buttons don't count.
+    tr.classList.add('sub-row');
+    tr.tabIndex = 0;
+    tr.addEventListener('click', e => { if (!e.target.closest('.row-actions, button, a, input')) openSubModal(sub.id); });
+    tr.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target === tr) openSubModal(sub.id); });
 
     tr.appendChild(textCell(sub.name));
 
+    // Cost, with the yearly equivalent for monthly plans and the row's share
+    // of its currency's yearly spend underneath.
+    const costBox = document.createElement('div');
     const costSpan = document.createElement('span');
     costSpan.className = 'sub-cost';
     const costNum = parseFloat(sub.cost);
     const costText = isNaN(costNum) ? sub.cost : costNum.toFixed(2);
-    costSpan.textContent = (lkLabel('CURRENCY', sub.currency || 'USD') || sub.currency || 'USD') + ' ' + costText;
-    tr.appendChild(cellWrap(costSpan, 'cell'));
+    costSpan.textContent = subCurrencyLabel(sub.currency) + ' ' + costText;
+    costBox.appendChild(costSpan);
+    const yearly = subYearlyCost(sub);
+    const tot = curTotals[sub.currency || 'USD'];
+    const meta = [];
+    if (sub.billingCycle === 'MONTHLY' && yearly) {
+      const v = document.createElement('span'); v.textContent = subCurrencyLabel(sub.currency) + ' ' + subMoney(yearly);
+      const l = document.createElement('span'); l.textContent = 'per year';
+      meta.push([v, l]);
+    }
+    if (yearly && tot && tot.n > 1) {
+      const v = document.createElement('span'); v.textContent = Math.round(yearly / tot.sum * 100) + '%';
+      const l = document.createElement('span'); l.textContent = 'of yearly spend';
+      meta.push([v, l]);
+    }
+    if (meta.length) {
+      const m = document.createElement('div');
+      m.className = 'sub-cost-meta';
+      meta.forEach((pair, i) => {
+        if (i) { const dot = document.createElement('span'); dot.textContent = '·'; m.appendChild(dot); }
+        pair.forEach(el => m.appendChild(el));
+      });
+      costBox.appendChild(m);
+    }
+    tr.appendChild(cellWrap(costBox, 'cell'));
 
     tr.appendChild(textCell(lkLabel('BILLING_CYCLE', sub.billingCycle)));
-    tr.appendChild(textCell(sub.endDate || '—'));
-    tr.appendChild(textCell(sub.renewalDate || '—'));
 
-    const daysLeft = daysUntil(sub.renewalDate);
-    const badge = document.createElement('span');
-    badge.className = 'renew-badge ' + renewClass(daysLeft);
-    badge.textContent = renewLabel(daysLeft);
-    tr.appendChild(cellWrap(badge, 'cell'));
+    // Next Renewal: one date + its countdown. A future end date that differs
+    // from the renewal shows underneath; a past end date is just the last term.
+    const when = document.createElement('div');
+    when.className = 'sub-when';
+    const line = document.createElement('div');
+    line.className = 'sub-when-line';
+    const dateEl = document.createElement('span');
+    dateEl.className = 'sub-when-date';
+    dateEl.textContent = next.date || '—';
+    line.appendChild(dateEl);
+    if (next.date) line.appendChild(subBadge(next));
+    when.appendChild(line);
+    if (next.kind === 'renews' && sub.endDate && sub.endDate !== sub.renewalDate && daysUntil(sub.endDate) >= 0) {
+      const ends = document.createElement('div');
+      ends.className = 'sub-when-ends';
+      const lbl = document.createElement('span'); lbl.textContent = 'Ends';
+      const d = document.createElement('span'); d.textContent = sub.endDate;
+      ends.appendChild(lbl); ends.appendChild(d);
+      when.appendChild(ends);
+    }
+    // Thin bar: how much of the current term has passed. Colour follows the countdown.
+    const progress = next.kind === 'renews' ? subTermProgress(sub) : null;
+    if (progress !== null) {
+      const bar = document.createElement('div');
+      bar.className = 'sub-term ' + renewClass(daysUntil(sub.renewalDate));
+      bar.setAttribute('aria-hidden', 'true');
+      const fillEl = document.createElement('span');
+      fillEl.style.width = Math.round(progress * 100) + '%';
+      bar.appendChild(fillEl);
+      when.appendChild(bar);
+    }
+    tr.appendChild(cellWrap(when, 'cell'));
 
     const acts = document.createElement('div');
     acts.className = 'row-actions';
+
+    // Mark as renewed: moves the dates forward one cycle (monthly/yearly only).
+    const canRenew = (sub.billingCycle === 'MONTHLY' || sub.billingCycle === 'YEARLY') && !!(sub.renewalDate || sub.endDate);
+    const renewBtn = document.createElement('button');
+    renewBtn.className = 'row-btn'; renewBtn.innerHTML = ic('calendar-check');
+    renewBtn.title = 'Mark as renewed';
+    renewBtn.addEventListener('click', () => markSubRenewed(sub.id));
 
     const editBtn = document.createElement('button');
     editBtn.className = 'row-btn'; editBtn.innerHTML = ic('pencil');
@@ -1383,25 +1600,50 @@ function renderSubscriptions() {
     const delBtn = document.createElement('button');
     delBtn.className = 'row-btn del'; delBtn.innerHTML = ic('trash-2');
     delBtn.title = 'Delete';
-    const restore = () => { acts.innerHTML = ''; acts.appendChild(editBtn); acts.appendChild(delBtn); };
+    const fill = () => { if (canRenew) acts.appendChild(renewBtn); acts.appendChild(editBtn); acts.appendChild(delBtn); };
+    const restore = () => { acts.innerHTML = ''; fill(); };
     delBtn.addEventListener('click', () => showDeleteConfirm(acts, () => {
       const removeIdx = subscriptions.indexOf(sub);
       const removed = subscriptions.splice(removeIdx, 1)[0];
-      showSubUndoToast(removed, removeIdx);
+      showSubUndoToast({ kind: 'delete', sub: removed, idx: removeIdx });
       renderSubscriptions(); autoSaveSubscriptions();
     }, restore));
 
-    acts.appendChild(editBtn); acts.appendChild(delBtn);
+    fill();
     tr.appendChild(cellWrap(acts, 'cell'));
 
     tbody.appendChild(tr);
   });
 }
 
+// Move a subscription forward one billing cycle: the old renewal date becomes
+// the end of the term just paid, and the next renewal is one cycle after it.
+// Same end → renewal relationship the modal suggests (suggestSubRenewal).
+function markSubRenewed(id) {
+  const sub = subscriptions.find(s => s.id === id);
+  if (!sub) return;
+  const base = sub.renewalDate || sub.endDate;
+  const nextDate = base ? addInterval(base, sub.billingCycle) : '';
+  if (!nextDate) return;
+  // Renewed again while the toast is still up: keep the dates from before the
+  // first renew, so one Undo takes back every step.
+  const pending = undoSubscription?.kind === 'renew' && undoSubscription.id === id
+    && document.getElementById('sub-undo-toast').classList.contains('visible');
+  const before = pending ? undoSubscription.before : { endDate: sub.endDate, renewalDate: sub.renewalDate };
+  sub.endDate = base;
+  sub.renewalDate = nextDate;
+  showSubUndoToast({ kind: 'renew', id, before });
+  renderSubscriptions(); autoSaveSubscriptions();
+  if (typeof scrollToAndHighlight === 'function') scrollToAndHighlight('[data-sub-id="' + id + '"]');
+}
+
 // ── Subscriptions: undo ──
-function showSubUndoToast(sub, idx) {
-  undoSubscription = { sub, idx };
+// action: { kind: 'delete', sub, idx } | { kind: 'renew', id, before }
+function showSubUndoToast(action) {
+  undoSubscription = action;
   clearTimeout(_undoSubTimer);
+  document.getElementById('sub-undo-toast-msg').textContent =
+    action.kind === 'renew' ? 'Subscription renewed' : 'Subscription deleted';
   const toast = document.getElementById('sub-undo-toast');
   toast.classList.add('visible');
   _undoSubTimer = setTimeout(hideSubUndoToast, 5000);
@@ -1414,8 +1656,13 @@ function hideSubUndoToast() {
 
 function undoDeleteSub() {
   if (!undoSubscription) return;
-  const { sub, idx } = undoSubscription;
-  subscriptions.splice(Math.min(idx, subscriptions.length), 0, Object.assign({}, sub));
+  const action = undoSubscription;
+  if (action.kind === 'renew') {
+    const sub = subscriptions.find(s => s.id === action.id);
+    if (sub) Object.assign(sub, action.before);
+  } else {
+    subscriptions.splice(Math.min(action.idx, subscriptions.length), 0, Object.assign({}, action.sub));
+  }
   hideSubUndoToast();
   renderSubscriptions();
   autoSaveSubscriptions();

@@ -454,6 +454,16 @@ ipcMain.handle('companydocs:upload-document', authed(async (_e, id) => {
   if (canceled || !filePaths?.[0]) return { ok: false, canceled: true };
   return db.saveCompanyDocumentFile(auth.requireUserId(), id, filePaths[0]);
 }));
+// Upload by drop — same db checks as the dialog. The path comes from preload's
+// webUtils.getPathForFile on the dropped File, never from page code.
+ipcMain.handle('companydocs:upload-file', authed((_e, id, filePath) => {
+  if (!path.isAbsolute(filePath) || /^[\\/]{2}/.test(filePath)) {
+    return { ok: false, error: 'Copy the file to this computer first, then add it' };
+  }
+  try { if (!fs.statSync(filePath).isFile()) return { ok: false, error: 'Only single files can be added' }; }
+  catch { return { ok: false, error: 'Could not read the selected file' }; }
+  return db.saveCompanyDocumentFile(auth.requireUserId(), id, filePath);
+}));
 // Download — copy the stored file out to a user-chosen location.
 ipcMain.handle('companydocs:download-document', authed(async (_e, id) => {
   const r = db.resolveCompanyDocumentFile(auth.requireUserId(), id);

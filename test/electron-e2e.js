@@ -947,8 +947,8 @@ async function run() {
       duplicateFlagged: rows.some(row => row.textContent.includes(tr('Already in the Hub')) && row.querySelector('select')?.value === 'skip'),
       embedMissing: rows.some(row => row.querySelector('.cn-import-embed.missing')),
       button: document.getElementById('cn-import-go').textContent === tr('Import 1 note'),
-      systemPreset: codeNoteImport.linkKind === 'SYSTEM' && JSON.stringify(codeNoteImport.linkPicker.getSelectedIds()) === JSON.stringify([linkSystem.id])
-        && document.querySelector('#cn-import-link-kind .seg-btn.active')?.dataset.kind === 'SYSTEM',
+      systemPreset: JSON.stringify(codeNoteImport.systemPicker.getSelectedIds()) === JSON.stringify([linkSystem.id])
+        && codeNoteImport.clientPicker.getSelectedIds().length === 0,
     };
     knowledgeFilters = savedFilters;
     await runCodeNoteImport();
@@ -1240,6 +1240,47 @@ async function run() {
   if (!rotation.flagClearedServerSide) throw new Error('Choosing a new password did not clear must_change_password server-side');
   if (!rotation.restoredAdminSession) throw new Error('Could not restore the e2e-admin session after the rotation check');
 
+  // Settings → Pages: switching a page off hides it from the menu and its
+  // features elsewhere, survives as this account's preference, and comes back.
+  const pages = await evaluate(`(async () => {
+    const shown = el => !!el && el.getClientRects().length > 0;
+    switchModule('settings');
+    switchTab(document.querySelector('#module-settings .stab[data-tab="pages"]'));
+    const switches = document.querySelectorAll('#pages-settings-list .pages-switch').length;
+    const pfmSwitch = document.querySelector('#pages-settings-list .pages-switch[data-page="pfm"]');
+    pfmSwitch.click();
+    await new Promise(r => setTimeout(r, 200));
+    const saved = (await window.api.getPreferences()).hiddenPages;
+    const navGone = !shown(document.querySelector('#sidebar .nav-item[data-module="pfm"]'));
+    const catalogGone = !shown(document.querySelector('#module-settings .stab[data-tab="pfmStatus"]'));
+    switchModule('pfm');
+    const redirected = activeModule === 'analytics';
+    openPalette();
+    const input = document.getElementById('palette-input');
+    input.value = 'offer'; renderPalette();
+    const paletteText = document.getElementById('palette-list').textContent;
+    const paletteClean = !paletteText.includes('New offer') && !paletteText.includes('Project & Finance');
+    closePalette();
+    const clientId = lkOptions('COMPANY')[0]?.id;
+    switchModule('clients');
+    await openClientDetail(clientId);
+    const clientTileGone = !document.querySelector('#client-detail-tabs [data-client-tab="pfm"]')
+      && !!document.querySelector('#client-detail-tabs [data-client-tab="servers"]');
+    ['clients', 'all-tasks', 'outsource'].forEach(p => togglePageHidden(p, true));
+    const externalHeading = [...document.querySelectorAll('#sidebar .nav-section')].find(h => h.textContent.trim() === 'External' || h.textContent.trim() === 'خارجي');
+    const headingGone = !!externalHeading && externalHeading.hidden;
+    const leftClients = activeModule === 'analytics';
+    showAllPages();
+    await new Promise(r => setTimeout(r, 200));
+    const restored = (await window.api.getPreferences()).hiddenPages === ''
+      && shown(document.querySelector('#sidebar .nav-item[data-module="pfm"]')) && !externalHeading.hidden;
+    return { switches, saved, navGone, catalogGone, redirected, paletteClean, clientTileGone, headingGone, leftClients, restored };
+  })()`);
+  if (pages.switches !== 11 || pages.saved !== 'pfm' || !pages.navGone || !pages.catalogGone || !pages.redirected
+    || !pages.paletteClean || !pages.clientTileGone || !pages.headingGone || !pages.leftClients || !pages.restored) {
+    throw new Error(`Settings → Pages did not hide and restore a page cleanly: ${JSON.stringify(pages)}`);
+  }
+
   // PDF export (Finding 20, full-app audit) — report:exportPDF is otherwise
   // only checked by string-presence tests; this drives the real IPC path
   // (offscreen BrowserWindow -> Chromium printToPDF -> fs.writeFileSync) and
@@ -1314,6 +1355,7 @@ async function run() {
   console.log('PASS  Outsource: duplicate name refused, deactivate, Quick Find to an entry, delete/undo, Overview owed tile');
   console.log('PASS  An admin-created account is forced to replace its admin-assigned password on next login');
   console.log('PASS  Runtime accessibility invariants cover names, unique ids, language/direction, and live regions');
+  console.log('PASS  Settings → Pages hides a page from the menu, Quick Find, client tabs and Settings catalogs, saves it per account, and Show all brings it back');
   console.log(`PASS  report:exportPDF produces a real PDF file (${pdfBytes.length} bytes)`);
   console.log(`PASS  report:exportExcel produces a real XLSX workbook (${xlsxBytes.length} bytes)`);
   console.log(`PASS  Extracted renderer modules loaded (app v${result.version})`);

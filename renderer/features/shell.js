@@ -26,7 +26,7 @@ const PAL_PAGES = [
   { icon: 'users',            label: 'Outsource',     go: 'outsource' },
 
   { icon: 'credit-card',      label: 'Subscriptions', go: 'subscriptions' },
-  { icon: 'calendar-check',   label: 'Company Documents', go: 'companydocs' },
+  { icon: 'folder-check',     label: 'Company Documents', go: 'companydocs' },
   { icon: 'layout-template',  label: 'Templates',     go: 'templates' },
   { icon: 'book-open',        label: 'Knowledge Hub', go: 'knowledge' },
   { icon: 'settings',         label: 'Settings',      go: 'settings' },
@@ -43,7 +43,7 @@ const PAL_SETTINGS_TABS = [
   { key: 'users', label: 'User Management' },
   // settingsTab: false entries have no panel to jump to (COMPANY is managed on
   // the Clients page), so the palette must not offer them.
-  ...SETTINGS_CATALOG_TABS.filter(t => t.settingsTab !== false).map(t => ({ key: t.key, label: t.label })),
+  ...SETTINGS_CATALOG_TABS.filter(t => t.settingsTab !== false).map(t => ({ key: t.key, label: t.label, page: t.page })),
   { key: 'backup', label: 'Backup Data' },
   { key: 'maintenance', label: 'Maintenance' },
 ];
@@ -233,7 +233,7 @@ function renderPalette() {
 
   // Jump to a date (exact date syntax or today/yesterday)
   const dateQ = palParseDate(q);
-  if (dateQ) {
+  if (dateQ && !isPageHidden('timesheet')) {
     groups.push({ label: 'Jump to date', items: [{
       icon: 'calendar-check', label: 'Open ' + dateQ + ' in the Timesheet',
       run: () => { switchModule('timesheet'); switchDay(dateQ); },
@@ -241,32 +241,33 @@ function renderPalette() {
   }
 
   // Pages
-  const pages = PAL_PAGES.filter(p => !q || p.label.toLowerCase().includes(q))
+  const pages = PAL_PAGES.filter(p => !isPageHidden(p.go) && (!q || p.label.toLowerCase().includes(q)))
     .map(p => ({ icon: p.icon, label: p.label, hint: 'Go to', run: () => switchModule(p.go) }));
   if (pages.length) groups.push({ label: 'Go to', items: pages });
 
   // Quick actions
   const acts = [
     { icon: 'eye',           label: 'Workspace view & comfort',     match: 'view comfort density calm focus motion eye appearance', run: openWorkspaceView },
-    { icon: 'plus',          label: 'Add record — log work',      match: 'add record log work session new', run: () => { switchModule('timesheet'); openModal(); } },
-    { icon: 'list',          label: 'Create client task',         match: 'new client task create',          run: () => { switchModule('all-tasks'); openBacklogModal(); } },
-    { icon: 'building',      label: 'Create internal task',       match: 'new internal task create department', run: () => { switchModule('internal-tasks'); openInternalTaskModal(); } },
-    { icon: 'clipboard-list',label: 'New project',                match: 'new project create',              run: () => { switchModule('clients'); openProjectModal(); } },
-    { icon: 'briefcase',     label: 'New offer',                  match: 'new offer create quotation proposal project finance', run: () => { switchModule('pfm'); openPfmNew('OFFER'); } },
-    { icon: 'briefcase',     label: 'New CR',                     match: 'new cr change request create project finance', run: () => { switchModule('pfm'); openPfmNew('CR'); } },
-    { icon: 'users',         label: 'New outsource resource',     match: 'new outsource resource freelancer contractor external person rate', run: () => { switchModule('outsource'); openOutsNew(); } },
-    { icon: 'book-open',     label: 'New knowledge item',         match: 'new knowledge manual guide article create', run: () => { switchModule('knowledge'); openKnowledgeEditor(); } },
-    { icon: 'calendar-check',label: 'Go to today',                match: 'today now current day',           run: () => { switchModule('timesheet'); goToday(); } },
+    { icon: 'plus',          label: 'Add record — log work',      match: 'add record log work session new', page: 'timesheet', run: () => { switchModule('timesheet'); openModal(); } },
+    { icon: 'list',          label: 'Create client task',         match: 'new client task create',          page: 'all-tasks', run: () => { switchModule('all-tasks'); openBacklogModal(); } },
+    { icon: 'building',      label: 'Create internal task',       match: 'new internal task create department', page: 'internal-tasks', run: () => { switchModule('internal-tasks'); openInternalTaskModal(); } },
+    { icon: 'clipboard-list',label: 'New project',                match: 'new project create',              page: 'clients', run: () => { switchModule('clients'); openProjectModal(); } },
+    { icon: 'briefcase',     label: 'New offer',                  match: 'new offer create quotation proposal project finance', page: 'pfm', run: () => { switchModule('pfm'); openPfmNew('OFFER'); } },
+    { icon: 'briefcase',     label: 'New CR',                     match: 'new cr change request create project finance', page: 'pfm', run: () => { switchModule('pfm'); openPfmNew('CR'); } },
+    { icon: 'users',         label: 'New outsource resource',     match: 'new outsource resource freelancer contractor external person rate', page: 'outsource', run: () => { switchModule('outsource'); openOutsNew(); } },
+    { icon: 'book-open',     label: 'New knowledge item',         match: 'new knowledge manual guide article create', page: 'knowledge', run: () => { switchModule('knowledge'); openKnowledgeEditor(); } },
+    { icon: 'calendar-check',label: 'Go to today',                match: 'today now current day',           page: 'timesheet', run: () => { switchModule('timesheet'); goToday(); } },
     { icon: 'moon',          label: 'Toggle dark / light theme',  match: 'theme dark light mode toggle',    run: toggleTheme },
     { icon: 'compass',       label: 'How This App Thinks',        match: 'how this app thinks help model cheat sheet', run: openHowThinksOverlay },
     { icon: 'save',          label: 'Back up the database',       match: 'backup database save export',     run: backupDatabase },
     { icon: 'database',      label: 'Full backup to Desktop',     match: 'backup full desktop everything',  run: () => runFullBackup() },
-  ].filter(a => !q || a.match.includes(q) || a.label.toLowerCase().includes(q))
+  ].filter(a => !isPageHidden(a.page)).filter(a => !q || a.match.includes(q) || a.label.toLowerCase().includes(q))
    .map(a => ({ icon: a.icon, label: a.label, hint: 'Action', run: a.run }));
   if (acts.length) groups.push({ label: 'Actions', items: acts });
 
   // Settings tabs (jump straight to a lookup category editor)
   const settingsTabs = q ? PAL_SETTINGS_TABS
+    .filter(t => !isPageHidden(t.page))
     .filter(t => t.label.toLowerCase().includes(q) || ('settings ' + t.label.toLowerCase()).includes(q))
     .map(t => ({
       icon: 'settings', label: 'Settings — ' + t.label, hint: 'Go to',
@@ -276,7 +277,7 @@ function renderPalette() {
 
   // Client names are lookup catalog entries rather than standalone records, so
   // they remain a tiny in-memory facet alongside the SQLite FTS results.
-  const clientHits = q ? lkOptions('COMPANY').filter(c =>
+  const clientHits = q && !isPageHidden('clients') ? lkOptions('COMPANY').filter(c =>
     [c.code, c.nameEn, c.nameAr, c.label].some(v => String(v || '').toLowerCase().includes(q)))
     .slice(0, 5)
     .map(c => ({ icon: 'layers', label: companyDisplayName(c), hint: 'Open client', run: () => { switchModule('clients'); openClientDetail(c.id); } })) : [];
@@ -286,7 +287,7 @@ function renderPalette() {
     task: ['layers', 'Log a session'],
     project: ['clipboard-list', 'Open project'],
     knowledge: ['book-open', 'Open Knowledge Hub'],
-    'company-document': ['calendar-check', 'Open Company Docs'],
+    'company-document': ['folder-check', 'Open Company Docs'],
     template: ['layout-template', 'Open Templates'],
     subscription: ['credit-card', 'Open Subscriptions'],
     'client-auth': ['shield', 'Open client access'],
@@ -298,7 +299,16 @@ function renderPalette() {
     'outs-project': ['folder', 'Open project'],
     'outs-entry': ['clock', 'Open entry'],
   };
-  const workspaceItems = _palWorkspace.map(result => {
+  // The page each kind of result opens; a hidden page's results are left out.
+  // A task result logs a session, which happens on Today.
+  const kindPage = kind => kind === 'task' ? 'timesheet'
+    : kind === 'project' || kind.startsWith('client-') ? 'clients'
+      : kind === 'company-document' ? 'companydocs'
+        : kind === 'subscription' ? 'subscriptions'
+          : kind === 'template' ? 'templates'
+            : kind.startsWith('outs-') ? 'outsource'
+              : kind;   // 'knowledge', 'pfm'
+  const workspaceItems = _palWorkspace.filter(result => !isPageHidden(kindPage(String(result.kind || '')))).map(result => {
     const [icon, fallbackHint] = kindInfo[result.kind] || ['search', 'Open'];
     // Client/Internal badge — only tasks have a
     // domain; _palTaskDomainMap is null until its own async load resolves, in
@@ -515,7 +525,8 @@ async function init() {
     uiState.lastModule = 'all-tasks';
   }
   const landingModule = (uiState.startOnLastPage && uiState.lastModule && uiState.lastModule !== 'projects'
-    && document.getElementById('module-' + uiState.lastModule)) ? uiState.lastModule : 'analytics';
+    && document.getElementById('module-' + uiState.lastModule) && !isPageHidden(uiState.lastModule))
+    ? uiState.lastModule : 'analytics';
   switchModule(landingModule);
   // Clients/Internal Tasks show a list view by default (switching to them via
   // the sidebar always does, even mid-session — see switchModule's own

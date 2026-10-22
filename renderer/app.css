@@ -538,8 +538,10 @@
     .btn:not(.primary):disabled:disabled:hover { background: var(--surface); border-color: var(--border); }
     .btn.primary { background: var(--primary); border-color: transparent; color: #fff; box-shadow: 0 6px 18px -6px var(--primary-glow); }
     .btn.primary:hover { background: var(--primary-strong); border-color: transparent; }
-    .btn.today-btn { background: color-mix(in srgb, var(--primary) 12%, transparent); border-color: color-mix(in srgb, var(--primary) 30%, transparent); color: var(--primary); font-weight: 700; }
-    .btn.today-btn:hover { background: color-mix(in srgb, var(--primary) 22%, transparent); border-color: var(--primary); }
+    /* Plain when another day is open; coloured only while today is the open day (.is-today). */
+    .btn.today-btn { font-weight: 700; }
+    .btn.today-btn.is-today { background: color-mix(in srgb, var(--primary) 12%, transparent); border-color: color-mix(in srgb, var(--primary) 30%, transparent); color: var(--primary); }
+    .btn.today-btn.is-today:hover { background: color-mix(in srgb, var(--primary) 22%, transparent); border-color: var(--primary); }
 
     #save-status { font-size: 12px; color: var(--muted); min-width: 60px; }
     #save-status.saved   { color: var(--good); }
@@ -631,6 +633,9 @@
     .renew-badge.ok     { background: var(--renew-ok);     color: var(--renew-ok-text); }
     .renew-badge.soon   { background: var(--renew-soon);   color: var(--renew-soon-text); }
     .renew-badge.urgent { background: var(--renew-urgent); color: var(--renew-urgent-text); }
+    /* More than 30 days out, or already ended: plain text, so only near renewals stand out. */
+    .renew-badge.later,
+    .renew-badge.ended  { background: transparent; color: var(--muted); padding-inline: 0; font-weight: 500; }
 
     .status-dropdown {
       position: fixed; z-index: 9999;
@@ -2040,9 +2045,40 @@
     .mc-rec { font-size: 10.5px; color: var(--muted); margin-top: auto; }
     .mc-bar { height: 3px; border-radius: 2px; background: var(--accent); opacity: .35; }
 
-    .sub-cost { font-weight: 600; color: var(--accent); }
+    /* Prices in plain text colour: red is kept for urgent renewals. */
+    .sub-cost { font-weight: 600; color: var(--text); }
     .sub-cost .cur { font-size: 11px; color: var(--muted); font-weight: 500; }
     #sub-table-wrap { flex: 1; overflow-y: auto; padding: var(--space-5) var(--space-6) var(--space-7); }
+    /* Subscriptions totals strip — same stat cards as the Today page. */
+    #sub-totals { display: grid; grid-template-columns: repeat(3, minmax(150px, 1fr)); gap: 12px; margin-bottom: 14px; }
+    #sub-totals[hidden] { display: none; }
+    .sub-total-lines { display: flex; flex-direction: column; gap: 2px; }
+    .sub-next-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .sub-next-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; color: var(--text); font-weight: 600; }
+    /* Next Renewal cell: date + countdown, optional "Ends" line under it. */
+    .sub-when-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .sub-when-date { font-variant-numeric: tabular-nums; }
+    .sub-when-ends { display: flex; gap: 6px; margin-top: 3px; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    #sub-table tbody tr.sub-ended td { color: var(--muted); }
+    /* Column balance: Name takes the slack, the rest are fixed shares. */
+    #sub-table th:nth-child(2) { width: 20%; }
+    #sub-table th:nth-child(3) { width: 12%; }
+    #sub-table th:nth-child(4) { width: 26%; }
+    #sub-table th:nth-child(5) { width: 112px; }
+    #sub-table th[aria-sort] .pfm-sort-btn { color: var(--text); }
+    #sub-table th[aria-sort="ascending"] .pfm-sort-btn::after { content: '↑'; opacity: 1; }
+    #sub-table th[aria-sort="descending"] .pfm-sort-btn::after { content: '↓'; opacity: 1; }
+    /* Whole row opens the editor. */
+    #sub-table tbody tr.sub-row { cursor: pointer; }
+    #sub-table tbody tr.sub-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    /* Under the cost: yearly equivalent and share of spend. */
+    .sub-cost-meta { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 3px; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    /* Term progress: how much of the current period has passed. */
+    .sub-term { height: 4px; max-width: 220px; margin-top: 7px; border-radius: 4px; background: var(--border); overflow: hidden; }
+    .sub-term > span { display: block; height: 100%; border-radius: inherit; background: color-mix(in srgb, var(--muted) 55%, transparent); }
+    .sub-term.soon > span { background: var(--warn); }
+    .sub-term.urgent > span { background: var(--bad); }
+    @media (max-width: 760px) { #sub-totals { grid-template-columns: 1fr; } }
 
     /* Generic helpers (RTL-aware text + muted placeholder cells) */
     .rtl-text { unicode-bidi: plaintext; text-align: start; }
@@ -2258,11 +2294,13 @@
     .kh-list { display: flex; flex-direction: column; gap: 9px; }
 
     /* Knowledge wheel: articles around a circle by type, linked to clients and
-       systems. --kw-1..8 are the fixed-order categorical hues (validated for
-       adjacent arcs in both themes); text never takes a series colour. */
+       systems. --kw-1..12 are the fixed-order categorical hues (1-8 validated
+       for adjacent arcs in both themes; 9-12 added so ten-plus types no longer
+       fall back to grey); text never takes a series colour. */
     .kh-wheel {
       --kw-1: #2a78d6; --kw-2: #eb6834; --kw-3: #1baf7a; --kw-4: #eda100;
       --kw-5: #e87ba4; --kw-6: #008300; --kw-7: #6250d6; --kw-8: #e34948;
+      --kw-9: #0f8fa6; --kw-10: #8c5a2b; --kw-11: #b8389f; --kw-12: #3c4f76;
       --kw-other: #8a8578;
       border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
       padding: 12px 16px 14px; display: flex; flex-direction: column; align-items: center;
@@ -2270,13 +2308,16 @@
     :root[data-theme="dark"] .kh-wheel {
       --kw-1: #3987e5; --kw-2: #d95926; --kw-3: #199e70; --kw-4: #c98500;
       --kw-5: #d55181; --kw-6: #008300; --kw-7: #9085e9; --kw-8: #e66767;
+      --kw-9: #2aa9c0; --kw-10: #b98455; --kw-11: #d35cbb; --kw-12: #7d93c2;
       --kw-other: #8f8a80;
     }
     .kh-wheel .kw-c0 { --kw: var(--kw-other); } .kh-wheel .kw-c1 { --kw: var(--kw-1); }
     .kh-wheel .kw-c2 { --kw: var(--kw-2); } .kh-wheel .kw-c3 { --kw: var(--kw-3); }
     .kh-wheel .kw-c4 { --kw: var(--kw-4); } .kh-wheel .kw-c5 { --kw: var(--kw-5); }
     .kh-wheel .kw-c6 { --kw: var(--kw-6); } .kh-wheel .kw-c7 { --kw: var(--kw-7); }
-    .kh-wheel .kw-c8 { --kw: var(--kw-8); }
+    .kh-wheel .kw-c8 { --kw: var(--kw-8); } .kh-wheel .kw-c9 { --kw: var(--kw-9); }
+    .kh-wheel .kw-c10 { --kw: var(--kw-10); } .kh-wheel .kw-c11 { --kw: var(--kw-11); }
+    .kh-wheel .kw-c12 { --kw: var(--kw-12); }
     .kw-info { align-self: stretch; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; min-height: 22px; font-size: 12.5px; color: var(--muted); }
     .kw-info strong { color: var(--text); font-weight: 700; }
     .kw-info-type { font-size: 11.5px; padding: 1px 8px; border-radius: 999px; background: var(--surface2); border: 1px solid var(--border); }
@@ -2304,6 +2345,19 @@
     .kw-swatch { width: 10px; height: 10px; border-radius: 50%; background: var(--kw); }
     .kw-swatch-hub { border-radius: 2px; background: var(--text); }
     .kw-swatch-hollow { background: var(--surface); border: 2px solid var(--muted); }
+    /* Knowledge Hub wheel only: lines rest fainter (it carries many more than
+       the Servers/Systems wheels), arc names read as headings, and each legend
+       type is a show/hide toggle. */
+    #kh-wheel .kw-svg:not(.has-focus) .kw-edge { opacity: .22; }
+    #kh-wheel .kw-arc-label { font-size: 12.5px; fill: var(--text); stroke-width: 5px; }
+    .kw-info-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; }
+    .kw-legend-key { margin-top: 2px; }
+    .kw-legend-toggle { border: 1px solid transparent; background: none; color: inherit; font: inherit; padding: 2px 8px; border-radius: 999px; cursor: pointer; }
+    .kw-legend-toggle:hover, .kw-legend-toggle:focus-visible { border-color: var(--border); background: var(--surface2); outline: none; }
+    .kw-legend-toggle.is-off { opacity: .45; text-decoration: line-through; }
+    .kw-legend-toggle.is-off .kw-swatch { background: transparent; border: 2px solid var(--kw); }
+    .kw-legend-reset { border: 1px solid var(--border); background: var(--surface); color: var(--primary); font: inherit; font-size: 11.5px; font-weight: 600; padding: 2px 10px; border-radius: 999px; cursor: pointer; }
+    .kw-legend-reset:hover { border-color: var(--primary); }
     .kw-unlinked { align-self: stretch; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); font-size: 12px; color: var(--muted); }
     .kw-unlinked-item {
       border: 1px dashed var(--border); background: transparent; color: var(--text); font: inherit; font-size: 12px;
@@ -2486,10 +2540,10 @@
     /* Import .md */
     #code-note-import-modal { width: min(780px, calc(100vw - 34px)); max-height: calc(100vh - 34px); }
     #cn-import-drop { margin-bottom: 6px; }
-    .cn-import-links { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; }
+    .cn-import-links { display: grid; gap: 8px; margin-top: 12px; }
+    .cn-import-link-group { display: grid; gap: 4px; }
     .cn-import-links-label { font-size: var(--fs-sm); color: var(--muted); }
     .cn-import-tags { display: grid; gap: 6px; margin-top: 12px; }
-    #cn-import-link-picker { flex: 1 1 100%; }
     .cn-import-list { display: flex; flex-direction: column; margin-top: 10px; max-height: 50vh; overflow: auto; }
     .cn-import-row { display: flex; align-items: flex-start; gap: 10px; padding: 9px 4px; border-top: 1px solid var(--border); }
     .cn-import-row:first-child { border-top: 0; }
@@ -2911,6 +2965,59 @@
     .user-editor-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
     .user-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); }
     .user-check input { width: 16px; height: 16px; accent-color: var(--primary); }
+
+    /* ── Settings → Pages: pages an account switched off ──
+       <html data-hidden-pages="pfm outsource"> lists them (core.js
+       applyHiddenPages); anything tagged data-page-feature with one of those
+       pages is hidden, wherever it sits. One rule per hideable page. */
+    html[data-hidden-pages~="timesheet"]      [data-page-feature~="timesheet"],
+    html[data-hidden-pages~="reports"]        [data-page-feature~="reports"],
+    html[data-hidden-pages~="internal-tasks"] [data-page-feature~="internal-tasks"],
+    html[data-hidden-pages~="subscriptions"]  [data-page-feature~="subscriptions"],
+    html[data-hidden-pages~="companydocs"]    [data-page-feature~="companydocs"],
+    html[data-hidden-pages~="templates"]      [data-page-feature~="templates"],
+    html[data-hidden-pages~="knowledge"]      [data-page-feature~="knowledge"],
+    html[data-hidden-pages~="clients"]        [data-page-feature~="clients"],
+    html[data-hidden-pages~="all-tasks"]      [data-page-feature~="all-tasks"],
+    html[data-hidden-pages~="pfm"]            [data-page-feature~="pfm"],
+    html[data-hidden-pages~="outsource"]      [data-page-feature~="outsource"] { display: none !important; }
+
+    .pages-settings-head { display: flex; align-items: flex-start; gap: var(--space-4); }
+    .pages-settings-head .general-hint { flex: 1; margin: 0; }
+    .pages-settings-head .btn { flex-shrink: 0; }
+    .pages-settings-list { display: flex; flex-direction: column; gap: var(--space-2); max-width: 640px; margin-top: var(--space-3); }
+    .pages-group-label {
+      margin-top: var(--space-3); font-size: var(--fs-caption); letter-spacing: var(--ls-caption);
+      text-transform: uppercase; color: var(--muted); font-weight: 600;
+    }
+    .pages-row {
+      display: flex; align-items: center; gap: var(--space-3); cursor: pointer;
+      padding: var(--space-3) var(--space-4); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); background: var(--surface);
+      transition: opacity var(--speed) var(--ease), border-color var(--speed) var(--ease);
+    }
+    .pages-row:hover { border-color: var(--primary); }
+    .pages-row.is-off { opacity: .6; }
+    .pages-row-icon { display: inline-flex; color: var(--primary); flex-shrink: 0; }
+    .pages-row-text { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .pages-row-text b { font-size: var(--fs-body); color: var(--text); }
+    .pages-row-text span { font-size: var(--fs-sm); color: var(--muted); }
+    .pages-row-text .pages-row-also { font-size: 12px; }
+    /* A plain checkbox drawn as an on/off switch. */
+    .pages-switch {
+      appearance: none; -webkit-appearance: none; flex-shrink: 0; margin: 0; cursor: pointer;
+      position: relative; width: 38px; height: 22px; border-radius: 999px;
+      background: var(--track); border: 1px solid var(--border);
+      transition: background var(--speed) var(--ease);
+    }
+    .pages-switch::after {
+      content: ''; position: absolute; top: 2px; inset-inline-start: 2px; width: 16px; height: 16px;
+      border-radius: 50%; background: var(--surface-1); box-shadow: var(--shadow-sm);
+      transition: inset-inline-start var(--speed) var(--ease);
+    }
+    .pages-switch:checked { background: var(--primary); border-color: var(--primary); }
+    .pages-switch:checked::after { inset-inline-start: 18px; }
+    .pages-switch:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
     .user-form-status { min-height: 18px; margin-top: 8px; color: var(--bad); font-size: 12px; }
     @media (max-width: 760px) { .user-editor-grid { grid-template-columns: 1fr; } .user-editor-grid .full { grid-column: auto; } }
     /* Settings banner — safeStorage-unavailable notice (credential encryption) */
@@ -3079,7 +3186,6 @@
 
     /* ══ TODAY BUTTON ══ */
     #btn-today { transition: all var(--speed); }
-    #btn-today.is-today { background: color-mix(in srgb, var(--primary) 18%, transparent); border-color: var(--primary); color: var(--primary); }
 
     /* ══ PRINT PREVIEW MODAL ══ */
     #print-overlay {
@@ -4187,6 +4293,7 @@
       display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px;
     }
     .workspace-choice-group.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .workspace-choice-group.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     .workspace-choice {
       min-height: 58px; padding: 9px 10px; border: 1px solid var(--border);
       border-radius: 11px; background: var(--surface-1); color: var(--text);
@@ -4509,6 +4616,13 @@
       border-radius: 0 !important;
       border-inline: 0;
     }
+    /* Subscriptions: one rounded, bordered frame matching the totals cards
+       above it. Two ids so it also beats the density rules' row spacing. */
+    #module-subscriptions #sub-table {
+      border-collapse: separate; border-spacing: 0;
+      border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
+    }
+    #module-subscriptions #sub-table tbody tr:last-child td { border-bottom: 0; }
 
     .cp-body,
     .kh-shell,
@@ -5048,3 +5162,55 @@
     .cd-actions { flex-wrap: nowrap; align-items: center; gap: 4px; padding-top: 0; }
     .cd-actions-gap { flex: 1 1 auto; }
     .cd-actions .pj-doc-btn.cd-act-icon { width: 30px; height: 30px; padding: 0; justify-content: center; }
+
+    /* Company documents: renewal readiness. Status chips + category chips
+       above the grid, the card icon coloured by renewal state, a days-left
+       note, the reference number with copy, and a drop target. */
+    #companydocs-filter { width: min(320px, 40vw); }
+    .cd-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-bottom: 16px; }
+    .cd-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .cd-chips + .cd-chips:not([hidden]) { padding-inline-start: 18px; border-inline-start: 1px solid var(--border); }
+    .cd-chip {
+      display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px;
+      border: 1px solid var(--border); background: var(--surface); color: var(--text);
+      font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: border-color .15s, background .15s;
+    }
+    .cd-chip:hover { border-color: var(--accent); }
+    .cd-chip-count {
+      min-width: 18px; padding: 0 5px; border-radius: 999px; text-align: center; font-size: 11px; line-height: 18px;
+      background: var(--surface2); color: var(--muted);
+    }
+    .cd-chip.bad .cd-chip-count { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad); }
+    .cd-chip.warn .cd-chip-count { background: color-mix(in srgb, var(--warn) 22%, transparent); color: color-mix(in srgb, var(--warn) 70%, var(--text)); }
+    .cd-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .cd-chip.active .cd-chip-count { background: rgba(255,255,255,.25); color: #fff; }
+
+    .cd-card.available.status-nodate .cd-card-icon { background: var(--surface2); color: var(--muted); }
+    .cd-card.status-ok:not(.missing) .cd-card-icon { background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--good); }
+    .cd-card.status-soon:not(.missing) .cd-card-icon { background: color-mix(in srgb, var(--warn) 20%, transparent); color: color-mix(in srgb, var(--warn) 75%, var(--text)); }
+    .cd-card.status-overdue:not(.missing) .cd-card-icon { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad); }
+    .cd-card.status-overdue { border-color: color-mix(in srgb, var(--bad) 40%, var(--border)); }
+
+    .cd-renewal { flex-wrap: wrap; }
+    .cd-renewal.soon { color: color-mix(in srgb, var(--warn) 75%, var(--text)); }
+    .cd-renewal-days { font-weight: 500; opacity: .8; }
+    .cd-renewal-days::before { content: '·'; margin-inline-end: 6px; }
+    .cd-renewal-add {
+      align-self: flex-start; padding: 0; border: 0; background: none; font: inherit; font-size: 12px; font-weight: 600;
+      color: var(--muted); cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px;
+    }
+    .cd-renewal-add:hover { color: var(--accent); }
+
+    .cd-number { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+    .cd-number-ic { display: inline-flex; color: var(--muted); }
+    .cd-number-ic .lic { width: 13px; height: 13px; }
+    .cd-number-val {
+      font-family: ui-monospace, Consolas, monospace; font-weight: 600; letter-spacing: .02em;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; user-select: all;
+    }
+    .cd-number-copy { opacity: .6; }
+    .cd-number:hover .cd-number-copy, .cd-number-copy:focus-visible { opacity: 1; }
+
+    .cd-file-text .cd-file-meta:only-child { font-size: 12px; color: var(--text); }
+    .cd-actions .pj-doc-btn.primary { padding: 7px 16px; font-size: 12.5px; }
+    .cd-card.drop-target { border-color: var(--accent); border-style: dashed; background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }

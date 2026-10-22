@@ -1035,6 +1035,7 @@ function renderProjectDetail(p) {
   // ── Time Tracking section — aggregated across every linked task's sessions.
   // No dedicated IPC: p.tasks[].workLogs already carries everything needed. ──
   const timeSec = pjMk('div', 'pj-section');
+  timeSec.dataset.pageFeature = 'timesheet';   // hidden with the Today page
   const tmHead = pjMk('div', 'pj-section-head');
   const tmTitle = pjMk('div', 'pj-section-title');
   tmTitle.innerHTML = ic('clock');
@@ -1115,6 +1116,7 @@ function appendProjectLinkedSections(host, p) {
 
   // ── Tasks section (ProjectTasksV2: each task with its work sessions nested) ──
   const tasksSec = pjMk('div', 'pj-section');
+  tasksSec.dataset.pageFeature = 'all-tasks';   // hidden with the Client Tasks page
   const tHead = pjMk('div', 'pj-section-head');
   const tTitle = pjMk('div', 'pj-section-title');
   tTitle.innerHTML = ic('list');

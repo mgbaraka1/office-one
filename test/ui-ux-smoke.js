@@ -121,7 +121,7 @@ gate('Calm Workspace exposes persistent eye-comfort controls without data APIs',
     .every(choice => html.includes(`data-workspace-choice="${choice}"`))
   && !workspaceViewCode.includes('window.api.'));
 gate('workspace preferences validate stored values and default to a calm balanced static view',
-  html.includes("Object.freeze({ density: 'balanced', canvas: 'calm', motion: 'reduced' })")
+  html.includes("Object.freeze({ density: 'balanced', canvas: 'calm', motion: 'reduced', scale: '100' })")
   && html.includes("['compact','balanced','spacious'].includes(stored.density)")
   && html.includes("['calm','structured'].includes(stored.canvas)")
   && html.includes("['gentle','reduced'].includes(stored.motion)"));

@@ -1287,6 +1287,19 @@ document.addEventListener('keydown', e => {
     return;
   }
 
+  // Ctrl+F jumps to the open page's own search box, when it has one. Not while
+  // a dialog is open or another field has focus, so typing is never cut off.
+  if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'f' || e.key === 'F')) {
+    const search = document.querySelector('.app-module.active .mod-search');
+    const typingElsewhere = (inputFocused || document.activeElement?.isContentEditable) && document.activeElement !== search;
+    if (search && search.offsetParent !== null && !anyOpen && !typingElsewhere) {
+      e.preventDefault();
+      search.focus();
+      search.select();
+      return;
+    }
+  }
+
   if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'f') {
     e.preventDefault();
     toggleFocusMode();
@@ -2570,6 +2583,10 @@ function switchModule(name) {
   // meetings are client records now. A remembered "last module" of finance (or
   // a stale deep link) lands on Clients, which is where they live.
   if (name === 'finance') name = 'clients';
+  // A page switched off in Settings → Pages is never opened, whatever link
+  // asked for it (a stale "last page", a deep link nobody hid); the Overview
+  // is shown instead.
+  if (isPageHidden(name)) name = 'analytics';
   if (activeModule === name) {
     if (name === 'browse') setBrowseKind(browseKind);
     else if (name === 'clients') backToClientsList();

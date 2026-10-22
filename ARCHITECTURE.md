@@ -14,9 +14,9 @@ Office ONE is an offline, multi-user Electron desktop app covering:
 - **Timesheets** — `tasks` → `work_logs`; a task is date-independent, each log is one dated session.
 - **Client Tasks** and **Internal Work** — two separate task domains (project work vs. department work).
 - **Clients** — bilingual client profiles plus VPN connections, servers and internal systems; client **Projects** with tracked documents and linked tasks live under each client.
-- **Subscriptions** and **Company Documents** — recurring spend and renewal-tracked files.
+- **Subscriptions** and **Company Documents** — recurring spend and renewal-tracked files. The Subscriptions table shows yearly/monthly totals per currency and the next renewal, sorts by any column (soonest renewal by default), shows each row's next date with a countdown and a term-progress bar, and has *Mark as renewed* (moves the dates one monthly/yearly cycle, with a 5-second undo that takes back every renew made while it is showing). Document cards sort most urgent first (expired, renewing within 30 days, later, no date), filter by renewal status and category, carry an optional reference number with copy, and take a file dropped onto them.
 - **Templates** — reusable files (Word, Excel, PDF…) to start new work from: the same cards as Company Documents, stored as `company_documents` rows with `kind = 'TEMPLATE'`, their own `TEMPLATE_CATEGORY` catalog, no renewal date, and Excel/PowerPoint/text uploads allowed.
-- **Knowledge Hub** — a document shelf found by client, system and tag: drop a file to add it (a matching name becomes the next version, with an optional "what changed" note that can be edited later with a 5-second undo, and is searchable in the Hub and Quick Find), items open in a side panel, plain-text notes. **Code Notes** (kind `CODE_NOTE`, 078) hold Markdown instead: each fenced code block is shown with syntax colours and its own Copy button, a bold line right above a block is its label, and `{{name}}` / `{{name:default}}` in a block is a blank filled in (with remembered values, and server/database suggestions from the linked clients) when copying. `[[Note]]` links to the item with that title and `![[file.xlsx]]` to a document of the item. Import .md takes many files at once (one note per file, titled with the file name; a duplicate title is skipped or its note replaced; embedded files in the selection are attached; every note can optionally be linked to chosen systems or to chosen clients, never both, preset from the Hub's filter; every note gets the batch's tags, pre-filled with the files' folder name when they share one) and is undone in one click, links and tags included; Export .md saves a note back out. Tags (free text, at most 30 an item, a later spelling reusing the first) are a facet of their own; several tag filters narrow together, and `#lin` in the Hub search matches tags only. **Every item has a home: a client, a system, or at least one tag.** `setKnowledgeChildren` checks it last inside the save's transaction, so a refused save or import changes nothing; the editor and the import ask for a tag before they get that far. Versions of one document are grouped by name with the version set aside ("Guide v1.0" and "Guide v1.4" are one document); at the same number a plain version ranks above one with extra words ("1.4" above "1.4 changes"). The list's Open file opens the latest version, with a menu when an item has several documents. Each client page has a Knowledge Hub tab and each project page a Knowledge Hub section listing the items linked to its clients or systems; a file dropped there or a New item started there is pre-linked. Groups remain in the schema but have no UI; older rich-text notes still render and turn into plain text on their next edit.
+- **Knowledge Hub** — a document shelf found by client, system and tag: drop a file to add it (a matching name becomes the next version, with an optional "what changed" note that can be edited later with a 5-second undo, and is searchable in the Hub and Quick Find), items open in a side panel, plain-text notes. **Code Notes** (kind `CODE_NOTE`, 078) hold Markdown instead: each fenced code block is shown with syntax colours and its own Copy button, a bold line right above a block is its label, and `{{name}}` / `{{name:default}}` in a block is a blank filled in (with remembered values, and server/database suggestions from the linked clients) when copying. `[[Note]]` links to the item with that title and `![[file.xlsx]]` to a document of the item. Import .md takes many files at once (one note per file, titled with the file name; a duplicate title is skipped or its note replaced; embedded files in the selection are attached; every note can be linked to chosen clients and systems together, preset from the Hub's filter; every note gets the batch's tags, pre-filled with the files' folder name when they share one) and is undone in one click, links and tags included; Export .md saves a note back out. Tags (free text, at most 30 an item, a later spelling reusing the first) are a facet of their own; several tag filters narrow together, and `#lin` in the Hub search matches tags only. **Every item has a home: a client, a system, or at least one tag.** `setKnowledgeChildren` checks it last inside the save's transaction, so a refused save or import changes nothing; the editor and the import ask for a tag before they get that far. Versions of one document are grouped by name with the version set aside ("Guide v1.0" and "Guide v1.4" are one document); at the same number a plain version ranks above one with extra words ("1.4" above "1.4 changes"). The list's Open file opens the latest version, with a menu when an item has several documents. Each client page has a Knowledge Hub tab and each project page a Knowledge Hub section listing the items linked to its clients or systems; a file dropped there or a New item started there is pre-linked. Groups remain in the schema but have no UI; older rich-text notes still render and turn into plain text on their next edit.
 - **Project & Finance** — Offers and Change Requests (CRs): a status stage trail, fee-bearing versions with uploaded files, follow-up/expiry reminders and Excel export.
 - **Outsource** — external resources paid by the hour: Person → Projects → Entries (a keyboard-first timesheet grid per project), an hourly rate history, statements (draft → issued → paid) with Excel/PDF export, and an Overview "owed" tile.
 - **Overview / Reports** — read-only analytics, PDF/CSV/Excel export.
@@ -259,6 +259,7 @@ Landmarks worth knowing:
 | 077 | Server identity includes the IP — `idx_client_servers_identity` re-keyed onto (user, client, system, role, environment, host), host case- and space-insensitive. Two servers may share System / Role / Environment when their IPs differ; servers with no IP still collide on the triple alone |
 | 078 | Code Notes — `KNOWLEDGE_TYPE` `CODE_NOTE` seeded ("Code Note" / "ملاحظة برمجية", sorted last). No table change: a code note is a knowledge item with `content_format = 'markdown'` (the column carries no CHECK), and its code is already indexed by the knowledge search triggers |
 | 079 | Knowledge Hub tags return — no table change (043's `knowledge_tags` / `knowledge_item_tags` were kept). `workspace_search_knowledge_ai` / `_au` recreated: the body gains every tag name, and an item with no client or system shows `#tag · #tag` as its subtitle; new `workspace_search_knowledge_tags_ai` / `_ad` re-index an item when it is tagged or untagged, and `workspace_search_knowledge_tag_au` re-indexes a renamed tag's items |
+| 080 | Company document number — `company_documents.doc_number` (TEXT, default ''; always '' for a template). `workspace_search_company_documents_ai` / `_au` recreated so Quick Find also matches the number (appended to the body); `_ad` unchanged. Existing rows have no number, so no search row is rebuilt |
 
 **A guarded seed is the right shape for a fresh-install gap.** Migration 003
 seeded some categories from "legacy blob ∪ values already in the data", both
@@ -480,6 +481,28 @@ Two modules have **no sidebar entry** and are reached only by deep link:
 Companies/Systems roll-ups). `PAL_PAGES` in `shell.js` still lists Browse — the
 command palette is a search surface, not the main menu.
 
+**Hiding pages (Settings → Pages).** Each account can switch off pages it does
+not use; Overview and Settings are always shown. The choice is the
+`hiddenPages` preference (§4, `user_settings` under `pref_`), a comma-separated
+list of module keys checked against `HIDEABLE_PAGES` in `db.js`. It is a
+preference, not a permission: nothing is deleted, and the page and its features
+come back when it is switched on. A hidden page goes from the menu and also from
+other pages, in two ways:
+
+- **Markup** carries `data-page-feature="<module>"`, and `app.css` hides it while
+  `<html data-hidden-pages>` names that module (menu items, How This App Thinks
+  tiles, Overview cards, project sections, and the Settings catalog tabs that
+  carry a `page` in `settings-registry.js`).
+- **Code that builds lists** asks `isPageHidden()` (`core.js`): Quick Find pages,
+  actions and results, the Overview's chips and attention list, the client
+  page's tiles, sections and timeline, and the clients web.
+
+`switchModule()` sends a hidden page to the Overview, so a stale link can never
+open one. **A new page** needs an entry in both `HIDEABLE_PAGES` lists (`db.js`
+and `core.js`), a rule in `app.css`, and its features tagged wherever they show
+up outside the page. The Today page's Client / Internal choice is not hidden
+with Client Tasks or Internal Work: both kinds of session still need logging.
+
 **Client detail tabs** (`CLIENT_DETAIL_TYPES` in `renderer/features/clients.js`):
 Overview / Projects / **Offers & CRs** / Access / Servers / Systems. The Offers &
 CRs tab reuses the Project & Finance list rows, and its New buttons preset the
@@ -510,13 +533,15 @@ change one. Duplicate-company
 merging lives in Settings → Maintenance.
 
 **Settings tabs** come from `renderer/settings-registry.js` (minus
-`settingsTab: false` entries) plus the hand-authored General, User Management,
+`settingsTab: false` entries) plus the hand-authored General, User Management, **Pages**,
 **Backup Data** and Maintenance tabs. Every tab is visible to every
-account. **Backup Data is a Settings page, not a sidebar button**; Maintenance
+account, except a catalog tab whose page that account switched off. **Backup Data is a Settings page, not a sidebar button**; Maintenance
 keeps only the read-only audits and repairs.
 
 **Light/dark lives inside View & Comfort**, as the *Appearance* choice group. The
 theme is **not** in `workspaceViewPrefs` — it lives on `documentElement[data-theme]`.
+The *Scale* group (80/90/100/110 %, the `scale` preference) zooms the whole window
+through `webFrame.setZoomFactor` (preload clamps it to 0.5–2).
 
 **Global shortcuts** (handler in `renderer/features/timesheet.js`):
 
@@ -524,6 +549,7 @@ theme is **not** in `workspaceViewPrefs` — it lives on `documentElement[data-t
 |---|---|
 | `Ctrl+K` | Quick Find / command palette (works even while typing) |
 | `Ctrl+N` | context-aware "new" for the active module |
+| `Ctrl+F` | the open page's own search box (not while a dialog is open or another field has focus) |
 | `Ctrl+Shift+F` | Focus Mode |
 | `Ctrl+Enter` | submit the open modal (or save Settings when dirty) |
 | `Ctrl+←` / `Ctrl+→` | previous / next saved day |
@@ -611,7 +637,7 @@ from the OS region.
 
 ## 10. Things that look wrong but are not
 
-- **`db.js` is ~6,700 lines.** It is sectioned by domain rather than split,
+- **`db.js` is ~8,000 lines.** It is sectioned by domain rather than split,
   because it owns the single SQLite connection and keeping every query beside the
   schema it depends on is what makes the invariants checkable in one place.
 - **Retired surfaces.** Some features were withdrawn while their tables and

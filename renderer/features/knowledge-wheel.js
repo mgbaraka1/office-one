@@ -5,14 +5,17 @@
 // of their own after Systems. Hovering a name traces its links; clicking an
 // article opens it, clicking a client, system or tag keeps its links lit. An
 // article with none of them is drawn hollow and listed underneath — it is the
-// one nobody will find by browsing.
+// one nobody will find by browsing. Clicking a type in the legend hides it (and
+// any client, system or tag only it links to); the biggest type is drawn in the
+// middle of the left side, where its labels read level.
 
 let knowledgeWheelItems = [];
 let knowledgeWheelPinned = null;   // node key kept highlighted after a click
 let knowledgeWheelWidth = 0;
 let knowledgeWheelObserver = null;
+const knowledgeWheelHidden = new Set();   // type codes switched off in the legend
 
-const KW_TYPE_SLOTS = 8;            // fixed-order categorical hues (app.css --kw-1..8)
+const KW_TYPE_SLOTS = 12;           // fixed-order categorical hues (app.css --kw-1..12)
 const KW_NS = 'http://www.w3.org/2000/svg';
 
 function setKnowledgeView(view) {
@@ -41,9 +44,38 @@ function kwTruncate(text, max) {
   return s.length > max ? s.slice(0, Math.max(1, max - 1)).trimEnd() + '…' : s;
 }
 
+// Shortens text to fit maxPx in the given CSS font, measured rather than
+// guessed per character, so wide scripts and fonts never run off the edge.
+let kwMeasureCtx = null;
+function kwFitText(text, maxPx, font) {
+  const s = String(text || '');
+  kwMeasureCtx = kwMeasureCtx || document.createElement('canvas').getContext('2d');
+  if (!kwMeasureCtx) return kwTruncate(s, Math.floor(maxPx / 7));
+  kwMeasureCtx.font = font;
+  const fits = t => kwMeasureCtx.measureText(t).width <= maxPx;
+  if (fits(s)) return s;
+  let lo = 1, hi = s.length - 1;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (fits(s.slice(0, mid).trimEnd() + '…')) lo = mid; else hi = mid - 1;
+  }
+  return s.slice(0, lo).trimEnd() + '…';
+}
+
+// Biggest arc in the middle, the rest alternating outward, so the largest
+// group sits where labels are level and easiest to read.
+function kwCentreLargest(arcs) {
+  const out = [];
+  arcs.slice().sort((a, b) => b.nodes.length - a.nodes.length)
+    .forEach((arc, i) => (i % 2 ? out.unshift(arc) : out.push(arc)));
+  return out;
+}
+
 // Arcs in drawing order: one per knowledge type (catalog order, untyped last),
 // then Clients, then Systems, then Tags. Each node is { key, kind, label, item|link }.
-function knowledgeWheelModel(items) {
+// A type in `hidden` keeps its arc (and colour slot) but is flagged hidden, and
+// its articles add no clients, systems or tags.
+function knowledgeWheelModel(items, hidden = new Set()) {
   const typeOrder = (LK.categories.KNOWLEDGE_TYPE || []).map(o => o.code);
   const byType = new Map();
   items.forEach(item => {
@@ -57,10 +89,12 @@ function knowledgeWheelModel(items) {
   });
   const arcs = typeKeys.map((code, i) => ({
     kind: 'type', code, slot: i < KW_TYPE_SLOTS ? i + 1 : 0,
+    hidden: hidden.has(code),
     label: code ? (lkLabel('KNOWLEDGE_TYPE', code) || byType.get(code)[0].typeLabel || code) : 'No type',
     nodes: byType.get(code).slice().sort((a, b) => a.title.localeCompare(b.title))
       .map(item => ({ key: 'a' + item.id, kind: 'article', label: item.title, item })),
   }));
+  items = items.filter(item => !hidden.has(item.type || ''));
   [['companies', 'Clients'], ['systems', 'Systems']].forEach(([kind, label]) => {
     const hubs = new Map();
     items.forEach(item => (item[kind] || []).forEach(link => {
@@ -87,8 +121,14 @@ function drawKnowledgeWheel(host, items) {
   knowledgeWheelWidth = width;
   ensureKnowledgeWheelObserver(host);
 
-  const arcs = knowledgeWheelModel(items);
-  const articleArcs = arcs.filter(a => a.kind === 'type');
+  // Forget hidden types that are no longer in the list, and never hide them all.
+  const present = new Set(items.map(item => item.type || ''));
+  [...knowledgeWheelHidden].forEach(code => { if (!present.has(code)) knowledgeWheelHidden.delete(code); });
+  if (knowledgeWheelHidden.size >= present.size) knowledgeWheelHidden.clear();
+  const allArcs = knowledgeWheelModel(items, knowledgeWheelHidden);
+  const typeArcs = allArcs.filter(a => a.kind === 'type');
+  const arcs = allArcs.filter(a => !a.hidden);
+  const articleArcs = kwCentreLargest(arcs.filter(a => a.kind === 'type'));
   const hubArcs = arcs.filter(a => a.kind !== 'type');
   const nodeCount = arcs.reduce((n, a) => n + a.nodes.length, 0);
 
@@ -111,11 +151,12 @@ function drawKnowledgeWheel(host, items) {
   const H = 2 * (R + labelRoom);
   const W = Math.max(H, Math.min(width - 32, 2 * (R + 280)));
   const cx = W / 2, cy = H / 2;
-  const hRoom = W / 2 - R - 20, vRoom = labelRoom - 12;
-  const charsAt = deg => {
+  // Labels start at R + 16; keep a small margin before the edge of the drawing.
+  const hRoom = W / 2 - R - 24, vRoom = labelRoom - 24;
+  const pxAt = deg => {
     const rad = deg * Math.PI / 180;
     const len = Math.min(hRoom / Math.max(Math.abs(Math.sin(rad)), 0.01), vRoom / Math.max(Math.abs(Math.cos(rad)), 0.01));
-    return Math.max(8, Math.floor(len / 6.4));
+    return Math.max(50, len * 0.96);
   };
 
   // Angles: 0 = top, clockwise. Articles fill [270 - span/2, 270 + span/2].
@@ -128,6 +169,16 @@ function drawKnowledgeWheel(host, items) {
     angle += step;   // the gap
   };
   articleArcs.forEach(place);
+  // What each client, system or tag holds, by type, for the hover readout.
+  hubArcs.forEach(arc => arc.nodes.forEach(hub => {
+    const byArc = new Map();
+    hub.items.forEach(item => {
+      const at = pos.get('a' + item.id);
+      if (at) byArc.set(at.arc, (byArc.get(at.arc) || 0) + 1);
+    });
+    hub.typeCounts = [...byArc].map(([a, n]) => ({ arc: a, n })).sort((a, b) => b.n - a.n);
+  }));
+  const hubMax = Math.max(1, ...hubArcs.flatMap(arc => arc.nodes.map(hub => hub.items.length)));
   // Clients and systems sit in the order that keeps their lines from crossing:
   // one linked to articles near the top goes near the top.
   hubArcs.forEach(arc => {
@@ -169,12 +220,6 @@ function drawKnowledgeWheel(host, items) {
       class: 'kw-band ' + (arc.kind === 'type' ? 'kw-c' + arc.slot : 'kw-hub'),
       d: `M${f(x0)} ${f(y0)} A${f(R + 7)} ${f(R + 7)} 0 ${large} ${sweep} ${f(x1)} ${f(y1)}`,
     }, svg);
-    if (arc.kind !== 'type') {
-      const mid = (arc.start + arc.end) / 2;
-      const [lx, ly] = pt(mid, R - 34);
-      const t = kwSvg('text', { class: 'kw-arc-label', x: f(lx), y: f(ly), 'text-anchor': 'middle', 'dominant-baseline': 'middle' }, svg);
-      t.textContent = arc.label;
-    }
   });
 
   // Links: one cubic per article→client/system, pulled toward the middle and
@@ -197,7 +242,16 @@ function drawKnowledgeWheel(host, items) {
     addEdge(a.node.key, path); addEdge(hub.key, path);
   })));
 
-  // Nodes: a dot (articles) or a square (clients/systems) and a radial label.
+  // Arc names (Clients, Systems, Tags) go above the lines so they stay readable.
+  hubArcs.forEach(arc => {
+    const [lx, ly] = pt((arc.start + arc.end) / 2, R - 34);
+    const t = kwSvg('text', { class: 'kw-arc-label', x: f(lx), y: f(ly), 'text-anchor': 'middle', 'dominant-baseline': 'middle' }, svg);
+    t.textContent = arc.label;
+  });
+
+  // Nodes: a dot (articles) or a square (clients/systems/tags, sized by how
+  // many articles they hold) and a radial label.
+  const fontFamily = getComputedStyle(svg).fontFamily || 'sans-serif';
   const nodeLayer = kwSvg('g', { class: 'kw-nodes' }, svg);
   const nodeEls = new Map();
   const unlinked = [];
@@ -211,7 +265,10 @@ function drawKnowledgeWheel(host, items) {
     }, nodeLayer);
     const [x, y] = pt(deg, R);
     if (isArticle) kwSvg('circle', { class: 'kw-dot', cx: f(x), cy: f(y), r: '4.5' }, g);
-    else kwSvg('rect', { class: 'kw-dot', x: f(x - 4.5), y: f(y - 4.5), width: '9', height: '9', rx: '2' }, g);
+    else {
+      const side = 7 + 9 * Math.sqrt(node.items.length / hubMax);
+      kwSvg('rect', { class: 'kw-dot', x: f(x - side / 2), y: f(y - side / 2), width: f(side), height: f(side), rx: '2' }, g);
+    }
     // Labels read outward; on the left half they are flipped so none is upside down.
     const screenDeg = rtl ? 360 - ((deg % 360) + 360) % 360 : ((deg % 360) + 360) % 360;
     const left = screenDeg > 180;
@@ -221,7 +278,7 @@ function drawKnowledgeWheel(host, items) {
       class: 'kw-label', x: f(tx), y: f(ty), 'dominant-baseline': 'middle',
       'text-anchor': left ? 'end' : 'start', transform: `rotate(${f(rot)} ${f(tx)} ${f(ty)})`,
     }, g);
-    text.textContent = kwTruncate(node.label, charsAt(deg));
+    text.textContent = kwFitText(node.label, pxAt(deg), `${isArticle ? 400 : 700} 11.5px ${fontFamily}`);
     text.dataset.userContent = '';
     const tip = kwSvg('title', {}, g);
     tip.textContent = node.label;
@@ -251,23 +308,42 @@ function drawKnowledgeWheel(host, items) {
   knowledgeWheelRestore(svg, info, pos, edgesByKey, nodeEls);
 
   // ── Legend ──
+  // Each type is a toggle: click to hide or show it.
   const legend = pjMk('div', 'kw-legend');
-  articleArcs.forEach(arc => {
-    const item = pjMk('span', 'kw-legend-item');
+  const redraw = () => { knowledgeWheelPinned = null; drawKnowledgeWheel(host, knowledgeWheelItems); };
+  typeArcs.forEach(arc => {
+    const item = pjMk('button', 'kw-legend-item kw-legend-toggle' + (arc.hidden ? ' is-off' : ''));
+    item.type = 'button';
+    item.title = 'Click to hide or show this type';
+    item.setAttribute('aria-pressed', String(!arc.hidden));
     item.appendChild(pjMk('span', 'kw-swatch kw-c' + arc.slot));
     const name = pjMk('span', null, arc.label);
     if (arc.code) name.dataset.userContent = '';
     item.appendChild(name);
     item.appendChild(pjMk('span', 'kw-legend-count', String(arc.nodes.length)));
+    item.addEventListener('click', () => {
+      if (arc.hidden) knowledgeWheelHidden.delete(arc.code);
+      else if (typeArcs.length - knowledgeWheelHidden.size > 1) knowledgeWheelHidden.add(arc.code);
+      else return;
+      redraw();
+    });
     legend.appendChild(item);
   });
+  if (knowledgeWheelHidden.size) {
+    const all = pjMk('button', 'kw-legend-reset', 'Show all types');
+    all.type = 'button';
+    all.addEventListener('click', () => { knowledgeWheelHidden.clear(); redraw(); });
+    legend.appendChild(all);
+  }
+  const keyRow = pjMk('div', 'kw-legend kw-legend-key');
   [['kw-swatch-hub', 'Client, system or tag'], ['kw-swatch-hollow', 'No client, system or tag']].forEach(([cls, label]) => {
     const item = pjMk('span', 'kw-legend-item');
     item.appendChild(pjMk('span', 'kw-swatch ' + cls));
     item.appendChild(pjMk('span', null, label));
-    legend.appendChild(item);
+    keyRow.appendChild(item);
   });
   host.appendChild(legend);
+  host.appendChild(keyRow);
 
   if (unlinked.length) {
     const note = pjMk('div', 'kw-unlinked');
@@ -311,9 +387,20 @@ function knowledgeWheelHighlight(svg, info, node, arc, edgesByKey, nodeEls) {
     if (arc.code) type.dataset.userContent = '';
     info.appendChild(type);
   } else {
-    detail = knowledgeWheelCount(node.items.length, '1 article', '{n} articles');
+    const types = node.typeCounts || [];
+    detail = [knowledgeWheelCount(node.items.length, '1 article', '{n} articles'),
+      knowledgeWheelCount(types.length, '1 type', '{n} types')].join(' · ');
   }
   info.appendChild(pjMk('span', 'kw-info-detail', detail));
+  (node.typeCounts || []).forEach(({ arc: typeArc, n }) => {
+    const chip = pjMk('span', 'kw-info-chip');
+    chip.appendChild(pjMk('span', 'kw-swatch kw-c' + typeArc.slot));
+    const label = pjMk('span', null, typeArc.label);
+    if (typeArc.code) label.dataset.userContent = '';
+    chip.appendChild(label);
+    chip.appendChild(pjMk('span', 'kw-legend-count', String(n)));
+    info.appendChild(chip);
+  });
 }
 
 function knowledgeWheelRestore(svg, info, pos, edgesByKey, nodeEls) {

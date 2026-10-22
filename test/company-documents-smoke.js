@@ -120,6 +120,23 @@ try {
   record('Update: fields changed in place, id stable', updated.id === created.id
     && updated.name === 'VAT Certificate 2027' && updated.category === 'TAX', JSON.stringify(updated));
 
+  // ── Reference number (migration 080): trimmed, saved, and found by Quick Find ──
+  const numbered = db.updateCompanyDocument(userId, created.id, {
+    name: 'VAT Certificate 2027', category: 'TAX', renewalDate: '2027-06-01', notes: 'updated', docNumber: '  3009876543  ',
+  });
+  const searchHits = q => {
+    const raw = new DatabaseSync(path.join(workDir, 'cooperation-tools.db'), { readOnly: true });
+    try {
+      return raw.prepare("SELECT entity_id FROM workspace_search WHERE workspace_search MATCH ? AND kind = 'company-document'")
+        .all(q).map(r => r.entity_id);
+    } finally { raw.close(); }
+  };
+  record('Number: trimmed and saved', numbered.docNumber === '3009876543', JSON.stringify(numbered.docNumber));
+  record('Number: indexed for Quick Find', searchHits('3009876543').includes(created.id), '');
+  db.updateCompanyDocument(userId, created.id, { name: 'VAT Certificate 2027', category: 'TAX', renewalDate: '2027-06-01', notes: 'updated' });
+  record('Number: clearing it re-indexes', !searchHits('3009876543').includes(created.id)
+    && db.getCompanyDocument(userId, created.id).docNumber === '', '');
+
   // Ownership gate: another user's id must not be able to update/read it.
   const otherUserRow = readRow(path.join(workDir, 'cooperation-tools.db'), 'SELECT id FROM users WHERE id != ? LIMIT 1', userId);
   if (otherUserRow) {
@@ -215,6 +232,8 @@ try {
   const tplUpdated = db.updateCompanyDocument(userId, tpl.id, { name: 'Service Agreement v2', category: 'LEGAL', renewalDate: '2027-01-01' });
   record('Templates: update keeps the kind, checks the template catalog, drops a renewal date',
     tplUpdated.kind === 'TEMPLATE' && tplUpdated.category === '' && tplUpdated.renewalDate === '', JSON.stringify(tplUpdated));
+  const tplNumbered = db.updateCompanyDocument(userId, tpl.id, { name: 'Service Agreement v2', docNumber: '123' });
+  record('Templates: never keep a reference number', tplNumbered.docNumber === '', JSON.stringify(tplNumbered.docNumber));
   const xlsx = path.join(workDir, 'rates.xlsx');
   fs.writeFileSync(xlsx, Buffer.from([0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0]));
   const tplUpload = db.saveCompanyDocumentFile(userId, tpl.id, xlsx);

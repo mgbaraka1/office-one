@@ -84,6 +84,9 @@
     'Cost': 'التكلفة', 'Currency': 'العملة', 'Billing Cycle': 'دورة الفوترة', 'End Date': 'تاريخ الانتهاء',
     'Renewal Date': 'تاريخ التجديد', 'Renews In': 'يتجدد خلال', '+ Add Subscription': '+ إضافة اشتراك',
     'Add Subscription': 'إضافة اشتراك', 'Subscription deleted': 'تم حذف الاشتراك',
+    'Subscription renewed': 'تم تجديد الاشتراك', 'per year': 'سنوياً', 'of yearly spend': 'من الإنفاق السنوي', 'Mark as renewed': 'تعليم كمُجدَّد', 'Next Renewal': 'التجديد القادم',
+    'Per Year': 'سنوياً', 'Per Month': 'شهرياً', 'Across all subscriptions': 'لجميع الاشتراكات',
+    'Yearly cost spread over 12 months': 'التكلفة السنوية موزعة على 12 شهراً', 'Ends': 'ينتهي', 'Ended': 'منتهٍ',
     'No subscriptions yet — click': 'لا توجد اشتراكات بعد — انقر', 'to start tracking': 'لبدء التتبع',
     'Subscriptions Settings': 'إعدادات الاشتراكات', 'Default Currency': 'العملة الافتراضية',
     'Companies': 'الشركات', 'Systems': 'الأنظمة', 'Departments': 'الأقسام', 'Project Status': 'حالة المشروع',
@@ -344,6 +347,8 @@
     'Calm': 'هادئ', 'Clean, quiet surfaces': 'أسطح نظيفة وهادئة', 'Structured': 'منظم',
     'Subtle alignment grid': 'شبكة محاذاة خفيفة', 'Reduce movement when concentration matters.': 'قلل الحركة عند الحاجة إلى التركيز.',
     'Soft interface feedback': 'استجابة مرئية لطيفة', 'No decorative movement': 'دون حركة زخرفية',
+    'Scale': 'الحجم', 'Zoom the whole window out to fit more, or in to read easier.': 'صغّر النافذة كلها لعرض المزيد، أو كبّرها لقراءة أسهل.',
+    'Fit the most': 'أكبر قدر من المحتوى', 'A little smaller': 'أصغر قليلاً', 'Standard size': 'الحجم القياسي', 'A little larger': 'أكبر قليلاً',
     'Create task': 'إنشاء مهمة', 'Plan project, department, or unlinked work': 'خطط لعمل مشروع أو قسم أو عمل غير مرتبط',
     'Open the command palette': 'فتح لوحة الأوامر',
     'Enter or exit Focus Mode': 'الدخول إلى وضع التركيز أو الخروج منه', 'Show this shortcuts list': 'عرض قائمة الاختصارات',
@@ -496,7 +501,7 @@
     'No item has this title yet': 'لا يوجد عنصر بهذا العنوان بعد', 'This file is not attached to the item': 'هذا الملف غير مرفق بالعنصر',
     'Select a value first, such as a database name': 'حدّد قيمة أولاً، مثل اسم قاعدة بيانات', 'Made 1 blank': 'تم إنشاء فراغ واحد',
     'Export .md': 'تصدير Markdown', 'Note saved as a .md file': 'تم حفظ الملاحظة كملف Markdown', 'Could not export the note': 'تعذّر تصدير الملاحظة',
-    'Import Markdown notes': 'استيراد ملاحظات Markdown', 'Link every note to': 'ربط كل الملاحظات بـ', 'No link': 'بدون ربط',
+    'Import Markdown notes': 'استيراد ملاحظات Markdown', 'Link every note to': 'ربط كل الملاحظات بـ',
 'Drop .md files here, with any files they embed, or': 'أسقط ملفات Markdown هنا مع أي ملفات تتضمنها، أو',
     'Choose files…': 'اختر ملفات…',
     'Each .md file becomes one Code Note, titled with its file name. A file a note embeds, like ![[Checklist.xlsx]], is attached to it when you include that file too. Your files are only read, never changed.':
@@ -520,7 +525,7 @@
     'Integration secret key': 'المفتاح السري للتكامل', 'What is this engagement about?': 'ما موضوع هذا المشروع؟',
     'Search tasks…': 'البحث في المهام…', 'Find a setting…': 'البحث عن إعداد…', 'What needs to be done?': 'ما المطلوب إنجازه؟',
     'Workspace appearance': 'مظهر مساحة العمل',
-    'Workspace density': 'كثافة مساحة العمل', 'Workspace canvas': 'خلفية مساحة العمل', 'Workspace motion': 'حركة مساحة العمل',
+    'Workspace density': 'كثافة مساحة العمل', 'Workspace canvas': 'خلفية مساحة العمل', 'Workspace motion': 'حركة مساحة العمل', 'Workspace scale': 'حجم مساحة العمل',
     'Exit Focus Mode (Ctrl+Shift+F)': 'إنهاء وضع التركيز (Ctrl+Shift+F)',
     'Jump to a page, task, project or date…': 'انتقل إلى صفحة أو مهمة أو مشروع أو تاريخ…',
     'Search pages, actions, and workspace data': 'البحث في الصفحات والإجراءات وبيانات مساحة العمل',
@@ -574,6 +579,16 @@
     'Task not found': 'لم يتم العثور على المهمة', 'Project not found': 'لم يتم العثور على المشروع',
     'Loading knowledge item…': 'جارٍ تحميل عنصر المعرفة…', 'Select at least one record to include': 'اختر سجلاً واحداً على الأقل لتضمينه',
     'No records match your search': 'لا توجد سجلات تطابق بحثك', 'No documents match your search': 'لا توجد مستندات تطابق بحثك',
+    // Company Documents: renewal readiness, reference number, drop upload.
+    'All categories': 'كل الفئات', 'Expired': 'منتهية', 'Renews soon': 'يتجدد قريباً', 'No renewal date': 'بلا تاريخ تجديد',
+    'Valid': 'سارية', 'Delete document': 'حذف المستند', 'Add renewal date': 'إضافة تاريخ التجديد',
+    'Copy number': 'نسخ الرقم', 'Number copied': 'تم نسخ الرقم', 'No file — drop one here': 'لا يوجد ملف — أفلته هنا',
+    'Remove the file (keeps the document)': 'إزالة الملف (يبقى المستند)',
+    'Only the first file was added — a document holds one file': 'أُضيف الملف الأول فقط — يحمل المستند ملفاً واحداً',
+    'No documents match this filter': 'لا توجد مستندات تطابق هذه التصفية', 'today': 'اليوم',
+    'Document Number': 'رقم المستند', 'e.g. 1010123456': 'مثال: 1010123456',
+    'Search name, number or notes…': 'ابحث بالاسم أو الرقم أو الملاحظات…', 'Search (Ctrl+F)': 'بحث (Ctrl+F)',
+    'Drop a file saved on this computer': 'أفلت ملفاً محفوظاً على هذا الجهاز', 'Renewal status': 'حالة التجديد',
     'No file uploaded': 'لم يتم رفع ملف', 'File missing from disk': 'الملف مفقود من القرص', 'Not uploaded': 'غير مرفوع',
     'No auth connections match your search.': 'لا توجد اتصالات مصادقة تطابق بحثك.', 'No auth connections recorded yet.': 'لم تُسجل اتصالات مصادقة بعد.',
     'No internal systems match your search.': 'لا توجد أنظمة داخلية تطابق بحثك.', 'No internal systems recorded yet.': 'لم تُسجل أنظمة داخلية بعد.',
@@ -888,6 +903,9 @@
     '1 tag': 'وسم واحد', '{n} tags': '{n} وسوم',
     'Knowledge wheel: articles and the clients, systems and tags they are linked to': 'عجلة المعرفة: المقالات والعملاء والأنظمة والوسوم المرتبطة بها',
     '1 article': 'مقالة واحدة', '{n} articles': '{n} مقالات',
+    // Wheel legend toggles and the hub readout (2026-10-21).
+    '1 type': 'نوع واحد', '{n} types': '{n} أنواع',
+    'Click to hide or show this type': 'انقر لإخفاء هذا النوع أو إظهاره', 'Show all types': 'إظهار كل الأنواع',
     // Server map: the Servers section drawn as a tree.
     'List': 'قائمة', 'Map': 'خريطة', 'Show servers as': 'عرض الخوادم كـ',
     'Environment differs from its server': 'البيئة تختلف عن بيئة الخادم',
@@ -1185,6 +1203,23 @@
       'حُفظت بيانات الاعتماد هذه بحساب Windows آخر أو على جهاز آخر، لذا مفتاحها غير متوفر هنا. القيمة المخزّنة سليمة — استعد النسخة الاحتياطية بعبارة مرورها، أو أعد إدخال بيانات الاعتماد لاستبدالها.',
   });
 
+  // Settings → Pages: switching off pages an account does not use.
+  Object.assign(ar, {
+    'Pages': 'الصفحات', 'Show all pages': 'إظهار كل الصفحات',
+    'Turn off the pages you don\'t use. A hidden page leaves the menu, and its parts on other pages, Quick Find and the Overview go with it. Nothing is deleted: turn the page back on and everything is there.':
+      'أوقف الصفحات التي لا تستخدمها. تختفي الصفحة المخفية من القائمة، وتختفي معها أجزاؤها في الصفحات الأخرى وفي البحث السريع والنظرة العامة. لا يُحذف شيء: أعد تشغيل الصفحة وستجد كل شيء كما هو.',
+    'Overview and Settings are always shown.': 'النظرة العامة والإعدادات ظاهرتان دائماً.',
+    'Also hides the time charts on the Overview and a project\'s time tracking.': 'يخفي أيضاً رسوم الوقت في النظرة العامة وتتبّع الوقت في المشروع.',
+    'Also hides Hours by Department on the Overview.': 'يخفي أيضاً الساعات حسب القسم في النظرة العامة.',
+    'Also hides their renewals and Recurring Spend on the Overview.': 'يخفي أيضاً تجديداتها والإنفاق المتكرر في النظرة العامة.',
+    'Also hides their renewals on the Overview.': 'يخفي أيضاً تجديداتها في النظرة العامة.',
+    'Also hides the Knowledge Hub section on client and project pages.': 'يخفي أيضاً قسم مركز المعرفة في صفحات العملاء والمشاريع.',
+    'Also hides client projects and access expiry reminders on the Overview.': 'يخفي أيضاً مشاريع العملاء وتذكيرات انتهاء الوصول في النظرة العامة.',
+    'Also hides the task list on project pages.': 'يخفي أيضاً قائمة المهام في صفحات المشاريع.',
+    'Also hides Offers & CRs on client and project pages, and their reminders on the Overview.': 'يخفي أيضاً العروض وطلبات التغيير في صفحات العملاء والمشاريع، وتذكيراتها في النظرة العامة.',
+    'Also hides the Owed to Outsource tile on the Overview.': 'يخفي أيضاً بطاقة المستحق للتعهيد الخارجي في النظرة العامة.',
+  });
+
   // Outsource — external resources, their hourly rates and (later phases) their
   // hours and statements. "Resource" is مورد throughout; the module is التعهيد الخارجي.
   Object.assign(ar, {
@@ -1367,6 +1402,10 @@
   // count in this app already collapses to a singular/plural pair, so the
   // simplification stays consistent with the rest of the dictionary.)
   const arHourWord = numStr => parseFloat(numStr) === 1 ? 'ساعة' : 'ساعات';
+  // Arabic counted months/years: 1 and 2 have their own forms, 3–10 take the
+  // plural, 11+ the singular accusative. Used by the Subscriptions countdown.
+  const arMonthCount = n => n === 1 ? 'شهر' : n === 2 ? 'شهرين' : n <= 10 ? `${n} أشهر` : `${n} شهراً`;
+  const arYearCount = n => n === 1 ? 'سنة' : n === 2 ? 'سنتين' : n <= 10 ? `${n} سنوات` : `${n} سنة`;
   const dynamicArabicRules = [
     // Time-of-day greeting — translate the salutation, keep the person's name.
     [/^Good (morning|afternoon|evening), (.+)$/s, m => `${arGreet[m[1]]}، ${m[2]}`],
@@ -1430,6 +1469,10 @@
     [/^(\d+)d overdue$/s, m => `متأخر ${m[1]} يوم`],
     // The Attention badge's future side (renewLabel): "in 3d".
     [/^in (\d+)d$/s, m => `خلال ${m[1]} يوم`],
+    // Subscriptions countdown beyond a month: "in 8 months", "in 1 year 11 months".
+    [/^in (\d+) years? (\d+) months?$/s, m => `خلال ${arYearCount(Number(m[1]))} و${arMonthCount(Number(m[2]))}`],
+    [/^in (\d+) years?$/s, m => `خلال ${arYearCount(Number(m[1]))}`],
+    [/^in (\d+) months?$/s, m => `خلال ${arMonthCount(Number(m[1]))}`],
     [/^Time breakdown, ([\d.]+) total hours?$/s, m => `توزيع الوقت، ${m[1]} ${arHourWord(m[1])} إجمالاً`],
     // Chart point/heat-cell tooltips: "Aug 1 · 3.5 hours", "2026-08-25 · 1 hour".
     [/^(.+) · ([\d.]+) hours?$/s, m => `${arabicTranslation(m[1])} · ${m[2]} ${arHourWord(m[2])}`],
@@ -1567,6 +1610,8 @@
     [/^\+(\d+) more$/s, m => `+${m[1]} أخرى`],
     [/^Updated yesterday$/s, () => 'تم التحديث أمس'], [/^Updated (\d+) days? ago$/s, m => `تم التحديث منذ ${m[1]} يوم`],
     [/^Updated (\d+) weeks? ago$/s, m => `تم التحديث منذ ${m[1]} أسبوع`], [/^Updated (.+)$/s, m => `تم التحديث ${m[1]}`],
+    [/^Expired — (.+)$/s, m => `منتهية — ${m[1]}`],
+    [/^in (\d+) days?$/s, m => `خلال ${m[1]} يوم`], [/^(\d+) days? ago$/s, m => `منذ ${m[1]} يوم`],
     [/^Overdue — (.+)$/s, m => `متأخر — ${m[1]}`], [/^Renews soon — (.+)$/s, m => `يتجدد قريباً — ${m[1]}`],
     [/^Renews (.+)$/s, m => `يتجدد ${m[1]}`], [/^Expires soon — (.+)$/s, m => `تنتهي الصلاحية قريباً — ${m[1]}`],
     [/^Expires (.+)$/s, m => `تنتهي الصلاحية ${m[1]}`], [/^in “(.+)”$/s, m => `ضمن «${m[1]}»`],

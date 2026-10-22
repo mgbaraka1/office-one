@@ -105,41 +105,41 @@
     <button class="nav-item active" data-module="analytics" data-onclick="switchModule('analytics')" title="Overview">
       <span class="nav-icon" data-ic="layout-dashboard"></span><span class="nav-label">Overview</span>
     </button>
-    <button class="nav-item" data-module="timesheet" data-onclick="switchModule('timesheet')" title="Today — Timesheet">
+    <button class="nav-item" data-module="timesheet" data-onclick="switchModule('timesheet')" title="Today — Timesheet" data-page-feature="timesheet">
       <span class="nav-icon" data-ic="clock"></span><span class="nav-label">Today</span>
     </button>
-    <button class="nav-item" data-module="reports" data-onclick="switchModule('reports')" title="Reports">
+    <button class="nav-item" data-module="reports" data-onclick="switchModule('reports')" title="Reports" data-page-feature="reports">
       <span class="nav-icon" data-ic="file-text"></span><span class="nav-label">Reports</span>
     </button>
     <!-- Internal: the company's own work and assets. -->
     <div class="nav-section">Internal</div>
-    <button class="nav-item" data-module="internal-tasks" data-onclick="switchModule('internal-tasks')" title="Internal Work">
+    <button class="nav-item" data-module="internal-tasks" data-onclick="switchModule('internal-tasks')" title="Internal Work" data-page-feature="internal-tasks">
       <span class="nav-icon" data-ic="building"></span><span class="nav-label">Internal Work</span>
     </button>
-    <button class="nav-item" data-module="subscriptions" data-onclick="switchModule('subscriptions')" title="Subscriptions">
+    <button class="nav-item" data-module="subscriptions" data-onclick="switchModule('subscriptions')" title="Subscriptions" data-page-feature="subscriptions">
       <span class="nav-icon" data-ic="credit-card"></span><span class="nav-label">Subscriptions</span><span class="nav-badge" id="nav-badge-subscriptions"></span>
     </button>
-    <button class="nav-item" data-module="companydocs" data-onclick="switchModule('companydocs')" title="Company Documents">
-      <span class="nav-icon" data-ic="calendar-check"></span><span class="nav-label">Company Docs</span><span class="nav-badge" id="nav-badge-companydocs"></span>
+    <button class="nav-item" data-module="companydocs" data-onclick="switchModule('companydocs')" title="Company Documents" data-page-feature="companydocs">
+      <span class="nav-icon" data-ic="folder-check"></span><span class="nav-label">Company Docs</span><span class="nav-badge" id="nav-badge-companydocs"></span>
     </button>
-    <button class="nav-item" data-module="templates" data-onclick="switchModule('templates')" title="Templates">
+    <button class="nav-item" data-module="templates" data-onclick="switchModule('templates')" title="Templates" data-page-feature="templates">
       <span class="nav-icon" data-ic="layout-template"></span><span class="nav-label">Templates</span>
     </button>
-    <button class="nav-item" data-module="knowledge" data-onclick="switchModule('knowledge')" title="Knowledge Hub">
+    <button class="nav-item" data-module="knowledge" data-onclick="switchModule('knowledge')" title="Knowledge Hub" data-page-feature="knowledge">
       <span class="nav-icon" data-ic="book-open"></span><span class="nav-label">Knowledge Hub</span><span class="nav-badge" id="nav-badge-knowledge"></span>
     </button>
     <!-- External: clients and everyone else outside the company. -->
     <div class="nav-section">External</div>
-    <button class="nav-item" data-module="clients" data-onclick="switchModule('clients')" title="Clients">
+    <button class="nav-item" data-module="clients" data-onclick="switchModule('clients')" title="Clients" data-page-feature="clients">
       <span class="nav-icon" data-ic="layers"></span><span class="nav-label">Clients</span><span class="nav-badge" id="nav-badge-clients"></span>
     </button>
-    <button class="nav-item" data-module="all-tasks" data-onclick="switchModule('all-tasks')" title="Client Tasks">
+    <button class="nav-item" data-module="all-tasks" data-onclick="switchModule('all-tasks')" title="Client Tasks" data-page-feature="all-tasks">
       <span class="nav-icon" data-ic="list"></span><span class="nav-label">Client Tasks</span>
     </button>
-    <button class="nav-item" data-module="pfm" data-onclick="switchModule('pfm')" title="Project &amp; Finance">
+    <button class="nav-item" data-module="pfm" data-onclick="switchModule('pfm')" title="Project &amp; Finance" data-page-feature="pfm">
       <span class="nav-icon" data-ic="briefcase"></span><span class="nav-label">Project &amp; Finance</span><span class="nav-badge" id="nav-badge-pfm"></span>
     </button>
-    <button class="nav-item" data-module="outsource" data-onclick="switchModule('outsource')" title="Outsource">
+    <button class="nav-item" data-module="outsource" data-onclick="switchModule('outsource')" title="Outsource" data-page-feature="outsource">
       <span class="nav-icon" data-ic="users"></span><span class="nav-label">Outsource</span><span class="nav-badge" id="nav-badge-outsource"></span>
     </button>
   </nav>
@@ -223,19 +223,19 @@
         <p id="dash-date"></p>
       </div>
       <div class="dash-launchpad" aria-label="Start a workflow">
-        <button class="dash-launch primary" data-onclick="startWorkLogEntry()"><span data-ic="clock"></span>Log Work</button>
+        <button class="dash-launch primary" data-onclick="startWorkLogEntry()" data-page-feature="timesheet"><span data-ic="clock"></span>Log Work</button>
         <button class="dash-launch" data-onclick="openPalette()"><span data-ic="search"></span>Find Anything</button>
       </div>
       <div class="dash-stats" id="dash-stats"></div>
     </div>
     <div class="an-main">
-        <div class="an-section">
+        <div class="an-section" data-page-feature="timesheet">
           <span class="an-section-title"><span data-ic="trending-up"></span>Time Tracking</span>
           <span class="an-section-line"></span>
           <span class="an-period-tag" id="an-period-tag"></span>
         </div>
-        <div class="an-kpis" id="an-kpis"></div>
-        <div class="an-card">
+        <div class="an-kpis" id="an-kpis" data-page-feature="timesheet"></div>
+        <div class="an-card" data-page-feature="timesheet">
           <div class="an-card-head">
             <span class="an-card-title">Daily Hours</span>
             <span class="an-trend-legend" id="an-trend-legend"></span>
@@ -243,7 +243,7 @@
           </div>
           <div id="an-trend"></div>
         </div>
-        <div class="an-grid">
+        <div class="an-grid" data-page-feature="timesheet">
           <div class="an-card">
             <div class="an-card-head"><span class="an-card-title">Hours by Company</span><span class="an-card-sub" id="an-company-sub"></span></div>
             <div id="an-company"></div>
@@ -253,11 +253,11 @@
             <div id="an-system"></div>
           </div>
         </div>
-        <div class="an-section">
+        <div class="an-section" data-page-feature="timesheet">
           <span class="an-section-title"><span data-ic="layers"></span>More Breakdowns</span>
           <span class="an-section-line"></span>
         </div>
-        <div class="an-grid an-grid-3">
+        <div class="an-grid an-grid-3" data-page-feature="timesheet">
           <div class="an-card">
             <div class="an-card-head"><span class="an-card-title">Time Breakdown</span><span class="an-card-sub" id="an-type-sub"></span></div>
             <div id="an-type"></div>
@@ -266,17 +266,17 @@
             <div class="an-card-head"><span class="an-card-title">By Activity</span><span class="an-card-sub" id="an-activity-sub"></span></div>
             <div id="an-activity"></div>
           </div>
-          <div class="an-card">
+          <div class="an-card" data-page-feature="internal-tasks">
             <div class="an-card-head"><span class="an-card-title">Hours by Department</span><span class="an-card-sub" id="an-department-sub"></span></div>
             <div id="an-department"></div>
           </div>
         </div>
         <!-- ── Activity: the whole calendar year (period-independent). ── -->
-        <div class="an-section">
+        <div class="an-section" data-page-feature="timesheet">
           <span class="an-section-title"><span data-ic="flame"></span>Activity</span>
           <span class="an-section-line"></span>
         </div>
-        <div class="an-card an-heat-card">
+        <div class="an-card an-heat-card" data-page-feature="timesheet">
           <div class="an-heat-left">
             <div class="an-card-head"><span class="an-card-title">This Year</span><span class="an-card-sub" id="an-heat-sub"></span></div>
             <div id="an-heat"></div>
@@ -305,7 +305,7 @@
             </div>
             <div class="dash-attention" id="dash-attention"></div>
           </div>
-          <div class="an-card">
+          <div class="an-card" data-page-feature="subscriptions">
             <div class="an-card-head">
               <span class="an-card-title">Recurring Spend</span>
               <span class="an-card-sub" id="an-spend-sub">Subscriptions</span>
@@ -677,16 +677,33 @@
   </div>
 
   <div id="sub-table-wrap">
+    <!-- Totals strip: yearly / monthly spend per currency and the next renewal.
+         Filled by renderSubTotals in workspace.js; hidden when there are none. -->
+    <div id="sub-totals" hidden>
+      <div class="total-chip">
+        <span class="lbl">Per Year</span>
+        <span class="stat-value sub-total-lines" id="sub-total-year"></span>
+        <span class="summary-meta">Across all subscriptions</span>
+      </div>
+      <div class="total-chip">
+        <span class="lbl">Per Month</span>
+        <span class="stat-value sub-total-lines" id="sub-total-month"></span>
+        <span class="summary-meta">Yearly cost spread over 12 months</span>
+      </div>
+      <div class="total-chip">
+        <span class="lbl">Next Renewal</span>
+        <span class="stat-value" id="sub-next-date"></span>
+        <span class="summary-meta sub-next-meta" id="sub-next-meta"></span>
+      </div>
+    </div>
     <table id="sub-table" style="display:none">
       <thead>
         <tr>
-          <th>Name</th>
-          <th>Cost</th>
-          <th>Billing Cycle</th>
-          <th>End Date</th>
-          <th>Renewal Date</th>
-          <th>Renews In</th>
-          <th style="width:100px"></th>
+          <th data-sub-sort="name"><button type="button" class="pfm-sort-btn" data-onclick="setSubSort('name')">Name</button></th>
+          <th data-sub-sort="cost"><button type="button" class="pfm-sort-btn" data-onclick="setSubSort('cost')">Cost</button></th>
+          <th data-sub-sort="cycle"><button type="button" class="pfm-sort-btn" data-onclick="setSubSort('cycle')">Billing Cycle</button></th>
+          <th data-sub-sort="next"><button type="button" class="pfm-sort-btn" data-onclick="setSubSort('next')">Next Renewal</button></th>
+          <th></th>
         </tr>
       </thead>
       <tbody id="sub-tbody"></tbody>
@@ -917,12 +934,8 @@
       <div class="modal-hint">Each .md file becomes one Code Note, titled with its file name. A file a note embeds, like ![[Checklist.xlsx]], is attached to it when you include that file too. Your files are only read, never changed.</div>
       <div class="cn-import-links">
         <span class="cn-import-links-label">Link every note to</span>
-        <div class="seg-ctl" id="cn-import-link-kind">
-          <button type="button" class="seg-btn" data-kind="none" data-onclick="setCodeNoteImportLink('none')">No link</button>
-          <button type="button" class="seg-btn" data-kind="SYSTEM" data-onclick="setCodeNoteImportLink('SYSTEM')">Systems</button>
-          <button type="button" class="seg-btn" data-kind="COMPANY" data-onclick="setCodeNoteImportLink('COMPANY')">Clients</button>
-        </div>
-        <div id="cn-import-link-picker"></div>
+        <div class="cn-import-link-group"><span class="cn-import-links-label">Clients</span><div id="cn-import-clients"></div></div>
+        <div class="cn-import-link-group"><span class="cn-import-links-label">Systems</span><div id="cn-import-systems"></div></div>
       </div>
       <div class="cn-import-tags">
         <label class="cn-import-links-label" for="cn-import-tags-input">Tag every note</label>
@@ -941,17 +954,21 @@
 <!-- ══ COMPANY DOCUMENTS MODULE ══ -->
 <div id="module-companydocs" class="app-module">
   <div id="companydocs-topbar" class="page-header">
-    <span class="page-title"><span class="ti-ic" data-ic="calendar-check"></span>Company Documents</span>
+    <span class="page-title"><span class="ti-ic" data-ic="folder-check"></span>Company Documents</span>
     <div class="topbar-right">
-      <input type="text" id="companydocs-filter" class="mod-search" placeholder="Search documents…" data-oninput="applyCompanyDocFilter()">
+      <input type="text" id="companydocs-filter" class="mod-search" placeholder="Search name, number or notes…" title="Search (Ctrl+F)" data-oninput="applyCompanyDocFilter()">
       <button class="btn primary" data-onclick="openCompanyDocModal()"><span data-ic="plus"></span>New Document</button>
     </div>
   </div>
   <div class="pj-scroll">
+    <div class="cd-toolbar" id="companydocs-toolbar" hidden>
+      <div class="cd-chips" id="companydocs-status" role="group" aria-label="Renewal status"></div>
+      <div class="cd-chips" id="companydocs-cats" role="group" aria-label="Category"></div>
+    </div>
     <div class="cd-grid" id="companydocs-grid"></div>
     <div id="companydocs-empty-state" class="empty-state" hidden>
       <div class="empty-state-inner">
-        <span data-ic="calendar-check"></span>
+        <span data-ic="folder-check"></span>
         <p>No company documents yet — click <strong>+ New Document</strong> to add one</p>
       </div>
     </div>
@@ -979,7 +996,11 @@
         </div>
       </div>
       <div class="form-row">
-        <div class="form-group full">
+        <div class="form-group">
+          <label>Document Number <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional</span></label>
+          <input id="cd-number" type="text" dir="auto" maxlength="120" placeholder="e.g. 1010123456" />
+        </div>
+        <div class="form-group">
           <label>Renewal Date <span style="text-transform:none;font-weight:500;color:var(--muted)">— optional</span></label>
           <input id="cd-renewal" type="date" />
         </div>
@@ -2263,6 +2284,7 @@
       <div class="settings-group-label">Account &amp; Preferences</div>
       <button class="stab active" data-tab="general" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="sliders-horizontal"></span> General</button>
       <button class="stab" data-tab="users" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="building"></span> User Management</button>
+      <button class="stab" data-tab="pages" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="eye"></span> Pages</button>
       <div class="settings-group-label admin-only">Catalogs</div>
       <!-- No Companies tab: the client roster IS the COMPANY catalog, and it is
            created/renamed/archived/reordered on the Clients page instead. -->
@@ -2275,7 +2297,7 @@
       <button class="stab" data-tab="billingCycle"  data-onclick="switchTab(this)"><span class="stab-icon" data-ic="calendar-clock"></span> Billing Cycle</button>
       <button class="stab" data-tab="projectStatus" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="clipboard-list"></span> Project Status</button>
       <button class="stab" data-tab="projectDocument" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="file-text"></span> Project Documents</button>
-      <button class="stab" data-tab="companyDocCategory" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="calendar-check"></span> Company Doc Categories</button>
+      <button class="stab" data-tab="companyDocCategory" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="folder-check"></span> Company Doc Categories</button>
       <button class="stab" data-tab="templateCategory" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="layout-template"></span> Template Categories</button>
       <button class="stab" data-tab="knowledgeType" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="book-open"></span> Knowledge Types</button>
       <button class="stab" data-tab="department"    data-onclick="switchTab(this)"><span class="stab-icon" data-ic="building"></span> Department</button>
@@ -2323,6 +2345,16 @@
              (English and Arabic; see renderWhatsNew in shell.js). -->
         <h3 class="ht-section-title" style="margin-top:0">What's New</h3>
         <div id="whats-new" class="whats-new"></div>
+      </div>
+      <!-- Pages: which pages this account sees. Rows are built by
+           renderPagesSettings() in core.js; each switch saves at once. -->
+      <div class="settings-panel" id="tab-pages">
+        <div class="pages-settings-head">
+          <p class="general-hint">Turn off the pages you don't use. A hidden page leaves the menu, and its parts on other pages, Quick Find and the Overview go with it. Nothing is deleted: turn the page back on and everything is there.</p>
+          <button type="button" class="btn" id="pages-show-all" data-onclick="showAllPages()">Show all pages</button>
+        </div>
+        <p class="general-hint">Overview and Settings are always shown.</p>
+        <div id="pages-settings-list" class="pages-settings-list"></div>
       </div>
       <div class="settings-panel" id="tab-users">
         <div class="user-page-head">
@@ -2683,7 +2715,7 @@
 
 <!-- ══ SUBSCRIPTION UNDO TOAST ══ -->
 <div id="sub-undo-toast" role="status" aria-live="polite">
-  <span>Subscription deleted</span>
+  <span id="sub-undo-toast-msg">Subscription deleted</span>
   <button id="sub-undo-toast-btn" data-onclick="undoDeleteSub()">Undo</button>
 </div>
 
@@ -2723,6 +2755,15 @@
         <div class="workspace-choice-group two" role="group" aria-label="Workspace motion">
           <button class="workspace-choice" type="button" data-workspace-choice="motion:gentle" data-onclick="setWorkspaceView('motion','gentle')"><strong>Gentle</strong><span>Soft interface feedback</span></button>
           <button class="workspace-choice" type="button" data-workspace-choice="motion:reduced" data-onclick="setWorkspaceView('motion','reduced')"><strong>Static</strong><span>No decorative movement</span></button>
+        </div>
+      </div>
+      <div class="workspace-view-section">
+        <div class="workspace-view-label">Scale<small>Zoom the whole window out to fit more, or in to read easier.</small></div>
+        <div class="workspace-choice-group four" role="group" aria-label="Workspace scale">
+          <button class="workspace-choice" type="button" data-workspace-choice="scale:80" data-onclick="setWorkspaceView('scale','80')"><strong>80%</strong><span>Fit the most</span></button>
+          <button class="workspace-choice" type="button" data-workspace-choice="scale:90" data-onclick="setWorkspaceView('scale','90')"><strong>90%</strong><span>A little smaller</span></button>
+          <button class="workspace-choice" type="button" data-workspace-choice="scale:100" data-onclick="setWorkspaceView('scale','100')"><strong>100%</strong><span>Standard size</span></button>
+          <button class="workspace-choice" type="button" data-workspace-choice="scale:110" data-onclick="setWorkspaceView('scale','110')"><strong>110%</strong><span>A little larger</span></button>
         </div>
       </div>
       <div class="workspace-focus-card">
@@ -2852,18 +2893,18 @@
       <!-- Every page in the sidebar, one line each; a tile opens that page. -->
       <h3 class="ht-section-title">Where everything lives</h3>
       <div class="ht-modules">
-        <button type="button" class="ht-module" data-onclick="openHowThinksModule('timesheet')"><span data-ic="clock"></span><span class="ht-module-text"><b>Today</b><span>Log today's sessions and see the day's total.</span></span></button>
+        <button type="button" class="ht-module" data-page-feature="timesheet" data-onclick="openHowThinksModule('timesheet')"><span data-ic="clock"></span><span class="ht-module-text"><b>Today</b><span>Log today's sessions and see the day's total.</span></span></button>
         <button type="button" class="ht-module" data-onclick="openHowThinksModule('analytics')"><span data-ic="layout-dashboard"></span><span class="ht-module-text"><b>Overview</b><span>Hours and trends across clients, systems and departments.</span></span></button>
-        <button type="button" class="ht-module" data-onclick="openHowThinksModule('reports')"><span data-ic="file-text"></span><span class="ht-module-text"><b>Reports</b><span>Timesheets to print or export for any date range.</span></span></button>
-        <button type="button" class="ht-module" data-onclick="openHowThinksModule('internal-tasks')"><span data-ic="building"></span><span class="ht-module-text"><b>Internal Work</b><span>Tasks for your own departments, not for a client.</span></span></button>
-        <button type="button" class="ht-module" data-onclick="openHowThinksModule('all-tasks')"><span data-ic="list"></span><span class="ht-module-text"><b>Client Tasks</b><span>Every client and system task in one list.</span></span></button>
-        <button type="button" class="ht-module" data-onclick="openHowThinksModule('clients')"><span data-ic="layers"></span><span class="ht-module-text"><b>Clients</b><span>Each client's access, servers, databases and systems.</span></span></button>
-        <button type="button" class="ht-module" data-onclick="openHowThinksModule('knowledge')"><span data-ic="book-open"></span><span class="ht-module-text"><b>Knowledge Hub</b><span>Guides and documents, linked to clients and systems.</span></span></button>
-        <button type="button" class="ht-module" data-onclick="openHowThinksModule('pfm')"><span data-ic="briefcase"></span><span class="ht-module-text"><b>Project &amp; Finance</b><span>Offers and change requests, followed step by step.</span></span></button>
-        <button type="button" class="ht-module" data-onclick="openHowThinksModule('outsource')"><span data-ic="users"></span><span class="ht-module-text"><b>Outsource</b><span>Outsourced people, their rates and their logged time.</span></span></button>
-        <button type="button" class="ht-module" data-onclick="openHowThinksModule('companydocs')"><span data-ic="calendar-check"></span><span class="ht-module-text"><b>Company Docs</b><span>The company's own documents and when they renew.</span></span></button>
-        <button type="button" class="ht-module" data-onclick="openHowThinksModule('templates')"><span data-ic="layout-template"></span><span class="ht-module-text"><b>Templates</b><span>Reusable files to start new work from.</span></span></button>
-        <button type="button" class="ht-module" data-onclick="openHowThinksModule('subscriptions')"><span data-ic="credit-card"></span><span class="ht-module-text"><b>Subscriptions</b><span>Paid services and their renewal dates.</span></span></button>
+        <button type="button" class="ht-module" data-page-feature="reports" data-onclick="openHowThinksModule('reports')"><span data-ic="file-text"></span><span class="ht-module-text"><b>Reports</b><span>Timesheets to print or export for any date range.</span></span></button>
+        <button type="button" class="ht-module" data-page-feature="internal-tasks" data-onclick="openHowThinksModule('internal-tasks')"><span data-ic="building"></span><span class="ht-module-text"><b>Internal Work</b><span>Tasks for your own departments, not for a client.</span></span></button>
+        <button type="button" class="ht-module" data-page-feature="all-tasks" data-onclick="openHowThinksModule('all-tasks')"><span data-ic="list"></span><span class="ht-module-text"><b>Client Tasks</b><span>Every client and system task in one list.</span></span></button>
+        <button type="button" class="ht-module" data-page-feature="clients" data-onclick="openHowThinksModule('clients')"><span data-ic="layers"></span><span class="ht-module-text"><b>Clients</b><span>Each client's access, servers, databases and systems.</span></span></button>
+        <button type="button" class="ht-module" data-page-feature="knowledge" data-onclick="openHowThinksModule('knowledge')"><span data-ic="book-open"></span><span class="ht-module-text"><b>Knowledge Hub</b><span>Guides and documents, linked to clients and systems.</span></span></button>
+        <button type="button" class="ht-module" data-page-feature="pfm" data-onclick="openHowThinksModule('pfm')"><span data-ic="briefcase"></span><span class="ht-module-text"><b>Project &amp; Finance</b><span>Offers and change requests, followed step by step.</span></span></button>
+        <button type="button" class="ht-module" data-page-feature="outsource" data-onclick="openHowThinksModule('outsource')"><span data-ic="users"></span><span class="ht-module-text"><b>Outsource</b><span>Outsourced people, their rates and their logged time.</span></span></button>
+        <button type="button" class="ht-module" data-page-feature="companydocs" data-onclick="openHowThinksModule('companydocs')"><span data-ic="folder-check"></span><span class="ht-module-text"><b>Company Docs</b><span>The company's own documents and when they renew.</span></span></button>
+        <button type="button" class="ht-module" data-page-feature="templates" data-onclick="openHowThinksModule('templates')"><span data-ic="layout-template"></span><span class="ht-module-text"><b>Templates</b><span>Reusable files to start new work from.</span></span></button>
+        <button type="button" class="ht-module" data-page-feature="subscriptions" data-onclick="openHowThinksModule('subscriptions')"><span data-ic="credit-card"></span><span class="ht-module-text"><b>Subscriptions</b><span>Paid services and their renewal dates.</span></span></button>
       </div>
       <p class="general-hint ht-quickfind-tip"><span data-ic="search"></span>Lost? <kbd>Ctrl K</kbd> finds any task, project, client record or page by name.</p>
     </div>

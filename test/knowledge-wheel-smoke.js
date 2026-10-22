@@ -54,6 +54,25 @@ try {
 
   record('Type slots follow arc order (fixed hues, never by size)', arcs.filter(a => a.kind === 'type').map(a => a.slot).join(',') === '1,2,3');
 
+  const hid = model(items, new Set(['GUIDE']));
+  const hidGuide = hid.find(a => a.code === 'GUIDE');
+  const hidClients = hid.find(a => a.kind === 'companies');
+  record('A hidden type keeps its arc and slot but adds no clients',
+    hidGuide.hidden === true && hidGuide.slot === 2 && !hidClients
+      && hid.find(a => a.kind === 'systems').nodes[0].items.length === 1,
+    JSON.stringify(hid.map(a => [a.kind, a.code, a.hidden, a.nodes.length])));
+
+  const many = Array.from({ length: 12 }, (_, i) => ({ code: 'T' + i }));
+  const ctx12 = vm.createContext({ LK: { categories: { KNOWLEDGE_TYPE: many } }, lkLabel: () => '', knowledgeLinkName: () => '' });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'renderer', 'features', 'knowledge-wheel.js'), 'utf8'), ctx12);
+  const slots = vm.runInContext('knowledgeWheelModel', ctx12)(many.map((t, i) => ({ id: i, title: 'x' + i, type: t.code })))
+    .map(a => a.slot);
+  record('Twelve types each get their own colour', new Set(slots).size === 12 && !slots.includes(0), slots.join(','));
+
+  const centre = vm.runInContext('kwCentreLargest', ctx)([1, 5, 3, 2].map(n => ({ n, nodes: Array(n) })));
+  record('The largest type is drawn in the middle', centre[Math.floor(centre.length / 2)].n === 5 || centre[Math.floor((centre.length - 1) / 2)].n === 5,
+    centre.map(a => a.n).join(','));
+
   const lonely = model([{ id: 20, title: 'Alone', type: 'SOP', companies: [], systems: [] }]);
   record('No Clients or Systems arc when nothing is linked', lonely.length === 1 && lonely[0].kind === 'type', JSON.stringify(lonely.map(a => a.kind)));
 } catch (err) {

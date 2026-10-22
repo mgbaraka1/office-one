@@ -371,6 +371,7 @@
  * @property {string} name         User-entered title (e.g. 'VAT Certificate').
  * @property {string} category     A COMPANY_DOCUMENT_CATEGORY (or, for a template, TEMPLATE_CATEGORY) lookup code, or '' if unset.
  * @property {string} renewalDate  YYYY-MM-DD, or '' if not tracked (always '' for a template).
+ * @property {string} docNumber    Reference number (CR, VAT…), or '' (always '' for a template).
  * @property {string} notes
  * @property {number} sortOrder
  * @property {string} createdAt
@@ -384,6 +385,7 @@
  * @property {string} name
  * @property {string} [category]     A COMPANY_DOCUMENT_CATEGORY lookup code; unknown/empty → unset.
  * @property {string} [renewalDate]  YYYY-MM-DD, or omitted/empty to clear.
+ * @property {string} [docNumber]    Reference number; ignored for a template.
  * @property {string} [notes]
  */
 

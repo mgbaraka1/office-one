@@ -9,7 +9,7 @@ database model, the code is the reference: `db.js` owns the schema and every
 query, `migrations/` records how the schema got there in order, and the smoke
 suites in `test/` encode the rules a change has to keep.
 
-One thing worth knowing before you open it: **`db.js` is around 5,200 lines** —
+One thing worth knowing before you open it: **`db.js` is around 8,000 lines** —
 roughly a fifth of the codebase, and the file most non-trivial changes touch. It
 is sectioned by domain rather than split into modules, and that is deliberate: it
 owns the single SQLite connection, and keeping every query beside the schema it

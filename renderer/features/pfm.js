@@ -765,6 +765,7 @@ async function loadProjectPfmRows(projectId) {
 function buildProjectPfmSection(p) {
   const rows = projectPfmFor === p.id ? projectPfmRows : [];
   const section = pjMk('div', 'pj-section');
+  section.dataset.pageFeature = 'pfm';   // hidden with the Project & Finance page
   projectPfmHost = section;
   const head = pjMk('div', 'pj-section-head');
   const title = pjMk('div', 'pj-section-title');

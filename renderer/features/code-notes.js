@@ -460,9 +460,7 @@ function openCodeNoteImport(files) {
   fillKnowledgeTagSuggestions('cn-import-tag-suggestions');
   // Opened from a filtered Hub (a system's or a client's page), the import starts linked to it.
   const preset = kind => [...knowledgeFilters].filter(key => key.startsWith(kind + ':')).map(key => Number(key.slice(kind.length + 1))).filter(Number.isInteger);
-  const systems = preset('SYSTEM'), clients = preset('CLIENT');
-  if (systems.length) setCodeNoteImportLink('SYSTEM', systems);
-  else setCodeNoteImportLink(clients.length ? 'COMPANY' : 'none', clients);
+  buildCodeNoteImportLinks(preset('CLIENT'), preset('SYSTEM'));
   renderCodeNoteImport();
   const overlay = document.getElementById('code-note-import-overlay');
   overlay.onkeydown = event => {
@@ -471,18 +469,20 @@ function openCodeNoteImport(files) {
   overlay.classList.add('open');
   if (files?.length) addCodeNoteImportFiles(files);
 }
-// The notes link to systems or to clients, never both; linking is optional.
-function setCodeNoteImportLink(kind, selected = []) {
+// Every note can link to clients, systems and tags together; it needs at least one of them.
+function buildCodeNoteImportLinks(clients = [], systems = []) {
   if (!codeNoteImport) return;
-  codeNoteImport.linkKind = kind;
-  document.querySelectorAll('#cn-import-link-kind .seg-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.kind === kind));
-  const host = document.getElementById('cn-import-link-picker');
-  host.hidden = kind === 'none';
-  if (kind === 'none') { host.innerHTML = ''; codeNoteImport.linkPicker = null; return; }
-  const options = lkOptions(kind, true).filter(o => o.isActive)
-    .map(o => ({ id: o.id, label: kind === 'COMPANY' ? companyDisplayName(o) : lookupDisplayName(o) }));
-  codeNoteImport.linkPicker = buildTagPicker(host, options, selected, kind === 'COMPANY' ? 'Search clients…' : 'Search systems…', () => renderCodeNoteImport(), { autoSelectSingle: false });
-  renderCodeNoteImport();
+  const picker = (kind, hostId, selected, placeholder) => {
+    const options = lkOptions(kind, true).filter(o => o.isActive)
+      .map(o => ({ id: o.id, label: kind === 'COMPANY' ? companyDisplayName(o) : lookupDisplayName(o) }));
+    return buildTagPicker(document.getElementById(hostId), options, selected, placeholder, () => renderCodeNoteImport(), { autoSelectSingle: false });
+  };
+  codeNoteImport.clientPicker = picker('COMPANY', 'cn-import-clients', clients, 'Search clients…');
+  codeNoteImport.systemPicker = picker('SYSTEM', 'cn-import-systems', systems, 'Search systems…');
+}
+function codeNoteImportLinks() {
+  const state = codeNoteImport;
+  return { companyIds: state?.clientPicker?.getSelectedIds() || [], systemIds: state?.systemPicker?.getSelectedIds() || [] };
 }
 function chooseCodeNoteImportFiles() { document.getElementById('cn-import-input').click(); }
 async function addCodeNoteImportFiles(list) {
@@ -504,7 +504,8 @@ function suggestCodeNoteImportTag() {
 // A note with no client, system or tag can't be saved. A replaced note keeps what it had.
 function codeNoteImportNeedsTag() {
   const state = codeNoteImport; if (!state) return false;
-  if (state.tags.length || (state.linkPicker?.getSelectedIds() || []).length) return false;
+  const { companyIds, systemIds } = codeNoteImportLinks();
+  if (state.tags.length || companyIds.length || systemIds.length) return false;
   return codeNoteImportChosen().some(row => {
     const item = row.existing && row.action === 'replace' ? row.existing : null;
     return !item || !((item.companies || []).length || (item.systems || []).length || (item.tags || []).length);
@@ -597,8 +598,7 @@ async function runCodeNoteImport() {
   if (bytes > 10 * 1024 * 1024) { toast('That is too much at once. Import fewer files.'); return; }
   state.busy = true; renderCodeNoteImport();
   let result;
-  const linked = state.linkPicker?.getSelectedIds() || [];
-  const companyIds = state.linkKind === 'COMPANY' ? linked : [], systemIds = state.linkKind === 'SYSTEM' ? linked : [];
+  const { companyIds, systemIds } = codeNoteImportLinks();
   try {
     result = await window.api.importCodeNotes(chosen.map(row => ({
       title: row.title, content: row.content, replaceId: row.existing && row.action === 'replace' ? row.existing.id : null,

@@ -22,6 +22,10 @@
 // the ui key to its category for every populateSelect() call in the app, and
 // LOOKUP_MERGE_CATEGORIES derives the Maintenance duplicate-merge list from
 // this same array. Only SETTINGS_TABS and the command palette filter it out.
+//
+// `page` names the one page a catalog belongs to. When that page is switched
+// off in Settings → Pages, its catalog tab is hidden too (see core.js
+// applyHiddenPages). Catalogs shared by several pages have no `page`.
 const SETTINGS_CATALOG_TABS = [
   // Clients are created, renamed, archived and reordered on the Clients page —
   // the roster IS this catalog, so it is managed where clients live rather than
@@ -32,14 +36,14 @@ const SETTINGS_CATALOG_TABS = [
   { key: 'timeType', category: 'TIME_TYPE', valueField: 'code', label: 'Time Type', icon: 'alarm-clock', editor: 'lookup' },
   { key: 'status', category: 'ENTRY_STATUS', valueField: 'code', label: 'Status', icon: 'flag', editor: 'lookup' },
   { key: 'currency', category: 'CURRENCY', valueField: 'code', label: 'Currency', icon: 'credit-card', editor: 'lookup' },
-  { key: 'billingCycle', category: 'BILLING_CYCLE', valueField: 'code', label: 'Billing Cycle', icon: 'calendar-clock', editor: 'lookup' },
-  { key: 'projectStatus', category: 'PROJECT_STATUS', valueField: 'code', label: 'Project Status', icon: 'clipboard-list', editor: 'lookup' },
-  { key: 'projectDocument', category: 'PROJECT_DOCUMENT', valueField: 'code', label: 'Project Documents', icon: 'file-text', editor: 'lookup' },
-  { key: 'companyDocCategory', category: 'COMPANY_DOCUMENT_CATEGORY', valueField: 'code', label: 'Company Doc Categories', icon: 'calendar-check', editor: 'lookup' },
-  { key: 'templateCategory', category: 'TEMPLATE_CATEGORY', valueField: 'code', label: 'Template Categories', icon: 'layout-template', editor: 'lookup' },
-  { key: 'knowledgeType', category: 'KNOWLEDGE_TYPE', valueField: 'code', label: 'Knowledge Types', icon: 'book-open', editor: 'lookup' },
+  { key: 'billingCycle', category: 'BILLING_CYCLE', valueField: 'code', label: 'Billing Cycle', icon: 'calendar-clock', editor: 'lookup', page: 'subscriptions' },
+  { key: 'projectStatus', category: 'PROJECT_STATUS', valueField: 'code', label: 'Project Status', icon: 'clipboard-list', editor: 'lookup', page: 'clients' },
+  { key: 'projectDocument', category: 'PROJECT_DOCUMENT', valueField: 'code', label: 'Project Documents', icon: 'file-text', editor: 'lookup', page: 'clients' },
+  { key: 'companyDocCategory', category: 'COMPANY_DOCUMENT_CATEGORY', valueField: 'code', label: 'Company Doc Categories', icon: 'calendar-check', editor: 'lookup', page: 'companydocs' },
+  { key: 'templateCategory', category: 'TEMPLATE_CATEGORY', valueField: 'code', label: 'Template Categories', icon: 'layout-template', editor: 'lookup', page: 'templates' },
+  { key: 'knowledgeType', category: 'KNOWLEDGE_TYPE', valueField: 'code', label: 'Knowledge Types', icon: 'book-open', editor: 'lookup', page: 'knowledge' },
   { key: 'department', category: 'DEPARTMENT', valueField: 'label', label: 'Department', icon: 'building', editor: 'lookup' },
   { key: 'taskSourceType', category: 'TASK_SOURCE_TYPE', valueField: 'code', label: 'Task Source Types', icon: 'external-link', editor: 'lookup' },
-  { key: 'serverRole', category: 'SERVER_ROLE', valueField: 'code', label: 'Server Roles', icon: 'server', editor: 'lookup' },
-  { key: 'pfmStatus', category: 'PFM_STATUS', valueField: 'code', label: 'Offer Status', icon: 'briefcase', editor: 'lookup' },
+  { key: 'serverRole', category: 'SERVER_ROLE', valueField: 'code', label: 'Server Roles', icon: 'server', editor: 'lookup', page: 'clients' },
+  { key: 'pfmStatus', category: 'PFM_STATUS', valueField: 'code', label: 'Offer Status', icon: 'briefcase', editor: 'lookup', page: 'pfm' },
 ];

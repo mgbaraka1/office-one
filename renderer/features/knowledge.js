@@ -99,6 +99,7 @@ function knowledgeItemsLinkedTo(companyIds = [], systemIds = []) {
 function buildKnowledgeLinkedSection(opts) {
   setupKnowledgeFileDrop();
   const section = pjMk('div', 'pj-section kh-linked');
+  section.dataset.pageFeature = 'knowledge';   // hidden with the Knowledge Hub page
   section.khLinked = { companyIds: [], systemIds: [], q: '', ...opts };
   section.addEventListener('dragover', event => {
     if (!knowledgeDragHasFiles(event)) return;

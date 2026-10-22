@@ -45,6 +45,11 @@ const CLIENT_DETAIL_TYPES = [
   { key: 'internal',  label: 'Systems' },
 ];
 let clientDetailTab = 'overview';
+// Two client sections belong to pages of their own; switching that page off
+// in Settings → Pages hides the section here too.
+function clientTabHidden(key) {
+  return (key === 'pfm' || key === 'knowledge') && isPageHidden(key);
+}
 
 // Every active COMPANY lookup is automatically a Client. A catalog merge from
 // Settings → Maintenance can change that catalog while this module is not
@@ -498,21 +503,29 @@ function clientsWebCount(n, noun) {
   return window.ctI18n?.t?.(key, { n }) || key.replace('{n}', n);
 }
 
+// Tasks and Knowledge Hub links follow their pages in Settings → Pages.
+function clientsWebSourceHidden(key) {
+  return (key === 'tasks' && isPageHidden('all-tasks')) || (key === 'knowledge' && isPageHidden('knowledge'));
+}
+function clientsWebOn(key) {
+  return clientsWebSources.has(key) && !clientsWebSourceHidden(key);
+}
+
 function clientsWebWeight(l) {
-  return (clientsWebSources.has('servers') ? l.servers : 0) + (clientsWebSources.has('projects') ? l.projects : 0)
-    + (clientsWebSources.has('tasks') ? l.tasks : 0) + (clientsWebSources.has('knowledge') ? l.knowledge : 0);
+  return (clientsWebOn('servers') ? l.servers : 0) + (clientsWebOn('projects') ? l.projects : 0)
+    + (clientsWebOn('tasks') ? l.tasks : 0) + (clientsWebOn('knowledge') ? l.knowledge : 0);
 }
 
 // "Acme ↔ ERP" plus what links them, for a line's hover text.
 function clientsWebLinkText(l, clientName, systemName) {
   const t = (text, vars) => window.ctI18n?.t?.(text, vars) || text.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
   const parts = [];
-  if (clientsWebSources.has('servers') && l.servers) parts.push(t('{n} server(s)', { n: l.servers }));
-  if (clientsWebSources.has('projects') && l.projects) parts.push(t('{n} project(s)', { n: l.projects }));
-  if (clientsWebSources.has('tasks') && l.tasks) {
+  if (clientsWebOn('servers') && l.servers) parts.push(t('{n} server(s)', { n: l.servers }));
+  if (clientsWebOn('projects') && l.projects) parts.push(t('{n} project(s)', { n: l.projects }));
+  if (clientsWebOn('tasks') && l.tasks) {
     parts.push(t('{n} task(s)', { n: l.tasks }) + (l.minutes ? ' (' + hoursPhrase(Math.round(l.minutes / 6) / 10) + ')' : ''));
   }
-  if (clientsWebSources.has('knowledge') && l.knowledge) parts.push(t('{n} Knowledge Hub item(s)', { n: l.knowledge }));
+  if (clientsWebOn('knowledge') && l.knowledge) parts.push(t('{n} Knowledge Hub item(s)', { n: l.knowledge }));
   return clientName + ' ↔ ' + systemName + '\n' + parts.join(' · ');
 }
 
@@ -522,14 +535,14 @@ function drawClientsWeb(host) {
   // "Linked through" — which record types count as a link.
   const sources = pjMk('div', 'cl-web-sources');
   sources.appendChild(pjMk('span', 'cl-web-sources-label', 'Linked through'));
-  CLIENTS_WEB_SOURCES.forEach(([key, label]) => {
+  CLIENTS_WEB_SOURCES.filter(([key]) => !clientsWebSourceHidden(key)).forEach(([key, label]) => {
     const on = clientsWebSources.has(key);
     const b = pjMk('button', 'pfm-chip' + (on ? ' active' : ''), label);
     b.type = 'button';
     b.setAttribute('aria-pressed', String(on));
     b.addEventListener('click', () => {
       // At least one source stays on, or there would be nothing to draw.
-      if (on && clientsWebSources.size === 1) return;
+      if (on && CLIENTS_WEB_SOURCES.filter(([k]) => clientsWebOn(k)).length === 1) return;
       if (on) clientsWebSources.delete(key); else clientsWebSources.add(key);
       drawClientsWeb(host);
     });
@@ -791,7 +804,7 @@ async function openClientDetail(companyId, presetSearch, tab) {
   currentClient = client;
   clientDetailSearch = tab ? '' : (presetSearch || '');
   clientDetailTab = tab || (presetSearch ? 'overview' : (uiState.filters.clients?.tab || 'overview'));
-  if (!CLIENT_DETAIL_TYPES.some(t => t.key === clientDetailTab)) clientDetailTab = 'overview';
+  if (!CLIENT_DETAIL_TYPES.some(t => t.key === clientDetailTab) || clientTabHidden(clientDetailTab)) clientDetailTab = 'overview';
   clientPfmFor = null;   // a fresh open re-reads this client's Offers & CRs
   showClientDetailView();
   renderClientDetail(client);
@@ -1010,7 +1023,7 @@ function buildClientSectionTiles(c) {
   const grid = pjMk('div', 'client-overview-grid');
   grid.id = 'client-detail-tabs';
   grid.setAttribute('aria-label', 'Client workspace');
-  CLIENT_SECTION_TILES.forEach(([key, label, icon, hue]) => {
+  CLIENT_SECTION_TILES.filter(([key]) => !clientTabHidden(key)).forEach(([key, label, icon, hue]) => {
     const active = clientDetailTab === key;
     const card = pjMk('button', 'client-overview-card cl-tl-' + hue + (active ? ' active' : '')
       + (counts[key] ? '' : ' is-zero'));
@@ -1081,7 +1094,7 @@ function renderClientDetailSections(c) {
     renderClientOverview(host, c);
     return;
   }
-  const showSection = key => !!q || clientDetailTab === key;
+  const showSection = key => !clientTabHidden(key) && (!!q || clientDetailTab === key);
 
   // ── Projects section (this client's own projects — merged in from the retired
   // Clients Projects page; a project is grouped under its FIRST linked company,
@@ -1473,7 +1486,7 @@ function fillClientOverviewBody(body, c) {
   // gets a short pointer to that instead of two empty panels. Only once
   // every source has loaded, so a client with records never flashes it.
   const allLoaded = projectsLoaded && knowledgeLoaded && clientPfmFor === c.id;
-  if (allLoaded && Object.values(counts).every(n => !n)) {
+  if (allLoaded && Object.entries(counts).every(([key, n]) => !n || clientTabHidden(key))) {
     const guide = pjMk('div', 'pj-section cl-empty-guide');
     const title = pjMk('div', 'pj-section-title');
     title.innerHTML = ic('layers') + 'Nothing recorded for this client yet';
@@ -1527,7 +1540,7 @@ function buildClientNeedsAttention(c) {
     push(3, 0, 'muted', 'lock', 'Server', [s.systemName, s.hostname || s.host].filter(Boolean).join(' · '),
       'Cannot be read on this device', () => openClientServerModal(s));
   });
-  if (clientPfmFor === c.id) clientPfmRows.filter(i => !i.isFinal && !i.archived).forEach(i => {
+  if (clientPfmFor === c.id && !isPageHidden('pfm')) clientPfmRows.filter(i => !i.isFinal && !i.archived).forEach(i => {
     const name = [i.reference, i.title].filter(Boolean).join(' · ');
     const open = () => openPfmDetail(i.id);
     checkDate(i.validUntil, 'file-text', pfmKindLabel(i.kind), name, open);
@@ -1590,10 +1603,10 @@ function buildClientRecentActivity(c) {
 
   projectsList.filter(p => cpjPrimaryCompany(p)?.id === c.id)
     .forEach(p => add(p, 'project', 'folder', 'Project', p.name, () => openProjectById(p.id)));
-  if (clientPfmFor === c.id) clientPfmRows.forEach(i => add(i, i.kind === 'CR' ? 'cr' : 'offer',
+  if (clientPfmFor === c.id && !isPageHidden('pfm')) clientPfmRows.forEach(i => add(i, i.kind === 'CR' ? 'cr' : 'offer',
     i.kind === 'CR' ? 'pencil' : 'file-text', pfmKindLabel(i.kind),
     [i.reference, i.title].filter(Boolean).join(' · '), () => openPfmDetail(i.id)));
-  if (knowledgeLoaded) knowledgeItemsLinkedTo([c.id])
+  if (knowledgeLoaded && !isPageHidden('knowledge')) knowledgeItemsLinkedTo([c.id])
     .forEach(k => add(k, 'knowledge', 'book-open', 'Knowledge Hub', k.title, () => openKnowledgeInHub(k.id)));
   (c.vpnConnections || []).forEach(v => add(v, 'access', 'zap', 'Access', v.connectionName, () => openClientVpnModal(v)));
   (c.servers || []).forEach(s => add(s, 'server', 'server', 'Server',
@@ -1665,7 +1678,7 @@ function applyClientDetailSearch() {
 }
 
 function setClientDetailTab(key) {
-  if (!CLIENT_DETAIL_TYPES.some(t => t.key === key)) key = 'overview';
+  if (!CLIENT_DETAIL_TYPES.some(t => t.key === key) || clientTabHidden(key)) key = 'overview';
   clientDetailTab = key;
   clientDetailSearch = '';
   if (currentClient) {

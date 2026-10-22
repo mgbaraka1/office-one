@@ -1901,6 +1901,10 @@ function restoreProjectFiles(userId, oldProjectId, newProjectId, fileDocs) {
 // id, and update reads the kind from the row it changes.
 const COMPANY_DOCUMENT_CATEGORIES = { DOCUMENT: 'COMPANY_DOCUMENT_CATEGORY', TEMPLATE: 'TEMPLATE_CATEGORY' };
 function companyDocumentKind(kind) { return kind === 'TEMPLATE' ? 'TEMPLATE' : 'DOCUMENT'; }
+// The reference number (migration 080): documents only, trimmed, capped.
+function companyDocumentNumber(kind, data) {
+  return kind === 'DOCUMENT' ? String(data?.docNumber ?? '').trim().slice(0, 120) : '';
+}
 
 function ownsCompanyDocument(userId, id) {
   return !!db.prepare('SELECT 1 FROM company_documents WHERE id = ? AND user_id = ?').get(id, userId);
@@ -1910,7 +1914,7 @@ function companyDocumentToApi(r) {
   const hasFile = !!r.file_path;
   return {
     id: r.id, kind: r.kind || 'DOCUMENT', name: r.name, category: r.category || '', renewalDate: r.renewal_date || '',
-    notes: r.notes || '', sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
+    docNumber: r.doc_number || '', notes: r.notes || '', sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
     file: hasFile ? {
       path: r.file_path, originalName: r.original_name || '', size: r.file_size || 0,
       mimeType: r.mime_type || '', uploadedAt: r.uploaded_at || '',
@@ -1934,10 +1938,11 @@ function createCompanyDocument(userId, data, kind = 'DOCUMENT') {
   const k = companyDocumentKind(kind);
   const category = lkId(COMPANY_DOCUMENT_CATEGORIES[k], data?.category) != null ? data.category : null;
   const renewalDate = k === 'DOCUMENT' ? (data?.renewalDate || null) : null;
+  const docNumber = companyDocumentNumber(k, data);
   const id = Number(db.prepare(
-    `INSERT INTO company_documents(user_id, kind, name, category, renewal_date, notes, sort_order, created_at, updated_at)
-     VALUES(?, ?, ?, ?, ?, ?, 0, ?, ?)`
-  ).run(userId, k, data?.name ?? '', category, renewalDate, data?.notes ?? '', now, now).lastInsertRowid);
+    `INSERT INTO company_documents(user_id, kind, name, category, renewal_date, doc_number, notes, sort_order, created_at, updated_at)
+     VALUES(?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+  ).run(userId, k, data?.name ?? '', category, renewalDate, docNumber, data?.notes ?? '', now, now).lastInsertRowid);
   return getCompanyDocument(userId, id);
 }
 // Update a card's profile fields in place (file untouched). Returns the
@@ -1949,9 +1954,10 @@ function updateCompanyDocument(userId, id, data) {
   const category = lkId(COMPANY_DOCUMENT_CATEGORIES[k], data?.category) != null ? data.category : null;
   const renewalDate = k === 'DOCUMENT' ? (data?.renewalDate || null) : null;
   db.prepare(
-    `UPDATE company_documents SET name = ?, category = ?, renewal_date = ?, notes = ?, updated_at = ?
+    `UPDATE company_documents SET name = ?, category = ?, renewal_date = ?, doc_number = ?, notes = ?, updated_at = ?
       WHERE id = ? AND user_id = ?`
-  ).run(data?.name ?? '', category, renewalDate, data?.notes ?? '', new Date().toISOString(), id, userId);
+  ).run(data?.name ?? '', category, renewalDate, companyDocumentNumber(k, data), data?.notes ?? '',
+        new Date().toISOString(), id, userId);
   return getCompanyDocument(userId, id);
 }
 // In-memory record of which user just deleted which company-document id — same
@@ -3790,21 +3796,49 @@ const USER_PREFERENCES = {
   density: { default: 'balanced', allowed: ['compact', 'balanced', 'spacious'] },
   canvas: { default: 'calm', allowed: ['calm', 'structured'] },
   motion: { default: 'reduced', allowed: ['gentle', 'reduced'] },
+  scale: { default: '100', allowed: ['80', '90', '100', '110'] },
   sidebar: { default: 'expanded', allowed: ['expanded', 'compact'] },
   timesheetView: { default: 'grouped', allowed: ['grouped', 'flat'] },
+  // Pages this account switched off in Settings → Pages: a comma-separated
+  // list of module keys, '' when every page is shown. Overview and Settings
+  // can never be hidden, so they are not in the list. This only hides — the
+  // data stays, and switching a page back on brings everything back.
+  hiddenPages: { default: '', normalize: normalizeHiddenPages },
 };
+const HIDEABLE_PAGES = ['timesheet', 'reports', 'internal-tasks', 'subscriptions', 'companydocs',
+  'templates', 'knowledge', 'clients', 'all-tasks', 'pfm', 'outsource'];
+// The canonical stored form (known keys, no repeats, in menu order), or null
+// when the value names a page that does not exist.
+function normalizeHiddenPages(raw) {
+  if (typeof raw !== 'string') return null;
+  const keys = raw.split(',').map(s => s.trim()).filter(Boolean);
+  if (keys.some(k => !HIDEABLE_PAGES.includes(k))) return null;
+  return HIDEABLE_PAGES.filter(k => keys.includes(k)).join(',');
+}
+function readPreference(cfg, raw) {
+  if (cfg.normalize) {
+    const value = raw == null ? null : cfg.normalize(raw);
+    return value == null ? cfg.default : value;
+  }
+  return cfg.allowed.includes(raw) ? raw : cfg.default;
+}
 function getUserPreferences(userId) {
   const out = {};
   for (const [key, cfg] of Object.entries(USER_PREFERENCES)) {
-    const raw = userGet(userId, 'pref_' + key);
-    out[key] = cfg.allowed.includes(raw) ? raw : cfg.default;
+    out[key] = readPreference(cfg, userGet(userId, 'pref_' + key));
   }
   return out;
 }
 function setUserPreference(userId, key, value) {
   const cfg = USER_PREFERENCES[key];
   if (!cfg) throw new Error(`Unknown preference: ${key}`);
-  if (!cfg.allowed.includes(value)) throw new Error(`Invalid value for ${key}: ${value}`);
+  if (cfg.normalize) {
+    const normalized = cfg.normalize(value);
+    if (normalized == null) throw new Error(`Invalid value for ${key}: ${value}`);
+    value = normalized;
+  } else if (!cfg.allowed.includes(value)) {
+    throw new Error(`Invalid value for ${key}: ${value}`);
+  }
   userSet(userId, 'pref_' + key, value);
   return { ok: true };
 }

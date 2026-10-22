@@ -85,6 +85,10 @@ const ICONS = {
   "bold": "<path d=\"M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8\" />",
   "heading": "<path d=\"M6 12h12\" /><path d=\"M6 20V4\" /><path d=\"M18 20V4\" />",
   "minus": "<path d=\"M5 12h14\" />",
+  "folder-check": "<path d=\"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z\" /><path d=\"m9 13 2 2 4-4\" />",
+  "file-x": "<path d=\"M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z\" /><path d=\"M14 2v4a2 2 0 0 0 2 2h4\" /><path d=\"m14.5 12.5-5 5\" /><path d=\"m9.5 12.5 5 5\" />",
+  "hash": "<path d=\"M4 9h16\" /><path d=\"M4 15h16\" /><path d=\"M10 3 8 21\" /><path d=\"M16 3l-2 18\" />",
+  "clock-alert": "<path d=\"M12 6v6l4 2\" /><path d=\"M16 21.16a10 10 0 1 1 5-13.516\" /><path d=\"M20 11.5v6\" /><path d=\"M20 21.5h.01\" />",
 };
 // Build an inline SVG string for icon `name`. Optional extra class via `cls`.
 function ic(name, cls) {
@@ -198,7 +202,8 @@ function initSettingsTablistKeyboardNav() {
   document.getElementById('module-settings')?.addEventListener('keydown', e => {
     const tab = e.target.closest('#module-settings .settings-tabs .stab');
     if (!tab) return;
-    const visible = [...document.querySelectorAll('#module-settings .settings-tabs .stab')].filter(b => !b.hidden);
+    const visible = [...document.querySelectorAll('#module-settings .settings-tabs .stab')]
+      .filter(b => !b.hidden && !isPageHidden(b.dataset.pageFeature));
     const i = visible.indexOf(tab);
     if (i === -1) return;
     let next = null;
@@ -456,9 +461,146 @@ async function loadUserPreferencesFromMain() {
     workspaceViewPrefs.density = prefs.density;
     workspaceViewPrefs.canvas = prefs.canvas;
     workspaceViewPrefs.motion = prefs.motion;
+    workspaceViewPrefs.scale = prefs.scale || '100';
     applyWorkspaceViewPreferences();
     applySidebarPreference(prefs.sidebar === 'compact');
+    setHiddenPages(prefs.hiddenPages);
   } catch { /* keep the localStorage-derived pre-login guess */ }
+}
+
+// ── Pages an account switched off (Settings → Pages) ─────────────────────────
+// Not everyone uses every page (an accountant may never open Client Tasks).
+// Hiding a page removes it from the menu AND hides its features on other
+// pages: Quick Find results and actions, Overview cards, client and project
+// sections, Settings catalogs. It is a preference, not a permission — the data
+// stays, and switching the page back on brings everything back.
+//
+// Markup opts in with data-page-feature="<page>"; app.css hides it while
+// <html data-hidden-pages> names that page. Code paths that build lists
+// (Quick Find, the Overview attention list, client tabs) ask isPageHidden().
+// Overview and Settings are always shown, so nobody can lock themselves out.
+const HIDEABLE_PAGES = [
+  { key: 'timesheet',      group: 'Workspace', icon: 'clock',           label: 'Today',
+    about: 'Log today\'s sessions and see the day\'s total.',
+    alsoHides: 'Also hides the time charts on the Overview and a project\'s time tracking.' },
+  { key: 'reports',        group: 'Workspace', icon: 'file-text',       label: 'Reports',
+    about: 'Timesheets to print or export for any date range.' },
+  { key: 'internal-tasks', group: 'Internal',  icon: 'building',        label: 'Internal Work',
+    about: 'Tasks for your own departments, not for a client.',
+    alsoHides: 'Also hides Hours by Department on the Overview.' },
+  { key: 'subscriptions',  group: 'Internal',  icon: 'credit-card',     label: 'Subscriptions',
+    about: 'Paid services and their renewal dates.',
+    alsoHides: 'Also hides their renewals and Recurring Spend on the Overview.' },
+  { key: 'companydocs',    group: 'Internal',  icon: 'folder-check',    label: 'Company Docs',
+    about: 'The company\'s own documents and when they renew.',
+    alsoHides: 'Also hides their renewals on the Overview.' },
+  { key: 'templates',      group: 'Internal',  icon: 'layout-template', label: 'Templates',
+    about: 'Reusable files to start new work from.' },
+  { key: 'knowledge',      group: 'Internal',  icon: 'book-open',       label: 'Knowledge Hub',
+    about: 'Guides and documents, linked to clients and systems.',
+    alsoHides: 'Also hides the Knowledge Hub section on client and project pages.' },
+  { key: 'clients',        group: 'External',  icon: 'layers',          label: 'Clients',
+    about: 'Each client\'s access, servers, databases and systems.',
+    alsoHides: 'Also hides client projects and access expiry reminders on the Overview.' },
+  { key: 'all-tasks',      group: 'External',  icon: 'list',            label: 'Client Tasks',
+    about: 'Every client and system task in one list.',
+    alsoHides: 'Also hides the task list on project pages.' },
+  { key: 'pfm',            group: 'External',  icon: 'briefcase',       label: 'Project & Finance',
+    about: 'Offers and change requests, followed step by step.',
+    alsoHides: 'Also hides Offers & CRs on client and project pages, and their reminders on the Overview.' },
+  { key: 'outsource',      group: 'External',  icon: 'users',           label: 'Outsource',
+    about: 'Outsourced people, their rates and their logged time.',
+    alsoHides: 'Also hides the Owed to Outsource tile on the Overview.' },
+];
+// Modules with no menu entry of their own follow the page they live under.
+const MODULE_PAGE = { projects: 'clients' };
+let hiddenPages = new Set();
+
+function isPageHidden(page) {
+  return !!page && hiddenPages.has(MODULE_PAGE[page] || page);
+}
+// Takes the stored form ('pfm,outsource'); unknown keys are ignored.
+function setHiddenPages(stored) {
+  const keys = String(stored || '').split(',').map(s => s.trim());
+  hiddenPages = new Set(HIDEABLE_PAGES.map(p => p.key).filter(k => keys.includes(k)));
+  applyHiddenPages();
+}
+function applyHiddenPages() {
+  document.documentElement.dataset.hiddenPages = [...hiddenPages].join(' ');
+  // Settings catalogs that only one page uses follow that page (the registry
+  // says which); tagged here so index.html keeps a single source of truth.
+  SETTINGS_CATALOG_TABS.forEach(t => {
+    const btn = t.page && document.querySelector('#module-settings .stab[data-tab="' + t.key + '"]');
+    if (btn) btn.dataset.pageFeature = t.page;
+  });
+  // A menu group heading goes when every page under it is hidden.
+  let heading = null, anyShown = false;
+  const closeGroup = () => { if (heading) heading.hidden = !anyShown; };
+  document.querySelectorAll('#sidebar .sidebar-nav > *').forEach(el => {
+    if (el.classList.contains('nav-section')) { closeGroup(); heading = el; anyShown = false; }
+    else if (el.classList.contains('nav-item') && !isPageHidden(el.dataset.module)) anyShown = true;
+  });
+  closeGroup();
+  // A page hidden while it is open sends the user to the Overview.
+  if (isPageHidden(activeModule)) switchModule('analytics');
+}
+// Settings → Pages: one switch per page, saved the moment it changes.
+function togglePageHidden(page, hide) {
+  if (!HIDEABLE_PAGES.some(p => p.key === page)) return;
+  if (hide) hiddenPages.add(page); else hiddenPages.delete(page);
+  applyHiddenPages();
+  saveUserPreference('hiddenPages', HIDEABLE_PAGES.map(p => p.key).filter(k => hiddenPages.has(k)).join(','));
+  // The switch itself already moved; only its row's look and Show all follow,
+  // so keyboard focus stays on the switch.
+  document.querySelector('#pages-settings-list .pages-switch[data-page="' + page + '"]')
+    ?.closest('.pages-row')?.classList.toggle('is-off', hide);
+  const showAll = document.getElementById('pages-show-all');
+  if (showAll) showAll.disabled = hiddenPages.size === 0;
+}
+function showAllPages() {
+  hiddenPages.clear();
+  applyHiddenPages();
+  saveUserPreference('hiddenPages', '');
+  renderPagesSettings();
+}
+function renderPagesSettings() {
+  const host = document.getElementById('pages-settings-list');
+  if (!host) return;
+  host.innerHTML = '';
+  ['Workspace', 'Internal', 'External'].forEach(group => {
+    host.appendChild(Object.assign(document.createElement('div'), { className: 'pages-group-label', textContent: group }));
+    HIDEABLE_PAGES.filter(p => p.group === group).forEach(p => {
+      const shown = !hiddenPages.has(p.key);
+      const row = document.createElement('label');
+      row.className = 'pages-row' + (shown ? '' : ' is-off');
+      const icon = document.createElement('span');
+      icon.className = 'pages-row-icon';
+      icon.innerHTML = ic(p.icon);
+      row.appendChild(icon);
+      const text = document.createElement('span');
+      text.className = 'pages-row-text';
+      text.appendChild(Object.assign(document.createElement('b'), { textContent: p.label }));
+      text.appendChild(Object.assign(document.createElement('span'), { textContent: p.about }));
+      if (p.alsoHides) text.appendChild(Object.assign(document.createElement('span'), { className: 'pages-row-also', textContent: p.alsoHides }));
+      row.appendChild(text);
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.className = 'pages-switch';
+      input.setAttribute('role', 'switch');
+      input.checked = shown;
+      input.dataset.page = p.key;
+      input.setAttribute('aria-label', p.label);
+      input.addEventListener('change', () => togglePageHidden(p.key, !input.checked));
+      row.appendChild(input);
+      host.appendChild(row);
+    });
+  });
+  const showAll = document.getElementById('pages-show-all');
+  if (showAll) showAll.disabled = hiddenPages.size === 0;
+}
+// Zooms the whole window (text, icons, spacing) like a browser zoom.
+function applyUiScale(scale) {
+  try { window.api.setZoomFactor(Number(scale || 100) / 100); } catch { /* preload missing */ }
 }
 function saveUserPreference(key, value) {
   window.api.setPreference(key, value).catch(() => {});
@@ -497,7 +639,7 @@ let subPrefs      = { defaultCurrency: 'USD' };
 let subEditId     = null;
 let subsLoaded    = false;
 let _subSaveTimer = null;
-let undoSubscription = null; // { sub, idx }
+let undoSubscription = null; // { kind: 'delete', sub, idx } or { kind: 'renew', id, before }
 let _undoSubTimer    = null;
 
 // ── Project task modal state (add/edit a project's zero-log or logged task) ──
@@ -1125,8 +1267,14 @@ async function initSettingsModule() {
   const currentTab = document.querySelector('#module-settings .stab.active')?.dataset.tab;
   if (savedTab && savedTab !== currentTab) {
     const savedBtn = document.querySelector('#module-settings .stab[data-tab="' + savedTab + '"]');
-    if (savedBtn && !savedBtn.hidden) switchTab(savedBtn);
+    if (savedBtn && !savedBtn.hidden && !isPageHidden(savedBtn.dataset.pageFeature)) switchTab(savedBtn);
   }
+  // A catalog tab whose page was switched off is not shown; fall back to General.
+  const openBtn = document.querySelector('#module-settings .stab.active');
+  if (openBtn && isPageHidden(openBtn.dataset.pageFeature)) {
+    switchTab(document.querySelector('#module-settings .stab[data-tab="general"]'));
+  }
+  renderPagesSettings();
   SETTINGS_TABS.forEach(renderLookupPanel);
   document.querySelectorAll('#setting-startonlastpage-ctl .seg-btn').forEach(b =>
     b.classList.toggle('active', (b.dataset.val === 'last') === !!uiState.startOnLastPage));
@@ -1664,6 +1812,7 @@ function switchTab(btn) {
   if (btn.dataset.tab === 'maintenance') renderMaintenanceTab();
   if (btn.dataset.tab === 'catalogMap') runCatalogMap();
   if (btn.dataset.tab === 'users') renderUserManagement();
+  if (btn.dataset.tab === 'pages') renderPagesSettings();
   uiState.filters.settings = { tab: btn.dataset.tab };
   saveUiStateDebounced();
 }
@@ -1672,7 +1821,7 @@ function syncSettingsSaveButton(tab) {
   const btn = document.getElementById('settings-save-btn');
   if (!btn) return;
   btn.hidden = tab === 'maintenance' || tab === 'backup' || tab === 'catalogMap'
-    || tab === 'general' || tab === 'users';
+    || tab === 'general' || tab === 'users' || tab === 'pages';
   btn.textContent = 'Save Catalog Changes';
   document.getElementById('settings-save-status').textContent = '';
   const discardBtn = document.getElementById('settings-discard-btn');
@@ -1708,6 +1857,7 @@ function discardSettingsChanges() {
 const SETTINGS_SEARCH_INDEX = [
   { tab: 'general', selector: '#setting-startonlastpage-ctl', terms: 'start on last page landing analytics launch open' },
   { tab: 'general', selector: '#tab-general button[data-onclick="openHowThinksOverlay()"]', terms: 'how this app thinks help guide explainer onboarding' },
+  { tab: 'pages', selector: '#pages-settings-list', terms: 'pages menu sidebar hide show modules features turn off simplify' },
   { tab: 'users', selector: '#user-add-btn', terms: 'add user new user create account invite' },
   { tab: 'users', selector: '#user-list', terms: 'users accounts password permissions role administrator standard' },
   { tab: 'backup', selector: '#maint-fullbackup-btn', terms: 'backup full backup desktop everything export' },

@@ -2,7 +2,7 @@
 // channel (`domain:action`) handled in main.js. The façade method names are kept
 // stable (JS identifiers); the wire-level channel strings are the scoped names.
 // Request/response shapes are documented in ipc-types.js.
-const { contextBridge, ipcRenderer, webUtils } = require('electron');
+const { contextBridge, ipcRenderer, webUtils, webFrame } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
   // ── Authentication ──
@@ -170,6 +170,15 @@ contextBridge.exposeInMainWorld('api', {
   deleteCompanyDocument: (id)        => ipcRenderer.invoke('companydocs:delete', id),
   /** @returns {Promise<import('./ipc-types').CompanyDocFileResult>} */
   uploadCompanyDocument:   (id) => ipcRenderer.invoke('companydocs:upload-document', id),
+  // Takes the dropped File itself; its disk path is resolved here, as for
+  // uploadKnowledgeFile, so the page never names a path.
+  /** @returns {Promise<import('./ipc-types').CompanyDocFileResult>} */
+  uploadCompanyDocumentFile: (id, file) => {
+    let filePath = '';
+    try { filePath = webUtils.getPathForFile(file); } catch { /* not a real File */ }
+    if (!filePath) return Promise.resolve({ ok: false, error: 'Drop a file saved on this computer' });
+    return ipcRenderer.invoke('companydocs:upload-file', id, filePath);
+  },
   /** @returns {Promise<import('./ipc-types').FileResult>} */
   downloadCompanyDocument: (id) => ipcRenderer.invoke('companydocs:download-document', id),
   openCompanyDocument:     (id) => ipcRenderer.invoke('companydocs:open-document', id),
@@ -376,6 +385,9 @@ contextBridge.exposeInMainWorld('api', {
   // ── Per-account UI preferences (theme/density/canvas/motion/sidebar/timesheet view) ──
   getPreferences:  ()          => ipcRenderer.invoke('preferences:get'),
   setPreference:   (key, val)  => ipcRenderer.invoke('preferences:set', key, val),
+  // Whole-window zoom for the Workspace View "Scale" choice; clamped so a bad
+  // value can never make the window unusable.
+  setZoomFactor:   (factor)    => { const n = Number(factor); if (n >= 0.5 && n <= 2) webFrame.setZoomFactor(n); },
 
   // ── Backup / reports / window / shell ──
   /** @returns {Promise<import('./ipc-types').FileResult>} */

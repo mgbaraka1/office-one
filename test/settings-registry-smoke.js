@@ -97,7 +97,7 @@ try {
 
   const shellSource = fs.readFileSync(path.join(root, 'renderer', 'features', 'shell.js'), 'utf8');
   check('the command palette derives its catalog entries from the registry (not a hand-copied list)',
-    shellSource.includes(".filter(t => t.settingsTab !== false).map(t => ({ key: t.key, label: t.label }))"));
+    shellSource.includes(".filter(t => t.settingsTab !== false).map(t => ({ key: t.key, label: t.label, page: t.page }))"));
   check('the command palette can reach Maintenance', shellSource.includes("{ key: 'maintenance', label: 'Maintenance' }"));
   const coreSource = fs.readFileSync(path.join(root, 'renderer', 'core.js'), 'utf8');
   check('SETTINGS_TABS omits externally-managed categories',

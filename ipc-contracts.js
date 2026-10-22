@@ -76,6 +76,7 @@ const SIGNATURES = {
   'companydocs:update': ['id', 'object'],
   'companydocs:delete': ['id'],
   'companydocs:upload-document': ['id'],
+  'companydocs:upload-file': ['id', 'string'],
   'companydocs:download-document': ['id'],
   'companydocs:open-document': ['id'],
   'companydocs:remove-document': ['id'],

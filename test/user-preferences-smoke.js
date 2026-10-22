@@ -53,6 +53,23 @@ try {
   const adminPrefsAfterRejections = db.getUserPreferences(admin.user.id);
   record('a rejected write leaves prior preferences untouched',
     adminPrefsAfterRejections.theme === 'dark', JSON.stringify(adminPrefsAfterRejections));
+
+  // Settings → Pages: the pages an account switched off.
+  record('a new account shows every page', freshDefaults.hiddenPages === '', JSON.stringify(freshDefaults.hiddenPages));
+  db.setUserPreference(admin.user.id, 'hiddenPages', ' outsource,all-tasks,outsource ');
+  record('hidden pages are stored in menu order with no repeats',
+    db.getUserPreferences(admin.user.id).hiddenPages === 'all-tasks,outsource',
+    db.getUserPreferences(admin.user.id).hiddenPages);
+  record('one account hiding pages leaves another account\'s menu alone',
+    db.getUserPreferences(standard.user.id).hiddenPages === '');
+  let threwOnUnknownPage = false;
+  try { db.setUserPreference(admin.user.id, 'hiddenPages', 'pfm,settings'); } catch { threwOnUnknownPage = true; }
+  let threwOnOverview = false;
+  try { db.setUserPreference(admin.user.id, 'hiddenPages', 'analytics'); } catch { threwOnOverview = true; }
+  record('Settings and Overview cannot be hidden, nor a page that does not exist',
+    threwOnUnknownPage && threwOnOverview && db.getUserPreferences(admin.user.id).hiddenPages === 'all-tasks,outsource');
+  db.setUserPreference(admin.user.id, 'hiddenPages', '');
+  record('showing every page again clears the list', db.getUserPreferences(admin.user.id).hiddenPages === '');
 } catch (error) {
   console.error(error.stack || error);
   exitCode = 2;
