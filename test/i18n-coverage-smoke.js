@@ -12,8 +12,9 @@ const keys = new Set([...i18n.matchAll(/(?:^|[,\n]\s*)'((?:\\'|[^'])+)'\s*:/g)]
   .map(match => match[1].replace(/\\'/g, "'")));
 const failures = [];
 const neutral = /^(?:O1|Ctrl K|[⌃^]N|\d+(?:\.\d+)?[mh]|H2|URL|Esc|Ctrl|K|Shift|N|F|Tab)$/;
-const decode = value => value.replaceAll('&amp;', '&').replaceAll('&lt;', '<').replaceAll('&gt;', '>')
-  .replaceAll('&quot;', '"').replaceAll('&#39;', "'").replace(/\s+/g, ' ').trim();
+// &amp; goes last, so "&amp;lt;" becomes the text "&lt;" rather than "<".
+const decode = value => value.replaceAll('&lt;', '<').replaceAll('&gt;', '>')
+  .replaceAll('&quot;', '"').replaceAll('&#39;', "'").replaceAll('&amp;', '&').replace(/\s+/g, ' ').trim();
 
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 for (const match of html.matchAll(/>([^<>]+)</g)) {
