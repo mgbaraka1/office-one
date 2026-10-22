@@ -1,5 +1,48 @@
 [
   {
+    "version": "8.24.0",
+    "date": "2026-10-22",
+    "kind": "feat",
+    "title": {
+      "en": "Hide the pages you don’t use, document numbers, and subscription totals",
+      "ar": "إخفاء الصفحات التي لا تستخدمها، وأرقام المستندات، وإجماليات الاشتراكات"
+    },
+    "notes": [
+      {
+        "en": "Settings → Pages turns off pages you don’t use. They leave the menu, Quick Find and the Overview. Nothing is deleted: turn a page back on and everything is there.",
+        "ar": "الإعدادات ← الصفحات توقف الصفحات التي لا تستخدمها، فتختفي من القائمة والبحث السريع والنظرة العامة. لا يُحذف شيء: أعد تشغيل الصفحة وستجد كل شيء كما هو."
+      },
+      {
+        "en": "Company documents can hold a reference number (CR, VAT…) with a Copy button, and Quick Find finds it.",
+        "ar": "يمكن أن يحمل كل مستند للشركة رقماً مرجعياً (سجل تجاري، ضريبة…) مع زر نسخ، ويجده البحث السريع."
+      },
+      {
+        "en": "Company documents show the most urgent first, filter by renewal status and category, and take a file dropped onto the card.",
+        "ar": "تُعرض مستندات الشركة الأكثر إلحاحاً أولاً، وتُصفّى حسب حالة التجديد والفئة، ويمكن إفلات ملف على البطاقة لإضافته."
+      },
+      {
+        "en": "Subscriptions show yearly and monthly totals, a countdown and progress bar per row, sorting by any column, and Mark as renewed with undo.",
+        "ar": "تعرض الاشتراكات الإجمالي السنوي والشهري، وعداً تنازلياً وشريط تقدم لكل صف، وفرزاً حسب أي عمود، وزر تعليم كمُجدَّد مع تراجع."
+      },
+      {
+        "en": "Workspace View has a Scale choice from 80% to 110%, and Ctrl+F jumps to the open page’s search box.",
+        "ar": "في عرض مساحة العمل خيار للحجم من 80% إلى 110%، وCtrl+F ينقلك إلى مربع بحث الصفحة المفتوحة."
+      },
+      {
+        "en": "Click a type in the Knowledge wheel legend to hide or show it. Markdown import can link notes to clients and systems together.",
+        "ar": "انقر نوعاً في مفتاح عجلة المعرفة لإخفائه أو إظهاره. ويمكن لاستيراد Markdown ربط الملاحظات بالعملاء والأنظمة معاً."
+      },
+      {
+        "en": "Security update: Electron 42.11.18.",
+        "ar": "تحديث أمني: Electron 42.11.18."
+      }
+    ],
+    "technical": [
+      "Migration 080 adds company_documents.doc_number (TEXT, default '') and recreates the company-document search insert/update triggers to index it; no search rows rebuilt.",
+      "Electron 42.10.0 → 42.11.18 (GHSA-fw47-9c62-h3vw)."
+    ]
+  },
+  {
     "version": "8.23.0",
     "date": "2026-10-20",
     "kind": "feat",
