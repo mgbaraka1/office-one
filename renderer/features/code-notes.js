@@ -100,6 +100,11 @@ function codeNoteFindAttachment(item, target) {
     || knowledgeDocKey(file.name) === key);
   return matches.sort(knowledgeVersionCompare)[0] || null;
 }
+// 'rtl' when the first letter is from a right-to-left script, else 'ltr'.
+function codeNoteTextDir(text) {
+  const first = String(text || '').match(/\p{L}/u);
+  return first && /[\p{Script=Arabic}\p{Script=Hebrew}\p{Script=Syriac}\p{Script=Thaana}]/u.test(first[0]) ? 'rtl' : 'ltr';
+}
 // opts.preview: the editor's preview, where links do nothing.
 function renderCodeNoteContent(host, markdown, item, opts = {}) {
   host.classList.remove('kh-content-text', 'kh-content-html'); host.classList.add('kh-content-md');
@@ -109,6 +114,9 @@ function renderCodeNoteContent(host, markdown, item, opts = {}) {
   if (!host.childElementCount) { host.appendChild(pjMk('p', 'kh-detail-summary', 'Your formatted preview will appear here.')); return; }
   // Arabic paragraphs read right to left; code always reads left to right.
   host.querySelectorAll('p, li, h1, h2, h3, h4, h5, h6, blockquote, th, td').forEach(el => el.setAttribute('dir', 'auto'));
+  // A list must match its items' direction so its indent is on the bullets' side.
+  // dir="auto" can't do it: it skips children that set their own dir, so it always sees no text.
+  host.querySelectorAll('ul, ol').forEach(list => list.setAttribute('dir', codeNoteTextDir(list.textContent)));
   host.querySelectorAll('a[href]').forEach(link => wireCodeNoteLink(link, item, opts));
   host.querySelectorAll('pre').forEach(pre => buildCodeNoteBlock(pre, item));
   [...host.children].forEach(el => { if (!el.classList.contains('cn-block')) el.dataset.userContent = ''; });

@@ -26,7 +26,7 @@ const crypto = require('node:crypto');
 // table under one of these category discriminators. The renderer fetches options
 // per-category and stores a stable `code` (logic fields) or display `label`
 // (company/system/activity) — never a hardcoded string.
-const LOOKUP_CATEGORIES = ['COMPANY', 'SYSTEM', 'ACTIVITY_TYPE', 'TIME_TYPE', 'ENTRY_STATUS', 'CURRENCY', 'BILLING_CYCLE', 'PROJECT_STATUS', 'PROJECT_DOCUMENT', 'COMPANY_DOCUMENT_CATEGORY', 'TEMPLATE_CATEGORY', 'KNOWLEDGE_TYPE', 'DEPARTMENT', 'TASK_SOURCE_TYPE', 'SERVER_ROLE', 'PFM_STATUS'];
+const LOOKUP_CATEGORIES = ['COMPANY', 'SYSTEM', 'ACTIVITY_TYPE', 'TIME_TYPE', 'ENTRY_STATUS', 'CURRENCY', 'BILLING_CYCLE', 'PROJECT_STATUS', 'COMPANY_DOCUMENT_CATEGORY', 'TEMPLATE_CATEGORY', 'KNOWLEDGE_TYPE', 'DEPARTMENT', 'TASK_SOURCE_TYPE', 'SERVER_ROLE', 'PFM_STATUS'];
 
 let db;          // DatabaseSync instance
 let userDataDir; // resolved userData folder (backups, db file)
@@ -1138,7 +1138,6 @@ function getLookupCodeHistory(lookupId) {
 // lookup's CODE as text, so the schema cannot report them.
 const LOOKUP_TEXT_REFERENCES = {
   PROJECT_STATUS:            ['SELECT status AS v, COUNT(*) AS n FROM projects GROUP BY status'],
-  PROJECT_DOCUMENT:          ['SELECT document_type AS v, COUNT(*) AS n FROM project_documents GROUP BY document_type'],
   COMPANY_DOCUMENT_CATEGORY: ["SELECT category AS v, COUNT(*) AS n FROM company_documents WHERE kind = 'DOCUMENT' AND category IS NOT NULL GROUP BY category"],
   TEMPLATE_CATEGORY:         ["SELECT category AS v, COUNT(*) AS n FROM company_documents WHERE kind = 'TEMPLATE' AND category IS NOT NULL GROUP BY category"],
   CURRENCY:                  ["SELECT value AS v, COUNT(*) AS n FROM user_settings WHERE key IN ('subscriptions_default_currency', 'salary_currency') GROUP BY value"],
@@ -1334,22 +1333,21 @@ function saveSubscriptions(userId, data) {
 }
 
 // ── Projects ──────────────────────────────────────────────────────────────────
-// A Project is a container for a client/system engagement. It owns a fixed set of
-// tracked documents (auto-created on insert) and links to existing tasks — both
+// A Project is a container for a client/system engagement. It links to existing tasks — both
 // timesheet tasks (the `tasks` table, surfaced per work session) and "Not Yet"
-// backlog tasks — via a nullable project_id FK. A project also references one or
-// more COMPANY lookup codes (its
-// clients, via the project_companies junction), one or more SYSTEM lookups (via
+// backlog tasks — via a nullable project_id FK. A project also belongs to ONE
+// COMPANY lookup (its client, via the project_companies junction, set on create
+// and never changed — see setProjectClient), one or more SYSTEM lookups (via
 // the project_systems junction), and a PROJECT_STATUS lookup code (status). Every
-// query is scoped to the authenticated owner (`userId`). The tracked document types are driven by the PROJECT_DOCUMENT lookup
-// category (manageable in Settings); a project_documents row stores availability
-// keyed by the document's stable lookup code, created lazily on first toggle.
+// query is scoped to the authenticated owner (`userId`). Its quotation, approvals
+// and invoices live on Offers and CRs (migration 074); the old project_documents
+// table was dropped by migration 081.
 const DEFAULT_PROJECT_STATUS = 'ACTIVE';
 
-// Allowed upload types for project documents → mime, keyed by lowercase extension
+// Allowed upload types for company documents → mime, keyed by lowercase extension
 // (no leading dot). Enforced server-side on every upload; the renderer/dialog also
 // filters by these. PDF + Word + common web image formats only.
-const PROJECT_DOC_TYPES = {
+const DOC_TYPES = {
   pdf:  'application/pdf',
   doc:  'application/msword',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -1359,26 +1357,20 @@ const PROJECT_DOC_TYPES = {
   gif:  'image/gif',
   webp: 'image/webp',
 };
-const PROJECT_DOC_EXTENSIONS = Object.keys(PROJECT_DOC_TYPES);
 const KNOWLEDGE_DOC_TYPES = {
-  ...PROJECT_DOC_TYPES,
+  ...DOC_TYPES,
   xls:  'application/vnd.ms-excel',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   txt:  'text/plain',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 };
 const KNOWLEDGE_DOC_EXTENSIONS = Object.keys(KNOWLEDGE_DOC_TYPES);
-// Templates take everything the Knowledge Hub does, plus PowerPoint.
+// Templates take everything the Knowledge Hub does, plus the old .ppt format.
 const TEMPLATE_DOC_TYPES = {
   ...KNOWLEDGE_DOC_TYPES,
   ppt:  'application/vnd.ms-powerpoint',
-  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 };
 const MAX_DOCUMENT_BYTES = 100 * 1024 * 1024;
-
-function safeDocumentType(documentType) {
-  const code = String(documentType ?? '');
-  return /^[A-Z][A-Z0-9_]{0,63}$/.test(code) && lkId('PROJECT_DOCUMENT', code) != null ? code : null;
-}
 
 function uploadHeaderMatches(srcPath, ext) {
   const fd = fs.openSync(srcPath, 'r');
@@ -1401,7 +1393,7 @@ function uploadHeaderMatches(srcPath, ext) {
 }
 function knowledgeUploadHeaderMatches(srcPath, ext) {
   if (ext === 'xls') return uploadHeaderMatches(srcPath, 'doc');
-  if (ext === 'xlsx') return uploadHeaderMatches(srcPath, 'docx');
+  if (ext === 'xlsx' || ext === 'pptx') return uploadHeaderMatches(srcPath, 'docx');
   if (ext === 'txt') {
     const fd = fs.openSync(srcPath, 'r');
     try { const sample = Buffer.alloc(4096); const n = fs.readSync(fd, sample, 0, sample.length, 0); return !sample.subarray(0, n).includes(0); }
@@ -1474,18 +1466,16 @@ function ownedSupportYearId(userId, supportYearId) {
   return row ? Number(row.id) : null;
 }
 
-// Replace a project's company links with the given lookup ids (COMPANY category).
-// Invalid / non-COMPANY / duplicate ids are skipped. Caller wraps this in a tx.
-function setProjectCompanies(projectId, companyIds) {
-  db.prepare('DELETE FROM project_companies WHERE project_id = ?').run(projectId);
-  const ins = db.prepare('INSERT OR IGNORE INTO project_companies(project_id, company_id) VALUES(?, ?)');
-  const seen = new Set();
-  for (const raw of (Array.isArray(companyIds) ? companyIds : [])) {
-    const id = Number(raw);
-    if (!Number.isInteger(id) || seen.has(id) || !isLookupId('COMPANY', id)) continue;
-    seen.add(id);
-    ins.run(projectId, id);
-  }
+// A project belongs to ONE client, set when it is created and never changed
+// (the project lives under that client's page). project_companies stays a
+// junction table, but holds at most one row per project. Invalid / non-COMPANY
+// ids are skipped; more than one distinct client is refused. Caller wraps this in a tx.
+const PROJECT_ONE_CLIENT = 'A project belongs to one client';
+function setProjectClient(projectId, companyIds) {
+  const ids = [...new Set((Array.isArray(companyIds) ? companyIds : []).map(Number))]
+    .filter(id => Number.isInteger(id) && isLookupId('COMPANY', id));
+  if (ids.length > 1) throw new Error(PROJECT_ONE_CLIENT);
+  if (ids.length) db.prepare('INSERT OR IGNORE INTO project_companies(project_id, company_id) VALUES(?, ?)').run(projectId, ids[0]);
 }
 
 // The bilingual COMPANY profiles linked to a project.
@@ -1503,7 +1493,7 @@ function projectCompanies(projectId) {
 
 // Replace a project's system links with the given lookup ids (SYSTEM category).
 // Invalid / non-SYSTEM / duplicate ids are skipped. Caller wraps this in a tx.
-// Mirrors setProjectCompanies — a project can span several systems (migration 009).
+// Unlike its one client, a project can span several systems (migration 009).
 function setProjectSystems(userId, projectId, systemIds) {
   db.prepare('DELETE FROM project_systems WHERE project_id = ?').run(projectId);
   const ins = db.prepare('INSERT OR IGNORE INTO project_systems(project_id, system_id) VALUES(?, ?)');
@@ -1528,9 +1518,7 @@ function projectSystems(projectId) {
 }
 
 // Insert a project plus its company / system links. Returns the full project
-// (profile + tasks + documents). Document availability rows are not created here —
-// they are upserted lazily on first toggle; the tracked types come from the
-// PROJECT_DOCUMENT lookup catalog (see getProject).
+// (profile + tasks).
 function createProject(userId, data) {
   const now = new Date().toISOString();
   let id;
@@ -1542,7 +1530,7 @@ function createProject(userId, data) {
           data?.status || DEFAULT_PROJECT_STATUS,
           resolveParentProjectId(userId, data?.parentProjectId),
           now, now).lastInsertRowid);
-    setProjectCompanies(id, data?.companyIds);
+    setProjectClient(id, data?.companyIds);
     setProjectSystems(userId, id, data?.systemIds);
   });
   return getProject(userId, id);
@@ -1572,7 +1560,7 @@ function listProjects(userId) {
 }
 
 // One project in full: profile + its linked TASKS (each with nested work sessions,
-// including zero-log "Not Yet" tasks) + document statuses. null if not owned.
+// including zero-log "Not Yet" tasks). null if not owned.
 // (ProjectTasksV2 shape — `tasks: Task[]`, replacing the old {entries, backlog}.)
 // parentProjectId/parentProjectName are still read back (migration 035's
 // parent_project_id column) but nothing in the app sets it anymore — the
@@ -1591,32 +1579,7 @@ function getProject(userId, id) {
 
   const tasks = projectTasks(userId, id);
 
-  // Tracked documents = the active PROJECT_DOCUMENT lookups (ordered), each merged
-  // with this project's stored row. `documentType` is the stable lookup code;
-  // `label` is the human name. A document is "available" iff it has a stored file;
-  // `file` carries the on-disk metadata (or null) and a computed `exists` flag so
-  // the UI can surface a "file missing on disk" state without trusting the DB.
-  const rowByCode = new Map(
-    db.prepare(
-      `SELECT document_type, is_available, file_path, original_name, file_size, mime_type, uploaded_at
-         FROM project_documents WHERE project_id = ?`
-    ).all(id).map(r => [r.document_type, r])
-  );
-  const documents = getLookupsByCategory('PROJECT_DOCUMENT', false).map(o => {
-    const r = rowByCode.get(o.code);
-    const hasFile = !!r?.file_path;
-    const file = hasFile ? {
-      path: r.file_path,
-      originalName: r.original_name || '',
-      size: r.file_size || 0,
-      mimeType: r.mime_type || '',
-      uploadedAt: r.uploaded_at || '',
-      exists: (() => { try { return fs.existsSync(resolveStoredPath(r.file_path)); } catch { return false; } })(),
-    } : null;
-    return { documentType: o.code, label: o.label, isAvailable: hasFile, file };
-  });
-
-  return { ...p, companies: projectCompanies(id), systems: projectSystems(id), tasks, documents };
+  return { ...p, companies: projectCompanies(id), systems: projectSystems(id), tasks };
 }
 
 // A project's linked tasks (ProjectTasksV2), each as a full Task with its ordered
@@ -1640,8 +1603,9 @@ function projectTasks(userId, projectId) {
   });
 }
 
-// Update a project's profile fields in place (documents/links untouched). Returns
-// the refreshed project, or null if the caller doesn't own it.
+// Update a project's profile fields and systems in place. Its client is fixed at
+// creation, so companyIds is ignored here. Returns the refreshed project, or null
+// if the caller doesn't own it.
 function updateProject(userId, id, data) {
   if (!ownsProject(userId, id)) return null;
   const current = db.prepare(
@@ -1658,7 +1622,6 @@ function updateProject(userId, id, data) {
           data?.status || DEFAULT_PROJECT_STATUS,
           parentProjectId,
           new Date().toISOString(), id, userId);
-    setProjectCompanies(id, data?.companyIds);
     setProjectSystems(userId, id, data?.systemIds);
   });
   return getProject(userId, id);
@@ -1673,8 +1636,8 @@ function updateProject(userId, id, data) {
 // no-op delete of someone else's id); consumed (deleted) the moment it's checked.
 const pendingProjectDeletes = new Map(); // projectId -> userId
 
-// Delete a project. ON DELETE CASCADE drops its document rows; ON DELETE SET NULL
-// unlinks (but never deletes) any linked timesheet/backlog tasks. The project's
+// Delete a project. ON DELETE SET NULL unlinks (but never deletes) any linked
+// timesheet/backlog tasks, Offers/CRs and Knowledge Hub items. The project's
 // file folder is intentionally NOT removed here — it must survive the renderer's
 // 5 s undo window, and is purged either when that window lapses (purgeProjectFiles)
 // or by the boot-time orphan sweep (sweepOrphanProjectFiles) as a safety net.
@@ -1687,148 +1650,9 @@ function deleteProject(userId, id) {
   return { ok: true };
 }
 
-// ── Project document FILES (Option A: bytes on disk, metadata in SQLite) ──────
-// Files live at <userData>/projects/{projectId}/documents/{docType}-{ts}.{ext};
-// only the relative path + metadata is stored. All paths are constrained to the
-// project's own folder (projectId is coerced to an integer), so a renderer can
-// never reach outside the data root.
-
-// Copy a chosen file into the project's documents folder and record its metadata.
-// Validates ownership, the document code, and the extension allowlist. If a file
-// already exists for this (project, type) it is a REPLACE: the new file is written
-// first, then the old one removed (best-effort). Returns { ok, project } | { ok:false, error }.
-function saveProjectDocumentFile(userId, projectId, documentType, srcPath) {
-  if (!ownsProject(userId, projectId)) return { ok: false, error: 'Project not found' };
-  documentType = safeDocumentType(documentType);
-  if (!documentType) return { ok: false, error: 'Unknown or unsafe document type' };
-  const ext = fileExt(srcPath);
-  if (!PROJECT_DOC_EXTENSIONS.includes(ext)) {
-    return { ok: false, error: `Unsupported file type (.${ext || '?'}). Allowed: ${PROJECT_DOC_EXTENSIONS.join(', ')}` };
-  }
-  let size;
-  try { size = fs.statSync(srcPath).size; }
-  catch { return { ok: false, error: 'Could not read the selected file' }; }
-  if (size <= 0 || size > MAX_DOCUMENT_BYTES) {
-    return { ok: false, error: 'File must be between 1 byte and 100 MB' };
-  }
-  try {
-    if (!uploadHeaderMatches(srcPath, ext)) return { ok: false, error: 'The file contents do not match its extension' };
-  } catch { return { ok: false, error: 'Could not validate the selected file' }; }
-
-  // Prior file (for the replace case) — capture before we overwrite the row.
-  const prev = db.prepare(`SELECT file_path, original_name, file_size, mime_type, uploaded_at
-                             FROM project_documents WHERE project_id = ? AND document_type = ?`)
-    .get(projectId, documentType);
-
-  // {docType}-{timestamp}.{ext} — the timestamp makes duplicate filenames impossible.
-  const relPath = path.join('projects', String(projectId), 'documents', `${documentType}-${Date.now()}.${ext}`);
-  const absPath = resolveStoredPath(relPath);
-  try {
-    fs.mkdirSync(path.dirname(absPath), { recursive: true });
-    fs.copyFileSync(srcPath, absPath);
-  } catch (err) {
-    return { ok: false, error: 'Could not save the file: ' + String(err?.message || err) };
-  }
-
-  try {
-    db.prepare(
-      `INSERT INTO project_documents(project_id, document_type, is_available, file_path, original_name, file_size, mime_type, uploaded_at)
-       VALUES(?, ?, 1, ?, ?, ?, ?, ?)
-       ON CONFLICT(project_id, document_type) DO UPDATE SET
-         is_available = 1, file_path = excluded.file_path, original_name = excluded.original_name,
-         file_size = excluded.file_size, mime_type = excluded.mime_type, uploaded_at = excluded.uploaded_at`
-    ).run(projectId, documentType, relPath, path.basename(srcPath), size, PROJECT_DOC_TYPES[ext], new Date().toISOString());
-  } catch (err) {
-    // Metadata write failed — don't leave the just-copied orphan on disk.
-    try { fs.rmSync(absPath, { force: true }); } catch { /* best effort */ }
-    return { ok: false, error: 'Could not record the file: ' + String(err?.message || err) };
-  }
-
-  // Keep the superseded bytes until the next orphan sweep so replacement can
-  // be undone from the renderer's five-second action toast.
-  const replacedFile = prev?.file_path ? {
-    path: prev.file_path, originalName: prev.original_name || '', size: prev.file_size || 0,
-    mimeType: prev.mime_type || '', uploadedAt: prev.uploaded_at || '',
-  } : null;
-  return { ok: true, project: getProject(userId, projectId), replacedFile };
-}
-
-// Resolve the absolute on-disk path of a stored document (for download / open),
-// after an ownership check. `exists` reflects whether the file is actually present.
-function resolveProjectDocumentFile(userId, projectId, documentType) {
-  if (!ownsProject(userId, projectId)) return { ok: false, error: 'Project not found' };
-  documentType = safeDocumentType(documentType);
-  if (!documentType) return { ok: false, error: 'Unknown or unsafe document type' };
-  const r = db.prepare('SELECT file_path, original_name FROM project_documents WHERE project_id = ? AND document_type = ?')
-    .get(projectId, documentType);
-  if (!r?.file_path) return { ok: false, error: 'No file for this document' };
-  let absPath;
-  try { absPath = resolveStoredPath(r.file_path); }
-  catch { return { ok: false, error: 'Stored file path is invalid' }; }
-  return { ok: true, absPath, originalName: r.original_name || path.basename(r.file_path), exists: fs.existsSync(absPath) };
-}
-
-// Remove a document's file from disk and clear its metadata (keeps the row so the
-// slot stays listed, just back to "not available"). Best-effort on the unlink.
-function removeProjectDocumentFile(userId, projectId, documentType) {
-  if (!ownsProject(userId, projectId)) return { ok: false, error: 'Project not found' };
-  documentType = safeDocumentType(documentType);
-  if (!documentType) return { ok: false, error: 'Unknown or unsafe document type' };
-  const r = db.prepare(`SELECT file_path, original_name, file_size, mime_type, uploaded_at
-                          FROM project_documents WHERE project_id = ? AND document_type = ?`)
-    .get(projectId, documentType);
-  db.prepare(
-    `UPDATE project_documents
-        SET is_available = 0, file_path = NULL, original_name = NULL, file_size = NULL, mime_type = NULL, uploaded_at = NULL
-      WHERE project_id = ? AND document_type = ?`
-  ).run(projectId, documentType);
-  const removedFile = r?.file_path ? {
-    path: r.file_path, originalName: r.original_name || '', size: r.file_size || 0,
-    mimeType: r.mime_type || '', uploadedAt: r.uploaded_at || '',
-  } : null;
-  return { ok: true, project: getProject(userId, projectId), removedFile };
-}
-
-function restoreProjectDocumentFile(userId, projectId, documentType, fileMeta) {
-  if (!ownsProject(userId, projectId)) return { ok: false, error: 'Project not found' };
-  documentType = safeDocumentType(documentType);
-  if (!documentType || !fileMeta?.path) return { ok: false, error: 'Invalid restore request' };
-  let absPath;
-  try {
-    absPath = resolveStoredPath(fileMeta.path);
-    resolveInside(path.join(projectDir(Number(projectId)), 'documents'), absPath);
-  } catch { return { ok: false, error: 'Stored file path is invalid' }; }
-  if (!fs.existsSync(absPath)) return { ok: false, error: 'The previous file is no longer available' };
-  const current = db.prepare(`SELECT file_path, original_name, file_size, mime_type, uploaded_at
-                                FROM project_documents WHERE project_id = ? AND document_type = ?`)
-    .get(projectId, documentType);
-  db.prepare(
-    `UPDATE project_documents SET is_available = 1, file_path = ?, original_name = ?,
-       file_size = ?, mime_type = ?, uploaded_at = ? WHERE project_id = ? AND document_type = ?`
-  ).run(fileMeta.path, String(fileMeta.originalName || path.basename(fileMeta.path)), Number(fileMeta.size) || 0,
-        String(fileMeta.mimeType || ''), String(fileMeta.uploadedAt || new Date().toISOString()), projectId, documentType);
-  const replacedFile = current?.file_path && current.file_path !== fileMeta.path ? {
-    path: current.file_path, originalName: current.original_name || '', size: current.file_size || 0,
-    mimeType: current.mime_type || '', uploadedAt: current.uploaded_at || '',
-  } : null;
-  return { ok: true, project: getProject(userId, projectId), replacedFile };
-}
-
-function purgeUnreferencedProjectDocumentFile(userId, projectId, relPath) {
-  if (!ownsProject(userId, projectId) || !relPath) return { ok: false };
-  const referenced = db.prepare('SELECT 1 FROM project_documents WHERE project_id = ? AND file_path = ?')
-    .get(projectId, relPath);
-  if (referenced) return { ok: false, error: 'File is still in use' };
-  try {
-    const absPath = resolveStoredPath(relPath);
-    resolveInside(path.join(projectDir(Number(projectId)), 'documents'), absPath);
-    fs.rmSync(absPath, { force: true });
-    return { ok: true };
-  } catch { return { ok: false, error: 'Invalid stored file path' }; }
-}
-
-// Delete a project's ENTIRE file folder (projects/{id}/ — not just documents/, so
-// future sibling file types go too). Called when the delete undo-window lapses.
+// Delete a project's ENTIRE file folder (projects/{id}/: only the documents/ that
+// migration 074 left behind as its recovery point). Called when the delete
+// undo-window lapses.
 // The project row is already gone by this point, so ownership is checked against
 // pendingProjectDeletes (set by deleteProject) instead of a DB row; the id is also
 // coerced to an integer so the path can only ever resolve inside the data root.
@@ -1842,10 +1666,9 @@ function purgeProjectFiles(userId, projectId) {
 }
 
 // Undo a delete: the project was re-created under a NEW id, so move its file
-// folder oldId → newId and re-insert each file's metadata (the old rows were
-// CASCADE-deleted). `fileDocs` is the snapshot's documents that had a file:
-// [{ documentType, file:{ path, originalName, size, mimeType, uploadedAt } }].
-function restoreProjectFiles(userId, oldProjectId, newProjectId, fileDocs) {
+// folder oldId → newId (it still holds files migration 074 kept as its recovery
+// point, which the orphan sweep would otherwise remove).
+function restoreProjectFiles(userId, oldProjectId, newProjectId) {
   if (!ownsProject(userId, newProjectId)) return { ok: false, error: 'Project not found' };
   const oldId = Number(oldProjectId);
   if (pendingProjectDeletes.get(oldId) !== userId) return { ok: false, error: 'Not authorized to restore this project' };
@@ -1862,31 +1685,14 @@ function restoreProjectFiles(userId, oldProjectId, newProjectId, fileDocs) {
         fs.rmSync(newDir, { recursive: true, force: true }); // freshly created project has no files
         fs.renameSync(oldDir, newDir);
       }
-    } catch { /* fall through — re-insert what metadata we can */ }
+    } catch { /* best effort */ }
   }
-
-  const ins = db.prepare(
-    `INSERT INTO project_documents(project_id, document_type, is_available, file_path, original_name, file_size, mime_type, uploaded_at)
-     VALUES(?, ?, 1, ?, ?, ?, ?, ?)
-     ON CONFLICT(project_id, document_type) DO UPDATE SET
-       is_available = 1, file_path = excluded.file_path, original_name = excluded.original_name,
-       file_size = excluded.file_size, mime_type = excluded.mime_type, uploaded_at = excluded.uploaded_at`
-  );
-  for (const d of (Array.isArray(fileDocs) ? fileDocs : [])) {
-    if (!d?.file?.path || lkId('PROJECT_DOCUMENT', d.documentType) == null) continue;
-    // Re-home the relative path onto the new id (same basename, new folder).
-    const relPath = path.join('projects', String(Number(newProjectId)), 'documents', path.basename(d.file.path));
-    if (!fs.existsSync(resolveStoredPath(relPath))) continue; // file didn't survive — skip
-    ins.run(newProjectId, d.documentType, relPath, d.file.originalName || path.basename(relPath),
-            d.file.size || 0, d.file.mimeType || PROJECT_DOC_TYPES[fileExt(relPath)] || '', d.file.uploadedAt || new Date().toISOString());
-  }
-  return { ok: true, project: getProject(userId, newProjectId) };
+  return { ok: true };
 }
 
 // ── Company Documents (standalone card-per-document module, independent of
 // Projects) ────────────────────────────────────────────────────────────────
-// Each row IS a user-created card — unlike `project_documents` (a fixed catalog
-// slot per project that survives file removal), there is no catalog: `category`
+// Each row IS a user-created card; there is no catalog: `category`
 // is a COMPANY_DOCUMENT_CATEGORY lookup code the user picks per card, and the
 // row itself is deleted (not just its file) when the card is removed. At most
 // one file per card (Option A: bytes on disk under
@@ -1976,7 +1782,7 @@ function deleteCompanyDocument(userId, id) {
 }
 
 // Copy a chosen file into the card's folder and record its metadata. Validates
-// ownership and the extension allowlist (shared with Project Documents; a
+// ownership and the extension allowlist (DOC_TYPES; a
 // template also takes the Knowledge Hub's spreadsheets and text). If a
 // file already exists for this card it is a REPLACE: the new file is written
 // first, then the old one removed (best-effort). Returns
@@ -1985,7 +1791,7 @@ function saveCompanyDocumentFile(userId, id, srcPath) {
   const card = db.prepare('SELECT kind FROM company_documents WHERE id = ? AND user_id = ?').get(id, userId);
   if (!card) return { ok: false, error: 'Document not found' };
   const isTemplate = card.kind === 'TEMPLATE';
-  const types = isTemplate ? TEMPLATE_DOC_TYPES : PROJECT_DOC_TYPES;
+  const types = isTemplate ? TEMPLATE_DOC_TYPES : DOC_TYPES;
   const ext = fileExt(srcPath);
   if (!Object.hasOwn(types, ext)) {
     return { ok: false, error: `Unsupported file type (.${ext || '?'}). Allowed: ${Object.keys(types).join(', ')}` };
@@ -2195,7 +2001,16 @@ function knowledgeItemToApi(r) {
     createdAt: r.created_at, updatedAt: r.updated_at, documents, tags, groups,
     companies: knowledgeLinks('companies', null, itemId).map(({ itemId: _, ...x }) => x),
     systems: knowledgeLinks('systems', null, itemId).map(({ itemId: _, ...x }) => x),
+    ...knowledgeProjectFields(r),
   };
+}
+// The one project an item may link to (migration 081), or nulls. `names` is an
+// optional Map(projectId -> name) so a list does not look each one up.
+function knowledgeProjectFields(r, names = null) {
+  if (r.project_id == null) return { projectId: null, projectName: '' };
+  const name = names ? names.get(r.project_id)
+    : db.prepare('SELECT name FROM projects WHERE id = ? AND user_id = ?').get(r.project_id, r.user_id)?.name;
+  return name == null ? { projectId: null, projectName: '' } : { projectId: r.project_id, projectName: name };
 }
 // The client (COMPANY) or SYSTEM lookups linked to knowledge items (migration 068),
 // as { itemId, id, code, label, nameEn, nameAr } in display order. Scoped by
@@ -2258,6 +2073,7 @@ function listKnowledgeItems(userId) {
       originalName: row.original_name || '', changeNote: row.change_note || '',
     });
   });
+  const projectNames = new Map(db.prepare('SELECT id, name FROM projects WHERE user_id = ?').all(userId).map(p => [p.id, p.name]));
   const linksByItem = { companies: new Map(), systems: new Map() };
   Object.keys(linksByItem).forEach(kind => knowledgeLinks(kind, userId).forEach(({ itemId, ...link }) => {
     if (!linksByItem[kind].has(itemId)) linksByItem[kind].set(itemId, []);
@@ -2271,6 +2087,7 @@ function listKnowledgeItems(userId) {
       createdAt: row.created_at, updatedAt: row.updated_at,
       tags: tagsByItem.get(row.id) || [], groups: groupsByItem.get(row.id) || [],
       companies: linksByItem.companies.get(row.id) || [], systems: linksByItem.systems.get(row.id) || [],
+      ...knowledgeProjectFields(row, projectNames),
       documents, documentCount: documents.length,
     };
   });
@@ -2297,6 +2114,17 @@ function knowledgeTagId(userId, name) {
   return db.prepare('SELECT id FROM knowledge_tags WHERE user_id = ? AND name = ?').get(userId, name).id;
 }
 const KNOWLEDGE_NEEDS_HOME = 'Link a client or a system, or add a tag';
+const KNOWLEDGE_PROJECT_OFF_CLIENT = 'Choose a project of one of the linked clients';
+// True when the item has no project, or its project is on one of its clients.
+function knowledgeProjectOnClient(itemId) {
+  return !!db.prepare(
+    `SELECT 1 FROM knowledge_items k
+      WHERE k.id = ? AND (k.project_id IS NULL OR EXISTS(
+        SELECT 1 FROM project_companies pc
+          JOIN knowledge_item_companies kc ON kc.company_id = pc.company_id AND kc.item_id = k.id
+         WHERE pc.project_id = k.project_id))`
+  ).get(itemId);
+}
 function knowledgeItemHasHome(itemId) {
   return !!db.prepare(
     `SELECT 1 WHERE EXISTS(SELECT 1 FROM knowledge_item_companies WHERE item_id = ?1)
@@ -2337,8 +2165,34 @@ function setKnowledgeChildren(userId, itemId, data) {
       addGroup.run(groupId, itemId, nextSort.get(groupId).n);
     });
   }
+  // One optional project (migration 081): null or '' clears it.
+  if (Object.hasOwn(data || {}, 'projectId')) {
+    const raw = data.projectId;
+    const projectId = raw == null || raw === '' ? null : Number(raw);
+    if (projectId != null && !(Number.isInteger(projectId) && ownsProject(userId, projectId))) throw new Error('Project not found');
+    db.prepare('UPDATE knowledge_items SET project_id = ? WHERE id = ? AND user_id = ?').run(projectId, itemId, userId);
+  }
   // Checked last, inside the caller's transaction, so a refused save changes nothing.
+  // Only when clients or the project are saved: a project's own clients may change
+  // later, and that must not block an unrelated edit such as a status change.
+  const linksSent = Object.hasOwn(data || {}, 'companyIds') || Object.hasOwn(data || {}, 'projectId');
+  if (linksSent && !knowledgeProjectOnClient(itemId)) throw new Error(KNOWLEDGE_PROJECT_OFF_CLIENT);
   if (!knowledgeItemHasHome(itemId)) throw new Error(KNOWLEDGE_NEEDS_HOME);
+}
+// Undoing a project delete re-creates it under a new id; the Knowledge Hub items
+// that pointed at the old one (set to NULL by the delete) point at it again.
+// Only this login's items that are still unlinked and on one of its clients.
+function relinkKnowledgeProject(userId, projectId, itemIds) {
+  if (!ownsProject(userId, Number(projectId))) return { ok: false, error: 'Project not found' };
+  const stmt = db.prepare(
+    `UPDATE knowledge_items SET project_id = ? WHERE id = ? AND user_id = ? AND project_id IS NULL
+        AND EXISTS(SELECT 1 FROM knowledge_item_companies kc
+                     JOIN project_companies pc ON pc.company_id = kc.company_id AND pc.project_id = ?
+                    WHERE kc.item_id = knowledge_items.id)`
+  );
+  let count = 0;
+  tx(() => { (Array.isArray(itemIds) ? itemIds : []).slice(0, 5000).forEach(id => { count += stmt.run(Number(projectId), Number(id), userId, Number(projectId)).changes; }); });
+  return { ok: true, count };
 }
 function createKnowledgeItem(userId, data) {
   const title = String(data?.title || '').trim();
@@ -2378,12 +2232,24 @@ function deleteKnowledgeItem(userId, id) {
   pendingKnowledgeDeletes.set(Number(id), userId);
   return { ok: true, snapshot };
 }
+function knowledgeRestorableProject(userId, snapshot) {
+  const projectId = Number(snapshot?.projectId);
+  const companyIds = (snapshot?.companies || []).map(x => Number(x.id)).filter(Number.isInteger);
+  if (!Number.isInteger(projectId) || !companyIds.length || !ownsProject(userId, projectId)) return null;
+  const onClient = db.prepare(
+    `SELECT 1 FROM project_companies WHERE project_id = ? AND company_id IN (${companyIds.map(() => '?').join(', ')})`
+  ).get(projectId, ...companyIds);
+  return onClient ? projectId : null;
+}
 function restoreKnowledgeItem(userId, oldId, snapshot) {
   if (pendingKnowledgeDeletes.get(Number(oldId)) !== userId) return { ok: false, error: 'Not authorized to restore this item' };
   const restored = createKnowledgeItem(userId, {
     title: snapshot?.title, type: snapshot?.type, status: snapshot?.status, summary: snapshot?.summary,
     content: snapshot?.content, contentFormat: snapshot?.contentFormat, tags: snapshot?.tags || [],
     companyIds: (snapshot?.companies || []).map(x => x.id), systemIds: (snapshot?.systems || []).map(x => x.id),
+    // A project deleted (or moved off these clients) meanwhile is not an error:
+    // the item comes back unlinked.
+    projectId: knowledgeRestorableProject(userId, snapshot),
   });
   pendingKnowledgeDeletes.delete(Number(oldId));
   const oldDir = knowledgeItemDir(Number(oldId));
@@ -4006,7 +3872,6 @@ function getSystemDiagnostics() {
   const missingFiles = [];
   let referencedFiles = 0;
   for (const [table, column] of [
-    ['project_documents', 'file_path'],
     ['company_documents', 'file_path'],
     ['knowledge_attachments', 'file_path'],
     ['pfm_version_files', 'file_path'],
@@ -4273,6 +4138,7 @@ function inspectFullBackup(bundleDir) {
     if (Number(manifest.schemaHead) !== actualHead) {
       return { ok: false, error: 'Backup manifest schema version does not match its database' };
     }
+    // project_documents is gone since migration 081 but still checked: older backups have it.
     const refs = [
       ['project_documents', 'file_path'],
       ['company_documents', 'file_path'],
@@ -8015,14 +7881,12 @@ module.exports = {
   updateTask, updateTaskMeta, deleteTask, getTaskSources, createTaskSource,
   updateTaskSource, deleteTaskSource, getTaskFieldHistory, listWorkLogs, logsForDate,
   addWorkLog, updateWorkLog, moveWorkLog, mergeTasks, deleteWorkLog, getWorkLogHistory,
-  setDayName, getDayName, saveProjectDocumentFile, resolveProjectDocumentFile,
-  removeProjectDocumentFile, restoreProjectDocumentFile,
-  purgeUnreferencedProjectDocumentFile, purgeProjectFiles, restoreProjectFiles,
+  setDayName, getDayName, purgeProjectFiles, restoreProjectFiles,
   listCompanyDocuments, getCompanyDocument, createCompanyDocument, updateCompanyDocument,
   deleteCompanyDocument, saveCompanyDocumentFile, resolveCompanyDocumentFile,
   removeCompanyDocumentFile, restoreRemovedCompanyDocumentFile,
   purgeUnreferencedCompanyDocumentFile, purgeCompanyDocumentFiles,
-  restoreCompanyDocumentFile, listKnowledgeItems, getKnowledgeItem, createKnowledgeItem,
+  restoreCompanyDocumentFile, listKnowledgeItems, getKnowledgeItem, createKnowledgeItem, relinkKnowledgeProject,
   updateKnowledgeItem, deleteKnowledgeItem, restoreKnowledgeItem, saveKnowledgeAttachment,
   resolveKnowledgeAttachment, removeKnowledgeAttachment, restoreKnowledgeAttachment, updateKnowledgeAttachmentNote,
   purgeKnowledgeAttachment, purgeKnowledgeFiles, importCodeNotes, undoCodeNoteImport, forgetCodeNoteImport, codeNoteSuggestions, listKnowledgeGroups, createKnowledgeGroup,

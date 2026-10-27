@@ -13,10 +13,10 @@ Office ONE is an offline, multi-user Electron desktop app covering:
 
 - **Timesheets** — `tasks` → `work_logs`; a task is date-independent, each log is one dated session.
 - **Client Tasks** and **Internal Work** — two separate task domains (project work vs. department work).
-- **Clients** — bilingual client profiles plus VPN connections, servers and internal systems; client **Projects** with tracked documents and linked tasks live under each client.
+- **Clients** — bilingual client profiles plus VPN connections, servers and internal systems; client **Projects** with linked tasks, Offers/CRs and Knowledge Hub items live under each client.
 - **Subscriptions** and **Company Documents** — recurring spend and renewal-tracked files. The Subscriptions table shows yearly/monthly totals per currency and the next renewal, sorts by any column (soonest renewal by default), shows each row's next date with a countdown and a term-progress bar, and has *Mark as renewed* (moves the dates one monthly/yearly cycle, with a 5-second undo that takes back every renew made while it is showing). Document cards sort most urgent first (expired, renewing within 30 days, later, no date), filter by renewal status and category, carry an optional reference number with copy, and take a file dropped onto them.
 - **Templates** — reusable files (Word, Excel, PDF…) to start new work from: the same cards as Company Documents, stored as `company_documents` rows with `kind = 'TEMPLATE'`, their own `TEMPLATE_CATEGORY` catalog, no renewal date, and Excel/PowerPoint/text uploads allowed.
-- **Knowledge Hub** — a document shelf found by client, system and tag: drop a file to add it (a matching name becomes the next version, with an optional "what changed" note that can be edited later with a 5-second undo, and is searchable in the Hub and Quick Find), items open in a side panel, plain-text notes. **Code Notes** (kind `CODE_NOTE`, 078) hold Markdown instead: each fenced code block is shown with syntax colours and its own Copy button, a bold line right above a block is its label, and `{{name}}` / `{{name:default}}` in a block is a blank filled in (with remembered values, and server/database suggestions from the linked clients) when copying. `[[Note]]` links to the item with that title and `![[file.xlsx]]` to a document of the item. Import .md takes many files at once (one note per file, titled with the file name; a duplicate title is skipped or its note replaced; embedded files in the selection are attached; every note can be linked to chosen clients and systems together, preset from the Hub's filter; every note gets the batch's tags, pre-filled with the files' folder name when they share one) and is undone in one click, links and tags included; Export .md saves a note back out. Tags (free text, at most 30 an item, a later spelling reusing the first) are a facet of their own; several tag filters narrow together, and `#lin` in the Hub search matches tags only. **Every item has a home: a client, a system, or at least one tag.** `setKnowledgeChildren` checks it last inside the save's transaction, so a refused save or import changes nothing; the editor and the import ask for a tag before they get that far. Versions of one document are grouped by name with the version set aside ("Guide v1.0" and "Guide v1.4" are one document); at the same number a plain version ranks above one with extra words ("1.4" above "1.4 changes"). The list's Open file opens the latest version, with a menu when an item has several documents. Each client page has a Knowledge Hub tab and each project page a Knowledge Hub section listing the items linked to its clients or systems; a file dropped there or a New item started there is pre-linked. Groups remain in the schema but have no UI; older rich-text notes still render and turn into plain text on their next edit.
+- **Knowledge Hub** — a document shelf found by client, system and tag: drop a file to add it (a matching name becomes the next version, with an optional "what changed" note that can be edited later with a 5-second undo, and is searchable in the Hub and Quick Find), items open in a side panel, plain-text notes. **Code Notes** (kind `CODE_NOTE`, 078) hold Markdown instead: each fenced code block is shown with syntax colours and its own Copy button, a bold line right above a block is its label, and `{{name}}` / `{{name:default}}` in a block is a blank filled in (with remembered values, and server/database suggestions from the linked clients) when copying. `[[Note]]` links to the item with that title and `![[file.xlsx]]` to a document of the item. Import .md takes many files at once (one note per file, titled with the file name; a duplicate title is skipped or its note replaced; embedded files in the selection are attached; every note can be linked to chosen clients and systems together, preset from the Hub's filter; every note gets the batch's tags, pre-filled with the files' folder name when they share one) and is undone in one click, links and tags included; Export .md saves a note back out. Tags (free text, at most 30 an item, a later spelling reusing the first) are a facet of their own; several tag filters narrow together, and `#lin` in the Hub search matches tags only. **Every item has a home: a client, a system, or at least one tag.** An item may also link to **one project** (081, optional), and only to a project of one of its linked clients; `setKnowledgeChildren` refuses anything else when clients or the project are saved, so a project later moved off that client never blocks an unrelated edit. Deleting a project unlinks its items (SET NULL) and its undo links them again. `setKnowledgeChildren` checks it last inside the save's transaction, so a refused save or import changes nothing; the editor and the import ask for a tag before they get that far. Versions of one document are grouped by name with the version set aside ("Guide v1.0" and "Guide v1.4" are one document); at the same number a plain version ranks above one with extra words ("1.4" above "1.4 changes"). The list's Open file opens the latest version, with a menu when an item has several documents. Each client page has a Knowledge Hub tab listing the items linked to that client; a file dropped there or a New item started there is pre-linked. Project pages have no Knowledge Hub section: items link to clients and systems, not projects, so it listed every item of the project's client. Groups remain in the schema but have no UI; older rich-text notes still render and turn into plain text on their next edit.
 - **Project & Finance** — Offers and Change Requests (CRs): a status stage trail, fee-bearing versions with uploaded files, follow-up/expiry reminders and Excel export.
 - **Outsource** — external resources paid by the hour: Person → Projects → Entries (a keyboard-first timesheet grid per project), an hourly rate history, statements (draft → issued → paid) with Excel/PDF export, and an Overview "owed" tile.
 - **Overview / Reports** — read-only analytics, PDF/CSV/Excel export.
@@ -102,8 +102,13 @@ acting account.
 **Work**: `tasks`, `work_logs`, `task_sources`, `task_field_history`,
 `work_log_history`, `days` (per-day metadata, **not** the entry store).
 
-**Projects & documents**: `projects`, `project_documents`, `project_companies`,
-`project_systems`, `company_documents`.
+**Projects & documents**: `projects`, `project_companies`, `project_systems`,
+`company_documents`. A project belongs to **one client**, chosen when it is
+created and never changed; `project_companies` stays a junction table but
+`setProjectClient` refuses a second row and `updateProject` ignores `companyIds`.
+The project form shows the client as text when editing or when opened from a
+client page, and asks for it only when created elsewhere (Ctrl+N, Quick Find). (`project_documents` was dropped by 081; its rows had moved
+onto Offers in 074.)
 
 **Clients**: `client_vpn_connections`, `client_servers`, `client_internal_systems`
 (each keyed to a `COMPANY` lookup id, holding encrypted `password`/`secret_key`),
@@ -141,6 +146,8 @@ item + status, bytes under `project_finance/{item}/stages/{status}/`).
 - Project documents live here now: 074 moved each project's quotation (as
   version V1) and approvals/invoices (as stage files) onto one Offer per project,
   and the project page shows its linked Offers & CRs instead of document slots.
+  081 dropped the emptied `project_documents` table and every project-document
+  upload/open/ZIP path and Settings tab with it.
 - The client contact is a name plus a **channel**: `EMAIL` (reference = title/subject) or
   `JIRA` (reference = an http(s) URL), the Task Sources split (064).
 - Fees are **integer minor units** (never REAL) plus a `CURRENCY` lookup.
@@ -260,6 +267,7 @@ Landmarks worth knowing:
 | 078 | Code Notes — `KNOWLEDGE_TYPE` `CODE_NOTE` seeded ("Code Note" / "ملاحظة برمجية", sorted last). No table change: a code note is a knowledge item with `content_format = 'markdown'` (the column carries no CHECK), and its code is already indexed by the knowledge search triggers |
 | 079 | Knowledge Hub tags return — no table change (043's `knowledge_tags` / `knowledge_item_tags` were kept). `workspace_search_knowledge_ai` / `_au` recreated: the body gains every tag name, and an item with no client or system shows `#tag · #tag` as its subtitle; new `workspace_search_knowledge_tags_ai` / `_ad` re-index an item when it is tagged or untagged, and `workspace_search_knowledge_tag_au` re-indexes a renamed tag's items |
 | 080 | Company document number — `company_documents.doc_number` (TEXT, default ''; always '' for a template). `workspace_search_company_documents_ai` / `_au` recreated so Quick Find also matches the number (appended to the body); `_ad` unchanged. Existing rows have no number, so no search row is rebuilt |
+| 081 | Knowledge item project link — `knowledge_items.project_id` (ON DELETE SET NULL) + `idx_knowledge_items_project`, added with ADD COLUMN so every trigger stays (the knowledge search triggers do not read it). `project_documents` and its two indexes are dropped, with the `PROJECT_DOCUMENT` lookup rows, **only when the table is empty**; one that still holds rows is left untouched. Files under `projects/{id}/documents/` (074's recovery point) are not touched. Destructive (snapshot first); idempotent |
 
 **A guarded seed is the right shape for a fresh-install gap.** Migration 003
 seeded some categories from "legacy blob ∪ values already in the data", both
@@ -430,8 +438,8 @@ localStorage. Lockout recovery is manual and local.
 
 Uploads are ownership-checked, path-contained through `resolveInside()`, capped at
 `MAX_DOCUMENT_BYTES` (100 MB), and validated by both extension allowlist and
-magic-byte header. Project docs allow PDF/DOC/DOCX/PNG/JPG/GIF/WEBP; Knowledge
-Hub adds XLS/XLSX/TXT, and Project & Finance version files use the Knowledge Hub
+magic-byte header. Company documents allow PDF/DOC/DOCX/PNG/JPG/GIF/WEBP; Knowledge
+Hub adds XLS/XLSX/TXT/PPTX, Templates add PPT on top, and Project & Finance version files use the Knowledge Hub
 list. Knowledge Hub files are dropped or picked in the page, not chosen through a
 main-process dialog: preload turns the `File` into a disk path with
 `webUtils.getPathForFile` and sends it on `knowledge:upload-file`, so the page

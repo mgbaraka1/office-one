@@ -111,6 +111,57 @@ try {
   record('Delete undo restores client and system links',
     linkedRestored.ok && linkedRestored.item.companies[0]?.id === companies[0].id
       && linkedRestored.item.systems.map(x => x.id).join() === relinked.systems.map(x => x.id).join());
+
+  // One optional project, only of a linked client (migration 081).
+  const columns081 = new DatabaseSync(path.join(workDir, 'cooperation-tools.db'), { readOnly: true });
+  const has081Column = columns081.prepare('PRAGMA table_info(knowledge_items)').all().some(c => c.name === 'project_id');
+  const projectDocsGone = !columns081.prepare("SELECT 1 FROM sqlite_master WHERE name = 'project_documents'").get();
+  columns081.close();
+  record('Migration 081 adds knowledge_items.project_id and drops the empty project_documents',
+    head >= 81 && has081Column && projectDocsGone, `head=${head}`);
+  const onClient = db.createProject(user.id, { name: 'KH smoke project', companyIds: [companies[0].id] });
+  const offClient = db.createProject(user.id, { name: 'KH smoke bare project', companyIds: [] });
+  const withProject = db.createKnowledgeItem(user.id, { title: 'KH project note', companyIds: [companies[0].id], projectId: onClient.id });
+  record('An item links to a project of its client', withProject.projectId === onClient.id && withProject.projectName === 'KH smoke project');
+  const listedProject = db.listKnowledgeItems(user.id).find(item => item.id === withProject.id);
+  record('The list index carries the project', listedProject?.projectId === onClient.id && listedProject.projectName === 'KH smoke project');
+  const countBefore = db.listKnowledgeItems(user.id).length;
+  let offRefused = null; try { db.createKnowledgeItem(user.id, { title: 'KH off-client note', companyIds: [companies[0].id], projectId: offClient.id }); } catch (err) { offRefused = err; }
+  let missingRefused = null; try { db.createKnowledgeItem(user.id, { title: 'KH missing project', companyIds: [companies[0].id], projectId: 999999999 }); } catch (err) { missingRefused = err; }
+  let noClientRefused = null; try { db.createKnowledgeItem(user.id, { title: 'KH no client', tags: ['x'], projectId: onClient.id }); } catch (err) { noClientRefused = err; }
+  record('A project off the clients, unknown, or with no client chosen is refused, and nothing is saved',
+    /linked clients/.test(offRefused?.message || '') && /not found/.test(missingRefused?.message || '') && /linked clients/.test(noClientRefused?.message || '')
+      && db.listKnowledgeItems(user.id).length === countBefore, String(offRefused?.message));
+  let unlinkRefused = null; try { db.updateKnowledgeItem(user.id, withProject.id, { ...withProject, companyIds: [], tags: ['x'] }); } catch (err) { unlinkRefused = err; }
+  record('Removing the project\'s client while keeping the project is refused',
+    !!unlinkRefused && db.getKnowledgeItem(user.id, withProject.id).companies.length === 1);
+  // A project has one client, fixed at creation: an update cannot change it.
+  const projectEdited = db.updateProject(user.id, onClient.id, { name: 'KH smoke project', companyIds: [] });
+  record('Editing a project keeps its one client', projectEdited.companies.map(c => c.id).join() === String(companies[0].id));
+  if (companies[1]) {
+    let twoRefused = null; try { db.createProject(user.id, { name: 'KH two clients', companyIds: [companies[0].id, companies[1].id] }); } catch (err) { twoRefused = err; }
+    record('A project with two clients is refused', /one client/.test(twoRefused?.message || '')
+      && !db.listProjects(user.id).some(p => p.name === 'KH two clients'));
+  }
+  const statusOnlyProject = db.updateKnowledgeItem(user.id, withProject.id, { title: withProject.title, status: 'ARCHIVED' });
+  record('A status-only update keeps the project', statusOnlyProject.status === 'ARCHIVED' && statusOnlyProject.projectId === onClient.id);
+  const itemDeleted = db.deleteKnowledgeItem(user.id, withProject.id);
+  const itemRestored = db.restoreKnowledgeItem(user.id, withProject.id, itemDeleted.snapshot);
+  record('Delete undo keeps the project', itemRestored.ok && itemRestored.item.projectId === onClient.id);
+  const projectItemId = itemRestored.item.id;
+  db.deleteProject(user.id, onClient.id);
+  const afterProjectDelete = db.getKnowledgeItem(user.id, projectItemId);
+  const recreated = db.createProject(user.id, { name: 'KH smoke project', companyIds: [companies[0].id] });
+  const relinkedCount = db.relinkKnowledgeProject(user.id, recreated.id, [projectItemId]);
+  db.restoreProjectFiles(user.id, onClient.id, recreated.id);
+  record('Deleting the project unlinks the item; undo links it again',
+    afterProjectDelete.projectId === null && relinkedCount.ok && relinkedCount.count === 1
+      && db.getKnowledgeItem(user.id, projectItemId).projectId === recreated.id, JSON.stringify(relinkedCount));
+  const projectCleared = db.updateKnowledgeItem(user.id, projectItemId, { ...db.getKnowledgeItem(user.id, projectItemId), companyIds: [companies[0].id], projectId: null });
+  record('Sending no project clears it', projectCleared.projectId === null && projectCleared.projectName === '');
+  db.deleteKnowledgeItem(user.id, projectItemId);
+  db.deleteProject(user.id, recreated.id); db.deleteProject(user.id, offClient.id);
+
   if (companies[1]) {
     const merged = db.mergeLookupDuplicate('COMPANY', companies[1].id, companies[0].id);
     const afterMerge = db.getKnowledgeItem(user.id, linkedRestored.item.id);
@@ -165,6 +216,15 @@ try {
     duplicateVersion.ok === false && duplicateVersion.error.includes('already exists')
       && db.getKnowledgeItem(user.id, created.id).documents.length === 1,
     JSON.stringify(duplicateVersion));
+  const deck = path.join(workDir, 'status.pptx'); fs.writeFileSync(deck, Buffer.from([0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0]));
+  const fakeDeck = path.join(workDir, 'fake.pptx'); fs.writeFileSync(fakeDeck, 'not a zip');
+  const deckItem = db.createKnowledgeItem(user.id, { title:'Status deck note', tags:['Decks'] });
+  const deckRes = db.saveKnowledgeAttachment(user.id, deckItem.id, deck, { name:'Status deck', version:'1.0' });
+  const fakeDeckRes = db.saveKnowledgeAttachment(user.id, deckItem.id, fakeDeck, { name:'Fake deck', version:'1.0' });
+  record('Knowledge Hub takes a .pptx, and refuses one whose contents are not a .pptx',
+    deckRes.ok && deckRes.item.documents[0]?.mimeType?.includes('presentation')
+      && fakeDeckRes.ok === false && fakeDeckRes.error.includes('do not match'),
+    JSON.stringify({ deck: deckRes.ok, fake: fakeDeckRes }));
   const resolved = db.resolveKnowledgeAttachment(user.id, file.id);
   record('Attachment resolve is owner-scoped and points to an existing file', resolved.ok && resolved.exists && resolved.absPath.startsWith(workDir));
   const removed = db.removeKnowledgeAttachment(user.id, file.id);

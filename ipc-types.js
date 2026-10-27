@@ -223,37 +223,6 @@
  */
 
 /**
- * Metadata for a document's uploaded file (the bytes live on disk under userData;
- * only this metadata is in SQLite). null when no file has been uploaded.
- * @typedef {Object} ProjectDocumentFile
- * @property {string} path         Path RELATIVE to userData (e.g. 'projects/12/documents/INVOICE-1719750000000.pdf').
- * @property {string} originalName The user's original filename, for display/download.
- * @property {number} size         File size in bytes.
- * @property {string} mimeType     MIME type resolved from the extension.
- * @property {string} uploadedAt   ISO timestamp of the upload.
- * @property {boolean} exists      Whether the file is actually present on disk right now.
- */
-
-/**
- * One of a project's tracked documents, derived from the PROJECT_DOCUMENT lookup
- * category (configurable in Settings → Project Documents).
- * @typedef {Object} ProjectDocument
- * @property {string} documentType  The stable PROJECT_DOCUMENT lookup code (used to persist).
- * @property {string} label         The document's display label.
- * @property {boolean} isAvailable  True iff a file has been uploaded for this slot.
- * @property {ProjectDocumentFile|null} file  Uploaded-file metadata, or null when none.
- */
-
-/**
- * Result of a document file mutation (upload / replace / remove / restore).
- * @typedef {Object} DocFileResult
- * @property {boolean} ok
- * @property {Project} [project]   The refreshed project on success.
- * @property {string} [error]      Failure reason (e.g. unsupported type).
- * @property {boolean} [canceled]  True when the user dismissed the file dialog.
- */
-
-/**
  * A company linked to a project — one COMPANY lookup row.
  * @typedef {Object} ProjectCompany
  * @property {number} id      The COMPANY lookup_codes id.
@@ -305,7 +274,6 @@
  * @property {string|null} parentProjectName   Retired alongside parentProjectId — always null now.
  * @property {string} createdAt
  * @property {Task[]} tasks                Linked tasks, each with nested `workLogs`.
- * @property {ProjectDocument[]} documents
  */
 
 /**
@@ -333,7 +301,7 @@
 /**
  * One department in full — its lookup identity + its linked TASKS, each with
  * nested `workLogs` (`departments:get`). Mirrors `Project`'s tasks shape, minus
- * the profile/documents fields Projects has and Departments don't.
+ * the profile fields Projects has and Departments don't.
  * @typedef {Object} Department
  * @property {number} id
  * @property {string} code
@@ -350,7 +318,7 @@
 /**
  * Metadata for a Company Document's uploaded file (bytes live on disk under
  * userData; only this metadata is in SQLite). null when no file has been
- * uploaded. Shape mirrors ProjectDocumentFile.
+ * uploaded.
  * @typedef {Object} CompanyDocumentFile
  * @property {string} path         Path RELATIVE to userData (e.g. 'company_documents/12/1719750000000.pdf').
  * @property {string} originalName The user's original filename, for display/download.
@@ -361,9 +329,8 @@
  */
 
 /**
- * A Company Document card (`companydocs:*`). Unlike ProjectDocument (a fixed
- * catalog slot per project), each row IS the user-created entity — deleting it
- * deletes the card, not just its file. A Template (`templates:*`) is the same
+ * A Company Document card (`companydocs:*`). Each row IS the user-created
+ * entity — deleting it deletes the card, not just its file. A Template (`templates:*`) is the same
  * card with kind 'TEMPLATE', a TEMPLATE_CATEGORY and never a renewal date.
  * @typedef {Object} CompanyDocument
  * @property {number} id
@@ -680,7 +647,7 @@
 /**
  * The full lookup catalog returned by `lookups:get`. `categories` is keyed by the
  * category discriminator (COMPANY, SYSTEM, ACTIVITY_TYPE, TIME_TYPE, ENTRY_STATUS,
- * CURRENCY, BILLING_CYCLE, PROJECT_STATUS, PROJECT_DOCUMENT,
+ * CURRENCY, BILLING_CYCLE, PROJECT_STATUS,
  * COMPANY_DOCUMENT_CATEGORY), each an ordered list of options (incl. inactive).
  * @typedef {Object} Lookups
  * @property {Object<string, LookupOption[]>} categories
@@ -780,6 +747,8 @@
  * @property {Array<{id:number,name:string}>} groups
  * @property {Array<KnowledgeLink>} companies  Linked clients (COMPANY lookups, migration 068).
  * @property {Array<KnowledgeLink>} systems    Linked SYSTEM lookups (migration 068).
+ * @property {number|null} projectId  The one linked project (migration 081), always one of a linked client's; null when none.
+ * @property {string} projectName      That project's name, or ''.
  * @property {Array<{id:number,path:string,name:string,version:string,changeNote:string,originalName:string,size:number,mimeType:string,uploadedAt:string,exists:boolean}>} documents
  * @property {string} createdAt
  * @property {string} updatedAt
@@ -802,6 +771,8 @@
  * @property {Array<{id:number,name:string}>} groups
  * @property {Array<KnowledgeLink>} companies
  * @property {Array<KnowledgeLink>} systems
+ * @property {number|null} projectId
+ * @property {string} projectName
  * @property {Array<{id:number,name:string,version:string,originalName:string,uploadedAt:string,changeNote:string}>} documents  Enough for the list's one-click Open of the latest version, and for search to reach each version's "what changed" note.
  * @property {number} documentCount
  * @property {string} createdAt

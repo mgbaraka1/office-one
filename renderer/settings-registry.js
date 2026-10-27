@@ -38,7 +38,6 @@ const SETTINGS_CATALOG_TABS = [
   { key: 'currency', category: 'CURRENCY', valueField: 'code', label: 'Currency', icon: 'credit-card', editor: 'lookup' },
   { key: 'billingCycle', category: 'BILLING_CYCLE', valueField: 'code', label: 'Billing Cycle', icon: 'calendar-clock', editor: 'lookup', page: 'subscriptions' },
   { key: 'projectStatus', category: 'PROJECT_STATUS', valueField: 'code', label: 'Project Status', icon: 'clipboard-list', editor: 'lookup', page: 'clients' },
-  { key: 'projectDocument', category: 'PROJECT_DOCUMENT', valueField: 'code', label: 'Project Documents', icon: 'file-text', editor: 'lookup', page: 'clients' },
   { key: 'companyDocCategory', category: 'COMPANY_DOCUMENT_CATEGORY', valueField: 'code', label: 'Company Doc Categories', icon: 'calendar-check', editor: 'lookup', page: 'companydocs' },
   { key: 'templateCategory', category: 'TEMPLATE_CATEGORY', valueField: 'code', label: 'Template Categories', icon: 'layout-template', editor: 'lookup', page: 'templates' },
   { key: 'knowledgeType', category: 'KNOWLEDGE_TYPE', valueField: 'code', label: 'Knowledge Types', icon: 'book-open', editor: 'lookup', page: 'knowledge' },

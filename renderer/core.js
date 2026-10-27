@@ -79,6 +79,7 @@ const ICONS = {
   "users": "<path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\" /><circle cx=\"9\" cy=\"7\" r=\"4\" /><path d=\"M22 21v-2a4 4 0 0 0-3-3.87\" /><path d=\"M16 3.13a4 4 0 0 1 0 7.75\" />",
   "user-plus": "<path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\" /><circle cx=\"9\" cy=\"7\" r=\"4\" /><path d=\"M19 8v6\" /><path d=\"M22 11h-6\" />",
   "share-2": "<circle cx=\"18\" cy=\"5\" r=\"3\" /><circle cx=\"6\" cy=\"12\" r=\"3\" /><circle cx=\"18\" cy=\"19\" r=\"3\" /><line x1=\"8.59\" x2=\"15.42\" y1=\"13.51\" y2=\"17.49\" /><line x1=\"15.41\" x2=\"8.59\" y1=\"6.51\" y2=\"10.49\" />",
+  "orbit": "<circle cx=\"12\" cy=\"12\" r=\"3\" /><circle cx=\"19\" cy=\"5\" r=\"2\" /><circle cx=\"5\" cy=\"19\" r=\"2\" /><path d=\"M10.4 21.9a10 10 0 0 0 9.941-15.416\" /><path d=\"M13.5 2.1a10 10 0 0 0-9.841 15.416\" />",
   "layout-template": "<rect width=\"18\" height=\"7\" x=\"3\" y=\"3\" rx=\"1\" /><rect width=\"9\" height=\"7\" x=\"3\" y=\"14\" rx=\"1\" /><rect width=\"5\" height=\"7\" x=\"16\" y=\"14\" rx=\"1\" />",
   "code": "<path d=\"m16 18 6-6-6-6\" /><path d=\"m8 6-6 6 6 6\" />",
   "braces": "<path d=\"M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1\" /><path d=\"M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1\" />",
@@ -653,7 +654,7 @@ let projectEditId    = null;     // modal mode: null = create, else project id
 let undoProject      = null;     // snapshot of a just-deleted project (for undo)
 let _undoProjectTimer = null;
 let linkableTasks    = [];   // picker source: unlinked Task[]
-let pCompaniesPicker = null;     // tag-picker handles for the project modal
+let pProjectClientId = null;     // the project modal's fixed client (create from a client page)
 let pSystemsPicker   = null;
 let projectIndex     = [];       // lightweight [{id,name,status}] for the Timesheet/Project task Project field
 let fProjectPicker   = null;     // search-select handle in the timesheet record modal

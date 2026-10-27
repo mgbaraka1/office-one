@@ -146,19 +146,9 @@ contextBridge.exposeInMainWorld('api', {
   /** @returns {Promise<{ok: boolean, error?: string, task?: import('./ipc-types').Task}>} */
   convertTaskToClient:   (id, data)  => ipcRenderer.invoke('internal:convert-to-client', id, data),
 
-  // ── Project document files (bytes on disk under userData) ──
-  /** @returns {Promise<import('./ipc-types').DocFileResult>} */
-  uploadProjectDocument:   (projectId, documentType) => ipcRenderer.invoke('projects:upload-document', projectId, documentType),
-  /** @returns {Promise<import('./ipc-types').FileResult>} */
-  downloadProjectDocument: (projectId, documentType) => ipcRenderer.invoke('projects:download-document', projectId, documentType),
-  downloadProjectDocumentsZip: (projectId, entries, name) => ipcRenderer.invoke('projects:download-documents-zip', projectId, entries, name),
-  openProjectDocument:     (projectId, documentType) => ipcRenderer.invoke('projects:open-document', projectId, documentType),
-  /** @returns {Promise<import('./ipc-types').DocFileResult>} */
-  removeProjectDocument:   (projectId, documentType) => ipcRenderer.invoke('projects:remove-document', projectId, documentType),
-  restoreProjectDocument:  (projectId, documentType, fileMeta) => ipcRenderer.invoke('projects:restore-document', projectId, documentType, fileMeta),
-  purgeProjectDocumentFile: (projectId, relPath) => ipcRenderer.invoke('projects:purge-document-file', projectId, relPath),
+  // ── Project file folder (delete / undo) ──
   purgeProjectFiles:       (projectId)               => ipcRenderer.invoke('projects:purge-files', projectId),
-  restoreProjectFiles:     (oldId, newId, docs)      => ipcRenderer.invoke('projects:restore-files', oldId, newId, docs),
+  restoreProjectFiles:     (oldId, newId)            => ipcRenderer.invoke('projects:restore-files', oldId, newId),
 
   // ── Company Documents (standalone card-per-document module) ──
   /** @returns {Promise<import('./ipc-types').CompanyDocument[]>} */
@@ -201,6 +191,7 @@ contextBridge.exposeInMainWorld('api', {
   getKnowledgeItem:     (id)            => ipcRenderer.invoke('knowledge:get', id),
   createKnowledgeItem:  (data)          => ipcRenderer.invoke('knowledge:create', data),
   updateKnowledgeItem:  (id, data)      => ipcRenderer.invoke('knowledge:update', id, data),
+  relinkKnowledgeProject: (projectId, ids) => ipcRenderer.invoke('knowledge:relink-project', projectId, ids),
   deleteKnowledgeItem:  (id)            => ipcRenderer.invoke('knowledge:delete', id),
   restoreKnowledgeItem: (oldId, snapshot) => ipcRenderer.invoke('knowledge:restore', oldId, snapshot),
   listKnowledgeGroups:         ()             => ipcRenderer.invoke('knowledge:groups-list'),

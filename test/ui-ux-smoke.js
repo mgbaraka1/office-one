@@ -316,10 +316,11 @@ gate('Each document version carries a "what changed" note, set on upload and edi
   && html.includes('x.originalName, x.changeNote]')
   && preload.includes("ipcRenderer.invoke('knowledge:update-attachment-note', attachmentId, note)")
   && main.includes("ipcMain.handle('knowledge:update-attachment-note'"));
-gate('Client and project pages show their Knowledge Hub items, with a drop target and a pre-linked New item',
+gate('Client pages show their Knowledge Hub items, with a drop target and a pre-linked New item; project pages show none',
   html.includes("{ key: 'knowledge', label: 'Knowledge Hub' }")
   && html.includes("buildKnowledgeLinkedSection({ companyIds: [c.id], q,")
-  && html.includes('systemIds: (p.systems || []).map(x => x.id)')
+  && !html.includes('this project’s clients or systems')
+  && html.split('buildKnowledgeLinkedSection(').length === 3
   && html.includes('function knowledgeItemsLinkedTo(companyIds = [], systemIds = [])')
   && html.includes('function handleKnowledgeLinkedDrop(file, opts)')
   && html.includes("openKnowledgeEditor(null, null, { companyIds, systemIds })")

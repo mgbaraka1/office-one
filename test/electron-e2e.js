@@ -965,6 +965,67 @@ async function run() {
     if (!Object.values(checks).every(Boolean)) throw new Error(`Code Notes ${area} failed: ${JSON.stringify(checks)}`);
   }
 
+  // Knowledge map (Knowledge Hub → Map): the canvas is drawn, hovering a dot
+  // names it, clicking a hub pins it, zoom works, a hub kind can be hidden,
+  // and List comes back. Two made-up articles share one tag.
+  const knowledgeMap = await evaluate(`(async () => {
+    closePalette(); switchModule('knowledge');
+    const a = await window.api.createKnowledgeItem({ title: 'E2E Map alpha', status: 'PUBLISHED', content: 'x', tags: ['E2EMapTag'] });
+    const b = await window.api.createKnowledgeItem({ title: 'E2E Map beta', status: 'PUBLISHED', content: 'y', tags: ['E2EMapTag'] });
+    await loadKnowledgeItems();
+    const savedFilters = knowledgeFilters;
+    knowledgeFilters = new Set(['TAG:e2emaptag']);
+    setKnowledgeView('map');
+    const host = document.getElementById('kh-map'), canvas = host.querySelector('canvas.km-canvas');
+    const state = knowledgeMapState, rect = canvas.getBoundingClientRect();
+    const at = node => ({ clientX: rect.left + state.view.x + node.x * state.view.k, clientY: rect.top + state.view.y + node.y * state.view.k, pointerId: 1, button: 0, bubbles: true });
+    const hub = state.graph.byKey.get('te2emaptag'), alpha = state.graph.byKey.get('a' + a.id);
+    const px = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+    const colours = new Set(); for (let i = 0; i < px.length; i += 64) colours.add(px[i] + ',' + px[i + 1] + ',' + px[i + 2]);
+    const checks = {
+      shown: !host.hidden && document.getElementById('kh-list').hidden && rect.width > 200 && rect.height >= 400,
+      button: document.querySelector('#kh-view-ctl [data-view="map"]').getAttribute('aria-pressed') === 'true',
+      graph: state.graph.nodes.length === 3 && hub?.degree === 2,
+      drawn: colours.size > 2,
+    };
+    canvas.dispatchEvent(new PointerEvent('pointermove', at(alpha)));
+    checks.hover = host.querySelector('.km-info strong')?.textContent === 'E2E Map alpha';
+    canvas.dispatchEvent(new PointerEvent('pointerdown', at(hub)));
+    canvas.dispatchEvent(new PointerEvent('pointerup', at(hub)));
+    checks.pinned = knowledgeMapPinned === 'te2emaptag';
+    const k = state.view.k;
+    host.querySelector('.km-zoom-btn').click();
+    checks.zoom = knowledgeMapState.view.k > k;
+    const tagToggle = [...host.querySelectorAll('.kw-legend-key .kw-legend-toggle')].find(btn => btn.querySelector('.km-shape-tags'));
+    tagToggle.click();
+    checks.hideTags = !knowledgeMapState.graph.byKey.has('te2emaptag') && host.querySelectorAll('.kw-unlinked-item').length === 2;
+    [...host.querySelectorAll('.kw-legend-key .kw-legend-toggle')].find(btn => btn.querySelector('.km-shape-tags')).click();
+    checks.showTags = knowledgeMapState.graph.byKey.has('te2emaptag') && uiState.filters.knowledge.map.tags === true;
+    checks.saved = uiState.filters.knowledge.view === 'map';
+    // The wheel has the same settings card: labels, line strength, size, hub kinds.
+    setKnowledgeView('wheel');
+    const wheel = document.getElementById('kh-wheel'), panel = wheel.querySelector(':scope > .km-panel');
+    const wsvg = () => wheel.querySelector('.kw-svg');
+    checks.wheelPanel = !!panel && !wheel.hidden;
+    [...panel.querySelectorAll('.seg-btn')].find(btn => btn.getAttribute('aria-pressed') === 'false').click();
+    checks.wheelLabels = wsvg().classList.contains('kw-hubs-only') && uiState.filters.knowledge.wheel.labels === 'hubs';
+    const ranges = panel.querySelectorAll('input.km-range');
+    ranges[1].value = '100'; ranges[1].dispatchEvent(new Event('input', { bubbles: true }));
+    checks.wheelLinks = Number(wsvg().style.getPropertyValue('--kw-edge-rest')) > 0.3;
+    const wheelTags = () => wheel.querySelector('.kw-legend-key [data-kind="tags"]');
+    wheelTags().click();
+    checks.wheelHideTags = !wheel.querySelector('.kw-arc-label') && wheel.querySelector(':scope > .km-panel') === panel;
+    wheelTags().click();
+    panel.querySelector('.km-panel-actions .btn').click();
+    checks.wheelReset = uiState.filters.knowledge.wheel.labels === 'all' && uiState.filters.knowledge.wheel.links === 50 && uiState.filters.knowledge.wheel.tags === true;
+    setKnowledgeView('list');
+    checks.back = host.hidden && !document.getElementById('kh-list').hidden;
+    knowledgeFilters = savedFilters;
+    await window.api.deleteKnowledgeItem(a.id); await window.api.deleteKnowledgeItem(b.id); await loadKnowledgeItems();
+    return checks;
+  })()`);
+  if (!Object.values(knowledgeMap).every(Boolean)) throw new Error(`Knowledge map failed: ${JSON.stringify(knowledgeMap)}`);
+
   // Knowledge Hub shelf (Phase 2): a real file goes in through <input type=file>
   // (set over CDP, so it carries a disk path) and reaches main via preload's
   // webUtils; a second file with a matching name becomes the next version.
@@ -1082,7 +1143,7 @@ async function run() {
   })()`);
   const shelf = { ...shelfFirst, ...shelfSecond };
   if (!Object.values(shelf).every(Boolean)) throw new Error(`Knowledge Hub shelf / drop / versioning failed: ${JSON.stringify(shelf)}`);
-  // Phase 4: the client page and a project page show the Hub items linked to them.
+  // Phase 4: the client page shows the Hub items linked to it; a project page shows none.
   const linkedPages = await evaluate(`(async () => {
     const until = async test => { for (let i = 0; i < 60 && !test(); i++) await new Promise(r => setTimeout(r, 50)); return !!test(); };
     const client = LK.categories.COMPANY.find(item => item.code === 'E2E_CLIENT');
@@ -1105,16 +1166,16 @@ async function run() {
     const savedHere = activeModule === 'clients'
       && await until(() => titles('#client-detail-sections').includes('E2E client runbook'))
       && knowledgeItems.find(item => item.title === 'E2E client runbook')?.companies?.[0]?.id === client.id;
-    const project = await window.api.createProject({ name: 'E2E knowledge project', companyIds: [client.id] });
-    openProjectById(project.id);
-    const projectListed = await until(() => titles('#projects-detail-view').includes('E2E client mapping sheet'));
-    const projectOnlyLinked = !titles('#projects-detail-view').includes('E2E unrelated manual');
-    [...document.querySelectorAll('#projects-detail-view .kh-linked .kh-row-main')].find(n => n.textContent.includes('E2E client mapping sheet')).click();
+    [...document.querySelectorAll('#client-detail-sections .kh-linked .kh-row-main')].find(n => n.textContent.includes('E2E client mapping sheet')).click();
     const openedInHub = await until(() => activeModule === 'knowledge' && knowledgeCurrentItem?.title === 'E2E client mapping sheet');
     closeKnowledgeDetail();
-    return { clientListed, clientOnlyLinked, tabCount, dropPreset, savedHere, projectListed, projectOnlyLinked, openedInHub };
+    const project = await window.api.createProject({ name: 'E2E knowledge project', companyIds: [client.id] });
+    openProjectById(project.id);
+    const projectShown = await until(() => !!document.querySelector('#projects-detail-view .pj-section'));
+    const projectHasNoHub = projectShown && !document.querySelector('#projects-detail-view .kh-linked');
+    return { clientListed, clientOnlyLinked, tabCount, dropPreset, savedHere, projectHasNoHub, openedInHub };
   })()`);
-  if (!Object.values(linkedPages).every(Boolean)) throw new Error(`Knowledge Hub on client/project pages failed: ${JSON.stringify(linkedPages)}`);
+  if (!Object.values(linkedPages).every(Boolean)) throw new Error(`Knowledge Hub on client page / absent from project page failed: ${JSON.stringify(linkedPages)}`);
   if (!result.version) throw new Error('Application version IPC returned no value');
   if (result.accessibility.duplicateIds.length || result.accessibility.unnamedButtons.length ||
       !result.accessibility.language || !result.accessibility.direction || result.accessibility.liveRegions < 1) {
@@ -1325,6 +1386,7 @@ async function run() {
   console.log('PASS  Knowledge Hub HTML sanitizer strips scripts/handlers/img/js-urls/style while keeping the safe subset');
   console.log('PASS  Code Notes render Markdown safely: labelled, coloured code blocks with Copy, blanks, wiki links, embeds, RTL text');
   console.log('PASS  Code Notes fill in blanks before copying and remember the values; the editor becomes a Markdown editor with tools and preview');
+  console.log('PASS  Knowledge map draws the network on a canvas; hover names a dot, a click pins a hub, zoom works, a hub kind hides and List comes back; the Wheel settings card changes labels, lines and hub kinds and resets');
   console.log('PASS  Import .md flags a duplicate title, imports the new note as a Code Note, and its undo removes it');
   console.log('PASS  Knowledge Hub adds a real picked file, refuses a page-made File, versions a matching drop as 1.1 with a "what changed" note, and edits that note');
   console.log('PASS  Knowledge Hub opens items in a side panel beside the list, with plain-text notes and one-click Open');

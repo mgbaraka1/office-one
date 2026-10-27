@@ -2273,17 +2273,38 @@
 
     /* ══ KNOWLEDGE HUB ══ */
     .kh-shell { flex: 1; min-height: 0; display: grid; grid-template-columns: 240px minmax(0, 1fr); }
-    .kh-filters { border-right: 1px solid var(--border); background: var(--surface); padding: 20px 14px; overflow-y: auto; }
+    .kh-filters { border-inline-end: 1px solid var(--border); background: var(--surface); padding: 20px 14px; overflow-y: auto; }
     .kh-filter-title { color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; margin: 14px 8px 9px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .kh-filter-title:first-child { margin-top: 2px; }
+    /* Letter-spacing pulls Arabic letters apart and breaks their joins. */
+    :root[dir="rtl"] .kh-filter-title { letter-spacing: 0; }
     .kh-filter-section.collapsed .kh-filter-items { display: none; }
-    .kh-filter-toggle { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 2px 4px; border-radius: 5px; }
-    .kh-filter-toggle:hover { color: var(--text); background: var(--surface2); }
+    .kh-filter-section[hidden] { display: none !important; }
+    .kh-filter-section + .kh-filter-section { border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); margin-top: 6px; padding-top: 4px; }
+    .kh-facet-search { width: 100%; min-width: 0; margin-top: 10px; }
+    .kh-facet-empty { color: var(--muted); font-size: 12px; text-align: center; padding: 14px 8px; }
+    /* Section header — the whole row is the toggle. */
+    .kh-filter-head { width: 100%; border: 0; background: none; cursor: pointer; justify-content: flex-start; gap: 8px; margin: 6px 0 2px; padding: 9px 8px; border-radius: var(--radius-sm); color: var(--text); font-size: 12.5px; font-weight: 700; letter-spacing: 0; text-transform: none; text-align: start; font-family: inherit; }
+    .kh-filter-head:hover { background: var(--surface2); }
+    .kh-filter-head:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+    .kh-filter-head-label { flex: 1; min-width: 0; }
+    .kh-filter-head-count { color: var(--muted); font-size: 10.5px; font-weight: 700; min-width: 20px; padding: 2px 7px; border-radius: 999px; background: var(--surface2); text-align: center; }
+    .kh-filter-head.has-active .kh-filter-head-label::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-inline-start: 7px; border-radius: 50%; background: var(--primary); vertical-align: middle; }
+    .kh-filter-chevron { flex: none; width: 7px; height: 7px; border-right: 1.8px solid currentColor; border-bottom: 1.8px solid currentColor; color: var(--muted); transform: rotate(45deg); transition: transform .15s ease; margin: 0 3px 3px; }
+    .kh-filter-section.collapsed .kh-filter-chevron { transform: rotate(-45deg); margin-bottom: 0; }
+    :root[dir="rtl"] .kh-filter-section.collapsed .kh-filter-chevron { transform: rotate(135deg); }
+    .kh-filter-picked { display: flex; flex-wrap: wrap; gap: 4px; width: 100%; margin: -2px 0 6px; padding-block: 0; padding-inline: 29px 8px; border: 0; background: none; cursor: pointer; color: var(--primary); font: 600 11.5px/1.4 inherit; text-align: start; }
+    .kh-filter-picked .kh-filter-name { flex: none; }
+    .kh-filter-picked .kh-filter-name + .kh-filter-name::before { content: '· '; color: var(--muted); }
+    .kh-filter-section.searching .kh-filter-picked { display: none; }
+    .kh-filter-items { padding-bottom: 6px; }
     .kh-filter-more { margin: 5px 8px 0; border: 0; background: none; color: var(--primary); cursor: pointer; padding: 4px 2px; font: 700 11px/1 inherit; }
-    .kh-filter-btn { width: 100%; border: 0; background: none; color: var(--text); padding: 9px 10px; border-radius: var(--radius-sm); text-align: left; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; font: inherit; }
+    .kh-filter-btn { width: 100%; border: 0; background: none; color: var(--text); padding: 8px 10px; border-radius: var(--radius-sm); text-align: start; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; font: inherit; }
     .kh-filter-btn:hover { background: var(--surface2); }
     .kh-filter-btn.active { color: var(--primary); background: var(--primary-glow); font-weight: 700; }
-    .kh-filter-btn span:last-child { color: var(--muted); font-size: 11px; }
+    .kh-filter-btn span:last-child { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+    .kh-filter-btn.active span:last-child { color: var(--primary); }
+    .kh-filter-name { flex: 1; min-width: 0; text-align: start; overflow-wrap: anywhere; }
     .kh-main { min-width: 0; overflow-y: auto; padding: var(--space-5) var(--space-6) var(--space-7); }
     .kh-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; color: var(--muted); font-size: 12px; }
     .kh-summary-actions { display: flex; align-items: center; gap: 8px; }
@@ -2318,8 +2339,12 @@
     .kh-wheel .kw-c8 { --kw: var(--kw-8); } .kh-wheel .kw-c9 { --kw: var(--kw-9); }
     .kh-wheel .kw-c10 { --kw: var(--kw-10); } .kh-wheel .kw-c11 { --kw: var(--kw-11); }
     .kh-wheel .kw-c12 { --kw: var(--kw-12); }
-    .kw-info { align-self: stretch; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; min-height: 22px; font-size: 12.5px; color: var(--muted); }
-    .kw-info strong { color: var(--text); font-weight: 700; }
+    /* One fixed-height line: if hovering could wrap it, the wheel below would
+       shift and the hovered name would jump out from under the cursor. Sticky
+       so the readout stays in view while the wheel is scrolled. */
+    .kw-info { align-self: stretch; display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; height: 26px; overflow: hidden; white-space: nowrap; font-size: 12.5px; color: var(--muted); position: sticky; top: 0; z-index: 2; background: var(--surface); }
+    .kw-info > * { flex-shrink: 0; }
+    .kw-info strong { color: var(--text); font-weight: 700; flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
     .kw-info-type { font-size: 11.5px; padding: 1px 8px; border-radius: 999px; background: var(--surface2); border: 1px solid var(--border); }
     .kw-svg { width: 100%; height: auto; display: block; overflow: visible; font-family: inherit; }
     .kw-band { fill: none; stroke: var(--kw); stroke-width: 4; stroke-linecap: round; }
@@ -2348,7 +2373,11 @@
     /* Knowledge Hub wheel only: lines rest fainter (it carries many more than
        the Servers/Systems wheels), arc names read as headings, and each legend
        type is a show/hide toggle. */
-    #kh-wheel .kw-svg:not(.has-focus) .kw-edge { opacity: .22; }
+    #kh-wheel .kw-svg:not(.has-focus) .kw-edge { opacity: var(--kw-edge-rest, .22); }
+    /* Wheel settings (the Map's card): over the wheel, under the readout line. */
+    #kh-wheel { position: relative; }
+    #kh-wheel > .km-panel { top: 38px; z-index: 3; }
+    #kh-wheel .kw-svg.kw-hubs-only .kw-node.is-article:not(.is-lit) .kw-label { display: none; }
     #kh-wheel .kw-arc-label { font-size: 12.5px; fill: var(--text); stroke-width: 5px; }
     .kw-info-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; }
     .kw-legend-key { margin-top: 2px; }
@@ -2371,6 +2400,57 @@
     .kw-node.sw-host .kw-dot { fill: var(--surface); stroke: var(--text); stroke-width: 1.6; }
     .kw-node.is-article.sw-inactive .kw-dot { fill: var(--surface); stroke: var(--kw); stroke-width: 2; }
     .kw-edge.sw-edge-server { stroke-width: 1.8; opacity: .65; }
+
+    /* Knowledge map (Knowledge Hub → Map): a force-laid network on a canvas.
+       The canvas reads these tokens on every draw, so they are plain colours
+       (no color-mix), and the theme switch repaints it. Articles keep the
+       wheel's --kw hues; hubs are one neutral ink, told apart by shape. */
+    .kh-map {
+      --km-bg: #f8f6ef; --km-link: #9c9384; --km-hub: #3a3228; --km-label: #262019; --km-halo: #f8f6ef;
+      align-items: stretch; gap: 6px;
+    }
+    :root[data-theme="dark"] .kh-map {
+      --km-bg: #0f0c09; --km-link: #6f6556; --km-hub: #efe5d4; --km-label: #f2e9db; --km-halo: #0f0c09;
+    }
+    .kh-map .km-info { position: static; }
+    .km-legends { display: flex; flex-direction: column; gap: 2px; }
+    .km-legends .kw-legend { margin-top: 0; }
+    .km-stage { position: relative; align-self: stretch; border-radius: var(--radius-sm); overflow: hidden; background: var(--km-bg); border: 1px solid var(--border); }
+    .km-canvas { display: block; touch-action: none; outline: none; }
+    .km-canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--primary); }
+    .km-shape { width: 11px; height: 11px; background: var(--km-hub); flex-shrink: 0; }
+    .km-shape-companies { border-radius: 50%; }
+    .km-shape-systems { width: 10px; height: 10px; }
+    .km-shape-tags { width: 9px; height: 9px; transform: rotate(45deg); }
+    .km-shape-projects { clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); }
+    .kw-legend-toggle.is-off .km-shape { background: transparent; box-shadow: inset 0 0 0 2px var(--km-hub); }
+    .km-panel {
+      position: absolute; top: 10px; inset-inline-start: 10px; width: 232px; max-height: calc(100% - 20px); overflow: auto;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-sm);
+      font-size: 12px; color: var(--text);
+    }
+    .km-panel.is-collapsed { width: auto; }
+    .km-panel.is-collapsed .km-panel-body { display: none; }
+    .km-panel-toggle {
+      display: flex; align-items: center; gap: 7px; width: 100%; padding: 7px 10px; border: 0; background: none;
+      color: var(--text); font: inherit; font-weight: 700; cursor: pointer; text-align: start;
+    }
+    .km-panel-toggle svg { width: 14px; height: 14px; }
+    .km-panel-toggle:hover, .km-panel-toggle:focus-visible { color: var(--primary); outline: none; }
+    .km-panel-body { display: flex; flex-direction: column; gap: 10px; padding: 4px 10px 10px; border-top: 1px solid var(--border); }
+    .km-field { display: flex; flex-direction: column; gap: 4px; padding-top: 6px; }
+    .km-field-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+    .km-seg { align-self: stretch; display: flex; }
+    .km-seg .seg-btn { flex: 1; font-size: 11.5px; padding: 4px 6px; }
+    .km-range { width: 100%; accent-color: var(--primary); }
+    .km-panel-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .km-zoom { position: absolute; bottom: 10px; inset-inline-end: 10px; display: flex; flex-direction: column; gap: 4px; }
+    .km-zoom-btn {
+      width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: var(--radius-sm);
+      background: var(--surface); color: var(--text); cursor: pointer; box-shadow: var(--shadow-sm);
+    }
+    .km-zoom-btn svg { width: 15px; height: 15px; }
+    .km-zoom-btn:hover, .km-zoom-btn:focus-visible { border-color: var(--primary); color: var(--primary); outline: none; }
     .kw-swatch.sw-swatch-host { background: var(--surface); border: 1.6px solid var(--text); }
     /* Systems wheel (systems-wheel.js): clients take the accent, systems are
        squares shaded inline by how many clients share them. */
@@ -2394,6 +2474,9 @@
     .kh-pill.overdue { color: var(--bad); background: var(--error-bg); border-color: color-mix(in srgb, var(--bad) 25%, var(--border)); }
     .kh-pill.kh-pill-client { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 30%, var(--border)); }
     .kh-pill.kh-pill-system { color: var(--text); }
+    .kh-pill.kh-pill-project { gap: 4px; color: var(--text); }
+    .p-client-fixed { padding: 8px 0; font-weight: 600; color: var(--text); }
+    .kh-pill.kh-pill-project .lic { width: 11px; height: 11px; }
     .kh-pill.kh-pill-tag { border-style: dashed; }
     /* Tag entry: #tokens and a text box in one bordered field. */
     .kh-token-field { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-height: 40px; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); cursor: text; }
@@ -2433,6 +2516,8 @@
     .kh-content h1, .kh-content h2, .kh-content h3 { color: var(--text); line-height: 1.3; margin: 1.2em 0 .45em; text-transform: none; letter-spacing: 0; }
     .kh-content h1 { font-size: 22px; } .kh-content h2 { font-size: 18px; } .kh-content h3 { font-size: 15px; }
     .kh-content p, .kh-content ul, .kh-content ol, .kh-content pre, .kh-content blockquote { margin: .65em 0; }
+    /* The global reset zeroes list padding; without it the bullets sit on the note's border. */
+    .kh-content ul, .kh-content ol { padding-inline-start: 1.6em; }
     .kh-content pre { overflow-x: auto; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface2); font: 12px/1.55 'Cairo', Consolas, monospace; }
     .kh-content blockquote { margin-inline-start: 0; padding: 2px 16px; border-inline-start: 3px solid var(--border); color: var(--muted); }
     .kh-content code { background: var(--surface2); border-radius: 4px; padding: .1em .35em; font: 12px/1.4 'Cairo', Consolas, monospace; }
@@ -2605,7 +2690,7 @@
       .kh-shell.has-panel .kh-main { display: none; }
       .kh-panel { border-inline-start: 0; }
     }
-    @media (max-width: 900px) { .kh-shell { grid-template-columns: 1fr; } .kh-filters { border-right: 0; border-bottom: 1px solid var(--border); display: flex; gap: 5px; overflow-x: auto; padding: 10px 14px; } .kh-filter-title { display:none; } .kh-filter-btn { width: auto; white-space: nowrap; } }
+    @media (max-width: 900px) { .kh-shell { grid-template-columns: 1fr; } .kh-filters { border-inline-end: 0; border-bottom: 1px solid var(--border); display: flex; gap: 5px; overflow-x: auto; padding: 10px 14px; } .kh-filter-title { display:none; } .kh-filter-btn { width: auto; white-space: nowrap; } }
 
     @media (max-width: 1180px) {
       #sidebar { width: 216px; padding: 20px 12px; gap: 18px; }
@@ -4407,7 +4492,7 @@
     @media (max-width: 900px) {
       .kh-shell { grid-template-columns: 1fr; }
       .kh-filters {
-        border-right: 0; border-bottom: 1px solid var(--border);
+        border-inline-end: 0; border-bottom: 1px solid var(--border);
         display: flex; gap: 5px; overflow-x: auto; padding: 10px 14px;
       }
       .kh-filter-title { display: none; }

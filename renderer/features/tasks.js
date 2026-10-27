@@ -110,13 +110,22 @@ async function submitConvertTaskModal() {
 // project names available even before the Projects module is first opened. This
 // cache is loaded at boot (refreshProjectIndex) and kept in sync whenever the full
 // list is (re)loaded (syncProjectIndex).
+// The project's one client and its systems ride along, so a task form can
+// narrow its Project field to the client picked.
+function projectIndexEntry(p) {
+  return {
+    id: p.id, name: p.name, status: p.status,
+    companyIds: (p.companies || []).map(c => Number(c.id)),
+    systemIds: (p.systems || []).map(x => Number(x.id)),
+  };
+}
 function syncProjectIndex() {
-  projectIndex = projectsList.map(p => ({ id: p.id, name: p.name, status: p.status }));
+  projectIndex = projectsList.map(projectIndexEntry);
 }
 async function refreshProjectIndex() {
   try {
     const list = await window.api.listProjects();
-    projectIndex = Array.isArray(list) ? list.map(p => ({ id: p.id, name: p.name, status: p.status })) : [];
+    projectIndex = Array.isArray(list) ? list.map(projectIndexEntry) : [];
   } catch { /* keep whatever we had */ }
 }
 // A linked project's display name (''→ none / unknown).
@@ -127,14 +136,54 @@ function projectNameById(id) {
 }
 // Options for a task's Project field: active projects, plus the currently-linked
 // one if it is no longer active (so an existing link is never silently dropped).
-function projectFieldOptions(currentId) {
-  const opts = projectIndex.filter(p => p.status === 'ACTIVE').map(p => ({ id: p.id, label: p.name }));
+// With a client value given, only that client's projects are offered.
+function projectFieldOptions(currentId, companyValue = '') {
+  const clientId = companyValue ? Number(lkFind('COMPANY', companyValue)?.id) : null;
+  const opts = projectIndex
+    .filter(p => p.status === 'ACTIVE' && (!clientId || (p.companyIds || []).includes(clientId)))
+    .map(p => ({ id: p.id, label: p.name }));
   if (currentId != null && currentId !== '' && !opts.some(o => o.id === Number(currentId))) {
     const p = projectIndex.find(x => x.id === Number(currentId));
     if (p) opts.push({ id: p.id, label: p.name + ' (' + pjStatusLabel(p.status).toLowerCase() + ')' });
   }
   return opts;
 }
+// A task form's Project field, tied to its Company field: the list shows only
+// the chosen client's projects and is rebuilt when the client changes (a
+// project that no longer fits is cleared). Picking a project while no client
+// is chosen fills in its client, and its system when it has just one.
+// assign(picker) receives each new picker handle.
+function buildClientProjectPicker(hostId, companySelId, systemSelId, initialId, assign) {
+  const host = document.getElementById(hostId);
+  const companySel = document.getElementById(companySelId);
+  const systemSel = document.getElementById(systemSelId);
+  let picker = null;
+  const fits = id => projectFieldOptions(null, companySel.value).some(o => o.id === Number(id));
+  const build = selected => {
+    picker = buildSearchSelect(host, projectFieldOptions(selected, companySel.value), selected, 'No project', onPick);
+    assign(picker);
+  };
+  const setSelectValue = (sel, category, key, id) => {
+    const opt = (LK.categories[category] || []).find(o => Number(o.id) === Number(id));
+    const value = opt?.[LK_VALUE[key] || 'label'];
+    if (value != null && [...sel.options].some(o => o.value === value)) sel.value = value;
+  };
+  function onPick(id) {
+    if (id == null || companySel.value) return;
+    const project = projectIndex.find(p => p.id === id);
+    if (!project) return;
+    if (project.companyIds?.length) setSelectValue(companySel, 'COMPANY', 'companies', project.companyIds[0]);
+    if (systemSel && !systemSel.value && project.systemIds?.length === 1)
+      setSelectValue(systemSel, 'SYSTEM', 'systems', project.systemIds[0]);
+    if (companySel.value) build(id);
+  }
+  companySel.onchange = () => {
+    const current = picker ? picker.getSelectedId() : null;
+    build(current != null && fits(current) ? current : null);
+  };
+  build(initialId ?? null);
+}
+
 // Build a compact pill naming the linked project (for a table row), or null.
 // The pill cross-links into the project's detail view.
 function projectRowTag(projectId) {
@@ -1075,45 +1124,13 @@ function renderProjectDetail(p) {
   // quotation, approvals and invoices that used to be project documents. ──
   host.appendChild(buildProjectPfmSection(p));
 
-  // ── Documents section — only while the project still holds a document
-  // that migration 074 did not move (a custom document type, or a project
-  // with no client); new projects file theirs on an Offer or CR. ──
-  if ((p.documents || []).some(doc => doc.file)) host.appendChild(buildProjectDocsSection(p));
-
   appendProjectLinkedSections(host, p);
 }
 
-function buildProjectDocsSection(p) {
-  const docs = pjMk('div', 'pj-section');
-  const dHead = pjMk('div', 'pj-section-head');
-  const dTitle = pjMk('div', 'pj-section-title');
-  dTitle.innerHTML = ic('file-text');
-  dTitle.appendChild(document.createTextNode('Documents'));
-  dHead.appendChild(dTitle);
-  const dActions = pjMk('div', 'pj-section-actions');
-  const exportBtn = pjMk('button', 'btn');
-  exportBtn.innerHTML = ic('download') + ' Export files';
-  exportBtn.title = 'Save every uploaded document as one ZIP';
-  exportBtn.disabled = !(p.documents || []).some(doc => doc.file?.exists);
-  exportBtn.addEventListener('click', () => exportProjectDocs(p));
-  dActions.appendChild(exportBtn);
-  dHead.appendChild(dActions);
-  docs.appendChild(dHead);
-
-  const docGrid = pjMk('div', 'pj-docs');
-  (p.documents || []).filter(doc => doc.file).forEach(doc => docGrid.appendChild(buildDocCard(doc)));
-  docs.appendChild(docGrid);
-  return docs;
-}
-
-// The Knowledge Hub items and the Tasks under a project's detail view.
+// The Tasks under a project's detail view. Knowledge Hub items are not listed
+// here: they link to clients and systems, not projects, so a project page
+// showed every item of its client. The client page's tab is where they live.
 function appendProjectLinkedSections(host, p) {
-  // ── Knowledge Hub items linked to this project's clients or systems ──
-  host.appendChild(buildKnowledgeLinkedSection({
-    companyIds: (p.companies || []).map(x => x.id), systemIds: (p.systems || []).map(x => x.id),
-    emptyText: 'No Knowledge Hub items for this project’s clients or systems yet.',
-  }));
-
   // ── Tasks section (ProjectTasksV2: each task with its work sessions nested) ──
   const tasksSec = pjMk('div', 'pj-section');
   tasksSec.dataset.pageFeature = 'all-tasks';   // hidden with the Client Tasks page
@@ -1340,125 +1357,11 @@ function fmtFileSize(bytes) {
   return (v >= 10 ? Math.round(v) : v.toFixed(1)) + ' ' + units[i];
 }
 
-// Build one document card. Three states drive the layout: no file (Upload),
-// file present on disk (filename + meta + Download/Open/Replace/Remove), and
-// file recorded but missing from disk (warning + Replace/Remove only).
-function buildDocCard(doc) {
-  const f = doc.file;
-  const present = !!(f && f.exists);
-  const missing = !!(f && !f.exists);
-  const card = pjMk('div', 'pj-doc-card' + (present ? ' available' : '') + (missing ? ' missing' : ''));
-
-  const icon = pjMk('div', 'pj-doc-icon');
-  icon.innerHTML = ic(present ? 'circle-check' : (missing ? 'triangle-alert' : 'file-text'));
-  card.appendChild(icon);
-  card.appendChild(pjMk('div', 'pj-doc-name', lkLabel('PROJECT_DOCUMENT', doc.documentType) || doc.label || doc.documentType));
-
-  if (!f) {
-    card.appendChild(pjMk('div', 'pj-doc-state', 'Not uploaded'));
-  } else {
-    // Filename (with original-name tooltip) + size · upload date.
-    const fname = pjMk('div', 'pj-doc-filename', f.originalName || '(file)');
-    fname.title = f.originalName || '';
-    card.appendChild(fname);
-    const meta = [fmtFileSize(f.size)];
-    if (f.uploadedAt) meta.push(new Date(f.uploadedAt).toLocaleDateString());
-    card.appendChild(pjMk('div', 'pj-doc-meta', meta.join(' · ')));
-    if (missing) card.appendChild(pjMk('div', 'pj-doc-state pj-doc-warn', 'File missing from disk'));
-  }
-
-  const actions = pjMk('div', 'pj-doc-actions');
-  const mkBtn = (cls, iconName, label, title, fn) => {
-    const b = pjMk('button', 'pj-doc-btn' + (cls ? ' ' + cls : ''));
-    b.innerHTML = ic(iconName);
-    b.appendChild(document.createTextNode(label));
-    b.title = title;
-    b.addEventListener('click', fn);
-    return b;
-  };
-  if (!f) {
-    actions.appendChild(mkBtn('primary', 'upload', 'Upload', 'Upload a file', () => uploadDoc(doc.documentType)));
-  } else {
-    if (present) {
-      actions.appendChild(mkBtn('', 'download', 'Download', 'Save a copy', () => downloadDoc(doc.documentType)));
-      actions.appendChild(mkBtn('', 'external-link', 'Open', 'Open with default app', () => openDoc(doc.documentType)));
-    }
-    actions.appendChild(mkBtn('', 'upload', 'Replace', 'Replace with another file', () => uploadDoc(doc.documentType)));
-    // Remove uses inline confirm in place of the action row (no destructive action without recovery).
-    actions.appendChild(mkBtn('danger', 'trash-2', 'Remove', 'Remove this file', () =>
-      showDeleteConfirm(actions, () => removeDoc(doc.documentType), () => renderProjectDetail(currentProject))));
-  }
-  card.appendChild(actions);
-  return card;
-}
-
-// Apply a DocFileResult ({ ok, project, error, canceled }) to the detail view.
-function applyDocResult(res, failMsg) {
-  if (!res || res.canceled) return false;
-  if (!res.ok || !res.project) { toast(res?.error || failMsg); return false; }
-  currentProject = res.project;
-  renderProjectDetail(res.project);
-  return true;
-}
-
-async function uploadDoc(documentType) {
-  const projectId = currentProject.id;
-  let res;
-  try { res = await window.api.uploadProjectDocument(projectId, documentType); }
-  catch { toast('Could not upload file'); return; }
-  if (!applyDocResult(res, 'Could not upload file')) return;
-  if (res.replacedFile) {
-    toast('File replaced', { actionLabel: 'Undo', duration: 5000, onAction: async () => {
-      const restored = await window.api.restoreProjectDocument(projectId, documentType, res.replacedFile);
-      if (restored?.ok && restored.replacedFile?.path) await window.api.purgeProjectDocumentFile(projectId, restored.replacedFile.path);
-      if (currentProject?.id === projectId) applyDocResult(restored, 'Could not restore the previous file');
-      toast(restored?.ok ? 'Previous file restored' : (restored?.error || 'Could not restore the previous file'));
-    }, onExpire: () => window.api.purgeProjectDocumentFile(projectId, res.replacedFile.path).catch(() => {}) });
-  } else toast('File saved');
-}
-async function removeDoc(documentType) {
-  const projectId = currentProject.id;
-  let res;
-  try { res = await window.api.removeProjectDocument(projectId, documentType); }
-  catch { toast('Could not remove file'); return; }
-  if (!applyDocResult(res, 'Could not remove file')) return;
-  if (!res.removedFile) { toast('File removed'); return; }
-  toast('File removed', { actionLabel: 'Undo', duration: 5000, onAction: async () => {
-    const restored = await window.api.restoreProjectDocument(projectId, documentType, res.removedFile);
-    if (currentProject?.id === projectId) applyDocResult(restored, 'Could not restore the file');
-    toast(restored?.ok ? 'File restored' : (restored?.error || 'Could not restore the file'));
-  }, onExpire: () => window.api.purgeProjectDocumentFile(projectId, res.removedFile.path).catch(() => {}) });
-}
-async function downloadDoc(documentType) {
-  let res;
-  try { res = await window.api.downloadProjectDocument(currentProject.id, documentType); }
-  catch { toast('Could not download file'); return; }
-  if (!res || res.canceled) return;
-  toast(res.ok ? 'File saved' : (res.error || 'Could not download file'));
-}
-// Every present document into one ZIP, each named "<type> - <original name>"
-// so the archive still says which slot a file came from.
-async function exportProjectDocs(p) {
-  const entries = (p.documents || []).filter(doc => doc.file?.exists).map(doc => ({
-    documentType: doc.documentType,
-    name: (lkLabel('PROJECT_DOCUMENT', doc.documentType) || doc.label || doc.documentType) + ' - ' + (doc.file.originalName || 'document'),
-  }));
-  if (!entries.length) return;
-  let result;
-  try { result = await window.api.downloadProjectDocumentsZip(p.id, entries, `${p.name || 'project'} - ${fmt(new Date())}.zip`); }
-  catch { result = { ok: false, error: 'failed' }; }
-  if (result?.ok) toast(result.skipped ? `Saved ${result.count} documents · ${result.skipped} missing skipped` : `Saved ${result.count} documents`);
-  else if (!result?.canceled) toast('ZIP export failed: ' + (result?.error || 'failed'));
-}
-async function openDoc(documentType) {
-  let res;
-  try { res = await window.api.openProjectDocument(currentProject.id, documentType); }
-  catch { toast('Could not open file'); return; }
-  if (res && !res.ok) toast(res.error || 'Could not open file');
-}
-
 // ── Project add/edit modal ──
-function openProjectModal(id = null) {
+// A project belongs to one client, fixed when it is created. Editing, or
+// creating from a client's page, shows that client as plain text; creating
+// anywhere else (Ctrl+N, the command palette) asks for it. `companyId` presets it.
+function openProjectModal(id = null, companyId = null) {
   projectEditId = id;
   const src = id != null ? (currentProject && currentProject.id === id ? currentProject
                             : projectsList.find(p => p.id === id)) : null;
@@ -1467,9 +1370,23 @@ function openProjectModal(id = null) {
   document.querySelector('#project-modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : 'Create Project';
 
   document.getElementById('p-name').value        = src?.name || '';
-  pCompaniesPicker = buildTagPicker(document.getElementById('p-companies'),
-    lkOptions('COMPANY').map(o => ({ id: o.id, label: companyDisplayName(o) })),
-    (src?.companies || []).map(c => c.id), 'Search companies…');
+  const fixedClient = src ? (src.companies || [])[0] || null
+    : companyId != null ? lkOptions('COMPANY', true).find(o => o.id === Number(companyId)) || null : null;
+  pProjectClientId = fixedClient ? fixedClient.id : null;
+  const clientSelect = document.getElementById('p-client'), clientFixed = document.getElementById('p-client-fixed');
+  clientSelect.hidden = !!src || !!fixedClient;
+  clientFixed.hidden = !clientSelect.hidden;
+  clientFixed.textContent = fixedClient ? companyDisplayName(fixedClient) : (src ? 'No client' : '');
+  clientFixed.dataset.userContent = '';
+  if (!clientSelect.hidden) {
+    clientSelect.innerHTML = '';
+    const none = document.createElement('option'); none.value = ''; none.textContent = 'Choose a client'; clientSelect.appendChild(none);
+    lkOptions('COMPANY').forEach(o => {
+      const option = document.createElement('option'); option.dataset.userContent = '';
+      option.value = String(o.id); option.textContent = companyDisplayName(o); clientSelect.appendChild(option);
+    });
+    clientSelect.value = '';
+  }
   pSystemsPicker = buildTagPicker(document.getElementById('p-systems'),
     lkOptions('SYSTEM').map(o => ({ id: o.id, label: lookupDisplayName(o) })),
     (src?.systems || []).map(s => s.id), 'Search systems…');
@@ -1492,9 +1409,13 @@ async function submitProjectModal() {
   clearErrorsIn('#project-modal');
   const name = document.getElementById('p-name').value.trim();
   if (!name) { markError('p-name'); return; }
+  const clientSelect = document.getElementById('p-client');
+  const clientId = projectEditId != null ? null : (clientSelect.hidden ? pProjectClientId : Number(clientSelect.value) || null);
+  if (projectEditId == null && clientId == null) { markError('p-client'); return; }
   const data = {
     name,
-    companyIds:  pCompaniesPicker ? pCompaniesPicker.getSelectedIds() : [],
+    // The client is set once, on create; an update leaves it alone.
+    companyIds:  clientId != null ? [clientId] : [],
     systemIds:   pSystemsPicker ? pSystemsPicker.getSelectedIds() : [],
     status:      document.getElementById('p-status').value || 'ACTIVE',
     description: document.getElementById('p-description').value.trim(),
@@ -1523,12 +1444,14 @@ async function submitProjectModal() {
 // ── Delete + undo (re-creates the project on undo: no hard loss) ──
 async function deleteCurrentProject() {
   if (!currentProject) return;
-  // Full object (profile + docs + tasks), plus the Offers & CRs linked to it:
-  // the delete unlinks them (SET NULL) and an undo links them again.
-  let pfmIds = [];
+  // Full object (profile + tasks), plus the Offers & CRs and Knowledge Hub
+  // items linked to it: the delete unlinks them (SET NULL) and an undo links them again.
+  let pfmIds = [], knowledgeIds = [];
   try { pfmIds = ((await window.api.listPfmItems({ projectId: currentProject.id, includeArchived: true })) || []).map(i => i.id); }
   catch { /* nothing to relink */ }
-  const snapshot = { ...currentProject, pfmIds };
+  try { knowledgeIds = ((await window.api.listKnowledgeItems()) || []).filter(i => i.projectId === currentProject.id).map(i => i.id); }
+  catch { /* nothing to relink */ }
+  const snapshot = { ...currentProject, pfmIds, knowledgeIds };
   try { await window.api.deleteProject(snapshot.id); }
   catch { toast('Could not delete project'); buildDetailActions(document.querySelector('.pj-detail-actions')); return; }
   showProjectUndoToast(snapshot);
@@ -1565,13 +1488,13 @@ async function undoDeleteProject() {
       name: snap.name, description: snap.description, status: snap.status,
       systemIds: (snap.systems || []).map(s => s.id), companyIds: (snap.companies || []).map(c => c.id),
     });
-    // Move the still-on-disk files onto the re-created project and re-record their
-    // metadata (the rows were CASCADE-deleted; the bytes survived the undo window).
-    const fileDocs = (snap.documents || [])
-      .filter(d => d.file)
-      .map(d => ({ documentType: d.documentType, file: d.file }));
-    if (fileDocs.length) await window.api.restoreProjectFiles(snap.id, created.id, fileDocs);
+    // Move the project's file folder (old documents kept by migration 074) onto the new id.
+    await window.api.restoreProjectFiles(snap.id, created.id);
     if (snap.pfmIds?.length) await window.api.relinkPfmProject(created.id, snap.pfmIds);
+    if (snap.knowledgeIds?.length) {
+      await window.api.relinkKnowledgeProject(created.id, snap.knowledgeIds);
+      knowledgeLoaded = false;   // the Hub reloads its list next time it opens
+    }
     // Milestone 9: a task can no longer be linked to a Project it's already
     // linked to a Department for (mutual exclusivity) — linkProjectTask
     // returns {ok:false} instead of throwing in that case, so a task

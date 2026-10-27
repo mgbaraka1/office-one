@@ -1116,7 +1116,7 @@ function renderClientDetailSections(c) {
     const pjActions = pjMk('div', 'pj-section-actions');
     const pjAddBtn = pjMk('button', 'btn primary');
     pjAddBtn.innerHTML = ic('plus') + ' New Project';
-    pjAddBtn.addEventListener('click', () => openProjectModal());
+    pjAddBtn.addEventListener('click', () => openProjectModal(null, c.id));
     pjActions.appendChild(pjAddBtn);
     pjHead.appendChild(pjActions);
     pjSec.appendChild(pjHead);

@@ -348,91 +348,16 @@ ipcMain.handle('internal:delete', authed((_e, id)       => db.deleteTask(auth.re
 ipcMain.handle('internal:convert-to-client',   authed((_e, id, data) => db.convertTaskToClient(auth.requireUserId(), id, data)));
 ipcMain.handle('tasks:convert-to-internal',    authed((_e, id, data) => db.convertTaskToInternal(auth.requireUserId(), id, data)));
 
-// ── Project document files (Option A: bytes on disk under userData) ──
-// Allowlist mirrors db.PROJECT_DOC_TYPES; the native dialog also filters by it so
-// the user only sees permitted types (the db layer re-validates regardless).
+// Upload allowlists. DOC_UPLOAD_EXTENSIONS mirrors db.DOC_TYPES; the native
+// dialog also filters by these so the user only sees permitted types (the db
+// layer re-validates regardless).
 const DOC_UPLOAD_EXTENSIONS = ['pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'gif', 'webp'];
-const KNOWLEDGE_UPLOAD_EXTENSIONS = [...DOC_UPLOAD_EXTENSIONS, 'xls', 'xlsx', 'txt'];
-const TEMPLATE_UPLOAD_EXTENSIONS = [...KNOWLEDGE_UPLOAD_EXTENSIONS, 'ppt', 'pptx'];
-// Upload (and replace — db.saveProjectDocumentFile deletes the prior file on conflict).
-ipcMain.handle('projects:upload-document', authed(async (_e, projectId, documentType) => {
-  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
-    title: 'Choose a document to upload',
-    properties: ['openFile'],
-    filters: [
-      { name: 'Documents & images', extensions: DOC_UPLOAD_EXTENSIONS },
-      { name: 'PDF',    extensions: ['pdf'] },
-      { name: 'Word',   extensions: ['doc', 'docx'] },
-      { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },
-    ],
-  });
-  if (canceled || !filePaths?.[0]) return { ok: false, canceled: true };
-  return db.saveProjectDocumentFile(auth.requireUserId(), projectId, documentType, filePaths[0]);
-}));
-// Download — copy the stored file out to a user-chosen location.
-ipcMain.handle('projects:download-document', authed(async (_e, projectId, documentType) => {
-  const r = db.resolveProjectDocumentFile(auth.requireUserId(), projectId, documentType);
-  if (!r.ok) return r;
-  if (!r.exists) return { ok: false, error: 'The file is missing from disk' };
-  const { canceled, filePath } = await dialog.showSaveDialog(win, {
-    title: 'Save document as', defaultPath: r.originalName,
-  });
-  if (canceled || !filePath) return { ok: false, canceled: true };
-  try { fs.copyFileSync(r.absPath, filePath); return { ok: true, path: filePath }; }
-  catch (err) { return { ok: false, error: String(err?.message || err) }; }
-}));
-// Export every uploaded document of a project into one ZIP. The renderer sends
-// each document type with the (translated) name it should get in the archive;
-// every type is resolved and owner-checked here, so no disk path crosses IPC.
-// Missing files are skipped and counted. Read-only; touches no app data.
-ipcMain.handle('projects:download-documents-zip', authed(async (_e, projectId, entries, defaultName) => {
-  const userId = auth.requireUserId();
-  const wanted = entries.slice(0, 200);
-  if (!wanted.length) return { ok: false, error: 'No documents to download' };
-  const files = [];
-  let skipped = 0, total = 0;
-  for (const entry of wanted) {
-    const r = db.resolveProjectDocumentFile(userId, projectId, String(entry?.documentType || ''));
-    if (!r.ok || !r.exists) { skipped++; continue; }
-    try { total += fs.statSync(r.absPath).size; } catch { skipped++; continue; }
-    if (total > KNOWLEDGE_ZIP_MAX_BYTES) return { ok: false, error: 'The documents are over 1 GB together' };
-    files.push({ absPath: r.absPath, path: zipPathSegment(entry.name || r.originalName, 'document') });
-  }
-  if (!files.length) return { ok: false, error: 'The documents are missing from disk' };
-  const safeDefaultName = path.basename(String(defaultName || 'project.zip')).slice(0, 180) || 'project.zip';
-  const { canceled, filePath } = await dialog.showSaveDialog(win, {
-    title: 'Save documents as ZIP',
-    defaultPath: safeDefaultName,
-    filters: [{ name: 'ZIP archive', extensions: ['zip'] }],
-  });
-  if (canceled || !filePath) return { ok: false, canceled: true };
-  try {
-    const zipEntries = readZipFiles(files);
-    fs.writeFileSync(filePath, zip(zipEntries));
-    return { ok: true, path: filePath, count: zipEntries.length, skipped };
-  } catch (err) {
-    return { ok: false, error: String(err?.message || err) };
-  }
-}));
-// Open with the OS default application.
-ipcMain.handle('projects:open-document', authed(async (_e, projectId, documentType) => {
-  const r = db.resolveProjectDocumentFile(auth.requireUserId(), projectId, documentType);
-  if (!r.ok) return r;
-  if (!r.exists) return { ok: false, error: 'The file is missing from disk' };
-  const errMsg = await shell.openPath(r.absPath);   // '' on success
-  return errMsg ? { ok: false, error: errMsg } : { ok: true };
-}));
-// Remove — delete the file from disk and clear its metadata.
-ipcMain.handle('projects:remove-document', authed((_e, projectId, documentType) =>
-  db.removeProjectDocumentFile(auth.requireUserId(), projectId, documentType)));
-ipcMain.handle('projects:restore-document', authed((_e, projectId, documentType, fileMeta) =>
-  db.restoreProjectDocumentFile(auth.requireUserId(), projectId, documentType, fileMeta)));
-ipcMain.handle('projects:purge-document-file', authed((_e, projectId, relPath) =>
-  db.purgeUnreferencedProjectDocumentFile(auth.requireUserId(), projectId, relPath)));
+const KNOWLEDGE_UPLOAD_EXTENSIONS = [...DOC_UPLOAD_EXTENSIONS, 'xls', 'xlsx', 'txt', 'pptx'];
+const TEMPLATE_UPLOAD_EXTENSIONS = [...KNOWLEDGE_UPLOAD_EXTENSIONS, 'ppt'];
 // Delete-undo file handling: purge the whole folder when the undo window lapses,
 // or move it onto the re-created project's new id when the user undoes.
 ipcMain.handle('projects:purge-files',  authed((_e, projectId)            => db.purgeProjectFiles(auth.requireUserId(), projectId)));
-ipcMain.handle('projects:restore-files', authed((_e, oldId, newId, docs)  => db.restoreProjectFiles(auth.requireUserId(), oldId, newId, docs)));
+ipcMain.handle('projects:restore-files', authed((_e, oldId, newId)        => db.restoreProjectFiles(auth.requireUserId(), oldId, newId)));
 
 // ── Company Documents (standalone card-per-document module) ──
 ipcMain.handle('companydocs:list',   authed(()             => db.listCompanyDocuments(auth.requireUserId())));
@@ -523,6 +448,7 @@ ipcMain.handle('knowledge:list',    authed(()             => db.listKnowledgeIte
 ipcMain.handle('knowledge:get',     authed((_e, id)       => db.getKnowledgeItem(auth.requireUserId(), id)));
 ipcMain.handle('knowledge:create',  authed((_e, data)     => db.createKnowledgeItem(auth.requireUserId(), data)));
 ipcMain.handle('knowledge:update',  authed((_e, id, data) => db.updateKnowledgeItem(auth.requireUserId(), id, data)));
+ipcMain.handle('knowledge:relink-project', authed((_e, projectId, itemIds) => db.relinkKnowledgeProject(auth.requireUserId(), projectId, itemIds)));
 ipcMain.handle('knowledge:delete',  authed((_e, id)       => db.deleteKnowledgeItem(auth.requireUserId(), id)));
 ipcMain.handle('knowledge:restore', authed((_e, oldId, snapshot) => db.restoreKnowledgeItem(auth.requireUserId(), oldId, snapshot)));
 ipcMain.handle('knowledge:groups-list', authed(() => db.listKnowledgeGroups(auth.requireUserId())));
@@ -731,7 +657,8 @@ ipcMain.handle('pfm:files-add', authed(async (_e, versionId) => {
         filters: [
           { name: 'Supported files', extensions: KNOWLEDGE_UPLOAD_EXTENSIONS },
           { name: 'PDF', extensions: ['pdf'] }, { name: 'Word', extensions: ['doc', 'docx'] },
-          { name: 'Excel', extensions: ['xls', 'xlsx'] }, { name: 'Text', extensions: ['txt'] },
+          { name: 'Excel', extensions: ['xls', 'xlsx'] }, { name: 'PowerPoint', extensions: ['pptx'] },
+          { name: 'Text', extensions: ['txt'] },
           { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },
         ],
       });
@@ -758,7 +685,8 @@ ipcMain.handle('pfm:stage-files-add', authed(async (_e, itemId, status) => {
         filters: [
           { name: 'Supported files', extensions: KNOWLEDGE_UPLOAD_EXTENSIONS },
           { name: 'PDF', extensions: ['pdf'] }, { name: 'Word', extensions: ['doc', 'docx'] },
-          { name: 'Excel', extensions: ['xls', 'xlsx'] }, { name: 'Text', extensions: ['txt'] },
+          { name: 'Excel', extensions: ['xls', 'xlsx'] }, { name: 'PowerPoint', extensions: ['pptx'] },
+          { name: 'Text', extensions: ['txt'] },
           { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },
         ],
       });

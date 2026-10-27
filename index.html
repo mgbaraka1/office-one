@@ -819,10 +819,11 @@
   <div id="kh-list-view" class="kh-shell">
     <aside class="kh-filters" id="kh-filters"></aside>
     <div class="kh-main">
-      <div class="kh-summary"><span id="kh-result-count" role="status"></span><div class="kh-summary-actions"><div class="seg-ctl" id="kh-view-ctl" role="group" aria-label="Show knowledge as"><button type="button" class="seg-btn active" data-view="list" aria-pressed="true" data-onclick="setKnowledgeView('list')"><span data-ic="rows-3"></span>List</button><button type="button" class="seg-btn" data-view="wheel" aria-pressed="false" data-onclick="setKnowledgeView('wheel')"><span data-ic="share-2"></span>Wheel</button></div><span id="kh-zip-slot"></span><label><span class="sr-only">Sort knowledge items</span><select id="kh-sort" class="kh-sort" aria-label="Sort knowledge items" data-onchange="renderKnowledgeList()"><option value="updated">Recently updated</option><option value="title">Title</option><option value="documents">Most documents</option><option value="created">Recently created</option></select></label></div></div>
+      <div class="kh-summary"><span id="kh-result-count" role="status"></span><div class="kh-summary-actions"><div class="seg-ctl" id="kh-view-ctl" role="group" aria-label="Show knowledge as"><button type="button" class="seg-btn active" data-view="list" aria-pressed="true" data-onclick="setKnowledgeView('list')"><span data-ic="rows-3"></span>List</button><button type="button" class="seg-btn" data-view="wheel" aria-pressed="false" data-onclick="setKnowledgeView('wheel')"><span data-ic="share-2"></span>Wheel</button><button type="button" class="seg-btn" data-view="map" aria-pressed="false" data-onclick="setKnowledgeView('map')"><span data-ic="orbit"></span>Map</button></div><span id="kh-zip-slot"></span><label><span class="sr-only">Sort knowledge items</span><select id="kh-sort" class="kh-sort" aria-label="Sort knowledge items" data-onchange="renderKnowledgeList()"><option value="updated">Recently updated</option><option value="title">Title</option><option value="documents">Most documents</option><option value="created">Recently created</option></select></label></div></div>
       <div id="kh-active-filters" class="kh-active-filters" aria-label="Active filters"></div>
       <div id="kh-list" class="kh-list"></div>
       <div id="kh-wheel" class="kh-wheel" hidden></div>
+      <div id="kh-map" class="kh-wheel kh-map" hidden></div>
       <div id="kh-empty" class="kh-empty" hidden><div class="kh-empty-inner"><span data-ic="book-open"></span><h3 id="kh-empty-title">No knowledge found</h3><p id="kh-empty-copy">Create a manual, integration guide, procedure, or troubleshooting note.</p><button id="kh-empty-clear" class="btn" data-onclick="resetKnowledgeFilters()" hidden>Clear filters</button></div></div>
     </div>
     <section id="kh-detail-view" class="kh-panel" aria-label="Knowledge item" hidden></section>
@@ -841,6 +842,9 @@
       <div class="form-row">
         <div class="form-group"><label>Clients</label><div id="kh-companies"></div></div>
         <div class="form-group"><label>Systems</label><div id="kh-systems"></div></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full"><label for="kh-project-input">Project</label><select id="kh-project-input" data-onchange="knowledgeProjectChanged(this)"></select><div class="modal-hint">Optional. Only projects of the chosen clients.</div></div>
       </div>
       <div class="form-row">
         <div class="form-group full"><label for="kh-tags-input">Tags</label><div id="kh-tag-field" class="kh-token-field" data-onclick="focusKnowledgeTagInput(event)"><div id="kh-tag-tokens" class="kh-tokens"></div><input id="kh-tags-input" list="kh-tag-suggestions" maxlength="60" placeholder="Add a tag and press Enter"><datalist id="kh-tag-suggestions"></datalist></div><div class="modal-hint">Any word to file it by. Needed when no client or system is linked.</div></div>
@@ -2070,8 +2074,9 @@
       </div>
       <div class="form-row">
         <div class="form-group full">
-          <label>Companies <span style="text-transform:none;font-weight:500;color:var(--muted)">— search and click to add</span></label>
-          <div id="p-companies"></div>
+          <label for="p-client">Client</label>
+          <select id="p-client"></select>
+          <div id="p-client-fixed" class="p-client-fixed" hidden></div>
         </div>
       </div>
       <div class="form-row">
@@ -2296,7 +2301,6 @@
       <button class="stab" data-tab="currency"      data-onclick="switchTab(this)"><span class="stab-icon" data-ic="credit-card"></span> Currency</button>
       <button class="stab" data-tab="billingCycle"  data-onclick="switchTab(this)"><span class="stab-icon" data-ic="calendar-clock"></span> Billing Cycle</button>
       <button class="stab" data-tab="projectStatus" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="clipboard-list"></span> Project Status</button>
-      <button class="stab" data-tab="projectDocument" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="file-text"></span> Project Documents</button>
       <button class="stab" data-tab="companyDocCategory" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="folder-check"></span> Company Doc Categories</button>
       <button class="stab" data-tab="templateCategory" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="layout-template"></span> Template Categories</button>
       <button class="stab" data-tab="knowledgeType" data-onclick="switchTab(this)"><span class="stab-icon" data-ic="book-open"></span> Knowledge Types</button>
@@ -2434,7 +2438,6 @@
       <div class="settings-panel" id="tab-currency"></div>
       <div class="settings-panel" id="tab-billingCycle"></div>
       <div class="settings-panel" id="tab-projectStatus"></div>
-      <div class="settings-panel" id="tab-projectDocument"></div>
       <div class="settings-panel" id="tab-companyDocCategory"></div>
       <div class="settings-panel" id="tab-templateCategory"></div>
       <div class="settings-panel" id="tab-knowledgeType"></div>
@@ -2931,6 +2934,7 @@
 <script src="renderer/vendor/highlight/powershell.min.js"></script>
 <script src="renderer/features/code-notes.js"></script>
 <script src="renderer/features/knowledge-wheel.js"></script>
+<script src="renderer/features/knowledge-map.js"></script>
 <script src="renderer/features/server-wheel.js"></script>
 <script src="renderer/features/systems-wheel.js"></script>
 <script src="renderer/features/company-documents.js"></script>

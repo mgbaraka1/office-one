@@ -35,12 +35,6 @@ try {
   record('Subscription upsert cannot overwrite another user by id',
     crossUserBlocked && db.loadSubscriptions(user.id).subscriptions[0]?.name === 'Owned');
 
-  const project = db.createProject(user.id, { name: 'Security project', status: 'ACTIVE', category: 'NEW_PROJECT' });
-  const fakePdf = path.join(workDir, 'safe.pdf');
-  fs.writeFileSync(fakePdf, '%PDF-1.7 security smoke');
-  const traversal = db.saveProjectDocumentFile(user.id, project.id, '../outside', fakePdf);
-  record('Project document type cannot traverse outside its directory', traversal.ok === false, traversal.error);
-
   const task = db.createTask(user.id, { name: 'Validation task', status: 'OPEN' });
   let invalidDateBlocked = false, invalidMinutesBlocked = false;
   try { db.addWorkLog(user.id, task.id, { date: 'not-a-date', minutes: 5 }); } catch { invalidDateBlocked = true; }

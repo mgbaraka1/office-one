@@ -538,6 +538,12 @@ try {
     JSON.stringify(relinked));
 
   // ── Migration 074: project documents move onto an Offer ─────────────────
+  // Migration 081 dropped the (empty) table; put back the shape 074 read.
+  conn.exec(`CREATE TABLE IF NOT EXISTS project_documents (
+    id INTEGER PRIMARY KEY, project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    document_type TEXT NOT NULL, is_available INTEGER NOT NULL DEFAULT 0,
+    file_path TEXT, original_name TEXT, file_size INTEGER, mime_type TEXT, uploaded_at TEXT);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_project_documents_unique ON project_documents(project_id, document_type);`);
   const docProject = db.createProject(userId, { name: 'Project with documents', companyIds: [companyA] });
   const docDir = path.join(workDir, 'projects', String(docProject.id), 'documents');
   fs.mkdirSync(docDir, { recursive: true });
@@ -567,7 +573,7 @@ try {
       && bytesOf(moved.stageFiles[1].path) === '%PDF-1.4\ninvoice\n', JSON.stringify(moved?.stageFiles));
   record('Move: the project\'s document rows go, the original files stay on disk',
     count(`SELECT COUNT(*) AS n FROM project_documents WHERE project_id = ${docProject.id}`) === 0
-      && fs.existsSync(path.join(workDir, quoteRel)) && !db.getProject(userId, docProject.id).documents.some(d => d.file));
+      && fs.existsSync(path.join(workDir, quoteRel)));
   const itemsBefore = count('SELECT COUNT(*) AS n FROM pfm_items');
   require('../migrations/074_pfm_delivery_flow').up(conn, { userDataDir: workDir });
   record('Move: re-running moves nothing again', count('SELECT COUNT(*) AS n FROM pfm_items') === itemsBefore);

@@ -17,9 +17,113 @@ const knowledgeWheelHidden = new Set();   // type codes switched off in the lege
 
 const KW_TYPE_SLOTS = 12;           // fixed-order categorical hues (app.css --kw-1..12)
 const KW_NS = 'http://www.w3.org/2000/svg';
+const KW_HUB_KINDS = [['companies', 'Clients'], ['systems', 'Systems'], ['tags', 'Tags'], ['projects', 'Projects']];
+
+// Wheel settings (uiState.filters.knowledge.wheel). Sliders run 0..100 with
+// 50 the original look: bundling sets how far toward the middle the lines bend,
+// links how strong the resting lines are, size scales the whole wheel.
+const KW_DEFAULTS = Object.freeze({
+  companies: true, systems: true, tags: true, projects: true,
+  labels: 'all', bundling: 50, links: 50, size: 50, panel: false,
+});
+let knowledgeWheelSettings = { ...KW_DEFAULTS };
+let knowledgeWheelPanel = null;   // kept across redraws so a slider is never pulled out mid-drag
+
+function knowledgeWheelRestoreSettings(saved) {
+  knowledgeWheelSettings = knowledgeViewSettings(KW_DEFAULTS, saved, { labels: ['all', 'hubs'] });
+}
+
+function setKnowledgeWheelSetting(key, value) {
+  knowledgeWheelSettings[key] = value;
+  knowledgeSaveViewSettings('wheel', knowledgeWheelSettings);
+}
+
+// Saved view settings, checked against their defaults: a boolean stays a
+// boolean, a number is clamped to 0..100, a word must be one of `choices`.
+// Shared with the Map (knowledge-map.js).
+function knowledgeViewSettings(defaults, saved, choices = {}) {
+  const s = { ...defaults };
+  if (!saved || typeof saved !== 'object') return s;
+  Object.keys(defaults).forEach(k => {
+    const d = defaults[k], v = saved[k];
+    if (typeof d === 'boolean') { if (typeof v === 'boolean') s[k] = v; }
+    else if (typeof d === 'number') {
+      const n = typeof v === 'number' || typeof v === 'string' ? Number(v) : NaN;
+      if (v !== '' && Number.isFinite(n)) s[k] = Math.min(100, Math.max(0, Math.round(n)));
+    } else if ((choices[k] || []).includes(v)) s[k] = v;
+  });
+  return s;
+}
+
+function knowledgeSaveViewSettings(view, settings) {
+  if (typeof uiState === 'undefined') return;
+  uiState.filters ||= {};
+  uiState.filters.knowledge = Object.assign({}, uiState.filters.knowledge, { [view]: { ...settings } });
+  saveUiStateDebounced();
+}
+
+// The collapsible settings card shared by the Wheel and the Map: segmented
+// choices, 0..100 sliders and small buttons.
+function knowledgeSettingsPanel({ title, open, onToggle, segs = [], ranges = [], actions = [] }) {
+  const panel = pjMk('div', 'km-panel' + (open ? '' : ' is-collapsed'));
+  const toggle = pjMk('button', 'km-panel-toggle');
+  toggle.type = 'button';
+  toggle.setAttribute('aria-expanded', String(!!open));
+  toggle.innerHTML = ic('sliders-horizontal');
+  toggle.appendChild(pjMk('span', null, title));
+  toggle.addEventListener('click', () => {
+    const nowOpen = !panel.classList.toggle('is-collapsed');
+    toggle.setAttribute('aria-expanded', String(nowOpen));
+    onToggle(nowOpen);
+  });
+  panel.appendChild(toggle);
+  const body = pjMk('div', 'km-panel-body');
+  segs.forEach(({ label, options, value, onChange }) => {
+    const field = pjMk('div', 'km-field');
+    field.appendChild(pjMk('span', 'km-field-label', label));
+    const seg = pjMk('div', 'seg-ctl km-seg');
+    seg.setAttribute('role', 'group');
+    seg.setAttribute('aria-label', label);
+    options.forEach(([optValue, optLabel]) => {
+      const b = pjMk('button', 'seg-btn' + (value === optValue ? ' active' : ''), optLabel);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(value === optValue));
+      b.addEventListener('click', () => {
+        seg.querySelectorAll('.seg-btn').forEach(x => { const on = x === b; x.classList.toggle('active', on); x.setAttribute('aria-pressed', String(on)); });
+        onChange(optValue);
+      });
+      seg.appendChild(b);
+    });
+    field.appendChild(seg);
+    body.appendChild(field);
+  });
+  ranges.forEach(({ label, value, onInput }) => {
+    const field = pjMk('label', 'km-field');
+    field.appendChild(pjMk('span', 'km-field-label', label));
+    const input = document.createElement('input');
+    input.type = 'range'; input.min = '0'; input.max = '100'; input.step = '1';
+    input.value = String(value);
+    input.className = 'km-range';
+    input.addEventListener('input', () => onInput(Number(input.value)));
+    field.appendChild(input);
+    body.appendChild(field);
+  });
+  if (actions.length) {
+    const row = pjMk('div', 'km-panel-actions');
+    actions.forEach(({ label, run }) => {
+      const b = pjMk('button', 'btn small', label);
+      b.type = 'button';
+      b.addEventListener('click', run);
+      row.appendChild(b);
+    });
+    body.appendChild(row);
+  }
+  panel.appendChild(body);
+  return panel;
+}
 
 function setKnowledgeView(view) {
-  knowledgeView = view === 'wheel' ? 'wheel' : 'list';
+  knowledgeView = view === 'wheel' || view === 'map' ? view : 'list';   // map: knowledge-map.js
   knowledgeWheelPinned = null;
   renderKnowledgeList();
 }
@@ -72,10 +176,10 @@ function kwCentreLargest(arcs) {
 }
 
 // Arcs in drawing order: one per knowledge type (catalog order, untyped last),
-// then Clients, then Systems, then Tags. Each node is { key, kind, label, item|link }.
+// then Clients, Systems, Tags and Projects. Each node is { key, kind, label, item|link }.
 // A type in `hidden` keeps its arc (and colour slot) but is flagged hidden, and
-// its articles add no clients, systems or tags.
-function knowledgeWheelModel(items, hidden = new Set()) {
+// its articles add no hubs. A hub kind set to false in `show` gets no arc.
+function knowledgeWheelModel(items, hidden = new Set(), show = {}) {
   const typeOrder = (LK.categories.KNOWLEDGE_TYPE || []).map(o => o.code);
   const byType = new Map();
   items.forEach(item => {
@@ -96,6 +200,7 @@ function knowledgeWheelModel(items, hidden = new Set()) {
   }));
   items = items.filter(item => !hidden.has(item.type || ''));
   [['companies', 'Clients'], ['systems', 'Systems']].forEach(([kind, label]) => {
+    if (show[kind] === false) return;
     const hubs = new Map();
     items.forEach(item => (item[kind] || []).forEach(link => {
       if (!hubs.has(link.id)) hubs.set(link.id, { key: kind[0] + link.id, kind, label: knowledgeLinkName(kind, link), link, items: [] });
@@ -105,18 +210,31 @@ function knowledgeWheelModel(items, hidden = new Set()) {
   });
   // One hub per tag, whatever its case on each item.
   const tags = new Map();
-  items.forEach(item => (item.tags || []).forEach(tag => {
+  if (show.tags !== false) items.forEach(item => (item.tags || []).forEach(tag => {
     const id = tag.toLowerCase();
     if (!tags.has(id)) tags.set(id, { key: 't' + id, kind: 'tags', label: '#' + tag, items: [] });
     tags.get(id).items.push(item);
   }));
   if (tags.size) arcs.push({ kind: 'tags', label: 'Tags', slot: 0, nodes: [...tags.values()] });
+  // One hub per project (an item has at most one, migration 081).
+  const projects = new Map();
+  if (show.projects !== false) items.forEach(item => {
+    if (!item.projectId) return;
+    if (!projects.has(item.projectId)) projects.set(item.projectId, { key: 'p' + item.projectId, kind: 'projects', label: item.projectName || 'Project', items: [] });
+    projects.get(item.projectId).items.push(item);
+  });
+  if (projects.size) arcs.push({ kind: 'projects', label: 'Projects', slot: 0, nodes: [...projects.values()] });
   return arcs;
 }
 
 function drawKnowledgeWheel(host, items) {
   knowledgeWheelItems = items;
-  host.innerHTML = '';
+  const ws = knowledgeWheelSettings;
+  [...host.children].forEach(el => { if (el !== knowledgeWheelPanel) el.remove(); });
+  if (!knowledgeWheelPanel || knowledgeWheelPanel.parentNode !== host) {
+    knowledgeWheelPanel = knowledgeWheelSettingsPanel(host);
+    host.appendChild(knowledgeWheelPanel);
+  }
   const width = Math.max(320, host.clientWidth || 900);
   knowledgeWheelWidth = width;
   ensureKnowledgeWheelObserver(host);
@@ -125,7 +243,7 @@ function drawKnowledgeWheel(host, items) {
   const present = new Set(items.map(item => item.type || ''));
   [...knowledgeWheelHidden].forEach(code => { if (!present.has(code)) knowledgeWheelHidden.delete(code); });
   if (knowledgeWheelHidden.size >= present.size) knowledgeWheelHidden.clear();
-  const allArcs = knowledgeWheelModel(items, knowledgeWheelHidden);
+  const allArcs = knowledgeWheelModel(items, knowledgeWheelHidden, ws);
   const typeArcs = allArcs.filter(a => a.kind === 'type');
   const arcs = allArcs.filter(a => !a.hidden);
   const articleArcs = kwCentreLargest(arcs.filter(a => a.kind === 'type'));
@@ -207,7 +325,8 @@ function drawKnowledgeWheel(host, items) {
     class: 'kw-svg', viewBox: `0 0 ${f(W)} ${f(H)}`, role: 'img', direction: 'ltr',
     'aria-label': 'Knowledge wheel: articles and the clients, systems and tags they are linked to',
   });
-  svg.style.maxWidth = W + 'px';
+  svg.style.maxWidth = Math.round(W * (0.5 + ws.size * 0.01)) + 'px';
+  knowledgeWheelApplyLook(svg);
   host.appendChild(svg);
 
   // Arc bands just outside the dots.
@@ -232,8 +351,9 @@ function drawKnowledgeWheel(host, items) {
     const a = pos.get('a' + item.id), b = pos.get(hub.key);
     if (!a || !b) return;
     const [ax, ay] = pt(a.angle, R - 6), [bx, by] = pt(b.angle, R - 6);
-    const [c1x, c1y] = pt((a.angle + arcMid(a.arc)) / 2, R * 0.42);
-    const [c2x, c2y] = pt((b.angle + arcMid(b.arc)) / 2, R * 0.42);
+    const bend = R * (0.82 - ws.bundling * 0.008);   // 50 = 0.42 R, the original curve
+    const [c1x, c1y] = pt((a.angle + arcMid(a.arc)) / 2, bend);
+    const [c2x, c2y] = pt((b.angle + arcMid(b.arc)) / 2, bend);
     const path = kwSvg('path', {
       class: 'kw-edge kw-c' + a.arc.slot,
       d: `M${f(ax)} ${f(ay)} C${f(c1x)} ${f(c1y)} ${f(c2x)} ${f(c2y)} ${f(bx)} ${f(by)}`,
@@ -335,19 +455,33 @@ function drawKnowledgeWheel(host, items) {
     all.addEventListener('click', () => { knowledgeWheelHidden.clear(); redraw(); });
     legend.appendChild(all);
   }
+  // Hub kinds: click to hide or show a whole arc.
   const keyRow = pjMk('div', 'kw-legend kw-legend-key');
-  [['kw-swatch-hub', 'Client, system or tag'], ['kw-swatch-hollow', 'No client, system or tag']].forEach(([cls, label]) => {
-    const item = pjMk('span', 'kw-legend-item');
-    item.appendChild(pjMk('span', 'kw-swatch ' + cls));
-    item.appendChild(pjMk('span', null, label));
-    keyRow.appendChild(item);
+  const kindCounts = knowledgeMapHubCounts(items.filter(item => !knowledgeWheelHidden.has(item.type || '')));
+  KW_HUB_KINDS.forEach(([kind, label]) => {
+    if (!kindCounts[kind]) return;
+    const on = ws[kind] !== false;
+    const b = pjMk('button', 'kw-legend-item kw-legend-toggle' + (on ? '' : ' is-off'));
+    b.type = 'button';
+    b.title = 'Click to hide or show these on the wheel';
+    b.dataset.kind = kind;
+    b.setAttribute('aria-pressed', String(on));
+    b.appendChild(pjMk('span', 'kw-swatch kw-swatch-hub'));
+    b.appendChild(pjMk('span', null, label));
+    b.appendChild(pjMk('span', 'kw-legend-count', String(kindCounts[kind])));
+    b.addEventListener('click', () => { setKnowledgeWheelSetting(kind, !on); redraw(); });
+    keyRow.appendChild(b);
   });
+  const hollow = pjMk('span', 'kw-legend-item');
+  hollow.appendChild(pjMk('span', 'kw-swatch kw-swatch-hollow'));
+  hollow.appendChild(pjMk('span', null, 'Not linked to anything shown'));
+  keyRow.appendChild(hollow);
   host.appendChild(legend);
   host.appendChild(keyRow);
 
   if (unlinked.length) {
     const note = pjMk('div', 'kw-unlinked');
-    note.appendChild(pjMk('span', 'kw-unlinked-title', 'No client, system or tag yet:'));
+    note.appendChild(pjMk('span', 'kw-unlinked-title', 'Not linked to anything shown yet:'));
     unlinked.forEach(item => {
       const b = pjMk('button', 'kw-unlinked-item', item.title);
       b.type = 'button';
@@ -379,10 +513,15 @@ function knowledgeWheelHighlight(svg, info, node, arc, edgesByKey, nodeEls) {
   info.appendChild(name);
   let detail;
   if (node.kind === 'article') {
-    const c = (node.item.companies || []).length, s = (node.item.systems || []).length, t = (node.item.tags || []).length;
-    detail = !c && !s && !t ? (window.ctI18n?.t('No client, system or tag yet') || 'No client, system or tag yet')
-      : [knowledgeWheelCount(c, '1 client', '{n} clients'), knowledgeWheelCount(s, '1 system', '{n} systems'),
-        ...(t ? [knowledgeWheelCount(t, '1 tag', '{n} tags')] : [])].join(' · ');
+    const on = kind => knowledgeWheelSettings[kind] !== false;
+    const c = on('companies') ? (node.item.companies || []).length : 0, s = on('systems') ? (node.item.systems || []).length : 0;
+    const t = on('tags') ? (node.item.tags || []).length : 0, p = on('projects') && node.item.projectId ? 1 : 0;
+    const parts = [];
+    if (c) parts.push(knowledgeWheelCount(c, '1 client', '{n} clients'));
+    if (s) parts.push(knowledgeWheelCount(s, '1 system', '{n} systems'));
+    if (t) parts.push(knowledgeWheelCount(t, '1 tag', '{n} tags'));
+    if (p) parts.push(window.ctI18n?.t('Project') || 'Project');
+    detail = parts.length ? parts.join(' · ') : (window.ctI18n?.t('Not linked to anything shown yet') || 'Not linked to anything shown yet');
     const type = pjMk('span', 'kw-info-type', arc.label);
     if (arc.code) type.dataset.userContent = '';
     info.appendChild(type);
@@ -410,6 +549,44 @@ function knowledgeWheelRestore(svg, info, pos, edgesByKey, nodeEls) {
   svg.classList.remove('has-focus');
   svg.querySelectorAll('.is-lit').forEach(el => el.classList.remove('is-lit'));
   info.textContent = 'Hover a name to trace its links. Click an article to open it.';
+}
+
+// Labels and line strength change the drawing in place; bundling and size
+// redraw it (the panel stays, so a slider keeps its drag).
+function knowledgeWheelApplyLook(svg) {
+  const ws = knowledgeWheelSettings;
+  svg.classList.toggle('kw-hubs-only', ws.labels === 'hubs');
+  svg.style.setProperty('--kw-edge-rest', (0.04 + ws.links * 0.0036).toFixed(3));
+}
+
+function knowledgeWheelSettingsPanel(host) {
+  const ws = knowledgeWheelSettings;
+  const svg = () => host.querySelector('.kw-svg');
+  let pending = 0;
+  const redraw = () => {
+    cancelAnimationFrame(pending);
+    pending = requestAnimationFrame(() => drawKnowledgeWheel(host, knowledgeWheelItems));
+  };
+  return knowledgeSettingsPanel({
+    title: 'Wheel settings', open: ws.panel,
+    onToggle: open => setKnowledgeWheelSetting('panel', open),
+    segs: [{
+      label: 'Labels', value: ws.labels, options: [['all', 'All'], ['hubs', 'Hubs only']],
+      onChange: mode => { setKnowledgeWheelSetting('labels', mode); if (svg()) knowledgeWheelApplyLook(svg()); },
+    }],
+    ranges: [
+      { label: 'Link bundling', value: ws.bundling, onInput: v => { setKnowledgeWheelSetting('bundling', v); redraw(); } },
+      { label: 'Link visibility', value: ws.links, onInput: v => { setKnowledgeWheelSetting('links', v); if (svg()) knowledgeWheelApplyLook(svg()); } },
+      { label: 'Wheel size', value: ws.size, onInput: v => { setKnowledgeWheelSetting('size', v); redraw(); } },
+    ],
+    actions: [{ label: 'Reset', run: () => {
+      ['labels', 'bundling', 'links', 'size'].forEach(k => { knowledgeWheelSettings[k] = KW_DEFAULTS[k]; });
+      knowledgeSaveViewSettings('wheel', knowledgeWheelSettings);
+      knowledgeWheelPanel?.remove();
+      knowledgeWheelPanel = null;
+      drawKnowledgeWheel(host, knowledgeWheelItems);
+    } }],
+  });
 }
 
 // Opening an article narrows the list area (the side panel), so the wheel

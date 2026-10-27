@@ -911,8 +911,7 @@ function applyExistingTaskSelection(taskId) {
     populateSelect('f-company', 'companies', task.company || '');
     populateSelect('f-system',  'systems',   task.system  || '');
     populateSelect('f-status',  'status',    task.status  || 'IN_PROGRESS');
-    fProjectPicker = buildSearchSelect(document.getElementById('f-project'),
-      projectFieldOptions(task.projectId ?? null), task.projectId ?? null, 'No project');
+    buildClientProjectPicker('f-project', 'f-company', 'f-system', task.projectId ?? null, p => { fProjectPicker = p; });
     // Read-only summary of what the session will be logged against. Natural is
     // not shown here — it's per-session, not part of the task being picked.
     const bits = [companyDisplayName(task.company), lkLabel('SYSTEM', task.system)].filter(Boolean).join(' · ');
@@ -927,8 +926,7 @@ function applyExistingTaskSelection(taskId) {
     populateSelect('f-system',  'systems',   ''); blankSelect('f-system');
     populateSelect('f-status',  'status',    ''); blankSelect('f-status');
     document.getElementById('f-sources-list').innerHTML = ''; _fSourceOriginalIds = [];
-    fProjectPicker = buildSearchSelect(document.getElementById('f-project'),
-      projectFieldOptions(null), null, 'No project');
+    buildClientProjectPicker('f-project', 'f-company', 'f-system', null, p => { fProjectPicker = p; });
     summary.innerHTML = '';
     summary.classList.remove('has-task');
   }
@@ -2281,9 +2279,13 @@ async function openBacklogModal(id = null, opts = {}) {
   populateSelect('b-system',  'systems',   task?.system  || '');
   populateSelect('b-status',  'status',    task?.status  || 'IN_PROGRESS');
 
+  const companySel = document.getElementById('b-company');
+  const systemSel  = document.getElementById('b-system');
+  companySel.disabled = false;
+  systemSel.disabled  = false;
+
   if (!isEdit) {
-    ['b-company','b-system'].forEach(selId => {
-      const sel = document.getElementById(selId);
+    [companySel, systemSel].forEach(sel => {
       const blank = document.createElement('option');
       blank.value = ''; blank.textContent = '— select —';
       sel.insertBefore(blank, sel.firstChild);
@@ -2291,9 +2293,34 @@ async function openBacklogModal(id = null, opts = {}) {
     });
   }
 
+  // A task created from a project's page takes the project's client (a
+  // project has exactly one) and, when it has just one, its system — both
+  // locked. With several systems the list is narrowed to the project's own.
+  const project = lockedProject && currentProject?.id === _backlogCtx.projectId ? currentProject : null;
+  if (project) {
+    const client = (project.companies || [])[0];
+    const clientOpt = client && (lkFind('COMPANY', client.code) || lkFind('COMPANY', client.label));
+    if (clientOpt) {
+      companySel.value = clientOpt[LK_VALUE.companies || 'label'];
+      companySel.disabled = companySel.value !== '';
+    }
+    const sysIds = new Set((project.systems || []).map(s => Number(s.id)));
+    if (sysIds.size) {
+      [...systemSel.options].forEach(o => {
+        if (!o.value) return;
+        const opt = lkFind('SYSTEM', o.value);
+        if (!opt || !sysIds.has(Number(opt.id))) o.remove();
+      });
+      const real = [...systemSel.options].filter(o => o.value);
+      if (real.length === 1) {
+        systemSel.value = real[0].value;
+        systemSel.disabled = true;
+      }
+    }
+  }
+
   const initialProject = isEdit ? (task.projectId ?? null) : _backlogCtx.projectId;
-  bProjectPicker = buildSearchSelect(document.getElementById('b-project'),
-    projectFieldOptions(initialProject), initialProject, 'No project');
+  buildClientProjectPicker('b-project', 'b-company', 'b-system', initialProject, p => { bProjectPicker = p; });
   // Creating from a project's page — lock the picker to that project.
   const bpInput = document.querySelector('#b-project .ss-input');
   if (bpInput) bpInput.disabled = lockedProject;
@@ -2310,7 +2337,8 @@ async function openBacklogModal(id = null, opts = {}) {
 
   clearBacklogErrors();
   document.getElementById('backlog-modal-overlay').classList.add('open');
-  setTimeout(() => document.getElementById('b-company').focus(), 80);
+  const firstOpen = [companySel, systemSel].find(s => !s.disabled) || document.getElementById('b-description');
+  setTimeout(() => firstOpen.focus(), 80);
 }
 function closeBacklogModal() {
   document.getElementById('backlog-modal-overlay').classList.remove('open');

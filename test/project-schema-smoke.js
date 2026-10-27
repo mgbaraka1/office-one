@@ -35,7 +35,7 @@ for (const suffix of ['', '-wal', '-shm']) {
 let beforeCounts;
 {
   const prep = new DatabaseSync(path.join(workDir, 'cooperation-tools.db'));
-  beforeCounts = Object.fromEntries(['projects', 'tasks', 'project_companies', 'project_systems', 'project_documents']
+  beforeCounts = Object.fromEntries(['projects', 'tasks', 'project_companies', 'project_systems']
     .map(table => [table, prep.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get().n]));
   const columns = new Set(prep.prepare('PRAGMA table_info(projects)').all().map(c => c.name));
   if (!columns.has('category_id')) prep.exec('ALTER TABLE projects ADD COLUMN category_id INTEGER REFERENCES lookup_codes(id)');

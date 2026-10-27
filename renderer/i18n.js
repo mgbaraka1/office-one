@@ -96,7 +96,7 @@
     'Enter both English and Arabic labels. The app displays the matching label for the selected interface language.': 'أدخل التسمية بالإنجليزية والعربية. يعرض التطبيق التسمية المطابقة للغة الواجهة المحددة.',
     'English company name': 'اسم الشركة بالإنجليزية', 'اسم الشركة بالعربية': 'اسم الشركة بالعربية',
     'Each client profile has a unique business code plus English and Arabic names. Tasks, projects, and infrastructure stay linked when these values change.': 'لكل ملف عميل رمز عمل فريد واسم بالإنجليزية واسم بالعربية. تظل المهام والمشاريع والبنية التحتية مرتبطة عند تغيير هذه القيم.',
-    'Project Documents': 'مستندات المشروع', 'Project Name': 'اسم المشروع', 'Create Project': 'إنشاء مشروع',
+    'Project Name': 'اسم المشروع', 'Create Project': 'إنشاء مشروع',
     'New Project': 'مشروع جديد', 'Project deleted': 'تم حذف المشروع',
     'Client / Project work': 'عمل العميل / المشروع', 'Open Client': 'فتح العميل', 'Add System': 'إضافة نظام',
     'Add Server': 'إضافة خادم', 'Add Internal System': 'إضافة نظام داخلي', 'Add Connection': 'إضافة اتصال',
@@ -600,7 +600,6 @@
     'No sessions logged on this project yet.': 'لم تُسجل جلسات على هذا المشروع بعد.',
     'No tasks linked yet — use “Link Task” to attach existing work.': 'لا توجد مهام مرتبطة بعد — استخدم «ربط مهمة» لإرفاق عمل موجود.',
     'No unlinked tasks available.': 'لا توجد مهام غير مرتبطة متاحة.',
-    'No document types configured — add them in Settings → Project Documents.': 'لم تُضبط أنواع مستندات — أضفها من الإعدادات ← مستندات المشروع.',
     'Create knowledge items first, or create an empty group now.': 'أنشئ عناصر معرفة أولاً، أو أنشئ مجموعة فارغة الآن.',
     'Your formatted preview will appear here.': 'ستظهر المعاينة المنسقة هنا.',
     'Attachment saved': 'تم حفظ المرفق', 'Document added': 'تمت إضافة المستند', 'Document created': 'تم إنشاء المستند',
@@ -906,6 +905,17 @@
     // Wheel legend toggles and the hub readout (2026-10-21).
     '1 type': 'نوع واحد', '{n} types': '{n} أنواع',
     'Click to hide or show this type': 'انقر لإخفاء هذا النوع أو إظهاره', 'Show all types': 'إظهار كل الأنواع',
+    // Knowledge map: the force-laid network view (2026-10-27).
+    'Scroll to zoom, drag to move. Click an article to open it.': 'مرّر للتكبير، واسحب للتحريك. انقر مقالة لفتحها.',
+    'Knowledge map: articles and the clients, systems, tags and projects they are linked to': 'خريطة المعرفة: المقالات والعملاء والأنظمة والوسوم والمشاريع المرتبطة بها',
+    'Not linked to anything shown yet:': 'غير مرتبطة بأي شيء معروض بعد:', 'Not linked to anything shown yet': 'غير مرتبطة بأي شيء معروض بعد',
+    'Not linked to anything shown': 'غير مرتبطة بأي شيء معروض', 'Tag': 'وسم',
+    'Click to hide or show these on the map': 'انقر لإخفائها أو إظهارها على الخريطة',
+    'Map settings': 'إعدادات الخريطة', 'Labels': 'التسميات', 'Hubs': 'المحاور', 'Zoomed in': 'عند التكبير',
+    'Repel force': 'قوة التنافر', 'Link distance': 'طول الروابط', 'Pull to centre': 'الجذب نحو المركز',
+    'Wheel settings': 'إعدادات العجلة', 'Hubs only': 'المحاور فقط', 'Link bundling': 'تجميع الروابط',
+    'Link visibility': 'وضوح الروابط', 'Wheel size': 'حجم العجلة', 'Click to hide or show these on the wheel': 'انقر لإخفائها أو إظهارها على العجلة',
+    'Re-run layout': 'إعادة ترتيب الخريطة', 'Zoom in': 'تكبير', 'Zoom out': 'تصغير', 'Fit to view': 'ملاءمة العرض',
     // Server map: the Servers section drawn as a tree.
     'List': 'قائمة', 'Map': 'خريطة', 'Show servers as': 'عرض الخوادم كـ',
     'Environment differs from its server': 'البيئة تختلف عن بيئة الخادم',
@@ -985,8 +995,8 @@
     // Clients / systems links (migration 068).
     'Document kind': 'نوع المستند', 'No kind': 'بلا نوع', 'Archived items': 'العناصر المؤرشفة',
     'Search titles, clients, systems, documents, or tags…': 'ابحث في العناوين والعملاء والأنظمة والمستندات والوسوم…',
-    'Filter clients, systems, or tags…': 'تصفية العملاء أو الأنظمة أو الوسوم…',
-    'Filter Knowledge Hub clients, systems, and tags': 'تصفية عملاء وأنظمة ووسوم مركز المعرفة',
+    'Filter clients, projects, systems, or tags…': 'تصفية العملاء أو المشاريع أو الأنظمة أو الوسوم…', 'Find a filter…': 'ابحث في عوامل التصفية…',
+    'Filter Knowledge Hub clients, projects, systems, and tags': 'تصفية عملاء ومشاريع وأنظمة ووسوم مركز المعرفة',
     'Search clients…': 'البحث في العملاء…', 'Duplicate': 'نسخ العنصر', 'Restore from archive': 'استعادة من الأرشيف',
     'Copy created with the same clients, systems, and tags': 'تم إنشاء نسخة بنفس العملاء والأنظمة والوسوم',
     // Document shelf, drag and drop, side panel, plain notes (Phase 2).
@@ -1027,10 +1037,14 @@
     'Remove tag': 'إزالة الوسم', 'Tag every note': 'وسم كل الملاحظات',
     'Filled in from the folder name when the files share one folder. Needed when the notes link to no client or system.': 'يُملأ من اسم المجلد عندما تكون الملفات في مجلد واحد. مطلوب عند عدم ربط الملاحظات بعميل أو نظام.',
     'Add a tag, or link the notes to systems or clients': 'أضف وسماً، أو اربط الملاحظات بأنظمة أو عملاء',
-    // Knowledge Hub on client and project pages (Phase 4).
+    // One optional project per item, from the chosen clients (migration 081).
+    'No client': 'بلا عميل', 'A project belongs to one client': 'المشروع يتبع عميلاً واحداً',
+    'Choose a client first': 'اختر عميلاً أولاً', 'No projects for these clients': 'لا توجد مشاريع لهؤلاء العملاء',
+    'Optional. Only projects of the chosen clients.': 'اختياري. مشاريع العملاء المختارين فقط.',
+    'Choose a project of one of the linked clients': 'اختر مشروعاً لأحد العملاء المرتبطين',
+    // Knowledge Hub on client pages (Phase 4).
     'Show in Knowledge Hub': 'عرض في مركز المعرفة', 'New Knowledge item': 'عنصر معرفة جديد',
     'No Knowledge Hub items for this client yet.': 'لا توجد عناصر في مركز المعرفة لهذا العميل بعد.',
-    'No Knowledge Hub items for this project’s clients or systems yet.': 'لا توجد عناصر في مركز المعرفة لعملاء هذا المشروع أو أنظمته بعد.',
     'Link a client or system to see its Knowledge Hub items here.': 'اربط عميلاً أو نظاماً لعرض عناصره في مركز المعرفة هنا.',
     'No Knowledge Hub items match your search.': 'لا توجد عناصر في مركز المعرفة تطابق بحثك.',
     'Drop a file here: a matching name becomes its next version, anything else starts a new item linked here.':
@@ -1624,10 +1638,10 @@
     [/^code: (.+)$/s, m => `رمز: ${m[1]}`],
     [/^(\d+) min · ([\d.]+) h$/s, m => `${m[1]} دقيقة · ${m[2]} ساعة`],
     // Knowledge Hub facet-section and task-sessions collapse/expand toggles.
-    [/^(Expand|Collapse) (Types|Status|Groups|Tags|sessions|Clients|Systems|Document kind|Archived items)$/s, m => {
+    [/^(Expand|Collapse) (Types|Status|Groups|Tags|sessions|Clients|Projects|Systems|Document kind|Archived items)$/s, m => {
       const nounAr = {
         Types: 'الأنواع', Status: 'الحالة', Groups: 'المجموعات', Tags: 'الوسوم', sessions: 'الجلسات',
-        Clients: 'العملاء', Systems: 'الأنظمة', 'Document kind': 'نوع المستند', 'Archived items': 'العناصر المؤرشفة',
+        Clients: 'العملاء', Projects: 'المشاريع', Systems: 'الأنظمة', 'Document kind': 'نوع المستند', 'Archived items': 'العناصر المؤرشفة',
       }[m[2]];
       return `${m[1] === 'Expand' ? 'توسيع' : 'طي'} ${nounAr}`;
     }],

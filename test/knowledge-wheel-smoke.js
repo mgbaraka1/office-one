@@ -75,6 +75,23 @@ try {
 
   const lonely = model([{ id: 20, title: 'Alone', type: 'SOP', companies: [], systems: [] }]);
   record('No Clients or Systems arc when nothing is linked', lonely.length === 1 && lonely[0].kind === 'type', JSON.stringify(lonely.map(a => a.kind)));
+
+  const withProject = model([...items, { id: 15, title: 'Go-live notes', type: 'SOP', companies: [], systems: [], tags: ['Ops'], projectId: 7, projectName: 'Go-live' }]);
+  const projectArc = withProject.find(a => a.kind === 'projects');
+  record('A project is a hub in its own arc, after Tags',
+    withProject.slice(-2).map(a => a.kind).join(',') === 'tags,projects' && projectArc.nodes[0].label === 'Go-live' && projectArc.nodes[0].items.length === 1,
+    JSON.stringify(withProject.map(a => a.kind)));
+  const noSystems = model(items, new Set(), { systems: false, tags: false });
+  record('A hub kind switched off gets no arc', !noSystems.some(a => a.kind === 'systems' || a.kind === 'tags') && noSystems.some(a => a.kind === 'companies'),
+    JSON.stringify(noSystems.map(a => a.kind)));
+
+  const restore = vm.runInContext('knowledgeViewSettings', ctx);
+  const defaults = vm.runInContext('KW_DEFAULTS', ctx);
+  const back = restore(defaults, { tags: false, labels: 'hubs', bundling: 250, links: null, size: '30', panel: 1, extra: 'x' }, { labels: ['all', 'hubs'] });
+  record('Saved wheel settings are checked: booleans, 0..100 numbers, known words only',
+    back.tags === false && back.labels === 'hubs' && back.bundling === 100 && back.links === 50 && back.size === 30 && back.panel === false && !('extra' in back),
+    JSON.stringify(back));
+  record('Unknown label mode falls back to the default', restore(defaults, { labels: 'zoom' }, { labels: ['all', 'hubs'] }).labels === 'all');
 } catch (err) {
   record('Unexpected error', false, err.stack || String(err));
 }
