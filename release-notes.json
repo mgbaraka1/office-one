@@ -1,5 +1,40 @@
 [
   {
+    "version": "8.25.0",
+    "date": "2026-10-27",
+    "kind": "feat",
+    "title": {
+      "en": "Knowledge Map, settings for the Wheel, and articles linked to a project",
+      "ar": "خريطة المعرفة، وإعدادات للعجلة، وربط المقالات بمشروع"
+    },
+    "notes": [
+      {
+        "en": "Knowledge Hub has a new Map view beside List and Wheel: your articles as a network around the clients, systems, tags and projects they share. Scroll to zoom, drag to move, hover to trace links, click to open.",
+        "ar": "في مركز المعرفة عرض جديد هو الخريطة بجانب القائمة والعجلة: مقالاتك كشبكة حول العملاء والأنظمة والوسوم والمشاريع المشتركة بينها. مرّر للتكبير، واسحب للتحريك، ومرّر المؤشر لتتبّع الروابط، وانقر للفتح."
+      },
+      {
+        "en": "The Map and the Wheel each have a settings card: labels, how the links look, size, and which clients, systems, tags or projects to show. Your choices are remembered.",
+        "ar": "لكل من الخريطة والعجلة بطاقة إعدادات: التسميات، وشكل الروابط، والحجم، وأي العملاء أو الأنظمة أو الوسوم أو المشاريع تُعرض. وتُحفظ اختياراتك."
+      },
+      {
+        "en": "A Knowledge Hub item can be linked to one project of its client, and project pages list their items.",
+        "ar": "يمكن ربط عنصر في مركز المعرفة بمشروع واحد من مشاريع عميله، وتعرض صفحات المشاريع عناصرها."
+      },
+      {
+        "en": "A project belongs to one client, chosen when it is created.",
+        "ar": "ينتمي كل مشروع إلى عميل واحد يُختار عند إنشائه."
+      },
+      {
+        "en": "Knowledge Hub accepts PowerPoint (.pptx) files.",
+        "ar": "يقبل مركز المعرفة ملفات PowerPoint (.pptx)."
+      }
+    ],
+    "technical": [
+      "Migration 081 adds knowledge_items.project_id (ON DELETE SET NULL) with idx_knowledge_items_project via ADD COLUMN, so every trigger stays; it drops project_documents only when empty (its rows moved to Offers in 074).",
+      "Knowledge Map is a canvas force layout (Barnes-Hut) in renderer/features/knowledge-map.js; it only reads loaded items."
+    ]
+  },
+  {
     "version": "8.24.0",
     "date": "2026-10-22",
     "kind": "feat",
