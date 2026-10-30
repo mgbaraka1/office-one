@@ -1013,13 +1013,13 @@ function anTrend(from, to, dayMin, otMin = null, width = 900) {
 // GitHub-style contribution grid. `start` is a Sunday; renders `weeks` columns,
 // with month labels along the top and Mon/Wed/Fri labels down the left.
 function anHeatmap(start, weeks, dayMin, today) {
-  const cols = [], months = [];
+  const cols = [], monthLbl = [];
   const cur = new Date(start);
   let prevMonth = -1;
   for (let w = 0; w < weeks; w++) {
     // Label a column with its month name when the month rolls over.
     const m = cur.getMonth();
-    months.push(`<span class="an-heat-mcol">${m !== prevMonth ? cur.toLocaleDateString('en-US', { month: 'short' }) : ''}</span>`);
+    monthLbl.push(m !== prevMonth ? cur.toLocaleDateString('en-US', { month: 'short' }) : '');
     prevMonth = m;
     let col = '';
     for (let day = 0; day < 7; day++) {
@@ -1042,10 +1042,22 @@ function anHeatmap(start, weeks, dayMin, today) {
     }
     cols.push(`<div class="an-heat-col">${col}</div>`);
   }
+  // A label too close to the next one (e.g. a lone leading week of last
+  // December) would collide with it — drop the earlier label.
+  let next = Infinity;
+  for (let w = weeks - 1; w >= 0; w--) {
+    if (!monthLbl[w]) continue;
+    if (next - w < 3) monthLbl[w] = '';
+    else next = w;
+  }
+  const months = monthLbl.map(l => `<span class="an-heat-mcol">${l}</span>`).join('');
   const wd = ['', 'Mon', '', 'Wed', '', 'Fri', ''].map(l => `<span class="an-heat-wd">${l}</span>`).join('');
+  // One grid so the weekday column sizes to its (translated) labels and the
+  // month row lines up with the cells in both LTR and RTL.
   return `
-    <div class="an-heat-months">${months.join('')}</div>
-    <div class="an-heat-body">
+    <div class="an-heat-grid">
+      <span></span>
+      <div class="an-heat-months">${months}</div>
       <div class="an-heat-weekdays">${wd}</div>
       <div class="an-heat">${cols.join('')}</div>
     </div>`;

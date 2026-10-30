@@ -336,59 +336,55 @@ function showClientDetailView() {
 
 // `index`/`total` position the card within the roster, for Arrange mode's
 // move up/down buttons. Both are omitted when the card isn't in the ordered
-// grid (e.g. a search-results context), which simply hides those controls.
+// grid (e.g. a name-sorted view), which simply hides those controls.
+// The four record types a card counts. Same icons as the detail view's tiles.
+const CLIENT_CARD_STATS = [
+  ['folder', 'Projects'], ['zap', 'Access'], ['server', 'Servers'], ['layout-dashboard', 'Systems'],
+];
+
+// A compact card: name and code on top, then one line of icon + number per
+// record type (an empty one dimmed; the label is the tooltip). Clicking the
+// card opens the client; an archived one also offers Restore.
 function buildClientCard(c, projectCount, index, total) {
   const archived = c.isActive === false;
-  const card = pjMk('div', 'pj-card' + (archived ? ' cl-card-archived' : ''));
+  const card = pjMk('div', 'cl-mini' + (archived ? ' cl-mini-archived' : ''));
+  card.tabIndex = 0;
+  card.setAttribute('role', 'button');
   card.addEventListener('click', () => openClientDetail(c.id));
+  card.addEventListener('keydown', e => {
+    if (e.target === card && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openClientDetail(c.id); }
+  });
 
-  const head = pjMk('div', 'pj-card-head');
-  const identity = pjMk('div', 'client-card-identity');
-  identity.appendChild(pjMk('div', 'pj-card-name', companyDisplayName(c) || 'Untitled'));
-  head.appendChild(identity);
-  if (c.code) head.appendChild(pjMk('span', 'client-code-badge', c.code));
+  const head = pjMk('div', 'cl-mini-head');
+  const name = pjMk('span', 'cl-mini-name', companyDisplayName(c) || 'Untitled');
+  name.dataset.userContent = '';
+  name.title = companyDisplayName(c) || '';
+  head.appendChild(name);
   if (archived) head.appendChild(pjMk('span', 'cl-archived-badge', 'Archived'));
+  if (c.code) head.appendChild(pjMk('span', 'client-code-badge', c.code));
   card.appendChild(head);
 
-  // One chip per record type, each its own icon + number + label so the label
-  // translates on its own and the number never drifts under RTL bidi. Same
-  // icons as the detail view's section tiles; an empty type is dimmed.
-  const stats = pjMk('div', 'cl-card-stats');
-  [
-    ['folder', projectCount || 0, 'Projects'],
-    ['zap', c.vpnCount || 0, 'Access'],
-    ['server', c.serverCount || 0, 'Servers'],
-    ['layout-dashboard', c.internalSystemCount || 0, 'Systems'],
-  ].forEach(([icon, n, label]) => {
-    const chip = pjMk('span', 'cl-card-stat' + (n ? '' : ' is-empty'));
-    chip.innerHTML = ic(icon);
-    chip.appendChild(pjMk('b', 'cl-card-stat-n', String(n)));
-    chip.appendChild(pjMk('span', 'cl-card-stat-label', label));
-    stats.appendChild(chip);
+  const foot = pjMk('div', 'cl-mini-foot');
+  const stats = pjMk('div', 'cl-mini-stats');
+  [projectCount || 0, c.vpnCount || 0, c.serverCount || 0, c.internalSystemCount || 0].forEach((n, i) => {
+    const cell = pjMk('span', 'cl-mini-stat' + (n ? '' : ' is-empty'));
+    cell.innerHTML = ic(CLIENT_CARD_STATS[i][0]);
+    cell.appendChild(pjMk('b', '', String(n)));
+    cell.title = CLIENT_CARD_STATS[i][1];
+    stats.appendChild(cell);
   });
-  card.appendChild(stats);
-
-  const foot = pjMk('div', 'pj-card-foot cl-card-foot');
-
-  // An archived client's primary action is getting it back, so Restore takes
-  // the slot "Open" normally holds. Opening it still works via the card body.
+  foot.appendChild(stats);
+  if (clientsArrangeMode && Number.isInteger(index) && Number.isInteger(total)) {
+    foot.appendChild(buildClientReorderControls(index, total));
+  }
   if (archived) {
     const restore = pjMk('button', 'btn cl-card-restore');
     restore.type = 'button';
     restore.innerHTML = ic('rotate-ccw') + 'Restore';
     restore.addEventListener('click', e => { e.stopPropagation(); setClientArchived(c.id, false); });
     foot.appendChild(restore);
-  } else {
-    const open = pjMk('span', 'pj-card-open', 'Open');
-    open.insertAdjacentHTML('beforeend', ic('chevron-right'));
-    foot.appendChild(open);
   }
   card.appendChild(foot);
-
-  if (clientsArrangeMode && Number.isInteger(index) && Number.isInteger(total)) {
-    card.appendChild(buildClientReorderControls(index, total));
-  }
-
   return card;
 }
 
@@ -444,10 +440,12 @@ function renderClientsList() {
     // Arrange's move buttons index into the saved order, so a name-sorted
     // view passes no position and the card leaves them off.
     const sorted = !!clientsSort;
+    const box = pjMk('div', 'cl-mini-grid');
     clientsInViewOrder().forEach((c, i) =>
-      grid.appendChild(sorted
+      box.appendChild(sorted
         ? buildClientCard(c, projCounts.get(c.id) || 0)
         : buildClientCard(c, projCounts.get(c.id) || 0, i, clientsList.length)));
+    grid.appendChild(box);
     return;
   }
 

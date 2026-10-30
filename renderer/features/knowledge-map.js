@@ -14,16 +14,26 @@
 //
 // Positions are kept per node key across redraws, so changing a filter moves
 // only what changed instead of shuffling the whole map.
+//
+// Beside the canvas, a side list shows every group (client, system, tag,
+// project) biggest first; clicking one, or double-clicking a hub on the map,
+// drills in: the map keeps only the articles linked to that group, and a trail
+// above it (Whole map / Acme / ERP) steps back out. Each step narrows further,
+// so Acme / ERP is the articles linked to both. Typing in the side list's
+// search box lists matching names instead; picking one moves the map to it.
 
 let knowledgeMapItems = [];
 let knowledgeMapState = null;          // the live map: canvas, graph, view, simulation
 let knowledgeMapPinned = null;         // node key kept lit after a click
 let knowledgeMapObserver = null;
+let knowledgeMapPath = [];             // drill-down: [{ key, label }], outermost first
+let knowledgeMapQuery = '';            // the side list's search text
 const knowledgeMapPositions = new Map();   // node key -> { x, y }
 const knowledgeMapHidden = new Set();      // type codes switched off in the legend
 
 const KM_HUB_KINDS = ['companies', 'systems', 'tags', 'projects'];
 const KM_HUB_PREFIX = { companies: 'c', systems: 's', tags: 't', projects: 'p' };
+const KM_PREFIX_KIND = { c: 'companies', s: 'systems', t: 'tags', p: 'projects' };
 const KM_LABEL_MODES = ['hubs', 'zoom', 'all'];
 const KM_DEFAULTS = Object.freeze({
   companies: true, systems: true, tags: true, projects: true,
@@ -103,6 +113,43 @@ function knowledgeMapHubCounts(items) {
     if (item.projectId) sets.projects.add(item.projectId);
   });
   return Object.fromEntries(KM_HUB_KINDS.map(k => [k, sets[k].size]));
+}
+
+// The hub keys an item links to (the same keys knowledgeMapModel gives hubs).
+function knowledgeMapItemHubKeys(item) {
+  const keys = new Set();
+  (item.companies || []).forEach(l => keys.add('c' + l.id));
+  (item.systems || []).forEach(l => keys.add('s' + l.id));
+  (item.tags || []).forEach(t => keys.add('t' + t.toLowerCase()));
+  if (item.projectId) keys.add('p' + item.projectId);
+  return keys;
+}
+
+// The items linked to every hub in `keys` (all of them when `keys` is empty).
+function knowledgeMapDrill(items, keys) {
+  if (!keys.length) return items;
+  return items.filter(item => { const own = knowledgeMapItemHubKeys(item); return keys.every(k => own.has(k)); });
+}
+
+// The drill-down path cut back to what still makes sense: no step of a hub
+// kind switched off, and none that would leave the map empty. Returns the
+// items the map should show.
+function knowledgeMapTrimPath(items, show = knowledgeMapSettings) {
+  for (;;) {
+    const path = knowledgeMapPath;
+    const off = path.findIndex(p => show[KM_PREFIX_KIND[p.key[0]]] === false);
+    if (off >= 0) { knowledgeMapPath = path.slice(0, off); continue; }
+    const scoped = knowledgeMapDrill(items, path.map(p => p.key));
+    if (scoped.length || !path.length) return scoped;
+    knowledgeMapPath = path.slice(0, -1);
+  }
+}
+
+// How many other hubs share an article with this one.
+function kmHubConnections(node) {
+  const others = new Set();
+  node.adj.forEach(a => a.adj.forEach(m => { if (m !== node) others.add(m); }));
+  return others.size;
 }
 
 // ── Force layout ──
@@ -298,12 +345,14 @@ function drawKnowledgeMap(host, items) {
   host.innerHTML = '';
   ensureKnowledgeMapObserver(host);
 
-  // Forget hidden types that are no longer in the list, and never hide them all.
+  // Forget hidden types that are no longer in the list, and never hide all of
+  // the ones on the (drilled-in) map.
   const present = new Set(items.map(item => item.type || ''));
   [...knowledgeMapHidden].forEach(code => { if (!present.has(code)) knowledgeMapHidden.delete(code); });
-  if (knowledgeMapHidden.size >= present.size) knowledgeMapHidden.clear();
+  const scoped = knowledgeMapTrimPath(items);
+  if (scoped.every(item => knowledgeMapHidden.has(item.type || ''))) knowledgeMapHidden.clear();
 
-  const graph = knowledgeMapModel(items, knowledgeMapSettings, knowledgeMapHidden);
+  const graph = knowledgeMapModel(scoped, knowledgeMapSettings, knowledgeMapHidden);
   if (knowledgeMapPinned && !graph.byKey.has(knowledgeMapPinned)) knowledgeMapPinned = null;
   const hubMax = Math.max(1, ...graph.nodes.filter(n => n.kind !== 'article').map(n => n.degree));
   graph.nodes.forEach(n => {
@@ -314,8 +363,10 @@ function drawKnowledgeMap(host, items) {
   const info = pjMk('div', 'kw-info km-info');
   info.setAttribute('aria-live', 'polite');
   host.appendChild(info);
-  host.appendChild(kmLegend(host, items, graph));
+  host.appendChild(kmLegend(host, scoped, graph));
+  if (knowledgeMapPath.length) host.appendChild(kmCrumbs(host, scoped.length));
 
+  const body = pjMk('div', 'km-body');
   const stage = pjMk('div', 'km-stage');
   const canvas = document.createElement('canvas');
   canvas.className = 'km-canvas';
@@ -323,7 +374,8 @@ function drawKnowledgeMap(host, items) {
   canvas.setAttribute('role', 'img');
   canvas.setAttribute('aria-label', 'Knowledge map: articles and the clients, systems, tags and projects they are linked to');
   stage.appendChild(canvas);
-  host.appendChild(stage);
+  body.appendChild(stage);
+  host.appendChild(body);
 
   const fresh = graph.nodes.filter(n => !knowledgeMapPositions.has(n.key)).length;
   // Mostly the same dots (a type hidden, a filter widened): keep the user's
@@ -332,7 +384,7 @@ function drawKnowledgeMap(host, items) {
   const keepView = same && prev?.userMoved && prev.view;
   const sim = knowledgeMapSimulation(graph, knowledgeMapParams(), knowledgeMapPositions);
   const state = {
-    host, stage, canvas, ctx: canvas.getContext('2d'), info, graph, sim,
+    host, body, stage, canvas, ctx: canvas.getContext('2d'), info, graph, sim, tip: knowledgeTip(stage), side: null,
     view: keepView ? { ...prev.view } : { x: 0, y: 0, k: 1 },
     userMoved: !!keepView, hover: null, press: null, raf: 0, width: 0, height: 0, dpr: 1,
     font: getComputedStyle(host).fontFamily || 'sans-serif',
@@ -346,6 +398,7 @@ function drawKnowledgeMap(host, items) {
 
   stage.appendChild(kmPanel(state));
   stage.appendChild(kmZoomControls(state));
+  body.insertBefore(kmSide(state), stage);
   kmBindPointer(state);
   kmResize(state);
   if (!state.userMoved) kmFit(state);
@@ -372,9 +425,12 @@ function kmRemember(state) {
   state.graph.nodes.forEach(n => knowledgeMapPositions.set(n.key, { x: n.x, y: n.y }));
 }
 
-// The canvas fills the column and the rest of the window's height.
+// The canvas fills the column (beside the side list, or under it when the
+// column is narrow) and the rest of the window's height.
 function kmResize(state) {
-  const { stage, canvas } = state;
+  const { stage, canvas, body, side } = state;
+  const stacked = (body.clientWidth || 900) < 720;
+  body.classList.toggle('is-stacked', stacked);
   const width = Math.max(300, stage.clientWidth || 900);
   const room = window.innerHeight - stage.getBoundingClientRect().top - 24;
   const height = Math.round(Math.min(1100, Math.max(420, room)));
@@ -383,6 +439,7 @@ function kmResize(state) {
   if (state.width) { state.view.x += (width - state.width) / 2; state.view.y += (height - state.height) / 2; }
   Object.assign(state, { width, height, dpr });
   stage.style.height = height + 'px';
+  if (side) side.el.style.height = stacked ? '' : height + 'px';
   canvas.style.width = width + 'px';
   canvas.style.height = height + 'px';
   canvas.width = Math.round(width * dpr);
@@ -508,6 +565,29 @@ function kmDraw(state) {
   });
 
   kmDrawLabels(state, c, focus, lit);
+  // The hover card follows its dot while the layout is still moving.
+  const h = state.hover;
+  if (h) knowledgePlaceTip(state.tip, view.x + h.x * k, view.y + h.y * k, h.r * k, width, height);
+}
+
+function kmTipFill(state, n) {
+  if (!n) { state.tip.hidden = true; return; }
+  if (n.kind === 'article') {
+    const type = state.graph.types.get(n.item.type || '');
+    knowledgeFillTip(state.tip, {
+      name: n.label, kind: type?.label || '', userKind: !!type?.code, mark: 'kw-swatch kw-c' + n.slot,
+      stats: knowledgeTipStats({ documents: knowledgeDocCount(n.item), connections: n.degree }),
+    });
+  } else {
+    knowledgeFillTip(state.tip, {
+      name: n.label, kind: KM_KIND_ONE[n.kind], mark: 'km-shape km-shape-' + n.kind,
+      stats: knowledgeTipStats({
+        articles: n.degree,
+        documents: n.adj.reduce((sum, a) => sum + knowledgeDocCount(a.item), 0),
+        connections: kmHubConnections(n),
+      }),
+    });
+  }
 }
 
 // Labels are drawn in screen pixels (the same size at any zoom) and never on
@@ -571,7 +651,7 @@ function kmDrawLabels(state, c, focus, lit) {
 function kmInfo(state) {
   const info = state.info;
   const node = kmFocus(state);
-  if (!node) { info.textContent = 'Scroll to zoom, drag to move. Click an article to open it.'; return; }
+  if (!node) { info.textContent = 'Scroll to zoom, drag to move. Click an article to open it; double-click a group to zoom into it.'; return; }
   info.innerHTML = '';
   const name = pjMk('strong', null, node.label);
   name.dataset.userContent = '';
@@ -626,6 +706,7 @@ function kmSetHover(state, node) {
   if (state.hover === node) return;
   state.hover = node;
   state.canvas.style.cursor = node ? 'pointer' : (state.press ? 'grabbing' : 'grab');
+  kmTipFill(state, node);
   kmInfo(state);
   kmKick(state);
 }
@@ -678,7 +759,9 @@ function kmBindPointer(state) {
     kmZoom(state, Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0015)), pt.x, pt.y);
   }, { passive: false });
   canvas.addEventListener('dblclick', e => {
-    if (kmHit(state, kmLocal(state, e))) return;
+    const node = kmHit(state, kmLocal(state, e));
+    if (node && node.kind !== 'article') { kmDrillTo(state, [...knowledgeMapPath, { key: node.key, label: node.label }]); return; }
+    if (node) return;
     state.userMoved = false;
     kmFit(state); kmKick(state);
   });
@@ -711,6 +794,146 @@ function kmActivate(state, node) {
   kmInfo(state); kmKick(state);
 }
 
+// ── Drill-down, side list and search ──
+
+function kmDrillTo(state, path) {
+  knowledgeMapPath = path;
+  knowledgeMapPinned = null;
+  knowledgeMapQuery = '';
+  state.userMoved = false;   // the redraw fits the new, smaller map
+  drawKnowledgeMap(state.host, knowledgeMapItems);
+}
+
+// Centres the map on a node, zoomed in enough to read its neighbours, and keeps it lit.
+function kmJumpTo(state, n) {
+  const k = Math.max(state.view.k, 1.6);
+  state.view = { k, x: state.width / 2 - n.x * k, y: state.height / 2 - n.y * k };
+  state.userMoved = true;
+  knowledgeMapPinned = n.key;
+  kmInfo(state);
+  kmKick(state);
+}
+
+// "Whole map / Acme / ERP · 12 articles": each step but the last steps back to it.
+function kmCrumbs(host, count) {
+  const nav = pjMk('nav', 'km-crumbs');
+  nav.setAttribute('aria-label', 'Map drill-down');
+  const step = (label, path, user) => {
+    const last = path.length === knowledgeMapPath.length;
+    const b = pjMk('button', 'km-crumb', label);
+    b.type = 'button';
+    if (user) b.dataset.userContent = '';
+    if (last) b.setAttribute('aria-current', 'location');
+    else b.addEventListener('click', () => { if (knowledgeMapState) kmDrillTo(knowledgeMapState, path); });
+    nav.appendChild(b);
+  };
+  const whole = pjMk('button', 'km-crumb km-crumb-home');
+  whole.type = 'button';
+  whole.innerHTML = ic('orbit');
+  whole.appendChild(pjMk('span', null, 'Whole map'));
+  whole.addEventListener('click', () => { if (knowledgeMapState) kmDrillTo(knowledgeMapState, []); });
+  nav.appendChild(whole);
+  knowledgeMapPath.forEach((p, i) => {
+    nav.appendChild(pjMk('span', 'km-crumb-sep', '/'));
+    step(p.label, knowledgeMapPath.slice(0, i + 1), true);
+  });
+  nav.appendChild(pjMk('span', 'km-crumb-count', knowledgeWheelCount(count, '1 article', '{n} articles')));
+  return nav;
+}
+
+function kmSide(state) {
+  const el = pjMk('div', 'km-side');
+  const search = document.createElement('input');
+  search.type = 'search';
+  search.className = 'km-search';
+  search.placeholder = 'Find on the map';
+  search.setAttribute('aria-label', 'Find on the map');
+  search.value = knowledgeMapQuery;
+  const head = pjMk('div', 'km-side-head');
+  head.setAttribute('aria-live', 'polite');
+  const list = pjMk('div', 'km-side-list');
+  list.setAttribute('role', 'list');
+  el.append(search, head, list);
+  state.side = { el, search, head, list };
+
+  search.addEventListener('input', () => { knowledgeMapQuery = search.value; kmFillSide(state); });
+  search.addEventListener('keydown', e => {
+    const first = list.querySelector('.km-row');
+    if (e.key === 'Enter' && first) { e.preventDefault(); first.click(); }
+    else if (e.key === 'ArrowDown' && first) { e.preventDefault(); first.focus(); }
+    else if (e.key === 'Escape' && search.value) { e.preventDefault(); search.value = ''; knowledgeMapQuery = ''; kmFillSide(state); }
+  });
+  // Up and down move between rows; up from the first goes back to the box.
+  list.addEventListener('keydown', e => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    const rows = [...list.querySelectorAll('.km-row')];
+    const i = rows.indexOf(document.activeElement);
+    if (i < 0) return;
+    e.preventDefault();
+    const next = e.key === 'ArrowDown' ? rows[i + 1] : rows[i - 1];
+    (next || (e.key === 'ArrowUp' ? search : rows[i])).focus();
+  });
+  kmFillSide(state);
+  return el;
+}
+
+// The groups on the map, biggest first, each with a bar for its size; or,
+// while the box has text, the names on the map that contain it.
+function kmFillSide(state) {
+  const { head, list } = state.side;
+  const q = knowledgeMapQuery.trim().toLocaleLowerCase();
+  const onPath = new Set(knowledgeMapPath.map(p => p.key));
+  const nodes = state.graph.nodes.filter(n => !onPath.has(n.key));
+  list.innerHTML = '';
+  let rows;
+  if (q) {
+    const starts = n => (n.label.toLocaleLowerCase().replace(/^#/, '').startsWith(q.replace(/^#/, '')) ? 0 : 1);
+    rows = nodes.filter(n => n.label.toLocaleLowerCase().includes(q))
+      .sort((a, b) => starts(a) - starts(b) || b.degree - a.degree || a.label.localeCompare(b.label));
+    head.textContent = rows.length ? knowledgeWheelCount(rows.length, '1 match', '{n} matches')
+      : (window.ctI18n?.t('No matches on this map') || 'No matches on this map');
+    rows = rows.slice(0, 80);
+  } else {
+    rows = nodes.filter(n => n.kind !== 'article')
+      .sort((a, b) => b.degree - a.degree || a.label.localeCompare(b.label));
+    head.textContent = rows.length ? knowledgeWheelCount(rows.length, '1 group, by size', '{n} groups, by size')
+      : (window.ctI18n?.t('No groups on this map') || 'No groups on this map');
+  }
+  const max = Math.max(1, ...rows.filter(n => n.kind !== 'article').map(n => n.degree));
+  rows.forEach(n => list.appendChild(kmRow(state, n, max, !q)));
+}
+
+// A side-list row. In the groups list a click drills into the group; in
+// search results it moves the map to the name.
+function kmRow(state, n, max, drill) {
+  const b = pjMk('button', 'km-row');
+  b.type = 'button';
+  b.setAttribute('role', 'listitem');
+  b.appendChild(pjMk('span', n.kind === 'article' ? 'kw-swatch kw-c' + n.slot : 'km-shape km-shape-' + n.kind));
+  const name = pjMk('span', 'km-row-name', n.label);
+  name.dataset.userContent = '';
+  b.appendChild(name);
+  b.appendChild(pjMk('span', 'kw-legend-count', String(n.degree)));
+  if (n.kind !== 'article') {
+    const bar = pjMk('span', 'km-row-bar');
+    bar.style.setProperty('--km-bar', (n.degree / max * 100).toFixed(1) + '%');
+    b.appendChild(bar);
+  }
+  const toGroup = drill && n.kind !== 'article';
+  if (toGroup) b.title = 'Click to zoom into this group';
+  else b.title = 'Click to find it on the map';
+  b.addEventListener('click', () => {
+    if (toGroup) kmDrillTo(state, [...knowledgeMapPath, { key: n.key, label: n.label }]);
+    else kmJumpTo(state, n);
+  });
+  const on = () => kmSetHover(state, n), off = () => { if (state.hover === n) kmSetHover(state, null); };
+  b.addEventListener('mouseenter', on);
+  b.addEventListener('focus', on);
+  b.addEventListener('mouseleave', off);
+  b.addEventListener('blur', off);
+  return b;
+}
+
 // ── Legend, settings panel, zoom buttons ──
 
 function kmLegend(host, items, graph) {
@@ -732,7 +955,7 @@ function kmLegend(host, items, graph) {
     b.appendChild(pjMk('span', 'kw-legend-count', String(type.count)));
     b.addEventListener('click', () => {
       if (type.hidden) knowledgeMapHidden.delete(type.code);
-      else if (types.length - knowledgeMapHidden.size > 1) knowledgeMapHidden.add(type.code);
+      else if (types.filter(t => !t.hidden).length > 1) knowledgeMapHidden.add(type.code);
       else return;
       redraw();
     });

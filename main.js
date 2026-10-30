@@ -366,7 +366,9 @@ ipcMain.handle('companydocs:update', authed((_e, id, data) => db.updateCompanyDo
 ipcMain.handle('companydocs:delete', authed((_e, id)       => db.deleteCompanyDocument(auth.requireUserId(), id)));
 // Upload (and replace — db.saveCompanyDocumentFile deletes the prior file on conflict).
 ipcMain.handle('companydocs:upload-document', authed(async (_e, id) => {
-  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+  // E2E-only, like OFFICE_ONE_E2E_PFM_FILES: a disposable file in place of the dialog.
+  const e2eFile = isE2ERun ? process.env.OFFICE_ONE_E2E_COMPANYDOC_FILE : null;
+  const { canceled, filePaths } = e2eFile ? { canceled: false, filePaths: [e2eFile] } : await dialog.showOpenDialog(win, {
     title: 'Choose a document to upload',
     properties: ['openFile'],
     filters: [
@@ -400,6 +402,31 @@ ipcMain.handle('companydocs:download-document', authed(async (_e, id) => {
   if (canceled || !filePath) return { ok: false, canceled: true };
   try { fs.copyFileSync(r.absPath, filePath); return { ok: true, path: filePath }; }
   catch (err) { return { ok: false, error: String(err?.message || err) }; }
+}));
+// Save several cards' files into one ZIP. The renderer sends card ids plus the
+// folder/name each file should get; ids are owner-checked and every path
+// segment cleaned here (helpers in the Knowledge Hub section below), so no disk
+// path comes from the page. Missing files are skipped and counted.
+ipcMain.handle('companydocs:download-zip', authed(async (_e, entries, defaultName) => {
+  const userId = auth.requireUserId();
+  const wanted = Array.isArray(entries) ? entries.slice(0, 5000) : [];
+  if (!wanted.length) return { ok: false, error: 'No documents to download' };
+  const files = [];
+  let skipped = 0, total = 0;
+  for (const entry of wanted) {
+    const r = db.resolveCompanyDocumentFile(userId, Number(entry?.id));
+    if (!r.ok || !r.exists) { skipped++; continue; }
+    try { total += fs.statSync(r.absPath).size; } catch { skipped++; continue; }
+    if (total > KNOWLEDGE_ZIP_MAX_BYTES) return { ok: false, error: 'The documents are over 1 GB together — select fewer' };
+    // The card's name with the stored file's extension, e.g. "VAT Certificate.pdf".
+    const ext = path.extname(r.originalName || '');
+    const base = String(entry?.name || '').trim();
+    const name = !base ? r.originalName : base.toLowerCase().endsWith(ext.toLowerCase()) ? base : base + ext;
+    const segments = [...(Array.isArray(entry.dirs) ? entry.dirs : []).map(dir => zipPathSegment(dir, 'Documents')),
+      zipPathSegment(name, 'document')];
+    files.push({ absPath: r.absPath, path: segments.join('/') });
+  }
+  return saveDocumentsZip(files, skipped, defaultName, 'company-documents.zip');
 }));
 // Open with the OS default application.
 ipcMain.handle('companydocs:open-document', authed(async (_e, id) => {
@@ -510,9 +537,14 @@ ipcMain.handle('knowledge:download-zip', authed(async (_e, entries, defaultName)
       zipPathSegment(entry.name || r.originalName, 'document')];
     files.push({ absPath: r.absPath, path: segments.join('/') });
   }
+  return saveDocumentsZip(files, skipped, defaultName, 'knowledge.zip');
+}));
+// Shared tail of the document ZIP handlers: ask where to save, then write.
+async function saveDocumentsZip(files, skipped, defaultName, fallbackName) {
   if (!files.length) return { ok: false, error: 'The documents are missing from disk' };
-  const safeDefaultName = path.basename(String(defaultName || 'knowledge.zip')).slice(0, 180) || 'knowledge.zip';
-  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+  const safeDefaultName = path.basename(String(defaultName || fallbackName)).slice(0, 180) || fallbackName;
+  const e2eZipPath = isE2ERun ? process.env.OFFICE_ONE_E2E_ZIP_PATH : null;
+  const { canceled, filePath } = e2eZipPath ? { canceled: false, filePath: e2eZipPath } : await dialog.showSaveDialog(win, {
     title: 'Save documents as ZIP',
     defaultPath: safeDefaultName,
     filters: [{ name: 'ZIP archive', extensions: ['zip'] }],
@@ -525,7 +557,7 @@ ipcMain.handle('knowledge:download-zip', authed(async (_e, entries, defaultName)
   } catch (err) {
     return { ok: false, error: String(err?.message || err) };
   }
-}));
+}
 ipcMain.handle('knowledge:open-attachment', authed(async (_e, attachmentId) => {
   const r = db.resolveKnowledgeAttachment(auth.requireUserId(), attachmentId);
   if (!r.ok) return r;

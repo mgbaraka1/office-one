@@ -51,6 +51,10 @@ gate('The Knowledge Hub ZIP download takes a list of attachment entries',
   validateIpcArgs('knowledge:download-zip', [[{ id: 1, dirs: ['Item'], name: 'a.pdf' }], 'knowledge.zip']));
 rejects('The Knowledge Hub ZIP download refuses a non-list payload',
   () => validateIpcArgs('knowledge:download-zip', [{ id: 1 }, 'knowledge.zip']));
+gate('The Company Documents ZIP download takes a list of card entries',
+  validateIpcArgs('companydocs:download-zip', [[{ id: 1, dirs: ['Folder A'], name: 'Sample doc' }], 'company-documents.zip']));
+rejects('The Company Documents ZIP download refuses a non-list payload',
+  () => validateIpcArgs('companydocs:download-zip', [{ id: 1 }, 'company-documents.zip']));
 gate('The Offers & CRs ZIP export takes the Excel data and a list of items',
   validateIpcArgs('pfm:export-zip', [{ rows: [] }, [{ id: 1, client: 'Client A' }], 'Offers and CRs.zip']));
 rejects('The Offers & CRs ZIP export refuses a non-list of items',

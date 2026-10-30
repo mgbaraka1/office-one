@@ -39,6 +39,7 @@ function renderCompanyDocsList() {
   const empty = document.getElementById('companydocs-empty-state');
   grid.innerHTML = '';
   renderCompanyDocToolbar();
+  document.getElementById('companydocs-zip-btn').hidden = !companyDocs.some(cdHasFile);
 
   if (companyDocs.length === 0) {
     grid.style.display = 'none';
@@ -63,7 +64,96 @@ function renderCompanyDocsList() {
   }
   grid.style.display = '';
   empty.hidden = true;
-  shown.forEach(d => grid.appendChild(buildCompanyDocCard(d)));
+  // Grouped under category headings (lookup order, "No category" last); each
+  // group keeps the most-urgent-first order.
+  const order = lkOptions('COMPANY_DOCUMENT_CATEGORY', true).map(o => o.code);
+  const groups = new Map();
+  shown.forEach(d => {
+    const code = d.category || '';
+    if (!groups.has(code)) groups.set(code, []);
+    groups.get(code).push(d);
+  });
+  const rank = code => code === '' ? Infinity : (order.indexOf(code) + 1 || order.length + 1);
+  [...groups.keys()].sort((a, b) => rank(a) - rank(b)).forEach(code => {
+    const head = pjMk('div', 'tpl-group-head');
+    head.appendChild(pjMk('span', '', code ? lkLabel('COMPANY_DOCUMENT_CATEGORY', code) : 'No category'));
+    head.appendChild(pjMk('span', 'tpl-group-count', String(groups.get(code).length)));
+    grid.appendChild(head);
+    const box = pjMk('div', 'tpl-group');
+    groups.get(code).forEach(d => box.appendChild(buildCompanyDocRow(d)));
+    grid.appendChild(box);
+  });
+}
+
+// ── Download as ZIP: a pop-up list of every document with a file ──
+// The rows on screen (after search and chips) start ticked, so narrowing the
+// page first is a quick way to pick a set.
+function cdHasFile(doc) { return !!(doc.file && doc.file.exists); }
+
+function openCompanyDocZipModal() {
+  const list = document.getElementById('cdz-list');
+  list.innerHTML = '';
+  const shownIds = new Set([...document.querySelectorAll('#companydocs-grid .cd-row')].map(c => Number(c.dataset.docId)));
+  companyDocs.filter(cdHasFile).sort(cdCompareByRenewal).forEach(doc => {
+    const row = pjMk('label', 'cdz-row');
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.value = doc.id;
+    box.checked = shownIds.has(doc.id);
+    box.addEventListener('change', updateCompanyDocZipCount);
+    row.appendChild(box);
+    const name = pjMk('span', 'cdz-name', doc.name || doc.file.originalName);
+    name.dataset.userContent = '';
+    row.appendChild(name);
+    if (doc.category) row.appendChild(pjMk('span', 'cd-card-cat cdz-cat', lkLabel('COMPANY_DOCUMENT_CATEGORY', doc.category)));
+    const size = pjMk('span', 'cdz-size', fmtFileSize(doc.file.size));
+    size.dir = 'ltr';
+    row.appendChild(size);
+    list.appendChild(row);
+  });
+  updateCompanyDocZipCount();
+  document.getElementById('companydoc-zip-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('cdz-submit').focus(), 80);
+}
+function closeCompanyDocZipModal() {
+  document.getElementById('companydoc-zip-overlay').classList.remove('open');
+}
+function companyDocZipOverlayClick(e) {
+  if (e.target === document.getElementById('companydoc-zip-overlay')) closeCompanyDocZipModal();
+}
+function cdZipBoxes() { return [...document.querySelectorAll('#cdz-list input[type="checkbox"]')]; }
+function toggleAllCompanyDocZip(el) {
+  cdZipBoxes().forEach(b => { b.checked = el.checked; });
+  updateCompanyDocZipCount();
+}
+function updateCompanyDocZipCount() {
+  const boxes = cdZipBoxes();
+  const n = boxes.filter(b => b.checked).length;
+  const all = document.getElementById('cdz-all');
+  all.checked = n > 0 && n === boxes.length;
+  all.indeterminate = n > 0 && n < boxes.length;
+  document.getElementById('cdz-all-count').textContent = String(boxes.length);
+  document.getElementById('cdz-submit-label').textContent = n ? 'Download ' + n : 'Download';
+  document.getElementById('cdz-submit').disabled = n === 0;
+}
+
+// One flat ZIP of the ticked files (no folders), each named after its card
+// ("VAT Certificate.pdf"); a repeated name gets " (2)" in the main process.
+async function downloadCompanyDocsZip() {
+  const ids = new Set(cdZipBoxes().filter(b => b.checked).map(b => Number(b.value)));
+  const chosen = companyDocs.filter(d => ids.has(d.id) && cdHasFile(d)).sort(cdCompareByRenewal);
+  if (!chosen.length) return;
+  const entries = chosen.map(d => ({ id: d.id, name: d.name || '' }));
+  const submit = document.getElementById('cdz-submit');
+  submit.disabled = true;
+  let result;
+  try { result = await window.api.downloadCompanyDocumentsZip(entries, `company-documents-${fmt(new Date())}.zip`); }
+  catch { result = { ok: false, error: 'failed' }; }
+  submit.disabled = false;
+  if (result?.canceled) return;
+  if (!result?.ok) { toast('ZIP export failed: ' + (result?.error || 'failed')); return; }
+  closeCompanyDocZipModal();
+  toast(result.skipped ? `Saved ${result.count} documents · ${result.skipped} missing skipped` : `Saved ${result.count} documents`);
 }
 
 // Most urgent first: expired, renewing soon, later renewals by date, then
@@ -146,77 +236,53 @@ function cdSameName(a, b) {
   return !!norm(a) && norm(a) === norm(b);
 }
 
-// One card: header (status icon + name + category pill + edit/delete),
-// renewal row, optional number with copy, optional notes, the file chip and
-// one row of file actions. A file dropped on the card uploads or replaces.
-function buildCompanyDocCard(doc) {
+// One row: status icon, file-type badge, name (with the number,
+// a differing file name and notes under it), the renewal cell, size · date,
+// then Open / Save a copy and a ⋯ menu for Edit / Replace file / Remove file /
+// Delete. A file dropped on the row uploads or replaces.
+function buildCompanyDocRow(doc) {
   const f = doc.file;
   const present = !!(f && f.exists);
   const missing = !!(f && !f.exists);
   const renewal = cdRenewalInfo(doc.renewalDate);
-  const card = pjMk('div', 'cd-card status-' + renewal.status + (present ? ' available' : '') + (missing ? ' missing' : ''));
-  card.dataset.docId = doc.id;   // Milestone 11 — palette deep-link scroll+highlight target
+  const row = pjMk('div', 'tpl-row cd-row status-' + renewal.status + (present ? ' available' : '')
+    + (missing ? ' is-missing' : '') + (f ? '' : ' is-empty'));
+  row.dataset.docId = doc.id;   // palette deep-link scroll+highlight target
 
-  const head = pjMk('div', 'cd-card-head');
   // The icon shows what most needs attention: a missing file, then renewal.
-  const icon = pjMk('div', 'cd-card-icon');
-  const iconName = missing ? 'triangle-alert'
+  const icon = pjMk('span', 'cd-row-icon');
+  icon.innerHTML = ic(missing ? 'triangle-alert'
     : renewal.status === 'overdue' ? 'clock-alert'
     : renewal.status === 'soon' ? 'calendar-clock'
-    : renewal.status === 'ok' ? 'circle-check' : 'file-text';
-  icon.innerHTML = ic(iconName);
+    : renewal.status === 'ok' ? 'circle-check' : 'file-text');
   icon.title = missing ? 'File missing from disk'
     : renewal.status === 'overdue' ? 'Expired'
     : renewal.status === 'soon' ? 'Renews soon'
     : renewal.status === 'ok' ? 'Valid' : 'No renewal date';
-  head.appendChild(icon);
+  row.appendChild(icon);
 
-  const titleWrap = pjMk('div', 'cd-card-title');
-  const nameEl = pjMk('div', 'cd-card-name', doc.name || 'Untitled document');
-  if (doc.name) { nameEl.title = doc.name; nameEl.dataset.userContent = ''; }
-  titleWrap.appendChild(nameEl);
-  if (doc.category) titleWrap.appendChild(pjMk('span', 'cd-card-cat', lkLabel('COMPANY_DOCUMENT_CATEGORY', doc.category)));
-  head.appendChild(titleWrap);
+  const full = f ? (f.originalName || '(file)') : '';
+  const dot = full.lastIndexOf('.');
+  row.appendChild(pjMk('span', 'cd-file-badge tpl-badge',
+    !f ? '—' : (dot > 0 ? full.slice(dot + 1).toUpperCase().slice(0, 4) : 'FILE')));
+  const base = dot > 0 ? full.slice(0, dot) : full;
 
-  const headIcons = pjMk('div', 'cd-card-icons');
-  const editBtn = pjMk('button', 'cd-icon-btn');
-  editBtn.type = 'button';
-  editBtn.innerHTML = ic('pencil');
-  editBtn.title = 'Edit';
-  editBtn.setAttribute('aria-label', 'Edit');
-  editBtn.addEventListener('click', () => openCompanyDocModal(doc));
-  headIcons.appendChild(editBtn);
-  const delBtn = pjMk('button', 'cd-icon-btn danger');
-  delBtn.type = 'button';
-  delBtn.innerHTML = ic('trash-2');
-  delBtn.title = 'Delete document';
-  delBtn.setAttribute('aria-label', 'Delete document');
-  delBtn.addEventListener('click', () =>
-    showDeleteConfirm(headIcons, () => deleteCompanyDoc(doc.id), () => renderCompanyDocsList()));
-  headIcons.appendChild(delBtn);
-  head.appendChild(headIcons);
-  card.appendChild(head);
-
-  // Renewal row: always shown, so a document without a date asks for one.
-  if (renewal.status === 'nodate') {
-    const add = pjMk('button', 'cd-renewal cd-renewal-add');
-    add.type = 'button';
-    add.innerHTML = ic('calendar-plus');
-    add.appendChild(document.createTextNode('Add renewal date'));
-    add.addEventListener('click', () => openCompanyDocModal(doc, 'cd-renewal'));
-    card.appendChild(add);
-  } else {
-    const row = pjMk('div', 'cd-renewal ' + renewal.status);
-    row.innerHTML = ic('calendar-clock');
-    const dateText = new Date(doc.renewalDate + 'T00:00:00').toLocaleDateString('en-GB');
-    const prefix = renewal.status === 'overdue' ? 'Expired — ' : renewal.status === 'soon' ? 'Renews soon — ' : 'Renews ';
-    row.appendChild(pjMk('span', 'cd-renewal-date', prefix + dateText));
-    row.appendChild(pjMk('span', 'cd-renewal-days', cdDaysText(renewal.days)));
-    card.appendChild(row);
+  const main = pjMk('div', 'tpl-main');
+  const top = pjMk('div', 'cd-row-top');
+  const nameEl = pjMk(present ? 'button' : 'span', 'tpl-name', doc.name || 'Untitled document');
+  if (doc.name) nameEl.dataset.userContent = '';
+  if (present) {
+    nameEl.type = 'button';
+    nameEl.classList.add('cd-row-open');
+    nameEl.title = 'Open with default app';
+    nameEl.addEventListener('click', () => openCompanyDocFile(doc.id));
   }
+  top.appendChild(nameEl);
+  main.appendChild(top);
 
+  const sub = pjMk('div', 'tpl-sub');
   if (doc.docNumber) {
-    const num = pjMk('div', 'cd-number');
+    const num = pjMk('span', 'cd-number');
     const hash = pjMk('span', 'cd-number-ic');
     hash.innerHTML = ic('hash');
     num.appendChild(hash);
@@ -231,40 +297,46 @@ function buildCompanyDocCard(doc) {
     copy.setAttribute('aria-label', 'Copy number');
     copy.addEventListener('click', () => copyCompanyDocNumber(doc.docNumber));
     num.appendChild(copy);
-    card.appendChild(num);
+    sub.appendChild(num);
   }
+  if (base && !cdSameName(base, doc.name)) {
+    const fn = pjMk('span', 'tpl-file', base);
+    fn.dataset.userContent = '';
+    sub.appendChild(fn);
+  }
+  if (doc.notes) {
+    const notes = pjMk('span', 'tpl-notes', doc.notes);
+    notes.dataset.userContent = '';
+    notes.title = doc.notes;
+    sub.appendChild(notes);
+  }
+  if (sub.childElementCount) main.appendChild(sub);
+  row.appendChild(main);
 
-  if (doc.notes) card.appendChild(pjMk('div', 'cd-notes', doc.notes));
-
-  // The file as one chip: a type badge, the name without its extension (left
-  // out when it only repeats the card's title), and size + upload date.
-  // Clicking a present file opens it.
-  const fileRow = pjMk(present ? 'button' : 'div', 'cd-file' + (f ? '' : ' is-empty') + (missing ? ' is-missing' : ''));
-  if (!f) {
-    fileRow.appendChild(pjMk('span', 'cd-file-badge', '—'));
-    fileRow.appendChild(pjMk('span', 'cd-file-name', 'No file — drop one here'));
+  // Renewal: the date with days left, or a prompt to add one.
+  if (renewal.status === 'nodate') {
+    const add = pjMk('button', 'cd-renewal cd-renewal-add cd-row-renewal');
+    add.type = 'button';
+    add.innerHTML = ic('calendar-plus');
+    add.appendChild(document.createTextNode('Add renewal date'));
+    add.addEventListener('click', () => openCompanyDocModal(doc, 'cd-renewal'));
+    row.appendChild(add);
   } else {
-    const full = f.originalName || '(file)';
-    const dot = full.lastIndexOf('.');
-    const ext = dot > 0 ? full.slice(dot + 1).toUpperCase().slice(0, 4) : 'FILE';
-    const base = dot > 0 ? full.slice(0, dot) : full;
-    fileRow.appendChild(pjMk('span', 'cd-file-badge', ext));
-    const text = pjMk('span', 'cd-file-text');
-    if (!cdSameName(base, doc.name)) {
-      const fname = pjMk('span', 'cd-file-name', base);
-      fname.dataset.userContent = '';
-      text.appendChild(fname);
-    }
-    text.appendChild(pjMk('span', 'cd-file-meta', missing ? 'File missing from disk'
-      : fmtFileSize(f.size) + (f.uploadedAt ? ' · ' + new Date(f.uploadedAt).toLocaleDateString('en-GB') : '')));
-    fileRow.appendChild(text);
-    fileRow.title = present ? 'Open with default app' : full;
-    if (present) { fileRow.type = 'button'; fileRow.addEventListener('click', () => openCompanyDocFile(doc.id)); }
+    const ren = pjMk('div', 'cd-renewal cd-row-renewal ' + renewal.status);
+    ren.innerHTML = ic('calendar-clock');
+    const dateText = new Date(doc.renewalDate + 'T00:00:00').toLocaleDateString('en-GB');
+    const prefix = renewal.status === 'overdue' ? 'Expired — ' : renewal.status === 'soon' ? 'Renews soon — ' : 'Renews ';
+    const txt = pjMk('span', 'cd-row-renewal-text');
+    txt.appendChild(pjMk('span', 'cd-renewal-date', prefix + dateText));
+    txt.appendChild(pjMk('span', 'cd-renewal-days', cdDaysText(renewal.days)));
+    ren.appendChild(txt);
+    row.appendChild(ren);
   }
-  card.appendChild(fileRow);
 
-  // One row: the main action with a label, the rest as icon buttons.
-  const actions = pjMk('div', 'cd-actions');
+  row.appendChild(pjMk('span', 'tpl-meta', !f ? 'No file — drop one here' : missing ? 'File missing from disk'
+    : fmtFileSize(f.size) + (f.uploadedAt ? ' · ' + new Date(f.uploadedAt).toLocaleDateString('en-GB') : '')));
+
+  const actions = pjMk('div', 'tpl-actions');
   const mkBtn = (cls, iconName, label, title, fn) => {
     const b = pjMk('button', 'pj-doc-btn' + (cls ? ' ' + cls : '') + (label ? '' : ' cd-act-icon'));
     b.type = 'button';
@@ -275,42 +347,43 @@ function buildCompanyDocCard(doc) {
     b.addEventListener('click', fn);
     return b;
   };
-  if (!f) {
-    actions.appendChild(mkBtn('primary', 'upload', 'Upload', 'Upload a file', () => uploadCompanyDocFile(doc.id)));
+  if (present) {
+    actions.appendChild(mkBtn('primary', 'external-link', 'Open file', 'Open with default app', () => openCompanyDocFile(doc.id)));
+    actions.appendChild(mkBtn('', 'download', '', 'Save a copy', () => downloadCompanyDocFile(doc.id)));
   } else {
-    if (present) actions.appendChild(mkBtn('primary', 'external-link', 'Open file', 'Open with default app', () => openCompanyDocFile(doc.id)));
-    else actions.appendChild(mkBtn('primary', 'upload', 'Replace', 'Replace with another file', () => uploadCompanyDocFile(doc.id)));
-    actions.appendChild(pjMk('span', 'cd-actions-gap'));
-    if (present) {
-      actions.appendChild(mkBtn('', 'download', '', 'Save a copy', () => downloadCompanyDocFile(doc.id)));
-      actions.appendChild(mkBtn('', 'upload', '', 'Replace with another file', () => uploadCompanyDocFile(doc.id)));
-    }
-    actions.appendChild(mkBtn('danger', 'file-x', '', 'Remove the file (keeps the document)', () =>
-      showDeleteConfirm(actions, () => removeCompanyDocFile(doc.id), () => renderCompanyDocsList())));
+    actions.appendChild(mkBtn('primary', 'upload', f ? 'Replace' : 'Upload', f ? 'Replace with another file' : 'Upload a file',
+      () => uploadCompanyDocFile(doc.id)));
   }
-  card.appendChild(actions);
+  const menu = [{ label: 'Edit', run: () => openCompanyDocModal(doc) }];
+  if (present) menu.push({ label: 'Replace file', run: () => uploadCompanyDocFile(doc.id) });
+  if (f) menu.push({ label: 'Remove file', danger: true, run: () =>
+    showDeleteConfirm(actions, () => removeCompanyDocFile(doc.id), () => renderCompanyDocsList(), 'Remove file?') });
+  menu.push({ label: 'Delete document', danger: true, run: () =>
+    showDeleteConfirm(actions, () => deleteCompanyDoc(doc.id), () => renderCompanyDocsList()) });
+  actions.appendChild(buildKnowledgeOverflow(menu));
+  row.appendChild(actions);
 
-  // Drop a file onto the card to upload it, or to replace the current one.
+  // Drop a file onto the row to upload it, or to replace the current one.
   const hasFiles = e => Array.from(e.dataTransfer?.types || []).includes('Files');
-  card.addEventListener('dragover', e => {
+  row.addEventListener('dragover', e => {
     if (!hasFiles(e)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
-    card.classList.add('drop-target');
+    row.classList.add('drop-target');
   });
-  card.addEventListener('dragleave', e => {
-    if (!card.contains(e.relatedTarget)) card.classList.remove('drop-target');
+  row.addEventListener('dragleave', e => {
+    if (!row.contains(e.relatedTarget)) row.classList.remove('drop-target');
   });
-  card.addEventListener('drop', e => {
+  row.addEventListener('drop', e => {
     if (!hasFiles(e)) return;
     e.preventDefault();
-    card.classList.remove('drop-target');
+    row.classList.remove('drop-target');
     const file = e.dataTransfer.files && e.dataTransfer.files[0];
     if (!file) return;
     if (e.dataTransfer.files.length > 1) toast('Only the first file was added — a document holds one file');
     uploadCompanyDocFile(doc.id, file);
   });
-  return card;
+  return row;
 }
 
 async function copyCompanyDocNumber(value) {

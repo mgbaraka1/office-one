@@ -88,6 +88,11 @@ async function run() {
     ['e2e-notes.txt', 'Generic e2e notes.\n'],
     ['e2e-fake.png', 'not really a png'],
   ].map(([name, body]) => { const p = path.join(root, name); fs.writeFileSync(p, body); return p; });
+  // Company Documents: the file "picked" for an upload, and where the ZIP of
+  // the selected cards is written.
+  const companyDocFile = path.join(root, 'e2e-company-doc.pdf');
+  fs.writeFileSync(companyDocFile, '%PDF-1.4\n% generic e2e company document\n%%EOF\n');
+  const companyDocsZipPath = path.join(root, 'e2e-company-documents.zip');
   child = spawn(electron, ['.'], {
     cwd: path.join(__dirname, '..'),
     env: {
@@ -99,6 +104,8 @@ async function run() {
       OFFICE_ONE_E2E_PFM_FILES: pfmFiles.join(path.delimiter),
       OFFICE_ONE_E2E_PFM_XLSX_PATH: pfmXlsxPath,
       OFFICE_ONE_E2E_OUTS_XLSX_PATH: outsXlsxPath,
+      OFFICE_ONE_E2E_COMPANYDOC_FILE: companyDocFile,
+      OFFICE_ONE_E2E_ZIP_PATH: companyDocsZipPath,
       ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -966,8 +973,9 @@ async function run() {
   }
 
   // Knowledge map (Knowledge Hub → Map): the canvas is drawn, hovering a dot
-  // names it, clicking a hub pins it, zoom works, a hub kind can be hidden,
-  // and List comes back. Two made-up articles share one tag.
+  // names it (and shows the hover card), clicking a hub pins it, zoom works, a
+  // hub kind can be hidden, the side list drills in and out and searches, and
+  // List comes back. Two made-up articles share one tag.
   const knowledgeMap = await evaluate(`(async () => {
     closePalette(); switchModule('knowledge');
     const a = await window.api.createKnowledgeItem({ title: 'E2E Map alpha', status: 'PUBLISHED', content: 'x', tags: ['E2EMapTag'] });
@@ -990,6 +998,10 @@ async function run() {
     };
     canvas.dispatchEvent(new PointerEvent('pointermove', at(alpha)));
     checks.hover = host.querySelector('.km-info strong')?.textContent === 'E2E Map alpha';
+    const tip = host.querySelector('.kh-tip');
+    checks.hoverCard = !!tip && !tip.hidden && tip.querySelector('strong')?.textContent === 'E2E Map alpha' && !!tip.querySelector('.kh-tip-stats')?.textContent;
+    canvas.dispatchEvent(new PointerEvent('pointerleave', at(alpha)));
+    checks.hoverCardGone = tip.hidden;
     canvas.dispatchEvent(new PointerEvent('pointerdown', at(hub)));
     canvas.dispatchEvent(new PointerEvent('pointerup', at(hub)));
     checks.pinned = knowledgeMapPinned === 'te2emaptag';
@@ -1002,11 +1014,47 @@ async function run() {
     [...host.querySelectorAll('.kw-legend-key .kw-legend-toggle')].find(btn => btn.querySelector('.km-shape-tags')).click();
     checks.showTags = knowledgeMapState.graph.byKey.has('te2emaptag') && uiState.filters.knowledge.map.tags === true;
     checks.saved = uiState.filters.knowledge.view === 'map';
+    // Side list: the tag is a group with a size bar; clicking it drills in and
+    // shows the trail; Whole map steps back out; search finds and jumps to a name.
+    const groupRow = [...host.querySelectorAll('.km-side .km-row')].find(row => row.textContent.includes('#E2EMapTag'));
+    checks.sideList = !!groupRow?.querySelector('.km-row-bar');
+    groupRow.click();
+    checks.drill = knowledgeMapPath.length === 1 && knowledgeMapPath[0].key === 'te2emaptag'
+      && !!host.querySelector('.km-crumbs [aria-current]') && knowledgeMapState.graph.nodes.length === 3;
+    host.querySelector('.km-crumb-home').click();
+    checks.undrill = !knowledgeMapPath.length && !host.querySelector('.km-crumbs');
+    const box = host.querySelector('.km-search');
+    box.value = 'map beta'; box.dispatchEvent(new Event('input', { bubbles: true }));
+    const hits = host.querySelectorAll('.km-side-list .km-row');
+    checks.search = hits.length === 1;
+    hits[0]?.click();
+    checks.jump = knowledgeMapPinned === 'a' + b.id && knowledgeMapState.view.k >= 1.6;
+    box.value = ''; box.dispatchEvent(new Event('input', { bubbles: true }));
     // The wheel has the same settings card: labels, line strength, size, hub kinds.
     setKnowledgeView('wheel');
     const wheel = document.getElementById('kh-wheel'), panel = wheel.querySelector(':scope > .km-panel');
     const wsvg = () => wheel.querySelector('.kw-svg');
     checks.wheelPanel = !!panel && !wheel.hidden;
+    // The find box lights the matching name; Escape clears it.
+    const find = wheel.querySelector('.kw-find');
+    find.value = 'map alpha'; find.dispatchEvent(new Event('input', { bubbles: true }));
+    checks.wheelFind = wheel.querySelectorAll('.kw-node.is-match').length === 1 && wsvg().classList.contains('has-focus');
+    find.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    checks.wheelFindClear = !find.value && !wsvg().classList.contains('has-focus');
+    // Hovering a type in the legend lights that type's lines.
+    checks.wheelTypeHover = [...wheel.querySelectorAll('.kw-legend:not(.kw-legend-key) .kw-legend-toggle')].some(btn => {
+      btn.dispatchEvent(new MouseEvent('mouseenter'));
+      const lit = wsvg().classList.contains('has-focus') && !!wheel.querySelector('.kw-edge.is-lit');
+      btn.dispatchEvent(new MouseEvent('mouseleave'));
+      return lit;
+    }) && !wsvg().classList.contains('has-focus');
+    // Pinning the tag lists its two articles under the wheel; unpinning hides them.
+    const tagNode = [...wheel.querySelectorAll('.kw-node.is-hub')].find(g => g.getAttribute('aria-label') === '#E2EMapTag');
+    tagNode.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const linked = wheel.querySelector('.kw-linked');
+    checks.wheelPinList = !linked.hidden && linked.querySelectorAll('.kw-linked-item').length === 2;
+    tagNode.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    checks.wheelUnpinList = linked.hidden;
     [...panel.querySelectorAll('.seg-btn')].find(btn => btn.getAttribute('aria-pressed') === 'false').click();
     checks.wheelLabels = wsvg().classList.contains('kw-hubs-only') && uiState.filters.knowledge.wheel.labels === 'hubs';
     const ranges = panel.querySelectorAll('input.km-range');
@@ -1342,6 +1390,48 @@ async function run() {
     throw new Error(`Settings → Pages did not hide and restore a page cleanly: ${JSON.stringify(pages)}`);
   }
 
+  // Company Documents: the ZIP pop-up lists only documents with a file, starts
+  // with the shown cards ticked, Select all toggles every row, and Download
+  // writes one archive holding just the ticked files under their card names.
+  const cdZip = await evaluate(`(async () => {
+    const make = async (name, withFile) => {
+      const doc = await window.api.createCompanyDocument({ name, category: '', renewalDate: '', docNumber: '', notes: '' });
+      if (withFile) await window.api.uploadCompanyDocument(doc.id);
+      return doc.id;
+    };
+    const ids = [await make('E2E Licence', true), await make('E2E Certificate', true), await make('E2E Extra', true), await make('E2E Empty', false)];
+    switchModule('companydocs');
+    await loadCompanyDocsList();
+    const btn = document.getElementById('companydocs-zip-btn');
+    const btnShown = !btn.hidden;
+    btn.click();
+    const overlay = document.getElementById('companydoc-zip-overlay');
+    const opened = overlay.classList.contains('open');
+    const boxes = [...document.querySelectorAll('#cdz-list input[type="checkbox"]')];
+    const rows = boxes.length, allTicked = boxes.every(b => b.checked);
+    const all = document.getElementById('cdz-all');
+    all.click();
+    const noneAfterToggle = boxes.every(b => !b.checked) && document.getElementById('cdz-submit').disabled;
+    all.click();
+    boxes.find(b => Number(b.value) === ids[2]).click();
+    const partial = all.indeterminate;
+    document.getElementById('cdz-submit').click();
+    for (let i = 0; i < 50 && overlay.classList.contains('open'); i++) await new Promise(r => setTimeout(r, 100));
+    const closed = !overlay.classList.contains('open');
+    for (const id of ids) await window.api.deleteCompanyDocument(id);
+    for (const id of ids.slice(0, 3)) await window.api.purgeCompanyDocumentFiles(id);
+    await loadCompanyDocsList();
+    return { btnShown, opened, rows, allTicked, noneAfterToggle, partial, closed };
+  })()`);
+  if (!cdZip.btnShown || !cdZip.opened || cdZip.rows !== 3 || !cdZip.allTicked || !cdZip.noneAfterToggle || !cdZip.partial || !cdZip.closed) {
+    throw new Error(`Company Documents ZIP pop-up did not behave: ${JSON.stringify(cdZip)}`);
+  }
+  const cdZipBytes = fs.readFileSync(companyDocsZipPath);
+  if (cdZipBytes.readUInt32LE(0) !== 0x04034B50 || !cdZipBytes.includes(Buffer.from('E2E Licence.pdf'))
+    || !cdZipBytes.includes(Buffer.from('E2E Certificate.pdf')) || cdZipBytes.includes(Buffer.from('E2E Extra')) || cdZipBytes.includes(Buffer.from('E2E Empty'))) {
+    throw new Error('The Company Documents ZIP is missing a picked file or holds one that was not picked');
+  }
+
   // PDF export (Finding 20, full-app audit) — report:exportPDF is otherwise
   // only checked by string-presence tests; this drives the real IPC path
   // (offscreen BrowserWindow -> Chromium printToPDF -> fs.writeFileSync) and
@@ -1418,6 +1508,7 @@ async function run() {
   console.log('PASS  An admin-created account is forced to replace its admin-assigned password on next login');
   console.log('PASS  Runtime accessibility invariants cover names, unique ids, language/direction, and live regions');
   console.log('PASS  Settings → Pages hides a page from the menu, Quick Find, client tabs and Settings catalogs, saves it per account, and Show all brings it back');
+  console.log('PASS  Company Documents: the ZIP pop-up lists files only, Select all toggles, and Download saves just the ticked ones under their card names');
   console.log(`PASS  report:exportPDF produces a real PDF file (${pdfBytes.length} bytes)`);
   console.log(`PASS  report:exportExcel produces a real XLSX workbook (${xlsxBytes.length} bytes)`);
   console.log(`PASS  Extracted renderer modules loaded (app v${result.version})`);

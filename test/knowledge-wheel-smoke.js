@@ -92,6 +92,11 @@ try {
     back.tags === false && back.labels === 'hubs' && back.bundling === 100 && back.links === 50 && back.size === 30 && back.panel === false && !('extra' in back),
     JSON.stringify(back));
   record('Unknown label mode falls back to the default', restore(defaults, { labels: 'zoom' }, { labels: ['all', 'hubs'] }).labels === 'all');
+  const matches = vm.runInContext('knowledgeWheelMatches', ctx);
+  const names = [{ label: 'SQL: Sample' }, { label: '#SQL' }, { label: 'Acme' }, { label: 'تجربة' }];
+  record('Find matches any part of a name, in any case',
+    matches(names, ' sql ').map(n => n.label).join('|') === 'SQL: Sample|#SQL' && matches(names, 'تجر').length === 1);
+  record('An empty find box matches nothing', matches(names, '  ').length === 0);
 } catch (err) {
   record('Unexpected error', false, err.stack || String(err));
 }

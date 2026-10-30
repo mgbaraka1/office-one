@@ -772,7 +772,7 @@
     'Disable (hide from dropdowns)': 'تعطيل (إخفاء من القوائم المنسدلة)', 'e.g. ACME or 105': 'مثال: ACME أو 105',
     'No documents or written content yet': 'لا توجد مستندات أو محتوى مكتوب بعد',
     'Written knowledge item': 'عنصر معرفة مكتوب', 'Session': 'جلسة', 'Types': 'الأنواع',
-    'Delete?': 'حذف؟', 'Delete group?': 'حذف المجموعة؟',
+    'Delete?': 'حذف؟', 'Remove file?': 'إزالة الملف؟', 'Delete group?': 'حذف المجموعة؟',
     'Delete last session? This also deletes the task.': 'حذف الجلسة الأخيرة؟ سيؤدي هذا أيضاً إلى حذف المهمة.',
   });
 
@@ -916,6 +916,14 @@
     'Wheel settings': 'إعدادات العجلة', 'Hubs only': 'المحاور فقط', 'Link bundling': 'تجميع الروابط',
     'Link visibility': 'وضوح الروابط', 'Wheel size': 'حجم العجلة', 'Click to hide or show these on the wheel': 'انقر لإخفائها أو إظهارها على العجلة',
     'Re-run layout': 'إعادة ترتيب الخريطة', 'Zoom in': 'تكبير', 'Zoom out': 'تصغير', 'Fit to view': 'ملاءمة العرض',
+    // Map side list, drill-down trail and hover card (2026-10-29).
+    'Scroll to zoom, drag to move. Click an article to open it; double-click a group to zoom into it.': 'مرّر للتكبير، واسحب للتحريك. انقر مقالة لفتحها، وانقر مرتين على مجموعة للتعمق فيها.',
+    'Find on the map': 'ابحث في الخريطة', 'Map drill-down': 'مسار التعمق في الخريطة', 'Whole map': 'الخريطة كاملة',
+    '1 match': 'نتيجة واحدة', '{n} matches': '{n} نتائج', 'No matches on this map': 'لا نتائج في هذه الخريطة',
+    '1 group, by size': 'مجموعة واحدة، حسب الحجم', '{n} groups, by size': '{n} مجموعات، حسب الحجم', 'No groups on this map': 'لا مجموعات في هذه الخريطة',
+    'Click to zoom into this group': 'انقر للتعمق في هذه المجموعة', 'Click to find it on the map': 'انقر لإيجادها في الخريطة',
+    'Find a name on the wheel': 'ابحث عن اسم في العجلة', 'No names match': 'لا أسماء مطابقة',
+    '1 document': 'مستند واحد', '{n} documents': '{n} مستندات', '1 connection': 'رابط واحد', '{n} connections': '{n} روابط',
     // Server map: the Servers section drawn as a tree.
     'List': 'قائمة', 'Map': 'خريطة', 'Show servers as': 'عرض الخوادم كـ',
     'Environment differs from its server': 'البيئة تختلف عن بيئة الخادم',
@@ -976,7 +984,7 @@
     'Task created': 'تم إنشاء المهمة', 'Task updated': 'تم تحديث المهمة',
     'Could not change the project link': 'تعذّر تغيير رابط المشروع',
     'Please complete this field.': 'يرجى إكمال هذا الحقل.',
-    'Untitled document': 'مستند بلا اسم', 'Remove file': 'إزالة الملف', 'Edit Document': 'تعديل المستند',
+    'Untitled document': 'مستند بلا اسم', 'Remove file': 'إزالة الملف', 'Replace file': 'استبدال الملف', 'No category': 'بدون فئة', 'Edit Document': 'تعديل المستند',
   });
 
   // Knowledge Hub — facets, document version history, and the group editor.
@@ -1009,6 +1017,10 @@
     'The documents are over 1 GB together': 'حجم المستندات معًا يتجاوز 1 جيجابايت',
     'Download ZIP ▾': 'تنزيل ZIP ▾', 'Latest versions': 'أحدث الإصدارات', 'All versions': 'كل الإصدارات',
     'No documents to download': 'لا توجد مستندات للتنزيل',
+    // Company Documents "Download as ZIP" pop-up.
+    'Choose documents and download them as one ZIP': 'اختر المستندات ونزّلها في ملف ZIP واحد',
+    'Download as ZIP': 'تنزيل كملف ZIP', 'Select all': 'تحديد الكل', 'ZIP': 'ZIP',
+    'The documents are over 1 GB together — select fewer': 'حجم المستندات معاً يتجاوز 1 جيجابايت — حدّد عدداً أقل',
     'The documents are over 1 GB together — narrow the filter': 'حجم المستندات معاً يتجاوز 1 جيجابايت — ضيّق التصفية',
     'The documents are missing from disk': 'المستندات غير موجودة على القرص',
     'Export was cancelled': 'تم إلغاء التصدير', 'Too many reports': 'عدد التقارير كبير جداً', 'Nothing to save': 'لا يوجد ما يُحفظ',
@@ -1512,6 +1524,8 @@
     [/^Exporting (\d+) of (\d+)…$/s, m => `جارٍ تصدير ${m[1]} من ${m[2]}…`],
     [/^Saved (\d+) daily reports$/s, m => `تم حفظ التقارير اليومية: ${m[1]}`],
     [/^ZIP export failed: (.+)$/s, m => `فشل تصدير ZIP: ${arabicTranslation(m[1])}`],
+    // Company Documents ZIP pop-up button ("Download 3").
+    [/^Download (\d+)$/s, m => `تنزيل ${m[1]}`],
     // Knowledge Hub "Download ZIP" result toasts.
     [/^Saved (\d+) documents · (\d+) missing skipped$/s, m => `تم حفظ المستندات: ${m[1]} · المستندات المفقودة التي تم تخطيها: ${m[2]}`],
     [/^Saved Excel \+ (\d+) files · (\d+) missing skipped$/s, m => `تم حفظ Excel + الملفات: ${m[1]} · الملفات المفقودة التي تم تخطيها: ${m[2]}`],

@@ -961,6 +961,7 @@
     <span class="page-title"><span class="ti-ic" data-ic="folder-check"></span>Company Documents</span>
     <div class="topbar-right">
       <input type="text" id="companydocs-filter" class="mod-search" placeholder="Search name, number or notes…" title="Search (Ctrl+F)" data-oninput="applyCompanyDocFilter()">
+      <button class="btn" id="companydocs-zip-btn" type="button" title="Choose documents and download them as one ZIP" data-onclick="openCompanyDocZipModal()" hidden><span data-ic="download"></span>ZIP</button>
       <button class="btn primary" data-onclick="openCompanyDocModal()"><span data-ic="plus"></span>New Document</button>
     </div>
   </div>
@@ -969,7 +970,7 @@
       <div class="cd-chips" id="companydocs-status" role="group" aria-label="Renewal status"></div>
       <div class="cd-chips" id="companydocs-cats" role="group" aria-label="Category"></div>
     </div>
-    <div class="cd-grid" id="companydocs-grid"></div>
+    <div class="tpl-list" id="companydocs-grid"></div>
     <div id="companydocs-empty-state" class="empty-state" hidden>
       <div class="empty-state-inner">
         <span data-ic="folder-check"></span>
@@ -1023,6 +1024,24 @@
   </div>
 </div>
 
+<!-- ══ COMPANY DOCUMENTS → DOWNLOAD AS ZIP ══ -->
+<div id="companydoc-zip-overlay" class="modal-overlay" data-onclick="companyDocZipOverlayClick(event)">
+  <div id="companydoc-zip-modal" class="modal-box" role="dialog" aria-modal="true" aria-labelledby="companydoc-zip-title">
+    <div class="modal-header">
+      <span class="modal-title" id="companydoc-zip-title">Download as ZIP</span>
+      <button class="modal-close" data-onclick="closeCompanyDocZipModal()" data-ic="x" title="Close"></button>
+    </div>
+    <div class="modal-body cdz-body">
+      <label class="cdz-all"><input type="checkbox" id="cdz-all" data-onchange="toggleAllCompanyDocZip(this)"><span>Select all</span><span class="cdz-all-count" id="cdz-all-count"></span></label>
+      <div class="cdz-list" id="cdz-list" role="group" aria-label="Documents"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" data-onclick="closeCompanyDocZipModal()">Cancel</button>
+      <button class="btn primary" id="cdz-submit" data-onclick="downloadCompanyDocsZip()"><span data-ic="download"></span><span id="cdz-submit-label">Download</span></button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ COMPANY DOCUMENT DELETE UNDO TOAST ══ -->
 <div id="companydoc-undo-toast" role="status" aria-live="polite">
   <span>Document deleted</span>
@@ -1039,7 +1058,8 @@
     </div>
   </div>
   <div class="pj-scroll">
-    <div class="cd-grid" id="templates-grid"></div>
+    <div class="pfm-chips" id="templates-chips" hidden></div>
+    <div class="tpl-list" id="templates-grid"></div>
     <div id="templates-empty-state" class="empty-state" hidden>
       <div class="empty-state-inner">
         <span data-ic="layout-template"></span>
@@ -1531,7 +1551,7 @@
       <button type="button" class="btn" id="clients-arrange-btn" data-onclick="toggleClientsArrange()"><span data-ic="rows-3"></span>Arrange</button>
       <button type="button" class="btn primary" data-onclick="openClientCreateModal()"><span data-ic="plus"></span>New Client</button>
     </div>
-    <div class="pj-grid" id="clients-grid"></div>
+    <div class="tpl-list" id="clients-grid"></div>
     <div id="clients-web" class="cl-web" hidden></div>
     <div id="clients-search-results" style="display:none"></div>
     <div id="clients-empty-state" class="empty-state" hidden>

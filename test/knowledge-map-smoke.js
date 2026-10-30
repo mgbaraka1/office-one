@@ -11,7 +11,10 @@
 //
 // Covers: one hub per client/system/tag/project however many articles link it
 // (tags merged across case); duplicate links dropped; hub kinds switched off
-// and hidden types leave the model; articles come before hubs; the layout
+// and hidden types leave the model; articles come before hubs; drilling into a
+// group (and further) keeps only articles linked to every step, and a path
+// that empties the map or uses a switched-off kind is cut back; a hub's
+// connection count and an item's document count; the layout
 // settles to finite, repeatable positions; an article sits nearer its own hub
 // than another; an unlinked article ends up further out than linked ones; saved
 // positions are kept and a new node starts beside a saved neighbour; saved
@@ -78,6 +81,30 @@ try {
 
   const counts = vm.runInContext('knowledgeMapHubCounts', ctx)(items);
   record('Hub counts per kind', JSON.stringify(counts) === JSON.stringify({ companies: 2, systems: 1, tags: 2, projects: 1 }), JSON.stringify(counts));
+
+  // Drill-down: each step keeps only the items linked to every hub on the path.
+  const drill = vm.runInContext('knowledgeMapDrill', ctx);
+  const ids = list => list.map(i => i.id).join(',');
+  record('Drilling into a client keeps only its articles', ids(drill(items, ['c1'])) === '11,12', ids(drill(items, ['c1'])));
+  record('Drilling further narrows to articles linked to both', ids(drill(items, ['c1', 's9'])) === '11', ids(drill(items, ['c1', 's9'])));
+  record('A tag step matches whatever its case', ids(drill(items, ['tsql'])) === '11,12', ids(drill(items, ['tsql'])));
+  record('No path keeps everything', drill(items, []).length === items.length);
+  vm.runInContext('knowledgeMapPath = [{ key: "c1", label: "Acme" }, { key: "s9", label: "ERP" }, { key: "c2", label: "Northwind" }]', ctx);
+  const trimmed = vm.runInContext('knowledgeMapTrimPath', ctx)(items, {});
+  record('A path that would leave the map empty is cut back to the last step with articles',
+    vm.runInContext('knowledgeMapPath.map(p => p.key).join(",")', ctx) === 'c1,s9' && ids(trimmed) === '11',
+    vm.runInContext('JSON.stringify(knowledgeMapPath)', ctx));
+  vm.runInContext('knowledgeMapTrimPath', ctx)(items, { systems: false });
+  record('A step of a hub kind switched off is dropped with everything after it',
+    vm.runInContext('knowledgeMapPath.map(p => p.key).join(",")', ctx) === 'c1', vm.runInContext('JSON.stringify(knowledgeMapPath)', ctx));
+  vm.runInContext('knowledgeMapPath = []', ctx);
+
+  // Hover card numbers: a hub's connections are the other hubs sharing an article.
+  const conn = vm.runInContext('kmHubConnections', ctx);
+  record('A hub counts the other hubs it shares articles with', conn(g.byKey.get('c1')) === 4 && conn(g.byKey.get('tops')) === 0,
+    `acme=${conn(g.byKey.get('c1'))} ops=${conn(g.byKey.get('tops'))}`);
+  const docCount = vm.runInContext('knowledgeDocCount', ctx);
+  record('Document count reads the item and survives a missing list', docCount({ documents: [{}, {}] }) === 2 && docCount({}) === 0);
 
   // Two clusters: articles on client A, articles on client B, plus loose ones.
   const cluster = [];

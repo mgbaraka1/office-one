@@ -7,6 +7,7 @@
 let templates = [];
 let templatesLoaded = false;
 let templateFilter = '';
+let templateCat = null;          // category chip: null = All, '' = no category
 let templateEditId = null;       // null = create mode in the modal
 let undoTemplate = null;
 let _undoTemplateTimer = null;
@@ -32,23 +33,58 @@ function applyTemplateFilter() {
   renderTemplatesList();
 }
 
+function setTemplateCategory(code) {
+  templateCat = code;
+  renderTemplatesList();
+}
+
+// Category chips, then one slim row per template grouped under its category
+// (in the lookup's order, "No category" last).
 function renderTemplatesList() {
   const grid  = document.getElementById('templates-grid');
+  const chips = document.getElementById('templates-chips');
   const empty = document.getElementById('templates-empty-state');
   grid.innerHTML = '';
+  chips.innerHTML = '';
 
   if (templates.length === 0) {
     grid.style.display = 'none';
+    chips.hidden = true;
     empty.hidden = false;
     empty.querySelector('p').innerHTML = 'No templates yet — click <strong>+ New Template</strong> to add a template';
     return;
   }
 
-  const shown = templates.filter(t => textMatch(
+  const searched = templates.filter(t => textMatch(
     [t.name, lkLabel('TEMPLATE_CATEGORY', t.category), t.notes, t.file && t.file.originalName],
     templateFilter));
 
-  if (shown.length === 0) {
+  // Groups in lookup order; codes no longer in the lookup still get a group.
+  const order = lkOptions('TEMPLATE_CATEGORY', true).map(o => o.code);
+  const groups = new Map();
+  searched.forEach(t => {
+    const code = t.category || '';
+    if (!groups.has(code)) groups.set(code, []);
+    groups.get(code).push(t);
+  });
+  const rank = code => code === '' ? Infinity : (order.indexOf(code) + 1 || order.length + 1);
+  const codes = [...groups.keys()].sort((a, b) => rank(a) - rank(b));
+  const catName = code => code ? lkLabel('TEMPLATE_CATEGORY', code) : 'No category';
+  if (templateCat !== null && !groups.has(templateCat)) templateCat = null;
+
+  chips.hidden = codes.length < 2;
+  const chip = (code, label, n) => {
+    const b = pjMk('button', 'pfm-chip' + (templateCat === code ? ' active' : ''));
+    b.type = 'button';
+    b.appendChild(pjMk('span', '', label));
+    b.appendChild(pjMk('span', 'pfm-chip-count', String(n)));
+    b.addEventListener('click', () => setTemplateCategory(code));
+    chips.appendChild(b);
+  };
+  chip(null, 'All', searched.length);
+  codes.forEach(code => chip(code, catName(code), groups.get(code).length));
+
+  if (searched.length === 0) {
     grid.style.display = 'none';
     empty.hidden = false;
     empty.querySelector('p').textContent = 'No templates match your search';
@@ -56,73 +92,61 @@ function renderTemplatesList() {
   }
   grid.style.display = '';
   empty.hidden = true;
-  shown.forEach(t => grid.appendChild(buildTemplateCard(t)));
+  codes.filter(code => templateCat === null || code === templateCat).forEach(code => {
+    const head = pjMk('div', 'tpl-group-head');
+    head.appendChild(pjMk('span', '', catName(code)));
+    head.appendChild(pjMk('span', 'tpl-group-count', String(groups.get(code).length)));
+    grid.appendChild(head);
+    const box = pjMk('div', 'tpl-group');
+    groups.get(code)
+      .slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true }))
+      .forEach(t => box.appendChild(buildTemplateRow(t)));
+    grid.appendChild(box);
+  });
 }
 
-// One card: header (icon + name + category pill + edit/delete), optional
-// notes, the file chip, file action buttons.
-function buildTemplateCard(tpl) {
+// One row: type badge, name (+ file name when it differs, size · date),
+// Open + Save a copy, and a ⋯ menu for Edit / Replace / Remove file / Delete.
+function buildTemplateRow(tpl) {
   const f = tpl.file;
   const present = !!(f && f.exists);
   const missing = !!(f && !f.exists);
-  const card = pjMk('div', 'cd-card' + (present ? ' available' : '') + (missing ? ' missing' : ''));
-  card.dataset.templateId = tpl.id;   // palette deep-link scroll+highlight target
+  const row = pjMk('div', 'tpl-row' + (missing ? ' is-missing' : '') + (f ? '' : ' is-empty'));
+  row.dataset.templateId = tpl.id;   // palette deep-link scroll+highlight target
 
-  const head = pjMk('div', 'cd-card-head');
-  const icon = pjMk('div', 'cd-card-icon');
-  icon.innerHTML = ic(present ? 'circle-check' : (missing ? 'triangle-alert' : 'layout-template'));
-  head.appendChild(icon);
+  const full = f ? (f.originalName || '(file)') : '';
+  const dot = full.lastIndexOf('.');
+  const ext = !f ? '—' : (dot > 0 ? full.slice(dot + 1).toUpperCase().slice(0, 4) : 'FILE');
+  const base = dot > 0 ? full.slice(0, dot) : full;
+  row.appendChild(pjMk('span', 'cd-file-badge tpl-badge', ext));
 
-  const titleWrap = pjMk('div', 'cd-card-title');
-  const nameEl = pjMk('div', 'cd-card-name', tpl.name || 'Untitled template');
-  if (tpl.name) { nameEl.title = tpl.name; nameEl.dataset.userContent = ''; }
-  titleWrap.appendChild(nameEl);
-  if (tpl.category) titleWrap.appendChild(pjMk('span', 'cd-card-cat', lkLabel('TEMPLATE_CATEGORY', tpl.category)));
-  head.appendChild(titleWrap);
-
-  const headIcons = pjMk('div', 'cd-card-icons');
-  const editBtn = pjMk('button', 'cd-icon-btn');
-  editBtn.innerHTML = ic('pencil');
-  editBtn.title = 'Edit';
-  editBtn.addEventListener('click', () => openTemplateModal(tpl));
-  headIcons.appendChild(editBtn);
-  const delBtn = pjMk('button', 'cd-icon-btn danger');
-  delBtn.innerHTML = ic('trash-2');
-  delBtn.title = 'Delete';
-  delBtn.addEventListener('click', () =>
-    showDeleteConfirm(headIcons, () => deleteTemplate(tpl.id), () => renderTemplatesList()));
-  headIcons.appendChild(delBtn);
-  head.appendChild(headIcons);
-  card.appendChild(head);
-
-  if (tpl.notes) card.appendChild(pjMk('div', 'cd-notes', tpl.notes));
-
-  // The file as one chip: a type badge, the name without its extension, and
-  // size + upload date under it. Clicking a present file opens it.
-  const fileRow = pjMk(present ? 'button' : 'div', 'cd-file' + (f ? '' : ' is-empty') + (missing ? ' is-missing' : ''));
-  if (!f) {
-    fileRow.appendChild(pjMk('span', 'cd-file-badge', '—'));
-    fileRow.appendChild(pjMk('span', 'cd-file-name', 'No file uploaded'));
-  } else {
-    const full = f.originalName || '(file)';
-    const dot = full.lastIndexOf('.');
-    const ext = dot > 0 ? full.slice(dot + 1).toUpperCase().slice(0, 4) : 'FILE';
-    const base = dot > 0 ? full.slice(0, dot) : full;
-    fileRow.appendChild(pjMk('span', 'cd-file-badge', ext));
-    const text = pjMk('span', 'cd-file-text');
-    const fname = pjMk('span', 'cd-file-name', base);
-    fname.dataset.userContent = '';
-    text.appendChild(fname);
-    text.appendChild(pjMk('span', 'cd-file-meta', missing ? 'File missing from disk'
-      : fmtFileSize(f.size) + (f.uploadedAt ? ' · ' + new Date(f.uploadedAt).toLocaleDateString('en-GB') : '')));
-    fileRow.appendChild(text);
-    fileRow.title = present ? 'Open with default app' : full;
-    if (present) { fileRow.type = 'button'; fileRow.addEventListener('click', () => openTemplateFile(tpl.id)); }
+  const main = pjMk(present ? 'button' : 'div', 'tpl-main');
+  if (present) {
+    main.type = 'button';
+    main.title = 'Open with default app';
+    main.addEventListener('click', () => openTemplateFile(tpl.id));
   }
-  card.appendChild(fileRow);
+  const nameEl = pjMk('span', 'tpl-name', tpl.name || 'Untitled template');
+  if (tpl.name) nameEl.dataset.userContent = '';
+  main.appendChild(nameEl);
+  const sub = pjMk('span', 'tpl-sub');
+  if (base && base.trim().toLowerCase() !== String(tpl.name || '').trim().toLowerCase()) {
+    const fn = pjMk('span', 'tpl-file', base);
+    fn.dataset.userContent = '';
+    sub.appendChild(fn);
+  }
+  if (tpl.notes) {
+    const notes = pjMk('span', 'tpl-notes', tpl.notes);
+    notes.dataset.userContent = '';
+    sub.appendChild(notes);
+  }
+  if (sub.childElementCount) main.appendChild(sub);
+  row.appendChild(main);
 
-  // One row: the main action with a label, the rest as icon buttons.
-  const actions = pjMk('div', 'cd-actions');
+  row.appendChild(pjMk('span', 'tpl-meta', !f ? 'No file uploaded' : missing ? 'File missing from disk'
+    : fmtFileSize(f.size) + (f.uploadedAt ? ' · ' + new Date(f.uploadedAt).toLocaleDateString('en-GB') : '')));
+
+  const actions = pjMk('div', 'tpl-actions');
   const mkBtn = (cls, iconName, label, title, fn) => {
     const b = pjMk('button', 'pj-doc-btn' + (cls ? ' ' + cls : '') + (label ? '' : ' cd-act-icon'));
     b.type = 'button';
@@ -133,21 +157,22 @@ function buildTemplateCard(tpl) {
     b.addEventListener('click', fn);
     return b;
   };
-  if (!f) {
-    actions.appendChild(mkBtn('primary', 'upload', 'Upload', 'Upload a file', () => uploadTemplateFile(tpl.id)));
+  if (present) {
+    actions.appendChild(mkBtn('primary', 'external-link', 'Open file', 'Open with default app', () => openTemplateFile(tpl.id)));
+    actions.appendChild(mkBtn('', 'download', '', 'Save a copy', () => downloadTemplateFile(tpl.id)));
   } else {
-    if (present) actions.appendChild(mkBtn('primary', 'external-link', 'Open file', 'Open with default app', () => openTemplateFile(tpl.id)));
-    else actions.appendChild(mkBtn('primary', 'upload', 'Replace', 'Replace with another file', () => uploadTemplateFile(tpl.id)));
-    actions.appendChild(pjMk('span', 'cd-actions-gap'));
-    if (present) {
-      actions.appendChild(mkBtn('', 'download', '', 'Save a copy', () => downloadTemplateFile(tpl.id)));
-      actions.appendChild(mkBtn('', 'upload', '', 'Replace with another file', () => uploadTemplateFile(tpl.id)));
-    }
-    actions.appendChild(mkBtn('danger', 'trash-2', '', 'Remove this file', () =>
-      showDeleteConfirm(actions, () => removeTemplateFile(tpl.id), () => renderTemplatesList())));
+    actions.appendChild(mkBtn('primary', 'upload', f ? 'Replace' : 'Upload', f ? 'Replace with another file' : 'Upload a file',
+      () => uploadTemplateFile(tpl.id)));
   }
-  card.appendChild(actions);
-  return card;
+  const menu = [{ label: 'Edit', run: () => openTemplateModal(tpl) }];
+  if (present) menu.push({ label: 'Replace file', run: () => uploadTemplateFile(tpl.id) });
+  if (f) menu.push({ label: 'Remove file', danger: true, run: () =>
+    showDeleteConfirm(actions, () => removeTemplateFile(tpl.id), () => renderTemplatesList(), 'Remove file?') });
+  menu.push({ label: 'Delete', danger: true, run: () =>
+    showDeleteConfirm(actions, () => deleteTemplate(tpl.id), () => renderTemplatesList()) });
+  actions.appendChild(buildKnowledgeOverflow(menu));
+  row.appendChild(actions);
+  return row;
 }
 
 // A leading "no category" option, since category is optional.

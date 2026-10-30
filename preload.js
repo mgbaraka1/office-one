@@ -171,6 +171,8 @@ contextBridge.exposeInMainWorld('api', {
   },
   /** @returns {Promise<import('./ipc-types').FileResult>} */
   downloadCompanyDocument: (id) => ipcRenderer.invoke('companydocs:download-document', id),
+  /** Saves the chosen cards' files into one ZIP: entries are { id, dirs?, name? }. */
+  downloadCompanyDocumentsZip: (entries, name) => ipcRenderer.invoke('companydocs:download-zip', entries, name),
   openCompanyDocument:     (id) => ipcRenderer.invoke('companydocs:open-document', id),
   /** @returns {Promise<import('./ipc-types').CompanyDocFileResult>} */
   removeCompanyDocument:   (id) => ipcRenderer.invoke('companydocs:remove-document', id),

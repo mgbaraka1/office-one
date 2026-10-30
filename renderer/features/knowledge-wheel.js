@@ -7,13 +7,17 @@
 // article with none of them is drawn hollow and listed underneath — it is the
 // one nobody will find by browsing. Clicking a type in the legend hides it (and
 // any client, system or tag only it links to); the biggest type is drawn in the
-// middle of the left side, where its labels read level.
+// middle of the left side, where its labels read level. The box beside the
+// readout finds names (Enter opens or pins a single match), hovering a type in
+// the legend lights all of its lines, and a pinned client, system or tag lists
+// its articles under the wheel.
 
 let knowledgeWheelItems = [];
 let knowledgeWheelPinned = null;   // node key kept highlighted after a click
 let knowledgeWheelWidth = 0;
 let knowledgeWheelObserver = null;
 const knowledgeWheelHidden = new Set();   // type codes switched off in the legend
+let knowledgeWheelQuery = '';   // text in the find box, kept across redraws
 
 const KW_TYPE_SLOTS = 12;           // fixed-order categorical hues (app.css --kw-1..12)
 const KW_NS = 'http://www.w3.org/2000/svg';
@@ -122,9 +126,69 @@ function knowledgeSettingsPanel({ title, open, onToggle, segs = [], ranges = [],
   return panel;
 }
 
+// ── Hover card (shared with the Map) ──
+// A small card beside the hovered name: the name, what it is, and how much
+// hangs off it (documents, connections). The readout line above the drawing
+// stays the accessible one; the card is for the eye only.
+
+// Documents on an article, each version family counted once (as its panel lists them).
+function knowledgeDocCount(item) {
+  const docs = item?.documents || [];
+  return typeof knowledgeDocumentFamilies === 'function' ? knowledgeDocumentFamilies(docs).length : docs.length;
+}
+
+function knowledgeTipStats({ articles, documents, connections }) {
+  const parts = [];
+  if (articles != null) parts.push(knowledgeWheelCount(articles, '1 article', '{n} articles'));
+  parts.push(knowledgeWheelCount(documents, '1 document', '{n} documents'));
+  parts.push(knowledgeWheelCount(connections, '1 connection', '{n} connections'));
+  return parts.join(' · ');
+}
+
+function knowledgeTip(host) {
+  const tip = pjMk('div', 'kh-tip');
+  tip.setAttribute('aria-hidden', 'true');
+  tip.hidden = true;
+  host.appendChild(tip);
+  return tip;
+}
+
+// `mark` is the class of the little swatch or shape before the kind.
+function knowledgeFillTip(tip, { name, kind, userKind, mark, stats }) {
+  tip.innerHTML = '';
+  const title = pjMk('strong', null, name);
+  title.dataset.userContent = '';
+  tip.appendChild(title);
+  const line = pjMk('span', 'kh-tip-kind');
+  line.appendChild(pjMk('span', mark));
+  const k = pjMk('span', null, kind);
+  if (userKind) k.dataset.userContent = '';
+  line.appendChild(k);
+  tip.appendChild(line);
+  tip.appendChild(pjMk('span', 'kh-tip-stats', stats));
+  tip.hidden = false;
+}
+
+// Beside the point (x, y) in the container's pixels, `r` away from it: to the
+// right if there is room, otherwise to the left, and always inside W x H.
+function knowledgePlaceTip(tip, x, y, r, W, H) {
+  if (tip.hidden) return;
+  const off = x < 0 || x > W || y < 0 || y > H;
+  tip.style.visibility = off ? 'hidden' : '';
+  if (off) return;
+  const w = tip.offsetWidth, h = tip.offsetHeight, gap = r + 10;
+  let left = x + gap;
+  if (left + w > W - 6) left = x - gap - w;
+  left = Math.max(6, Math.min(left, W - w - 6));
+  const top = Math.max(6, Math.min(y - h / 2, H - h - 6));
+  tip.style.left = Math.round(left) + 'px';
+  tip.style.top = Math.round(top) + 'px';
+}
+
 function setKnowledgeView(view) {
   knowledgeView = view === 'wheel' || view === 'map' ? view : 'list';   // map: knowledge-map.js
   knowledgeWheelPinned = null;
+  knowledgeWheelQuery = '';
   renderKnowledgeList();
 }
 
@@ -316,10 +380,24 @@ function drawKnowledgeWheel(host, items) {
   };
   const f = n => n.toFixed(1);
 
-  // ── Header: the hover readout and the legend ──
+  // ── Header: the hover readout and a box to find a name ──
+  const head = pjMk('div', 'kw-head');
   const info = pjMk('div', 'kw-info', 'Hover a name to trace its links. Click an article to open it.');
   info.setAttribute('aria-live', 'polite');
-  host.appendChild(info);
+  head.appendChild(info);
+  const find = document.createElement('input');
+  find.type = 'search';
+  find.className = 'km-search kw-find';
+  find.placeholder = 'Find a name on the wheel';
+  find.setAttribute('aria-label', 'Find a name on the wheel');
+  find.value = knowledgeWheelQuery;
+  head.appendChild(find);
+  host.appendChild(head);
+  // Sit the settings card just under the header, whatever its height (the
+  // Arabic font and the search box make it taller than the CSS fallback).
+  if (knowledgeWheelPanel && head.offsetHeight) {
+    knowledgeWheelPanel.style.top = (head.offsetTop + head.offsetHeight + 6) + 'px';
+  }
 
   const svg = kwSvg('svg', {
     class: 'kw-svg', viewBox: `0 0 ${f(W)} ${f(H)}`, role: 'img', direction: 'ltr',
@@ -328,6 +406,10 @@ function drawKnowledgeWheel(host, items) {
   svg.style.maxWidth = Math.round(W * (0.5 + ws.size * 0.01)) + 'px';
   knowledgeWheelApplyLook(svg);
   host.appendChild(svg);
+  // The articles of a pinned client, system or tag, under the wheel.
+  const list = pjMk('div', 'kw-unlinked kw-linked');
+  list.hidden = true;
+  host.appendChild(list);
 
   // Arc bands just outside the dots.
   arcs.forEach(arc => {
@@ -375,6 +457,7 @@ function drawKnowledgeWheel(host, items) {
   const nodeLayer = kwSvg('g', { class: 'kw-nodes' }, svg);
   const nodeEls = new Map();
   const unlinked = [];
+  const ctx = { svg, info, pos, edgesByKey, nodeEls, list };
   pos.forEach(({ angle: deg, node, arc }) => {
     const isArticle = node.kind === 'article';
     const linked = edgesByKey.has(node.key);
@@ -406,16 +489,16 @@ function drawKnowledgeWheel(host, items) {
     g.setAttribute('aria-label', node.label);
     nodeEls.set(node.key, g);
 
-    const focusOn = () => knowledgeWheelHighlight(svg, info, node, arc, edgesByKey, nodeEls);
+    const focusOn = () => knowledgeWheelHighlight(ctx, node, arc);
     g.addEventListener('mouseenter', focusOn);
     g.addEventListener('focus', focusOn);
-    g.addEventListener('mouseleave', () => knowledgeWheelRestore(svg, info, pos, edgesByKey, nodeEls));
-    g.addEventListener('blur', () => knowledgeWheelRestore(svg, info, pos, edgesByKey, nodeEls));
+    g.addEventListener('mouseleave', () => knowledgeWheelRestore(ctx));
+    g.addEventListener('blur', () => knowledgeWheelRestore(ctx));
     const activate = e => {
       e.stopPropagation();
       if (isArticle) { openKnowledgeDetail(node.item.id); return; }
       knowledgeWheelPinned = knowledgeWheelPinned === node.key ? null : node.key;
-      knowledgeWheelRestore(svg, info, pos, edgesByKey, nodeEls);
+      knowledgeWheelRestore(ctx);
     };
     g.addEventListener('click', activate);
     g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(e); } });
@@ -423,9 +506,28 @@ function drawKnowledgeWheel(host, items) {
   svg.addEventListener('click', () => {
     if (!knowledgeWheelPinned) return;
     knowledgeWheelPinned = null;
-    knowledgeWheelRestore(svg, info, pos, edgesByKey, nodeEls);
+    knowledgeWheelRestore(ctx);
   });
-  knowledgeWheelRestore(svg, info, pos, edgesByKey, nodeEls);
+  find.addEventListener('input', () => {
+    knowledgeWheelQuery = find.value;
+    knowledgeWheelPinned = null;
+    knowledgeWheelRestore(ctx);
+  });
+  find.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && find.value) {
+      e.preventDefault();
+      find.value = knowledgeWheelQuery = '';
+      knowledgeWheelRestore(ctx);
+    } else if (e.key === 'Enter') {
+      const hits = knowledgeWheelMatches([...pos.values()].map(p => p.node), knowledgeWheelQuery);
+      if (hits.length !== 1) return;
+      e.preventDefault();
+      if (hits[0].kind === 'article') { openKnowledgeDetail(hits[0].item.id); return; }
+      knowledgeWheelPinned = hits[0].key;
+      knowledgeWheelRestore(ctx);
+    }
+  });
+  knowledgeWheelRestore(ctx);
 
   // ── Legend ──
   // Each type is a toggle: click to hide or show it.
@@ -441,6 +543,13 @@ function drawKnowledgeWheel(host, items) {
     if (arc.code) name.dataset.userContent = '';
     item.appendChild(name);
     item.appendChild(pjMk('span', 'kw-legend-count', String(arc.nodes.length)));
+    if (!arc.hidden) {
+      const lightType = () => knowledgeWheelLightType(ctx, arc);
+      item.addEventListener('mouseenter', lightType);
+      item.addEventListener('focus', lightType);
+      item.addEventListener('mouseleave', () => knowledgeWheelRestore(ctx));
+      item.addEventListener('blur', () => knowledgeWheelRestore(ctx));
+    }
     item.addEventListener('click', () => {
       if (arc.hidden) knowledgeWheelHidden.delete(arc.code);
       else if (typeArcs.length - knowledgeWheelHidden.size > 1) knowledgeWheelHidden.add(arc.code);
@@ -497,16 +606,71 @@ function knowledgeWheelCount(n, one, many) {
   return n === 1 ? (window.ctI18n?.t(one) || one) : (window.ctI18n?.t(many, { n }) || many.replace('{n}', n));
 }
 
-// Light one node, its lines and the names at their other ends; fade the rest.
-function knowledgeWheelHighlight(svg, info, node, arc, edgesByKey, nodeEls) {
+// Names whose text contains the query (any case); none for an empty query.
+function knowledgeWheelMatches(nodes, query) {
+  const q = String(query || '').trim().toLowerCase();
+  return q ? nodes.filter(node => String(node.label || '').toLowerCase().includes(q)) : [];
+}
+
+// Light the given nodes, their lines and the names at the other ends; fade the rest.
+function knowledgeWheelLight(ctx, keys) {
+  const { svg, edgesByKey, nodeEls } = ctx;
   svg.classList.add('has-focus');
-  svg.querySelectorAll('.is-lit').forEach(el => el.classList.remove('is-lit'));
-  nodeEls.get(node.key)?.classList.add('is-lit');
-  (edgesByKey.get(node.key) || []).forEach(path => {
-    path.classList.add('is-lit');
-    nodeEls.get(path.dataset.a)?.classList.add('is-lit');
-    nodeEls.get(path.dataset.b)?.classList.add('is-lit');
+  svg.querySelectorAll('.is-lit, .is-match').forEach(el => el.classList.remove('is-lit', 'is-match'));
+  keys.forEach(key => {
+    nodeEls.get(key)?.classList.add('is-lit');
+    (edgesByKey.get(key) || []).forEach(path => {
+      path.classList.add('is-lit');
+      nodeEls.get(path.dataset.a)?.classList.add('is-lit');
+      nodeEls.get(path.dataset.b)?.classList.add('is-lit');
+    });
   });
+}
+
+// A type hovered in the legend: all of its articles and their lines.
+function knowledgeWheelLightType(ctx, arc) {
+  knowledgeWheelLight(ctx, arc.nodes.map(node => node.key));
+  const links = arc.nodes.reduce((n, node) => n + (ctx.edgesByKey.get(node.key) || []).length, 0);
+  const { info } = ctx;
+  info.innerHTML = '';
+  const name = pjMk('strong', null, arc.label);
+  if (arc.code) name.dataset.userContent = '';
+  info.appendChild(name);
+  info.appendChild(pjMk('span', 'kw-info-detail', [knowledgeWheelCount(arc.nodes.length, '1 article', '{n} articles'),
+    knowledgeWheelCount(links, '1 connection', '{n} connections')].join(' · ')));
+}
+
+// Under the wheel: the articles of a pinned client, system or tag; hidden otherwise.
+function knowledgeWheelShowLinked(ctx, node) {
+  const { list, pos } = ctx;
+  if (!list) return;
+  if (!node || node.kind === 'article') { list.hidden = true; list.innerHTML = ''; delete list.dataset.key; return; }
+  if (list.dataset.key === node.key) return;
+  list.innerHTML = '';
+  list.dataset.key = node.key;
+  const title = pjMk('span', 'kw-unlinked-title');
+  const name = pjMk('strong', null, node.label);
+  name.dataset.userContent = '';
+  title.appendChild(name);
+  title.appendChild(pjMk('span', 'kw-linked-count', knowledgeWheelCount(node.items.length, '1 article', '{n} articles')));
+  list.appendChild(title);
+  node.items.slice().sort((a, b) => a.title.localeCompare(b.title)).forEach(item => {
+    const b = pjMk('button', 'kw-unlinked-item kw-linked-item');
+    b.type = 'button';
+    b.appendChild(pjMk('span', 'kw-swatch kw-c' + (pos.get('a' + item.id)?.arc.slot ?? 0)));
+    const t = pjMk('span', null, item.title);
+    t.dataset.userContent = '';
+    b.appendChild(t);
+    b.addEventListener('click', () => openKnowledgeDetail(item.id));
+    list.appendChild(b);
+  });
+  list.hidden = false;
+}
+
+// Light one node, its lines and the names at their other ends; fade the rest.
+function knowledgeWheelHighlight(ctx, node, arc) {
+  const { info } = ctx;
+  knowledgeWheelLight(ctx, [node.key]);
   info.innerHTML = '';
   const name = pjMk('strong', null, node.label);
   name.dataset.userContent = '';
@@ -542,12 +706,30 @@ function knowledgeWheelHighlight(svg, info, node, arc, edgesByKey, nodeEls) {
   });
 }
 
-function knowledgeWheelRestore(svg, info, pos, edgesByKey, nodeEls) {
+// Back to the resting state: the pinned name, else the find box's matches,
+// else nothing lit.
+function knowledgeWheelRestore(ctx) {
+  const { svg, info, pos, nodeEls } = ctx;
   const pinned = knowledgeWheelPinned && pos.get(knowledgeWheelPinned);
-  if (pinned) { knowledgeWheelHighlight(svg, info, pinned.node, pinned.arc, edgesByKey, nodeEls); return; }
+  if (pinned) {
+    knowledgeWheelHighlight(ctx, pinned.node, pinned.arc);
+    knowledgeWheelShowLinked(ctx, pinned.node);
+    return;
+  }
   knowledgeWheelPinned = null;
+  knowledgeWheelShowLinked(ctx, null);
+  if (knowledgeWheelQuery.trim()) {
+    const hits = knowledgeWheelMatches([...pos.values()].map(p => p.node), knowledgeWheelQuery);
+    knowledgeWheelLight(ctx, hits.map(node => node.key));
+    hits.forEach(node => nodeEls.get(node.key)?.classList.add('is-match'));
+    info.innerHTML = '';
+    info.appendChild(pjMk('span', 'kw-info-detail', hits.length
+      ? knowledgeWheelCount(hits.length, '1 match', '{n} matches')
+      : (window.ctI18n?.t('No names match') || 'No names match')));
+    return;
+  }
   svg.classList.remove('has-focus');
-  svg.querySelectorAll('.is-lit').forEach(el => el.classList.remove('is-lit'));
+  svg.querySelectorAll('.is-lit, .is-match').forEach(el => el.classList.remove('is-lit', 'is-match'));
   info.textContent = 'Hover a name to trace its links. Click an article to open it.';
 }
 
