@@ -7,8 +7,8 @@ released version receives security fixes.
 
 | Version | Supported |
 |---|---|
-| 10.x | Yes |
-| < 10.0 | No |
+| 8.x | Yes |
+| < 8.0 | No |
 
 ## Reporting a vulnerability
 
