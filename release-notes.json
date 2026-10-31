@@ -1,5 +1,39 @@
 [
   {
+    "version": "8.26.0",
+    "date": "2026-10-31",
+    "kind": "feat",
+    "title": {
+      "en": "Tidier Templates, Company Documents and Clients, and a ZIP of your documents",
+      "ar": "صفحات أوضح للقوالب ومستندات الشركة والعملاء، وتنزيل المستندات في ملف ZIP"
+    },
+    "notes": [
+      {
+        "en": "Templates is a compact list grouped under category headings, with chips to show one category. Open, upload or replace a file from its row; edit and delete are in the ⋯ menu.",
+        "ar": "أصبحت القوالب قائمة مدمجة مجمّعة تحت عناوين الفئات، مع أزرار لعرض فئة واحدة. افتح الملف أو ارفعه أو استبدله من صفّه؛ والتعديل والحذف في قائمة ⋯."
+      },
+      {
+        "en": "Company Documents uses the same compact rows, grouped by category. Each row still shows the status, reference number, renewal date and days left, and you can drop a file on it.",
+        "ar": "تستخدم مستندات الشركة الصفوف المدمجة نفسها مجمّعة حسب الفئة. ولا يزال كل صف يعرض الحالة والرقم المرجعي وتاريخ التجديد والأيام المتبقية، ويمكنك إفلات ملف عليه."
+      },
+      {
+        "en": "Download several company documents at once as one ZIP file, each saved under its card name.",
+        "ar": "نزّل عدة مستندات للشركة دفعة واحدة في ملف ZIP واحد، يُحفظ كل منها باسم بطاقته."
+      },
+      {
+        "en": "Client cards are smaller: name and code on top, then one line with the number of projects, access entries, servers and systems.",
+        "ar": "أصبحت بطاقات العملاء أصغر: الاسم والرمز في الأعلى، ثم سطر واحد بعدد المشاريع وبيانات الوصول والخوادم والأنظمة."
+      },
+      {
+        "en": "Fixed overlapping month labels on the year activity chart, and the Wheel settings card no longer covers the search box.",
+        "ar": "إصلاح تداخل أسماء الأشهر في مخطط نشاط السنة، ولم تعد بطاقة إعدادات العجلة تغطي مربع البحث."
+      }
+    ],
+    "technical": [
+      "New IPC companydocs:download-zip: ids are owner-checked and every path segment cleaned in main; it shares saveDocumentsZip with knowledge:download-zip. No migration."
+    ]
+  },
+  {
     "version": "8.25.0",
     "date": "2026-10-27",
     "kind": "feat",
