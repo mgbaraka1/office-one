@@ -1,5 +1,47 @@
 [
   {
+    "version": "8.27.0",
+    "date": "2026-11-02",
+    "kind": "feat",
+    "title": {
+      "en": "Weekend days, Knowledge Hub on project pages, and a clearer Browse",
+      "ar": "أيام العطلة الأسبوعية، ومركز المعرفة في صفحات المشاريع، وصفحة تصفح أوضح"
+    },
+    "notes": [
+      {
+        "en": "Pick your weekend days in Settings → General. A new session dated on a weekend day starts as Over Time; you can still pick another time type.",
+        "ar": "اختر أيام عطلتك الأسبوعية من الإعدادات ← عام. الجلسة الجديدة المؤرخة في يوم عطلة تبدأ كوقت إضافي، ويمكنك اختيار نوع وقت آخر."
+      },
+      {
+        "en": "Each project page has a Knowledge Hub section again, listing only the items linked to that project. A new item or a file dropped there is linked to the project.",
+        "ar": "عاد قسم مركز المعرفة إلى صفحة كل مشروع، ويعرض فقط العناصر المرتبطة بذلك المشروع. والعنصر الجديد أو الملف الذي تُفلته هناك يُربط بالمشروع."
+      },
+      {
+        "en": "Opening the Knowledge Hub from a project or client page shows a Back button that returns you there.",
+        "ar": "عند فتح مركز المعرفة من صفحة مشروع أو عميل يظهر زر رجوع يعيدك إليها."
+      },
+      {
+        "en": "The Knowledge Hub now accepts .json files.",
+        "ar": "أصبح مركز المعرفة يقبل ملفات ‎.json."
+      },
+      {
+        "en": "Browse is back in the sidebar under External, and Outsource moved to Internal. Today is now called Timesheet.",
+        "ar": "عادت صفحة تصفح إلى القائمة الجانبية ضمن خارجي، وانتقلت صفحة التعهيد الخارجي إلى داخلي. وأصبحت صفحة اليوم تُسمّى سجل الدوام."
+      },
+      {
+        "en": "Browse tables are more compact: the source sits under the task, and the summary adds active days, average hours a day and over-time hours.",
+        "ar": "أصبحت جداول التصفح أكثر إحكاماً: يظهر المصدر تحت المهمة، ويضيف الملخص أيام النشاط ومتوسط الساعات اليومية وساعات الوقت الإضافي."
+      },
+      {
+        "en": "Fixed the Previous and Next arrows pointing the wrong way in the right-to-left layout.",
+        "ar": "إصلاح اتجاه سهمي السابق والتالي عند عرض الواجهة من اليمين إلى اليسار."
+      }
+    ],
+    "technical": [
+      "New per-account preference weekendDays (default '5,6', stored Sunday-first). Knowledge Hub uploads accept json after a content check (first character must open an object or array). No migration."
+    ]
+  },
+  {
     "version": "8.26.0",
     "date": "2026-10-31",
     "kind": "feat",
