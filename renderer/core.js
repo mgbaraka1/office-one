@@ -466,6 +466,7 @@ async function loadUserPreferencesFromMain() {
     applyWorkspaceViewPreferences();
     applySidebarPreference(prefs.sidebar === 'compact');
     setHiddenPages(prefs.hiddenPages);
+    setWeekendDays(prefs.weekendDays);
   } catch { /* keep the localStorage-derived pre-login guess */ }
 }
 
@@ -481,7 +482,7 @@ async function loadUserPreferencesFromMain() {
 // (Quick Find, the Overview attention list, client tabs) ask isPageHidden().
 // Overview and Settings are always shown, so nobody can lock themselves out.
 const HIDEABLE_PAGES = [
-  { key: 'timesheet',      group: 'Workspace', icon: 'clock',           label: 'Today',
+  { key: 'timesheet',      group: 'Workspace', icon: 'clock',           label: 'Timesheet',
     about: 'Log today\'s sessions and see the day\'s total.',
     alsoHides: 'Also hides the time charts on the Overview and a project\'s time tracking.' },
   { key: 'reports',        group: 'Workspace', icon: 'file-text',       label: 'Reports',
@@ -500,6 +501,9 @@ const HIDEABLE_PAGES = [
   { key: 'knowledge',      group: 'Internal',  icon: 'book-open',       label: 'Knowledge Hub',
     about: 'Guides and documents, linked to clients and systems.',
     alsoHides: 'Also hides the Knowledge Hub section on client and project pages.' },
+  { key: 'outsource',      group: 'Internal',  icon: 'users',           label: 'Outsource',
+    about: 'Outsourced people, their rates and their logged time.',
+    alsoHides: 'Also hides the Owed to Outsource tile on the Overview.' },
   { key: 'clients',        group: 'External',  icon: 'layers',          label: 'Clients',
     about: 'Each client\'s access, servers, databases and systems.',
     alsoHides: 'Also hides client projects and access expiry reminders on the Overview.' },
@@ -509,9 +513,6 @@ const HIDEABLE_PAGES = [
   { key: 'pfm',            group: 'External',  icon: 'briefcase',       label: 'Project & Finance',
     about: 'Offers and change requests, followed step by step.',
     alsoHides: 'Also hides Offers & CRs on client and project pages, and their reminders on the Overview.' },
-  { key: 'outsource',      group: 'External',  icon: 'users',           label: 'Outsource',
-    about: 'Outsourced people, their rates and their logged time.',
-    alsoHides: 'Also hides the Owed to Outsource tile on the Overview.' },
 ];
 // Modules with no menu entry of their own follow the page they live under.
 const MODULE_PAGE = { projects: 'clients' };
@@ -606,6 +607,84 @@ function applyUiScale(scale) {
 function saveUserPreference(key, value) {
   window.api.setPreference(key, value).catch(() => {});
 }
+
+// ── Weekend days (Settings → General) ────────────────────────────────────────
+// Which days of the week are this account's weekend (JS getDay() numbers,
+// 0 = Sunday). A new session dated on one of them starts as Over Time instead
+// of the remembered time type; the user can still pick another type.
+const WEEK_DAYS = [
+  { day: 0, label: 'Sun' }, { day: 1, label: 'Mon' }, { day: 2, label: 'Tue' }, { day: 3, label: 'Wed' },
+  { day: 4, label: 'Thu' }, { day: 5, label: 'Fri' }, { day: 6, label: 'Sat' },
+];
+let weekendDays = new Set([5, 6]);
+
+function setWeekendDays(raw) {
+  const parts = String(raw ?? '').split(',').map(s => s.trim()).filter(s => /^[0-6]$/.test(s));
+  weekendDays = new Set(parts.map(Number));
+  renderWeekendSettings();
+}
+function toggleWeekendDay(day) {
+  if (weekendDays.has(day)) weekendDays.delete(day); else weekendDays.add(day);
+  saveUserPreference('weekendDays', [...weekendDays].sort((a, b) => a - b).join(','));
+  renderWeekendSettings();
+}
+function renderWeekendSettings() {
+  const host = document.getElementById('setting-weekend-days');
+  if (!host) return;
+  if (!host.childElementCount) {
+    WEEK_DAYS.forEach(({ day, label }) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'seg-btn';
+      btn.dataset.day = String(day);
+      btn.textContent = label;
+      btn.addEventListener('click', () => toggleWeekendDay(day));
+      host.appendChild(btn);
+    });
+  }
+  host.querySelectorAll('.seg-btn').forEach(btn => {
+    const on = weekendDays.has(Number(btn.dataset.day));
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+}
+// 'YYYY-MM-DD' read as a local calendar date (new Date('YYYY-MM-DD') is UTC).
+function isWeekendDate(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+  if (!m) return false;
+  return weekendDays.has(new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getDay());
+}
+
+// A new-session form's time type follows its date until the user picks a
+// type themself: Over Time on a weekend day, otherwise `fallback` (the
+// remembered default, or blank). Keyed by the time <select>'s id.
+const _autoTimeType = {};
+function startAutoTimeType(dateId, timeId, fallback) {
+  _autoTimeType[timeId] = { dateId, fallback: fallback || '' };
+  refreshAutoTimeType(timeId);
+}
+function stopAutoTimeType(timeId) {
+  delete _autoTimeType[timeId];
+}
+function refreshAutoTimeType(timeId) {
+  const state = _autoTimeType[timeId];
+  const el = document.getElementById(timeId);
+  if (!state || !el) return;
+  const overtimeActive = lkOptions('TIME_TYPE').some(o => o.code === 'OVERTIME');
+  const want = isWeekendDate(document.getElementById(state.dateId)?.value) && overtimeActive ? 'OVERTIME' : state.fallback;
+  if (want && [...el.options].some(o => o.value === want)) el.value = want;
+  else if ([...el.options].some(o => o.value === '')) el.value = '';
+  else blankSelect(timeId);
+}
+// Programmatic .value changes fire no events, so a 'change' here is the user.
+document.addEventListener('change', e => {
+  const id = e.target?.id;
+  if (!id) return;
+  if (_autoTimeType[id]) { stopAutoTimeType(id); return; }
+  Object.keys(_autoTimeType).forEach(timeId => {
+    if (_autoTimeType[timeId].dateId === id) refreshAutoTimeType(timeId);
+  });
+});
 
 function rememberSessionDefaults(time, natural) {
   uiState.sessionDefaults = { time: time || '', natural: natural || '' };
@@ -916,13 +995,24 @@ function taskSourceBadge(s) {
 // openExternal when the first entry has a url — falling back to the legacy
 // plain-text `source` for a row whose task hasn't been touched since before
 // migration 033 (sourceCount 0, non-empty legacy text).
-function buildSourceCell(row) {
+// A long link shown as its last path segment ("…/browse/ABC-123" -> "ABC-123"),
+// or its host when the path is empty. The full address stays in the tooltip.
+function shortUrlLabel(url) {
+  try {
+    const u = new URL(url);
+    const seg = u.pathname.split('/').filter(Boolean).pop();
+    return seg ? decodeURIComponent(seg) : u.host;
+  } catch { return url; }
+}
+// opts.compact: show links by their short label (Browse's narrower table).
+function buildSourceCell(row, opts = {}) {
   const srcTd = document.createElement('td');
   const srcDiv = document.createElement('div'); srcDiv.className = 'cell';
   const count = row.sourceCount || 0;
+  const shown = v => (opts.compact && isURL(v)) ? shortUrlLabel(v) : v;
   if (count > 0) {
     const typeLabel = lkLabel('TASK_SOURCE_TYPE', row.firstSourceType) || row.firstSourceType || 'Source';
-    const text = (row.firstSourceRef ? (typeLabel + ' · ' + row.firstSourceRef) : typeLabel)
+    const text = (row.firstSourceRef ? (typeLabel + ' · ' + shown(row.firstSourceRef)) : typeLabel)
       + (count > 1 ? ' +' + (count - 1) + ' more' : '');
     let node;
     if (row.firstSourceUrl && isURL(row.firstSourceUrl)) {
@@ -936,7 +1026,7 @@ function buildSourceCell(row) {
     srcDiv.appendChild(node);
   } else if (isURL(row.source)) {
     const link = document.createElement('button');
-    link.className = 'source-link'; link.textContent = row.source; link.title = 'Open ' + row.source;
+    link.className = 'source-link'; link.textContent = shown(row.source); link.title = 'Open ' + row.source;
     link.addEventListener('click', () => window.api.openExternal(row.source));
     srcDiv.appendChild(link);
   } else {
@@ -1279,6 +1369,7 @@ async function initSettingsModule() {
   SETTINGS_TABS.forEach(renderLookupPanel);
   document.querySelectorAll('#setting-startonlastpage-ctl .seg-btn').forEach(b =>
     b.classList.toggle('active', (b.dataset.val === 'last') === !!uiState.startOnLastPage));
+  renderWeekendSettings();
   const orgNameInput = document.getElementById('s-org-name');
   if (document.activeElement !== orgNameInput) orgNameInput.value = LK.orgName || '';
   const activeTab = document.querySelector('#module-settings .stab.active')?.dataset.tab || 'general';
@@ -1857,6 +1948,7 @@ function discardSettingsChanges() {
 // already matches via textContent).
 const SETTINGS_SEARCH_INDEX = [
   { tab: 'general', selector: '#setting-startonlastpage-ctl', terms: 'start on last page landing analytics launch open' },
+  { tab: 'general', selector: '#setting-weekend-days', terms: 'weekend work days week friday saturday sunday overtime over time' },
   { tab: 'general', selector: '#tab-general button[data-onclick="openHowThinksOverlay()"]', terms: 'how this app thinks help guide explainer onboarding' },
   { tab: 'pages', selector: '#pages-settings-list', terms: 'pages menu sidebar hide show modules features turn off simplify' },
   { tab: 'users', selector: '#user-add-btn', terms: 'add user new user create account invite' },

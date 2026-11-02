@@ -102,13 +102,20 @@ function knowledgeItemsLinkedTo(companyIds = [], systemIds = []) {
     .sort((a, b) => b.rank - a.rank || String(b.item.updatedAt).localeCompare(String(a.item.updatedAt)))
     .map(entry => entry.item);
 }
-// opts: { companyIds, systemIds, q, emptyText }. The section fills itself in
-// and is rebuilt in place whenever the Hub reloads.
+// Items linked to one project, not archived, most recently updated first.
+function knowledgeItemsForProject(projectId) {
+  const id = Number(projectId);
+  return knowledgeItems.filter(item => item.status !== 'ARCHIVED' && Number(item.projectId) === id)
+    .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+}
+// opts: { companyIds, systemIds, projectId, q, emptyText }. With a projectId
+// the section lists only that project's items, and new items are linked to it.
+// The section fills itself in and is rebuilt in place whenever the Hub reloads.
 function buildKnowledgeLinkedSection(opts) {
   setupKnowledgeFileDrop();
   const section = pjMk('div', 'pj-section kh-linked');
   section.dataset.pageFeature = 'knowledge';   // hidden with the Knowledge Hub page
-  section.khLinked = { companyIds: [], systemIds: [], q: '', ...opts };
+  section.khLinked = { companyIds: [], systemIds: [], projectId: null, q: '', ...opts };
   section.addEventListener('dragover', event => {
     if (!knowledgeDragHasFiles(event)) return;
     event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; section.classList.add('kh-drop-over');
@@ -124,8 +131,10 @@ function buildKnowledgeLinkedSection(opts) {
   return section;
 }
 function fillKnowledgeLinkedSection(section) {
-  const { companyIds, systemIds, q, emptyText } = section.khLinked, linkable = companyIds.length + systemIds.length > 0;
-  const items = knowledgeLoaded ? knowledgeItemsLinkedTo(companyIds, systemIds) : [];
+  const { companyIds, systemIds, projectId, q, emptyText } = section.khLinked;
+  const linkable = projectId != null || companyIds.length + systemIds.length > 0;
+  const items = !knowledgeLoaded ? []
+    : projectId != null ? knowledgeItemsForProject(projectId) : knowledgeItemsLinkedTo(companyIds, systemIds);
   const shown = q ? items.filter(item => knowledgeMatches(item, q)) : items;
   section.innerHTML = '';
   const head = pjMk('div', 'pj-section-head'), title = pjMk('div', 'pj-section-title');
@@ -133,10 +142,11 @@ function fillKnowledgeLinkedSection(section) {
   const actions = pjMk('div', 'pj-section-actions');
   if (items.length) {
     const all = pjMk('button', 'btn'); all.type = 'button'; all.innerHTML = ic('arrow-right', 'lic-arrow-right') + 'Show in Knowledge Hub';
-    all.onclick = () => openKnowledgeHubFor(companyIds, systemIds); actions.appendChild(all);
+    all.onclick = () => (projectId != null ? openKnowledgeHubForProject(projectId) : openKnowledgeHubFor(companyIds, systemIds));
+    actions.appendChild(all);
   }
   const add = pjMk('button', 'btn primary'); add.type = 'button'; add.innerHTML = ic('plus') + ' New item';
-  add.onclick = () => openKnowledgeEditor(null, null, { companyIds, systemIds }); actions.appendChild(add);
+  add.onclick = () => openKnowledgeEditor(null, null, { companyIds, systemIds, projectId }); actions.appendChild(add);
   head.append(title, actions); section.appendChild(head);
   if (!knowledgeLoaded) { section.appendChild(pjMk('div', 'cp-records-empty', 'Loading…')); return; }
   if (!items.length) section.appendChild(pjMk('div', 'cp-records-empty', linkable ? emptyText : 'Link a client or system to see its Knowledge Hub items here.'));
@@ -157,13 +167,55 @@ function refreshKnowledgeLinkedSections() {
 function handleKnowledgeLinkedDrop(file, opts) {
   const match = knowledgeFindItemForFile(file.name);
   if (match) { openKnowledgeDocumentModal(match.item.id, knowledgeFamilyName(match.family), file); return; }
-  openKnowledgeEditor(null, file, { companyIds: opts.companyIds, systemIds: opts.systemIds });
+  openKnowledgeEditor(null, file, { companyIds: opts.companyIds, systemIds: opts.systemIds, projectId: opts.projectId });
 }
-function openKnowledgeInHub(id) { switchModule('knowledge'); openKnowledgeDetail(id); }
+// ── Back to where the Hub was opened from ──
+// A jump from a project or client page remembers that page, and the Hub header
+// shows a Back button to return to it. Opening the Hub any other way (sidebar,
+// palette) clears it; see switchModule.
+let knowledgeReturnTo = null;   // { label, go } or null
+function captureKnowledgeReturn() {
+  if (activeModule === 'projects' && currentProject) {
+    const id = currentProject.id;
+    return { label: currentProject.name || '', go: () => openProjectById(id) };
+  }
+  if (activeModule === 'clients' && currentClient
+      && document.getElementById('clients-detail-view')?.style.display !== 'none') {
+    const id = currentClient.id, tab = clientDetailTab;
+    return { label: companyDisplayName(currentClient) || '', go: () => { switchModule('clients'); openClientDetail(id, '', tab); } };
+  }
+  return null;
+}
+function renderKnowledgeBack() {
+  const btn = document.getElementById('kh-back-btn'); if (!btn) return;
+  btn.hidden = !knowledgeReturnTo;
+  const name = document.getElementById('kh-back-name');
+  name.textContent = knowledgeReturnTo?.label ? '· ' + knowledgeReturnTo.label : '';
+  btn.title = knowledgeReturnTo?.label || '';
+}
+function clearKnowledgeReturn() { knowledgeReturnTo = null; renderKnowledgeBack(); }
+function goBackFromKnowledge() {
+  const back = knowledgeReturnTo; clearKnowledgeReturn();
+  if (back) back.go();
+}
+// Switches to the Hub, keeping a Back target when coming from a project/client.
+function enterKnowledgeHub() {
+  const back = captureKnowledgeReturn();
+  switchModule('knowledge');
+  if (back) { knowledgeReturnTo = back; renderKnowledgeBack(); }
+}
+function openKnowledgeInHub(id) { enterKnowledgeHub(); openKnowledgeDetail(id); }
 // Opens the Hub filtered to these clients and systems, with no search text.
 function openKnowledgeHubFor(companyIds = [], systemIds = []) {
-  switchModule('knowledge');
+  enterKnowledgeHub();
   knowledgeFilters = new Set([...companyIds.map(id => 'CLIENT:' + id), ...systemIds.map(id => 'SYSTEM:' + id)]);
+  document.getElementById('kh-search').value = '';
+  renderKnowledgeList();
+}
+// Opens the Hub filtered to one project.
+function openKnowledgeHubForProject(projectId) {
+  enterKnowledgeHub();
+  knowledgeFilters = new Set(['PROJECT:' + Number(projectId)]);
   document.getElementById('kh-search').value = '';
   renderKnowledgeList();
 }
@@ -1027,7 +1079,8 @@ function openKnowledgeEditor(item, file, preset) {
   const type = document.getElementById('kh-type-input'); type.innerHTML = '<option value="">No kind</option>';
   lkOptions('KNOWLEDGE_TYPE').forEach(option => { const el = document.createElement('option'); el.dataset.userContent = ''; el.value = option.code; el.textContent = lookupDisplayName(option); type.appendChild(el); });
   type.onchange = syncCodeNoteEditor;
-  applyKnowledgeEditorData(item || { status: 'PUBLISHED', tags: [], companyIds: preset?.companyIds || [], systemIds: preset?.systemIds || [] });
+  applyKnowledgeEditorData(item || { status: 'PUBLISHED', tags: [], companyIds: preset?.companyIds || [], systemIds: preset?.systemIds || [],
+    projectId: preset?.projectId ?? null });
   fillKnowledgeTagSuggestions('kh-tag-suggestions');
   setupKnowledgeTagInput(document.getElementById('kh-tags-input'), addKnowledgeTag, () => {
     if (knowledgeEditorTags.length) { knowledgeEditorTags.pop(); renderKnowledgeEditorTags(); markKnowledgeEditorDirty(); }

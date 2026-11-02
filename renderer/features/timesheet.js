@@ -963,6 +963,7 @@ async function openModal(idx = null, opts = {}) {
     modal.classList.remove('mode-existing');
     modal.classList.remove('mode-new');
     modal.classList.add('mode-edit');
+    stopAutoTimeType('f-time');
     document.getElementById('f-mode-toggle-row').style.display = 'none';
     fExistingTaskPicker = null;
     document.getElementById('f-task-summary').classList.remove('has-task');
@@ -978,7 +979,9 @@ async function openModal(idx = null, opts = {}) {
     document.getElementById('f-mode-toggle-row').style.display = '';
     document.querySelectorAll('#f-mode-toggle .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === 'existing'));
     setModalTaskType('client');   // reset to client work for a fresh Add
-    if (!defaults.time) blankSelect('f-time');
+    // Time type follows the date (Over Time on a weekend day) until picked.
+    if (row?.time) stopAutoTimeType('f-time');
+    else startAutoTimeType('f-date', 'f-time', defaults.time);
     if (!defaults.natural) blankSelect('f-natural');
     // Lightweight (Milestone 7) — this picker never renders sessions, just the
     // two-line rich option (name/company/system/status/last-worked/hours).
@@ -2682,6 +2685,7 @@ function switchModule(name) {
     initOutsModule();
   } else if (name === 'knowledge') {
     setAppTitle('Knowledge Hub');
+    clearKnowledgeReturn();   // a jump from a project/client sets it again right after
     initKnowledgeModule();
   } else if (name === 'clients') {
     setAppTitle('Clients');

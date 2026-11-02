@@ -1191,7 +1191,7 @@ async function run() {
   })()`);
   const shelf = { ...shelfFirst, ...shelfSecond };
   if (!Object.values(shelf).every(Boolean)) throw new Error(`Knowledge Hub shelf / drop / versioning failed: ${JSON.stringify(shelf)}`);
-  // Phase 4: the client page shows the Hub items linked to it; a project page shows none.
+  // Phase 4: the client page shows the Hub items linked to it; a project page only its own.
   const linkedPages = await evaluate(`(async () => {
     const until = async test => { for (let i = 0; i < 60 && !test(); i++) await new Promise(r => setTimeout(r, 50)); return !!test(); };
     const client = LK.categories.COMPANY.find(item => item.code === 'E2E_CLIENT');
@@ -1220,10 +1220,14 @@ async function run() {
     const project = await window.api.createProject({ name: 'E2E knowledge project', companyIds: [client.id] });
     openProjectById(project.id);
     const projectShown = await until(() => !!document.querySelector('#projects-detail-view .pj-section'));
-    const projectHasNoHub = projectShown && !document.querySelector('#projects-detail-view .kh-linked');
-    return { clientListed, clientOnlyLinked, tabCount, dropPreset, savedHere, projectHasNoHub, openedInHub };
+    // The project page has its own Hub section, listing only items linked to the
+    // project itself, so its client's items do not show there.
+    const projectHub = projectShown && await until(() => !!document.querySelector('#projects-detail-view .kh-linked'));
+    const projectOnlyOwn = projectHub && !titles('#projects-detail-view').includes('E2E client mapping sheet')
+      && !titles('#projects-detail-view').includes('E2E client runbook');
+    return { clientListed, clientOnlyLinked, tabCount, dropPreset, savedHere, projectHub, projectOnlyOwn, openedInHub };
   })()`);
-  if (!Object.values(linkedPages).every(Boolean)) throw new Error(`Knowledge Hub on client page / absent from project page failed: ${JSON.stringify(linkedPages)}`);
+  if (!Object.values(linkedPages).every(Boolean)) throw new Error(`Knowledge Hub on client page / project page failed: ${JSON.stringify(linkedPages)}`);
   if (!result.version) throw new Error('Application version IPC returned no value');
   if (result.accessibility.duplicateIds.length || result.accessibility.unnamedButtons.length ||
       !result.accessibility.language || !result.accessibility.direction || result.accessibility.liveRegions < 1) {
@@ -1375,14 +1379,19 @@ async function run() {
     await openClientDetail(clientId);
     const clientTileGone = !document.querySelector('#client-detail-tabs [data-client-tab="pfm"]')
       && !!document.querySelector('#client-detail-tabs [data-client-tab="servers"]');
-    ['clients', 'all-tasks', 'outsource'].forEach(p => togglePageHidden(p, true));
-    const externalHeading = [...document.querySelectorAll('#sidebar .nav-section')].find(h => h.textContent.trim() === 'External' || h.textContent.trim() === 'خارجي');
-    const headingGone = !!externalHeading && externalHeading.hidden;
+    const heading = (en, ar) => [...document.querySelectorAll('#sidebar .nav-section')].find(h => h.textContent.trim() === en || h.textContent.trim() === ar);
+    const externalHeading = heading('External', 'خارجي');
+    const internalHeading = heading('Internal', 'داخلي');
+    // External keeps Browse (not hideable), so its heading stays; Internal is
+    // all hideable pages, so hiding every one of them hides its heading.
+    ['clients', 'all-tasks'].forEach(p => togglePageHidden(p, true));
     const leftClients = activeModule === 'analytics';
+    ['internal-tasks', 'subscriptions', 'companydocs', 'templates', 'knowledge', 'outsource'].forEach(p => togglePageHidden(p, true));
+    const headingGone = !!externalHeading && !externalHeading.hidden && !!internalHeading && internalHeading.hidden;
     showAllPages();
     await new Promise(r => setTimeout(r, 200));
     const restored = (await window.api.getPreferences()).hiddenPages === ''
-      && shown(document.querySelector('#sidebar .nav-item[data-module="pfm"]')) && !externalHeading.hidden;
+      && shown(document.querySelector('#sidebar .nav-item[data-module="pfm"]')) && !externalHeading.hidden && !internalHeading.hidden;
     return { switches, saved, navGone, catalogGone, redirected, paletteClean, clientTileGone, headingGone, leftClients, restored };
   })()`);
   if (pages.switches !== 11 || pages.saved !== 'pfm' || !pages.navGone || !pages.catalogGone || !pages.redirected

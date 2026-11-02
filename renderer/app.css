@@ -3337,6 +3337,43 @@
     .cp-summary-val { font-size: 18px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
     .cp-summary-lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
     .cp-date-cell { font-size: 12px; color: var(--muted); white-space: nowrap; }
+    /* Knowledge Hub: Back to the project/client page it was opened from. */
+    .kh-back-btn { flex-shrink: 0; max-width: 280px; }
+    .kh-back-btn .kh-back-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+    .cp-records-sub { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .cp-summary-chip-warn .cp-summary-val { color: var(--bad); }
+    /* Records table: a framed card with a sticky header, compact rows and no
+       wrapping in the short columns, so a row stays one or two lines tall. */
+    .cp-table-wrap {
+      border: 1px solid var(--border); border-radius: 10px;
+      background: var(--surface); overflow: auto; max-width: 100%;
+    }
+    .cp-table { width: 100%; border-collapse: collapse; }
+    .cp-table thead th {
+      position: sticky; top: 0; z-index: 1;
+      background: var(--surface2); white-space: nowrap;
+      text-align: start; padding: 10px 12px;
+    }
+    .cp-table tbody td { padding: 8px 12px; vertical-align: middle; border-top: 1px solid var(--border); }
+    .cp-table tbody tr:hover td { background: color-mix(in srgb, var(--primary) 5%, transparent); }
+    .cp-table .cp-col-num { width: 36px; }
+    .cp-table .cp-col-num-r { width: 72px; text-align: end; }
+    .cp-table .cp-col-desc { min-width: 240px; }
+    .cp-table .desc-cell { max-width: 520px; display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
+    .cp-desc-src {
+      max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      font-size: 11.5px; color: var(--muted);
+    }
+    .cp-desc-src .source-text, .cp-desc-src .source-link { font-size: inherit; white-space: nowrap; }
+    .cp-table .cp-nowrap, .cp-table .cell-link { white-space: nowrap; }
+    .cp-table .status-badge { cursor: default; }
+    .cp-table .status-badge:hover, .cp-table .status-badge:active { opacity: 1; transform: none; }
+    .cp-time-pill {
+      display: inline-block; white-space: nowrap; font-size: 12px; font-weight: 600;
+      padding: 2px 9px; border-radius: 20px;
+      background: var(--surface2); color: var(--muted);
+    }
+    .cp-time-pill.cp-time-ot { background: color-mix(in srgb, var(--bad) 12%, transparent); color: var(--bad); }
 
     /* ══ TODAY BUTTON ══ */
     #btn-today { transition: all var(--speed); }

@@ -316,14 +316,16 @@ gate('Each document version carries a "what changed" note, set on upload and edi
   && html.includes('x.originalName, x.changeNote]')
   && preload.includes("ipcRenderer.invoke('knowledge:update-attachment-note', attachmentId, note)")
   && main.includes("ipcMain.handle('knowledge:update-attachment-note'"));
-gate('Client pages show their Knowledge Hub items, with a drop target and a pre-linked New item; project pages show none',
+gate('Client pages show their Knowledge Hub items, with a drop target and a pre-linked New item; project pages show only items linked to that project',
   html.includes("{ key: 'knowledge', label: 'Knowledge Hub' }")
   && html.includes("buildKnowledgeLinkedSection({ companyIds: [c.id], q,")
   && !html.includes('this project’s clients or systems')
-  && html.split('buildKnowledgeLinkedSection(').length === 3
+  && html.split('buildKnowledgeLinkedSection(').length === 4
+  && html.includes('function knowledgeItemsForProject(projectId)')
+  && html.includes('projectId: p.id,')
   && html.includes('function knowledgeItemsLinkedTo(companyIds = [], systemIds = [])')
   && html.includes('function handleKnowledgeLinkedDrop(file, opts)')
-  && html.includes("openKnowledgeEditor(null, null, { companyIds, systemIds })")
+  && html.includes("openKnowledgeEditor(null, null, { companyIds, systemIds, projectId })")
   && html.includes('refreshKnowledgeLinkedSections();'));
 gate('Versions group by name with the version set aside; Open file opens the latest, with a menu for several documents',
   html.includes('function knowledgeFamilyName(family)')

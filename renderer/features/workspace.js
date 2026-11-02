@@ -112,6 +112,9 @@ function renderCatRecords(kind) {
   const title = document.createElement('h2'); title.className = 'cp-records-title';
   title.textContent = kind === 'companies' ? companyDisplayName(st.selected) : lkLabel('SYSTEM', st.selected);
   head.appendChild(title);
+  const sub = document.createElement('span'); sub.className = 'cp-records-sub';
+  sub.id = kind + '-records-sub';
+  head.appendChild(sub);
   host.appendChild(head);
 
   // Filter bar: date range + entry (time) type
@@ -153,16 +156,20 @@ function renderCatRecords(kind) {
   summary.id = kind + '-summary';
   host.appendChild(summary);
 
-  // Table
-  const wrap = document.createElement('div');
-  const table = document.createElement('table');
+  // Table. The column for the dimension being browsed is left out — every row
+  // shares the value already shown in the title.
+  const wrap = document.createElement('div'); wrap.className = 'cp-table-wrap';
+  const table = document.createElement('table'); table.className = 'cp-table';
   table.innerHTML = '<thead><tr>' +
-    '<th style="width:36px">#</th>' +
-    '<th>Date</th><th>Company</th><th>System</th><th>Natural</th><th>Time</th>' +
-    '<th style="min-width:220px">Description</th><th style="min-width:160px">Source</th>' +
+    '<th class="cp-col-num">#</th>' +
+    '<th>Date</th>' +
+    (kind === 'companies' ? '' : '<th>Company</th>') +
+    (kind === 'systems' ? '' : '<th>System</th>') +
+    '<th>Natural</th><th>Time</th>' +
+    '<th class="cp-col-desc">Description</th>' +
     '<th>Status</th>' +
-    '<th style="width:80px;text-align:right">Minutes</th>' +
-    '<th style="width:70px;text-align:right">Hours</th></tr></thead>' +
+    '<th class="cp-col-num-r">Minutes</th>' +
+    '<th class="cp-col-num-r">Hours</th></tr></thead>' +
     '<tbody id="' + kind + '-rec-tbody"></tbody>';
   wrap.appendChild(table);
   host.appendChild(wrap);
@@ -187,15 +194,32 @@ function applyCatFilter(kind) {
     const l = document.createElement('span'); l.className = 'cp-summary-lbl'; l.textContent = lbl;
     c.appendChild(v); c.appendChild(l); return c;
   };
+  const otMin = rows.filter(r => r.time === 'OVERTIME').reduce((s, r) => s + (parseFloat(r.minutes) || 0), 0);
+  const days = new Set(rows.map(r => r.date).filter(Boolean));
   summary.appendChild(chip(rows.length, 'Entries'));
   summary.appendChild(chip((totalMin / 60).toFixed(2), 'Total Hours'));
+  summary.appendChild(chip(days.size, 'Active Days'));
+  summary.appendChild(chip(days.size ? (totalMin / 60 / days.size).toFixed(2) : '0.00', 'Avg / Day'));
+  if (otMin > 0) {
+    const ot = chip((otMin / 60).toFixed(2), 'Over-Time Hours');
+    ot.classList.add('cp-summary-chip-warn');
+    summary.appendChild(ot);
+  }
+
+  // Subtitle: the date span the filtered rows cover.
+  const sub = document.getElementById(kind + '-records-sub');
+  if (sub) {
+    const dates = [...days].sort();
+    sub.textContent = !dates.length ? '' : dates.length === 1 ? dates[0]
+      : dates[0] + ' → ' + dates[dates.length - 1];
+  }
 
   // Table body
   const tbody = document.getElementById(kind + '-rec-tbody');
   tbody.innerHTML = '';
   if (!rows.length) {
     const tr = document.createElement('tr');
-    const td = document.createElement('td'); td.colSpan = 11; td.className = 'cp-records-empty';
+    const td = document.createElement('td'); td.colSpan = 9; td.className = 'cp-records-empty';
     td.textContent = st.entries.length
       ? (window.ctI18n?.t?.('No records match the current filters') || 'No records match the current filters')
       // The noun is itself a dictionary key, so translate it before it is
@@ -204,12 +228,12 @@ function applyCatFilter(kind) {
          || ('No records for this ' + CP_DEF[kind].noun));
     tr.appendChild(td); tbody.appendChild(tr); return;
   }
-  rows.forEach((r, i) => tbody.appendChild(buildReadonlyRow(r, i)));
+  rows.forEach((r, i) => tbody.appendChild(buildReadonlyRow(r, i, kind)));
 }
 
 // One read-only timesheet-style row (mirrors the Timesheet columns + Date, no
 // row actions — these pages never edit).
-function buildReadonlyRow(r, i) {
+function buildReadonlyRow(r, i, kind) {
   const tr = document.createElement('tr');
 
   const numTd = document.createElement('td');
@@ -226,23 +250,32 @@ function buildReadonlyRow(r, i) {
   dateBtn.addEventListener('click', () => { switchModule('timesheet'); switchDay(r.date); });
   dateDiv.appendChild(dateBtn); dateTd.appendChild(dateDiv); tr.appendChild(dateTd);
 
-  tr.appendChild(linkCell(r.company, 'companies'));
-  tr.appendChild(linkCell(r.system, 'systems'));
-  tr.appendChild(textCell(lkLabel('ACTIVITY_TYPE', r.natural)));
+  if (kind !== 'companies') tr.appendChild(linkCell(r.company, 'companies'));
+  if (kind !== 'systems') tr.appendChild(linkCell(r.system, 'systems'));
+  const natTd = textCell(lkLabel('ACTIVITY_TYPE', r.natural));
+  natTd.classList.add('cp-nowrap');
+  tr.appendChild(natTd);
 
   const timeTd = document.createElement('td');
   const timeDiv = document.createElement('div'); timeDiv.className = 'cell';
-  const timeSpan = document.createElement('span'); timeSpan.textContent = lkLabel('TIME_TYPE', r.time);
-  if (r.time === 'OVERTIME') timeSpan.style.color = 'var(--bad)';
+  const timeSpan = document.createElement('span');
+  timeSpan.className = 'cp-time-pill' + (r.time === 'OVERTIME' ? ' cp-time-ot' : '');
+  timeSpan.textContent = lkLabel('TIME_TYPE', r.time);
   timeDiv.appendChild(timeSpan); timeTd.appendChild(timeDiv); tr.appendChild(timeTd);
 
   const descTd = document.createElement('td');
   const descDiv = document.createElement('div'); descDiv.className = 'cell desc-cell';
   const descSpan = document.createElement('span'); descSpan.className = 'desc-text'; descSpan.dataset.userContent = ''; descSpan.textContent = r.description;
   descDiv.appendChild(descSpan);
+  // The source sits under the task as one muted line instead of its own
+  // column, which kept rows tall. Reuses the shared cell's link/label logic.
+  const srcInner = buildSourceCell(r, { compact: true }).firstChild;
+  if (srcInner && srcInner.textContent.trim()) {
+    srcInner.className = 'cp-desc-src';
+    srcInner.title = srcInner.firstChild?.title || srcInner.textContent;
+    descDiv.appendChild(srcInner);
+  }
   descTd.appendChild(descDiv); tr.appendChild(descTd);
-
-  tr.appendChild(buildSourceCell(r));
 
   const stTd = document.createElement('td'); stTd.className = statusClass(r.status);
   const stDiv = document.createElement('div'); stDiv.className = 'cell';

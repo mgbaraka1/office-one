@@ -14,7 +14,7 @@ let _palSearchTimer = null;
 let _palTaskDomainMap = null;
 
 const PAL_PAGES = [
-  { icon: 'clock',            label: 'Today — Timesheet', go: 'timesheet' },
+  { icon: 'clock',            label: 'Timesheet',     go: 'timesheet' },
   { icon: 'layout-dashboard', label: 'Overview',      go: 'analytics' },
   { icon: 'file-text',        label: 'Reports',       go: 'reports' },
   { icon: 'building-2',       label: 'Browse — Companies', go: 'companies' },
@@ -515,15 +515,6 @@ async function init() {
   // The retired 'clients-projects' page is folded into 'clients', so a stale
   // saved value lands the returning user on the merged Clients page.
   if (uiState.lastModule === 'clients-projects') uiState.lastModule = 'clients';
-  // Browse remains an advanced palette/deep-link destination, but is no longer
-  // a primary sidebar page. Carry its last Company/System slice into Tasks so
-  // an upgrade never opens on a page with no primary-navigation context.
-  if (uiState.lastModule === 'browse') {
-    const savedBrowse = uiState.filters.browse || {};
-    uiState.filters.allTasks = Object.assign({}, uiState.filters.allTasks || {},
-      savedBrowse.kind === 'systems' ? { system: savedBrowse.selected || '' } : { company: savedBrowse.selected || '' });
-    uiState.lastModule = 'all-tasks';
-  }
   const landingModule = (uiState.startOnLastPage && uiState.lastModule && uiState.lastModule !== 'projects'
     && document.getElementById('module-' + uiState.lastModule) && !isPageHidden(uiState.lastModule))
     ? uiState.lastModule : 'analytics';

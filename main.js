@@ -352,7 +352,7 @@ ipcMain.handle('tasks:convert-to-internal',    authed((_e, id, data) => db.conve
 // dialog also filters by these so the user only sees permitted types (the db
 // layer re-validates regardless).
 const DOC_UPLOAD_EXTENSIONS = ['pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'gif', 'webp'];
-const KNOWLEDGE_UPLOAD_EXTENSIONS = [...DOC_UPLOAD_EXTENSIONS, 'xls', 'xlsx', 'txt', 'pptx'];
+const KNOWLEDGE_UPLOAD_EXTENSIONS = [...DOC_UPLOAD_EXTENSIONS, 'xls', 'xlsx', 'txt', 'json', 'pptx'];
 const TEMPLATE_UPLOAD_EXTENSIONS = [...KNOWLEDGE_UPLOAD_EXTENSIONS, 'ppt'];
 // Delete-undo file handling: purge the whole folder when the undo window lapses,
 // or move it onto the re-created project's new id when the user undoes.
@@ -462,7 +462,7 @@ ipcMain.handle('templates:upload-document', authed(async (_e, id) => {
       { name: 'Word',   extensions: ['doc', 'docx'] },
       { name: 'Excel',  extensions: ['xls', 'xlsx'] },
       { name: 'PowerPoint', extensions: ['ppt', 'pptx'] },
-      { name: 'Text',   extensions: ['txt'] },
+      { name: 'Text',   extensions: ['txt', 'json'] },
       { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },
     ],
   });
@@ -690,7 +690,7 @@ ipcMain.handle('pfm:files-add', authed(async (_e, versionId) => {
           { name: 'Supported files', extensions: KNOWLEDGE_UPLOAD_EXTENSIONS },
           { name: 'PDF', extensions: ['pdf'] }, { name: 'Word', extensions: ['doc', 'docx'] },
           { name: 'Excel', extensions: ['xls', 'xlsx'] }, { name: 'PowerPoint', extensions: ['pptx'] },
-          { name: 'Text', extensions: ['txt'] },
+          { name: 'Text', extensions: ['txt', 'json'] },
           { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },
         ],
       });
@@ -718,7 +718,7 @@ ipcMain.handle('pfm:stage-files-add', authed(async (_e, itemId, status) => {
           { name: 'Supported files', extensions: KNOWLEDGE_UPLOAD_EXTENSIONS },
           { name: 'PDF', extensions: ['pdf'] }, { name: 'Word', extensions: ['doc', 'docx'] },
           { name: 'Excel', extensions: ['xls', 'xlsx'] }, { name: 'PowerPoint', extensions: ['pptx'] },
-          { name: 'Text', extensions: ['txt'] },
+          { name: 'Text', extensions: ['txt', 'json'] },
           { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },
         ],
       });

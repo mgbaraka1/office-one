@@ -299,6 +299,10 @@ async function openSessionModal(workLog, opts = {}) {
 
   document.getElementById('sm-date').value = mode === 'create' ? (opts.defaultDate || fmt(new Date())) : (workLog.date || '');
   populateSelect('sm-time', 'timeType', mode === 'create' ? (prefill.time || defaults.time || '') : (workLog.time || ''));
+  // A new session's time type follows its date (Over Time on a weekend day)
+  // until the user picks one.
+  if (mode === 'create' && !prefill.time) startAutoTimeType('sm-date', 'sm-time', defaults.time);
+  else stopAutoTimeType('sm-time');
   populateSelect('sm-natural', 'natural', mode === 'create' ? (prefill.natural || defaults.natural || '') : (workLog.natural || ''));
   document.getElementById('sm-description').value = mode === 'create' ? (prefill.description || '') : (workLog.description || '');
   document.getElementById('sm-minutes').value = mode === 'create' ? (prefill.minutes || '') :
@@ -1127,10 +1131,17 @@ function renderProjectDetail(p) {
   appendProjectLinkedSections(host, p);
 }
 
-// The Tasks under a project's detail view. Knowledge Hub items are not listed
-// here: they link to clients and systems, not projects, so a project page
-// showed every item of its client. The client page's tab is where they live.
+// The Knowledge Hub items linked to this project itself (knowledge_items.project_id,
+// migration 081; not every item of its client, which the client page lists),
+// then its Tasks.
 function appendProjectLinkedSections(host, p) {
+  host.appendChild(buildKnowledgeLinkedSection({
+    projectId: p.id,
+    companyIds: (p.companies || []).map(c => c.id),
+    systemIds: (p.systems || []).map(s => s.id),
+    emptyText: 'No Knowledge Hub items linked to this project yet.',
+  }));
+
   // ── Tasks section (ProjectTasksV2: each task with its work sessions nested) ──
   const tasksSec = pjMk('div', 'pj-section');
   tasksSec.dataset.pageFeature = 'all-tasks';   // hidden with the Client Tasks page

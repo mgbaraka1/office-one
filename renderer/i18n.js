@@ -122,6 +122,9 @@
     'General': 'عام', 'Language': 'اللغة', 'English': 'الإنجليزية', 'Application language': 'لغة التطبيق',
     'Choose the interface language. Arabic uses a right-to-left layout; your records stay unchanged and managed catalogs use their saved English or Arabic labels.': 'اختر لغة الواجهة. تستخدم العربية تخطيطاً من اليمين إلى اليسار؛ وتبقى سجلاتك دون تغيير بينما تستخدم الكتالوجات التسمية الإنجليزية أو العربية المحفوظة.',
     'Start on': 'البدء عند', 'Last page': 'آخر صفحة', 'Analytics': 'التحليلات',
+    'Weekend days': 'أيام العطلة الأسبوعية',
+    'Pick your weekend; the other days are work days. A new session dated on a weekend day starts as Over Time — you can still pick another time type.':
+      'اختر أيام عطلتك الأسبوعية، وباقي الأيام أيام عمل. الجلسة الجديدة المؤرخة في يوم عطلة تبدأ كوقت إضافي — ويمكنك اختيار نوع وقت آخر.',
     'User Management': 'إدارة المستخدمين', 'Add User': 'إضافة مستخدم', 'Edit User': 'تعديل المستخدم',
     'Permissions': 'الصلاحيات', 'Account status': 'حالة الحساب', 'Active — can sign in': 'نشط — يمكنه تسجيل الدخول',
     'Current password': 'كلمة المرور الحالية', 'Save User': 'حفظ المستخدم',
@@ -319,7 +322,7 @@
     'Daily Timesheet PDF': 'تقرير سجل الدوام اليومي', 'Monthly Over-Time PDF': 'تقرير الوقت الإضافي الشهري',
     'Subscriptions PDF': 'تقرير الاشتراكات', 'Stop': 'إيقاف',
     'Less': 'أقل', 'More': 'المزيد', 'Task': 'المهمة', 'Project / Dept': 'المشروع / القسم',
-    '‹ Prev': 'السابق ›', 'Next ›': '‹ التالي', 'Row deleted': 'تم حذف السجل',
+    '‹ Prev': '‹ السابق', 'Next ›': 'التالي ›', 'Row deleted': 'تم حذف السجل',
     'Create guidance, steps, or troubleshooting notes': 'إنشاء إرشادات أو خطوات أو ملاحظات لاستكشاف الأخطاء',
     'Create an item and attach its first version': 'إنشاء عنصر وإرفاق إصداره الأول',
     'Sort knowledge items': 'ترتيب عناصر المعرفة', 'Most documents': 'الأكثر مستندات',
@@ -391,7 +394,7 @@
     'Description / Source': 'الوصف / المصدر', 'sessions grouped by task': 'الجلسات مجمعة حسب المهمة',
     'Min': 'دقيقة', 'Hrs': 'ساعة', 'Total': 'الإجمالي', 'Source': 'المصدر',
     'No work recorded on this day.': 'لا يوجد عمل مسجل في هذا اليوم.', 'Printed {date}': 'طُبع في {date}',
-    'Over-Time Request': 'طلب وقت إضافي', 'Total Over-Time': 'إجمالي الوقت الإضافي', 'Entries': 'الإدخالات',
+    'Over-Time Request': 'طلب وقت إضافي', 'Total Over-Time': 'إجمالي الوقت الإضافي', 'Over-Time Hours': 'ساعات الوقت الإضافي', 'Entries': 'الإدخالات',
     'Days': 'الأيام', 'Employee': 'الموظف', 'Approved by': 'اعتمد بواسطة',
     'No Over-Time recorded in {month}.': 'لا يوجد وقت إضافي مسجل في {month}.',
     'Kindly find below the Over-Time hours logged during {month}, submitted for your review and approval.': 'يرجى الاطلاع أدناه على ساعات الوقت الإضافي المسجلة خلال {month} والمقدمة لمراجعتكم واعتمادكم.',
@@ -467,7 +470,6 @@
     'OFFICE': 'OFFICE', 'ONE': 'ONE', 'PDF': 'PDF', 'June 2026': 'يونيو ٢٠٢٦',
     '• List': '• قائمة', '1. List': '1. قائمة',
     'Collapse navigation': 'طي شريط التنقل', 'Quick Find (Ctrl+K)': 'البحث السريع (Ctrl+K)',
-    'Today — Timesheet': 'اليوم — سجل الدوام',
     'Add client': 'إضافة عميل',
     'Rename this client on the Clients page': 'أعد تسمية هذا العميل من صفحة العملاء',
     'Theme, workspace view, and eye comfort': 'السمة وعرض مساحة العمل وراحة العين',
@@ -656,7 +658,7 @@
     // Client detail view.
     'Servers': 'الخوادم', 'Projects': 'المشاريع', 'Access': 'الوصول',
     'Access records': 'سجلات الوصول', 'Internal systems': 'الأنظمة الداخلية',
-    'Add Access': 'إضافة وصول', 'Recent activity': 'آخر النشاطات', 'Edit code and names': 'تعديل الرمز والأسماء', 'Next 30 days': 'خلال 30 يوماً', 'Compared with the previous period': 'مقارنة بالفترة السابقة', 'Back to overview': 'العودة إلى النظرة العامة', 'Yesterday': 'أمس', 'Earlier': 'أقدم',
+    'Add Access': 'إضافة وصول', 'Recent activity': 'آخر النشاطات', 'Edit code and names': 'تعديل الرمز والأسماء', 'Next 30 days': 'خلال 30 يوماً', 'Compared with the previous period': 'مقارنة بالفترة السابقة', 'Back to overview': 'العودة إلى النظرة العامة', 'Back': 'رجوع', 'Yesterday': 'أمس', 'Earlier': 'أقدم',
     'All clear. Nothing needs attention.': 'كل شيء على ما يرام. لا شيء يحتاج إلى انتباه.', 'Expires today': 'تنتهي اليوم',
     'Internal system': 'نظام داخلي', 'Untitled': 'بدون عنوان', 'Nothing has changed yet.': 'لا توجد تغييرات بعد.',
     'Nothing recorded for this client yet': 'لا توجد سجلات لهذا العميل بعد',
@@ -1057,6 +1059,7 @@
     // Knowledge Hub on client pages (Phase 4).
     'Show in Knowledge Hub': 'عرض في مركز المعرفة', 'New Knowledge item': 'عنصر معرفة جديد',
     'No Knowledge Hub items for this client yet.': 'لا توجد عناصر في مركز المعرفة لهذا العميل بعد.',
+    'No Knowledge Hub items linked to this project yet.': 'لا توجد عناصر في مركز المعرفة مرتبطة بهذا المشروع بعد.',
     'Link a client or system to see its Knowledge Hub items here.': 'اربط عميلاً أو نظاماً لعرض عناصره في مركز المعرفة هنا.',
     'No Knowledge Hub items match your search.': 'لا توجد عناصر في مركز المعرفة تطابق بحثك.',
     'Drop a file here: a matching name becomes its next version, anything else starts a new item linked here.':

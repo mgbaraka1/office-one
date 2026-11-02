@@ -1362,6 +1362,7 @@ const KNOWLEDGE_DOC_TYPES = {
   xls:  'application/vnd.ms-excel',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   txt:  'text/plain',
+  json: 'application/json',
   pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 };
 const KNOWLEDGE_DOC_EXTENSIONS = Object.keys(KNOWLEDGE_DOC_TYPES);
@@ -1394,9 +1395,18 @@ function uploadHeaderMatches(srcPath, ext) {
 function knowledgeUploadHeaderMatches(srcPath, ext) {
   if (ext === 'xls') return uploadHeaderMatches(srcPath, 'doc');
   if (ext === 'xlsx' || ext === 'pptx') return uploadHeaderMatches(srcPath, 'docx');
-  if (ext === 'txt') {
+  if (ext === 'txt' || ext === 'json') {
     const fd = fs.openSync(srcPath, 'r');
-    try { const sample = Buffer.alloc(4096); const n = fs.readSync(fd, sample, 0, sample.length, 0); return !sample.subarray(0, n).includes(0); }
+    try {
+      const sample = Buffer.alloc(4096); const n = fs.readSync(fd, sample, 0, sample.length, 0);
+      const head = sample.subarray(0, n);
+      if (head.includes(0)) return false;
+      if (ext === 'txt') return true;
+      // JSON: text whose first real character (after any BOM/whitespace) opens
+      // an object or array.
+      const first = head.toString('utf8').replace(/^\uFEFF/, '').trimStart()[0];
+      return first === '{' || first === '[';
+    }
     finally { fs.closeSync(fd); }
   }
   return uploadHeaderMatches(srcPath, ext);
@@ -3670,9 +3680,22 @@ const USER_PREFERENCES = {
   // can never be hidden, so they are not in the list. This only hides — the
   // data stays, and switching a page back on brings everything back.
   hiddenPages: { default: '', normalize: normalizeHiddenPages },
+  // The account's weekend: days of the week as JS getDay() numbers
+  // (0 = Sunday … 6 = Saturday), comma-separated; '' means no weekend. A new
+  // session dated on one of these days starts as Over Time. Friday + Saturday
+  // by default.
+  weekendDays: { default: '5,6', normalize: normalizeWeekendDays },
 };
+// The canonical stored form (Sunday-first, no repeats), or null when a part is
+// not a day number.
+function normalizeWeekendDays(raw) {
+  if (typeof raw !== 'string') return null;
+  const parts = raw.split(',').map(s => s.trim()).filter(Boolean);
+  if (parts.some(p => !/^[0-6]$/.test(p))) return null;
+  return [...new Set(parts.map(Number))].sort((a, b) => a - b).join(',');
+}
 const HIDEABLE_PAGES = ['timesheet', 'reports', 'internal-tasks', 'subscriptions', 'companydocs',
-  'templates', 'knowledge', 'clients', 'all-tasks', 'pfm', 'outsource'];
+  'templates', 'knowledge', 'outsource', 'clients', 'all-tasks', 'pfm'];
 // The canonical stored form (known keys, no repeats, in menu order), or null
 // when the value names a page that does not exist.
 function normalizeHiddenPages(raw) {

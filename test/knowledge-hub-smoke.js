@@ -225,6 +225,15 @@ try {
     deckRes.ok && deckRes.item.documents[0]?.mimeType?.includes('presentation')
       && fakeDeckRes.ok === false && fakeDeckRes.error.includes('do not match'),
     JSON.stringify({ deck: deckRes.ok, fake: fakeDeckRes }));
+  const jsonFile = path.join(workDir, 'mapping.json'); fs.writeFileSync(jsonFile, '\uFEFF  {"field": "value"}');
+  const fakeJson = path.join(workDir, 'fake.json'); fs.writeFileSync(fakeJson, 'not json');
+  const jsonItem = db.createKnowledgeItem(user.id, { title:'Field mapping note', tags:['Mappings'] });
+  const jsonRes = db.saveKnowledgeAttachment(user.id, jsonItem.id, jsonFile, { name:'Field mapping', version:'1.0' });
+  const fakeJsonRes = db.saveKnowledgeAttachment(user.id, jsonItem.id, fakeJson, { name:'Fake mapping', version:'1.0' });
+  record('Knowledge Hub takes a .json, and refuses one that is not JSON',
+    jsonRes.ok && jsonRes.item.documents[0]?.mimeType === 'application/json'
+      && fakeJsonRes.ok === false && fakeJsonRes.error.includes('do not match'),
+    JSON.stringify({ json: jsonRes.ok, fake: fakeJsonRes }));
   const resolved = db.resolveKnowledgeAttachment(user.id, file.id);
   record('Attachment resolve is owner-scoped and points to an existing file', resolved.ok && resolved.exists && resolved.absPath.startsWith(workDir));
   const removed = db.removeKnowledgeAttachment(user.id, file.id);

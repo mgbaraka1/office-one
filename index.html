@@ -105,8 +105,8 @@
     <button class="nav-item active" data-module="analytics" data-onclick="switchModule('analytics')" title="Overview">
       <span class="nav-icon" data-ic="layout-dashboard"></span><span class="nav-label">Overview</span>
     </button>
-    <button class="nav-item" data-module="timesheet" data-onclick="switchModule('timesheet')" title="Today — Timesheet" data-page-feature="timesheet">
-      <span class="nav-icon" data-ic="clock"></span><span class="nav-label">Today</span>
+    <button class="nav-item" data-module="timesheet" data-onclick="switchModule('timesheet')" title="Timesheet" data-page-feature="timesheet">
+      <span class="nav-icon" data-ic="clock"></span><span class="nav-label">Timesheet</span>
     </button>
     <button class="nav-item" data-module="reports" data-onclick="switchModule('reports')" title="Reports" data-page-feature="reports">
       <span class="nav-icon" data-ic="file-text"></span><span class="nav-label">Reports</span>
@@ -128,7 +128,10 @@
     <button class="nav-item" data-module="knowledge" data-onclick="switchModule('knowledge')" title="Knowledge Hub" data-page-feature="knowledge">
       <span class="nav-icon" data-ic="book-open"></span><span class="nav-label">Knowledge Hub</span><span class="nav-badge" id="nav-badge-knowledge"></span>
     </button>
-    <!-- External: clients and everyone else outside the company. -->
+    <button class="nav-item" data-module="outsource" data-onclick="switchModule('outsource')" title="Outsource" data-page-feature="outsource">
+      <span class="nav-icon" data-ic="users"></span><span class="nav-label">Outsource</span><span class="nav-badge" id="nav-badge-outsource"></span>
+    </button>
+    <!-- External: clients and their work. -->
     <div class="nav-section">External</div>
     <button class="nav-item" data-module="clients" data-onclick="switchModule('clients')" title="Clients" data-page-feature="clients">
       <span class="nav-icon" data-ic="layers"></span><span class="nav-label">Clients</span><span class="nav-badge" id="nav-badge-clients"></span>
@@ -136,11 +139,12 @@
     <button class="nav-item" data-module="all-tasks" data-onclick="switchModule('all-tasks')" title="Client Tasks" data-page-feature="all-tasks">
       <span class="nav-icon" data-ic="list"></span><span class="nav-label">Client Tasks</span>
     </button>
+    <!-- Browse: read-only roll-ups of all logged work by company or system. -->
+    <button class="nav-item" data-module="browse" data-onclick="switchModule('browse')" title="Browse">
+      <span class="nav-icon" data-ic="compass"></span><span class="nav-label">Browse</span>
+    </button>
     <button class="nav-item" data-module="pfm" data-onclick="switchModule('pfm')" title="Project &amp; Finance" data-page-feature="pfm">
       <span class="nav-icon" data-ic="briefcase"></span><span class="nav-label">Project &amp; Finance</span><span class="nav-badge" id="nav-badge-pfm"></span>
-    </button>
-    <button class="nav-item" data-module="outsource" data-onclick="switchModule('outsource')" title="Outsource" data-page-feature="outsource">
-      <span class="nav-icon" data-ic="users"></span><span class="nav-label">Outsource</span><span class="nav-badge" id="nav-badge-outsource"></span>
     </button>
   </nav>
   <div class="sidebar-footer">
@@ -808,6 +812,8 @@
 <!-- ══ KNOWLEDGE HUB MODULE ══ -->
 <div id="module-knowledge" class="app-module">
   <div class="page-header">
+    <!-- Shown only after a jump from a project or client page; returns there. -->
+    <button type="button" class="btn kh-back-btn" id="kh-back-btn" hidden data-onclick="goBackFromKnowledge()"><span data-ic="arrow-left"></span><span>Back</span><span class="kh-back-name" id="kh-back-name" data-user-content></span></button>
     <span class="page-title"><span class="ti-ic" data-ic="book-open"></span>Knowledge Hub</span>
     <div class="topbar-right">
       <label class="sr-only" for="kh-search">Search Knowledge Hub</label>
@@ -829,8 +835,8 @@
     <section id="kh-detail-view" class="kh-panel" aria-label="Knowledge item" hidden></section>
     <div id="kh-drop-hint" class="kh-drop-hint" hidden><span data-ic="upload"></span><span id="kh-drop-hint-text">Drop to add this file</span></div>
   </div>
-  <input type="file" id="kh-file-input" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.png,.jpg,.jpeg,.gif,.webp" hidden>
-  <input type="file" id="cn-import-input" accept=".md,.markdown,.pdf,.doc,.docx,.xls,.xlsx,.txt,.png,.jpg,.jpeg,.gif,.webp" multiple hidden>
+  <input type="file" id="kh-file-input" accept=".pdf,.doc,.docx,.xls,.xlsx,.pptx,.txt,.json,.png,.jpg,.jpeg,.gif,.webp" hidden>
+  <input type="file" id="cn-import-input" accept=".md,.markdown,.pdf,.doc,.docx,.xls,.xlsx,.pptx,.txt,.json,.png,.jpg,.jpeg,.gif,.webp" multiple hidden>
 </div>
 
 <div id="knowledge-modal-overlay" class="modal-overlay" data-onclick="knowledgeEditorOverlayClick(event)">
@@ -2353,6 +2359,15 @@
         <p class="general-hint">Which page the app opens on next launch. "Last page" also restores that
           page's filters and — for Clients/Internal Tasks — the last-open record.</p>
         <hr class="modal-tasksection-divider" style="margin:20px 0" />
+        <!-- Weekend days: buttons built by renderWeekendSettings() in core.js;
+             each click saves at once. -->
+        <div class="general-field">
+          <label>Weekend days</label>
+          <div class="seg-ctl" id="setting-weekend-days" role="group" aria-label="Weekend days"></div>
+        </div>
+        <p class="general-hint">Pick your weekend; the other days are work days. A new session dated on a weekend
+          day starts as Over Time — you can still pick another time type.</p>
+        <hr class="modal-tasksection-divider" style="margin:20px 0" />
         <div class="general-field">
           <label for="s-org-name">Organisation name</label>
           <input type="text" id="s-org-name" placeholder="e.g. your company's own name" autocomplete="off" style="max-width:320px" />
@@ -2916,7 +2931,7 @@
       <!-- Every page in the sidebar, one line each; a tile opens that page. -->
       <h3 class="ht-section-title">Where everything lives</h3>
       <div class="ht-modules">
-        <button type="button" class="ht-module" data-page-feature="timesheet" data-onclick="openHowThinksModule('timesheet')"><span data-ic="clock"></span><span class="ht-module-text"><b>Today</b><span>Log today's sessions and see the day's total.</span></span></button>
+        <button type="button" class="ht-module" data-page-feature="timesheet" data-onclick="openHowThinksModule('timesheet')"><span data-ic="clock"></span><span class="ht-module-text"><b>Timesheet</b><span>Log today's sessions and see the day's total.</span></span></button>
         <button type="button" class="ht-module" data-onclick="openHowThinksModule('analytics')"><span data-ic="layout-dashboard"></span><span class="ht-module-text"><b>Overview</b><span>Hours and trends across clients, systems and departments.</span></span></button>
         <button type="button" class="ht-module" data-page-feature="reports" data-onclick="openHowThinksModule('reports')"><span data-ic="file-text"></span><span class="ht-module-text"><b>Reports</b><span>Timesheets to print or export for any date range.</span></span></button>
         <button type="button" class="ht-module" data-page-feature="internal-tasks" data-onclick="openHowThinksModule('internal-tasks')"><span data-ic="building"></span><span class="ht-module-text"><b>Internal Work</b><span>Tasks for your own departments, not for a client.</span></span></button>

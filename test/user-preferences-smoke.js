@@ -58,7 +58,7 @@ try {
   record('a new account shows every page', freshDefaults.hiddenPages === '', JSON.stringify(freshDefaults.hiddenPages));
   db.setUserPreference(admin.user.id, 'hiddenPages', ' outsource,all-tasks,outsource ');
   record('hidden pages are stored in menu order with no repeats',
-    db.getUserPreferences(admin.user.id).hiddenPages === 'all-tasks,outsource',
+    db.getUserPreferences(admin.user.id).hiddenPages === 'outsource,all-tasks',
     db.getUserPreferences(admin.user.id).hiddenPages);
   record('one account hiding pages leaves another account\'s menu alone',
     db.getUserPreferences(standard.user.id).hiddenPages === '');
@@ -67,9 +67,23 @@ try {
   let threwOnOverview = false;
   try { db.setUserPreference(admin.user.id, 'hiddenPages', 'analytics'); } catch { threwOnOverview = true; }
   record('Settings and Overview cannot be hidden, nor a page that does not exist',
-    threwOnUnknownPage && threwOnOverview && db.getUserPreferences(admin.user.id).hiddenPages === 'all-tasks,outsource');
+    threwOnUnknownPage && threwOnOverview && db.getUserPreferences(admin.user.id).hiddenPages === 'outsource,all-tasks');
   db.setUserPreference(admin.user.id, 'hiddenPages', '');
   record('showing every page again clears the list', db.getUserPreferences(admin.user.id).hiddenPages === '');
+
+  // Settings → General: weekend days (a weekend session defaults to Over Time).
+  record('a new account\'s weekend is Friday and Saturday', freshDefaults.weekendDays === '5,6', freshDefaults.weekendDays);
+  db.setUserPreference(admin.user.id, 'weekendDays', ' 6,0,6 ');
+  record('weekend days are stored Sunday-first with no repeats',
+    db.getUserPreferences(admin.user.id).weekendDays === '0,6', db.getUserPreferences(admin.user.id).weekendDays);
+  record('one account\'s weekend leaves another account\'s alone',
+    db.getUserPreferences(standard.user.id).weekendDays === '5,6');
+  let threwOnBadDay = false;
+  try { db.setUserPreference(admin.user.id, 'weekendDays', '5,7'); } catch { threwOnBadDay = true; }
+  record('a day number outside 0-6 is rejected',
+    threwOnBadDay && db.getUserPreferences(admin.user.id).weekendDays === '0,6');
+  db.setUserPreference(admin.user.id, 'weekendDays', '');
+  record('an empty weekend (every day a work day) is kept', db.getUserPreferences(admin.user.id).weekendDays === '');
 } catch (error) {
   console.error(error.stack || error);
   exitCode = 2;
