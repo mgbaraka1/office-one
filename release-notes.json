@@ -1,5 +1,59 @@
 [
   {
+    "version": "8.28.0",
+    "date": "2026-11-20",
+    "kind": "feat",
+    "title": {
+      "en": "A new look, a redesigned Browse and Client Tasks, and safer saving",
+      "ar": "مظهر جديد، وتصميم جديد لصفحتي التصفح ومهام العملاء، وحفظ أكثر أماناً"
+    },
+    "notes": [
+      {
+        "en": "A redesigned login screen with a clock and today's dates. It can remember your username (never your password), and shows how strong a new password is.",
+        "ar": "شاشة دخول بتصميم جديد مع ساعة وتاريخ اليوم. يمكنها تذكّر اسم المستخدم (وليس كلمة المرور أبداً)، وتعرض قوة كلمة المرور الجديدة."
+      },
+      {
+        "en": "The whole app takes on the login screen's look: a warm sidebar, larger page titles, and an Overview that opens with a greeting, the dates and a clock.",
+        "ar": "يأخذ التطبيق كله مظهر شاشة الدخول: قائمة جانبية دافئة، وعناوين صفحات أكبر، وصفحة نظرة عامة تبدأ بالترحيب والتاريخ والساعة."
+      },
+      {
+        "en": "Browse adds Work Nature, quick date ranges, session search, a Sessions or Tasks view, and a side panel to read one session at a time.",
+        "ar": "تضيف صفحة التصفح طبيعة العمل، ونطاقات تاريخ سريعة، والبحث في الجلسات، وعرض الجلسات أو المهام، ولوحة جانبية لقراءة جلسة واحدة في كل مرة."
+      },
+      {
+        "en": "Timesheet: previous and next day buttons replace the calendar dropdown. Click the date to open the month, where every day can be opened.",
+        "ar": "سجل الدوام: زرّا اليوم السابق والتالي بدلاً من قائمة التقويم. انقر التاريخ لفتح الشهر، ويمكن فتح أي يوم فيه."
+      },
+      {
+        "en": "Client Tasks is now a sortable table, and Task Detail is reorganised: sources grouped by type and sessions newest first with a total.",
+        "ar": "أصبحت مهام العملاء جدولاً قابلاً للفرز، وأُعيد تنظيم تفاصيل المهمة: المصادر مجمّعة حسب النوع والجلسات من الأحدث مع المجموع."
+      },
+      {
+        "en": "Every client task now belongs to a project. A project that still has tasks can't be deleted until they are moved or deleted.",
+        "ar": "أصبحت كل مهمة عميل تابعة لمشروع. ولا يمكن حذف مشروع ما زالت فيه مهام حتى تُنقل أو تُحذف."
+      },
+      {
+        "en": "Fixed Timesheet edits that could be lost, or sessions deleted, when switching days quickly.",
+        "ar": "إصلاح تعديلات في سجل الدوام كانت قد تضيع، أو جلسات قد تُحذف، عند التنقل السريع بين الأيام."
+      },
+      {
+        "en": "Closing the app or logging out now stops and offers Retry if a change could not be saved, instead of losing it.",
+        "ar": "إغلاق التطبيق أو تسجيل الخروج يتوقف الآن ويعرض إعادة المحاولة إذا تعذّر حفظ تغيير، بدلاً من فقدانه."
+      },
+      {
+        "en": "Fixed Full Restore, merging duplicate clients or systems, and file clean-up after an undone delete, which could lose or mix up data.",
+        "ar": "إصلاح الاستعادة الكاملة، ودمج العملاء أو الأنظمة المكررة، وتنظيف الملفات بعد التراجع عن الحذف، والتي كانت قد تُفقد البيانات أو تخلطها."
+      },
+      {
+        "en": "Report CSV files can no longer run formulas when opened in a spreadsheet.",
+        "ar": "لم تعد ملفات CSV للتقارير قادرة على تشغيل صيغ عند فتحها في برنامج جداول."
+      }
+    ],
+    "technical": [
+      "No migration. renderer/workflows.js is the one lifecycle table (outsource statements, Offers/CRs, Knowledge items) shared by db.js and the renderer. Timesheet saves are serialised; Full Restore moves the live -wal/-shm aside; purge and undo check for SQLite rowid reuse; lookup merge repoints client_servers.system_id and keeps company profiles and access lists."
+    ]
+  },
+  {
     "version": "8.27.0",
     "date": "2026-11-02",
     "kind": "feat",
