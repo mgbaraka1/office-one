@@ -25,7 +25,11 @@ let pfmVersionEditId = null;      // null = new version
 let pfmFileErrors = new Map();    // versionId → [{ name, error }] from the last "Add files"
 let _pfmSaveTimer = null;
 
-const PFM_FINAL = new Set(['PAID', 'REJECTED']);
+// Offer/CR flow anchors — renderer/workflows.js, shared with db.js. Stage
+// ORDER is the PFM_STATUS catalog's, so only these codes are fixed.
+const PFM_FINAL = new Set(WORKFLOWS.PFM_ITEM.final);
+const PFM_DECISION = WORKFLOWS.PFM_ITEM.decision;
+const PFM_REJECTED = WORKFLOWS.PFM_ITEM.rejected;
 let pfmStageFileErrors = new Map(); // status code → [{ name, error }] from the last stage "Add files"
 
 function initPfmModule() {
@@ -42,7 +46,7 @@ function pfmStatusName(code) { return lkLabel('PFM_STATUS', code) || code || '';
 // What is not decided yet is the open pipeline.
 function pfmIsDecided(code) {
   const codes = pfmStatusOptions().map(o => o.code);
-  const accepted = codes.indexOf('ACCEPTED');
+  const accepted = codes.indexOf(PFM_DECISION);
   return accepted >= 0 && codes.indexOf(code) >= accepted;
 }
 // The step a list row shows: the one waiting on someone (first not-done stage
@@ -227,7 +231,7 @@ function renderPfmSummary(rows) {
     box.appendChild(el);
   };
   const open = rows.filter(i => !pfmIsDecided(i.status));
-  const won = rows.filter(i => pfmIsDecided(i.status) && i.status !== 'REJECTED');
+  const won = rows.filter(i => pfmIsDecided(i.status) && i.status !== PFM_REJECTED);
   tile('is-open', 'Open value', pfmTotalsByCurrency(open).list, t('{n} in play', { n: open.length }));
   tile('is-won', 'Won value', pfmTotalsByCurrency(won).list, t('{n} won', { n: won.length }));
   const stale = rows.filter(i => !PFM_FINAL.has(i.status) && !i.archived && pfmDaysSince(i.updatedAt) >= PFM_STALE_DAYS).length;
@@ -954,13 +958,13 @@ function backToPfmList() {
 function pfmNextStatuses(current) {
   const codes = pfmStatusOptions().map(o => o.code);
   if (PFM_FINAL.has(current)) return [];
-  const next = codes.slice(codes.indexOf(current) + 1).find(c => c !== 'REJECTED');
+  const next = codes.slice(codes.indexOf(current) + 1).find(c => c !== PFM_REJECTED);
   if (!next) return [];
-  return next === 'ACCEPTED' && codes.includes('REJECTED') ? [next, 'REJECTED'] : [next];
+  return next === PFM_DECISION && codes.includes(PFM_REJECTED) ? [next, PFM_REJECTED] : [next];
 }
 // "Change status…" never offers Rejected once the item is Accepted or further.
 function pfmCanMoveTo(item, code) {
-  return !(code === 'REJECTED' && pfmIsDecided(item.status) && item.status !== 'REJECTED');
+  return !(code === PFM_REJECTED && pfmIsDecided(item.status) && item.status !== PFM_REJECTED);
 }
 
 function renderPfmDetail() {
@@ -1084,10 +1088,10 @@ function buildPfmStageTrack(item) {
   // Rejected is the other way out of Sent: it shows only on an item that took
   // it (or holds a record on it), and a rejected item hides the delivery
   // stages it never reached.
-  const rejected = item.status === 'REJECTED';
+  const rejected = item.status === PFM_REJECTED;
   const holds = code => byStatus.has(code) || filesBy.has(code);
   const codes = all.filter(code => {
-    if (code === 'REJECTED') return rejected || holds(code);
+    if (code === PFM_REJECTED) return rejected || holds(code);
     return !(rejected && pfmIsDecided(code)) || holds(code);
   });
   const currentIdx = codes.indexOf(item.status);
@@ -1303,12 +1307,12 @@ async function pfmBeforeWrite() { await flushPfmPending(); }
 // the next document due is plain; a status added in Settings that holds files
 // gets a row too.
 function pfmDocumentStages(item) {
-  const codes = pfmStatusOptions().map(o => o.code).filter(c => pfmIsDecided(c) && c !== 'REJECTED');
+  const codes = pfmStatusOptions().map(o => o.code).filter(c => pfmIsDecided(c) && c !== PFM_REJECTED);
   (item.stageFiles || []).forEach(f => { if (!codes.includes(f.status)) codes.push(f.status); });
   return codes;
 }
 // The Accepted row is named for its document; the rest use their status name.
-const pfmDocumentLabel = code => (code === 'ACCEPTED' ? { text: 'PO / Approval', ui: true } : { text: pfmStatusName(code), ui: false });
+const pfmDocumentLabel = code => (code === PFM_DECISION ? { text: 'PO / Approval', ui: true } : { text: pfmStatusName(code), ui: false });
 // `label` is { text, ui }: UI wording goes through the dictionary, a status
 // name (already in the app language, from the catalog) is left as it is.
 function buildPfmDocRow(label, date, content, cls = '') {

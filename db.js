@@ -20,6 +20,10 @@ const { DatabaseSync } = require('node:sqlite');
 const path = require('node:path');
 const fs   = require('node:fs');
 const crypto = require('node:crypto');
+// Lifecycle rules shared with the renderer — see renderer/workflows.js.
+const WORKFLOWS = require('./renderer/workflows');
+const { OUTS_STATEMENT: OUTS_ST, PFM_ITEM, KNOWLEDGE_ITEM } = WORKFLOWS;
+const outsCan = (s, action) => WORKFLOWS.can(OUTS_ST, s.status, action);
 
 // ── Lookup catalog categories (see migration 003) ────────────────────────────
 // Every bounded category/type/status field is normalized into the `lookup_codes`
@@ -1980,15 +1984,15 @@ function restoreCompanyDocumentFile(userId, oldId, newId, fileMeta) {
 // User-owned articles with client/system links, tags, groups, and version-labeled documents. Files live under
 // <userData>/knowledge_hub/{itemId}/attachments/. Every item belongs somewhere:
 // it links a client or a system, or it carries at least one tag (2026-10-19).
-const KNOWLEDGE_STATUSES = new Set(['DRAFT', 'PUBLISHED', 'ARCHIVED']);
+const KNOWLEDGE_STATUSES = new Set(KNOWLEDGE_ITEM.states);
 const pendingKnowledgeDeletes = new Map(); // deleted item id -> user id
 
 function ownsKnowledgeItem(userId, id) {
   return !!db.prepare('SELECT 1 FROM knowledge_items WHERE id = ? AND user_id = ?').get(id, userId);
 }
 function knowledgeStatus(value) {
-  const s = String(value || 'DRAFT').toUpperCase();
-  return KNOWLEDGE_STATUSES.has(s) ? s : 'DRAFT';
+  const s = String(value || KNOWLEDGE_ITEM.initial).toUpperCase();
+  return KNOWLEDGE_STATUSES.has(s) ? s : KNOWLEDGE_ITEM.initial;
 }
 function knowledgeAttachmentToApi(r) {
   return {
@@ -5925,7 +5929,7 @@ function assignClientInternalGroup(userId, companyId, recordIds, groupName) {
 // Invoice Paid, with Rejected as the other way out of Sent; Invoice Paid and
 // Rejected are the final ones.
 const PFM_KINDS = new Set(['OFFER', 'CR']);
-const PFM_FINAL_STATUS_CODES = new Set(['PAID', 'REJECTED']);
+const PFM_FINAL_STATUS_CODES = new Set(PFM_ITEM.final);
 const PFM_MAX_TEXT = 200;
 // How the client raised it (migration 064). The reference is the email
 // title/subject for EMAIL and the ticket URL for JIRA.
@@ -6322,10 +6326,10 @@ function pfmUpsertStage(userId, itemId, statusId, data, now) {
 
 function pfmStatusOrder(statusId) { return lk().idTo.get(statusId)?.sort_order ?? 0; }
 function pfmIsFinalStatus(statusId) { return PFM_FINAL_STATUS_CODES.has(lk().idTo.get(statusId)?.code); }
-const pfmIsRejected = statusId => lk().idTo.get(statusId)?.code === 'REJECTED';
+const pfmIsRejected = statusId => lk().idTo.get(statusId)?.code === PFM_ITEM.rejected;
 // Accepted or any stage after it — Rejected included, since it sorts last.
 function pfmIsDecided(statusId) {
-  const accepted = lkId('PFM_STATUS', 'ACCEPTED');
+  const accepted = lkId('PFM_STATUS', PFM_ITEM.decision);
   return accepted != null && pfmStatusOrder(statusId) >= pfmStatusOrder(accepted);
 }
 // Rejected only ever follows Sent: an item that is Accepted (or further) can
@@ -7098,14 +7102,14 @@ function outsResourceTotals(resourceId, rates, today) {
       WHERE e.resource_id = ? AND e.deleted_at IS NULL`
   ).get(month, resourceId);
   const statements = db.prepare(
-    `SELECT COALESCE(SUM(status = 'DRAFT'), 0) AS drafts, COALESCE(SUM(status = 'ISSUED'), 0) AS issued
+    `SELECT COALESCE(SUM(status = '${OUTS_ST.initial}'), 0) AS drafts, COALESCE(SUM(status IN ${WORKFLOWS.sqlList(OUTS_ST, 'unpaid')}), 0) AS issued
        FROM outs_statements WHERE resource_id = ? AND deleted_at IS NULL`
   ).get(resourceId);
   const projects = db.prepare(
     'SELECT COUNT(*) AS n FROM outs_projects WHERE resource_id = ? AND deleted_at IS NULL AND is_active = 1'
   ).get(resourceId).n;
   const issuedMinor = db.prepare(
-    "SELECT COALESCE(SUM(total_minor), 0) AS n FROM outs_statements WHERE resource_id = ? AND status = 'ISSUED' AND deleted_at IS NULL"
+    `SELECT COALESCE(SUM(total_minor), 0) AS n FROM outs_statements WHERE resource_id = ? AND status IN ${WORKFLOWS.sqlList(OUTS_ST, 'unpaid')} AND deleted_at IS NULL`
   ).get(resourceId).n;
   const current = outsRateAt(rates, today);
   return {
@@ -7211,7 +7215,7 @@ function deleteOutsResource(userId, id) {
   const before = outsOwnedResource(userId, id);
   if (!before) return { ok: false, error: 'Resource not found' };
   const billed = db.prepare(
-    "SELECT 1 FROM outs_statements WHERE resource_id = ? AND status IN ('ISSUED', 'PAID') AND deleted_at IS NULL LIMIT 1"
+    `SELECT 1 FROM outs_statements WHERE resource_id = ? AND status IN ${WORKFLOWS.sqlList(OUTS_ST, 'billed')} AND deleted_at IS NULL LIMIT 1`
   ).get(before.id);
   if (billed) return { ok: false, error: 'This resource has issued statements — deactivate it instead' };
   const now = new Date().toISOString();
@@ -7663,7 +7667,7 @@ function listOutsStatements(userId, resourceId) {
   return db.prepare(
     'SELECT * FROM outs_statements WHERE resource_id = ? AND user_id = ? AND deleted_at IS NULL ORDER BY period_to DESC, id DESC'
   ).all(r.id, userId).map(s => {
-    if (s.status !== 'DRAFT') return outsStatementToApi(s, currency);
+    if (!outsCan(s, 'livePreview')) return outsStatementToApi(s, currency);
     const p = outsStatementPreview(r.id, s.period_from, s.period_to);
     return outsStatementToApi({ ...s, total_minutes: p.summary.totalMinutes, total_minor: p.summary.totalMinor }, currency,
       { missingRate: p.summary.missingRate, entryCount: p.entries.length });
@@ -7676,7 +7680,7 @@ function getOutsStatement(userId, id) {
   if (!s) return null;
   const r = outsOwnedResource(userId, s.resource_id);
   const currency = lkCode(r.currency_id);
-  if (s.status === 'DRAFT') {
+  if (outsCan(s, 'livePreview')) {
     const p = outsStatementPreview(r.id, s.period_from, s.period_to);
     return outsStatementToApi({ ...s, total_minutes: p.summary.totalMinutes, total_minor: p.summary.totalMinor }, currency, {
       resourceName: r.name, lines: p.summary.lines, entries: p.entries,
@@ -7685,7 +7689,7 @@ function getOutsStatement(userId, id) {
   }
   const lines = db.prepare('SELECT * FROM outs_statement_lines WHERE statement_id = ? ORDER BY sort_order, id').all(s.id).map(outsLineToApi);
   const rates = outsRates(r.id);
-  const entries = s.status === 'CANCELLED' ? []
+  const entries = !outsCan(s, 'showEntries') ? []
     : db.prepare(
       `SELECT e.*, p.name AS project_name FROM outs_entries e JOIN outs_projects p ON p.id = e.project_id
         WHERE e.statement_id = ? ORDER BY e.work_date, e.id`
@@ -7719,8 +7723,8 @@ function createOutsStatement(userId, resourceId, data) {
     if (error) return null;
     const newId = Number(db.prepare(
       `INSERT INTO outs_statements(user_id, resource_id, reference, reference_key, period_from, period_to, status, notes, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?)`
-    ).run(userId, r.id, reference, lookupLabelKey(reference), period.from, period.to, notes, now, now).lastInsertRowid);
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(userId, r.id, reference, lookupLabelKey(reference), period.from, period.to, OUTS_ST.initial, notes, now, now).lastInsertRowid);
     recordOutsHistory(userId, r.id, 'statement', newId, 'Statement Created', '', `${reference} (${period.from} → ${period.to})`, now);
     return newId;
   });
@@ -7732,7 +7736,7 @@ function updateOutsStatement(userId, id, data) {
   const before = outsOwnedStatement(userId, id);
   if (!before) return { ok: false, error: 'Statement not found' };
   const has = key => data != null && Object.prototype.hasOwnProperty.call(data, key);
-  if ((has('periodFrom') || has('periodTo')) && before.status !== 'DRAFT') {
+  if ((has('periodFrom') || has('periodTo')) && !outsCan(before, 'editPeriod')) {
     return { ok: false, error: 'Only a draft statement can change its period' };
   }
   const period = outsStatementPeriod(data, before);
@@ -7761,7 +7765,7 @@ function updateOutsStatement(userId, id, data) {
 function issueOutsStatement(userId, id) {
   const before = outsOwnedStatement(userId, id);
   if (!before) return { ok: false, error: 'Statement not found' };
-  if (before.status !== 'DRAFT') return { ok: false, error: 'Only a draft statement can be issued' };
+  if (!outsCan(before, 'issue')) return { ok: false, error: 'Only a draft statement can be issued' };
   const r = outsOwnedResource(userId, before.resource_id);
   const now = new Date().toISOString();
   let error = null;
@@ -7777,9 +7781,9 @@ function issueOutsStatement(userId, id) {
     const lock = db.prepare('UPDATE outs_entries SET statement_id = ? WHERE id = ? AND statement_id IS NULL');
     p.entries.forEach(e => lock.run(before.id, e.id));
     db.prepare(
-      `UPDATE outs_statements SET status = 'ISSUED', total_minutes = ?, total_minor = ?, currency_id = ?, issued_at = ?, updated_at = ?
+      `UPDATE outs_statements SET status = ?, total_minutes = ?, total_minor = ?, currency_id = ?, issued_at = ?, updated_at = ?
         WHERE id = ?`
-    ).run(p.summary.totalMinutes, p.summary.totalMinor, r.currency_id, now, now, before.id);
+    ).run(WORKFLOWS.target(OUTS_ST, 'issue'), p.summary.totalMinutes, p.summary.totalMinor, r.currency_id, now, now, before.id);
     recordOutsHistory(userId, r.id, 'statement', before.id, `${before.reference}: Status`, 'Draft',
       `Issued · ${outsMoneyText(p.summary.totalMinor)} ${lkCode(r.currency_id)}`, now);
     outsTouchResource(r.id, now);
@@ -7791,7 +7795,7 @@ function issueOutsStatement(userId, id) {
 function markOutsStatementPaid(userId, id, data) {
   const before = outsOwnedStatement(userId, id);
   if (!before) return { ok: false, error: 'Statement not found' };
-  if (before.status !== 'ISSUED') return { ok: false, error: 'Only an issued statement can be marked paid' };
+  if (!outsCan(before, 'markPaid')) return { ok: false, error: 'Only an issued statement can be marked paid' };
   const paidOn = outsText(data?.paidOn) ? outsDate(data.paidOn, 'The payment date') : { value: pfmLocalToday() };
   if (paidOn.error) return { ok: false, error: paidOn.error };
   const note = outsText(data?.note);
@@ -7800,8 +7804,8 @@ function markOutsStatementPaid(userId, id, data) {
   tx(() => {
     recordOutsHistory(userId, before.resource_id, 'statement', before.id, `${before.reference}: Status`, 'Issued',
       `Paid ${paidOn.value}${note ? ' · ' + note : ''}`, now);
-    db.prepare("UPDATE outs_statements SET status = 'PAID', paid_at = ?, paid_note = ?, updated_at = ? WHERE id = ?")
-      .run(paidOn.value, note, now, before.id);
+    db.prepare('UPDATE outs_statements SET status = ?, paid_at = ?, paid_note = ?, updated_at = ? WHERE id = ?')
+      .run(WORKFLOWS.target(OUTS_ST, 'markPaid'), paidOn.value, note, now, before.id);
     outsTouchResource(before.resource_id, now);
   });
   return { ok: true, statement: getOutsStatement(userId, before.id) };
@@ -7810,13 +7814,13 @@ function markOutsStatementPaid(userId, id, data) {
 function markOutsStatementUnpaid(userId, id) {
   const before = outsOwnedStatement(userId, id);
   if (!before) return { ok: false, error: 'Statement not found' };
-  if (before.status !== 'PAID') return { ok: false, error: 'This statement is not marked paid' };
+  if (!outsCan(before, 'markUnpaid')) return { ok: false, error: 'This statement is not marked paid' };
   const now = new Date().toISOString();
   tx(() => {
     recordOutsHistory(userId, before.resource_id, 'statement', before.id, `${before.reference}: Status`,
       `Paid ${before.paid_at}`, 'Issued', now);
-    db.prepare("UPDATE outs_statements SET status = 'ISSUED', paid_at = NULL, paid_note = '', updated_at = ? WHERE id = ?")
-      .run(now, before.id);
+    db.prepare("UPDATE outs_statements SET status = ?, paid_at = NULL, paid_note = '', updated_at = ? WHERE id = ?")
+      .run(WORKFLOWS.target(OUTS_ST, 'markUnpaid'), now, before.id);
     outsTouchResource(before.resource_id, now);
   });
   return { ok: true, statement: getOutsStatement(userId, before.id) };
@@ -7826,14 +7830,15 @@ function markOutsStatementUnpaid(userId, id) {
 function cancelOutsStatement(userId, id) {
   const before = outsOwnedStatement(userId, id);
   if (!before) return { ok: false, error: 'Statement not found' };
-  if (before.status === 'PAID') return { ok: false, error: 'A paid statement cannot be cancelled — mark it unpaid first' };
-  if (before.status === 'CANCELLED') return { ok: true, statement: getOutsStatement(userId, before.id) };
+  // Already cancelled: nothing to do, and not an error (a double click).
+  if (before.status === WORKFLOWS.target(OUTS_ST, 'cancel')) return { ok: true, statement: getOutsStatement(userId, before.id) };
+  if (!outsCan(before, 'cancel')) return { ok: false, error: 'A paid statement cannot be cancelled — mark it unpaid first' };
   const now = new Date().toISOString();
   tx(() => {
     const freed = db.prepare('UPDATE outs_entries SET statement_id = NULL WHERE statement_id = ?').run(before.id).changes;
     recordOutsHistory(userId, before.resource_id, 'statement', before.id, `${before.reference}: Status`,
-      before.status === 'DRAFT' ? 'Draft' : 'Issued', `Cancelled${freed ? ` · ${freed} entries unlocked` : ''}`, now);
-    db.prepare("UPDATE outs_statements SET status = 'CANCELLED', cancelled_at = ?, updated_at = ? WHERE id = ?").run(now, now, before.id);
+      before.status === OUTS_ST.initial ? 'Draft' : 'Issued', `Cancelled${freed ? ` · ${freed} entries unlocked` : ''}`, now);
+    db.prepare('UPDATE outs_statements SET status = ?, cancelled_at = ?, updated_at = ? WHERE id = ?').run(WORKFLOWS.target(OUTS_ST, 'cancel'), now, now, before.id);
     outsTouchResource(before.resource_id, now);
   });
   return { ok: true, statement: getOutsStatement(userId, before.id) };
@@ -7842,7 +7847,7 @@ function cancelOutsStatement(userId, id) {
 function setOutsStatementDeleted(userId, id, deleted) {
   const before = outsOwnedStatement(userId, id, { deleted: !deleted });
   if (!before) return { ok: false, error: 'Statement not found' };
-  if (!['DRAFT', 'CANCELLED'].includes(before.status)) {
+  if (!outsCan(before, 'delete')) {
     return { ok: false, error: 'Only a draft or cancelled statement can be deleted' };
   }
   const now = new Date().toISOString();
@@ -7865,7 +7870,7 @@ function purgeOutsStatement(userId, id) {
 // `date` changes what they will issue at. The Rates tab warns with this.
 function outsDraftsReaching(resourceId, date) {
   return db.prepare(
-    "SELECT COUNT(*) AS n FROM outs_statements WHERE resource_id = ? AND status = 'DRAFT' AND deleted_at IS NULL AND period_to >= ?"
+    `SELECT COUNT(*) AS n FROM outs_statements WHERE resource_id = ? AND status IN ${WORKFLOWS.sqlList(OUTS_ST, 'editPeriod')} AND deleted_at IS NULL AND period_to >= ?`
   ).get(resourceId, date).n;
 }
 

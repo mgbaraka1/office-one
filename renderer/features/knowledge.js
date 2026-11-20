@@ -11,6 +11,10 @@ let knowledgeView = 'list';   // list | wheel (knowledge-wheel.js) | map (knowle
 let knowledgePanelWide = false;   // focus mode: the open item takes the whole page
 
 function knowledgeDocumentCount(item) { return Number(item.documentCount ?? item.documents?.length ?? 0); }
+// Status rules — renderer/workflows.js. Archived items stay out of lists,
+// counts and maps unless the Archived filter asks for them.
+const KH_FLOW = WORKFLOWS.KNOWLEDGE_ITEM;
+const knowledgeHidden = item => WORKFLOWS.can(KH_FLOW, item.status, 'hidden');
 function knowledgeStatusLabel(status) { return status === 'PUBLISHED' ? 'Ready' : status === 'ARCHIVED' ? 'Archived' : 'Draft'; }
 // Items link to clients (the COMPANY lookup) and systems (SYSTEM) — how documents are looked up.
 function knowledgeLinkName(kind, link) { return kind === 'companies' ? companyDisplayName(link) : lookupDisplayName(link); }
@@ -95,7 +99,7 @@ function ensureKnowledgeIndex() {
 // and a system come first, then the most recently updated.
 function knowledgeItemsLinkedTo(companyIds = [], systemIds = []) {
   const clients = new Set(companyIds.map(Number)), systems = new Set(systemIds.map(Number));
-  return knowledgeItems.filter(item => item.status !== 'ARCHIVED')
+  return knowledgeItems.filter(item => !knowledgeHidden(item))
     .filter(item => !(item.companies || []).length || item.companies.some(x => clients.has(x.id)))
     .map(item => ({ item, rank: ((item.companies || []).some(x => clients.has(x.id)) ? 1 : 0) + ((item.systems || []).some(x => systems.has(x.id)) ? 1 : 0) }))
     .filter(entry => entry.rank)
@@ -105,7 +109,7 @@ function knowledgeItemsLinkedTo(companyIds = [], systemIds = []) {
 // Items linked to one project, not archived, most recently updated first.
 function knowledgeItemsForProject(projectId) {
   const id = Number(projectId);
-  return knowledgeItems.filter(item => item.status !== 'ARCHIVED' && Number(item.projectId) === id)
+  return knowledgeItems.filter(item => !knowledgeHidden(item) && Number(item.projectId) === id)
     .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
 }
 // opts: { companyIds, systemIds, projectId, q, emptyText }. With a projectId
@@ -291,7 +295,7 @@ function knowledgeSuggestVersion(family, fileName) {
 // A dropped file whose name matches a document already on the shelf becomes
 // that document's next version; the most recently updated item wins a tie.
 function knowledgeFindItemForFile(fileName) {
-  for (const item of knowledgeItems.filter(entry => entry.status !== 'ARCHIVED')) {
+  for (const item of knowledgeItems.filter(entry => !knowledgeHidden(entry))) {
     const family = knowledgeFindFamily(item.documents, fileName);
     if (family) return { item, family };
   }
@@ -444,7 +448,7 @@ function appendKnowledgeFilterSection(host, id, title, entries, limit = 8) {
 // One facet entry per client / system linked to a non-archived item, A→Z.
 function knowledgeLinkFacet(kind, prefix) {
   const counts = new Map();
-  knowledgeItems.filter(x => x.status !== 'ARCHIVED').forEach(item => (item[kind] || []).forEach(link => {
+  knowledgeItems.filter(x => !knowledgeHidden(x)).forEach(item => (item[kind] || []).forEach(link => {
     const current = counts.get(link.id);
     counts.set(link.id, { label: current?.label || knowledgeLinkName(kind, link), count: (current?.count || 0) + 1 });
   }));
@@ -454,7 +458,7 @@ function knowledgeLinkFacet(kind, prefix) {
 // One facet entry per project linked to a non-archived item, A→Z.
 function knowledgeProjectFacet() {
   const counts = new Map();
-  knowledgeItems.filter(x => x.status !== 'ARCHIVED' && x.projectId).forEach(item => {
+  knowledgeItems.filter(x => !knowledgeHidden(x) && x.projectId).forEach(item => {
     const current = counts.get(item.projectId);
     counts.set(item.projectId, { label: current?.label || item.projectName || 'Project', count: (current?.count || 0) + 1 });
   });
@@ -464,7 +468,7 @@ function knowledgeProjectFacet() {
 // One facet entry per tag on a non-archived item, most used first. Keys are lower case.
 function knowledgeTagFacet() {
   const counts = new Map();
-  knowledgeItems.filter(x => x.status !== 'ARCHIVED').forEach(item => (item.tags || []).forEach(tag => {
+  knowledgeItems.filter(x => !knowledgeHidden(x)).forEach(item => (item.tags || []).forEach(tag => {
     const key = tag.toLowerCase(), current = counts.get(key);
     counts.set(key, { label: current?.label || tag, count: (current?.count || 0) + 1 });
   }));
@@ -476,7 +480,7 @@ function renderKnowledgeFilters() {
   const browse = pjMk('div', 'kh-filter-section'), heading = pjMk('div', 'kh-filter-title', 'Browse');
   const all = pjMk('button', 'kh-filter-btn' + (!knowledgeFilters.size ? ' active' : ''));
   all.setAttribute('aria-pressed', String(!knowledgeFilters.size));
-  all.append(document.createTextNode('All knowledge'), pjMk('span', '', String(knowledgeItems.filter(x => x.status !== 'ARCHIVED').length)));
+  all.append(document.createTextNode('All knowledge'), pjMk('span', '', String(knowledgeItems.filter(x => !knowledgeHidden(x)).length)));
   all.onclick = () => { knowledgeFilters.clear(); renderKnowledgeList(); };
   browse.append(heading, all);
   const facetSearch = document.createElement('input'); facetSearch.type = 'search'; facetSearch.className = 'mod-search kh-facet-search';
@@ -491,10 +495,10 @@ function renderKnowledgeFilters() {
   appendKnowledgeFilterSection(host, 'tags', 'Tags', knowledgeTagFacet(), 10);
   const types = lkOptions('KNOWLEDGE_TYPE').map(type => ({
     key: 'TYPE:' + type.code, label: lookupDisplayName(type),
-    count: knowledgeItems.filter(x => x.type === type.code && x.status !== 'ARCHIVED').length,
+    count: knowledgeItems.filter(x => x.type === type.code && !knowledgeHidden(x)).length,
   })).filter(type => type.count || knowledgeFilters.has(type.key));
   appendKnowledgeFilterSection(host, 'types', 'Document kind', types);
-  const archived = knowledgeItems.filter(x => x.status === 'ARCHIVED').length;
+  const archived = knowledgeItems.filter(x => knowledgeHidden(x)).length;
   if (archived || knowledgeFilters.has('STATUS:ARCHIVED'))
     appendKnowledgeFilterSection(host, 'status', 'Archived items', [{ key: 'STATUS:ARCHIVED', label: 'Archived', count: archived }]);
 }
@@ -543,7 +547,7 @@ function knowledgePassesFilters(item) {
   const systems = [...knowledgeFilters].filter(x => x.startsWith('SYSTEM:')).map(x => Number(x.slice(7)));
   const projects = [...knowledgeFilters].filter(x => x.startsWith('PROJECT:')).map(x => Number(x.slice(8)));
   const tags = [...knowledgeFilters].filter(x => x.startsWith('TAG:')).map(x => x.slice(4));
-  if (!status.length && item.status === 'ARCHIVED') return false;
+  if (!status.length && knowledgeHidden(item)) return false;
   if (status.length && !status.includes(item.status)) return false;
   if (types.length && !types.includes(item.type)) return false;
   if (clients.length && !clients.some(id => (item.companies || []).some(link => link.id === id))) return false;
@@ -786,8 +790,10 @@ async function openKnowledgeDetail(id) {
   actions.appendChild(buildKnowledgeOverflow([
     { label: 'Duplicate', run: () => duplicateKnowledgeItem(item) },
     ...(item.content ? [{ label: 'Export .md', run: () => exportKnowledgeMarkdown(item) }] : []),
-    ...(item.status === 'DRAFT' ? [{ label: 'Mark as ready', run: () => setKnowledgeStatus(item, 'PUBLISHED') }] : []),
-    { label: item.status === 'ARCHIVED' ? 'Restore from archive' : 'Archive', run: () => setKnowledgeStatus(item, item.status === 'ARCHIVED' ? 'PUBLISHED' : 'ARCHIVED') },
+    ...(WORKFLOWS.can(KH_FLOW, item.status, 'markReady') ? [{ label: 'Mark as ready', run: () => setKnowledgeStatus(item, WORKFLOWS.target(KH_FLOW, 'markReady')) }] : []),
+    WORKFLOWS.can(KH_FLOW, item.status, 'restore')
+      ? { label: 'Restore from archive', run: () => setKnowledgeStatus(item, WORKFLOWS.target(KH_FLOW, 'restore')) }
+      : { label: 'Archive', run: () => setKnowledgeStatus(item, WORKFLOWS.target(KH_FLOW, 'archive')) },
     { label: 'Delete item', danger: true, run: () => showDeleteConfirm(actions, () => deleteKnowledgeItem(item), () => openKnowledgeDetail(item.id)) },
   ]));
   head.append(copy, actions); page.appendChild(head);
@@ -1158,7 +1164,7 @@ function nextKnowledgeCopyTitle(title) {
 async function duplicateKnowledgeItem(item) {
   try {
     const copy = await window.api.createKnowledgeItem({
-      title: nextKnowledgeCopyTitle(item.title), type: item.type, status: item.status === 'ARCHIVED' ? 'PUBLISHED' : item.status,
+      title: nextKnowledgeCopyTitle(item.title), type: item.type, status: knowledgeHidden(item) ? WORKFLOWS.target(KH_FLOW, 'restore') : item.status,
       summary: item.summary, content: item.content, contentFormat: item.contentFormat, tags: item.tags || [],
       companyIds: (item.companies || []).map(x => x.id), systemIds: (item.systems || []).map(x => x.id),
       projectId: item.projectId ?? null,
@@ -1169,7 +1175,7 @@ async function duplicateKnowledgeItem(item) {
 async function setKnowledgeStatus(item, status) {
   try {
     const saved = await window.api.updateKnowledgeItem(item.id, { title: item.title, type: item.type, status, summary: item.summary, content: item.content, contentFormat: item.contentFormat });
-    toast(status === 'ARCHIVED' ? 'Knowledge item archived' : item.status === 'ARCHIVED' ? 'Knowledge item restored' : 'Knowledge item marked ready'); await loadKnowledgeItems(saved.id);
+    toast(status === 'ARCHIVED' ? 'Knowledge item archived' : knowledgeHidden(item) ? 'Knowledge item restored' : 'Knowledge item marked ready'); await loadKnowledgeItems(saved.id);
   } catch { toast('Could not update knowledge status'); }
 }
 async function deleteKnowledgeItem(item) {

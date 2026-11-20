@@ -127,6 +127,9 @@ function outsCrumbs(parts) {
   return crumbs;
 }
 const OUTS_STATUS_LABEL = { DRAFT: 'Draft', ISSUED: 'Issued', PAID: 'Paid', CANCELLED: 'Cancelled' };
+// Statement lifecycle rules live in renderer/workflows.js, shared with db.js,
+// so a button shows exactly when the data layer would accept the action.
+const outsCan = (s, action) => WORKFLOWS.can(WORKFLOWS.OUTS_STATEMENT, s.status, action);
 function outsStatusPill(status) {
   return pjMk('span', 'pfm-status outs-st-' + String(status || '').toLowerCase(), OUTS_STATUS_LABEL[status] || status);
 }
@@ -540,7 +543,7 @@ function buildOutsStatementsSection() {
   const wrap = pjMk('div', 'pfm-table-wrap');
   const { table, body } = outsTable('outs-statement-table', ['Number', 'Period', 'Status', 'Hours', 'Amount', 'Paid On']);
   data.rows.forEach(s => {
-    const tr = pjMk('tr', 'pfm-row outs-statement-row' + (s.status === 'CANCELLED' ? ' archived' : ''));
+    const tr = pjMk('tr', 'pfm-row outs-statement-row' + (outsCan(s, 'showEntries') ? '' : ' archived'));
     tr.tabIndex = 0;
     tr.dataset.statementId = s.id;
     tr.addEventListener('click', () => openOutsStatement(s.id));
@@ -548,7 +551,7 @@ function buildOutsStatementsSection() {
     outsCell(tr, outsUserText('span', 'pfm-ref', s.reference));
     outsCell(tr, pjMk('span', '', outsPeriodText(s)));
     const st = outsCell(tr, outsStatusPill(s.status));
-    if (s.status === 'DRAFT' && s.missingRate) {
+    if (outsCan(s, 'livePreview') && s.missingRate) {
       const warn = pjMk('span', 'outs-warn-ic');
       warn.innerHTML = ic('triangle-alert');
       warn.title = 'Some entries have no rate yet';
@@ -1187,7 +1190,7 @@ async function openOutsStatementModal(statement) {
   document.getElementById('outs-statement-notes').value = statement ? statement.notes : '';
   const from = document.getElementById('outs-statement-from');
   const to = document.getElementById('outs-statement-to');
-  const periodLocked = !!statement && statement.status !== 'DRAFT';
+  const periodLocked = !!statement && !outsCan(statement, 'editPeriod');
   from.disabled = periodLocked;
   to.disabled = periodLocked;
   document.getElementById('outs-statement-period-note').hidden = !periodLocked;
@@ -1317,21 +1320,22 @@ function renderOutsStatementPage() {
     render();
     actions.appendChild(hostEl);
   };
-  const issuable = s.status === 'DRAFT' && s.entries.length && !s.missingRate;
-  if (s.status === 'DRAFT') {
+  const issuable = outsCan(s, 'issue') && s.entries.length && !s.missingRate;
+  if (outsCan(s, 'issue')) {
     const issue = outsBtn('check', 'Issue', () => issueOutsStatementUi(s.id), 'primary outs-issue-btn');
     issue.disabled = !issuable;
     if (!s.entries.length) issue.title = 'There are no unbilled entries in this period';
     else if (s.missingRate) issue.title = 'Some entries in this period have no rate — add a rate that covers them first';
     actions.appendChild(issue);
   }
-  if (s.status === 'ISSUED') actions.appendChild(outsBtn('credit-card', 'Mark Paid', () => openOutsPaidModal(), 'primary outs-paid-btn'));
+  if (outsCan(s, 'markPaid')) actions.appendChild(outsBtn('credit-card', 'Mark Paid', () => openOutsPaidModal(), 'primary outs-paid-btn'));
   actions.appendChild(outsBtn('download', 'Excel', () => exportOutsExcel(), 'outs-excel-btn'));
   actions.appendChild(outsBtn('printer', 'PDF', () => exportOutsPdf(), 'outs-pdf-btn'));
   actions.appendChild(outsBtn('pencil', 'Edit', () => openOutsStatementModal(s)));
-  if (s.status === 'PAID') confirmHost('rotate-ccw', 'Mark Unpaid', () => setOutsStatementUnpaidUi(s.id), 'Mark unpaid?', 'outs-unpaid-btn');
-  if (s.status === 'ISSUED') confirmHost('ban', 'Cancel Statement', () => cancelOutsStatementUi(s.id), 'Cancel it?', 'del-action outs-cancel-btn');
-  if (s.status === 'DRAFT' || s.status === 'CANCELLED') {
+  if (outsCan(s, 'markUnpaid')) confirmHost('rotate-ccw', 'Mark Unpaid', () => setOutsStatementUnpaidUi(s.id), 'Mark unpaid?', 'outs-unpaid-btn');
+  // A draft can be cancelled too, but it offers Delete instead — nothing to keep.
+  if (outsCan(s, 'cancel') && !outsCan(s, 'delete')) confirmHost('ban', 'Cancel Statement', () => cancelOutsStatementUi(s.id), 'Cancel it?', 'del-action outs-cancel-btn');
+  if (outsCan(s, 'delete')) {
     confirmHost('trash-2', 'Delete', () => deleteOutsStatementUi(s.id), 'Delete?', 'del-action outs-statement-delete');
   }
   head.appendChild(actions);
@@ -1346,7 +1350,7 @@ function renderOutsStatementPage() {
   ]));
 
   const section = pjMk('div', 'pj-section');
-  if (s.status === 'DRAFT') {
+  if (outsCan(s, 'livePreview')) {
     const note = pjMk('div', 'outs-hint outs-draft-note',
       'A draft is a live preview: it shows the unbilled hours in this period at today\'s rates. Issuing locks those entries and keeps these numbers.');
     section.appendChild(note);
@@ -1363,11 +1367,11 @@ function renderOutsStatementPage() {
       section.appendChild(early);
     }
   }
-  if (s.status === 'CANCELLED') {
+  if (!outsCan(s, 'showEntries')) {
     section.appendChild(pjMk('div', 'outs-hint', 'This statement was cancelled; its entries are free again. The lines below are what had been issued.'));
   }
   if (s.lines.length) {
-    section.appendChild(buildOutsLines(s.lines, s.currency, s.status === 'DRAFT' ? 'Preview by Project & Rate' : 'By Project & Rate'));
+    section.appendChild(buildOutsLines(s.lines, s.currency, outsCan(s, 'livePreview') ? 'Preview by Project & Rate' : 'By Project & Rate'));
   } else {
     section.appendChild(pjMk('div', 'cp-records-empty', 'There are no unbilled entries in this period'));
   }

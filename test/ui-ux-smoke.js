@@ -234,7 +234,9 @@ gate('Knowledge Hub groups and the Draft/Ready status are retired from the UI (A
   && !html.includes("x.startsWith('GROUP:')")
   && !html.includes('id="kh-status-input"')
   && html.includes("key === 'STATUS:ARCHIVED'")
-  && html.includes("label: item.status === 'ARCHIVED' ? 'Restore from archive' : 'Archive'"));
+  && html.includes("WORKFLOWS.can(KH_FLOW, item.status, 'restore')")
+  && html.includes("{ label: 'Restore from archive', run:")
+  && html.includes("{ label: 'Archive', run:"));
 gate('Knowledge editor keeps a link to a since-disabled client or system',
   html.includes('function buildKnowledgeLinkPicker(hostId, category, selectedIds, placeholder)')
   && html.includes('lkOptions(category, true).filter(o => o.isActive || selectedIds.includes(o.id))'));

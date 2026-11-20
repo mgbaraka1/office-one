@@ -59,6 +59,7 @@ renderer/
   i18n.js            Arabic runtime: dictionary + DOM observer + regex rules + RTL
   event-delegation.js  CSP-safe data-on* handler parser (replaces inline onclick)
   settings-registry.js Single source of truth for the Settings catalog tabs
+  workflows.js       Lifecycle rules (statuses + allowed moves); also required by db.js (§4.4)
   core.js            Icons, shared state, modals/focus traps, toasts, lookups, pickers
   app.css            All application styling (design tokens in :root)
   features/          timesheet.js, tasks.js, workspace.js, clients.js, knowledge.js,
@@ -70,7 +71,7 @@ test/                40 *-smoke.js suites + run-all.js + electron-e2e.js + helpe
 ```
 
 Renderer scripts are **ordered classic scripts**, not modules — load order in
-`index.html` matters (`core.js` before every feature file; DOMPurify before
+`index.html` matters (`workflows.js` and `core.js` before every feature file; DOMPurify before
 `knowledge-sanitize.js` before `knowledge.js`, then marked and highlight.js before
 `code-notes.js`). Any new top-level path must be
 added to `package.json` → `build.files` or it will be missing from packaged builds.
@@ -278,6 +279,30 @@ Never fix that class of gap by editing 003.
 
 `COMPANY` is still deliberately empty on a fresh install: the client roster is
 yours to create, and a seeded fake company would be worse than none.
+
+### 4.4 Lifecycles (`renderer/workflows.js`)
+
+Records whose status decides what you may do to them are declared once, in
+`renderer/workflows.js` — the one renderer file `db.js` also `require`s. db.js
+refuses a move with `WORKFLOWS.can()`; the renderer shows a button with the same
+call, so the UI never offers what the data layer will refuse. Error wording
+stays beside each check in db.js.
+
+| Machine | Statuses / moves | Enforced by |
+|---|---|---|
+| `OUTS_STATEMENT` | DRAFT →issue→ ISSUED →markPaid→ PAID →markUnpaid→ ISSUED; DRAFT/ISSUED →cancel→ CANCELLED. Rules: `editPeriod`, `delete`, `livePreview`, `showEntries`, `billed`, `unpaid` | db.js + migration 066 CHECK |
+| `PFM_ITEM` | Order = `PFM_STATUS` sort_order (editable). Fixed anchors only: `decision` (ACCEPTED), `rejected`, `final` | db.js (`pfmFlowError`, §4.1) |
+| `KNOWLEDGE_ITEM` | DRAFT →markReady→ PUBLISHED; DRAFT/PUBLISHED →archive→ ARCHIVED →restore→ PUBLISHED. Rule: `hidden` | Menu only — the editor may set any status |
+
+**Adding a status or move:** edit the table, then the CHECK constraint (a
+migration) if there is one. `test/workflows-smoke.js` checks the table against
+migration 066, runs every statement status × action through the real db.js, and
+fails on any raw `status === 'DRAFT'`-style comparison creeping back.
+
+**Not state machines** (deliberately left out): task `ENTRY_STATUS` and
+`PROJECT_STATUS` (catalogs where any value may follow any other), the renewal
+"expired / soon / ok" on subscriptions and documents (derived from a date, never
+stored), active/inactive flags, and soft delete (`deleted_at` is the undo window).
 
 ## 5. Finance (retired)
 
