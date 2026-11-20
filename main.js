@@ -260,6 +260,8 @@ ipcMain.handle('companies:list',    authed(()         => db.listCompanies(auth.r
 ipcMain.handle('companies:entries', authed((_e, name) => db.companyEntries(auth.requireUserId(), name)));
 ipcMain.handle('systems:list',      authed(()         => db.listSystems(auth.requireUserId())));
 ipcMain.handle('systems:entries',   authed((_e, name) => db.systemEntries(auth.requireUserId(), name)));
+ipcMain.handle('natures:list',      authed(()         => db.listNatures(auth.requireUserId())));
+ipcMain.handle('natures:entries',   authed((_e, name) => db.natureEntries(auth.requireUserId(), name)));
 
 // ── Analytics (aggregation done in SQL, not in the renderer) ──
 ipcMain.handle('analytics:summary',  authed((_e, from, to, spanFrom, spanTo) => db.getAnalytics(auth.requireUserId(), from, to, spanFrom, spanTo)));

@@ -280,6 +280,9 @@ async function openTaskDetail(taskId) {
 }
 function closeTaskDetail() {
   document.getElementById('task-detail-overlay').classList.remove('open');
+  // Browse opens this panel from its rows; sessions edited, added or deleted
+  // here should show there without a manual reload.
+  if (activeModule === 'browse') refreshCatQuiet();
 }
 function taskDetailOverlayClick(e) {
   if (e.target === document.getElementById('task-detail-overlay')) closeTaskDetail();

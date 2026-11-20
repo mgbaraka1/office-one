@@ -721,17 +721,18 @@
   </div>
 </div>
 
-<!-- ══ BROWSE MODULE (read-only slices of tasks + work_logs, by Company or System) ══ -->
+<!-- ══ BROWSE MODULE (read-only slices of tasks + work_logs, by Company, System or Work Nature) ══ -->
 <div id="module-browse" class="app-module">
   <div class="page-header">
     <span class="page-title"><span class="ti-ic" data-ic="compass"></span>Browse</span>
     <div class="seg-ctl" id="browse-kind-ctl">
       <button class="seg-btn active" data-kind="companies" data-onclick="setBrowseKind('companies')"><span data-ic="building-2"></span>Companies</button>
       <button class="seg-btn" data-kind="systems" data-onclick="setBrowseKind('systems')"><span data-ic="folder"></span>Systems</button>
+      <button class="seg-btn" data-kind="natures" data-onclick="setBrowseKind('natures')"><span data-ic="tag"></span>Work Nature</button>
     </div>
   </div>
-  <!-- Two dimension panels; the toggle above shows one at a time. Inner ids are
-       keyed by kind ('companies' | 'systems') and drive the shared renderer. -->
+  <!-- Three dimension panels; the toggle above shows one at a time. Inner ids are
+       keyed by kind ('companies' | 'systems' | 'natures') and drive the shared renderer. -->
   <div class="cp-body" id="browse-body-companies">
     <div class="cp-list-panel">
       <div class="cp-list-search">
@@ -749,6 +750,15 @@
       <div class="cp-list" id="systems-list"></div>
     </div>
     <div class="cp-records-panel" id="systems-records"></div>
+  </div>
+  <div class="cp-body" id="browse-body-natures" style="display:none">
+    <div class="cp-list-panel">
+      <div class="cp-list-search">
+        <input type="text" id="natures-search" class="mod-search" placeholder="Search work natures…" data-oninput="renderCatList('natures')">
+      </div>
+      <div class="cp-list" id="natures-list"></div>
+    </div>
+    <div class="cp-records-panel" id="natures-records"></div>
   </div>
 </div>
 

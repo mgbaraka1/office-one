@@ -3361,14 +3361,238 @@
     .cp-table tbody tr:hover td { background: color-mix(in srgb, var(--primary) 5%, transparent); }
     .cp-table .cp-col-num { width: 36px; }
     .cp-table .cp-col-num-r { width: 72px; text-align: end; }
-    .cp-table .cp-col-desc { min-width: 240px; }
-    .cp-table .desc-cell { max-width: 520px; display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
+    /* Description takes whatever width is left. The source line underneath is
+       width:0 + min-width:100% so its long nowrap text never widens the column
+       (that pushed Hours off-screen); it just ellipsizes to the cell. */
+    .cp-table .cp-col-desc { width: 100%; min-width: 220px; }
+    .cp-table .desc-cell { display: flex; flex-direction: column; gap: 3px; align-items: stretch; }
+    .cp-table .desc-text { line-height: 1.45; }
     .cp-desc-src {
-      max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      display: block; width: 0; min-width: 100%;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       font-size: 11.5px; color: var(--muted);
     }
+    .cp-table tbody td { padding-block: 10px; }
+    .cp-dur { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; line-height: 1.2; }
+    .cp-dur .hours-val { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .cp-dur-min { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    /* Month divider rows inside the records table. */
+    .cp-table tbody tr.cp-month-row td {
+      padding: 7px 12px; background: var(--surface2);
+      border-top: 1px solid var(--border);
+    }
+    .cp-table tbody tr.cp-month-row:hover td { background: var(--surface2); }
+    .cp-month-inner { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+    .cp-month-name { font-size: 12.5px; font-weight: 700; color: var(--text); }
+    .cp-month-meta { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    /* Quick-range chips above the filter bar. */
+    .cp-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .cp-preset {
+      padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border);
+      background: var(--surface); color: var(--muted); font: inherit; font-size: 12px;
+      cursor: pointer; transition: color .12s, border-color .12s, background .12s;
+    }
+    .cp-preset:hover { color: var(--text); border-color: var(--accent); }
+    .cp-preset.active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+    .cp-filter-clear[hidden] { display: none; }
+
+    /* ── Compact Browse: title row carries the stats, one toolbar row, slim
+       table. Later in the file than the base rules above, so these win. ── */
+    #module-browse .cp-records-panel { padding: 14px 18px 22px; }
+    .cp-records-head { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 10px; }
+    .cp-records-title { font-size: 17px; }
+    .cp-summary { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 0 auto; }
+    [dir="rtl"] .cp-summary { margin: 0 auto 0 0; }
+    .cp-summary-chip {
+      display: inline-flex; align-items: baseline; gap: 5px;
+      padding: 0; min-width: 0; border: 0; background: none; border-radius: 0;
+    }
+    .cp-summary-val { font-size: 14px; }
+    .cp-summary-lbl { font-size: 11.5px; text-transform: none; letter-spacing: 0; }
+    .cp-filter-bar { align-items: center; gap: 6px; margin-bottom: 10px; }
+    .cp-presets { margin: 0; gap: 4px; margin-inline-end: 6px; }
+    .cp-preset { padding: 3px 10px; font-size: 11.5px; }
+    .cp-filter-bar .cp-filter-input {
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 3px 8px; height: 28px; font-size: 12px; font-family: inherit;
+      background: var(--surface); color: var(--text); outline: none;
+    }
+    .cp-filter-bar .cp-filter-input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-glow); }
+    .cp-range-dash { color: var(--muted); font-size: 12px; }
+    .cp-filter-clear {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px; padding: 0; border-radius: 6px;
+    }
+    .cp-table-wrap { border-radius: 8px; }
+    .cp-table thead th { padding: 7px 10px; font-size: 11.5px; }
+    .cp-table tbody td { padding: 6px 10px; }
+    .cp-table tbody tr.cp-month-row td { padding: 4px 10px; }
+    .cp-table .desc-text { font-size: 12.5px; line-height: 1.35; }
+    .cp-desc-src { font-size: 11px; }
+    .cp-table .cp-date-cell { font-size: 12px; }
+    /* Time and status as plain text, not pills: Over Time stays red. */
+    .cp-table .desc-cell { max-width: none; }
+    .cp-table .cp-time-pill { padding: 0; background: none; font-weight: 500; font-size: 12px; }
+    .cp-table .cp-time-pill.cp-time-ot { background: none; font-weight: 600; }
+    .cp-table .status-badge { padding: 0; background: none !important; border: 0; font-size: 12px; font-weight: 600; }
+    .cp-dur .hours-val { font-size: 12.5px; }
+    .cp-dur-min { font-size: 10.5px; }
+    #module-browse .cp-list-search { padding: 8px; }
+    #module-browse .cp-list { padding: 6px; gap: 1px; }
+    #module-browse .cp-list-panel { width: 250px; }
+    #module-browse .cp-body { margin: 10px 12px 12px; }
+    #module-browse .cp-list-item { min-height: 32px; padding: 5px 10px; font-size: 12.5px; }
     .cp-desc-src .source-text, .cp-desc-src .source-link { font-size: inherit; white-space: nowrap; }
-    .cp-table .cp-nowrap, .cp-table .cell-link { white-space: nowrap; }
+    .cp-table .cp-nowrap, .cp-table .cp-date-cell { white-space: nowrap; }
+    .cp-table .cell-link:not(.cp-date-cell) {
+      display: block; max-width: 100%; font-size: 12.5px; line-height: 1.4; text-align: start;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    /* ── Browse stats: one slim strip under the title — "value label (hint)"
+       per figure, separated by thin dividers. ── */
+    .cp-stats {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0;
+      margin: 0 0 10px; padding: 6px 4px;
+      border: 1px solid var(--border); border-radius: 8px; background: var(--surface);
+    }
+    .cp-stat {
+      display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap;
+      padding: 0 14px; border-inline-start: 1px solid var(--border);
+    }
+    .cp-stat:first-child { border-inline-start: 0; }
+    .cp-stat-val { font-size: 14.5px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+    .cp-stat-lbl { font-size: 12px; color: var(--muted); }
+    .cp-stat-hint { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .cp-stat-hint::before { content: '('; }
+    .cp-stat-hint::after { content: ')'; }
+    .cp-stat-warn .cp-stat-val, .cp-stat-warn .cp-stat-hint { color: var(--bad); }
+    /* ── Browse records: one line per row, fixed column widths ──
+       Fixed layout: Description gets whatever is left, so no column can push
+       the table wider than the panel (auto layout did, hiding Hours behind a
+       sideways scroll). Every cell is one line, cut with "…"; the full text
+       is the tooltip and the session panel. */
+    #module-browse .cp-table { table-layout: fixed; min-width: 720px; }
+    #module-browse .cp-table th, #module-browse .cp-table td { overflow: hidden; white-space: nowrap; }
+    #module-browse .cp-table tbody td { padding-block: 7px; }
+    #module-browse .cp-table .cp-col-num    { width: 44px; }
+    #module-browse .cp-table .cp-col-date   { width: 100px; }
+    #module-browse .cp-table .cp-col-cat    { width: 210px; }
+    #module-browse .cp-table .cp-col-time   { width: 96px; }
+    #module-browse .cp-table .cp-col-desc   { width: auto; min-width: 0; }
+    #module-browse .cp-table .cp-col-status { width: 96px; }
+    #module-browse .cp-table .cp-col-num-r  { width: 72px; }
+    #module-browse .cp-table .cp-col-count  { width: 80px; }
+    #module-browse .cp-table .cp-col-range  { width: 190px; }
+    #module-browse .cp-table .cp-col-act    { width: 48px; }
+    .cp-cell-num .cell-num { color: var(--muted); font-size: 11.5px; }
+    .cp-cell-hours, .cp-cell-count { text-align: end; }
+    .cp-cell-hours .hours-val { font-weight: 700; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+    .cp-cell-count { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12.5px; }
+    .cp-cat-line, .cp-desc-line {
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px;
+    }
+    .cp-cat-line .cp-cat-sub { color: var(--muted); font-size: 11.5px; }
+    /* Rows open the session panel: they look and act clickable. */
+    #module-browse .cp-table tr.cp-row { cursor: pointer; }
+    #module-browse .cp-table tr.cp-row:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+    #module-browse .cp-table tr.cp-row-active td,
+    #module-browse .cp-table tr.cp-row-active:hover td { background: var(--accent-bg); }
+    #module-browse .cp-table tr.cp-row-active td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+    [dir="rtl"] #module-browse .cp-table tr.cp-row-active td:first-child { box-shadow: inset -3px 0 0 var(--accent); }
+    /* Tasks view: a caret line per task; its sessions indented under it. */
+    .cp-task-name { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12.5px; font-weight: 600; }
+    .cp-task-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cp-caret { display: inline-flex; color: var(--muted); flex-shrink: 0; }
+    .cp-caret .lic { width: 14px; height: 14px; }
+    [dir="rtl"] .cp-task-row:not(.open) .cp-caret { transform: scaleX(-1); }
+    #module-browse .cp-table tr.cp-task-row.open td { background: var(--surface2); }
+    #module-browse .cp-table tr.cp-sub-row td { padding-block: 5px; border-top-style: dashed; }
+    .cp-sub-line {
+      display: grid; grid-template-columns: 100px 96px minmax(0, 1fr) 72px; align-items: center;
+      gap: 10px; padding-inline-start: 44px;
+    }
+    .cp-sub-line .hours-val { text-align: end; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+    /* Toolbar row 2: search + Sessions / Tasks. */
+    .cp-filter-bar2 { justify-content: space-between; }
+    .cp-rec-search {
+      display: flex; align-items: center; gap: 6px; flex: 1; max-width: 420px; height: 30px;
+      padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface);
+      color: var(--muted);
+    }
+    .cp-rec-search:focus-within { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-glow); }
+    .cp-rec-search .lic { width: 14px; height: 14px; flex-shrink: 0; }
+    .cp-rec-search input {
+      flex: 1; min-width: 0; border: 0; outline: none; background: none;
+      font: inherit; font-size: 12.5px; color: var(--text);
+    }
+    .cp-view-ctl .seg-btn { font-size: 12px; padding: 4px 12px; gap: 6px; }
+    .cp-view-ctl .seg-btn .lic { width: 14px; height: 14px; }
+    /* Narrowing chips: one scrollable line. */
+    .cp-sub-chips {
+      display: flex; align-items: center; gap: 6px; margin-bottom: 10px;
+      overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin;
+    }
+    .cp-sub-chips[hidden] { display: none; }
+    .cp-sub-label { font-size: 11.5px; color: var(--muted); flex-shrink: 0; margin-inline-end: 2px; }
+    .cp-sub-chip {
+      display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
+      padding-block: 3px; padding-inline: 10px 4px; border-radius: 999px; border: 1px solid var(--border);
+      background: var(--surface); color: var(--text); font: inherit; font-size: 12px; cursor: pointer;
+    }
+    .cp-sub-chip:hover { border-color: var(--accent); }
+    .cp-sub-chip.active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+    .cp-sub-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cp-sub-count {
+      min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--surface2);
+      color: var(--muted); font-size: 11px; text-align: center; font-variant-numeric: tabular-nums;
+    }
+    .cp-sub-chip.active .cp-sub-count { background: var(--accent); color: #fff; }
+    /* ── Session panel: over the end of the records panel ── */
+    #module-browse .cp-body { position: relative; }
+    #module-browse .cp-records-panel.cp-has-drawer { padding-inline-end: 404px; }
+    /* With the panel open the table loses ~400px: drop the columns the panel
+       already shows (Company / System and Time; in Tasks, Company / System and
+       Dates) so Description, Status and Hours still fit without a sideways
+       scroll. */
+    #module-browse .cp-has-drawer .cp-table { min-width: 420px; }
+    /* Zero-width rather than display:none: the month row's colspan still
+       counts every column, so removed cells would leave an empty strip. */
+    #module-browse .cp-has-drawer .cp-table-sessions :is(th, td):is(:nth-child(3), :nth-child(4)):not([colspan]),
+    #module-browse .cp-has-drawer .cp-table-tasks :is(th, td):is(:nth-child(3), :nth-child(5)):not([colspan]) {
+      width: 0; padding: 0; border-inline-width: 0; font-size: 0;
+    }
+    #module-browse .cp-has-drawer .cp-table-sessions :is(th, td):is(:nth-child(3), :nth-child(4)):not([colspan]) > *,
+    #module-browse .cp-has-drawer .cp-table-tasks :is(th, td):is(:nth-child(3), :nth-child(5)):not([colspan]) > * { display: none; }
+    .cp-drawer {
+      position: absolute; top: 0; bottom: 0; inset-inline-end: 0; width: 380px; z-index: 3;
+      display: flex; flex-direction: column; gap: 14px; overflow-y: auto;
+      padding: 16px 18px; background: var(--surface);
+      border-inline-start: 1px solid var(--border); box-shadow: var(--shadow);
+    }
+    .cp-drawer[hidden] { display: none; }
+    .cp-drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .cp-drawer-title { display: flex; align-items: baseline; gap: 8px; }
+    .cp-drawer-date { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .cp-drawer-pos { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .cp-drawer-nav { display: flex; gap: 2px; }
+    .cp-drawer-nav .row-btn:disabled { opacity: .35; cursor: default; }
+    .cp-drawer-desc { margin: 0; font-size: 14px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .cp-drawer-meta {
+      display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 14px; margin: 0;
+      padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface2);
+      font-size: 12.5px;
+    }
+    .cp-drawer-meta dt { color: var(--muted); }
+    .cp-drawer-meta dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+    .cp-drawer-meta .cell-link { font-size: inherit; text-align: start; }
+    .cp-drawer-meta .status-badge { padding: 0; background: none !important; border: 0; font-weight: 600; }
+    .cp-drawer-src .source-text, .cp-drawer-src .source-link { font-size: inherit; text-align: start; }
+    .cp-drawer-task { display: flex; flex-direction: column; gap: 3px; }
+    .cp-drawer-label { font-size: 11.5px; color: var(--muted); }
+    .cp-drawer-task-name { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+    .cp-drawer-acts { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
+    .cp-drawer-acts .btn { justify-content: center; gap: 8px; display: inline-flex; align-items: center; }
+    .cp-drawer-acts .btn .lic { width: 15px; height: 15px; }
     .cp-table .status-badge { cursor: default; }
     .cp-table .status-badge:hover, .cp-table .status-badge:active { opacity: 1; transform: none; }
     .cp-time-pill {

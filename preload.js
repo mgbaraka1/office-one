@@ -33,7 +33,7 @@ contextBridge.exposeInMainWorld('api', {
   /** @returns {Promise<import('./ipc-types').DayInRange[]>} */
   loadDaysRange:  (from, to)      => ipcRenderer.invoke('days:range', from, to),
 
-  // ── Companies / Systems (read-only views over tasks + work_logs) ──
+  // ── Companies / Systems / Work natures (read-only views over tasks + work_logs) ──
   /** @returns {Promise<import('./ipc-types').CategoryValue[]>} */
   listCompanies:  ()        => ipcRenderer.invoke('companies:list'),
   /** @returns {Promise<import('./ipc-types').CategoryEntry[]>} */
@@ -42,6 +42,10 @@ contextBridge.exposeInMainWorld('api', {
   listSystems:    ()        => ipcRenderer.invoke('systems:list'),
   /** @returns {Promise<import('./ipc-types').CategoryEntry[]>} */
   systemEntries:  (name)    => ipcRenderer.invoke('systems:entries', name),
+  /** @returns {Promise<import('./ipc-types').CategoryValue[]>} */
+  listNatures:    ()        => ipcRenderer.invoke('natures:list'),
+  /** @returns {Promise<import('./ipc-types').CategoryEntry[]>} */
+  natureEntries:  (name)    => ipcRenderer.invoke('natures:entries', name),
 
   // ── Analytics (aggregated in SQL) ──
   /** @returns {Promise<import('./ipc-types').AnalyticsSummary>} */

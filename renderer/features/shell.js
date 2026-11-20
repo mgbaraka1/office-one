@@ -19,6 +19,7 @@ const PAL_PAGES = [
   { icon: 'file-text',        label: 'Reports',       go: 'reports' },
   { icon: 'building-2',       label: 'Browse — Companies', go: 'companies' },
   { icon: 'folder',           label: 'Browse — Systems',   go: 'systems' },
+  { icon: 'tag',              label: 'Browse — Work Nature', go: 'natures' },
   { icon: 'list',             label: 'Client Tasks',   go: 'all-tasks' },
   { icon: 'building',         label: 'Internal Work',  go: 'internal-tasks' },
   { icon: 'layers',           label: 'Clients',       go: 'clients' },
@@ -480,7 +481,7 @@ async function init() {
   // variables (Browse kind/slice) BEFORE anything renders them; All Tasks/
   // Clients/Internal Tasks restore inside their own init functions instead,
   // since those rebuild their filter UI from scratch.
-  if (uiState.filters.browse && uiState.filters.browse.kind) {
+  if (uiState.filters.browse && cpState[uiState.filters.browse.kind]) {
     browseKind = uiState.filters.browse.kind;
     if (uiState.filters.browse.selected) cpState[browseKind].selected = uiState.filters.browse.selected;
   }

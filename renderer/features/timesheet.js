@@ -2606,9 +2606,9 @@ async function renderMonthView() {
 
 // ── Module switching ──
 function switchModule(name) {
-  // The old Companies / Systems pages are now the two dimensions of Browse;
-  // keep the old names working as aliases (cross-links, month view, etc.).
-  if (name === 'companies' || name === 'systems') {
+  // The old Companies / Systems pages are now dimensions of Browse (with Work
+  // Nature); keep the names working as aliases (cross-links, month view, etc.).
+  if (name === 'companies' || name === 'systems' || name === 'natures') {
     const kind = name;
     if (activeModule === 'browse') { setBrowseKind(kind); return; }
     browseKind = kind;

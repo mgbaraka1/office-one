@@ -721,16 +721,17 @@ function loadDaysRange(userId, from, to) {
 }
 
 // ── Companies / Systems views (read-only rollups over tasks + work_logs) ──────
-// Both pages derive their data from the category FK columns on `tasks`, counting
-// the work sessions (`work_logs`) that reference them. Grouped by the display
-// LABEL (the same value shown everywhere else). `fkCol` is a fixed, internal
-// column name (never user input), so interpolating it is injection-safe. Every
-// query is scoped to the authenticated `userId`.
+// Each dimension derives its data from a category FK column — company/system on
+// `tasks`, work nature on the session itself (`work_logs`) — counting the work
+// sessions that reference it. Grouped by the display LABEL (the same value shown
+// everywhere else). `fkCol` is a fixed, internal, table-qualified column name
+// (never user input), so interpolating it is injection-safe. Every query is
+// scoped to the authenticated `userId`.
 function distinctCategory(userId, fkCol) {
   return db.prepare(
     `SELECT lc.label AS name, COUNT(*) AS count
        ${LOG_JOIN}
-       JOIN lookup_codes lc ON lc.id = t.${fkCol}
+       JOIN lookup_codes lc ON lc.id = ${fkCol}
       WHERE wl.user_id = ?
       GROUP BY lc.label
       ORDER BY lc.label COLLATE NOCASE`
@@ -740,15 +741,17 @@ function categoryEntries(userId, fkCol, name) {
   return db.prepare(
     `SELECT ${LOG_COLS}
        ${LOG_JOIN}
-       JOIN lookup_codes lc ON lc.id = t.${fkCol}
+       JOIN lookup_codes lc ON lc.id = ${fkCol}
       WHERE wl.user_id = ? AND lc.label = ?
       ORDER BY wl.date ASC, wl.sort_order, wl.id`
   ).all(userId, name).map(r => ({ date: r.date, ...dayEntryRowToApi(r) }));
 }
-function listCompanies(userId)        { return distinctCategory(userId, 'company_id'); }
-function listSystems(userId)          { return distinctCategory(userId, 'system_id'); }
-function companyEntries(userId, name) { return categoryEntries(userId, 'company_id', name); }
-function systemEntries(userId, name)  { return categoryEntries(userId, 'system_id', name); }
+function listCompanies(userId)        { return distinctCategory(userId, 't.company_id'); }
+function listSystems(userId)          { return distinctCategory(userId, 't.system_id'); }
+function listNatures(userId)          { return distinctCategory(userId, 'wl.activity_type_id'); }
+function companyEntries(userId, name) { return categoryEntries(userId, 't.company_id', name); }
+function systemEntries(userId, name)  { return categoryEntries(userId, 't.system_id', name); }
+function natureEntries(userId, name)  { return categoryEntries(userId, 'wl.activity_type_id', name); }
 
 // Custom date-range report (Milestone 4): work sessions in [from,to], optionally
 // further narrowed by company/system label or a specific project id. A separate
@@ -7915,7 +7918,7 @@ module.exports = {
   runMaintenance, getConnection, close, backup, dbPath, projectsRootDir, knowledgeRootDir,
   countUsers, getUserByUsername, getUserById, listUsers, countActiveAdmins,
   countActiveUsers, createUser, updateUserAccount, getUnclaimedUser, claimUser, listDays,
-  loadDaysRange, listCompanies, listSystems, companyEntries, systemEntries,
+  loadDaysRange, listCompanies, listSystems, listNatures, companyEntries, systemEntries, natureEntries,
   getFilteredWorkLogs, getAnalytics, getOverviewStats, getAttentionItems,
   getRecentActivity, createProject, listProjects, getProject, updateProject, deleteProject,
   linkTask, unlinkTask, listLinkableTasks, listDepartments, getDepartment,

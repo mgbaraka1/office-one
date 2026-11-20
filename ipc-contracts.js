@@ -4,7 +4,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const NO_ARGS = new Set([
   'auth:status', 'auth:logout', 'auth:listUsers', 'app:version', 'app:release-notes',
-  'days:list', 'companies:list', 'systems:list', 'attention:list', 'activity:list',
+  'days:list', 'companies:list', 'systems:list', 'natures:list', 'attention:list', 'activity:list',
   'lookups:get', 'subscriptions:list', 'tasks:list', 'tasks:index',
   'projects:list', 'projects:linkable-tasks', 'departments:list',
   'internal:list', 'companydocs:list', 'templates:list', 'knowledge:list', 'pfm:member-names', 'outs:unpaid-summary',
@@ -26,6 +26,7 @@ const SIGNATURES = {
   'days:range': ['date', 'date'],
   'companies:entries': ['string'],
   'systems:entries': ['string'],
+  'natures:entries': ['string'],
   'analytics:summary': ['date', 'date', 'date', 'date'],
   'analytics:overview': ['date', 'date'],
   'lookups:save': ['object'],

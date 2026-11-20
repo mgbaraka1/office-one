@@ -480,6 +480,7 @@
     'How the day\'s sessions are laid out': 'طريقة عرض جلسات اليوم', 'Quick duration': 'مدة سريعة',
     'What did you do?': 'ماذا أنجزت؟', 'Search subscriptions…': 'البحث في الاشتراكات…',
     'Search companies…': 'البحث في الشركات…', 'Search systems…': 'البحث في الأنظمة…',
+    'Search work natures…': 'البحث في طبيعة العمل…',
     'Task workspace': 'مساحة عمل المهام', 'Search departments…': 'البحث في الأقسام…',
     'Search titles, content, documents, or tags…': 'البحث في العناوين أو المحتوى أو المستندات أو الوسوم…',
     'Active filters': 'عوامل التصفية النشطة', 'A clear, searchable title': 'عنوان واضح وقابل للبحث',
@@ -726,6 +727,10 @@
     'Toggle dark / light theme': 'التبديل بين الوضع الداكن والفاتح',
     'Back up the database': 'نسخ قاعدة البيانات احتياطياً', 'Actions': 'الإجراءات',
     'Browse — Companies': 'تصفح — الشركات', 'Browse — Systems': 'تصفح — الأنظمة',
+    'Browse — Work Nature': 'تصفح — طبيعة العمل', 'Work Nature': 'طبيعة العمل',
+    'Company / System': 'الشركة / النظام', 'System / Natural': 'النظام / طبيعة العمل',
+    'Company / Natural': 'الشركة / طبيعة العمل', 'Search sessions…': 'البحث في الجلسات…',
+    'Dates': 'التواريخ', 'Previous session': 'الجلسة السابقة', 'Next session': 'الجلسة التالية',
     'Tasks — All': 'المهام — الكل', 'Tasks — Departments': 'المهام — الأقسام',
     'Jump to date': 'الانتقال إلى تاريخ', 'Log a session': 'تسجيل جلسة',
     'Open project': 'فتح المشروع', 'Open Knowledge Hub': 'فتح مركز المعرفة',
@@ -981,6 +986,9 @@
   Object.assign(ar, {
     // Month-view column initials.
     'Choose a date': 'اختر تاريخاً', 'Choose a month': 'اختر شهراً', 'Clear': 'مسح', 'This month': 'هذا الشهر',
+    // Browse quick ranges and month dividers.
+    'All time': 'كل الأوقات', 'Last 30 days': 'آخر 30 يوماً', 'Last 3 months': 'آخر 3 أشهر', 'This year': 'هذا العام',
+    'Quick range': 'نطاق سريع', '{h} h': '{h} س', '{n} min': '{n} د',
     'Previous year': 'السنة السابقة', 'Next year': 'السنة التالية',
     'Su': 'أحد', 'Mo': 'إثن', 'Tu': 'ثلا', 'We': 'أرب', 'Th': 'خمي', 'Fr': 'جمع', 'Sa': 'سبت',
     'Search your tasks…': 'ابحث في مهامك…', 'No project': 'بلا مشروع',
@@ -1081,7 +1089,7 @@
 
   // Overview / Browse / Subscriptions / Full Backup — the workspace surfaces.
   Object.assign(ar, {
-    'company': 'شركة', 'system': 'نظام',
+    'company': 'شركة', 'system': 'نظام', 'work nature': 'طبيعة عمل',
     'From': 'من', 'To': 'إلى', 'Other': 'أخرى',
     'Expand navigation': 'توسيع التنقل',
     'Good morning': 'صباح الخير', 'Good afternoon': 'مساء الخير', 'Good evening': 'مساء الخير',

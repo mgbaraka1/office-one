@@ -1,38 +1,56 @@
-// ── Browse dimension (Companies | Systems) ──
+// ── Browse dimension (Companies | Systems | Work Nature) ──
 let browseKind = 'companies';
 function setBrowseKind(kind) {
+  if (!CP_DEF[kind]) kind = 'companies';
   browseKind = kind;
   document.querySelectorAll('#browse-kind-ctl .seg-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.kind === kind));
-  document.getElementById('browse-body-companies').style.display = kind === 'companies' ? '' : 'none';
-  document.getElementById('browse-body-systems').style.display  = kind === 'systems'  ? '' : 'none';
-  setAppTitle('Browse', window.ctI18n?.t?.(kind === 'companies' ? 'Companies' : 'Systems'));
+  Object.keys(CP_DEF).forEach(k => {
+    document.getElementById('browse-body-' + k).style.display = k === kind ? '' : 'none';
+  });
+  setAppTitle('Browse', window.ctI18n?.t?.(CP_DEF[kind].title));
   openCatPage(kind);
   uiState.filters.browse = { kind, selected: cpState[kind].selected };
   saveUiStateDebounced();
 }
-// Cross-link entry point: open Browse pre-selected on one company / system value.
+// Cross-link entry point: open Browse pre-selected on one company / system /
+// work-nature value.
 function openBrowseSlice(kind, name) {
   cpState[kind].selected = name;
-  cpState[kind].from = ''; cpState[kind].to = ''; cpState[kind].type = '';
+  resetCatFilters(cpState[kind]);
   browseKind = kind;
   if (activeModule === 'browse') setBrowseKind(kind);
   else switchModule('browse');
 }
 
-// ══ COMPANIES / SYSTEMS — read-only views over tasks + work_logs ════════════
-// Both pages are identical except for which category column they group by, so a
-// single parameterized renderer drives them (kind = 'companies' | 'systems').
-// Data is read via the companies:/systems: IPC channels (always scoped to the
-// session user in main); these pages never write.
+// ══ COMPANIES / SYSTEMS / WORK NATURE — read-only views over tasks + work_logs ══
+// The dimensions are identical except for which category column they group by,
+// so a single parameterized renderer drives them (kind = 'companies' |
+// 'systems' | 'natures'). Data is read via the companies:/systems:/natures: IPC
+// channels (always scoped to the session user in main); these pages never write.
 const CP_DEF = {
-  companies: { noun: 'company', icon: ic('building-2'), listApi: 'listCompanies', entriesApi: 'companyEntries' },
-  systems:   { noun: 'system',  icon: ic('folder'),  listApi: 'listSystems',   entriesApi: 'systemEntries' },
+  companies: { noun: 'company',     title: 'Companies',   icon: ic('building-2'), listApi: 'listCompanies', entriesApi: 'companyEntries' },
+  systems:   { noun: 'system',      title: 'Systems',     icon: ic('folder'),     listApi: 'listSystems',   entriesApi: 'systemEntries' },
+  natures:   { noun: 'work nature', title: 'Work Nature', icon: ic('tag'),        listApi: 'listNatures',   entriesApi: 'natureEntries' },
 };
 let cpState = {
-  companies: { list: [], selected: null, entries: [], from: '', to: '', type: '' },
-  systems:   { list: [], selected: null, entries: [], from: '', to: '', type: '' },
+  // q: session search; sub: the chip picked (null = all); visible: the rows
+  // listed now; drawer: the session shown in the side panel; openTasks: task
+  // lines expanded in the Tasks view.
+  companies: { list: [], selected: null, entries: [], from: '', to: '', type: '', q: '', sub: null, visible: [], drawer: null, openTasks: new Set() },
+  systems:   { list: [], selected: null, entries: [], from: '', to: '', type: '', q: '', sub: null, visible: [], drawer: null, openTasks: new Set() },
+  natures:   { list: [], selected: null, entries: [], from: '', to: '', type: '', q: '', sub: null, visible: [], drawer: null, openTasks: new Set() },
 };
+// A new slice starts with every filter and the panel cleared.
+function resetCatFilters(st) {
+  st.from = ''; st.to = ''; st.type = ''; st.q = ''; st.sub = null;
+  st.drawer = null; st.openTasks = new Set();
+}
+// The label a dimension value is shown by (list and title).
+function catDisplayName(kind, value) {
+  if (kind === 'companies') return companyDisplayName(value);
+  return lkLabel(kind === 'systems' ? 'SYSTEM' : 'ACTIVITY_TYPE', value);
+}
 
 // Entered via switchModule(kind): (re)load the value list, keep a valid selection.
 async function openCatPage(kind) {
@@ -42,6 +60,8 @@ async function openCatPage(kind) {
   try { list = await window.api[def.listApi](); }
   catch { toast('Could not load ' + kind); return; }
   st.list = Array.isArray(list) ? list : [];
+  // Only a handful of work natures: busiest first reads better than A–Z.
+  if (kind === 'natures') st.list.sort((a, b) => b.count - a.count);
   if (st.selected && !st.list.some(x => x.name === st.selected)) st.selected = null;
   renderCatList(kind);
   if (st.selected) loadCatEntries(kind, st.selected);
@@ -53,7 +73,7 @@ function renderCatList(kind) {
   const q = (document.getElementById(kind + '-search').value || '').trim().toLowerCase();
   const wrap = document.getElementById(kind + '-list');
   wrap.innerHTML = '';
-  const displayName = value => kind === 'companies' ? companyDisplayName(value) : lkLabel('SYSTEM', value);
+  const displayName = value => catDisplayName(kind, value);
   const items = q ? st.list.filter(x =>
     [x.name, displayName(x.name)].some(value => String(value || '').toLowerCase().includes(q))) : st.list;
   if (!items.length) {
@@ -76,7 +96,7 @@ function renderCatList(kind) {
 
 function selectCat(kind, name) {
   const st = cpState[kind];
-  st.selected = name; st.from = ''; st.to = ''; st.type = '';
+  st.selected = name; resetCatFilters(st);
   renderCatList(kind);
   loadCatEntries(kind, name);
   uiState.filters.browse = { kind, selected: name };
@@ -94,13 +114,53 @@ async function loadCatEntries(kind, name) {
   renderCatRecords(kind);
 }
 
-// Build the records panel shell once per selection (header + filter bar +
-// summary + table); filter changes only recompute the body via applyCatFilter
-// so the date/select inputs keep their focus.
+// Quick date ranges for the Browse filter bar. Each returns [from, to] as
+// YYYY-MM-DD; '' leaves that end open.
+const CP_PRESETS = [
+  { key: 'all',   label: 'All time',      range: () => ['', ''] },
+  { key: 'month', label: 'This month',    range: () => { const d = new Date(); return [fmt(new Date(d.getFullYear(), d.getMonth(), 1)), fmt(d)]; } },
+  { key: '30d',   label: 'Last 30 days',  range: () => { const d = new Date(); const s = new Date(d); s.setDate(d.getDate() - 29); return [fmt(s), fmt(d)]; } },
+  { key: '3m',    label: 'Last 3 months', range: () => { const d = new Date(); return [fmt(new Date(d.getFullYear(), d.getMonth() - 2, 1)), fmt(d)]; } },
+  { key: 'year',  label: 'This year',     range: () => { const d = new Date(); return [fmt(new Date(d.getFullYear(), 0, 1)), fmt(d)]; } },
+];
+const CP_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'];
+
+// How the records are listed: 'sessions' (one line per work session, grouped
+// by month) or 'tasks' (one line per task, expandable to its sessions). Shared
+// by all three dimensions for the app session.
+let cpView = 'sessions';
+
+const cpT = (k, v) => (window.ctI18n?.t ? window.ctI18n.t(k, v)
+  : k.replace(/\{(\w+)\}/g, (_, n) => (v || {})[n]));
+const cpCo = v => (v ? companyDisplayName(v) : '');
+const cpSy = v => (v ? lkLabel('SYSTEM', v) : '');
+const cpNat = v => (v ? lkLabel('ACTIVITY_TYPE', v) : '');
+
+// Per dimension: the one "category" column (the two other dimensions, on one
+// line — the browsed one is already the title) for a session line and for a
+// task line, plus the field the narrowing chips group by.
+const CP_VIEW_DEF = {
+  companies: { head: 'System / Natural',  parts: r => [cpSy(r.system), cpNat(r.natural)],
+               taskHead: 'System',  taskParts: r => [cpSy(r.system), ''],
+               chipField: 'system',  chipLabel: 'System',  chipShow: cpSy },
+  systems:   { head: 'Company / Natural', parts: r => [cpCo(r.company), cpNat(r.natural)],
+               taskHead: 'Company', taskParts: r => [cpCo(r.company), ''],
+               chipField: 'company', chipLabel: 'Company', chipShow: cpCo },
+  natures:   { head: 'Company / System',  parts: r => [cpCo(r.company), cpSy(r.system)],
+               taskHead: 'Company / System', taskParts: r => [cpCo(r.company), cpSy(r.system)],
+               chipField: 'company', chipLabel: 'Company', chipShow: cpCo },
+};
+
+// Build the records panel shell once per selection (header, two toolbar rows,
+// chips, table); filter changes only recompute the chips, summary and table
+// via applyCatFilter, so the inputs keep their focus.
 function renderCatRecords(kind) {
   const def = CP_DEF[kind]; const st = cpState[kind];
   const host = document.getElementById(kind + '-records');
   host.innerHTML = '';
+  host.classList.remove('cp-has-drawer');
+  renderCatDrawer(kind);
 
   if (!st.selected) {
     const ph = document.createElement('div'); ph.className = 'cp-placeholder';
@@ -110,19 +170,24 @@ function renderCatRecords(kind) {
 
   const head = document.createElement('div'); head.className = 'cp-records-head';
   const title = document.createElement('h2'); title.className = 'cp-records-title';
-  title.textContent = kind === 'companies' ? companyDisplayName(st.selected) : lkLabel('SYSTEM', st.selected);
+  title.textContent = catDisplayName(kind, st.selected);
   head.appendChild(title);
   const sub = document.createElement('span'); sub.className = 'cp-records-sub';
   sub.id = kind + '-records-sub';
   head.appendChild(sub);
   host.appendChild(head);
+  // Stats: a row of tiles under the title.
+  const summary = document.createElement('div'); summary.className = 'cp-stats';
+  summary.id = kind + '-summary';
+  host.appendChild(summary);
 
-  // Filter bar: date range + entry (time) type
+  // Toolbar row 1: quick ranges, then From – To, type and Clear. The fields
+  // carry no visible label; the label is their tooltip and accessible name.
   const bar = document.createElement('div'); bar.className = 'cp-filter-bar';
   const mkField = (labelText, inputEl) => {
-    const f = document.createElement('div'); f.className = 'cp-filter-field';
-    const l = document.createElement('label'); l.textContent = labelText;
-    f.appendChild(l); f.appendChild(inputEl); return f;
+    inputEl.title = labelText; inputEl.setAttribute('aria-label', labelText);
+    inputEl.classList.add('cp-filter-input');
+    return inputEl;
   };
   const fromInp = document.createElement('input'); fromInp.type = 'date'; fromInp.value = st.from;
   fromInp.addEventListener('change', () => { st.from = fromInp.value; applyCatFilter(kind); });
@@ -138,39 +203,83 @@ function renderCatRecords(kind) {
   typeSel.value = st.type;
   typeSel.addEventListener('change', () => { st.type = typeSel.value; applyCatFilter(kind); });
 
+  // Quick ranges: one click fills From/To. The matching chip lights up in
+  // applyCatFilter, so a hand-typed range that equals a preset lights it too.
+  const presets = document.createElement('div'); presets.className = 'cp-presets';
+  presets.id = kind + '-presets';
+  presets.setAttribute('role', 'group');
+  presets.setAttribute('aria-label', 'Quick range');
+  CP_PRESETS.forEach(p => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'cp-preset'; b.dataset.preset = p.key;
+    b.textContent = p.label;
+    b.addEventListener('click', () => {
+      const [from, to] = p.range();
+      st.from = from; st.to = to;
+      fromInp.value = from; toInp.value = to;
+      applyCatFilter(kind);
+    });
+    presets.appendChild(b);
+  });
+  bar.appendChild(presets);
+
   bar.appendChild(mkField('From', fromInp));
+  const dash = document.createElement('span'); dash.className = 'cp-range-dash'; dash.textContent = '–';
+  bar.appendChild(dash);
   bar.appendChild(mkField('To', toInp));
   bar.appendChild(mkField('Type', typeSel));
   const clearBtn = document.createElement('button'); clearBtn.className = 'cp-filter-clear';
-  clearBtn.innerHTML = ic('x') + ' Clear filters';
-  clearBtn.addEventListener('click', () => {
-    st.from = ''; st.to = ''; st.type = '';
-    fromInp.value = ''; toInp.value = ''; typeSel.value = '';
-    applyCatFilter(kind);
-  });
+  clearBtn.id = kind + '-filter-clear';
+  clearBtn.innerHTML = ic('x');
+  clearBtn.title = 'Clear filters';
   bar.appendChild(clearBtn);
   host.appendChild(bar);
 
-  // Summary
-  const summary = document.createElement('div'); summary.className = 'cp-summary';
-  summary.id = kind + '-summary';
-  host.appendChild(summary);
+  // Toolbar row 2: search the sessions, and the Sessions | Tasks switch.
+  const bar2 = document.createElement('div'); bar2.className = 'cp-filter-bar cp-filter-bar2';
+  const searchWrap = document.createElement('label'); searchWrap.className = 'cp-rec-search';
+  searchWrap.innerHTML = ic('search');
+  const qInp = document.createElement('input'); qInp.type = 'search'; qInp.value = st.q;
+  qInp.placeholder = 'Search sessions…';
+  qInp.setAttribute('aria-label', 'Search sessions…');
+  qInp.addEventListener('input', () => { st.q = qInp.value; applyCatFilter(kind); });
+  searchWrap.appendChild(qInp);
+  bar2.appendChild(searchWrap);
+  const viewCtl = document.createElement('div'); viewCtl.className = 'seg-ctl cp-view-ctl';
+  viewCtl.id = kind + '-view-ctl';
+  viewCtl.setAttribute('role', 'group');
+  viewCtl.setAttribute('aria-label', 'View');
+  [['sessions', 'list', 'Sessions'], ['tasks', 'layers', 'Tasks']].forEach(([v, icon, label]) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'seg-btn' + (cpView === v ? ' active' : ''); b.dataset.view = v;
+    b.innerHTML = ic(icon); b.appendChild(document.createTextNode(label));
+    b.setAttribute('aria-pressed', cpView === v ? 'true' : 'false');
+    b.addEventListener('click', () => {
+      cpView = v;
+      viewCtl.querySelectorAll('.seg-btn').forEach(x => {
+        x.classList.toggle('active', x.dataset.view === v);
+        x.setAttribute('aria-pressed', x.dataset.view === v ? 'true' : 'false');
+      });
+      applyCatFilter(kind);
+    });
+    viewCtl.appendChild(b);
+  });
+  bar2.appendChild(viewCtl);
+  host.appendChild(bar2);
 
-  // Table. The column for the dimension being browsed is left out — every row
-  // shares the value already shown in the title.
+  clearBtn.addEventListener('click', () => {
+    st.from = ''; st.to = ''; st.type = ''; st.q = ''; st.sub = null;
+    fromInp.value = ''; toInp.value = ''; typeSel.value = ''; qInp.value = '';
+    applyCatFilter(kind);
+  });
+
+  // Narrowing chips: the second dimension, with counts.
+  const chips = document.createElement('div'); chips.className = 'cp-sub-chips';
+  chips.id = kind + '-chips';
+  host.appendChild(chips);
+
   const wrap = document.createElement('div'); wrap.className = 'cp-table-wrap';
-  const table = document.createElement('table'); table.className = 'cp-table';
-  table.innerHTML = '<thead><tr>' +
-    '<th class="cp-col-num">#</th>' +
-    '<th>Date</th>' +
-    (kind === 'companies' ? '' : '<th>Company</th>') +
-    (kind === 'systems' ? '' : '<th>System</th>') +
-    '<th>Natural</th><th>Time</th>' +
-    '<th class="cp-col-desc">Description</th>' +
-    '<th>Status</th>' +
-    '<th class="cp-col-num-r">Minutes</th>' +
-    '<th class="cp-col-num-r">Hours</th></tr></thead>' +
-    '<tbody id="' + kind + '-rec-tbody"></tbody>';
+  const table = document.createElement('table'); table.id = kind + '-table';
   wrap.appendChild(table);
   host.appendChild(wrap);
 
@@ -178,32 +287,45 @@ function renderCatRecords(kind) {
 }
 
 function applyCatFilter(kind) {
-  const st = cpState[kind];
+  const st = cpState[kind]; const vd = CP_VIEW_DEF[kind];
   let rows = st.entries.slice();
   if (st.from) rows = rows.filter(r => r.date >= st.from);
   if (st.to)   rows = rows.filter(r => r.date <= st.to);
   if (st.type) rows = rows.filter(r => r.time === st.type);
+  const q = (st.q || '').trim().toLowerCase();
+  if (q) {
+    rows = rows.filter(r => [r.description, r.taskName, cpCo(r.company), cpSy(r.system), r.date]
+      .some(v => String(v || '').toLowerCase().includes(q)));
+  }
+  renderCatChips(kind, rows);
+  if (st.sub !== null) rows = rows.filter(r => (r[vd.chipField] || '') === st.sub);
+  st.visible = rows;
 
   // Summary chips
   const totalMin = rows.reduce((s, r) => s + (parseFloat(r.minutes) || 0), 0);
   const summary = document.getElementById(kind + '-summary');
   summary.innerHTML = '';
-  const chip = (val, lbl) => {
-    const c = document.createElement('div'); c.className = 'cp-summary-chip';
-    const v = document.createElement('span'); v.className = 'cp-summary-val'; v.textContent = val;
-    const l = document.createElement('span'); l.className = 'cp-summary-lbl'; l.textContent = lbl;
-    c.appendChild(v); c.appendChild(l); return c;
+  // One tile per figure: label, value, and an optional hint line.
+  const tile = (lbl, val, hint, cls) => {
+    const c = document.createElement('div'); c.className = 'cp-stat' + (cls ? ' ' + cls : '');
+    const l = document.createElement('span'); l.className = 'cp-stat-lbl'; l.textContent = lbl;
+    const v = document.createElement('span'); v.className = 'cp-stat-val'; v.textContent = val;
+    c.appendChild(v); c.appendChild(l);
+    if (hint) { const h = document.createElement('span'); h.className = 'cp-stat-hint'; h.textContent = hint; c.appendChild(h); }
+    summary.appendChild(c);
+    return c;
   };
+  const hrs = min => cpT('{h} h', { h: (min / 60).toFixed(2) });
   const otMin = rows.filter(r => r.time === 'OVERTIME').reduce((s, r) => s + (parseFloat(r.minutes) || 0), 0);
   const days = new Set(rows.map(r => r.date).filter(Boolean));
-  summary.appendChild(chip(rows.length, 'Entries'));
-  summary.appendChild(chip((totalMin / 60).toFixed(2), 'Total Hours'));
-  summary.appendChild(chip(days.size, 'Active Days'));
-  summary.appendChild(chip(days.size ? (totalMin / 60 / days.size).toFixed(2) : '0.00', 'Avg / Day'));
+  const taskCount = new Set(rows.map(r => r.taskId ?? 'e' + r.eid)).size;
+  tile('Entries', String(rows.length), cpT('{n} tasks', { n: taskCount }));
+  tile('Total Hours', hrs(totalMin));
+  tile('Active Days', String(days.size));
+  tile('Avg / Day', days.size ? hrs(totalMin / days.size) : hrs(0));
   if (otMin > 0) {
-    const ot = chip((otMin / 60).toFixed(2), 'Over-Time Hours');
-    ot.classList.add('cp-summary-chip-warn');
-    summary.appendChild(ot);
+    const pct = totalMin ? Math.round(otMin / totalMin * 100) : 0;
+    tile('Over-Time Hours', hrs(otMin), cpT(pct + '% of total'), 'cp-stat-warn');
   }
 
   // Subtitle: the date span the filtered rows cover.
@@ -214,86 +336,439 @@ function applyCatFilter(kind) {
       : dates[0] + ' → ' + dates[dates.length - 1];
   }
 
-  // Table body
-  const tbody = document.getElementById(kind + '-rec-tbody');
-  tbody.innerHTML = '';
-  if (!rows.length) {
-    const tr = document.createElement('tr');
-    const td = document.createElement('td'); td.colSpan = 9; td.className = 'cp-records-empty';
-    td.textContent = st.entries.length
-      ? (window.ctI18n?.t?.('No records match the current filters') || 'No records match the current filters')
-      // The noun is itself a dictionary key, so translate it before it is
-      // interpolated — otherwise the Arabic sentence ends in "company".
-      : (window.ctI18n?.t?.('No records for this {noun}', { noun: window.ctI18n.t(CP_DEF[kind].noun) })
-         || ('No records for this ' + CP_DEF[kind].noun));
-    tr.appendChild(td); tbody.appendChild(tr); return;
-  }
-  rows.forEach((r, i) => tbody.appendChild(buildReadonlyRow(r, i, kind)));
+  // Light the preset chip that matches the current range; Clear shows only
+  // when something is filtered.
+  document.querySelectorAll('#' + kind + '-presets .cp-preset').forEach(b => {
+    const p = CP_PRESETS.find(x => x.key === b.dataset.preset);
+    const [from, to] = p.range();
+    const on = from === st.from && to === st.to;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  const clearBtn = document.getElementById(kind + '-filter-clear');
+  if (clearBtn) clearBtn.hidden = !(st.from || st.to || st.type || q || st.sub !== null);
+
+  renderCatTable(kind);
+  renderCatDrawer(kind);
 }
 
-// One read-only timesheet-style row (mirrors the Timesheet columns + Date, no
-// row actions — these pages never edit).
-function buildReadonlyRow(r, i, kind) {
+// Chips for the second dimension (System for a company, Company otherwise),
+// counted over the rows the other filters leave; the busiest first.
+function renderCatChips(kind, rows) {
+  const st = cpState[kind]; const vd = CP_VIEW_DEF[kind];
+  const host = document.getElementById(kind + '-chips');
+  if (!host) return;
+  const counts = new Map();
+  rows.forEach(r => { const v = r[vd.chipField] || ''; counts.set(v, (counts.get(v) || 0) + 1); });
+  if (st.sub !== null && !counts.has(st.sub)) counts.set(st.sub, 0);
+  host.innerHTML = '';
+  host.hidden = counts.size < 2 && st.sub === null;
+  if (host.hidden) return;
+  const lbl = document.createElement('span'); lbl.className = 'cp-sub-label';
+  lbl.textContent = vd.chipLabel;
+  host.appendChild(lbl);
+  const mk = (value, text, n) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'cp-sub-chip' + (st.sub === value ? ' active' : '');
+    b.setAttribute('aria-pressed', st.sub === value ? 'true' : 'false');
+    const nm = document.createElement('span'); nm.className = 'cp-sub-name'; nm.textContent = text;
+    if (value !== null) nm.dataset.userContent = '';
+    const ct = document.createElement('span'); ct.className = 'cp-sub-count'; ct.textContent = n;
+    b.appendChild(nm); b.appendChild(ct);
+    b.addEventListener('click', () => {
+      st.sub = (value === null || st.sub === value) ? null : value;
+      applyCatFilter(kind);
+    });
+    host.appendChild(b);
+  };
+  mk(null, 'All', rows.length);
+  [...counts].sort((a, b) => b[1] - a[1]).forEach(([v, n]) => mk(v, v ? vd.chipShow(v) : '—', n));
+}
+
+function renderCatTable(kind) {
+  const table = document.getElementById(kind + '-table');
+  if (!table) return;
+  table.className = 'cp-table cp-table-' + cpView;
+  table.innerHTML = '';
+  if (cpView === 'tasks') buildCatTaskTable(kind, table);
+  else buildCatSessionTable(kind, table);
+}
+
+function cpEmptyRow(kind, colCount) {
+  const st = cpState[kind];
   const tr = document.createElement('tr');
-
-  const numTd = document.createElement('td');
-  const numDiv = document.createElement('div'); numDiv.className = 'cell cell-center';
-  const numSpan = document.createElement('span'); numSpan.className = 'cell-num'; numSpan.textContent = i + 1;
-  numDiv.appendChild(numSpan); numTd.appendChild(numDiv); tr.appendChild(numTd);
-
-  const dateTd = document.createElement('td');
-  const dateDiv = document.createElement('div'); dateDiv.className = 'cell';
-  // Date cross-links to that day's timesheet.
-  const dateBtn = document.createElement('button');
-  dateBtn.className = 'cell-link cp-date-cell'; dateBtn.textContent = r.date;
-  dateBtn.title = 'Open this day in the Timesheet';
-  dateBtn.addEventListener('click', () => { switchModule('timesheet'); switchDay(r.date); });
-  dateDiv.appendChild(dateBtn); dateTd.appendChild(dateDiv); tr.appendChild(dateTd);
-
-  if (kind !== 'companies') tr.appendChild(linkCell(r.company, 'companies'));
-  if (kind !== 'systems') tr.appendChild(linkCell(r.system, 'systems'));
-  const natTd = textCell(lkLabel('ACTIVITY_TYPE', r.natural));
-  natTd.classList.add('cp-nowrap');
-  tr.appendChild(natTd);
-
-  const timeTd = document.createElement('td');
-  const timeDiv = document.createElement('div'); timeDiv.className = 'cell';
-  const timeSpan = document.createElement('span');
-  timeSpan.className = 'cp-time-pill' + (r.time === 'OVERTIME' ? ' cp-time-ot' : '');
-  timeSpan.textContent = lkLabel('TIME_TYPE', r.time);
-  timeDiv.appendChild(timeSpan); timeTd.appendChild(timeDiv); tr.appendChild(timeTd);
-
-  const descTd = document.createElement('td');
-  const descDiv = document.createElement('div'); descDiv.className = 'cell desc-cell';
-  const descSpan = document.createElement('span'); descSpan.className = 'desc-text'; descSpan.dataset.userContent = ''; descSpan.textContent = r.description;
-  descDiv.appendChild(descSpan);
-  // The source sits under the task as one muted line instead of its own
-  // column, which kept rows tall. Reuses the shared cell's link/label logic.
-  const srcInner = buildSourceCell(r, { compact: true }).firstChild;
-  if (srcInner && srcInner.textContent.trim()) {
-    srcInner.className = 'cp-desc-src';
-    srcInner.title = srcInner.firstChild?.title || srcInner.textContent;
-    descDiv.appendChild(srcInner);
-  }
-  descTd.appendChild(descDiv); tr.appendChild(descTd);
-
-  const stTd = document.createElement('td'); stTd.className = statusClass(r.status);
-  const stDiv = document.createElement('div'); stDiv.className = 'cell';
-  const badge = document.createElement('span'); badge.className = 'status-badge';
-  badge.textContent = lkLabel('ENTRY_STATUS', r.status);
-  stDiv.appendChild(badge); stTd.appendChild(stDiv); tr.appendChild(stTd);
-
-  const minTd = document.createElement('td'); minTd.style.textAlign = 'right';
-  const minDiv = document.createElement('div'); minDiv.className = 'cell cell-right';
-  const minSpan = document.createElement('span'); minSpan.textContent = r.minutes || '—';
-  minDiv.appendChild(minSpan); minTd.appendChild(minDiv); tr.appendChild(minTd);
-
-  const m = parseFloat(r.minutes);
-  const hrsSpan = document.createElement('span'); hrsSpan.className = 'hours-val';
-  hrsSpan.textContent = isNaN(m) ? '—' : (m / 60).toFixed(2);
-  tr.appendChild(cellWrap(hrsSpan, 'cell cell-right'));
-
+  const td = document.createElement('td'); td.colSpan = colCount; td.className = 'cp-records-empty';
+  td.textContent = st.entries.length
+    ? cpT('No records match the current filters')
+    // The noun is itself a dictionary key, so translate it before it is
+    // interpolated — otherwise the Arabic sentence ends in "company".
+    : cpT('No records for this {noun}', { noun: cpT(CP_DEF[kind].noun) });
+  tr.appendChild(td);
   return tr;
+}
+function cpTd(cls, child) {
+  const td = document.createElement('td');
+  if (cls) td.className = cls;
+  if (child != null) td.appendChild(typeof child === 'string' ? document.createTextNode(child) : child);
+  return td;
+}
+// "Main · sub" on one line, cut with "…"; the full text is the tooltip.
+function cpCatLine(parts) {
+  const [main, sub] = parts;
+  const line = document.createElement('div'); line.className = 'cp-cat-line';
+  const a = document.createElement('span'); a.dataset.userContent = ''; a.textContent = main || '—';
+  line.appendChild(a);
+  if (sub) {
+    const b = document.createElement('span'); b.className = 'cp-cat-sub'; b.dataset.userContent = '';
+    b.textContent = ' · ' + sub;
+    line.appendChild(b);
+  }
+  line.title = [main, sub].filter(Boolean).join(' · ');
+  return line;
+}
+function cpTimePill(r) {
+  const s = document.createElement('span');
+  s.className = 'cp-time-pill' + (r.time === 'OVERTIME' ? ' cp-time-ot' : '');
+  s.textContent = lkLabel('TIME_TYPE', r.time);
+  return s;
+}
+function cpStatusTd(status) {
+  const badge = document.createElement('span'); badge.className = 'status-badge';
+  badge.textContent = lkLabel('ENTRY_STATUS', status);
+  return cpTd(statusClass(status), badge);
+}
+function cpHours(min) {
+  const m = parseFloat(min);
+  const s = document.createElement('span'); s.className = 'hours-val';
+  s.textContent = isNaN(m) ? '—' : (m / 60).toFixed(2);
+  if (!isNaN(m)) s.title = cpT('{n} min', { n: m });
+  return s;
+}
+// A row that opens the session panel on click or Enter / Space.
+function cpMakeOpenable(tr, run) {
+  tr.tabIndex = 0;
+  tr.addEventListener('click', run);
+  tr.addEventListener('keydown', e => {
+    if (e.target !== tr) return;
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); run(); }
+  });
+}
+
+// ── Sessions view: one line per session, grouped by month ──
+function buildCatSessionTable(kind, table) {
+  const st = cpState[kind]; const vd = CP_VIEW_DEF[kind];
+  const rows = st.visible;
+  table.innerHTML = '<thead><tr>' +
+    '<th class="cp-col-num">#</th>' +
+    '<th class="cp-col-date">Date</th>' +
+    '<th class="cp-col-cat">' + vd.head + '</th>' +
+    '<th class="cp-col-time">Time</th>' +
+    '<th class="cp-col-desc">Description</th>' +
+    '<th class="cp-col-status">Status</th>' +
+    '<th class="cp-col-num-r">Hours</th></tr></thead>';
+  const tbody = document.createElement('tbody');
+  table.appendChild(tbody);
+  const colCount = 7;
+  if (!rows.length) { tbody.appendChild(cpEmptyRow(kind, colCount)); return; }
+  // Month divider rows carry that month's entry count and hours; numbering
+  // runs on across the groups.
+  const monthTotals = new Map();
+  rows.forEach(r => {
+    const key = String(r.date || '').slice(0, 7);
+    const t = monthTotals.get(key) || { n: 0, min: 0 };
+    t.n++; t.min += parseFloat(r.minutes) || 0;
+    monthTotals.set(key, t);
+  });
+  let lastMonth = null;
+  rows.forEach((r, i) => {
+    const key = String(r.date || '').slice(0, 7);
+    if (key !== lastMonth) {
+      lastMonth = key;
+      tbody.appendChild(buildMonthRow(key, monthTotals.get(key), colCount));
+    }
+    tbody.appendChild(buildCatSessionRow(kind, r, i));
+  });
+}
+
+function buildMonthRow(key, totals, colCount) {
+  const tr = document.createElement('tr'); tr.className = 'cp-month-row';
+  const td = document.createElement('td'); td.colSpan = colCount;
+  const inner = document.createElement('div'); inner.className = 'cp-month-inner';
+  const name = document.createElement('span'); name.className = 'cp-month-name';
+  const [y, m] = key.split('-');
+  // "June 2026" — i18n's month + year rule translates it as one string.
+  name.textContent = CP_MONTHS[Number(m) - 1] ? CP_MONTHS[Number(m) - 1] + ' ' + y : (key || '—');
+  const meta = document.createElement('span'); meta.className = 'cp-month-meta';
+  meta.textContent = cpT('{n} entries', { n: totals.n }) + ' · ' + cpT('{h} h', { h: (totals.min / 60).toFixed(2) });
+  inner.appendChild(name); inner.appendChild(meta);
+  td.appendChild(inner); tr.appendChild(td);
+  return tr;
+}
+
+function buildCatSessionRow(kind, r, i) {
+  const st = cpState[kind]; const vd = CP_VIEW_DEF[kind];
+  const tr = document.createElement('tr');
+  tr.className = 'cp-row' + (r.eid === st.drawer ? ' cp-row-active' : '');
+  tr.dataset.eid = r.eid;
+  const num = document.createElement('span'); num.className = 'cell-num'; num.textContent = i + 1;
+  tr.appendChild(cpTd('cp-cell-num', num));
+  const date = document.createElement('span'); date.className = 'cp-date-cell'; date.textContent = r.date;
+  tr.appendChild(cpTd('', date));
+  tr.appendChild(cpTd('', cpCatLine(vd.parts(r))));
+  tr.appendChild(cpTd('', cpTimePill(r)));
+  const desc = document.createElement('div'); desc.className = 'cp-desc-line';
+  desc.dataset.userContent = ''; desc.textContent = r.description; desc.title = r.description;
+  tr.appendChild(cpTd('', desc));
+  tr.appendChild(cpStatusTd(r.status));
+  tr.appendChild(cpTd('cp-cell-hours', cpHours(r.minutes)));
+  cpMakeOpenable(tr, () => openCatDrawer(kind, r.eid));
+  return tr;
+}
+
+// ── Tasks view: one line per task, expandable to its sessions ──
+function buildCatTaskTable(kind, table) {
+  const st = cpState[kind]; const vd = CP_VIEW_DEF[kind];
+  table.innerHTML = '<thead><tr>' +
+    '<th class="cp-col-num">#</th>' +
+    '<th class="cp-col-desc">Task</th>' +
+    '<th class="cp-col-cat">' + vd.taskHead + '</th>' +
+    '<th class="cp-col-count">Sessions</th>' +
+    '<th class="cp-col-range">Dates</th>' +
+    '<th class="cp-col-status">Status</th>' +
+    '<th class="cp-col-num-r">Hours</th>' +
+    '<th class="cp-col-act"><span class="sr-only">Actions</span></th></tr></thead>';
+  const tbody = document.createElement('tbody');
+  table.appendChild(tbody);
+  const colCount = 8;
+  if (!st.visible.length) { tbody.appendChild(cpEmptyRow(kind, colCount)); return; }
+  // Rows arrive oldest first, so insertion order is each task's first date.
+  const groups = new Map();
+  st.visible.forEach(r => {
+    const key = r.taskId != null ? 't' + r.taskId : 'e' + r.eid;
+    let g = groups.get(key);
+    if (!g) { g = { key, first: r, last: r, rows: [], min: 0 }; groups.set(key, g); }
+    g.rows.push(r); g.last = r; g.min += parseFloat(r.minutes) || 0;
+  });
+  [...groups.values()].forEach((g, i) => {
+    const open = st.openTasks.has(g.key);
+    const tr = document.createElement('tr');
+    tr.className = 'cp-row cp-task-row' + (open ? ' open' : '');
+    tr.setAttribute('aria-expanded', open ? 'true' : 'false');
+    const num = document.createElement('span'); num.className = 'cell-num'; num.textContent = i + 1;
+    tr.appendChild(cpTd('cp-cell-num', num));
+    const name = document.createElement('div'); name.className = 'cp-task-name';
+    const caret = document.createElement('span'); caret.className = 'cp-caret';
+    caret.innerHTML = ic(open ? 'chevron-down' : 'chevron-right');
+    const txt = document.createElement('span'); txt.className = 'cp-task-text'; txt.dataset.userContent = '';
+    txt.textContent = g.first.taskName || g.first.description;
+    name.title = txt.textContent;
+    name.appendChild(caret); name.appendChild(txt);
+    tr.appendChild(cpTd('', name));
+    tr.appendChild(cpTd('', cpCatLine(vd.taskParts(g.first))));
+    tr.appendChild(cpTd('cp-cell-count', String(g.rows.length)));
+    const range = document.createElement('span'); range.className = 'cp-date-cell';
+    range.textContent = g.first.date === g.last.date ? g.first.date : g.first.date + ' → ' + g.last.date;
+    tr.appendChild(cpTd('', range));
+    tr.appendChild(cpStatusTd(g.first.status));
+    tr.appendChild(cpTd('cp-cell-hours', cpHours(g.min)));
+    const actTd = cpTd('cp-cell-act');
+    if (g.first.taskId) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'row-btn'; b.innerHTML = ic('eye');
+      b.title = 'View task details';
+      b.addEventListener('click', e => { e.stopPropagation(); openTaskDetail(g.first.taskId); });
+      actTd.appendChild(b);
+    }
+    tr.appendChild(actTd);
+    cpMakeOpenable(tr, () => {
+      if (st.openTasks.has(g.key)) st.openTasks.delete(g.key); else st.openTasks.add(g.key);
+      renderCatTable(kind);
+    });
+    tbody.appendChild(tr);
+    if (!open) return;
+    // Its sessions: date · time · description · hours, each opening the panel.
+    g.rows.forEach(r => {
+      const sr = document.createElement('tr');
+      sr.className = 'cp-row cp-sub-row' + (r.eid === st.drawer ? ' cp-row-active' : '');
+      sr.dataset.eid = r.eid;
+      const td = document.createElement('td'); td.colSpan = colCount;
+      const line = document.createElement('div'); line.className = 'cp-sub-line';
+      const d = document.createElement('span'); d.className = 'cp-date-cell'; d.textContent = r.date;
+      const desc = document.createElement('span'); desc.className = 'cp-desc-line';
+      desc.dataset.userContent = ''; desc.textContent = r.description; desc.title = r.description;
+      line.appendChild(d); line.appendChild(cpTimePill(r)); line.appendChild(desc); line.appendChild(cpHours(r.minutes));
+      td.appendChild(line); sr.appendChild(td);
+      cpMakeOpenable(sr, () => openCatDrawer(kind, r.eid));
+      tbody.appendChild(sr);
+    });
+  });
+}
+
+// ── Session panel: the full session, its task, and what can be done with it ──
+// It sits over the end of the records panel; ↑ / ↓ step through the listed
+// sessions and Esc closes it.
+function cpDrawerEl(kind) {
+  let el = document.getElementById(kind + '-drawer');
+  if (!el) {
+    el = document.createElement('aside');
+    el.id = kind + '-drawer'; el.className = 'cp-drawer'; el.hidden = true;
+    el.setAttribute('aria-label', 'Session');
+    document.getElementById('browse-body-' + kind).appendChild(el);
+  }
+  return el;
+}
+function cpMarkActive(kind) {
+  const eid = cpState[kind].drawer;
+  document.querySelectorAll('#' + kind + '-table tr[data-eid]').forEach(tr =>
+    tr.classList.toggle('cp-row-active', eid != null && String(eid) === tr.dataset.eid));
+}
+function openCatDrawer(kind, eid) {
+  cpState[kind].drawer = eid;
+  cpMarkActive(kind);
+  renderCatDrawer(kind);
+}
+function closeCatDrawer(kind) {
+  cpState[kind].drawer = null;
+  cpMarkActive(kind);
+  renderCatDrawer(kind);
+}
+function stepCatDrawer(kind, delta) {
+  const st = cpState[kind];
+  const idx = st.visible.findIndex(r => r.eid === st.drawer);
+  const next = st.visible[idx + delta];
+  if (!next) return;
+  openCatDrawer(kind, next.eid);
+  document.querySelector('#' + kind + '-table tr[data-eid="' + next.eid + '"]')?.scrollIntoView({ block: 'nearest' });
+}
+
+function renderCatDrawer(kind) {
+  const st = cpState[kind];
+  const el = cpDrawerEl(kind);
+  const host = document.getElementById(kind + '-records');
+  const r = st.drawer != null ? st.visible.find(x => x.eid === st.drawer) : null;
+  if (!r) {
+    st.drawer = null; el.hidden = true; el.innerHTML = '';
+    host?.classList.remove('cp-has-drawer');
+    return;
+  }
+  el.hidden = false; el.innerHTML = '';
+  host?.classList.add('cp-has-drawer');
+  const mkBtn = (cls, icon, label, run, title) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = cls; b.innerHTML = ic(icon);
+    if (label) b.appendChild(document.createTextNode(label));
+    b.title = title || label;
+    b.addEventListener('click', run);
+    return b;
+  };
+
+  const idx = st.visible.findIndex(x => x.eid === r.eid);
+  const head = document.createElement('div'); head.className = 'cp-drawer-head';
+  const ttl = document.createElement('div'); ttl.className = 'cp-drawer-title';
+  const dt = document.createElement('span'); dt.className = 'cp-drawer-date'; dt.textContent = r.date;
+  const pos = document.createElement('span'); pos.className = 'cp-drawer-pos';
+  pos.textContent = (idx + 1) + ' / ' + st.visible.length;
+  ttl.appendChild(dt); ttl.appendChild(pos);
+  head.appendChild(ttl);
+  const nav = document.createElement('div'); nav.className = 'cp-drawer-nav';
+  const prev = mkBtn('row-btn', 'chevron-up', '', () => stepCatDrawer(kind, -1), 'Previous session');
+  prev.disabled = idx <= 0;
+  const next = mkBtn('row-btn', 'chevron-down', '', () => stepCatDrawer(kind, 1), 'Next session');
+  next.disabled = idx >= st.visible.length - 1;
+  nav.appendChild(prev); nav.appendChild(next);
+  nav.appendChild(mkBtn('row-btn', 'x', '', () => closeCatDrawer(kind), 'Close'));
+  head.appendChild(nav);
+  el.appendChild(head);
+
+  const desc = document.createElement('p'); desc.className = 'cp-drawer-desc';
+  desc.dataset.userContent = ''; desc.textContent = r.description || '—';
+  el.appendChild(desc);
+
+  const meta = document.createElement('dl'); meta.className = 'cp-drawer-meta';
+  const row = (label, node) => {
+    const dtEl = document.createElement('dt'); dtEl.textContent = label;
+    const dd = document.createElement('dd');
+    dd.appendChild(typeof node === 'string' ? document.createTextNode(node) : node);
+    meta.appendChild(dtEl); meta.appendChild(dd);
+  };
+  // A value that opens the Browse slice for it (not for the one already open).
+  const slice = (toKind, value, text) => {
+    if (!value) return document.createTextNode('—');
+    if (toKind === kind) { const s = document.createElement('span'); s.dataset.userContent = ''; s.textContent = text; return s; }
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'cell-link'; b.dataset.userContent = ''; b.textContent = text;
+    b.title = 'Browse all work for ' + text;
+    b.addEventListener('click', () => openBrowseSlice(toKind, value));
+    return b;
+  };
+  const m = parseFloat(r.minutes);
+  row('Hours', isNaN(m) ? '—' : (m / 60).toFixed(2) + ' · ' + cpT('{n} min', { n: m }));
+  row('Time', cpTimePill(r));
+  row('Natural', slice('natures', r.natural, cpNat(r.natural)));
+  const badge = document.createElement('span'); badge.className = 'status-badge ' + statusClass(r.status);
+  badge.textContent = lkLabel('ENTRY_STATUS', r.status);
+  row('Status', badge);
+  row('Company', slice('companies', r.company, cpCo(r.company)));
+  row('System', slice('systems', r.system, cpSy(r.system)));
+  const src = buildSourceCell(r).firstChild;
+  if (src && src.textContent.trim()) { src.className = 'cp-drawer-src'; row('Source', src); }
+  el.appendChild(meta);
+
+  if (r.taskName) {
+    const task = document.createElement('div'); task.className = 'cp-drawer-task';
+    const lbl = document.createElement('span'); lbl.className = 'cp-drawer-label'; lbl.textContent = 'Task';
+    const nm = document.createElement('span'); nm.className = 'cp-drawer-task-name';
+    nm.dataset.userContent = ''; nm.textContent = r.taskName;
+    task.appendChild(lbl); task.appendChild(nm);
+    el.appendChild(task);
+  }
+
+  const acts = document.createElement('div'); acts.className = 'cp-drawer-acts';
+  if (r.eid) {
+    acts.appendChild(mkBtn('btn primary', 'pencil', 'Edit session', () => openSessionModal(
+      { id: r.eid, taskId: r.taskId, taskName: r.taskName, date: r.date, time: r.time,
+        natural: r.natural, description: r.description, minutes: r.minutes },
+      { onSaved: () => refreshCatQuiet(kind) })));
+  }
+  if (r.taskId) acts.appendChild(mkBtn('btn', 'eye', 'View task details', () => openTaskDetail(r.taskId)));
+  acts.appendChild(mkBtn('btn', 'calendar', 'Open this day in the Timesheet',
+    () => { switchModule('timesheet'); switchDay(r.date); }));
+  el.appendChild(acts);
+}
+
+// ↑ / ↓ move through the sessions while the panel is open; Esc closes it.
+// Ignored while typing in a field or when a modal is on top.
+document.addEventListener('keydown', e => {
+  if (activeModule !== 'browse') return;
+  const st = cpState[browseKind];
+  if (!st || st.drawer == null) return;
+  if (document.querySelector('.modal-overlay.open')) return;
+  const tag = e.target?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  if (e.key === 'Escape') closeCatDrawer(browseKind);
+  else if (e.key === 'ArrowDown') { e.preventDefault(); stepCatDrawer(browseKind, 1); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); stepCatDrawer(browseKind, -1); }
+});
+
+// Re-fetch the value list and the open slice without the skeleton or a
+// rebuilt toolbar — used after a session is edited from Browse, so filters,
+// focus, scroll position and the open panel stay put.
+async function refreshCatQuiet(kind = browseKind) {
+  const def = CP_DEF[kind]; const st = cpState[kind];
+  let list, entries;
+  try {
+    [list, entries] = await Promise.all([
+      window.api[def.listApi](),
+      st.selected ? window.api[def.entriesApi](st.selected) : null,
+    ]);
+  } catch { return; }
+  st.list = Array.isArray(list) ? list : [];
+  if (kind === 'natures') st.list.sort((a, b) => b.count - a.count);
+  renderCatList(kind);
+  if (!st.selected) return;
+  st.entries = Array.isArray(entries) ? entries : [];
+  if (document.getElementById(kind + '-table')) applyCatFilter(kind);
+  else renderCatRecords(kind);
 }
 
 // ── Subscriptions: data ──
