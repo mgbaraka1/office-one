@@ -106,9 +106,7 @@ gate('desktop header titles no longer reserve empty subtitle space',
   && html.includes('min-width: auto;')
   && html.includes('padding-bottom: 0;'));
 gate('page headers keep dropdowns above backdrop-filtered workspace cards',
-  html.includes('position: relative; z-index: 50;')
-  && html.includes('#cal-dropdown')
-  && html.includes('z-index: 500;'));
+  html.includes('position: relative; z-index: 50;'));
 gate('Overview is an active workflow launchpad, not only a reporting surface',
   html.includes('class="dash-launchpad" aria-label="Start a workflow"')
   && html.includes(`class="dash-launch primary" data-onclick="startWorkLogEntry()"`)

@@ -13,70 +13,6 @@ function persistLookups() {
     .catch(() => toast('Could not save settings'));
 }
 
-// ── Calendar toggle ──
-function toggleCalendar(e) {
-  e.stopPropagation();
-  document.getElementById('cal-trigger').classList.toggle('open');
-}
-// Delegated markup events (event-delegation.js) run on a single document-level
-// listener, so toggleCalendar's stopPropagation() no longer keeps this handler
-// from firing on the same click that opened the dropdown — it must check
-// whether the click actually landed outside the trigger instead.
-document.addEventListener('click', (e) => {
-  const trigger = document.getElementById('cal-trigger');
-  if (trigger && !trigger.contains(e.target)) trigger.classList.remove('open');
-});
-
-// ── Calendar ──
-function renderCalendar() {
-  const label = new Date(calYear, calMonth, 1)
-    .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  document.getElementById('cal-month-label').textContent = label;
-  document.getElementById('cal-trigger-label').textContent = label;
-
-  const grid = document.getElementById('cal-grid');
-  grid.innerHTML = '';
-  ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(d => {
-    const el = document.createElement('div');
-    el.className = 'cal-dow'; el.textContent = d;
-    grid.appendChild(el);
-  });
-
-  const firstDay = new Date(calYear, calMonth, 1).getDay();
-  const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
-  const todayStr = fmt(new Date());
-
-  for (let i = 0; i < firstDay; i++) {
-    const el = document.createElement('div'); el.className = 'cal-day empty';
-    grid.appendChild(el);
-  }
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dateStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const el = document.createElement('div');
-    el.className = 'cal-day';
-    el.textContent = d;
-    if (dateStr === todayStr)   el.classList.add('today');
-    if (savedDays.has(dateStr)) el.classList.add('has-data');
-    if (dateStr === activeDate) el.classList.add('selected');
-    el.addEventListener('click', () => {
-      document.getElementById('cal-trigger').classList.remove('open');
-      switchDay(dateStr);
-    });
-    grid.appendChild(el);
-  }
-}
-
-document.getElementById('cal-prev').addEventListener('click', (e) => {
-  e.stopPropagation();
-  calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; }
-  renderCalendar();
-});
-document.getElementById('cal-next').addEventListener('click', (e) => {
-  e.stopPropagation();
-  calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; }
-  renderCalendar();
-});
-
 // ── Switch day ──
 async function switchDay(dateStr) {
   // Stop any running timer before leaving the day
@@ -94,8 +30,8 @@ async function switchDay(dateStr) {
   setAppTitle('Timesheet', dateStr);
 
   renderTable();
-  renderCalendar();
   updateTodayBtn();
+  renderTimesheetDayLabel();
   clearStatus();
 }
 
@@ -745,7 +681,6 @@ async function reloadTimesheet() {
   _tsBaseline = new Set(rows.map(r => r.eid));
   renderTable();
   await refreshSavedDays();
-  renderCalendar();
 }
 
 // Debounced granular save of the current in-memory rows.
@@ -802,7 +737,6 @@ async function persistTimesheet() {
     _tsBaseline = seen;
     flashSaved();
     await refreshSavedDays();
-    renderCalendar();
   } catch (err) {
     const el = document.getElementById('save-status');
     el.innerHTML = ic('triangle-alert') + ' Save failed'; el.className = 'save-error';
@@ -2246,6 +2180,22 @@ function goToday() {
   switchDay(fmt(new Date()));
 }
 
+// Move the open day by `delta` days (the header's ‹ › buttons).
+function stepTimesheetDay(delta) {
+  if (!activeDate) return;
+  const [y, m, d] = activeDate.split('-').map(Number);
+  switchDay(fmt(new Date(y, m - 1, d + delta)));
+}
+// The header's date: weekday and full date in the UI language.
+function renderTimesheetDayLabel() {
+  const el = document.getElementById('ts-day-label'); if (!el || !activeDate) return;
+  const [y, m, d] = activeDate.split('-').map(Number);
+  // Gregorian calendar and Latin digits in both languages, like every other date here.
+  const lang = window.ctI18n?.getLanguage?.() === 'ar' ? 'ar-u-ca-gregory-nu-latn' : 'en-GB';
+  el.textContent = new Date(y, m - 1, d).toLocaleDateString(lang, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+document.addEventListener('ct:languagechange', renderTimesheetDayLabel);
+
 function updateTodayBtn() {
   const btn = document.getElementById('btn-today');
   btn.classList.toggle('is-today', activeDate === fmt(new Date()));
@@ -2596,7 +2546,9 @@ async function renderMonthView() {
       ${mins ? `<span class="mc-hrs">${(mins / 60).toFixed(1)}h</span>` : ''}
       ${rws.length ? `<span class="mc-rec">${rws.length} rec</span>` : ''}
       ${mins ? `<div class="mc-bar" style="width:${Math.max(12, Math.round(mins / maxMin * 100))}%"></div>` : ''}`;
-    if (rws.length) cell.addEventListener('click', () => { closeMonthView(); switchModule('timesheet'); switchDay(ds); });
+    // Every day is clickable, empty ones too, so a past or future day can be
+    // opened to add records to it.
+    cell.addEventListener('click', () => { closeMonthView(); switchModule('timesheet'); switchDay(ds); });
     grid.appendChild(cell);
   }
   const monthHrsDisp = (monthMin / 60).toFixed(1);

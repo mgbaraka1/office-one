@@ -471,8 +471,6 @@ window.api.onBeforeClose(async () => {
 // ── Init ──
 async function init() {
   const t = new Date();
-  calYear  = t.getFullYear();
-  calMonth = t.getMonth();
 
   await loadUiStateFromMain();
   await loadKnowledgeDraftFromMain();

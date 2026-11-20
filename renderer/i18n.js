@@ -666,7 +666,7 @@
     // Client detail view.
     'Servers': 'الخوادم', 'Projects': 'المشاريع', 'Access': 'الوصول',
     'Access records': 'سجلات الوصول', 'Internal systems': 'الأنظمة الداخلية',
-    'Add Access': 'إضافة وصول', 'Recent activity': 'آخر النشاطات', 'Edit code and names': 'تعديل الرمز والأسماء', 'Next 30 days': 'خلال 30 يوماً', 'Compared with the previous period': 'مقارنة بالفترة السابقة', 'Back to overview': 'العودة إلى النظرة العامة', 'Back': 'رجوع', 'Yesterday': 'أمس', 'Earlier': 'أقدم',
+    'Add Access': 'إضافة وصول', 'Recent activity': 'آخر النشاطات', 'Edit code and names': 'تعديل الرمز والأسماء', 'Next 30 days': 'خلال 30 يوماً', 'Compared with the previous period': 'مقارنة بالفترة السابقة', 'Back to overview': 'العودة إلى النظرة العامة', 'Back': 'رجوع', 'Previous day': 'اليوم السابق', 'Next day': 'اليوم التالي', 'Yesterday': 'أمس', 'Earlier': 'أقدم',
     'All clear. Nothing needs attention.': 'كل شيء على ما يرام. لا شيء يحتاج إلى انتباه.', 'Expires today': 'تنتهي اليوم',
     'Internal system': 'نظام داخلي', 'Untitled': 'بدون عنوان', 'Nothing has changed yet.': 'لا توجد تغييرات بعد.',
     'Nothing recorded for this client yet': 'لا توجد سجلات لهذا العميل بعد',

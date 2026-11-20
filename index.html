@@ -470,21 +470,13 @@
   <!-- Top bar -->
   <div id="topbar" class="page-header">
     <span class="page-title"><span class="ti-ic" data-ic="clock"></span>Timesheet</span>
-    <!-- Calendar trigger -->
-    <div id="cal-trigger" data-onclick="toggleCalendar(event)">
-      <span class="cal-icon" data-ic="calendar"></span>
-      <span id="cal-trigger-label">June 2026</span>
-      <span class="cal-caret" data-ic="chevron-down"></span>
-      <div id="cal-dropdown" data-onclick="event.stopPropagation()">
-        <div id="cal-header">
-          <button id="cal-prev">‹</button>
-          <span id="cal-month-label"></span>
-          <button id="cal-next">›</button>
-        </div>
-        <div id="cal-grid"></div>
-      </div>
+    <!-- The open day, with a step to the previous / next day. Clicking the
+         date opens the month overview. -->
+    <div class="ts-daynav" role="group" aria-label="Day">
+      <button type="button" class="ts-day-step ts-day-prev" data-onclick="stepTimesheetDay(-1)" title="Previous day" aria-label="Previous day"><span data-ic="chevron-right"></span></button>
+      <button type="button" class="ts-day-label" id="ts-day-label" data-onclick="openMonthView()" title="Month overview" data-user-content></button>
+      <button type="button" class="ts-day-step ts-day-next" data-onclick="stepTimesheetDay(1)" title="Next day" aria-label="Next day"><span data-ic="chevron-right"></span></button>
     </div>
-
     <!-- Live timer chip -->
     <div id="timer-chip">
       <span id="timer-icon" data-ic="timer"></span>
@@ -496,11 +488,12 @@
     <div class="topbar-right">
       <span id="save-status"></span>
       <button class="btn today-btn" id="btn-today" data-onclick="goToday()"><span data-ic="calendar-check"></span>Today</button>
-      <button class="btn" data-onclick="openMonthView()" title="Month overview"><span data-ic="calendar-days"></span>Month</button>
       <button class="btn primary" data-onclick="openModal()"><span data-ic="plus"></span>Add Record <kbd>⌃N</kbd></button>
     </div>
   </div>
 
+  <!-- One toolbar: the row filter at the start, the day's totals at the end. -->
+  <div id="ts-toolbar">
   <!-- Info + Totals bar — stat cards.
        Name/Date are set/read by the JS (switchDay, autoSave, reports) but the
        date is driven by the topbar calendar, so these inputs are kept here
@@ -518,7 +511,6 @@
     <div class="total-chip" id="row-count-card">
       <span class="lbl">Sessions</span>
       <span class="stat-value" id="row-count">0</span>
-      <span class="summary-meta">on the selected day</span>
     </div>
     <div class="total-chip ot-chip">
       <span class="lbl">Over Time</span>
@@ -540,6 +532,7 @@
       <button class="seg-btn" data-domain="internal" data-onclick="setFilterDomain('internal')">Internal</button>
     </div>
     <span id="filter-count"></span>
+  </div>
   </div>
 
   <!-- The day's sessions, as one card per task -->

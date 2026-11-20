@@ -126,7 +126,7 @@ function syncAriaLabelsFromTitle(root) {
   scope.querySelectorAll?.('button[title]').forEach(syncAriaLabelFromTitle);
 }
 
-const KEYBOARD_CLICKABLE = '.cal-day:not(.empty),.status-badge,.dash-att-item,.an-bar-row.clickable,.month-cell.has,.cl-search-table tbody tr,.pj-card';
+const KEYBOARD_CLICKABLE = '.status-badge,.dash-att-item,.an-bar-row.clickable,.month-cell.has,.cl-search-table tbody tr,.pj-card';
 function makeKeyboardClickable(el) {
   if (!(el instanceof HTMLElement) || el.dataset.keyboardClickable === '1') return;
   el.dataset.keyboardClickable = '1';
@@ -301,7 +301,6 @@ let dayCache   = {};
 let activeDate = '';
 let rows       = [];
 let editIdx    = null;
-let calYear, calMonth;
 
 // ── Normalized lookup catalog ──
 // Loaded once at boot from window.api.loadLookups(). `LK.categories` is keyed by

@@ -350,7 +350,7 @@
     .btn .lic, .auth-btn .lic { width: 15px; height: 15px; vertical-align: -0.18em; }
     .row-btn .lic { width: 14px; height: 14px; vertical-align: -0.22em; }
     .modal-close .lic { width: 16px; height: 16px; vertical-align: middle; }
-    .cal-icon .lic, .filter-icon .lic { width: 15px; height: 15px; vertical-align: middle; }
+    .filter-icon .lic { width: 15px; height: 15px; vertical-align: middle; }
     .stab-icon { display: inline-flex; align-items: center; }
     .stab-icon .lic { width: 15px; height: 15px; vertical-align: middle; }
     .rmod-card-icon .lic { width: 22px; height: 22px; }
@@ -360,69 +360,15 @@
        own icon size/color comes from .empty-state .lic, see EMPTY STATES) */
     .cp-placeholder .icon .lic { width: 46px; height: 46px; stroke-width: 1.5; }
     .dash-empty .de-icon .lic { width: 30px; height: 30px; stroke-width: 1.75; }
-    /* Filter clear, timer chip, calendar caret, lookup toggle, cp filter clear */
+    /* Filter clear, timer chip, lookup toggle, cp filter clear */
     #filter-clear .lic { width: 14px; height: 14px; vertical-align: middle; }
     #timer-chip .lic { width: 14px; height: 14px; vertical-align: middle; }
-    .cal-caret { display: inline-flex; align-items: center; }
-    .cal-caret .lic { width: 14px; height: 14px; }
     .lookup-item-del .lic { width: 14px; height: 14px; vertical-align: middle; }
     .cp-filter-clear .lic { width: 13px; height: 13px; vertical-align: -0.15em; }
     /* Dashboard stat-card labels + attention list icons */
     .ds-label { display: inline-flex; align-items: center; gap: 6px; }
     .ds-label .lic { width: 14px; height: 14px; color: var(--primary); }
     .dash-att-icon .lic { width: 18px; height: 18px; vertical-align: middle; }
-
-    /* Calendar trigger */
-    #cal-trigger {
-      display: flex; align-items: center; gap: 6px;
-      background: var(--surface2); border: 1px solid var(--border);
-      border-radius: var(--radius-sm); padding: 6px 12px; cursor: pointer;
-      color: var(--text); font-size: 14px; font-weight: 500;
-      transition: background var(--speed), border-color var(--speed); white-space: nowrap; position: relative;
-    }
-    #cal-trigger:hover { border-color: color-mix(in srgb, var(--border) 60%, var(--text)); }
-    #cal-trigger .cal-icon { font-size: 14px; }
-
-    /* Calendar dropdown */
-    #cal-dropdown {
-      display: none; position: absolute; top: calc(100% + 8px); left: 0;
-      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-      padding: 12px; z-index: 500; box-shadow: var(--shadow);
-      min-width: 220px;
-    }
-    #cal-trigger.open #cal-dropdown { display: block; }
-
-    #cal-header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 4px 2px 8px; font-size: 13px; font-weight: 600; color: var(--text);
-    }
-    #cal-header button {
-      background: none; border: none; color: var(--muted);
-      cursor: pointer; font-size: 16px; padding: 0 4px; line-height: 1;
-    }
-    #cal-header button:hover { color: var(--text); }
-    #cal-grid {
-      display: grid; grid-template-columns: repeat(7, 1fr);
-      gap: 1px; text-align: center;
-    }
-    .cal-dow {
-      font-size: 10px; font-weight: 600; color: var(--muted);
-      padding: 3px 0; text-transform: uppercase;
-    }
-    .cal-day {
-      font-size: 12px; padding: 5px 2px; border-radius: 6px;
-      cursor: pointer; color: var(--text); transition: background var(--speed); position: relative;
-    }
-    .cal-day:hover { background: var(--elevate); }
-    .cal-day.empty { cursor: default; pointer-events: none; }
-    .cal-day.today { color: var(--primary); font-weight: 700; }
-    .cal-day.today::after {
-      content: ''; position: absolute; bottom: 2px; left: 50%;
-      transform: translateX(-50%); width: 4px; height: 4px;
-      border-radius: 50%; background: var(--primary);
-    }
-    .cal-day.has-data { color: var(--good); }
-    .cal-day.selected { background: var(--primary) !important; color: #fff !important; }
 
     /* App calendar for date/month inputs (date-picker.js) — replaces Chromium's popup. */
     .dp-pop {
@@ -2039,8 +1985,8 @@
       display: flex; flex-direction: column; gap: 3px; background: var(--surface2);
     }
     .month-cell.empty { background: transparent; border-color: transparent; }
-    .month-cell.has { cursor: pointer; transition: border-color .12s, transform .12s; }
-    .month-cell.has:hover { border-color: var(--accent); transform: translateY(-1px); }
+    .month-cell:not(.empty) { cursor: pointer; transition: border-color .12s, transform .12s; }
+    .month-cell:not(.empty):hover { border-color: var(--accent); transform: translateY(-1px); }
     .month-cell.today { box-shadow: 0 0 0 2px var(--accent) inset; }
     .mc-day { font-size: 12px; font-weight: 700; color: var(--text); }
     .mc-day.is-today { color: var(--accent); }
@@ -2747,7 +2693,7 @@
       .page-header { flex-wrap: wrap; }
       .page-header .topbar-right { flex-wrap: wrap; }
       #filter-bar { flex-wrap: wrap; }
-      #totals-bar { padding-inline: 14px; }
+      #ts-toolbar { margin-inline: 14px; }
       #table-wrap { padding-inline: 14px; }
     }
 
@@ -2767,7 +2713,7 @@
 
     @media (max-width: 760px) {
       .form-row { grid-template-columns: 1fr; }
-      #totals-bar { grid-template-columns: 1fr; }
+      #ts-toolbar #totals-bar { margin-inline-start: 0; }
       .client-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
 
@@ -3760,7 +3706,7 @@
     .filter-chip {
       padding: 5px 14px; border-radius: 8px; font-size: 12px; font-weight: 600;
       border: none; background: transparent; color: var(--muted);
-      cursor: pointer; transition: all .18s var(--ease);
+      font-family: inherit; cursor: pointer; transition: all .18s var(--ease);
     }
     .filter-chip:hover { color: var(--text); background: color-mix(in srgb, var(--primary) 8%, transparent); }
     .filter-chip.active { background: var(--primary); color: #fff; box-shadow: 0 2px 8px -2px var(--primary-glow); }
@@ -3959,9 +3905,9 @@
 
     /* ══ TIMESHEET CONTROL RHYTHM ══
        Every control in the page's top bar and filter bar shares one height, so
-       the date picker, buttons, search box and Client/Internal switch sit on
-       one line instead of four slightly different ones. */
-    #topbar .btn, #cal-trigger, #filter-input, #ts-domain-ctl {
+       the buttons, search box and Client/Internal switch sit on one line
+       instead of three slightly different ones. */
+    #topbar .btn, #filter-input, #ts-domain-ctl {
       height: var(--control-h); min-height: 0; box-sizing: border-box;
     }
     #topbar .btn { padding-block: 0; }
@@ -4481,20 +4427,62 @@
     .an-section-title { color: var(--text); font-size: 10.5px; letter-spacing: 1.25px; }
     .an-section-line { background: linear-gradient(90deg, var(--border), transparent); }
 
-    #totals-bar {
-      gap: 12px; padding: 18px 24px 4px; background: transparent;
+    /* Timesheet toolbar: filter at the start, the day's totals as compact
+       chips at the end, all on one slim row instead of three tall cards plus
+       a separate filter card. */
+    #ts-toolbar {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap; flex-shrink: 0;
+      margin: 16px 24px 0; padding: 8px 12px;
+      border: 1px solid var(--border); border-radius: 14px; background: var(--surface-1);
     }
-    .total-chip {
-      position: relative; min-height: 104px; padding: 16px 18px; overflow: hidden;
+    #ts-toolbar #filter-bar {
+      order: -1; flex: 1 1 360px; margin: 0; padding: 0;
+      border: 0; border-radius: 0; background: transparent;
     }
-    .total-chip::before {
-      content: ''; position: absolute; inset-inline-start: 0; top: 0; bottom: 0; width: 4px;
-      background: linear-gradient(180deg, #E0855D, #C96442);
+    #ts-toolbar #filter-count { margin-inline-start: 0; }
+    #ts-toolbar #totals-bar {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      padding: 0; background: transparent; margin-inline-start: auto;
     }
-    .total-chip:nth-child(2)::before { background: linear-gradient(180deg, #E8A34D, #B8823C); }
-    .total-chip:nth-child(3)::before { background: linear-gradient(180deg, #fb7185, #e11d48); }
-    .total-chip .stat-value { font-size: 25px; letter-spacing: -1px; }
-    #filter-bar { margin: 12px 24px 0; border-radius: 14px; border: 1px solid var(--border); background: var(--surface-1); }
+    #ts-toolbar .total-chip {
+      flex-direction: row; align-items: baseline; gap: 6px;
+      min-height: 0; padding: 5px 12px; border-radius: 999px;
+      background: var(--surface2); box-shadow: none; backdrop-filter: none;
+    }
+    #ts-toolbar .total-chip:hover { box-shadow: none; }
+    #ts-toolbar .total-chip .lbl { font-size: 11px; letter-spacing: .3px; text-transform: none; }
+    #ts-toolbar .total-chip .stat-value { font-size: 16px; letter-spacing: 0; }
+    #ts-toolbar .total-chip .summary-meta { font-size: 11px; }
+    #ts-toolbar .total-chip .summary-meta::before { content: '· '; }
+    #ts-toolbar .total-chip.ot-chip:not(.has-value) { opacity: .7; }
+    #ts-toolbar .total-chip.ot-chip.has-value { background: color-mix(in srgb, var(--bad) 10%, transparent); }
+
+    /* Header day navigator: ‹ Tuesday, 4 November 2026 › */
+    .ts-daynav {
+      display: inline-flex; align-items: center; gap: 0; height: var(--control-h);
+      border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface2);
+      padding: 0 3px;
+    }
+    .ts-day-step {
+      display: inline-flex; align-items: center; justify-content: center; flex: none;
+      width: 30px; height: calc(var(--control-h) - 8px); min-height: 26px; padding: 0;
+      border: 0; border-radius: 6px; background: none;
+      color: var(--text); opacity: .7; cursor: pointer;
+      transition: background var(--speed), color var(--speed), opacity var(--speed), transform var(--speed);
+    }
+    .ts-day-step:hover { background: var(--surface); color: var(--primary); opacity: 1; box-shadow: 0 0 0 1px var(--border); }
+    .ts-day-step:active { transform: scale(.92); }
+    .ts-day-step:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; opacity: 1; }
+    .ts-day-step .lic { width: 18px; height: 18px; stroke-width: 2.4; }
+    /* Both arrows are chevron-right: LTR ‹ date ›, RTL › date ‹ */
+    .ts-day-prev .lic, html[dir="rtl"] .ts-day-next .lic { transform: scaleX(-1); }
+    html[dir="rtl"] .ts-day-prev .lic { transform: none; }
+    .ts-day-label {
+      align-self: stretch; border: 0; background: none; cursor: pointer; padding: 0 12px;
+      border-inline: 1px solid var(--border);
+      font: inherit; font-size: 14px; font-weight: 600; color: var(--text); white-space: nowrap;
+    }
+    .ts-day-label:hover { color: var(--primary); }
     #table-wrap, #sub-table-wrap { padding: 16px 24px 38px; }
     #sub-table { border-collapse: separate; border-spacing: 0 8px; }
     #sub-table thead th {
