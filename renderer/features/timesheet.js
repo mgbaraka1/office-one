@@ -1043,6 +1043,8 @@ async function submitModal() {
       required.push(
         { id: 'f-company', val: document.getElementById('f-company').value },
         { id: 'f-system',  val: document.getElementById('f-system').value },
+        // Every client task belongs to a project.
+        { id: 'f-project', val: fProjectPicker ? fProjectPicker.getSelectedId() : null },
       );
     }
   }
@@ -2372,6 +2374,8 @@ async function submitBacklogModal() {
     { id: 'b-company',     val: document.getElementById('b-company').value },
     { id: 'b-system',      val: document.getElementById('b-system').value },
     { id: 'b-description', val: document.getElementById('b-description').value.trim() },
+    // Every client task belongs to a project.
+    { id: 'b-project',     val: bProjectPicker ? bProjectPicker.getSelectedId() : null },
   ];
   let valid = true;
   fields.forEach(f => { if (!f.val) { markError(f.id); valid = false; } });

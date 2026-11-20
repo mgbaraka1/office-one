@@ -51,8 +51,11 @@ module.exports = function buildFixtureHome(prefix = 'office-one-test-home-') {
   ensureLookup('ACTIVITY_TYPE', 'TASK', 'Task');
   ensureLookup('ENTRY_STATUS', 'OPEN', 'Open');
   ensureLookup('ENTRY_STATUS', 'IN_PROGRESS', 'In Progress');
+  // Every client task belongs to a project.
+  const baselineProject = db.createProject(fixtureUserId, { name: 'Fixture baseline project' });
   const baselineTask = db.createTask(fixtureUserId, {
     name: 'Fixture baseline task', status: 'IN_PROGRESS', company: 'Fixture Company', system: 'Fixture System', source: '',
+    projectId: baselineProject.id,
   });
   db.addWorkLog(fixtureUserId, baselineTask.id, {
     date: '2090-01-01', description: 'Fixture baseline session', minutes: 15, time: 'WORK_TIME', natural: 'Task',

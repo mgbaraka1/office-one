@@ -99,6 +99,7 @@ try {
   // ── Gate 1 — createTask() (client) ignores a `department` payload field ──
   const clientTask = db.createTask(userId, {
     name: 'Client task', status: 'OPEN', company: company.label, system: system.label, department: dept.label,
+    projectId: project.id,
   });
   record('Gate 1: createTask() ignores `department` — result is client, department NULL',
     clientTask.kind === 'CLIENT' && clientTask.departmentId === null && clientTask.company === company.label,
@@ -161,10 +162,11 @@ try {
     JSON.stringify({ badConvert, before: beforeBadConvert.kind, after: afterBadConvert.kind }));
 
   // ── Gate 9 — convertTaskToClient() is the mirror ────────────────────────
-  const convertBackRes = db.convertTaskToClient(userId, toConvert.id, { company: company.label, system: system.label });
+  const convertBackRes = db.convertTaskToClient(userId, toConvert.id, { company: company.label, system: system.label, projectId: project.id });
   const convertBackMissing = db.convertTaskToClient(userId, internalTask.id, { company: company.label }); // no system
-  record('Gate 9: convertTaskToClient() succeeds with company+system, rejects with only company',
+  record('Gate 9: convertTaskToClient() succeeds with company+system+project, rejects with only company',
     convertBackRes.ok === true && convertBackRes.task.kind === 'CLIENT' && convertBackRes.task.departmentId === null
+      && convertBackRes.task.projectId === project.id
       && convertBackMissing.ok === false,
     JSON.stringify({ convertBackRes: { ok: convertBackRes.ok, kind: convertBackRes.task?.kind }, convertBackMissing }));
 

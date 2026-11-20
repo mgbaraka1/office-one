@@ -180,8 +180,10 @@ async function run() {
     ] } });
     LK = await window.api.loadLookups();
     const profile = LK.categories.COMPANY.find(item => item.code === 'E2E_CLIENT');
+    const e2eProject = await window.api.createProject({ name: 'E2E client project' });
     const linkedTask = await window.api.createTask({
-      name: 'E2E bilingual client task', status: 'IN_PROGRESS', company: 'E2E_CLIENT', system: '', source: ''
+      name: 'E2E bilingual client task', status: 'IN_PROGRESS', company: 'E2E_CLIENT', system: '', source: '',
+      projectId: e2eProject.id
     });
     const created = await window.api.createKnowledgeItem({
       title: 'Electron E2E searchable handbook',

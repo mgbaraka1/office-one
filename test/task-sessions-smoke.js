@@ -80,8 +80,10 @@ try {
 
   const naturalLabel = db.getLookupsByCategory('ACTIVITY_TYPE')[0]?.label || '';
 
+  // Every client task belongs to a project.
+  const tsProject = db.createProject(userId, { name: 'TS smoke project' });
   const newTaskPayload = (name, status) => ({
-    name, status: status || 'OPEN', company: '', system: '', source: 'ts-smoke-test', projectId: null,
+    name, status: status || 'OPEN', company: '', system: '', source: 'ts-smoke-test', projectId: tsProject.id,
   });
 
   // ── FLOW 1 — Add Session (Task Detail's compact create-mode modal) ──────────

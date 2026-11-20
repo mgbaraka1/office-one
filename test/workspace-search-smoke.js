@@ -20,9 +20,9 @@ try {
     code: 'SEARCH_CLIENT', label: 'Search Client', nameEn: 'Search Client', nameAr: '', isActive: true,
   }] } });
 
-  const task = db.createTask(userId, { name: `${marker} task`, status: 'IN_PROGRESS' });
-  db.createTaskSource(userId, task.id, { type: 'EMAIL', ref: `${marker} source subject` });
   const project = db.createProject(userId, { name: `${marker} project`, description: 'Indexed project body' });
+  const task = db.createTask(userId, { name: `${marker} task`, status: 'IN_PROGRESS', projectId: project.id });
+  db.createTaskSource(userId, task.id, { type: 'EMAIL', ref: `${marker} source subject` });
   const knowledge = db.createKnowledgeItem(userId, {
     title: `${marker} handbook`, status: 'PUBLISHED', summary: 'Indexed knowledge body', tags: ['Handbook'],
   });

@@ -35,7 +35,8 @@ try {
   record('Subscription upsert cannot overwrite another user by id',
     crossUserBlocked && db.loadSubscriptions(user.id).subscriptions[0]?.name === 'Owned');
 
-  const task = db.createTask(user.id, { name: 'Validation task', status: 'OPEN' });
+  const shProject = db.createProject(user.id, { name: 'Validation project' });
+  const task = db.createTask(user.id, { name: 'Validation task', status: 'OPEN', projectId: shProject.id });
   let invalidDateBlocked = false, invalidMinutesBlocked = false;
   try { db.addWorkLog(user.id, task.id, { date: 'not-a-date', minutes: 5 }); } catch { invalidDateBlocked = true; }
   try { db.addWorkLog(user.id, task.id, { date: '2099-01-01', minutes: 0 }); } catch { invalidMinutesBlocked = true; }

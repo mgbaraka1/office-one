@@ -75,6 +75,9 @@ try {
 
   // ── Gate 1/2 — Analytics department dimension ──────────────────────────────
   const project = db.createProject(userId, { name: 'RA test project', description: '', companyIds: [], systemIds: [], status: 'ACTIVE' });
+  // Every client task belongs to a project; the "plain" and filter tasks share
+  // a second one so the project filter below still has something to exclude.
+  const otherProject = db.createProject(userId, { name: 'RA other project', description: '', companyIds: [], systemIds: [], status: 'ACTIVE' });
   // Internal tasks are now their own domain —
   // department-linked tasks are created via createInternalTask, not by
   // passing `department` to the client-only createTask.
@@ -82,7 +85,7 @@ try {
   db.addWorkLog(userId, deptTask.id, { date: DAY_A, description: 'dept session', minutes: 45, time: 'WORK_TIME' });
   const projTask = db.createTask(userId, { name: 'RA project task', status: 'OPEN', company: '', system: '', source: '', projectId: project.id });
   db.addWorkLog(userId, projTask.id, { date: DAY_A, description: 'proj session', minutes: 30, time: 'WORK_TIME' });
-  const plainTask = db.createTask(userId, { name: 'RA plain task', status: 'OPEN', company: '', system: '', source: '' });
+  const plainTask = db.createTask(userId, { name: 'RA plain task', status: 'OPEN', company: '', system: '', source: '', projectId: otherProject.id });
   db.addWorkLog(userId, plainTask.id, { date: DAY_A, description: 'plain session', minutes: 15, time: 'WORK_TIME' });
 
   const an = db.getAnalytics(userId, DAY_A, DAY_A, DAY_A, DAY_A);
@@ -102,9 +105,9 @@ try {
     `clientMin=${an.clientMin} internalMin=${an.internalMin} totalMin=${an.totalMin}`);
 
   // ── Gates 3/4 — getFilteredWorkLogs (Custom Date-Range report) ──────────────
-  const fCompany = db.createTask(userId, { name: 'RA filter company task', status: 'OPEN', company: companyLabel, system: '', source: '' });
+  const fCompany = db.createTask(userId, { name: 'RA filter company task', status: 'OPEN', company: companyLabel, system: '', source: '', projectId: otherProject.id });
   db.addWorkLog(userId, fCompany.id, { date: DAY_A, description: 'company-scoped session', minutes: 10, time: 'WORK_TIME' });
-  const fSystem = db.createTask(userId, { name: 'RA filter system task', status: 'OPEN', company: '', system: systemLabel, source: '' });
+  const fSystem = db.createTask(userId, { name: 'RA filter system task', status: 'OPEN', company: '', system: systemLabel, source: '', projectId: otherProject.id });
   db.addWorkLog(userId, fSystem.id, { date: DAY_B, description: 'system-scoped session', minutes: 20, time: 'WORK_TIME' });
   const fProject = db.createTask(userId, { name: 'RA filter project task', status: 'OPEN', company: '', system: '', source: '', projectId: project.id });
   db.addWorkLog(userId, fProject.id, { date: DAY_C, description: 'project-scoped session, out of A-B range', minutes: 5, time: 'WORK_TIME' });

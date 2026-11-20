@@ -63,7 +63,8 @@ try {
   record('Projects: one project links the client to each of its systems', p?.projects === 1 && pB?.projects === 1 && pB.servers === 0,
     JSON.stringify({ p, pB }));
 
-  const task = db.createTask(userId, { name: 'Systems web task', status: 'OPEN', company: client.code, system: sysB.label, source: '' });
+  const swProject = db.createProject(userId, { name: 'Systems web project' });
+  const task = db.createTask(userId, { name: 'Systems web task', status: 'OPEN', company: client.code, system: sysB.label, source: '', projectId: swProject.id });
   const taskId = task.id ?? task.task?.id;
   db.addWorkLog(userId, taskId, { date: '2090-01-02', description: 'a', minutes: 90, time: 'WORK_TIME' });
   db.addWorkLog(userId, taskId, { date: '2090-01-03', description: 'b', minutes: 30, time: 'WORK_TIME' });

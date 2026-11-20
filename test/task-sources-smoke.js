@@ -133,7 +133,8 @@ try {
   // ── Create a task with no sources yet ────────────────────────────────────
   // createTask returns getTask()'s shape (full `sources` array, no summary
   // aliases — those only exist on the lightweight index/list shape below).
-  const task = db.createTask(userId, { name: 'TS smoke task', status: 'IN_PROGRESS' });
+  const tsProject = db.createProject(userId, { name: 'TS smoke project' });
+  const task = db.createTask(userId, { name: 'TS smoke task', status: 'IN_PROGRESS', projectId: tsProject.id });
   record('New task starts with zero sources', task.sourceCount === 0 && Array.isArray(task.sources) && task.sources.length === 0,
     JSON.stringify({ sourceCount: task.sourceCount, sources: task.sources }));
 
@@ -191,7 +192,8 @@ try {
   // ── Ownership gating ──────────────────────────────────────────────────────
   const otherUserRow = readRow(path.join(workDir, 'cooperation-tools.db'), 'SELECT id FROM users WHERE id != ? AND is_active = 1 LIMIT 1', userId);
   if (otherUserRow) {
-    const otherTask = db.createTask(otherUserRow.id, { name: 'Other users task' });
+    const otherProject = db.createProject(otherUserRow.id, { name: 'Other users project' });
+    const otherTask = db.createTask(otherUserRow.id, { name: 'Other users task', projectId: otherProject.id });
     const crossCreate = db.createTaskSource(userId, otherTask.id, { type: 'OTHER', ref: 'should not work' });
     record('createTaskSource rejects a task owned by another user', crossCreate === null, 'result=' + JSON.stringify(crossCreate));
 

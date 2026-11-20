@@ -49,8 +49,9 @@ try {
 
   const sys = db.loadLookups(userId).categories.SYSTEM[0];
   const before = sys.uses;
-  db.createTask(userId, { name: 'Catalog map task', status: 'OPEN', system: sys.label, source: '' });
-  db.createTask(userId, { name: 'Catalog map task 2', status: 'OPEN', system: sys.label, source: '' });
+  const cmProject = db.createProject(userId, { name: 'Catalog map project' });
+  db.createTask(userId, { name: 'Catalog map task', status: 'OPEN', system: sys.label, source: '', projectId: cmProject.id });
+  db.createTask(userId, { name: 'Catalog map task 2', status: 'OPEN', system: sys.label, source: '', projectId: cmProject.id });
   const after = db.loadLookups(userId).categories.SYSTEM.find(o => o.id === sys.id).uses;
   record('Two tasks on a system raise its count by two', after === before + 2, `before=${before} after=${after}`);
 } catch (err) {

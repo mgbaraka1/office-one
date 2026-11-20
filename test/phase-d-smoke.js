@@ -83,9 +83,11 @@ try {
 
   let flow1TaskId, flow1Meta;   // carried from flow 1 into flow 5
 
+  // Every client task belongs to a project.
+  const pdProject = db.createProject(userId, { name: 'PD flows project', description: '', companyIds: [], systemIds: [], status: 'ACTIVE' });
   const newTaskPayload = (name) => ({
     name, status: 'IN_PROGRESS', company: companyLabel, system: systemLabel,
-    source: 'phase-d-test', projectId: null,
+    source: 'phase-d-test', projectId: pdProject.id,
   });
 
   // ── FLOW 1 — Add Record: new task, same day (DAY_A) ────────────────────────

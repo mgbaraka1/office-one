@@ -175,7 +175,8 @@ try {
     JSON.stringify(tamperedInspection));
 
   // ── Gate 8 — restore the complete known-good bundle (disposable workDir only)
-  const postBackupTask = db.createTask(userId, { name: 'Created after full backup', status: 'OPEN' });
+  const postBackupProject = db.createProject(userId, { name: 'Created after full backup' });
+  const postBackupTask = db.createTask(userId, { name: 'Created after full backup', status: 'OPEN', projectId: postBackupProject.id });
   fs.writeFileSync(path.join(seededProjectDir, 'quote.pdf'), 'changed after backup');
   fs.writeFileSync(path.join(db.projectsRootDir(), 'live-only.txt'), 'must disappear on restore');
   const validInspection = db.inspectFullBackup(destRoot);

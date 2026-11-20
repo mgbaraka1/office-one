@@ -78,10 +78,11 @@ try {
 
   // ── Seed a multi-session task + a zero-log task ──────────────────────────────
   const naturalLabel = db.getLookupsByCategory('ACTIVITY_TYPE')[0]?.label || '';
-  const multiTask = db.createTask(userId, { name: 'TI multi-session task', status: 'OPEN', company: '', system: '', source: '' });
+  const tiProject = db.createProject(userId, { name: 'TI project' });
+  const multiTask = db.createTask(userId, { name: 'TI multi-session task', status: 'OPEN', company: '', system: '', source: '', projectId: tiProject.id });
   db.addWorkLog(userId, multiTask.id, { date: '2096-01-10', description: 'first', minutes: 20, time: 'WORK_TIME', natural: naturalLabel });
   db.addWorkLog(userId, multiTask.id, { date: '2096-01-15', description: 'second', minutes: 40, time: 'WORK_TIME', natural: naturalLabel });
-  const zeroTask = db.createTask(userId, { name: 'TI zero-log task', status: 'OPEN', company: '', system: '', source: '' });
+  const zeroTask = db.createTask(userId, { name: 'TI zero-log task', status: 'OPEN', company: '', system: '', source: '', projectId: tiProject.id });
 
   const fullList = db.listTasks(userId);
   const indexList = db.getTasksIndex(userId);

@@ -26,6 +26,7 @@ function updateTaskInDomain(t, patch) {
 // converting to client. Sessions/sources/history all survive; only the
 // classification (and the fields that don't belong to the new one) changes.
 let _convertCtx = { task: null, onSaved: null };
+let _convertProjectPicker = null;
 function openConvertTaskModal(task, onSaved) {
   _convertCtx = { task, onSaved: onSaved || null };
   const toInternal = task.kind !== 'INTERNAL';
@@ -35,7 +36,7 @@ function openConvertTaskModal(task, onSaved) {
   intro.dataset.userContent = '';
   intro.textContent = toInternal
     ? '"' + (task.name || '(untitled task)') + '" will become internal work: its Company, System, and Project link (if any) will be cleared.'
-    : '"' + (task.name || '(untitled task)') + '" will become client work: its Department link will be cleared.';
+    : '"' + (task.name || '(untitled task)') + '" will become client work in the project you choose: its Department link will be cleared.';
 
   const fields = document.getElementById('ctv-fields');
   fields.innerHTML = '';
@@ -64,6 +65,13 @@ function openConvertTaskModal(task, onSaved) {
     const sSel = document.getElementById('ctv-system');
     const sBlank = document.createElement('option'); sBlank.value = ''; sBlank.textContent = '— select —'; sBlank.selected = true;
     sSel.insertBefore(sBlank, sSel.firstChild);
+    // Every client task belongs to a project.
+    const pRow = document.createElement('div'); pRow.className = 'form-row';
+    const pGrp = document.createElement('div'); pGrp.className = 'form-group full';
+    const pLbl = document.createElement('label'); pLbl.textContent = 'Project';
+    const pHost = document.createElement('div'); pHost.id = 'ctv-project';
+    pGrp.appendChild(pLbl); pGrp.appendChild(pHost); pRow.appendChild(pGrp); fields.appendChild(pRow);
+    buildClientProjectPicker('ctv-project', 'ctv-company', 'ctv-system', null, p => { _convertProjectPicker = p; });
   }
 
   clearErrorsIn('#convert-task-modal');
@@ -89,11 +97,13 @@ async function submitConvertTaskModal() {
   } else {
     const company = document.getElementById('ctv-company').value;
     const system = document.getElementById('ctv-system').value;
+    const projectId = _convertProjectPicker ? _convertProjectPicker.getSelectedId() : null;
     let valid = true;
     if (!company) { markError('ctv-company'); valid = false; }
     if (!system)  { markError('ctv-system');  valid = false; }
+    if (projectId == null) { markError('ctv-project'); valid = false; }
     if (!valid) return;
-    payload = { company, system };
+    payload = { company, system, projectId };
   }
   try {
     res = toInternal ? await window.api.convertTaskToInternal(task.id, payload)
@@ -160,7 +170,8 @@ function buildClientProjectPicker(hostId, companySelId, systemSelId, initialId, 
   let picker = null;
   const fits = id => projectFieldOptions(null, companySel.value).some(o => o.id === Number(id));
   const build = selected => {
-    picker = buildSearchSelect(host, projectFieldOptions(selected, companySel.value), selected, 'No project', onPick);
+    // Every client task belongs to a project, so there is no "None" choice.
+    picker = buildSearchSelect(host, projectFieldOptions(selected, companySel.value), selected, 'Choose a project', onPick, { required: true });
     assign(picker);
   };
   const setSelectValue = (sel, category, key, id) => {
@@ -680,9 +691,7 @@ function renderTaskDetailProjectEditor(task, host) {
   host.appendChild(pjMk('div', 'pj-field-label', 'Project'));
   const sel = document.createElement('select');
   sel.className = 'td-project-select';
-  const none = document.createElement('option');
-  none.value = ''; none.textContent = 'No project';
-  sel.appendChild(none);
+  // Every client task belongs to a project — there is no "No project" choice.
   projectFieldOptions(task.projectId)
     .sort((a, b) => a.label.localeCompare(b.label, rptLanguage()))
     .forEach(p => {
@@ -690,7 +699,7 @@ function renderTaskDetailProjectEditor(task, host) {
       o.value = String(p.id); o.textContent = p.label; o.dataset.userContent = '';
       sel.appendChild(o);
     });
-  sel.value = task.projectId != null ? String(task.projectId) : '';
+  if (task.projectId != null) sel.value = String(task.projectId);
   host.appendChild(sel);
 
   const actions = pjMk('div', 'td-project-editor-actions');
@@ -701,7 +710,7 @@ function renderTaskDetailProjectEditor(task, host) {
   saveBtn.type = 'button';
   saveBtn.addEventListener('click', async () => {
     const projectId = sel.value ? Number(sel.value) : null;
-    if (projectId === (task.projectId ?? null)) { renderTaskDetail(task); return; }
+    if (projectId == null || projectId === (task.projectId ?? null)) { renderTaskDetail(task); return; }
     saveBtn.disabled = true;
     try {
       const res = await updateTaskInDomain(task, { projectId });
@@ -1156,23 +1165,21 @@ function appendProjectLinkedSections(host, p) {
   newBtn.innerHTML = ic('plus') + ' New Task';
   newBtn.title = 'Create a new task already linked to this project';
   newBtn.addEventListener('click', openProjectNewTask);
-  const linkBtn = pjMk('button', 'btn');
-  linkBtn.innerHTML = ic('calendar-plus') + ' Link Task';
-  linkBtn.addEventListener('click', openLinkModal);
+  // No "Link Task": it only offered tasks with no project, and there are none
+  // now that every client task belongs to a project.
   tActions.appendChild(newBtn);
-  tActions.appendChild(linkBtn);
   tHead.appendChild(tActions);
   tasksSec.appendChild(tHead);
 
   if (list.length === 0) {
-    tasksSec.appendChild(pjMk('div', 'cp-records-empty', 'No tasks linked yet — use “Link Task” to attach existing work.'));
+    tasksSec.appendChild(pjMk('div', 'cp-records-empty', 'No tasks yet — use “New Task” to add one.'));
   } else {
     list.forEach(t => tasksSec.appendChild(buildLinkedTaskCard(t, {
       onEdit: () => openProjectEditTask(t.id),
-      onUnlink: () => doUnlinkTask(t.id),
+      // No unlink: every client task belongs to a project. Move one through
+      // Edit or Task Detail's project pencil instead.
       onDelete: () => doDeleteProjectTask(t),
       onSessionSaved: reloadCurrentProject,
-      unlinkTitle: 'Unlink from this project',
     })));
   }
   host.appendChild(tasksSec);
@@ -1463,8 +1470,15 @@ async function deleteCurrentProject() {
   try { knowledgeIds = ((await window.api.listKnowledgeItems()) || []).filter(i => i.projectId === currentProject.id).map(i => i.id); }
   catch { /* nothing to relink */ }
   const snapshot = { ...currentProject, pfmIds, knowledgeIds };
-  try { await window.api.deleteProject(snapshot.id); }
+  let res;
+  try { res = await window.api.deleteProject(snapshot.id); }
   catch { toast('Could not delete project'); buildDetailActions(document.querySelector('.pj-detail-actions')); return; }
+  if (res && res.ok === false) {
+    // Its tasks would be left with no project — they must be moved first.
+    toast(res.taskCount ? "Move or delete this project's tasks first" : 'Could not delete project');
+    buildDetailActions(document.querySelector('.pj-detail-actions'));
+    return;
+  }
   showProjectUndoToast(snapshot);
   backToClientsFromProject(snapshot);
 }
@@ -1590,12 +1604,6 @@ async function doLinkTask(taskId) {
   renderLinkList();
   await reloadCurrentProject();
   toast('Task linked');
-}
-async function doUnlinkTask(taskId) {
-  try { await window.api.unlinkProjectTask(taskId); }
-  catch { toast('Could not unlink task'); return; }
-  await reloadCurrentProject();
-  toast('Task unlinked');
 }
 // Delete a zero-log project task outright (see buildProjectTaskCard for why: it
 // has no other identity once unlinked). Undo re-creates an equivalent task.

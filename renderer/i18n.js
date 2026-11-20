@@ -459,7 +459,7 @@
     'This build is newer than the last release. Latest release notes:': 'هذا الإصدار أحدث من آخر إصدار منشور. ملاحظات آخر إصدار:',
     'Made with love from Darsh': 'صنع بحب من درش',
     'Lost?': 'تائه؟', 'finds any task, project, client record or page by name.': 'يجد أي مهمة أو مشروع أو سجل عميل أو صفحة بالاسم.',
-    '→ Company, System, Status, Description → Save. Project link and Sources are optional.': '← الشركة والنظام والحالة والوصف ← حفظ. رابط المشروع والمصادر اختياريان.',
+    '→ Company, System, Project, Status, Description → Save. Sources are optional.': '← الشركة والنظام والمشروع والحالة والوصف ← حفظ. المصادر اختيارية.',
     'Click the': 'انقر زر',
     'button on its row or card — no dropdown, no modal. Sets it Done immediately (undoable).': 'في صفه أو بطاقته، دون قائمة أو نافذة. سيُضبط كمكتمل فوراً مع إمكانية التراجع.'
   };
@@ -600,7 +600,9 @@
     'No groups or tags yet.': 'لا توجد مجموعات أو وسوم بعد.', 'No sources added yet.': 'لم تُضف مصادر بعد.',
     'No sessions yet': 'لا توجد جلسات بعد', 'No sessions yet — this task hasn\'t been worked on.': 'لا توجد جلسات بعد — لم يبدأ العمل على هذه المهمة.',
     'No sessions logged on this project yet.': 'لم تُسجل جلسات على هذا المشروع بعد.',
-    'No tasks linked yet — use “Link Task” to attach existing work.': 'لا توجد مهام مرتبطة بعد — استخدم «ربط مهمة» لإرفاق عمل موجود.',
+    'No tasks yet — use “New Task” to add one.': 'لا توجد مهام بعد — استخدم «مهمة جديدة» لإضافة واحدة.',
+    'Choose a project': 'اختر مشروعاً', 'A client task must belong to a project': 'يجب أن تنتمي مهمة العميل إلى مشروع',
+    'Move or delete this project\'s tasks first': 'انقل مهام هذا المشروع أو احذفها أولاً',
     'No unlinked tasks available.': 'لا توجد مهام غير مرتبطة متاحة.',
     'Create knowledge items first, or create an empty group now.': 'أنشئ عناصر معرفة أولاً، أو أنشئ مجموعة فارغة الآن.',
     'Your formatted preview will appear here.': 'ستظهر المعاينة المنسقة هنا.',
@@ -1586,8 +1588,8 @@
     // own name is the leading quoted part.
     [/^"(.*)" will become internal work: its Company, System, and Project link \(if any\) will be cleared\.$/s,
       m => `«${arabicTranslation(m[1])}» ستصبح عملاً داخلياً: ستُمسح الشركة والنظام ورابط المشروع (إن وُجد).`],
-    [/^"(.*)" will become client work: its Department link will be cleared\.$/s,
-      m => `«${arabicTranslation(m[1])}» ستصبح عمل عميل: سيُمسح رابط القسم.`],
+    [/^"(.*)" will become client work in the project you choose: its Department link will be cleared\.$/s,
+      m => `«${arabicTranslation(m[1])}» ستصبح عمل عميل في المشروع الذي تختاره: سيُمسح رابط القسم.`],
     [/^(.+) will be deleted once its sessions move\.$/s,
       m => `${arabicTranslation(m[1])} ستُحذف بمجرد نقل جلساتها.`],
     [/^Merged into (.+)$/s, m => `تم الدمج في ${arabicTranslation(m[1])}`],

@@ -50,8 +50,10 @@ try {
   record('Direct category IPC backing query is also user-scoped',
     !db.getLookupsByCategory('SYSTEM', true, otherId).some(item => item.id === secret.id));
 
-  const ownerTask = db.createTask(owner.id, { name: 'Owner private task', status: 'OPEN', system: secret.label });
-  const otherTask = db.createTask(otherId, { name: 'Other guessed task', status: 'OPEN', system: secret.label });
+  const ownerProject = db.createProject(owner.id, { name: 'Owner project' });
+  const otherProject = db.createProject(otherId, { name: 'Other project' });
+  const ownerTask = db.createTask(owner.id, { name: 'Owner private task', status: 'OPEN', system: secret.label, projectId: ownerProject.id });
+  const otherTask = db.createTask(otherId, { name: 'Other guessed task', status: 'OPEN', system: secret.label, projectId: otherProject.id });
   record('Owner may use their private SYSTEM lookup', ownerTask.system === secret.label);
   record('A guessed private label cannot be linked by another account', otherTask.system === '');
 } catch (error) {

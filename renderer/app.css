@@ -993,6 +993,9 @@
 
     /* ── Searchable single-select (combobox) ── */
     .search-select { position: relative; }
+    /* A required picker left empty: mark its input, not the wrapper. */
+    .search-select.field-error { border: 0 !important; background: none !important; }
+    .search-select.field-error .ss-input { border-color: var(--bad); background: var(--error-bg); }
     .ss-input {
       width: 100%; box-sizing: border-box;
       border: 1px solid var(--border); border-radius: var(--radius-sm);

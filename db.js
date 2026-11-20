@@ -1652,6 +1652,10 @@ const pendingProjectDeletes = new Map(); // projectId -> userId
 // 5 s undo window, and is purged either when that window lapses (purgeProjectFiles)
 // or by the boot-time orphan sweep (sweepOrphanProjectFiles) as a safety net.
 function deleteProject(userId, id) {
+  // Deleting would leave its tasks with no project (ON DELETE SET NULL), which
+  // client tasks may no longer be — they must be moved or deleted first.
+  const linked = db.prepare('SELECT COUNT(*) AS n FROM tasks WHERE project_id = ? AND user_id = ?').get(id, userId).n;
+  if (linked > 0) return { ok: false, error: 'project has tasks', taskCount: linked };
   let changes = 0;
   tx(() => {
     changes = db.prepare('DELETE FROM projects WHERE id = ? AND user_id = ?').run(id, userId).changes;
@@ -2630,10 +2634,14 @@ function linkTask(userId, projectId, taskId) {
     .run(projectId, taskId, userId);
   return { ok: true };
 }
+// Unlinking would leave a client task with no project, which is no longer
+// allowed — move it to another project (linkTask / updateTask) or convert it
+// to internal work instead. Kept as a channel so an old caller gets a clear no.
 function unlinkTask(userId, taskId) {
-  db.prepare('UPDATE tasks SET project_id = NULL WHERE id = ? AND user_id = ?')
-    .run(taskId, userId);
-  return { ok: true };
+  const row = db.prepare('SELECT department_id, project_id FROM tasks WHERE id = ? AND user_id = ?').get(taskId, userId);
+  if (!row) return { ok: false, error: 'task not found' };
+  if (row.project_id == null) return { ok: true };
+  return { ok: false, error: CLIENT_TASK_NEEDS_PROJECT };
 }
 
 // ── Retired: linkDepartmentTask / unlinkDepartmentTask / listLinkableTasksForDepartment ──
@@ -2819,18 +2827,20 @@ function convertTaskToClient(userId, id, data) {
   const system_id = lkIdForUser(userId, 'SYSTEM', data?.system);
   if (company_id == null) return { ok: false, error: 'a Company is required' };
   if (system_id == null) return { ok: false, error: 'a System is required' };
+  const project_id = ownedProjectId(userId, data?.projectId);
+  if (project_id == null) return { ok: false, error: CLIENT_TASK_NEEDS_PROJECT };
   const now = new Date().toISOString();
   const beforeForDiff = taskHistorySnapshot(before);
   const next = taskHistorySnapshot({
     name: before.name, status_id: before.status_id, company_id, system_id,
-    project_id: null, department_id: null, source: before.source,
+    project_id, department_id: null, source: before.source,
   });
   tx(() => {
     recordTaskHistory(userId, id, beforeForDiff, next);
     db.prepare(
-      `UPDATE tasks SET company_id=?, system_id=?, project_id=NULL, department_id=NULL, updated_at=?
+      `UPDATE tasks SET company_id=?, system_id=?, project_id=?, department_id=NULL, updated_at=?
         WHERE id=? AND user_id=?`
-    ).run(company_id, system_id, now, id, userId);
+    ).run(company_id, system_id, project_id, now, id, userId);
   });
   return { ok: true, task: getTask(userId, id) };
 }
@@ -3133,6 +3143,14 @@ function getTask(userId, id) {
 // returned as {ok:false}) so it propagates through ipcMain.handle's built-in
 // throw-to-rejected-promise behavior and every existing renderer call site's
 // try/catch around createTask/updateTask keeps working unchanged.
+// Every client task belongs to a project — client work with no
+// project is no longer allowed (internal work belongs to a Department instead).
+// Thrown for the same reason as assertTaskLinkExclusive below.
+const CLIENT_TASK_NEEDS_PROJECT = 'A client task must belong to a project';
+function assertClientTaskHasProject(projectId) {
+  if (projectId == null) throw new Error(CLIENT_TASK_NEEDS_PROJECT);
+}
+
 function assertTaskLinkExclusive(projectId, departmentId, supportYearId) {
   const set = [projectId, departmentId, supportYearId].filter(v => v != null).length;
   if (set > 1) {
@@ -3214,6 +3232,7 @@ function getTaskFieldHistory(userId, taskId) {
 function createTask(userId, data) {
   const now = new Date().toISOString();
   const f = clientTaskWriteFields(userId, data);
+  assertClientTaskHasProject(f.project_id);
   assertTaskLinkExclusive(f.project_id, f.department_id, f.support_year_id);
   let id;
   tx(() => {
@@ -3249,6 +3268,7 @@ function updateTask(userId, id, data) {
   // includes a `source` key) must not blank it — only a caller that
   // explicitly sends a `source` key (even '') actually intends to change it.
   if (data?.source === undefined) f.source = before.source || '';
+  assertClientTaskHasProject(f.project_id);
   assertTaskLinkExclusive(f.project_id, f.department_id, f.support_year_id);
   const beforeForDiff = taskHistorySnapshot(before);
   const next = taskHistorySnapshot({

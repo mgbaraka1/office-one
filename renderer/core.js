@@ -1226,7 +1226,8 @@ function buildSearchSelect(host, options, initialId, placeholder, onChange, rich
   const renderMenu = () => {
     const q = input.readOnly ? '' : input.value.toLowerCase().trim();
     const match = rich.matchFn || ((o, qq) => (o.label || '').toLowerCase().includes(qq));
-    const base = [{ id: null, label: '— None —' }, ...currentOptions()];
+    // rich.required: a value must be chosen, so there is no "None" row.
+    const base = rich.required ? [...currentOptions()] : [{ id: null, label: '— None —' }, ...currentOptions()];
     filtered = base.filter(o => o.id == null || !q || match(o, q));
     menu.innerHTML = '';
     if (rich.extraControls) menu.appendChild(rich.extraControls());

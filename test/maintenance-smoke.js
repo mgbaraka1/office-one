@@ -114,7 +114,7 @@ try {
   // was built before the raw-SQL-inserted duplicate row existed, and only
   // mergeLookupDuplicate's own lkInvalidate() call (at the very end) refreshes
   // it — resolving a label through the stale cache here would silently miss.
-  const taskOnDupe = db.createTask(userId, { name: 'Maint dupe task', status: 'OPEN', company: '', system: '', source: '' });
+  const taskOnDupe = db.createTask(userId, { name: 'Maint dupe task', status: 'OPEN', company: '', system: '', source: '', projectId: companyA.id });
   const rawDb2 = new DatabaseSync(dbFilePath);
   rawDb2.prepare('UPDATE tasks SET company_id = ? WHERE id = ?').run(sourceId, taskOnDupe.id);
   rawDb2.prepare('INSERT OR IGNORE INTO project_companies(project_id, company_id) VALUES (?, ?)').run(companyA.id, targetCode.id);
@@ -171,7 +171,7 @@ try {
     db.restoreBackup('../../not-a-real-backup.db').ok === false, 'rejected path traversal attempt');
 
   // Make a change AFTER the known-good backup, so we can prove the restore undid it.
-  const preRestoreTask = db.createTask(userId, { name: 'Task created AFTER the known-good backup', status: 'OPEN' });
+  const preRestoreTask = db.createTask(userId, { name: 'Task created AFTER the known-good backup', status: 'OPEN', projectId: companyA.id });
   db.applyMigrations(); // reopen implicitly not needed; connection is still live here
 
   const restoreRes = db.restoreBackup(goodBackupName);

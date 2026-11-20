@@ -44,9 +44,10 @@ try {
   check('a bilingual client profile can be created',
     created && created.nameEn === 'Profile Test' && created.nameAr === 'عميل الاختبار');
 
+  const cpProject = db.createProject(user.id, { name: 'Client profile project' });
   const task = db.createTask(user.id, {
     name: 'Client profile link test', status: 'IN_PROGRESS', company: created.code,
-    system: '', source: '',
+    system: '', source: '', projectId: cpProject.id,
   });
   const originalId = created.id;
 

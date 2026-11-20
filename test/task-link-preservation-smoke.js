@@ -163,7 +163,8 @@ try {
   //             pick up a department through this channel — see
   //             convertTaskToInternal for the only way to cross domains) ────
   {
-    const t = db.createTask(userId, { name: 'Link editor task', status: 'OPEN' });
+    const startProject = db.createProject(userId, { name: 'Task-link start project', status: 'ACTIVE' });
+    const t = db.createTask(userId, { name: 'Link editor task', status: 'OPEN', projectId: startProject.id });
     const before = db.getTaskFieldHistory(userId, t.id);
     db.updateTask(userId, t.id, { name: t.name, status: 'OPEN', company: '', system: '', source: '', projectId: project.id, department: dept.label });
     const after = db.getTask(userId, t.id);
@@ -173,9 +174,30 @@ try {
     const pass = after.projectId === project.id && after.departmentId === null
       && history.length > before.length
       && !deptRow    // department never even appears in the diff — it was null before and stays null
-      && !!projRow && projRow.oldValue === '' && projRow.newValue === project.name;
+      && !!projRow && projRow.oldValue === startProject.name && projRow.newValue === project.name;
     record('Gate 6: updateTask() changes the project link, audited by human label, and ignores a `department` field',
       pass, JSON.stringify({ projectId: after.projectId, departmentId: after.departmentId, deptRow, projRow }));
+  }
+
+  // ── Gate 6b — a client task must belong to a project: create, update,
+  //              unlink, convert-to-client and deleting a project that still
+  //              has tasks are all refused ───────────────────────────────────
+  {
+    let createRefused = false, clearRefused = false;
+    try { db.createTask(userId, { name: 'No-project task', status: 'OPEN' }); } catch { createRefused = true; }
+    const t = db.createTask(userId, { name: 'Must keep project', status: 'OPEN', projectId: project.id });
+    try { db.updateTask(userId, t.id, { name: t.name, status: 'OPEN', projectId: null }); } catch { clearRefused = true; }
+    const unlink = db.unlinkTask(userId, t.id);
+    const delProject = db.deleteProject(userId, project.id);
+    const internal = db.createInternalTask(userId, { name: 'Convert me', status: 'OPEN', department: dept.label });
+    const convNoProject = db.convertTaskToClient(userId, internal.id, { company: db.getLookupsByCategory('COMPANY')[0]?.label, system: db.getLookupsByCategory('SYSTEM')[0]?.label });
+    const convWithProject = db.convertTaskToClient(userId, internal.id, { company: db.getLookupsByCategory('COMPANY')[0]?.label, system: db.getLookupsByCategory('SYSTEM')[0]?.label, projectId: project.id });
+    const after = db.getTask(userId, t.id);
+    const pass = createRefused && clearRefused && unlink.ok === false && after.projectId === project.id
+      && delProject.ok === false && !!db.getProject(userId, project.id)
+      && convNoProject.ok === false && convWithProject.ok === true && convWithProject.task.projectId === project.id;
+    record('Gate 6b: no path leaves a client task without a project', pass,
+      JSON.stringify({ createRefused, clearRefused, unlink, delProject, convNoProject, convWithProject: convWithProject.ok }));
   }
 
   // ── Gate 7 — updateTask() preserves the legacy source column when the
@@ -183,9 +205,9 @@ try {
   //             actual payload shape — it manages sources via task_sources and
   //             never sends a `source` key at all) ────────────────────────────
   {
-    const t = db.createTask(userId, { name: 'Legacy-source task', status: 'OPEN', source: 'LEGACY-JIRA-ABC-1' });
+    const t = db.createTask(userId, { name: 'Legacy-source task', status: 'OPEN', source: 'LEGACY-JIRA-ABC-1', projectId: project.id });
     // The exact shape submitBacklogModal's payload takes — no `source` key.
-    db.updateTask(userId, t.id, { name: t.name, status: 'IN_PROGRESS', company: '', system: '' });
+    db.updateTask(userId, t.id, { name: t.name, status: 'IN_PROGRESS', company: '', system: '', projectId: project.id });
     const after = db.getTask(userId, t.id);
     record('Gate 7: updateTask() with no source key in the payload leaves the legacy source column unchanged',
       after.source === 'LEGACY-JIRA-ABC-1' && after.status === 'IN_PROGRESS',
