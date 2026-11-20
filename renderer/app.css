@@ -4143,54 +4143,6 @@
     .modal-more summary:hover { color: var(--text); }
     .modal-more-hint { font-weight: 500; color: var(--muted); text-transform: none; letter-spacing: normal; }
 
-    /* ── Auth gate (setup / login) ── */
-    #auth-overlay {
-      position: fixed; inset: 0; z-index: 1000; display: none;
-      align-items: center; justify-content: center;
-      background:
-        radial-gradient(1200px 600px at 50% -10%, color-mix(in srgb, var(--primary) 14%, transparent), transparent 70%),
-        var(--bg);
-      font-family: 'Cairo', system-ui, sans-serif;
-    }
-    #auth-overlay.active { display: flex; }
-    .auth-card {
-      width: 380px; max-width: 90vw; background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 34px 32px 28px; box-shadow: var(--shadow);
-    }
-    .auth-brand { text-align: center; color: var(--text); font-weight: 700; letter-spacing: 3px; font-size: 20px; }
-    .auth-brand span { display: block; font-size: 11px; letter-spacing: 4px; color: var(--primary); margin-top: 4px; }
-    .auth-language {
-      display: flex; justify-content: center; gap: 4px; margin: 14px auto 0;
-      padding: 3px; width: max-content; border: 1px solid var(--border);
-      border-radius: 9px; background: var(--surface2);
-    }
-    .auth-language button {
-      min-width: 78px; padding: 6px 11px; border: 0; border-radius: 6px;
-      background: transparent; color: var(--muted); cursor: pointer;
-      font: 600 12px/1.2 inherit;
-    }
-    .auth-language button.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
-    .auth-heading { text-align: center; margin: 20px 0 4px; font-size: 19px; font-weight: 700; color: var(--text); }
-    .auth-sub { text-align: center; margin: 0 0 20px; font-size: 12.5px; color: var(--muted); }
-    .auth-field { margin-bottom: 15px; }
-    .auth-field label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 7px; letter-spacing: .3px; }
-    .auth-field input {
-      width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 14px;
-      font-family: inherit; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface2);
-      color: var(--text); transition: border-color var(--speed), box-shadow var(--speed);
-    }
-    .auth-field input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); background: var(--input-focus-bg); }
-    .auth-field input.input-error { border-color: var(--bad); background: var(--error-bg); }
-    .auth-btn {
-      width: 100%; padding: 11px; margin-top: 6px; font-size: 14px; font-weight: 700;
-      font-family: inherit; color: #fff; background: var(--primary); border: none; border-radius: var(--radius-sm); cursor: pointer;
-      transition: background var(--speed); box-shadow: 0 6px 18px -6px var(--primary-glow);
-    }
-    .auth-btn:hover { background: var(--primary-strong); }
-    .auth-btn:disabled { opacity: .6; cursor: default; }
-    .auth-error { min-height: 16px; margin: 10px 2px 0; font-size: 12px; color: var(--bad); text-align: center; }
-    .auth-version { margin-top: 6px; font-size: 11px; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
-
     .rpt-report[dir="rtl"] { direction: rtl; text-align: right; }
     .rpt-report[dir="rtl"] .rpt-table thead th { text-align: right; }
     .sidebar-user {
@@ -4452,13 +4404,11 @@
     }
     .btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
     .btn:active { transform: translateY(0) scale(.98); }
-    .btn.primary,
-    .auth-btn {
+    .btn.primary {
       background: linear-gradient(135deg, #D9724A, #C05C39 58%, #A8502F);
       box-shadow: 0 12px 24px -13px rgba(201,100,66,.75), inset 0 1px 0 rgba(255,255,255,.2);
     }
-    .btn.primary:hover,
-    .auth-btn:hover { background: linear-gradient(135deg, #E0855D, #C05C39 62%, #8F4327); }
+    .btn.primary:hover { background: linear-gradient(135deg, #E0855D, #C05C39 62%, #8F4327); }
     .seg-ctl { padding: 4px; border-radius: 12px; background: var(--surface-3); }
     .seg-btn { min-height: 29px; border-radius: 8px; }
     .seg-btn.active {
@@ -4659,36 +4609,6 @@
     .cd-grid { gap: 16px; }
     .cd-card { min-height: 190px; padding: 20px; }
     .cd-card-icon { border-radius: 12px; }
-
-    /* Authentication becomes a confident product entrance — dark mode only.
-       This used to apply unconditionally, so the login/setup screen was always
-       dark regardless of the user's saved light/dark preference (read from
-       localStorage and applied to <html data-theme> before this stylesheet's
-       first paint, in bootstrap.js). Scoping it here lets light mode fall
-       through to the token-based `.auth-card` etc. rules above instead, which
-       already track --surface/--text/--border and so on. */
-    :root[data-theme="dark"] #auth-overlay {
-      background:
-        radial-gradient(900px 520px at 12% 8%, rgba(224,133,93,.16), transparent 62%),
-        radial-gradient(900px 600px at 92% 100%, rgba(201,100,66,.22), transparent 68%),
-        #0f0c09;
-    }
-    :root[data-theme="dark"] .auth-card {
-      width: 430px; padding: 42px 38px 34px; border-color: rgba(255,255,255,.11);
-      background: rgba(30,24,18,.78); box-shadow: 0 45px 100px -35px rgba(0,0,0,.75);
-      backdrop-filter: blur(22px); color: #f8f4ec;
-    }
-    :root[data-theme="dark"] .auth-brand,
-    :root[data-theme="dark"] .auth-heading { color: #f8f4ec; }
-    :root[data-theme="dark"] .auth-brand { font-size: 23px; letter-spacing: 4px; }
-    :root[data-theme="dark"] .auth-brand span { color: #E0855D; }
-    :root[data-theme="dark"] .auth-sub,
-    :root[data-theme="dark"] .auth-field label { color: #a89c8a; }
-    :root[data-theme="dark"] .auth-field input {
-      min-height: 44px; color: #f8f4ec; background: rgba(255,255,255,.06);
-      border-color: rgba(255,255,255,.12);
-    }
-    :root[data-theme="dark"] .auth-field input:focus { background: rgba(255,255,255,.09); }
 
     /* Calm Workspace: machine-local comfort controls that change presentation
        only. They never write application records or call the main process. */
@@ -4957,14 +4877,12 @@
       box-shadow: none;
     }
     .btn.primary,
-    .auth-btn,
     .dash-launch.primary,
     .dash-launch.primary:hover {
       background: var(--primary);
       box-shadow: none;
     }
-    .btn.primary:hover,
-    .auth-btn:hover { background: var(--primary-strong); }
+    .btn.primary:hover { background: var(--primary-strong); }
     .seg-ctl { border-radius: 8px; }
     .seg-btn { border-radius: 5px; }
     .seg-btn.active { box-shadow: inset 0 0 0 1px var(--border); }
@@ -5097,209 +5015,241 @@
       .settings-body { margin: 8px; border-radius: 8px; }
     }
 
-    /* ── Login lamp ──
-       The auth gate is a dark room in both themes: pull the lamp's cord (or
-       start typing) and the room warms up and the card comes into the light.
-       Scoped under #auth-overlay so it outranks the theme rules above.
-       Motion is spring physics in shell.js (authLamp). It writes --lamp (light
-       level, 0..1 with a little overshoot) on the overlay, --pull (cord
-       stretch, px) on the cord, and inline transforms for the cord swing and
-       the card's float and lean. This CSS only maps those numbers onto
-       opacity and transform, so each frame stays on the compositor. Lit
-       layers never drop below opacity .001: Chromium skips painting fully
-       transparent layers, and at 0 the first switch-on stalls ~100ms. */
-    /* :root + .active matches the specificity of the dark-theme overlay rule
-       above, so the room stays this colour in both themes. */
-    :root #auth-overlay.active,
+    /* ── Auth gate (setup / login / forced password change) ──
+       A split entrance: a fixed dark brand side (mark, today, where the data
+       lives) and a form side that follows the light/dark theme through the
+       usual tokens. The grid follows dir, so Arabic mirrors it for free.
+       Everything is scoped under #auth-overlay so it outranks the generic
+       button/input passes earlier in the file. Below 900px the brand side
+       goes and the form shows its own compact mark. */
     #auth-overlay {
-      --lamp: 0;
-      --lamp-light: #f6c67a;
-      /* The beam and floor light spill ~70px past the lamp, so the gap is
-         wide enough to keep the light clear of the card. */
-      gap: clamp(110px, 12vw, 170px); isolation: isolate; background: #121417;
+      --auth-ink: #f6efe4;
+      --auth-ink-2: #b4a998;
+      --auth-ink-3: #7f766a;
+      --auth-accent: #E0855D;
+      position: fixed; inset: 0; z-index: 1000; display: none;
+      grid-template-columns: minmax(380px, 46%) 1fr;
+      background: var(--bg); color: var(--text);
+      font-family: 'Cairo', system-ui, sans-serif;
     }
-    /* The room: a warm wash and a lifted floor tone, faded in as one layer. */
-    #auth-overlay::before {
-      content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    #auth-overlay.active { display: grid; animation: auth-in .45s cubic-bezier(.2, .7, .2, 1) both; }
+    #auth-overlay.leaving { opacity: 0; transform: scale(1.01); transition: opacity .4s ease, transform .4s ease; }
+    @keyframes auth-in { from { opacity: 0; } to { opacity: 1; } }
+
+    /* Brand side */
+    #auth-overlay .auth-aside {
+      position: relative; overflow: hidden; isolation: isolate;
+      display: flex; flex-direction: column; justify-content: space-between;
+      padding: clamp(28px, 4vw, 52px);
+      color: var(--auth-ink);
       background:
-        radial-gradient(760px 520px at 38% 46%, rgba(246,198,122,.17), transparent 70%),
-        #1c1f24;
-      opacity: clamp(.001, var(--lamp), 1); will-change: opacity;
+        radial-gradient(70% 55% at 85% 105%, rgba(201,100,66,.38), transparent 70%),
+        radial-gradient(60% 50% at 0% 0%, rgba(224,133,93,.14), transparent 70%),
+        linear-gradient(160deg, #1d1712 0%, #130f0b 100%);
     }
+    /* A hairline between the two halves, softer than a border. */
+    #auth-overlay .auth-aside::after {
+      content: ''; position: absolute; inset-block: 0; inset-inline-end: 0; width: 1px;
+      background: linear-gradient(to bottom, transparent, rgba(255,255,255,.08) 30%, rgba(255,255,255,.08) 70%, transparent);
+    }
+    /* The logo's ring, echoed large and faint behind the date. */
+    #auth-overlay .auth-rings {
+      position: absolute; z-index: -1; width: 135%; aspect-ratio: 1;
+      inset-inline-end: -55%; bottom: -55%;
+      fill: none; stroke: rgba(232,154,114,.09); stroke-width: 1;
+      animation: auth-rings 120s linear infinite;
+    }
+    #auth-overlay .auth-rings circle:nth-child(2) { stroke: rgba(232,154,114,.13); stroke-width: 1.5; }
+    @keyframes auth-rings { to { transform: rotate(360deg); } }
+
+    #auth-overlay .auth-aside-top { display: flex; align-items: center; gap: 12px; }
+    #auth-overlay .auth-mark { display: block; width: 40px; height: 40px; flex: none; }
+    #auth-overlay .auth-mark svg { display: block; width: 100%; height: 100%; filter: drop-shadow(0 8px 18px rgba(0,0,0,.45)); }
+    #auth-overlay .auth-wordmark { font-size: 15px; font-weight: 700; letter-spacing: 4px; color: var(--auth-ink); direction: ltr; }
+    #auth-overlay .auth-wordmark b { color: var(--auth-accent); font-weight: 700; }
+
+    #auth-overlay .auth-today { font-variant-numeric: tabular-nums; user-select: none; }
+    #auth-overlay .today-clock { display: flex; align-items: baseline; gap: 10px; line-height: 1; }
+    #auth-overlay .today-time { font-size: clamp(64px, 8vw, 104px); font-weight: 200; letter-spacing: -2px; color: var(--auth-ink); }
+    #auth-overlay .today-period { font-size: 18px; font-weight: 600; color: var(--auth-accent); }
+    #auth-overlay .today-date { margin-top: 14px; font-size: 18px; font-weight: 600; color: var(--auth-ink); }
+    #auth-overlay .today-sep { margin: 0 8px; color: var(--auth-ink-3); }
+    #auth-overlay .today-hijri { margin-top: 4px; font-size: 14px; color: var(--auth-ink-2); }
+
+    #auth-overlay .auth-aside-foot {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      font-size: 12px; color: var(--auth-ink-3);
+    }
+    #auth-overlay .auth-local { display: inline-flex; align-items: center; gap: 8px; }
+    #auth-overlay .auth-local-ic { display: grid; place-items: center; color: var(--auth-accent); }
+    #auth-overlay .auth-local-ic .lic { width: 14px; height: 14px; }
+    #auth-overlay .auth-version { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+    /* Form side */
+    #auth-overlay .auth-main {
+      position: relative; display: grid; place-items: center;
+      padding: 72px clamp(20px, 5vw, 64px) 40px; overflow-y: auto;
+      background:
+        radial-gradient(60% 40% at 50% 0%, color-mix(in srgb, var(--primary) 6%, transparent), transparent 70%),
+        var(--bg);
+    }
+    #auth-overlay .auth-language {
+      position: absolute; top: 20px; inset-inline-end: 24px;
+      display: flex; gap: 2px; padding: 3px;
+      border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
+    }
+    #auth-overlay .auth-language button {
+      min-width: 74px; padding: 6px 12px; border: 0; border-radius: 7px;
+      background: transparent; color: var(--muted); cursor: pointer;
+      font: 600 12.5px/1.2 'Cairo', system-ui, sans-serif;
+      transition: background .2s ease, color .2s ease;
+    }
+    #auth-overlay .auth-language button:hover { color: var(--text); }
+    #auth-overlay .auth-language button.active { background: var(--surface2); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); }
+    #auth-overlay .auth-language button:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 
     #auth-overlay .auth-card {
-      position: relative; width: 400px; color: #f2e9db;
-      background: rgba(38,41,47,.72); border: 1px solid rgba(255,255,255,.08);
-      box-shadow: 0 40px 90px -40px rgba(0,0,0,.85); backdrop-filter: none;
-      opacity: calc(.3 + .7 * clamp(0, var(--lamp), 1));
-      transform: translate3d(0, 8px, 0); /* replaced each frame by authLamp */
-      will-change: opacity, transform;
+      width: 100%; max-width: 380px; margin: 0; padding: 0;
+      background: none; border: 0; box-shadow: none; transform: none;
     }
-    /* Warm rim and glow: one ready-painted layer that only fades. */
-    #auth-overlay .auth-card::after {
-      content: ''; position: absolute; inset: -1px; z-index: -1; pointer-events: none;
-      border-radius: inherit;
-      box-shadow: 0 0 0 1px rgba(246,198,122,.3), 0 0 70px -16px rgba(246,198,122,.42);
-      opacity: clamp(.001, var(--lamp), 1);
+    #auth-overlay .auth-mark-compact { display: none; width: 48px; height: 48px; margin-bottom: 22px; }
+    #auth-overlay .auth-heading { margin: 0; font-size: 28px; font-weight: 700; line-height: 1.25; color: var(--text); text-align: start; }
+    #auth-overlay .auth-sub { margin: 6px 0 28px; font-size: 14px; line-height: 1.55; color: var(--muted); text-align: start; }
+
+    #auth-overlay .auth-error {
+      display: none; align-items: flex-start; gap: 9px; margin: 0 0 18px; padding: 10px 12px;
+      border: 1px solid color-mix(in srgb, var(--bad) 35%, transparent);
+      border-radius: 10px; background: color-mix(in srgb, var(--bad) 9%, transparent);
+      color: var(--bad); font-size: 13px; font-weight: 600; line-height: 1.5; text-align: start;
     }
-    #auth-overlay .auth-brand, #auth-overlay .auth-heading { color: #f8f4ec; }
-    #auth-overlay .auth-sub, #auth-overlay .auth-field label, #auth-overlay .auth-version { color: #a7a39b; }
-    #auth-overlay .auth-language { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.1); }
-    #auth-overlay .auth-language button { color: #a7a39b; transition: background .25s ease, color .25s ease; }
-    #auth-overlay .auth-language button.active { background: rgba(255,255,255,.1); color: #f8f4ec; }
+    #auth-overlay .auth-error:not(:empty) { display: flex; animation: auth-pop .25s ease both; }
+    #auth-overlay .auth-error::before {
+      content: '!'; flex: none; display: grid; place-items: center; width: 18px; height: 18px; margin-top: 1px;
+      border-radius: 50%; background: var(--bad); color: #fff; font-size: 12px; font-weight: 800; line-height: 1;
+    }
+    @keyframes auth-pop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+    #auth-overlay .auth-field { margin-bottom: 18px; }
+    #auth-overlay .auth-field label { display: block; margin-bottom: 7px; font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: 0; }
+    #auth-overlay .auth-input-wrap { position: relative; }
     #auth-overlay .auth-field input {
-      min-height: 44px; color: #f8f4ec; background: rgba(255,255,255,.06);
-      border-color: rgba(255,255,255,.12);
-      transition: border-color .3s ease, background .3s ease, box-shadow .3s ease;
+      width: 100%; box-sizing: border-box; min-height: 46px; margin: 0;
+      padding-block: 10px; padding-inline: 42px 44px;
+      font: 500 14.5px/1.4 'Cairo', system-ui, sans-serif; color: var(--text);
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.04);
+      transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
     }
-    #auth-overlay .auth-field input:focus { background: rgba(255,255,255,.09); }
-    #auth-overlay .auth-btn { transition: background .3s ease, transform .2s ease; }
-    #auth-overlay .auth-btn:active { transform: scale(.985); }
-
-    /* Today's date hangs in the dark above the lamp, centred on it. */
-    .auth-scene { position: relative; display: flex; flex-direction: column; align-items: center; gap: 26px; flex: 0 0 auto; }
-
-    /* Today: no object, only lettering in the room. Unlit it sits as dim as
-       the dark shade; lit it takes the shade's cream and a warm glow. The
-       colours and glow are mixed by --lamp, so they rise and breathe with it. */
-    .auth-today {
-      --lit: clamp(0, var(--lamp), 1);
-      --glow: color-mix(in srgb, rgba(246,198,122,.55) calc(var(--lit) * 100%), transparent);
-      text-align: center; line-height: 1.25;
-      color: color-mix(in srgb, #fbf3e2 calc(var(--lit) * 100%), #5d5f63);
-      text-shadow: 0 0 22px var(--glow);
-      font-variant-numeric: tabular-nums; cursor: default; user-select: none;
+    #auth-overlay .auth-field input:hover { border-color: color-mix(in srgb, var(--text) 22%, var(--border)); }
+    #auth-overlay .auth-field input:focus {
+      outline: none; border-color: var(--primary);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 16%, transparent);
     }
-    .today-weekday {
-      font-size: 15px; font-weight: 600; letter-spacing: 2.5px; text-transform: uppercase;
-      color: color-mix(in srgb, #f6c67a calc(var(--lit) * 100%), #6a6660);
+    #auth-overlay .auth-field input.input-error {
+      border-color: var(--bad); background: color-mix(in srgb, var(--bad) 5%, var(--surface));
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--bad) 12%, transparent);
     }
-    :root[dir="rtl"] .today-weekday { letter-spacing: 0; font-size: 18px; }
-    .today-num { font-size: 72px; font-weight: 200; line-height: 1; margin: 2px 0 4px; }
-    .today-month { font-size: 17px; font-weight: 500; }
-    .today-hijri {
-      margin-top: 3px; font-size: 12.5px;
-      color: color-mix(in srgb, #b9ad97 calc(var(--lit) * 100%), #4e5054);
+    #auth-overlay .auth-lead {
+      position: absolute; inset-inline-start: 14px; top: 50%; transform: translateY(-50%);
+      display: grid; place-items: center; color: var(--muted); pointer-events: none; transition: color .18s ease;
     }
-    /* A thin line of light, then the time. */
-    .today-clock {
-      display: block; margin-top: 14px; padding-top: 10px; font-size: 14px; font-weight: 600;
-      letter-spacing: 1px; color: color-mix(in srgb, #f6c67a calc(var(--lit) * 100%), #6a6660);
-      border-top: 1px solid transparent;
-      border-image: linear-gradient(to right, transparent, color-mix(in srgb, rgba(246,198,122,.6) calc(var(--lit) * 100%), rgba(255,255,255,.08)), transparent) 1;
-    }
-
-    /* Password: an eye button inside the field, and a Caps Lock hint. */
-    .auth-input-wrap { position: relative; }
-    #auth-overlay .auth-input-wrap input { padding-inline-end: 44px; }
-    .auth-reveal {
+    #auth-overlay .auth-lead .lic { width: 17px; height: 17px; }
+    #auth-overlay .auth-input-wrap:focus-within .auth-lead { color: var(--primary); }
+    #auth-overlay .auth-reveal {
       position: absolute; inset-inline-end: 6px; top: 50%; transform: translateY(-50%);
-      display: grid; place-items: center; width: 32px; height: 32px; padding: 0;
-      border: 0; border-radius: 7px; background: transparent; color: #a7a39b; cursor: pointer;
-      transition: color .2s ease, background .2s ease;
+      display: grid; place-items: center; width: 34px; height: 34px; padding: 0;
+      border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer;
+      transition: color .18s ease, background .18s ease;
     }
-    .auth-reveal:hover { color: #f8f4ec; background: rgba(255,255,255,.07); }
-    .auth-reveal:focus-visible { outline: 2px solid var(--lamp-light); outline-offset: 1px; }
-    .auth-reveal .lic { width: 17px; height: 17px; }
-    .auth-caps { margin-top: 6px; font-size: 11.5px; font-weight: 600; color: var(--lamp-light); }
-    .auth-caps[hidden] { display: none; }
+    #auth-overlay .auth-reveal:hover { color: var(--text); background: var(--surface2); }
+    #auth-overlay .auth-reveal:focus-visible { outline: 2px solid var(--primary); outline-offset: 0; }
+    #auth-overlay .auth-reveal .lic { width: 18px; height: 18px; }
+    #auth-overlay .auth-match {
+      position: absolute; inset-inline-end: 14px; top: 50%; transform: translateY(-50%);
+      display: grid; place-items: center; color: var(--good, #2f9e6b);
+    }
+    #auth-overlay .auth-match .lic { width: 18px; height: 18px; }
+    #auth-overlay .auth-match[hidden] { display: none; }
 
-    .auth-lamp {
-      position: relative; flex: 0 0 auto; width: 170px; height: 300px;
-      padding: 0; border: 0; background: none; cursor: grab; touch-action: none;
+    #auth-overlay .auth-caps {
+      display: flex; align-items: center; gap: 6px; margin-top: 8px;
+      font-size: 12px; font-weight: 600; color: var(--warn, #b7791f);
     }
-    .auth-lamp.dragging { cursor: grabbing; }
-    .auth-lamp:focus-visible { outline: 2px solid var(--lamp-light); outline-offset: 8px; border-radius: 12px; }
+    #auth-overlay .auth-caps .lic { width: 14px; height: 14px; }
+    #auth-overlay .auth-caps[hidden] { display: none; }
 
-    /* Shade: the dark and lit looks are stacked layers, cross-faded. */
-    .lamp-shade {
-      position: absolute; top: 20px; left: 10px; width: 150px; height: 72px; z-index: 2;
-      border-radius: 150px 150px 10px 10px / 130px 130px 10px 10px;
-      background: linear-gradient(180deg, #4a4d52, #33363b);
-      box-shadow: inset 0 -4px 0 rgba(0,0,0,.25);
-    }
-    .lamp-shade::after {
-      content: ''; position: absolute; inset: 0; border-radius: inherit;
-      background: linear-gradient(180deg, #fbf7ee, #e9e0cc);
-      box-shadow: inset 0 -5px 0 #f6c67a, 0 10px 34px -4px rgba(246,198,122,.6);
-      opacity: clamp(.001, var(--lamp), 1); will-change: opacity;
-    }
-    /* The beam blooms open: its overshoot past 1 reads as a soft swell. */
-    .lamp-beam {
-      position: absolute; top: 88px; left: -40px; width: 250px; height: 210px; z-index: 0;
-      pointer-events: none; clip-path: polygon(25% 0, 75% 0, 100% 100%, 0 100%);
-      background: linear-gradient(180deg, rgba(246,198,122,.42), rgba(246,198,122,0) 92%);
-      transform-origin: top center;
-      opacity: clamp(.001, var(--lamp), 1);
-      transform: scale(calc(.9 + .1 * var(--lamp)), calc(.8 + .2 * var(--lamp)));
-      will-change: opacity, transform;
-    }
-    /* A warm pool of light on the floor under the lamp. */
-    .lamp-floor {
-      position: absolute; bottom: -18px; left: -70px; width: 310px; height: 50px; z-index: 0;
-      pointer-events: none; border-radius: 50%;
-      background: radial-gradient(closest-side, rgba(246,198,122,.38), rgba(246,198,122,0));
-      opacity: clamp(.001, var(--lamp), 1);
-      transform: scaleX(calc(.6 + .4 * var(--lamp)));
-      will-change: opacity, transform;
-    }
+    /* Strength meter (setup / forced change only). */
+    #auth-overlay .auth-strength { display: flex; align-items: center; gap: 10px; margin-top: 9px; }
+    #auth-overlay .auth-strength[hidden] { display: none; }
+    #auth-overlay .auth-strength-bar { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+    #auth-overlay .auth-strength-bar i { height: 4px; border-radius: 2px; background: var(--border); transition: background .25s ease; }
+    #auth-overlay .auth-strength-label { flex: none; min-width: 96px; font-size: 12px; font-weight: 600; color: var(--muted); text-align: end; }
+    #auth-overlay .auth-strength[data-level="1"] { --meter: var(--bad); }
+    #auth-overlay .auth-strength[data-level="2"] { --meter: var(--warn, #d08a2a); }
+    #auth-overlay .auth-strength[data-level="3"] { --meter: #7aa63d; }
+    #auth-overlay .auth-strength[data-level="4"] { --meter: var(--good, #2f9e6b); }
+    #auth-overlay .auth-strength[data-level="1"] i:nth-child(-n+1),
+    #auth-overlay .auth-strength[data-level="2"] i:nth-child(-n+2),
+    #auth-overlay .auth-strength[data-level="3"] i:nth-child(-n+3),
+    #auth-overlay .auth-strength[data-level="4"] i { background: var(--meter); }
+    #auth-overlay .auth-strength:not([data-level="0"]) .auth-strength-label { color: var(--meter); }
 
-    .lamp-stem {
-      position: absolute; top: 88px; left: 80px; width: 10px; height: 196px; z-index: 1;
-      border-radius: 5px; background: linear-gradient(90deg, #8d8679, #d8d0bf 45%, #8d8679);
+    /* Remember username: a custom checkbox on a real one. */
+    #auth-overlay .auth-remember {
+      display: inline-flex; align-items: center; gap: 9px; margin: 2px 0 22px;
+      font-size: 13px; font-weight: 500; color: var(--muted); cursor: pointer; user-select: none;
     }
-    .lamp-base {
-      position: absolute; bottom: 4px; left: 40px; width: 90px; height: 14px; z-index: 1;
-      border-radius: 8px; background: linear-gradient(180deg, #d8d0bf, #8d8679);
+    #auth-overlay .auth-remember[hidden] { display: none; }
+    #auth-overlay .auth-remember input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+    #auth-overlay .auth-check {
+      display: grid; place-items: center; width: 18px; height: 18px; flex: none;
+      border: 1.5px solid color-mix(in srgb, var(--text) 30%, var(--border)); border-radius: 5px;
+      background: var(--surface); color: #fff; transition: background .15s ease, border-color .15s ease;
     }
+    #auth-overlay .auth-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+    #auth-overlay .auth-check > span { display: grid; place-items: center; line-height: 0; }
+    #auth-overlay .auth-check .lic { width: 12px; height: 12px; stroke-width: 3; opacity: 0; transform: scale(.6); transition: opacity .15s ease, transform .15s ease; }
+    #auth-overlay .auth-remember input:checked + .auth-check { background: var(--primary); border-color: var(--primary); }
+    #auth-overlay .auth-remember input:checked + .auth-check .lic { opacity: 1; transform: none; }
+    #auth-overlay .auth-remember input:focus-visible + .auth-check { outline: 2px solid var(--primary); outline-offset: 2px; }
+    #auth-overlay .auth-remember:hover { color: var(--text); }
 
-    /* Cord: swung by an inline rotate, stretched by --pull. */
-    .lamp-cord {
-      --pull: 0;
-      position: absolute; top: 84px; left: 118px; width: 2px; height: 70px; z-index: 1;
-      transform-origin: top center; will-change: transform;
+    #auth-overlay .auth-btn {
+      position: relative; display: flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; min-height: 48px; margin: 0; padding: 12px 16px;
+      font: 700 15px/1.2 'Cairo', system-ui, sans-serif; color: #fff;
+      background: var(--primary); border: 0; border-radius: 10px; cursor: pointer;
+      box-shadow: 0 10px 24px -12px color-mix(in srgb, var(--primary) 85%, transparent), inset 0 1px 0 rgba(255,255,255,.18);
+      transition: background .18s ease, transform .12s ease, box-shadow .18s ease;
     }
-    .lamp-cord::before {
-      content: ''; position: absolute; inset: 0; background: #8d8679;
-      transform-origin: top center; transform: scaleY(calc(1 + var(--pull) / 70));
+    #auth-overlay .auth-btn:hover:not(:disabled) { background: var(--primary-strong); }
+    #auth-overlay .auth-btn:active:not(:disabled) { transform: translateY(1px); }
+    #auth-overlay .auth-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+    #auth-overlay .auth-btn:disabled { opacity: .65; cursor: default; }
+    #auth-overlay .auth-spinner {
+      display: none; width: 16px; height: 16px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,.35); border-top-color: #fff;
+      animation: auth-spin .7s linear infinite;
     }
-    .lamp-knob {
-      position: absolute; bottom: -9px; left: -4px; width: 10px; height: 12px;
-      border-radius: 5px; background: #c9a36a;
-      transform: translate3d(0, calc(var(--pull) * 1px), 0);
-      transition: background .6s ease, box-shadow .6s ease;
-    }
-    .lamp-on .lamp-knob { background: #e6bd7d; box-shadow: 0 0 10px rgba(246,198,122,.6); }
+    #auth-overlay .auth-btn.busy .auth-spinner { display: block; }
+    @keyframes auth-spin { to { transform: rotate(360deg); } }
 
-    /* Dust drifting through the beam; the beam's clip-path keeps it in the cone. */
-    .lamp-beam i {
-      position: absolute; bottom: 0; width: 3px; height: 3px; border-radius: 50%;
-      background: rgba(255,236,200,.85); opacity: 0; will-change: transform, opacity;
-    }
-    .lamp-on .lamp-beam i { animation: lamp-dust 9s ease-in-out infinite; }
-    .lamp-beam i:nth-child(1) { left: 30%; animation-delay: 0s; }
-    .lamp-beam i:nth-child(2) { left: 46%; animation-delay: -1.6s; animation-duration: 11s; }
-    .lamp-beam i:nth-child(3) { left: 58%; animation-delay: -3.2s; width: 2px; height: 2px; }
-    .lamp-beam i:nth-child(4) { left: 68%; animation-delay: -5s; animation-duration: 10s; }
-    .lamp-beam i:nth-child(5) { left: 38%; animation-delay: -6.5s; width: 2px; height: 2px; animation-duration: 12s; }
-    .lamp-beam i:nth-child(6) { left: 52%; animation-delay: -8s; }
-    @keyframes lamp-dust {
-      0%   { transform: translate3d(0, 0, 0); opacity: 0; }
-      20%  { opacity: .8; }
-      50%  { transform: translate3d(12px, -110px, 0); }
-      80%  { opacity: .5; }
-      100% { transform: translate3d(-6px, -205px, 0); opacity: 0; }
+    /* Wrong credentials: one short shake of the form. */
+    #auth-overlay .auth-card.shake { animation: auth-shake .38s cubic-bezier(.36, .07, .19, .97); }
+    @keyframes auth-shake {
+      20%, 60% { transform: translateX(-6px); }
+      40%, 80% { transform: translateX(6px); }
     }
 
-    /* Successful login: the room dissolves into the app (the light's swell
-       comes from authLamp.flare()). */
-    #auth-overlay.leaving { opacity: 0; transition: opacity .55s cubic-bezier(.4, 0, .2, 1); }
-
-    @media (max-width: 760px) { .auth-scene { display: none; } }
+    @media (max-width: 900px) {
+      #auth-overlay { grid-template-columns: 1fr; }
+      #auth-overlay .auth-aside { display: none; }
+      #auth-overlay .auth-mark-compact { display: block; }
+    }
     @media (prefers-reduced-motion: reduce) {
-      #auth-overlay *, #auth-overlay *::before, #auth-overlay *::after,
-      #auth-overlay::before { transition: none !important; animation: none !important; }
-      #auth-overlay .auth-card { transform: none !important; }
+      #auth-overlay, #auth-overlay *, #auth-overlay *::before, #auth-overlay *::after {
+        animation: none !important; transition: none !important;
+      }
     }
 
     /* ══ SIDEBAR — lighter items, readable sections, account menu ══

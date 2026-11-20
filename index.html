@@ -14,54 +14,113 @@
 
 <!-- ══ AUTH GATE (setup on first run / login each session) ══ -->
 <div id="auth-overlay">
-  <div class="auth-scene">
-    <!-- Today, as plain lettering in the room that the lamp lights up.
-         Filled and kept current by authToday in shell.js; its text is already
-         localized by Intl, so the dictionary pass skips it. -->
+  <!-- Gradients for both logo marks, outside either: one of the two marks is
+       always display:none, and a gradient inside a hidden subtree won't paint. -->
+  <svg class="auth-defs" width="0" height="0" aria-hidden="true" focusable="false">
+    <defs>
+      <linearGradient id="auth-tile" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#251E17"/>
+        <stop offset="1" stop-color="#12100C"/>
+      </linearGradient>
+      <linearGradient id="auth-ring" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#E89A72"/>
+        <stop offset="1" stop-color="#C96442"/>
+      </linearGradient>
+    </defs>
+  </svg>
+  <!-- Brand side: the mark, today's date and time, and where the data lives.
+       Informational only; the form is the whole gate. Hidden on narrow windows. -->
+  <aside class="auth-aside" aria-hidden="true">
+    <svg class="auth-rings" viewBox="0 0 600 600" focusable="false">
+      <circle cx="300" cy="300" r="120"/><circle cx="300" cy="300" r="185"/>
+      <circle cx="300" cy="300" r="250"/><circle cx="300" cy="300" r="295"/>
+    </svg>
+    <div class="auth-aside-top">
+      <!-- Same artwork as build/icon.svg and the sidebar mark; own gradient ids. -->
+      <span class="auth-mark">
+        <svg viewBox="0 0 256 256" focusable="false">
+          <rect x="0" y="0" width="256" height="256" rx="56" fill="url(#auth-tile)"/>
+          <circle cx="128" cy="128" r="73" fill="none" stroke="url(#auth-ring)" stroke-width="25"/>
+          <path d="M106 107 L130 85 L130 171" fill="none" stroke="#F7EFE6"
+                stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <span class="auth-wordmark" lang="en" data-i18n-ignore>OFFICE <b>ONE</b></span>
+    </div>
+    <!-- Filled and kept current by authToday in shell.js; Intl already
+         localizes it, so the dictionary pass skips it. -->
     <div class="auth-today" id="auth-today" data-i18n-ignore>
-      <div class="today-weekday" id="auth-today-weekday"></div>
-      <div class="today-num" id="auth-today-num"></div>
-      <div class="today-month" id="auth-today-month"></div>
+      <time class="today-clock" id="auth-today-clock"><span class="today-time" id="auth-today-time"></span><span class="today-period" id="auth-today-period"></span></time>
+      <div class="today-date"><span id="auth-today-weekday"></span><span class="today-sep">·</span><span id="auth-today-date"></span></div>
       <div class="today-hijri" id="auth-today-hijri"></div>
-      <time class="today-clock" id="auth-today-clock"></time>
     </div>
-    <button type="button" class="auth-lamp" id="auth-lamp" aria-label="Toggle the lamp" aria-pressed="false">
-      <span class="lamp-floor"></span>
-      <span class="lamp-beam"><i></i><i></i><i></i><i></i><i></i><i></i></span>
-      <span class="lamp-shade"></span>
-      <span class="lamp-stem"></span>
-      <span class="lamp-base"></span>
-      <span class="lamp-cord"><span class="lamp-knob"></span></span>
-    </button>
-  </div>
-  <form class="auth-card" id="auth-form" data-onsubmit="submitAuth(event)" autocomplete="off">
-    <div class="auth-brand">OFFICE <span>ONE</span></div>
+    <div class="auth-aside-foot">
+      <span class="auth-local"><span data-ic="lock" class="auth-local-ic"></span><span>Works offline. Your data stays on this device.</span></span>
+      <span class="auth-version" id="auth-version"></span>
+    </div>
+  </aside>
+
+  <section class="auth-main">
     <div class="auth-language" role="group" aria-label="Choose language">
-      <button type="button" data-language="en" data-onclick="chooseLoginLanguage('en')">English</button>
-      <button type="button" data-language="ar" data-onclick="chooseLoginLanguage('ar')">العربية</button>
+      <button type="button" data-language="en" data-onclick="chooseLoginLanguage('en')" lang="en" data-i18n-ignore>English</button>
+      <button type="button" data-language="ar" data-onclick="chooseLoginLanguage('ar')" lang="ar" data-i18n-ignore>العربية</button>
     </div>
-    <div class="auth-heading" id="auth-heading">Welcome back</div>
-    <div class="auth-sub" id="auth-sub">Log in to continue</div>
-    <div class="auth-field" id="auth-username-field">
-      <label for="auth-username">Username</label>
-      <input id="auth-username" type="text" autocomplete="username" spellcheck="false" />
-    </div>
-    <div class="auth-field">
-      <label for="auth-password" id="auth-password-label">Password</label>
-      <div class="auth-input-wrap">
-        <input id="auth-password" type="password" autocomplete="current-password" />
-        <button type="button" class="auth-reveal" id="auth-reveal" title="Show password" aria-pressed="false"><span data-ic="eye"></span></button>
+
+    <form class="auth-card" id="auth-form" data-onsubmit="submitAuth(event)" autocomplete="off" novalidate>
+      <!-- Shown only when the brand side is hidden (narrow windows). -->
+      <span class="auth-mark auth-mark-compact" aria-hidden="true">
+        <svg viewBox="0 0 256 256" focusable="false">
+          <rect x="0" y="0" width="256" height="256" rx="56" fill="url(#auth-tile)"/>
+          <circle cx="128" cy="128" r="73" fill="none" stroke="url(#auth-ring)" stroke-width="25"/>
+          <path d="M106 107 L130 85 L130 171" fill="none" stroke="#F7EFE6"
+                stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <h1 class="auth-heading" id="auth-heading">Welcome back</h1>
+      <p class="auth-sub" id="auth-sub">Log in to continue</p>
+
+      <div class="auth-error" id="auth-error" role="alert"></div>
+
+      <div class="auth-field" id="auth-username-field">
+        <label for="auth-username">Username</label>
+        <div class="auth-input-wrap">
+          <span class="auth-lead" data-ic="user" aria-hidden="true"></span>
+          <input id="auth-username" type="text" autocomplete="username" spellcheck="false" autocapitalize="off" />
+        </div>
       </div>
-      <div class="auth-caps" id="auth-caps" hidden>Caps Lock is on</div>
-    </div>
-    <div class="auth-field" id="auth-confirm-field" style="display:none">
-      <label for="auth-confirm">Confirm password</label>
-      <input id="auth-confirm" type="password" autocomplete="new-password" />
-    </div>
-    <button class="auth-btn" id="auth-submit" type="submit">Log in</button>
-    <div class="auth-error" id="auth-error"></div>
-    <div class="auth-version" id="auth-version"></div>
-  </form>
+
+      <div class="auth-field">
+        <label for="auth-password" id="auth-password-label">Password</label>
+        <div class="auth-input-wrap">
+          <span class="auth-lead" data-ic="lock" aria-hidden="true"></span>
+          <input id="auth-password" type="password" autocomplete="current-password" />
+          <button type="button" class="auth-reveal" id="auth-reveal" title="Show password" aria-label="Show password" aria-pressed="false"><span data-ic="eye"></span></button>
+        </div>
+        <div class="auth-caps" id="auth-caps" hidden><span data-ic="triangle-alert"></span><span>Caps Lock is on</span></div>
+        <div class="auth-strength" id="auth-strength" data-level="0" hidden>
+          <div class="auth-strength-bar" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+          <span class="auth-strength-label" id="auth-strength-label">At least 8 characters</span>
+        </div>
+      </div>
+
+      <div class="auth-field" id="auth-confirm-field" style="display:none">
+        <label for="auth-confirm">Confirm password</label>
+        <div class="auth-input-wrap">
+          <span class="auth-lead" data-ic="lock" aria-hidden="true"></span>
+          <input id="auth-confirm" type="password" autocomplete="new-password" />
+          <span class="auth-match" id="auth-match" data-ic="check" title="Passwords match" hidden></span>
+        </div>
+      </div>
+
+      <label class="auth-remember" id="auth-remember-row">
+        <input type="checkbox" id="auth-remember" checked />
+        <span class="auth-check" aria-hidden="true"><span data-ic="check"></span></span>
+        <span>Remember my username</span>
+      </label>
+
+      <button class="auth-btn" id="auth-submit" type="submit"><span class="auth-btn-label" id="auth-submit-label">Log in</span><span class="auth-spinner" aria-hidden="true"></span></button>
+    </form>
+  </section>
 </div>
 
 <!-- ══ SIDEBAR ══ -->
