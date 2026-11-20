@@ -943,6 +943,31 @@ function timeTypeLabel(code, fallback) {
   return label && label !== code ? label : fallback;
 }
 
+// The Overview hero's clock and dates — the login screen's brand side
+// (authToday in shell.js), in the session language with Western digits.
+// Ticks on the minute but only repaints while Overview is on screen.
+function renderDashToday() {
+  const timeEl = document.getElementById('dash-time');
+  if (!timeEl) return;
+  const lang = window.ctI18n?.getLanguage?.() === 'ar' ? 'ar' : 'en-GB';
+  const f = (cal, opts) => new Intl.DateTimeFormat(lang + '-u-ca-' + cal + '-nu-latn', opts);
+  const now = new Date();
+  const parts = f('gregory', { hour: 'numeric', minute: '2-digit', hour12: true }).formatToParts(now);
+  const period = parts.find(p => p.type === 'dayPeriod');
+  timeEl.textContent = parts.filter(p => p.type !== 'dayPeriod').map(p => p.value).join('').trim();
+  document.getElementById('dash-period').textContent = period ? period.value : '';
+  document.getElementById('dash-clock').dateTime = now.toISOString();
+  document.getElementById('dash-date').textContent =
+    f('gregory', { weekday: 'long' }).format(now) + ' · ' + f('gregory', { day: 'numeric', month: 'long', year: 'numeric' }).format(now);
+  document.getElementById('dash-hijri').textContent = f('islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' }).format(now);
+}
+(function dashTodayTick() {
+  const mod = document.getElementById('module-analytics');
+  if (mod && mod.offsetParent !== null) renderDashToday();
+  setTimeout(dashTodayTick, 60000 - (Date.now() % 60000) + 50);
+})();
+document.addEventListener('ct:languagechange', renderDashToday);
+
 async function renderOverview() {
   const isAr = window.ctI18n?.getLanguage?.() === 'ar';
   const displayName = isAr
@@ -950,8 +975,7 @@ async function renderOverview() {
     : (_currentUser?.nameEn || _currentUser?.username);
   const name = (displayName || '').split(' ')[0] || (_currentUser?.username || '');
   document.getElementById('dash-hello').textContent = `${greetWord()}, ${name}`;
-  document.getElementById('dash-date').textContent =
-    new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  renderDashToday();
   // Today + month-to-date hours — aggregated in SQL (no day blobs shipped).
   if (!document.getElementById('dash-stats').childElementCount) showSkeleton('dash-stats', 'cards', 1);
   const now = new Date();

@@ -5799,3 +5799,324 @@
     .cd-row .tpl-meta { flex-basis: 120px; text-align: end; }
     .cd-row.drop-target { outline: 2px dashed var(--accent); outline-offset: -2px; background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
     @media (max-width: 1100px) { .cd-row-renewal { flex-basis: 150px; } .cd-row .tpl-meta { display: none; } }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       LOGIN FINISH — final layer
+       Carries the auth screen's finish (#auth-overlay, above) into the rest of
+       the app: larger controls and text, solid terracotta primary buttons,
+       plain headings with a muted subtitle, and roomier spacing. Colours and
+       the Cairo font were already shared; this layer only changes size,
+       weight and spacing. It is last in the file on purpose so it wins over
+       VISION 2026 and DIRECT WORKSPACE. #auth-overlay rules are id-scoped
+       and unaffected.
+       ═══════════════════════════════════════════════════════════════════════ */
+    :root {
+      --fs-display: 28px;
+      --fs-title:   22px;
+      --fs-section: 16px;
+      --fs-body:    14.5px;
+      --fs-sm:      13px;
+      --fs-caption: 11.5px;
+      --control-h: 44px; --control-h-sm: 30px;
+    }
+    body { font-size: var(--fs-body); }
+
+    /* Controls — login-size buttons; .sm variants keep their compact size. */
+    .btn {
+      min-height: 40px; padding: 9px 18px; border-radius: 10px;
+      font-size: 14.5px; font-weight: 600;
+    }
+    .btn.sm, .btn-sm { min-height: var(--control-h-sm); padding: 4px 12px; font-size: 13px; }
+    .btn.primary,
+    .dash-launch.primary {
+      background: var(--primary); border-color: transparent; color: #fff;
+      box-shadow: 0 10px 24px -14px color-mix(in srgb, var(--primary) 85%, transparent), inset 0 1px 0 rgba(255,255,255,.18);
+    }
+    .btn.primary:hover,
+    .dash-launch.primary:hover { background: var(--primary-strong); }
+    .btn.primary:active { transform: translateY(1px); }
+    .btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; box-shadow: none; }
+
+    /* Form fields — the login input: white field, 10px radius, 4px soft ring. */
+    .form-group { gap: 7px; }
+    .form-group label {
+      font-size: 13px; font-weight: 600; letter-spacing: 0; color: var(--text);
+    }
+    .form-group input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+    .form-group select {
+      min-height: var(--control-h);
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      padding: 10px 14px; font-size: 14.5px; border-radius: 10px;
+      background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,.04);
+    }
+    .form-group input:hover:not(:focus):not(:disabled),
+    .form-group select:hover:not(:focus):not(:disabled),
+    .form-group textarea:hover:not(:focus):not(:disabled) {
+      border-color: color-mix(in srgb, var(--text) 22%, var(--border));
+    }
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus,
+    input:focus, select:focus, textarea:focus, .mod-search:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 16%, transparent);
+    }
+    .mod-search { min-height: var(--control-h); font-size: 14px; border-radius: 10px; }
+
+    /* Headings — plain bold title, muted subtitle, no gradient text. */
+    .page-header { min-height: 72px; padding: 14px 28px; }
+    .page-title { font-size: 18px; font-weight: 700; letter-spacing: 0; }
+    .page-title::after { font-size: 12px; font-weight: 500; }
+    .modal-title { font-size: var(--fs-title); font-weight: 700; }
+    .dash-greeting h1 {
+      font-size: var(--fs-display); font-weight: 700; line-height: 1.25;
+      background: none; color: var(--text);
+    }
+    .dash-greeting p { margin-top: 6px; font-size: 14px; color: var(--muted); }
+    html[dir="rtl"] .page-title,
+    html[dir="rtl"] .dash-greeting h1 { letter-spacing: 0; }
+
+    /* Spacing — more air around pages, cards and dialogs. */
+    .an-scroll { padding: 32px 40px 56px; }
+    .dash-greeting { margin-bottom: 24px; }
+    .cp-body,
+    .kh-shell,
+    .settings-body { margin: 16px 20px 20px; border-radius: 12px; }
+    .modal-box { border-radius: 14px; }
+    .modal-body { padding: 26px 30px 30px; gap: 18px; }
+    .modal-footer { padding: 16px 30px 24px; gap: 12px; }
+    .form-row { gap: 18px; }
+    .dash-stat { padding: 20px; }
+    @media (max-width: 760px) {
+      .an-scroll { padding: 20px 16px 40px; }
+      .cp-body,
+      .kh-shell,
+      .settings-body { margin: 8px; }
+    }
+
+    /* ── Login finish: Overview hero ──
+       The auth screen's brand side (#auth-overlay .auth-aside) as the top of
+       Overview: warm dark panel, the logo's rings, a large clock and both
+       dates. Dark in both themes, like the login. */
+    .dash-hero {
+      --hero-ink: #f6efe4; --hero-ink-2: #b4a998; --hero-accent: #E0855D;
+      --hero-line: rgba(255,255,255,.12);
+      position: relative; overflow: hidden; isolation: isolate;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas: "greet today" "launch today" "stats stats";
+      gap: 20px 40px; margin-bottom: 36px;
+      padding: clamp(28px, 3.5vw, 48px);
+      border-radius: 18px; color: var(--hero-ink);
+      background:
+        radial-gradient(60% 110% at 88% 130%, rgba(201,100,66,.40), transparent 70%),
+        radial-gradient(50% 80% at 0% 0%, rgba(224,133,93,.14), transparent 70%),
+        linear-gradient(160deg, #1d1712 0%, #130f0b 100%);
+    }
+    .dash-rings {
+      position: absolute; z-index: -1; width: min(70%, 760px); aspect-ratio: 1;
+      inset-inline-end: -16%; top: 50%; translate: 0 -50%;
+      fill: none; stroke: rgba(232,154,114,.09); stroke-width: 1; pointer-events: none;
+    }
+    .dash-rings circle:nth-child(2) { stroke: rgba(232,154,114,.14); stroke-width: 1.5; }
+    .dash-hero .dash-greeting { grid-area: greet; align-self: end; }
+    .dash-hero .dash-greeting h1 {
+      font-size: 34px; font-weight: 700; line-height: 1.25; letter-spacing: -.6px;
+      background: none; color: var(--hero-ink);
+    }
+    html[dir="rtl"] .dash-hero .dash-greeting h1 { letter-spacing: 0; }
+    .dash-hero .dash-greeting p { margin-top: 8px; font-size: 17px; font-weight: 600; color: var(--hero-ink); }
+    .dash-hero .dash-launchpad { grid-area: launch; justify-self: start; align-self: start; gap: 10px; }
+    .dash-hero .dash-stats { grid-area: stats; grid-column: auto; gap: 12px; }
+    .dash-today { grid-area: today; align-self: center; text-align: end; font-variant-numeric: tabular-nums; user-select: none; }
+    .dash-clock { display: flex; align-items: baseline; justify-content: flex-end; gap: 10px; line-height: 1; }
+    .dash-time { font-size: clamp(56px, 6.5vw, 96px); font-weight: 200; letter-spacing: -2px; color: var(--hero-ink); }
+    .dash-period { font-size: 17px; font-weight: 600; color: var(--hero-accent); }
+    .dash-hijri { margin-top: 14px; font-size: 14px; color: var(--hero-ink-2); }
+
+    /* Buttons and chips on the dark panel. */
+    .dash-hero .dash-launch {
+      min-height: 44px; padding: 10px 18px; font-size: 14px; font-weight: 700;
+      border-color: var(--hero-line); background: rgba(255,255,255,.07); color: var(--hero-ink);
+    }
+    .dash-hero .dash-launch:hover { background: rgba(255,255,255,.13); border-color: rgba(255,255,255,.22); color: var(--hero-ink); }
+    .dash-hero .dash-launch.primary {
+      border-color: transparent; background: var(--primary); color: #fff;
+      box-shadow: 0 10px 24px -12px rgba(201,100,66,.9), inset 0 1px 0 rgba(255,255,255,.18);
+    }
+    .dash-hero .dash-launch.primary:hover { background: var(--primary-strong); }
+    .dash-hero .dash-launch .lic { width: 16px; height: 16px; }
+    .dash-hero .dash-chip { border-color: var(--hero-line); background: rgba(255,255,255,.06); color: var(--hero-ink); }
+    .dash-hero .dash-chip:hover { background: rgba(255,255,255,.1); border-color: color-mix(in srgb, var(--tl) 55%, transparent); }
+    .dash-hero .dash-chip-icon { background: color-mix(in srgb, var(--tl) 22%, transparent); }
+    .dash-hero .dash-chip.accent { --tl: var(--hero-accent); }
+    .dash-hero .dash-chip-label,
+    .dash-hero .dash-chip-value small,
+    .dash-hero .dash-chip-foot { color: var(--hero-ink-2); }
+    .dash-hero .dash-chip-foot { border-color: var(--hero-line); }
+    @media (max-width: 900px) {
+      .dash-hero { grid-template-columns: minmax(0, 1fr); grid-template-areas: "greet" "today" "launch" "stats"; }
+      .dash-today { text-align: start; }
+      .dash-clock { justify-content: flex-start; }
+    }
+
+    /* ── Login finish: page headers ──
+       Big title over a muted subtitle (.page-heading > .page-title + .page-sub),
+       sitting on the page colour instead of a separate bar — the login's
+       "heading / sub" pair. */
+    .page-header {
+      min-height: 92px; padding: 20px 36px; gap: 14px;
+      background: var(--surface-0);
+      border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+      backdrop-filter: none; box-shadow: none;
+    }
+    .page-heading { display: flex; flex-direction: column; gap: 3px; min-width: 0; margin-inline-end: 16px; }
+    .page-heading .page-title {
+      margin: 0; padding: 0; min-width: 0;
+      font-size: 24px; font-weight: 700; line-height: 1.25; letter-spacing: -.3px;
+    }
+    html[dir="rtl"] .page-heading .page-title { letter-spacing: 0; }
+    .page-sub {
+      font-size: 13.5px; font-weight: 400; line-height: 1.5; color: var(--muted);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    @media (max-width: 1100px) {
+      .page-header { min-height: 72px; padding: 14px 24px; }
+      .page-heading .page-title { font-size: 20px; }
+      .page-sub { display: none; }
+    }
+
+    /* ── Login finish: whitespace ── */
+    .an-scroll { padding: 40px 48px 72px; }
+    .an-section { margin-top: 44px; }
+    .an-main > .an-section:first-child { margin-top: 8px; }
+    .an-kpis { gap: 16px; margin-bottom: 24px; }
+    .an-grid { gap: 24px; margin-bottom: 24px; }
+    .an-card { padding: 22px 24px 24px; }
+    .cp-body,
+    .kh-shell,
+    .settings-body { margin: 24px 36px 36px; }
+    @media (max-width: 1100px) {
+      .an-scroll { padding: 28px 24px 56px; }
+      .cp-body,
+      .kh-shell,
+      .settings-body { margin: 16px 20px 20px; }
+    }
+
+    /* ── Login finish: Overview polish ──
+       The hero already greets, so Overview's header keeps just its title.
+       A soft hairline separates greeting from clock (the login's divider
+       between its two halves), and the rings drift toward the greeting so the
+       clock reads cleanly on plain dark. */
+    #an-topbar .page-sub { display: none; }
+    .dash-today { position: relative; padding-inline-start: 40px; }
+    .dash-today::before {
+      content: ''; position: absolute; inset-block: -8px; inset-inline-start: 0; width: 1px;
+      background: linear-gradient(to bottom, transparent, rgba(255,255,255,.12) 25%, rgba(255,255,255,.12) 75%, transparent);
+    }
+    .dash-rings { inset-inline-end: auto; inset-inline-start: -14%; width: min(62%, 680px); }
+    .dash-hero .dash-greeting h1 { font-size: 36px; }
+    .dash-hero .dash-chip { padding-block: 8px; }
+    @media (max-width: 900px) {
+      .dash-today { padding-inline-start: 0; }
+      .dash-today::before { display: none; }
+    }
+
+    /* ── Login finish: tuning pass ──
+       Hero a little shorter and quieter, headers a notch more compact,
+       page padding pulled back from the first "roomier" pass. */
+    .dash-hero { gap: 16px 40px; margin-bottom: 32px; padding: clamp(24px, 3vw, 40px) clamp(28px, 3.5vw, 44px); }
+    .dash-time { font-size: clamp(52px, 5.6vw, 84px); }
+    .dash-rings { stroke: rgba(232,154,114,.07); }
+    .dash-rings circle:nth-child(2) { stroke: rgba(232,154,114,.11); }
+    .dash-hero .dash-greeting p { font-size: 16px; }
+
+    .page-header { min-height: 80px; padding: 16px 32px; }
+    .page-heading .page-title { font-size: 22px; }
+    .page-heading .page-title .lic { width: 17px; height: 17px; padding: 4px; border-radius: 9px; }
+    .page-header .btn.primary { box-shadow: 0 6px 16px -10px color-mix(in srgb, var(--primary) 80%, transparent), inset 0 1px 0 rgba(255,255,255,.18); }
+
+    .an-scroll { padding: 32px 40px 64px; }
+    .an-section { margin-top: 36px; }
+    .cp-body,
+    .kh-shell,
+    .settings-body { margin: 20px 32px 32px; }
+    @media (max-width: 1100px) {
+      .page-header { min-height: 68px; padding: 12px 20px; }
+      .an-scroll { padding: 24px 20px 48px; }
+      .cp-body,
+      .kh-shell,
+      .settings-body { margin: 14px 16px 16px; }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       LOGIN SIGNATURE — the four moves that make the auth screen feel the way
+       it does, applied app-wide:
+         1. the sidebar is the login's brand side (warm gradient + rings);
+         2. pages sit on cream with a soft terracotta glow from the top;
+         3. cards lose their borders and float on a soft shadow;
+         4. headline numbers are big and thin, like the login clock.
+       ═══════════════════════════════════════════════════════════════════════ */
+
+    /* 1. Sidebar = login brand side. Rings are a background image (not an
+          element) so nothing in the sidebar gets clipped. */
+    #sidebar {
+      background:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 600' fill='none'%3E%3Cg stroke='%23e89a72' stroke-opacity='.10'%3E%3Ccircle cx='300' cy='300' r='120'/%3E%3Ccircle cx='300' cy='300' r='185' stroke-opacity='.15' stroke-width='1.5'/%3E%3Ccircle cx='300' cy='300' r='250'/%3E%3Ccircle cx='300' cy='300' r='295'/%3E%3C/g%3E%3C/svg%3E") no-repeat right -300px bottom -260px / 560px 560px,
+        radial-gradient(130% 38% at 90% 104%, rgba(201,100,66,.36), transparent 70%),
+        radial-gradient(110% 26% at 0% 0%, rgba(224,133,93,.13), transparent 70%),
+        linear-gradient(165deg, #1d1712 0%, #130f0b 100%);
+      border-inline-end: 0;
+      box-shadow: inset -1px 0 0 rgba(255,255,255,.05);
+    }
+    html[dir="rtl"] #sidebar {
+      background-position: left -300px bottom -260px, 10% 104%, 100% 0%, 0 0;
+      box-shadow: inset 1px 0 0 rgba(255,255,255,.05);
+    }
+
+    /* 2. Cream page with the login's top glow; headers sit on it, no bar. */
+    .app-module {
+      background:
+        radial-gradient(70% 340px at 50% 0%, color-mix(in srgb, var(--primary) 8%, transparent), transparent 72%),
+        var(--surface-0);
+    }
+    .page-header { background: transparent; border-bottom-color: transparent; }
+
+    /* 3. Borderless, softly floating cards. */
+    .an-card, .an-tile, .an-kpi, .dash-stat, .total-chip, .rmod-card, .pj-card,
+    .user-card, .client-overview-card, .cd-card, .cl-item-card, .pj-task-card {
+      border-color: transparent;
+      border-radius: 14px;
+      box-shadow: 0 1px 2px rgba(38,32,25,.04), 0 14px 34px -20px rgba(38,32,25,.22);
+      transition: box-shadow .2s ease, border-color .2s ease;
+    }
+    .an-card:hover, .an-tile:hover, .an-kpi:hover, .dash-stat:hover, .cd-card:hover,
+    .cl-item-card:hover, .pj-card:hover, .pj-task-card:hover {
+      border-color: transparent;
+      box-shadow: 0 1px 2px rgba(38,32,25,.05), 0 20px 40px -18px rgba(38,32,25,.30);
+    }
+    .cp-body, .kh-shell, .settings-body {
+      border-color: transparent; border-radius: 16px;
+      box-shadow: 0 1px 2px rgba(38,32,25,.04), 0 18px 44px -26px rgba(38,32,25,.25);
+    }
+    :root[data-theme="dark"] .an-card, :root[data-theme="dark"] .an-tile, :root[data-theme="dark"] .an-kpi,
+    :root[data-theme="dark"] .dash-stat, :root[data-theme="dark"] .total-chip, :root[data-theme="dark"] .rmod-card,
+    :root[data-theme="dark"] .pj-card, :root[data-theme="dark"] .user-card, :root[data-theme="dark"] .client-overview-card,
+    :root[data-theme="dark"] .cd-card, :root[data-theme="dark"] .cl-item-card, :root[data-theme="dark"] .pj-task-card,
+    :root[data-theme="dark"] .cp-body, :root[data-theme="dark"] .kh-shell, :root[data-theme="dark"] .settings-body {
+      border-color: rgba(255,255,255,.06);
+      box-shadow: 0 18px 40px -24px rgba(0,0,0,.8);
+    }
+
+    /* 4. Big thin numbers. */
+    .an-tile { padding: 18px 20px; gap: 14px; }
+    .an-tile-icon { width: 40px; height: 40px; border-radius: 12px; }
+    .an-tile-val { font-size: 30px; font-weight: 300; letter-spacing: -.6px; line-height: 1.1; }
+    .an-tile-val small { font-size: 13px; font-weight: 500; letter-spacing: 0; }
+    .an-tile-label { font-size: 13px; }
+    .an-kpi-val { font-size: 32px; font-weight: 300; letter-spacing: -.8px; }
+    html[dir="rtl"] .an-tile-val, html[dir="rtl"] .an-kpi-val { letter-spacing: 0; }
+    /* Dark theme: the hero's own dark would melt into the page — a faint edge keeps it a panel. */
+    :root[data-theme="dark"] .dash-hero { box-shadow: inset 0 0 0 1px rgba(255,255,255,.07), 0 24px 50px -30px rgba(0,0,0,.9); }

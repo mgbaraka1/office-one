@@ -252,7 +252,7 @@
 <!-- ══ ANALYTICS MODULE (home / overview) ══ -->
 <div id="module-analytics" class="app-module">
   <div id="an-topbar" class="page-header">
-    <span class="page-title"><span class="ti-ic" data-ic="layout-dashboard"></span>Overview</span>
+    <div class="page-heading"><span class="page-title"><span class="ti-ic" data-ic="layout-dashboard"></span>Overview</span><span class="page-sub">Your day at a glance</span></div>
     <div class="seg-ctl" id="an-period">
       <button class="seg-btn" data-period="week"  data-onclick="setAnPeriod('week')">This Week</button>
       <button class="seg-btn active" data-period="month" data-onclick="setAnPeriod('month')">This Month</button>
@@ -281,9 +281,20 @@
     <!-- ── Hero: greeting, the two ways to start, and period-independent
          "right now" chips (today, owed to Outsource, what needs attention). ── -->
     <div class="dash-hero">
+      <!-- The login screen's brand side, carried onto Overview: the logo's
+           rings behind, and today's clock with Gregorian and Hijri dates
+           (filled by renderDashToday in workspace.js; Intl localizes it). -->
+      <svg class="dash-rings" viewBox="0 0 600 600" focusable="false" aria-hidden="true">
+        <circle cx="300" cy="300" r="120"/><circle cx="300" cy="300" r="185"/>
+        <circle cx="300" cy="300" r="250"/><circle cx="300" cy="300" r="295"/>
+      </svg>
       <div class="dash-greeting">
         <h1 id="dash-hello">Welcome back</h1>
-        <p id="dash-date"></p>
+        <p id="dash-date" data-i18n-ignore></p>
+      </div>
+      <div class="dash-today" data-i18n-ignore>
+        <time class="dash-clock" id="dash-clock"><span class="dash-time" id="dash-time"></span><span class="dash-period" id="dash-period"></span></time>
+        <div class="dash-hijri" id="dash-hijri"></div>
       </div>
       <div class="dash-launchpad" aria-label="Start a workflow">
         <button class="dash-launch primary" data-onclick="startWorkLogEntry()" data-page-feature="timesheet"><span data-ic="clock"></span>Log Work</button>
@@ -382,7 +393,7 @@
 <!-- ══ REPORTS MODULE ══ -->
 <div id="module-reports" class="app-module">
   <div id="reports-topbar" class="page-header">
-    <span class="page-title"><span class="ti-ic" data-ic="file-text"></span>Reports</span>
+    <div class="page-heading"><span class="page-title"><span class="ti-ic" data-ic="file-text"></span>Reports</span><span class="page-sub">Generate polished work records</span></div>
   </div>
   <div class="rmod-scroll">
     <div class="rmod-intro">
@@ -469,7 +480,7 @@
 <div id="main">
   <!-- Top bar -->
   <div id="topbar" class="page-header">
-    <span class="page-title"><span class="ti-ic" data-ic="clock"></span>Timesheet</span>
+    <div class="page-heading"><span class="page-title"><span class="ti-ic" data-ic="clock"></span>Timesheet</span><span class="page-sub">Capture today’s work</span></div>
     <!-- The open day, with a step to the previous / next day. Clicking the
          date opens the month overview. -->
     <div class="ts-daynav" role="group" aria-label="Day">
@@ -724,7 +735,7 @@
 <!-- ══ SUBSCRIPTIONS MODULE ══ -->
 <div id="module-subscriptions" class="app-module">
   <div id="sub-topbar" class="page-header">
-    <span class="page-title"><span class="ti-ic" data-ic="credit-card"></span>Subscriptions</span>
+    <div class="page-heading"><span class="page-title"><span class="ti-ic" data-ic="credit-card"></span>Subscriptions</span><span class="page-sub">Costs, renewals and commitments</span></div>
     <div class="topbar-right">
       <input type="text" id="sub-filter" class="mod-search" placeholder="Search subscriptions…" data-oninput="applySubFilter()">
       <button class="btn" data-onclick="openSubSettings()" title="Settings"><span data-ic="settings"></span>Settings</button>
@@ -776,7 +787,7 @@
 <!-- ══ BROWSE MODULE (read-only slices of tasks + work_logs, by Company, System or Work Nature) ══ -->
 <div id="module-browse" class="app-module">
   <div class="page-header">
-    <span class="page-title"><span class="ti-ic" data-ic="compass"></span>Browse</span>
+    <div class="page-heading"><span class="page-title"><span class="ti-ic" data-ic="compass"></span>Browse</span><span class="page-sub">Explore work across every dimension</span></div>
     <div class="seg-ctl" id="browse-kind-ctl">
       <button class="seg-btn active" data-kind="companies" data-onclick="setBrowseKind('companies')"><span data-ic="building-2"></span>Companies</button>
       <button class="seg-btn" data-kind="systems" data-onclick="setBrowseKind('systems')"><span data-ic="folder"></span>Systems</button>
@@ -841,7 +852,7 @@
      can be edited — and reassigned to a different task — from here too. ══ -->
 <div id="module-all-tasks" class="app-module">
   <div class="page-header">
-    <span class="page-title"><span class="ti-ic" data-ic="list"></span>Client Tasks</span>
+    <div class="page-heading"><span class="page-title"><span class="ti-ic" data-ic="list"></span>Client Tasks</span><span class="page-sub">Plan, track and continue client work</span></div>
   </div>
   <div class="cp-records-panel" id="at-panel" style="width:100%"></div>
 </div>
@@ -853,7 +864,7 @@
      (a flat filterable list, the internal counterpart of Client Tasks). ══ -->
 <div id="module-internal-tasks" class="app-module">
   <div class="page-header">
-    <span class="page-title"><span class="ti-ic" data-ic="building"></span>Internal Work<span class="page-title-org" id="iw-org-subtitle" hidden></span></span>
+    <div class="page-heading"><span class="page-title"><span class="ti-ic" data-ic="building"></span>Internal Work<span class="page-title-org" id="iw-org-subtitle" hidden></span></span><span class="page-sub">Your organisation’s own work</span></div>
     <div class="seg-ctl" id="iw-view-ctl">
       <button type="button" class="seg-btn active" data-view="department" data-onclick="setInternalWorkView('department')">By Department</button>
       <button type="button" class="seg-btn" data-view="all" data-onclick="setInternalWorkView('all')">All Internal</button>
@@ -876,7 +887,7 @@
   <div class="page-header">
     <!-- Shown only after a jump from a project or client page; returns there. -->
     <button type="button" class="btn kh-back-btn" id="kh-back-btn" hidden data-onclick="goBackFromKnowledge()"><span data-ic="arrow-left"></span><span>Back</span><span class="kh-back-name" id="kh-back-name" data-user-content></span></button>
-    <span class="page-title"><span class="ti-ic" data-ic="book-open"></span>Knowledge Hub</span>
+    <div class="page-heading"><span class="page-title"><span class="ti-ic" data-ic="book-open"></span>Knowledge Hub</span><span class="page-sub">Your searchable work memory</span></div>
     <div class="topbar-right">
       <label class="sr-only" for="kh-search">Search Knowledge Hub</label>
       <input type="search" id="kh-search" class="mod-search" placeholder="Search titles, clients, systems, documents, or tags…" data-oninput="renderKnowledgeList()">
@@ -1026,7 +1037,7 @@
 <!-- ══ COMPANY DOCUMENTS MODULE ══ -->
 <div id="module-companydocs" class="app-module">
   <div id="companydocs-topbar" class="page-header">
-    <span class="page-title"><span class="ti-ic" data-ic="folder-check"></span>Company Documents</span>
+    <div class="page-heading"><span class="page-title"><span class="ti-ic" data-ic="folder-check"></span>Company Documents</span><span class="page-sub">Company records and renewals</span></div>
     <div class="topbar-right">
       <input type="text" id="companydocs-filter" class="mod-search" placeholder="Search name, number or notes…" title="Search (Ctrl+F)" data-oninput="applyCompanyDocFilter()">
       <button class="btn" id="companydocs-zip-btn" type="button" title="Choose documents and download them as one ZIP" data-onclick="openCompanyDocZipModal()" hidden><span data-ic="download"></span>ZIP</button>
@@ -1119,7 +1130,7 @@
 <!-- ══ TEMPLATES MODULE ══ -->
 <div id="module-templates" class="app-module">
   <div id="templates-topbar" class="page-header">
-    <span class="page-title"><span class="ti-ic" data-ic="layout-template"></span>Templates</span>
+    <div class="page-heading"><span class="page-title"><span class="ti-ic" data-ic="layout-template"></span>Templates</span><span class="page-sub">Reusable files to start new work</span></div>
     <div class="topbar-right">
       <input type="text" id="templates-filter" class="mod-search" placeholder="Search templates…" data-oninput="applyTemplateFilter()">
       <button class="btn primary" data-onclick="openTemplateModal()"><span data-ic="plus"></span>New Template</button>
@@ -1180,7 +1191,7 @@
 <!-- ══ PROJECT & FINANCE MODULE (Offers & CRs) ══ -->
 <div id="module-pfm" class="app-module">
   <div id="pfm-topbar" class="page-header">
-    <span class="page-title"><span class="ti-ic" data-ic="briefcase"></span>Project &amp; Finance</span>
+    <div class="page-heading"><span class="page-title"><span class="ti-ic" data-ic="briefcase"></span>Project &amp; Finance</span><span class="page-sub">Offers, approvals and payments</span></div>
     <div class="topbar-right" id="pfm-topbar-actions">
       <input type="text" id="pfm-search" class="mod-search" placeholder="Search offers and CRs…" data-oninput="applyPfmSearch()">
       <button class="btn" data-onclick="openPfmNew('CR')"><span data-ic="plus"></span>New CR</button>
@@ -1239,7 +1250,7 @@
 <!-- ══ OUTSOURCE MODULE (external resources: hours & fees) ══ -->
 <div id="module-outsource" class="app-module">
   <div id="outs-topbar" class="page-header">
-    <span class="page-title"><span class="ti-ic" data-ic="users"></span>Outsource</span>
+    <div class="page-heading"><span class="page-title"><span class="ti-ic" data-ic="users"></span>Outsource</span><span class="page-sub">External resources, hours and statements</span></div>
     <div class="topbar-right" id="outs-topbar-actions">
       <input type="text" id="outs-search" class="mod-search" placeholder="Search resources…" data-oninput="applyOutsSearch()">
       <button type="button" class="btn" id="outs-inactive-btn" data-onclick="toggleOutsInactive()" aria-pressed="false"><span data-ic="eye"></span>Show inactive</button>
@@ -1588,7 +1599,7 @@
 <!-- ══ CLIENTS MODULE ══ -->
 <div id="module-clients" class="app-module">
   <div id="clients-topbar" class="page-header">
-    <span class="page-title"><span class="ti-ic" data-ic="layers"></span>Clients</span>
+    <div class="page-heading"><span class="page-title"><span class="ti-ic" data-ic="layers"></span>Clients</span><span class="page-sub">Projects, access, infrastructure and systems</span></div>
   </div>
 
   <!-- List view: every active COMPANY lookup, as cards. The large search bar
@@ -2360,7 +2371,7 @@
 <!-- ══ SETTINGS MODULE (General + Lookups) ══ -->
 <div id="module-settings" class="app-module">
   <div id="settings-topbar" class="page-header">
-    <span class="page-title"><span class="ti-ic" data-ic="settings"></span>Settings</span>
+    <div class="page-heading"><span class="page-title"><span class="ti-ic" data-ic="settings"></span>Settings</span><span class="page-sub">Workspace behaviour and catalogs</span></div>
     <div class="topbar-right">
       <span class="settings-save-status" id="settings-save-status" role="status" aria-live="polite"></span>
       <button class="btn" id="settings-discard-btn" data-onclick="discardSettingsChanges()" hidden>Discard Changes</button>
