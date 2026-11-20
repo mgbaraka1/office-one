@@ -1470,6 +1470,35 @@ async function run() {
     throw new Error(`Exported Excel workbook is invalid or suspiciously small (${xlsxBytes.length} bytes)`);
   }
 
+  // Timesheet saves vs. switching day. An edit still waiting for its debounced
+  // save must land before the day changes, and a save still running when the
+  // day changes must not leave the old day's sessions as the delete baseline —
+  // the next edit on the new day used to delete them.
+  const tsRace = await evaluate(`(async () => {
+    const dayA = '2031-03-03', dayB = '2031-03-04';
+    const project = await window.api.createProject({ name: 'E2E timesheet race project' });
+    const task = await window.api.createTask({ name: 'E2E timesheet race task', status: 'IN_PROGRESS', company: '', system: '', source: '', projectId: project.id });
+    const logA = await window.api.addWorkLog(task.id, { date: dayA, description: 'race A', minutes: 10 });
+    const logB = await window.api.addWorkLog(task.id, { date: dayB, description: 'race B', minutes: 20 });
+    switchModule('timesheet');
+    await switchDay(dayA);
+    rows.find(r => r.eid === logA.id).minutes = 77;
+    setUnsaved();
+    await switchDay(dayB);                       // debounced save still pending
+    const pendingSaved = (await window.api.workLogsByDate(dayA)).find(l => l.id === logA.id)?.minutes === 77;
+    await switchDay(dayA);
+    rows.find(r => r.eid === logA.id).description = 'race A edited';
+    const inFlight = persistTimesheet();         // save running while the day changes
+    await switchDay(dayB);
+    rows.find(r => r.eid === logB.id).description = 'race B edited';
+    await persistTimesheet();
+    await inFlight;
+    const dayAAfter = await window.api.workLogsByDate(dayA);
+    return { pendingSaved, dayAKept: dayAAfter.some(l => l.id === logA.id && l.description === 'race A edited') };
+  })()`);
+  if (!tsRace.pendingSaved) throw new Error('A pending Timesheet edit was lost when switching day');
+  if (!tsRace.dayAKept) throw new Error("A save running across a day switch deleted the previous day's session");
+
   const screenshotPath = process.env.OFFICE_ONE_E2E_SCREENSHOT;
   if (screenshotPath) {
     await evaluate(`closePalette(); true`);
@@ -1520,6 +1549,7 @@ async function run() {
   console.log('PASS  Runtime accessibility invariants cover names, unique ids, language/direction, and live regions');
   console.log('PASS  Settings → Pages hides a page from the menu, Quick Find, client tabs and Settings catalogs, saves it per account, and Show all brings it back');
   console.log('PASS  Company Documents: the ZIP pop-up lists files only, Select all toggles, and Download saves just the ticked ones under their card names');
+  console.log('PASS  Timesheet: a pending edit is saved before switching day, and a save across a day switch keeps the old day\'s sessions');
   console.log(`PASS  report:exportPDF produces a real PDF file (${pdfBytes.length} bytes)`);
   console.log(`PASS  report:exportExcel produces a real XLSX workbook (${xlsxBytes.length} bytes)`);
   console.log(`PASS  Extracted renderer modules loaded (app v${result.version})`);

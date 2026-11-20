@@ -236,7 +236,7 @@ async function setClientArchived(companyId, isActive, { silent = false } = {}) {
 let _clientRenameTimer = null;
 function saveClientNamesDebounced(companyId) {
   clearTimeout(_clientRenameTimer);
-  _clientRenameTimer = setTimeout(() => saveClientNames(companyId), 300);
+  _clientRenameTimer = setTimeout(() => { _clientRenameTimer = null; saveClientNames(companyId); }, 300);
 }
 
 async function saveClientNames(companyId) {

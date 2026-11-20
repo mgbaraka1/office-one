@@ -417,11 +417,21 @@ async function flushPending() {
   tasks.push(window.api.saveUiState(uiState));
   if (knowledgeDraftCache) tasks.push(window.api.saveKnowledgeDraft(knowledgeDraftCache));
   if (activeDate) {
-    tasks.push(persistTimesheet());   // flush any pending granular work-log saves
+    // Flush any pending granular work-log saves. persistTimesheet() reports a
+    // failure by resolving false (it also toasts), so turn that into a rejection
+    // here — otherwise close/logout would go ahead and drop the edits.
+    tasks.push(persistTimesheet().then(ok => { if (!ok) throw new Error('Timesheet changes could not be saved'); }));
     tasks.push(window.api.setDayName(activeDate, document.getElementById('hName').value));
   }
-  if (subsLoaded)     tasks.push(saveSubscriptionsData());
-  tasks.push(flushPfmPending());
+  // Both report a failed save by resolving false (after their own toast);
+  // a rejection is what makes close/logout stop and offer Retry.
+  const mustSave = (promise, what) => promise.then(ok => { if (ok === false) throw new Error(what + ' could not be saved'); });
+  if (_clientRenameTimer && currentClient) {   // a client name typed in the last 300 ms
+    clearTimeout(_clientRenameTimer); _clientRenameTimer = null;
+    tasks.push(saveClientNames(currentClient.id));
+  }
+  if (subsLoaded)     tasks.push(mustSave(saveSubscriptionsData(), 'Subscriptions'));
+  tasks.push(mustSave(flushPfmPending(), 'Offer or CR changes'));
   const results = await Promise.allSettled(tasks);
   const failures = results.filter(r => r.status === 'rejected');
   if (failures.length) {
@@ -457,15 +467,23 @@ function confirmDiscardSettingsDraft() {
 let _closeFlowRunning = false;
 window.api.onBeforeClose(async () => {
   if (_closeFlowRunning) return;
+  // Not signed in (login/setup screen, or the app never booted): there is
+  // nothing to save, and every save channel is authed — flushing here used to
+  // put up a bogus "Some changes could not be saved: Not authenticated".
+  if (!_appBooted) { await window.api.flushComplete(); return; }
   _closeFlowRunning = true;
-  if (!confirmDiscardSettingsDraft()) { _closeFlowRunning = false; return; }
-  const proceed = await flushPendingWithRecovery('close', 'Close cancelled — your unsaved changes are still open.');
-  if (proceed) {
-    await window.api.flushComplete();
-    return;
+  try {
+    if (!confirmDiscardSettingsDraft()) return;
+    const proceed = await flushPendingWithRecovery('close', 'Close cancelled — your unsaved changes are still open.');
+    if (proceed) {
+      await window.api.flushComplete();
+      return;
+    }
+    await window.api.cancelClose();
+  } finally {
+    // Always reset, so an unexpected throw can't leave the window unclosable.
+    _closeFlowRunning = false;
   }
-  await window.api.cancelClose();
-  _closeFlowRunning = false;
 });
 
 // ── Init ──

@@ -141,6 +141,23 @@ try {
     projBJunctionRows.length === 1 && projBJunctionRows[0].company_id === targetCode.id, JSON.stringify(projBJunctionRows));
   record('Gate 4e: DB is foreign-key-clean after the merge', fkViolations.length === 0, `violations=${fkViolations.length}`);
 
+  // A SYSTEM duplicate referenced by a client server (client_servers.system_id)
+  // must merge cleanly — it used to be missing from the repoint list, so the
+  // source delete failed the FK check and the whole merge threw.
+  const rawSys = new DatabaseSync(dbFilePath);
+  const nowIso = new Date().toISOString();
+  const sysTarget = Number(rawSys.prepare("INSERT INTO lookup_codes(category, code, label, sort_order, is_active, created_at) VALUES('SYSTEM', 'MAINT_SYS_DUPE', 'Maint Sys Dupe', 2000, 1, ?)").run(nowIso).lastInsertRowid);
+  const sysSource = Number(rawSys.prepare("INSERT INTO lookup_codes(category, code, label, sort_order, is_active, created_at) VALUES('SYSTEM', 'MAINT_SYS_DUPE_2', 'MAINT SYS DUPE', 2001, 1, ?)").run(nowIso).lastInsertRowid);
+  const serverId = Number(rawSys.prepare('INSERT INTO client_servers(user_id, company_id, system_id, created_at, updated_at) VALUES(?, ?, ?, ?, ?)')
+    .run(userId, targetCode.id, sysSource, nowIso, nowIso).lastInsertRowid);
+  rawSys.close();
+  const sysMerge = db.mergeLookupDuplicate('SYSTEM', sysTarget, sysSource);
+  const rawSys2 = new DatabaseSync(dbFilePath);
+  const serverSystem = rawSys2.prepare('SELECT system_id FROM client_servers WHERE id = ?').get(serverId)?.system_id;
+  rawSys2.close();
+  record('Gate 4f: SYSTEM merge repoints client_servers.system_id onto the target',
+    sysMerge.ok === true && serverSystem === sysTarget, `merge=${JSON.stringify(sysMerge)} system_id=${serverSystem}`);
+
   const unsupported = db.mergeLookupDuplicate('TIME_TYPE', 1, 2);
   record('Gate 5: mergeLookupDuplicate rejects an unsupported category', unsupported.ok === false, JSON.stringify(unsupported));
 

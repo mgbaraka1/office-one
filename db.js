@@ -1682,8 +1682,38 @@ function purgeProjectFiles(userId, projectId) {
   if (!Number.isInteger(id) || id <= 0) return { ok: false };
   if (pendingProjectDeletes.get(id) !== userId) return { ok: false, error: 'Not authorized to purge this project' };
   pendingProjectDeletes.delete(id);
+  if (deletedIdReused('projects', id)) return { ok: true };
   try { fs.rmSync(projectDir(id), { recursive: true, force: true }); } catch { /* best effort */ }
   return { ok: true };
+}
+
+// SQLite gives the next insert the highest deleted rowid, so a record created
+// inside a delete's 5 s undo window can take the deleted one's id — and with
+// it, its file folder. Purge and undo check this, or they would delete or move
+// the NEW record's files. `table` is an internal constant, never user input.
+function deletedIdReused(table, id) {
+  return !!db.prepare(`SELECT 1 FROM ${table} WHERE id = ?`).get(Number(id));
+}
+// Undo of a hard delete re-creates the row under a new id and moves its files
+// across: the whole folder normally, but only the deleted record's own files
+// (`relFiles`, relative to the folder) when another record now owns the old id.
+function moveDeletedRecordFiles(oldDir, newDir, oldIdInUse, relFiles) {
+  if (path.resolve(oldDir) === path.resolve(newDir) || !fs.existsSync(oldDir)) return;
+  try {
+    if (!oldIdInUse) {
+      fs.mkdirSync(path.dirname(newDir), { recursive: true });
+      fs.rmSync(newDir, { recursive: true, force: true }); // the freshly re-created record has no files
+      fs.renameSync(oldDir, newDir);
+      return;
+    }
+    for (const rel of relFiles) {
+      const from = path.join(oldDir, rel);
+      if (!path.basename(rel) || !fs.existsSync(from)) continue;
+      const to = path.join(newDir, rel);
+      fs.mkdirSync(path.dirname(to), { recursive: true });
+      fs.renameSync(from, to);
+    }
+  } catch { /* best effort */ }
 }
 
 // Undo a delete: the project was re-created under a NEW id, so move its file
@@ -1694,20 +1724,11 @@ function restoreProjectFiles(userId, oldProjectId, newProjectId) {
   const oldId = Number(oldProjectId);
   if (pendingProjectDeletes.get(oldId) !== userId) return { ok: false, error: 'Not authorized to restore this project' };
   pendingProjectDeletes.delete(oldId);
-  const oldDir = projectDir(oldId);
-  const newDir = projectDir(Number(newProjectId));
-  // SQLite reuses the highest deleted rowid, so undoing the delete of the newest
-  // project re-creates it under the SAME id — the folder is already in place and
-  // must NOT be moved/cleared. Only relocate when the id actually changed.
-  if (path.resolve(oldDir) !== path.resolve(newDir)) {
-    try {
-      if (fs.existsSync(oldDir)) {
-        fs.mkdirSync(path.dirname(newDir), { recursive: true });
-        fs.rmSync(newDir, { recursive: true, force: true }); // freshly created project has no files
-        fs.renameSync(oldDir, newDir);
-      }
-    } catch { /* best effort */ }
-  }
+  // Undoing the delete of the newest project can re-create it under the SAME
+  // id — then the folder is already in place. If another project took the old
+  // id meanwhile, its folder is left alone (the old files there are only
+  // migration 074's recovery copies).
+  moveDeletedRecordFiles(projectDir(oldId), projectDir(Number(newProjectId)), deletedIdReused('projects', oldId), []);
   return { ok: true };
 }
 
@@ -1936,6 +1957,7 @@ function purgeCompanyDocumentFiles(userId, id) {
   if (!Number.isInteger(n) || n <= 0) return { ok: false };
   if (pendingCompanyDocDeletes.get(n) !== userId) return { ok: false, error: 'Not authorized to purge this document' };
   pendingCompanyDocDeletes.delete(n);
+  if (deletedIdReused('company_documents', n)) return { ok: true };
   try { fs.rmSync(companyDocumentDir(n), { recursive: true, force: true }); } catch { /* best effort */ }
   return { ok: true };
 }
@@ -1951,20 +1973,10 @@ function restoreCompanyDocumentFile(userId, oldId, newId, fileMeta) {
   pendingCompanyDocDeletes.delete(oldIdNum);
   if (!fileMeta?.path) return { ok: true, document: getCompanyDocument(userId, newId) };
 
-  const oldDir = companyDocumentDir(oldIdNum);
-  const newDir = companyDocumentDir(Number(newId));
-  // SQLite reuses the highest deleted rowid, so undoing the delete of the newest
-  // card re-creates it under the SAME id — the folder is already in place and
-  // must NOT be moved/cleared. Only relocate when the id actually changed.
-  if (path.resolve(oldDir) !== path.resolve(newDir)) {
-    try {
-      if (fs.existsSync(oldDir)) {
-        fs.mkdirSync(path.dirname(newDir), { recursive: true });
-        fs.rmSync(newDir, { recursive: true, force: true }); // freshly created card has no files
-        fs.renameSync(oldDir, newDir);
-      }
-    } catch { /* fall through — re-stamp what metadata we can */ }
-  }
+  // Undoing the delete of the newest card can re-create it under the SAME id —
+  // then the folder is already in place (moveDeletedRecordFiles leaves it).
+  moveDeletedRecordFiles(companyDocumentDir(oldIdNum), companyDocumentDir(Number(newId)),
+    deletedIdReused('company_documents', oldIdNum), [path.basename(fileMeta.path)]);
 
   // Re-home the relative path onto the new id (same basename, new folder).
   const relPath = path.join('company_documents', String(Number(newId)), path.basename(fileMeta.path));
@@ -2273,11 +2285,9 @@ function restoreKnowledgeItem(userId, oldId, snapshot) {
     projectId: knowledgeRestorableProject(userId, snapshot),
   });
   pendingKnowledgeDeletes.delete(Number(oldId));
-  const oldDir = knowledgeItemDir(Number(oldId));
-  const newDir = knowledgeItemDir(restored.id);
-  if (path.resolve(oldDir) !== path.resolve(newDir) && fs.existsSync(oldDir)) {
-    try { fs.rmSync(newDir, { recursive: true, force: true }); fs.renameSync(oldDir, newDir); } catch { /* best effort */ }
-  }
+  moveDeletedRecordFiles(knowledgeItemDir(Number(oldId)), knowledgeItemDir(restored.id),
+    deletedIdReused('knowledge_items', Number(oldId)),
+    (snapshot?.documents || []).map(file => path.join('attachments', path.basename(String(file.path || '')))));
   const add = db.prepare(
     `INSERT INTO knowledge_attachments(user_id, item_id, file_path, original_name, file_size, mime_type, sort_order, uploaded_at)
      VALUES(?, ?, ?, ?, ?, ?, ?, ?)`
@@ -2408,6 +2418,7 @@ function purgeKnowledgeFiles(userId, itemId) {
   const n = Number(itemId);
   if (pendingKnowledgeDeletes.get(n) !== userId) return { ok: false, error: 'Not authorized to purge this item' };
   pendingKnowledgeDeletes.delete(n);
+  if (deletedIdReused('knowledge_items', n)) return { ok: true };
   try { fs.rmSync(knowledgeItemDir(n), { recursive: true, force: true }); } catch {}
   return { ok: true };
 }
@@ -4326,7 +4337,11 @@ function restoreFullBackup(bundleDir, options = {}) {
   // still be sitting under a legacy name (FULL_BACKUP_LEGACY_DIRS). Move those
   // aside too, or a stale tree would survive the restore and its files would
   // look like orphans afterwards.
-  const moveAside = [...targets, ...Object.values(FULL_BACKUP_LEGACY_DIRS)];
+  // The live database's -wal/-shm go aside too (restoreBackup() deletes them
+  // for the same reason): a WAL left beside the restored file belongs to the
+  // OLD database, and SQLite would replay it onto the new one on next open.
+  const moveAside = [...targets, 'cooperation-tools.db-wal', 'cooperation-tools.db-shm',
+    ...Object.values(FULL_BACKUP_LEGACY_DIRS)];
   try {
     for (const name of moveAside) {
       const live = path.join(userDataDir, name);
@@ -4400,7 +4415,7 @@ const LOOKUP_MERGE_TARGETS = {
     junctions: [['project_companies', 'company_id', 'project_id'], ['knowledge_item_companies', 'company_id', 'item_id']],
   },
   SYSTEM: {
-    simple: [['tasks', 'system_id']],
+    simple: [['tasks', 'system_id'], ['client_servers', 'system_id']],
     junctions: [['project_systems', 'system_id', 'project_id'], ['knowledge_item_systems', 'system_id', 'item_id']],
   },
   ACTIVITY_TYPE: {
@@ -4436,6 +4451,23 @@ function mergeLookupDuplicate(category, targetId, sourceId) {
         else db.prepare(`UPDATE ${table} SET ${column} = ? WHERE ${column} = ? AND ${otherColumn} = ?`).run(targetId, sourceId, other);
       });
     });
+    // These two reference lookup_codes ON DELETE CASCADE, so foreign_key_check
+    // below can't see what deleting the source would silently take with it.
+    // A company profile moves to the target when the target has none (the
+    // target's own profile wins otherwise). A private code's access list is
+    // carried over when the target is private too; a global target stays global.
+    if (category === 'COMPANY') {
+      db.prepare(
+        `UPDATE company_profiles SET company_id = ? WHERE company_id = ?
+           AND NOT EXISTS (SELECT 1 FROM company_profiles WHERE company_id = ?)`
+      ).run(targetId, sourceId, targetId);
+    }
+    if (db.prepare('SELECT 1 FROM lookup_code_user_access WHERE lookup_id = ? LIMIT 1').get(targetId)) {
+      db.prepare(
+        `INSERT OR IGNORE INTO lookup_code_user_access(lookup_id, user_id, created_at)
+         SELECT ?, user_id, created_at FROM lookup_code_user_access WHERE lookup_id = ?`
+      ).run(targetId, sourceId);
+    }
     db.prepare('DELETE FROM lookup_codes WHERE id = ?').run(sourceId);
     const violations = db.prepare('PRAGMA foreign_key_check').all();
     if (violations.length) throw new Error('foreign_key_check failed: ' + JSON.stringify(violations));

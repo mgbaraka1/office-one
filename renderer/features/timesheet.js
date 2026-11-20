@@ -17,6 +17,18 @@ function persistLookups() {
 async function switchDay(dateStr) {
   // Stop any running timer before leaving the day
   if (activeTimer.rowRef !== null) stopTimer();
+  // Save the day being left first (stopTimer() above may just have added its
+  // minutes). If that fails, stay on it: the edits are still on screen.
+  if (activeDate && activeDate !== dateStr) {
+    // A name typed in the last 300 ms belongs to the day being left; once
+    // activeDate moves on, the debounced save would write it onto the new day.
+    if (_dayNameTimer) {
+      clearTimeout(_dayNameTimer); _dayNameTimer = null;
+      window.api.setDayName(activeDate, document.getElementById('hName').value).catch(() => toast('Could not save the name'));
+    }
+    const saved = _tsPending ? await persistTimesheet() : await _tsPersistChain;
+    if (!saved && _tsPending) { document.getElementById('hDate').value = activeDate; return; }
+  }
 
   activeDate = dateStr;
 
@@ -676,6 +688,7 @@ async function refreshSavedDays() {
 // structural changes). Resets the delete baseline to what's actually stored.
 async function reloadTimesheet() {
   if (!activeDate) return;
+  await _tsPersistChain;   // let a running save land first, or the reload misses its rows
   const list = await window.api.workLogsByDate(activeDate);
   rows = list.map(l => Object.assign({}, l, { eid: l.id }));
   _tsBaseline = new Set(rows.map(r => r.eid));
@@ -686,20 +699,37 @@ async function reloadTimesheet() {
 // Debounced granular save of the current in-memory rows.
 let _saveTimer = null;
 let _tsBaseline = new Set();   // work-log ids present at the last load/persist
+let _tsPending = false;        // an edit is waiting for (or failed) its save
+// Saves run one at a time. Two overlapping runs used to both create the same
+// new row's session, and a run that finished after switchDay() reset the
+// delete baseline to the OLD day's ids — so the next edit deleted that day's
+// sessions. Each run resolves true when it saved, false when it failed.
+let _tsPersistChain = Promise.resolve(true);
 function setUnsaved() {
+  _tsPending = true;
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(persistTimesheet, 300);
+}
+function persistTimesheet() {
+  clearTimeout(_saveTimer);   // this run covers any debounced save still waiting
+  _tsPersistChain = _tsPersistChain.then(persistTimesheetNow, persistTimesheetNow);
+  return _tsPersistChain;
 }
 
 // Reconcile in-memory rows against the DB: upsert each (create task+log for a new
 // row, or update task + log for an existing one), then delete any work_log that
 // was removed on-screen (dropping its task too when that was its last session).
-async function persistTimesheet() {
-  if (!activeDate) return;
+async function persistTimesheetNow() {
+  if (!activeDate) return true;
+  _tsPending = false;
+  // Snapshot: switchDay()/reloadTimesheet() may replace `rows` and the baseline
+  // while this run awaits; it finishes against the day it started on.
+  const list = rows;
+  const baseline = _tsBaseline;
   const seen = new Set();
   const taskDone = new Set();
   try {
-    for (const row of rows) {
+    for (const row of list) {
       if (row.eid) {
         seen.add(row.eid);
         if (row.taskId && !taskDone.has(row.taskId)) {
@@ -728,19 +758,22 @@ async function persistTimesheet() {
         }
       }
     }
-    for (const eid of _tsBaseline) {
+    for (const eid of baseline) {
       if (!seen.has(eid)) {
         const res = await window.api.deleteWorkLog(eid);
         if (res && res.task && res.task.logCount === 0) await window.api.deleteTask(res.task.id);
       }
     }
-    _tsBaseline = seen;
+    if (rows === list) _tsBaseline = seen;
     flashSaved();
     await refreshSavedDays();
+    return true;
   } catch (err) {
+    if (rows === list) _tsPending = true;
     const el = document.getElementById('save-status');
     el.innerHTML = ic('triangle-alert') + ' Save failed'; el.className = 'save-error';
     toast('Could not save — your changes are still on screen. Retrying on next edit.');
+    return false;
   }
 }
 
@@ -1324,6 +1357,7 @@ let _dayNameTimer  = null;
 document.getElementById('hName').addEventListener('input', () => {
   clearTimeout(_dayNameTimer);
   _dayNameTimer = setTimeout(() => {
+    _dayNameTimer = null;
     if (activeDate) window.api.setDayName(activeDate, document.getElementById('hName').value);
   }, 300);
   clearTimeout(_nameSaveTimer);
@@ -1589,7 +1623,11 @@ async function exportReportPDF() {
 
 function reportPreviewToCSV() {
   const quote = value => {
-    const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+    let text = String(value ?? '').replace(/\s+/g, ' ').trim();
+    // Spreadsheet apps run a cell that starts with = + @ (or - before
+    // non-numbers) as a formula. Descriptions are often pasted from emails, so
+    // such a cell is written as text with a leading apostrophe instead.
+    if (/^[=+@]|^-(?![\d.,]*$)/.test(text)) text = "'" + text;
     return /[",\r\n]/.test(text) ? '"' + text.replaceAll('"', '""') + '"' : text;
   };
   return [...document.querySelectorAll('#print-frame .rpt-table')].map(table =>

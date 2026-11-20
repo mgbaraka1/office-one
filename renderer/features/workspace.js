@@ -792,7 +792,8 @@ async function saveSubscriptionsData() {
       subscriptions: subscriptions.map(s => Object.assign({}, s)),
       defaultCurrency: subPrefs.defaultCurrency,
     });
-  } catch { toast('Could not save subscriptions'); }
+    return true;
+  } catch { toast('Could not save subscriptions'); return false; }
 }
 
 function autoSaveSubscriptions() {

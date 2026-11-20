@@ -191,7 +191,9 @@ function createWindow() {
       defaultId: 0,
       cancelId: 1,
     });
-    if (choice === 0) win.reload(); else app.quit();
+    // The renderer is gone, so it can never answer app:beforeClose — without
+    // allowClose the close handler below would cancel the quit forever.
+    if (choice === 0) win.reload(); else { allowClose = true; app.quit(); }
   });
   win.on('unresponsive', () => {
     console.error('[renderer unresponsive]');

@@ -1273,23 +1273,24 @@ function savePfmDetailDebounced() {
 async function savePfmDetailFields() {
   const item = pfmCurrent;
   const read = id => document.getElementById(id)?.value;
-  if (!item || read('pfm-contact-name') == null) return;
+  if (!item || read('pfm-contact-name') == null) return true;
   const next = {
     contactName: read('pfm-contact-name').trim(), channel: read('pfm-channel'),
     channelRef: read('pfm-channel') ? read('pfm-channel-ref').trim() : '',
   };
   const changed = Object.fromEntries(Object.entries(next).filter(([k, v]) => v !== (item[k] || '')));
-  if (!Object.keys(changed).length) return;
+  if (!Object.keys(changed).length) return true;
   let res;
   try { res = await window.api.updatePfmItem(item.id, changed); }
-  catch { toast('Could not save the offer or CR'); return; }
-  if (!res?.ok) { toast(res?.error || 'Could not save the offer or CR'); return; }
+  catch { toast('Could not save the offer or CR'); return false; }
+  if (!res?.ok) { toast(res?.error || 'Could not save the offer or CR'); return false; }
   if (pfmCurrent && pfmCurrent.id === res.item.id) pfmCurrent = res.item;
   pfmLoaded = false;
+  return true;
 }
 // Called by flushPending() on close/logout, and when leaving the detail view.
 function flushPfmPending() {
-  if (!_pfmSaveTimer) return Promise.resolve();
+  if (!_pfmSaveTimer) return Promise.resolve(true);
   clearTimeout(_pfmSaveTimer);
   _pfmSaveTimer = null;
   return savePfmDetailFields();

@@ -260,6 +260,33 @@ try {
   record('Templates: delete clears its search row',
     !db.searchWorkspace(userId, 'Service Agreement').some(h => h.id === tpl.id), '');
 
+  // ── Id reuse inside the undo window ──
+  // SQLite hands the highest deleted id to the next insert. Delete the newest
+  // card, create another (it takes the same id) and give it a file: the lapsed
+  // undo's purge must not delete the new card's folder, and an undo must move
+  // only the deleted card's own file, not the new card's.
+  const reuseSrc = path.join(workDir, 'reuse.pdf');
+  fs.writeFileSync(reuseSrc, '%PDF-1.4 reuse smoke');
+  const oldCard = db.createCompanyDocument(userId, { name: 'Reuse old card' });
+  const oldUpload = db.saveCompanyDocumentFile(userId, oldCard.id, reuseSrc);
+  db.deleteCompanyDocument(userId, oldCard.id);
+  const newCard = db.createCompanyDocument(userId, { name: 'Reuse new card' });
+  const newUpload = db.saveCompanyDocumentFile(userId, newCard.id, reuseSrc);
+  const newFileAbs = path.join(workDir, newUpload.document.file.path);
+  const restoredCard = db.createCompanyDocument(userId, { name: 'Reuse old card' });
+  db.restoreCompanyDocumentFile(userId, oldCard.id, restoredCard.id, oldUpload.document.file);
+  const reuseRestored = db.listCompanyDocuments(userId).find(d => d.id === restoredCard.id);
+  record('Id reuse: the new card took the deleted card\'s id', newCard.id === oldCard.id, `old=${oldCard.id} new=${newCard.id}`);
+  record('Id reuse: undo moves only the deleted card\'s own file',
+    fs.existsSync(newFileAbs) && !!reuseRestored?.file?.exists, `newFile=${fs.existsSync(newFileAbs)} restored=${JSON.stringify(reuseRestored?.file)}`);
+  db.deleteCompanyDocument(userId, restoredCard.id);   // the newest card, so its id is handed out next
+  const again = db.createCompanyDocument(userId, { name: 'Reuse third card' });
+  const againUpload = db.saveCompanyDocumentFile(userId, again.id, reuseSrc);
+  const againAbs = path.join(workDir, againUpload.document.file.path);
+  db.purgeCompanyDocumentFiles(userId, restoredCard.id);
+  record('Id reuse: a lapsed undo\'s purge keeps the folder of the card that took the id',
+    again.id === restoredCard.id && fs.existsSync(againAbs), `id=${again.id} file=${fs.existsSync(againAbs)}`);
+
 } catch (err) {
   exitCode = 1;
   console.error('FATAL:', err);
