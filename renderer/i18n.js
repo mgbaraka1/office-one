@@ -969,6 +969,8 @@
     // Offers & CRs pipeline view.
     'Table': 'جدول', 'Pipeline': 'مسار المراحل', 'Show offers as': 'عرض العروض كـ',
     'Open value': 'القيمة المفتوحة', 'Nothing here': 'لا شيء هنا',
+    'Won value': 'القيمة المكتسبة', 'Needs a look': 'تحتاج متابعة',
+    '{n} in play': '{n} قيد المتابعة', '{n} won': '{n} مكتسب',
     '{n} without fees': '{n} بلا رسوم', 'No update for {n} days': 'بلا تحديث منذ {n} يومًا',
     'Drag to another stage to move it': 'اسحبه إلى مرحلة أخرى لنقله',
     'Change project': 'تغيير المشروع', 'Project changed': 'تم تغيير المشروع',

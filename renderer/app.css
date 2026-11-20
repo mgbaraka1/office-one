@@ -1196,6 +1196,31 @@
     .pfm-cell-note { display: block; max-width: 320px; margin-top: 2px; font-size: var(--fs-caption); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .pfm-status-stack { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding-block: 2px; }
     .pfm-status-stack .pfm-step-state { white-space: nowrap; }
+    /* Offers & CRs table: status pill and step state side by side (shorter
+       rows), and a leading stripe in the row's stage colour. Scoped to
+       #pfm-table — the outsourcing tables share .pfm-row. */
+    #pfm-table .pfm-status-stack { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding-block: 0; }
+    #pfm-table tbody td { padding-block: 9px; }
+    #pfm-table tbody tr.pfm-row td:first-child { border-inline-start: 4px solid var(--stage, var(--border)); }
+    #pfm-table .pfm-cell-title { max-width: 420px; }
+    #pfm-table .pfm-cell-note { max-width: 420px; }
+    .pfm-chip-label { display: inline-flex; align-items: center; gap: 6px; }
+    .pfm-chip-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--stage); flex: none; }
+    .pfm-chip.active .pfm-chip-dot { box-shadow: 0 0 0 2px color-mix(in srgb, #fff 70%, transparent); }
+    .pfm-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-3); }
+    .pfm-summary[hidden] { display: none; }
+    .pfm-sum-tile {
+      display: flex; flex-direction: column; gap: 2px; padding: var(--space-3) var(--space-4);
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      border-inline-start: 4px solid var(--sum-accent, var(--border));
+    }
+    .pfm-sum-tile.is-open { --sum-accent: var(--prog-text); }
+    .pfm-sum-tile.is-won  { --sum-accent: var(--done-text); }
+    .pfm-sum-tile.is-attn.has-stale { --sum-accent: var(--warn); }
+    .pfm-sum-label { font-size: var(--fs-caption); font-weight: 700; letter-spacing: var(--ls-caption); text-transform: uppercase; color: var(--muted); }
+    .pfm-sum-values { display: flex; flex-wrap: wrap; gap: 2px var(--space-3); }
+    .pfm-sum-value { font-size: 20px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+    .pfm-sum-sub { font-size: var(--fs-caption); color: var(--muted); }
     .pfm-fees { font-variant-numeric: tabular-nums; white-space: nowrap; }
     .pfm-muted { color: var(--muted); }
     .pfm-dot { color: var(--muted); }
@@ -2577,7 +2602,7 @@
     .cl-sys-wheel { --kw: var(--primary); }
     .kw-swatch.cl-sys-swatch { background: color-mix(in srgb, var(--primary) 60%, var(--muted)); }
     .kh-row { width: 100%; border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius); padding: 15px 16px; color: var(--text); display: flex; align-items: center; gap: 12px; transition: border-color .15s, transform .15s, box-shadow .15s; }
-    .kh-row-main { flex: 1; min-width: 0; display: grid; grid-template-columns: 42px minmax(0,1fr) auto; gap: 13px; border: 0; background: none; padding: 0; color: inherit; font: inherit; text-align: start; cursor: pointer; }
+    .kh-row-main { flex: 1; min-width: 0; display: grid; grid-template-columns: 42px minmax(0,1fr); gap: 13px; border: 0; background: none; padding: 0; color: inherit; font: inherit; text-align: start; cursor: pointer; }
     .kh-row-actions { flex-shrink: 0; }
     .kh-row.active { border-color: var(--primary); border-inline-start-width: 4px; }
     .kh-meta .kh-pill, .kh-meta .kh-version-pill { white-space: nowrap; }
@@ -2609,7 +2634,14 @@
     .kh-detail-links { margin: 6px 0 2px; }
     button.kh-pill { cursor: pointer; font-family: inherit; }
     button.kh-pill:hover { border-color: var(--primary); color: var(--primary); }
-    .kh-row-date { color: var(--muted); font-size: 11px; white-space: nowrap; }
+    .kh-row-date { color: var(--muted); font-size: 11px; white-space: nowrap; margin-inline-start: auto; padding-inline-start: 8px; }
+    /* A "System - Topic" title: the shared lead-in steps back. */
+    .kh-row-title-lead { color: var(--muted); font-weight: 600; }
+    .kh-pill.kh-pill-docs { gap: 4px; }
+    .kh-pill.kh-pill-docs .lic { width: 11px; height: 11px; }
+    /* Every row's open button the same width, single or with a menu. */
+    .kh-row-actions { align-self: center; }
+    .kh-row-actions > .btn, .kh-row-actions .kh-overflow > .btn { min-width: 112px; justify-content: center; }
     /* Shared with .empty-state (app-wide promotion of this pattern — see the
        EMPTY STATES comment near .cp-placeholder above) — Knowledge Hub's own
        markup keeps using its #kh-empty id (read by knowledge.js), unchanged. */
@@ -2779,10 +2811,11 @@
     .kh-linked .kh-row { min-height: 0; padding: 10px 12px; }
     .kh-linked .kh-row:hover { transform: none; }
     .kh-linked .kh-row-icon { width: 34px; height: 34px; border-radius: 9px; }
-    .kh-linked .kh-row-main { grid-template-columns: 34px minmax(0,1fr) auto; gap: 11px; }
+    .kh-linked .kh-row-main { grid-template-columns: 34px minmax(0,1fr); gap: 11px; }
     .kh-linked .kh-row-title { font-size: 13.5px; }
     .kh-linked .kh-meta { margin-top: 5px; }
     .kh-linked-tip { margin-top: 10px; color: var(--muted); font-size: 11.5px; }
+    .kh-linked-empty { display: flex; flex-wrap: wrap; gap: 4px 8px; color: var(--muted); font-size: 12.5px; }
     .kh-linked.kh-drop-over { box-shadow: inset 0 0 0 2px var(--primary); border-radius: var(--radius); }
     .kh-panel .kh-detail { max-width: none; }
     .kh-panel .kh-detail-head { flex-direction: column; gap: 12px; margin-bottom: 16px; }

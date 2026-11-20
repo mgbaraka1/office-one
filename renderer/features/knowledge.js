@@ -149,8 +149,14 @@ function fillKnowledgeLinkedSection(section) {
   add.onclick = () => openKnowledgeEditor(null, null, { companyIds, systemIds, projectId }); actions.appendChild(add);
   head.append(title, actions); section.appendChild(head);
   if (!knowledgeLoaded) { section.appendChild(pjMk('div', 'cp-records-empty', 'Loading…')); return; }
-  if (!items.length) section.appendChild(pjMk('div', 'cp-records-empty', linkable ? emptyText : 'Link a client or system to see its Knowledge Hub items here.'));
-  else if (!shown.length) section.appendChild(pjMk('div', 'cp-records-empty', 'No Knowledge Hub items match your search.'));
+  if (!items.length) {
+    // Nothing yet: one short line instead of a padded empty state plus the drop tip.
+    const empty = pjMk('div', 'kh-linked-empty');
+    if (linkable) empty.append(pjMk('span', null, emptyText), pjMk('span', null, 'Drop a file here, or click New item.'));
+    else empty.appendChild(pjMk('span', null, 'Link a client or system to see its Knowledge Hub items here.'));
+    section.appendChild(empty);
+    return;
+  } else if (!shown.length) section.appendChild(pjMk('div', 'cp-records-empty', 'No Knowledge Hub items match your search.'));
   else {
     const list = pjMk('div', 'kh-linked-list');
     shown.forEach(item => list.appendChild(buildKnowledgeRow(item, q, () => openKnowledgeInHub(item.id))));
@@ -659,7 +665,13 @@ function buildKnowledgeRow(item, q, onOpen) {
   const main = pjMk('button', 'kh-row-main'); main.type = 'button';
   const icon = pjMk('span', 'kh-row-icon'); icon.innerHTML = ic(isCodeNoteItem(item) ? 'code' : item.type === 'TROUBLESHOOTING' ? 'wrench' : item.type === 'INTEGRATION_GUIDE' ? 'plug' : 'book-open');
   const copy = pjMk('div'), title = pjMk('div', 'kh-row-title');
-  appendHighlightedText(title, item.title, q); copy.appendChild(title);
+  // "System - Topic" titles: the shared lead-in is dimmed so the part that
+  // tells the items apart reads first. The full text stays in the title.
+  const split = String(item.title || '').match(/^(.+?\s[-–—]\s)(.+)$/);
+  const titlePart = (cls, text) => { const s = pjMk('span', cls); s.dataset.userContent = ''; appendHighlightedText(s, text, q); title.appendChild(s); };
+  if (split) { titlePart('kh-row-title-lead', split[1]); titlePart('', split[2]); }
+  else titlePart('', item.title);
+  copy.appendChild(title);
   const subtitle = q ? knowledgeRowSubtitle(item, q) : item.summary;
   if (subtitle) { const summary = pjMk('div', 'kh-row-summary'); appendHighlightedText(summary, subtitle, q); copy.appendChild(summary); }
   const meta = pjMk('div', 'kh-meta'), families = knowledgeDocumentFamilies(item.documents);
@@ -669,9 +681,14 @@ function buildKnowledgeRow(item, q, onOpen) {
   (item.tags || []).forEach(tag => meta.appendChild(knowledgeTagPill(tag)));
   if (item.typeLabel || item.type) meta.appendChild(pjMk('span', 'kh-pill', lkLabel('KNOWLEDGE_TYPE', item.type) || item.typeLabel));
   if (families.length === 1) meta.appendChild(pjMk('span', 'kh-version-pill', formatKnowledgeVersion(families[0][0].version)));
-  else if (families.length > 1) meta.appendChild(pjMk('span', 'kh-pill', families.length + ' documents'));
+  else if (families.length > 1) {
+    const docs = pjMk('span', 'kh-pill kh-pill-docs'); docs.innerHTML = ic('file-text');
+    docs.appendChild(pjMk('span', '', families.length + ' documents')); meta.appendChild(docs);
+  }
+  // The date closes the tag row instead of floating beside the title.
+  meta.appendChild(pjMk('span', 'kh-row-date', 'Updated ' + new Date(item.updatedAt).toLocaleDateString()));
   copy.appendChild(meta);
-  main.append(icon, copy, pjMk('span', 'kh-row-date', 'Updated ' + new Date(item.updatedAt).toLocaleDateString()));
+  main.append(icon, copy);
   main.onclick = () => onOpen(main);
   row.appendChild(main);
   const open = buildKnowledgeRowOpen(families);

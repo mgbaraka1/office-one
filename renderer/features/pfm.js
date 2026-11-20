@@ -194,7 +194,50 @@ function renderPfmStatusChips(base) {
   const codes = pfmStatusOptions().map(o => o.code);
   // A row can sit on a status that was later soft-disabled; it still gets a chip.
   base.forEach(i => { if (i.status && !codes.includes(i.status)) codes.push(i.status); });
-  codes.forEach(code => mkChip(code, pfmUserText('span', '', pfmStatusName(code)), base.filter(i => i.status === code).length));
+  codes.forEach(code => {
+    // A dot in the stage's colour ties each chip to the row stripes below.
+    const label = pjMk('span', 'pfm-chip-label ' + pfmStageClass(code));
+    label.append(pjMk('i', 'pfm-chip-dot'), pfmUserText('span', '', pfmStatusName(code)));
+    mkChip(code, label, base.filter(i => i.status === code).length);
+  });
+}
+
+// Table view's money strip: what is still in play, what is won, and what
+// needs a look — over the rows currently shown.
+function renderPfmSummary(rows) {
+  let box = document.getElementById('pfm-summary');
+  if (!box) {
+    box = pjMk('div', 'pfm-summary');
+    box.id = 'pfm-summary';
+    const chips = document.getElementById('pfm-status-chips');
+    chips.parentNode.insertBefore(box, chips);
+  }
+  box.innerHTML = '';
+  box.hidden = pfmView === 'pipeline' || !rows.length;
+  if (box.hidden) return;
+  const t = (key, vars) => window.ctI18n?.t?.(key, vars) || key.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+  const tile = (cls, label, values, sub) => {
+    const el = pjMk('div', 'pfm-sum-tile ' + cls);
+    el.appendChild(pjMk('span', 'pfm-sum-label', label));
+    const vals = pjMk('div', 'pfm-sum-values');
+    if (!values.length) vals.appendChild(pjMk('span', 'pfm-sum-value pfm-muted', '—'));
+    values.forEach(v => vals.appendChild(pfmUserText('span', 'pfm-sum-value', pfmMoney(v.minor, v.currency))));
+    el.appendChild(vals);
+    if (sub) el.appendChild(pjMk('span', 'pfm-sum-sub', sub));
+    box.appendChild(el);
+  };
+  const open = rows.filter(i => !pfmIsDecided(i.status));
+  const won = rows.filter(i => pfmIsDecided(i.status) && i.status !== 'REJECTED');
+  tile('is-open', 'Open value', pfmTotalsByCurrency(open).list, t('{n} in play', { n: open.length }));
+  tile('is-won', 'Won value', pfmTotalsByCurrency(won).list, t('{n} won', { n: won.length }));
+  const stale = rows.filter(i => !PFM_FINAL.has(i.status) && !i.archived && pfmDaysSince(i.updatedAt) >= PFM_STALE_DAYS).length;
+  const unpriced = pfmTotalsByCurrency(rows).unpriced;
+  const attn = pjMk('div', 'pfm-sum-tile is-attn' + (stale ? ' has-stale' : ''));
+  attn.appendChild(pjMk('span', 'pfm-sum-label', 'Needs a look'));
+  attn.appendChild(pjMk('span', 'pfm-sum-value', String(stale)));
+  attn.appendChild(pjMk('span', 'pfm-sum-sub', t('No update for {n} days', { n: PFM_STALE_DAYS + '+' })
+    + (unpriced ? ' · ' + t('{n} without fees', { n: unpriced }) : '')));
+  box.appendChild(attn);
 }
 
 // Column header click: ascending → descending → back to the default order.
@@ -262,6 +305,7 @@ function renderPfmList() {
   const rows = pfmVisibleRows(base);
   renderPfmExportMenu(rows.length);
   renderPfmSortHeaders();
+  renderPfmSummary(rows);
 
   const table = document.getElementById('pfm-table');
   const body = document.getElementById('pfm-tbody');
@@ -507,7 +551,9 @@ function buildPfmPipeCard(i, maxByCurrency) {
 }
 
 function buildPfmRow(i) {
-  const tr = pjMk('tr', 'pfm-row' + (i.archived ? ' archived' : ''));
+  const step = pfmRowStep(i);
+  // The stage class colours the row's leading stripe.
+  const tr = pjMk('tr', 'pfm-row ' + pfmStageClass(step.status) + (i.archived ? ' archived' : ''));
   tr.tabIndex = 0;
   tr.dataset.pfmId = i.id;
   tr.addEventListener('click', () => openPfmDetail(i.id));
@@ -516,7 +562,6 @@ function buildPfmRow(i) {
 
   const ref = td(pfmUserText('span', 'pfm-ref', i.reference));
   if (i.archived) ref.appendChild(pjMk('span', 'pfm-archived-tag', 'Archived'));
-  const step = pfmRowStep(i);
   const titleCell = td(pfmUserText('span', 'pfm-cell-title', i.title));
   // The step's note, one line; full text on hover.
   if (step.note) {
@@ -530,7 +575,8 @@ function buildPfmRow(i) {
   statusStack.append(pfmStatusPill(step.status),
     pjMk('span', 'pfm-step-state ' + (step.done ? 'is-done' : 'is-pending'), step.done ? '✓ Done' : 'Not done yet'));
   td(statusStack);
-  td(pfmUserText('span', 'pfm-fees', pfmFees(i.currentVersion)));
+  const fees = pfmFees(i.currentVersion);
+  td(fees ? pfmUserText('span', 'pfm-fees', fees) : pjMk('span', 'pfm-fees pfm-muted', '—'));
   td(pfmUserText('span', '', step.person));
   td(pjMk('span', 'pfm-muted', pfmFmtDate(i.updatedAt)));
   return tr;
