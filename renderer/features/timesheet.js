@@ -1048,7 +1048,8 @@ async function submitModal() {
     status:      document.getElementById('f-status').value,
     minutes:     minRaw === '' ? '' : parseInt(minRaw, 10),   // Number when set, '' when blank
     projectId:   newTaskIsInternal ? null : (fProjectPicker ? fProjectPicker.getSelectedId() : null),
-    departmentId: newTaskIsInternal ? (Number(document.getElementById('f-department').value) || null) : null,
+    // The select's value is the department's label, not its id — resolve it.
+    departmentId: newTaskIsInternal ? (lkFind('DEPARTMENT', document.getElementById('f-department').value)?.id ?? null) : null,
     date:        dateVal,
   };
   rememberSessionDefaults(record.time, record.natural);
@@ -2360,8 +2361,8 @@ async function submitBacklogModal() {
 //    modal above. Never carries Company/System/
 //    Project; Department is required. opts:
 //   task         → the task being edited — omit to create
-//   departmentId → preset + lock the Department field to that department
-//                  (Internal Work's "New Task" for a selected department)
+//   departmentId → preset + lock the Department field to that department when
+//                  creating (Internal Work's "New Task"); ignored when editing
 //   onSaved      → called after a successful save to refresh the caller's view
 let internalTaskEditId = null;
 let _internalTaskCtx = { departmentId: null, onSaved: null };
@@ -2370,9 +2371,11 @@ let _itSourceOriginalIds = [];
 async function openInternalTaskModal(id = null, opts = {}) {
   internalTaskEditId = id;
   _internalTaskCtx = { departmentId: opts.departmentId ?? null, onSaved: opts.onSaved || null };
-  const lockedDept = _internalTaskCtx.departmentId != null;
   const task = opts.task || null;
   const isEdit = !!task;
+  // The preset department is locked only for a new task; editing can move a
+  // task to another department.
+  const lockedDept = _internalTaskCtx.departmentId != null && !isEdit;
   document.getElementById('internal-task-modal-title').textContent =
     isEdit ? 'Edit Internal Task' : 'Add Internal Task';
   document.querySelector('#internal-task-modal .modal-footer .btn.primary').textContent = isEdit ? 'Save Changes' : 'Add Internal Task';

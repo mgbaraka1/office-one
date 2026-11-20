@@ -58,6 +58,9 @@ const ICONS = {
   "copy": "<rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\" ry=\"2\" /><path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\" />",
   "upload": "<path d=\"M12 3v12\" /><path d=\"m17 8-5-5-5 5\" /><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\" />",
   "external-link": "<path d=\"M15 3h6v6\" /><path d=\"M10 14 21 3\" /><path d=\"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\" />",
+  "mail": "<rect width=\"20\" height=\"16\" x=\"2\" y=\"4\" rx=\"2\" /><path d=\"m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7\" />",
+  "phone": "<path d=\"M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z\" />",
+  "message-circle": "<path d=\"M7.9 20A9 9 0 1 0 4 16.1L2 22Z\" />",
   "plus": "<path d=\"M5 12h14\" /><path d=\"M12 5v14\" />",
   "timer-reset": "<path d=\"M10 2h4\" /><path d=\"M12 14v-4\" /><path d=\"M4 13a8 8 0 0 1 8-7 8 8 0 1 1-5.3 14L4 17.6\" /><path d=\"M9 17H4v5\" />",
   "compass": "<circle cx=\"12\" cy=\"12\" r=\"10\" /><polygon points=\"16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76\" />",
@@ -840,59 +843,60 @@ function isURL(s) {
 // touching either modal's markup/JS. `ref` is shown unless hasRef is false
 // (Jira is URL-only — the URL is a link's actual identifying value, no
 // separate ticket-key field); `url` only when hasUrl; `meta` are optional
-// per-type extras stored as JSON.
+// per-type extras stored as JSON. Every type except Jira and Email has a
+// Description (those two are already described by their URL / subject):
+// Meeting and Phone Call keep it in meta.description; a type added through
+// Settings → Lookups (no entry here) falls back to TASK_SOURCE_DEFAULT_DEF,
+// whose Description is the ref itself so it shows on badges and in tables.
+const TASK_SOURCE_DESCRIPTION_META = { key: 'description', label: 'Description', type: 'text' };
 const TASK_SOURCE_FIELD_DEFS = {
   JIRA:       { hasRef: false, hasUrl: true, urlLabel: 'URL', meta: [] },
   EMAIL:      { refLabel: 'Email Title / Subject', refPlaceholder: 'e.g. Renewal quote issue', hasUrl: false, meta: [] },
   MEETING:    { refLabel: 'Meeting Title',         refPlaceholder: 'e.g. Sprint planning',     hasUrl: false, meta: [
                  { key: 'date', label: 'Date', type: 'date' },
+                 TASK_SOURCE_DESCRIPTION_META,
                ] },
   PHONE_CALL: { refLabel: 'Caller Name',           refPlaceholder: 'e.g. John Smith',          hasUrl: false, meta: [
                  { key: 'date', label: 'Date', type: 'date' },
+                 TASK_SOURCE_DESCRIPTION_META,
+               ] },
+  // Lookup-added "Call" type: Description stays in ref (as before, so saved
+  // calls keep their text), plus a Date like Meeting.
+  CALL:       { refLabel: 'Description',           refPlaceholder: '',                         hasUrl: false, meta: [
+                 { key: 'date', label: 'Date', type: 'date' },
                ] },
 };
+const TASK_SOURCE_DEFAULT_DEF = { refLabel: 'Description', refPlaceholder: '', hasUrl: false, meta: [] };
 
 // Renders one source-entry's dynamic fields (ref/url/meta) into `fieldsEl`
 // based on the selected type code. `values` prefills from an existing entry,
 // or (on a type switch) carries over whatever the ref field already held.
+// Compact form: no visible labels — each field's label is its placeholder and
+// accessible name. The first field shares the line with the type picker; on
+// the line below, a date sits under the picker and other fields span the rest.
 function renderTaskSourceFields(fieldsEl, type, values = {}) {
-  const def = TASK_SOURCE_FIELD_DEFS[type];
   fieldsEl.innerHTML = '';
-  if (!def) return;
-
-  if (def.hasRef !== false) {
-    const refWrap = document.createElement('div');
-    refWrap.innerHTML = `<label>${esc(def.refLabel)}</label>`;
-    const refInput = document.createElement('input');
-    refInput.type = 'text'; refInput.className = 'ts-ref-input'; refInput.dir = 'auto';
-    refInput.placeholder = def.refPlaceholder || '';
-    refInput.value = values.ref || '';
-    refWrap.appendChild(refInput);
-    fieldsEl.appendChild(refWrap);
-  }
-
-  if (def.hasUrl) {
-    const urlWrap = document.createElement('div');
-    urlWrap.innerHTML = `<label>${esc(def.urlLabel || 'URL')}</label>`;
-    const urlInput = document.createElement('input');
-    urlInput.type = 'text'; urlInput.className = 'ts-url-input'; urlInput.dir = 'ltr';
-    urlInput.placeholder = 'https://...';
-    urlInput.value = values.url || '';
-    urlWrap.appendChild(urlInput);
-    fieldsEl.appendChild(urlWrap);
-  }
-
-  (def.meta || []).forEach(m => {
+  if (!type) return;
+  const def = TASK_SOURCE_FIELD_DEFS[type] || TASK_SOURCE_DEFAULT_DEF;
+  const addField = (cls, label, opts = {}) => {
     const wrap = document.createElement('div');
-    wrap.innerHTML = `<label>${esc(m.label)}</label>`;
+    wrap.className = 'ts-field' + (opts.extraCls ? ' ' + opts.extraCls : '');
     const inp = document.createElement('input');
-    inp.type = m.type || 'text';
-    inp.className = 'ts-meta-input'; inp.dir = 'auto';
-    inp.dataset.metaKey = m.key;
-    inp.value = (values.meta && values.meta[m.key]) || '';
+    inp.type = opts.type || 'text'; inp.className = cls; inp.dir = opts.dir || 'auto';
+    inp.placeholder = opts.placeholder || label;
+    inp.setAttribute('aria-label', label); inp.title = label;
+    inp.value = opts.value || '';
+    if (opts.metaKey) inp.dataset.metaKey = opts.metaKey;
     wrap.appendChild(inp);
     fieldsEl.appendChild(wrap);
-  });
+  };
+
+  if (def.hasRef !== false) addField('ts-ref-input', def.refLabel, { value: values.ref });
+  if (def.hasUrl) addField('ts-url-input', def.urlLabel || 'URL', { dir: 'ltr', placeholder: 'https://...', value: values.url });
+  (def.meta || []).forEach(m => addField('ts-meta-input', m.label, {
+    type: m.type, metaKey: m.key, value: values.meta && values.meta[m.key],
+    extraCls: m.type === 'date' ? 'ts-field-date' : '',
+  }));
 }
 
 // Appends one source-entry row to the list container `listId` (in either
@@ -930,8 +934,11 @@ function addTaskSourceRow(listId, source) {
   renderTaskSourceFields(fieldsEl, (source && source.type) || '', source ? { ref: source.ref, url: source.url, meta: source.meta } : {});
 
   typeSelect.addEventListener('change', () => {
-    const carry = { ref: fieldsEl.querySelector('.ts-ref-input')?.value || '' };
+    const description = fieldsEl.querySelector('.ts-meta-input[data-meta-key="description"]')?.value || '';
+    const date = fieldsEl.querySelector('.ts-meta-input[data-meta-key="date"]')?.value || '';
+    const carry = { ref: fieldsEl.querySelector('.ts-ref-input')?.value || '', meta: { description, date } };
     renderTaskSourceFields(fieldsEl, typeSelect.value, carry);
+    fieldsEl.querySelector('input')?.focus();
   });
 
   list.appendChild(row);
@@ -976,7 +983,8 @@ async function saveTaskSources(taskId, rows, originalIds = []) {
 // per entry) and, in single-badge form, by dense list views.
 function taskSourceBadge(s) {
   const typeLabel = lkLabel('TASK_SOURCE_TYPE', s.type) || s.type || 'Source';
-  const text = s.ref ? (typeLabel + ' · ' + s.ref) : typeLabel;
+  const label = s.ref || (s.meta && s.meta.description) || '';
+  const text = label ? (typeLabel + ' · ' + label) : typeLabel;
   if (s.url && isURL(s.url)) {
     const btn = document.createElement('button');
     btn.type = 'button'; btn.className = 'ts-badge source-link';
@@ -987,6 +995,54 @@ function taskSourceBadge(s) {
   const span = document.createElement('span');
   span.className = 'ts-badge'; span.textContent = text;
   return span;
+}
+
+// Task Detail's source list: one group per type (icon, label, count), each
+// entry on its own line. A link shows its short label ("HD-6259") and opens
+// externally; the date and description follow in muted text.
+const TASK_SOURCE_ICONS = { JIRA: 'clipboard-list', EMAIL: 'mail', MEETING: 'users', PHONE_CALL: 'phone', CALL: 'phone' };
+function taskSourceGroups(sources) {
+  const groups = new Map();
+  sources.forEach(s => {
+    const key = s.type || '';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(s);
+  });
+  const wrap = pjMk('div', 'td-src-groups');
+  groups.forEach((items, type) => {
+    const group = pjMk('div', 'td-src-group');
+    const head = pjMk('div', 'td-src-group-head');
+    head.innerHTML = ic(TASK_SOURCE_ICONS[type] || 'message-circle');
+    head.appendChild(pjMk('span', 'td-src-type', lkLabel('TASK_SOURCE_TYPE', type) || type || 'Source'));
+    head.appendChild(pjMk('span', 'td-count', String(items.length)));
+    group.appendChild(head);
+    const list = pjMk('ul', 'td-src-items');
+    items.forEach(s => {
+      const li = document.createElement('li');
+      li.dataset.userContent = '';
+      const hasLink = s.url && isURL(s.url);
+      const text = s.ref || (hasLink ? shortUrlLabel(s.url) : s.url) || '—';
+      let main;
+      if (hasLink) {
+        main = pjMk('button', 'td-src-text source-link');
+        main.type = 'button';
+        main.title = s.url;
+        main.appendChild(pjMk('span', null, text));
+        main.insertAdjacentHTML('beforeend', ic('external-link'));
+        main.addEventListener('click', () => window.api.openExternal(s.url));
+      } else {
+        main = pjMk('span', 'td-src-text', text);
+        main.title = text;
+      }
+      li.appendChild(main);
+      const extra = [s.meta?.date, s.meta?.description].filter(Boolean).join(' · ');
+      if (extra) li.appendChild(pjMk('span', 'td-src-extra', extra));
+      list.appendChild(li);
+    });
+    group.appendChild(list);
+    wrap.appendChild(group);
+  });
+  return wrap;
 }
 
 // Builds the "Source" table cell shared by Timesheet's flat/grouped views and
@@ -1013,7 +1069,7 @@ function buildSourceCell(row, opts = {}) {
   if (count > 0) {
     const typeLabel = lkLabel('TASK_SOURCE_TYPE', row.firstSourceType) || row.firstSourceType || 'Source';
     const text = (row.firstSourceRef ? (typeLabel + ' · ' + shown(row.firstSourceRef)) : typeLabel)
-      + (count > 1 ? ' +' + (count - 1) + ' more' : '');
+      + (count > 1 ? ' ' + (window.ctI18n?.t?.('+{n} more', { n: count - 1 }) || ('+' + (count - 1) + ' more')) : '');
     let node;
     if (row.firstSourceUrl && isURL(row.firstSourceUrl)) {
       node = document.createElement('button');

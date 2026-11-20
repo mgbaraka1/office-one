@@ -507,69 +507,67 @@ function renderTaskDetail(t) {
   statusWrap.appendChild(taskActions);
   body.appendChild(statusWrap);
 
-  // ── Metadata grid ──
-  const grid = pjMk('div', 'pj-profile-grid');
+  // ── Info strip: Company / System / Project (or Department) / Created ──
+  const info = pjMk('div', 'td-info');
   const field = (label, valueNode) => {
-    const f = pjMk('div');
+    const f = pjMk('div', 'td-info-cell');
     f.appendChild(pjMk('div', 'pj-field-label', label));
     const val = pjMk('div', 'pj-field-val');
     if (valueNode instanceof Node) val.appendChild(valueNode); else val.textContent = valueNode || '—';
     f.appendChild(val);
     return f;
   };
-  // Structured sources (migration 033) — one badge per entry, clickable when a
-  // url is present. Falls back to the legacy free-text source for a task never
-  // re-saved since before this feature (empty `sources`, non-empty `t.source`).
-  const taskSources = Array.isArray(t.sources) ? t.sources : [];
-  let sourcesNode = null;
-  if (taskSources.length > 0) {
-    sourcesNode = document.createElement('div');
-    sourcesNode.className = 'ts-list-compact';
-    taskSources.forEach(s => sourcesNode.appendChild(taskSourceBadge(s)));
-  } else if (t.source) {
-    sourcesNode = document.createElement('span');
-    sourcesNode.className = 'ts-badge';
-    sourcesNode.textContent = t.source;
+  info.appendChild(field('Company', companyDisplayName(t.company)));
+  info.appendChild(field('System', lkLabel('SYSTEM', t.system)));
+  if (t.kind === 'INTERNAL') {
+    const tag = t.departmentId != null ? departmentRowTag(t.departmentId) : null;
+    info.appendChild(field('Department', tag || t.department));
+  } else {
+    // A client task's project can be corrected in place (a task logged
+    // against the wrong project) — a small pencil beside the label.
+    const projectField = field('Project', t.projectId != null ? (projectRowTag(t.projectId) || projectNameById(t.projectId)) : null);
+    projectField.classList.add('td-info-project');
+    const label = projectField.querySelector('.pj-field-label');
+    const head = pjMk('div', 'td-info-head');
+    label.replaceWith(head);
+    head.appendChild(label);
+    const editProjectBtn = pjMk('button', 'row-btn td-info-edit');
+    editProjectBtn.type = 'button';
+    editProjectBtn.innerHTML = ic('pencil');
+    editProjectBtn.title = 'Change project';
+    editProjectBtn.addEventListener('click', () => renderTaskDetailProjectEditor(t, projectField));
+    head.appendChild(editProjectBtn);
+    info.appendChild(projectField);
   }
+  // Same YYYY-MM-DD form the sessions table below uses, in either language.
+  info.appendChild(field('Created', t.createdAt ? fmt(new Date(t.createdAt)) : null));
+  body.appendChild(info);
+
+  // ── Sources, grouped by type ──
+  // Structured sources (migration 033). Falls back to the legacy free-text
+  // source for a task never re-saved since before that feature.
+  const taskSources = Array.isArray(t.sources) ? t.sources : [];
   const sourcesField = pjMk('div', 'td-sources-field');
   const sourcesHead = pjMk('div', 'td-sources-head');
-  sourcesHead.appendChild(pjMk('div', 'pj-field-label', 'Sources'));
+  const sourcesLabel = pjMk('div', 'pj-field-label');
+  sourcesLabel.appendChild(pjMk('span', null, 'Sources'));
+  if (taskSources.length) sourcesLabel.appendChild(pjMk('span', 'td-count', String(taskSources.length)));
+  sourcesHead.appendChild(sourcesLabel);
   const editSourcesBtn = pjMk('button', 'td-merge-link');
   editSourcesBtn.type = 'button';
   editSourcesBtn.innerHTML = ic('pencil') + ' Edit sources';
   editSourcesBtn.addEventListener('click', () => renderTaskDetailSourcesEditor(t, sourcesField));
   sourcesHead.appendChild(editSourcesBtn);
   sourcesField.appendChild(sourcesHead);
-  const sourcesVal = pjMk('div', 'pj-field-val');
-  if (sourcesNode) sourcesVal.appendChild(sourcesNode);
-  else sourcesVal.appendChild(pjMk('span', 'ts-empty-hint', 'No sources added yet.'));
-  sourcesField.appendChild(sourcesVal);
-  grid.appendChild(field('Company', companyDisplayName(t.company)));
-  grid.appendChild(field('System', lkLabel('SYSTEM', t.system)));
-  if (t.kind === 'INTERNAL') {
-    const tag = t.departmentId != null ? departmentRowTag(t.departmentId) : null;
-    grid.appendChild(field('Department', tag || t.department));
-  } else {
-    // A client task's project can be corrected in place (a task logged
-    // against the wrong project); the head mirrors Sources' "Edit sources".
-    const projectField = field('Project', t.projectId != null ? (projectRowTag(t.projectId) || projectNameById(t.projectId)) : null);
-    const label = projectField.querySelector('.pj-field-label');
-    const head = pjMk('div', 'td-sources-head');
-    label.replaceWith(head);
-    head.appendChild(label);
-    const editProjectBtn = pjMk('button', 'td-merge-link');
-    editProjectBtn.type = 'button';
-    editProjectBtn.innerHTML = ic('pencil') + ' Change project';
-    editProjectBtn.addEventListener('click', () => renderTaskDetailProjectEditor(t, projectField));
-    head.appendChild(editProjectBtn);
-    grid.appendChild(projectField);
-  }
-  // Same YYYY-MM-DD form the sessions table below uses, in either language.
-  grid.appendChild(field('Created', t.createdAt ? fmt(new Date(t.createdAt)) : null));
-  grid.appendChild(sourcesField);
-  body.appendChild(grid);
+  if (taskSources.length > 0) sourcesField.appendChild(taskSourceGroups(taskSources));
+  else if (t.source) {
+    const legacy = pjMk('span', 'ts-badge', t.source);
+    legacy.dataset.userContent = '';
+    sourcesField.appendChild(legacy);
+  } else sourcesField.appendChild(pjMk('span', 'ts-empty-hint', 'No sources added yet.'));
+  body.appendChild(sourcesField);
 
-  // ── Analytics: total time, entry count, breakdown by time type ──
+  // ── Summary: session count and hours by time type, in one slim row ──
   const logs = Array.isArray(t.workLogs) ? t.workLogs : [];
   const byType = {};
   logs.forEach(w => {
@@ -577,16 +575,15 @@ function renderTaskDetail(t) {
     byType[key] = (byType[key] || 0) + (Number(w.minutes) || 0);
   });
 
-  const stats = pjMk('div', 'td-stats');
-  // Same card as the Timesheet's totals: the figure in hours, the minutes as a
-  // small line beneath. The unit is its own element so it translates and never
-  // ends up on the wrong side of the number in a right-to-left layout.
-  const chip = (label, value, minutes) => {
-    const c = pjMk('div', 'total-chip');
-    c.appendChild(pjMk('span', 'lbl', label));
-    c.appendChild(pjMk('span', 'stat-value', value));
+  const stats = pjMk('div', 'td-summary');
+  // The unit is its own element so it translates and never ends up on the
+  // wrong side of the number in a right-to-left layout.
+  const stat = (label, value, minutes) => {
+    const c = pjMk('div', 'td-summary-item');
+    c.appendChild(pjMk('span', 'td-summary-label', label));
+    c.appendChild(pjMk('span', 'td-summary-value', value));
     if (minutes != null) {
-      const meta = pjMk('span', 'summary-meta');
+      const meta = pjMk('span', 'td-summary-meta');
       meta.appendChild(pjMk('span', null, String(minutes)));
       meta.appendChild(document.createTextNode(' '));
       meta.appendChild(pjMk('span', null, 'minutes'));
@@ -595,19 +592,19 @@ function renderTaskDetail(t) {
     return c;
   };
   // Sessions first, then the hours split the way they are billed: work time and
-  // over time are always shown (a combined total would just repeat work time on
-  // most tasks). Any other time type appears only when the task has some.
-  stats.appendChild(chip('Sessions', String(t.logCount || logs.length)));
+  // over time are always shown. Any other time type appears only when the task
+  // has some.
+  stats.appendChild(stat('Sessions', String(t.logCount || logs.length)));
   const typeCodes = ['WORK_TIME', 'OVERTIME', ...Object.keys(byType).filter(c => c !== 'WORK_TIME' && c !== 'OVERTIME')];
   typeCodes.forEach(code => {
     const mins = byType[code] || 0;
-    const c = chip(lkLabel('TIME_TYPE', code) || code, (mins / 60).toFixed(2), mins);
-    if (code === 'OVERTIME' && mins > 0) c.classList.add('ot-chip', 'has-value');
+    const c = stat(lkLabel('TIME_TYPE', code) || code, (mins / 60).toFixed(2), mins);
+    if (code === 'OVERTIME' && mins > 0) c.classList.add('is-overtime');
     stats.appendChild(c);
   });
   body.appendChild(stats);
 
-  // ── Sessions (oldest first) ──
+  // ── Sessions (newest first) ──
   const sessHead = pjMk('div', 'pj-section-head td-section-head');
   const sessTitle = pjMk('div', 'pj-section-title', 'Sessions (' + logs.length + ')');
   sessHead.appendChild(sessTitle);
@@ -622,7 +619,7 @@ function renderTaskDetail(t) {
   sessHead.appendChild(sessActions);
   body.appendChild(sessHead);
 
-  const sorted = [...logs].sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.id - b.id));
+  const sorted = [...logs].sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id - a.id));
 
   if (sorted.length === 0) {
     body.appendChild(pjMk('div', 'td-sessions-empty', 'No sessions yet — this task hasn\'t been worked on.'));
@@ -634,7 +631,7 @@ function renderTaskDetail(t) {
       '<th class="tsg-col-date">Date</th><th class="tsg-col-time">Time</th>' +
       '<th class="tsg-col-natural">Natural</th><th>Description</th>' +
       '<th class="tsg-col-num">Minutes</th>' +
-      '<th class="tsg-col-actions"></th></tr></thead><tbody></tbody>';
+      '<th class="tsg-col-actions"></th></tr></thead><tbody></tbody><tfoot></tfoot>';
     const tb = table.querySelector('tbody');
     sorted.forEach(w => {
       const tr = document.createElement('tr');
@@ -680,6 +677,16 @@ function renderTaskDetail(t) {
       tr.appendChild(cellWrap(actsWrap, 'cell'));
       tb.appendChild(tr);
     });
+    // Total row: the minutes added up (hours are in the summary row above).
+    const totalMins = sorted.reduce((sum, w) => sum + (Number(w.minutes) || 0), 0);
+    const foot = document.createElement('tr');
+    foot.className = 'td-total-row';
+    const labelTd = cellWrap(pjMk('span', null, 'Total'), 'cell');
+    labelTd.colSpan = 4;
+    foot.appendChild(labelTd);
+    foot.appendChild(cellWrap(pjMk('span', null, String(totalMins)), 'cell cell-right'));
+    foot.appendChild(document.createElement('td'));
+    table.querySelector('tfoot').appendChild(foot);
     const card = pjMk('div', 'tsg-card td-sessions');
     card.appendChild(table);
     body.appendChild(card);
@@ -1117,21 +1124,44 @@ function renderProjectDetail(p) {
     byType[key] = (byType[key] || 0) + (Number(w.minutes) || 0);
   });
 
-  const timeStats = pjMk('div', 'td-stats');
-  const timeChip = (label, value) => {
-    const c = pjMk('div', 'total-chip');
-    c.appendChild(pjMk('span', 'lbl', label));
-    c.appendChild(pjMk('span', 'stat-value', value));
+  // Same slim summary row as the task popup: hours with the minutes beneath,
+  // the unit as its own element so it stays on the right side in RTL.
+  const timeStats = pjMk('div', 'td-summary');
+  const stat = (label, value, minutes) => {
+    const c = pjMk('div', 'td-summary-item');
+    c.appendChild(pjMk('span', 'td-summary-label', label));
+    c.appendChild(pjMk('span', 'td-summary-value', value));
+    if (minutes != null) {
+      const meta = pjMk('span', 'td-summary-meta');
+      meta.appendChild(pjMk('span', null, String(minutes)));
+      meta.appendChild(document.createTextNode(' '));
+      meta.appendChild(pjMk('span', null, 'minutes'));
+      c.appendChild(meta);
+    }
     return c;
   };
-  timeStats.appendChild(timeChip('Total Hours', (projTotalMin / 60).toFixed(2)));
-  timeStats.appendChild(timeChip('Total Minutes', String(projTotalMin)));
-  timeStats.appendChild(timeChip('Sessions', String(allLogs.length)));
-  timeStats.appendChild(timeChip('Tasks', String(projTasks.length)));
-  Object.keys(byType).forEach(code => {
-    const hDisp = (byType[code] / 60).toFixed(2);
-    timeStats.appendChild(timeChip(lkLabel('TIME_TYPE', code) || code, hDisp + ' ' + (hDisp === '1.00' ? 'hour' : 'hours')));
+  timeStats.appendChild(stat('Total Hours', (projTotalMin / 60).toFixed(2), projTotalMin));
+  timeStats.appendChild(stat('Sessions', String(allLogs.length)));
+  timeStats.appendChild(stat('Tasks', String(projTasks.length)));
+  // Work time and over time always; any other time type only when present.
+  const typeCodes = ['WORK_TIME', 'OVERTIME', ...Object.keys(byType).filter(c => c !== 'WORK_TIME' && c !== 'OVERTIME')];
+  typeCodes.forEach(code => {
+    const mins = byType[code] || 0;
+    const c = stat(lkLabel('TIME_TYPE', code) || code, (mins / 60).toFixed(2), mins);
+    if (code === 'OVERTIME' && mins > 0) c.classList.add('is-overtime');
+    timeStats.appendChild(c);
   });
+  // First → last session date, so the hours have a time frame.
+  const dates = allLogs.map(w => w.date).filter(Boolean).sort();
+  if (dates.length) {
+    const period = pjMk('div', 'td-summary-item pj-time-period');
+    period.appendChild(pjMk('span', 'td-summary-label', 'Period'));
+    const range = pjMk('span', 'td-summary-value');
+    range.dir = 'ltr';
+    range.textContent = dates[0] === dates[dates.length - 1] ? dates[0] : dates[0] + ' → ' + dates[dates.length - 1];
+    period.appendChild(range);
+    timeStats.appendChild(period);
+  }
   timeSec.appendChild(timeStats);
   if (!allLogs.length) timeSec.appendChild(pjMk('div', 'cp-records-empty', 'No sessions logged on this project yet.'));
   host.appendChild(timeSec);
@@ -1164,6 +1194,8 @@ function appendProjectLinkedSections(host, p) {
   tTitle.appendChild(document.createTextNode('Tasks (' + list.length + ')'));
   tHead.appendChild(tTitle);
   const tActions = pjMk('div', 'pj-section-actions');
+  const foldBtn = buildCollapseAllBtn(list, () => renderProjectDetail(p));
+  if (foldBtn) tActions.appendChild(foldBtn);
   const newBtn = pjMk('button', 'btn primary');
   newBtn.innerHTML = ic('plus') + ' New Task';
   newBtn.title = 'Create a new task already linked to this project';
@@ -1197,12 +1229,35 @@ function appendProjectLinkedSections(host, p) {
 // persisted), shared across Projects and Internal Tasks since both rebuild
 // their card list from scratch on every reload and would otherwise forget it.
 const collapsedTaskCards = new Set();
+
+// "Collapse all / Expand all" for a list of task cards. Only tasks with
+// sessions can collapse, so only those count; null when none have any.
+// Flips every one of them in collapsedTaskCards, then redraws the list.
+function buildCollapseAllBtn(tasks, rerender) {
+  const ids = tasks.filter(t => Array.isArray(t.workLogs) && t.workLogs.length > 0).map(t => t.id);
+  if (ids.length === 0) return null;
+  const allCollapsed = ids.every(id => collapsedTaskCards.has(id));
+  const btn = pjMk('button', 'btn');
+  btn.type = 'button';
+  btn.innerHTML = ic(allCollapsed ? 'maximize-2' : 'minimize-2') + ' ' + (allCollapsed ? 'Expand all' : 'Collapse all');
+  btn.title = allCollapsed ? 'Show the sessions of every task' : 'Hide the sessions of every task';
+  btn.addEventListener('click', () => {
+    ids.forEach(id => { if (allCollapsed) collapsedTaskCards.delete(id); else collapsedTaskCards.add(id); });
+    rerender();
+  });
+  return btn;
+}
+
 function buildLinkedTaskCard(t, handlers) {
   const card = pjMk('div', 'pj-task-card');
   const logs = Array.isArray(t.workLogs) ? t.workLogs : [];
 
   const head = pjMk('div', 'pj-task-head');
   const title = pjMk('div', 'pj-task-title', t.name || '(untitled task)');
+  // The title opens Task Detail, same as the eye button.
+  title.classList.add('clickable');
+  title.title = 'View task details';
+  title.addEventListener('click', () => openTaskDetail(t.id));
   head.appendChild(title);
   const statusPill = pjMk('span', 'status-badge ' + statusClass(t.status),
     lkLabel('ENTRY_STATUS', t.status) || '—');
@@ -1213,6 +1268,8 @@ function buildLinkedTaskCard(t, handlers) {
   // something to collapse. `sessionsTable` is assigned once it's built further
   // down; the click handler closes over it (it always runs after the table exists).
   let sessionsTable = null;
+  const isCollapsed = () => collapsedTaskCards.has(t.id);
+  const setCollapsed = (on) => { if (on) collapsedTaskCards.add(t.id); else collapsedTaskCards.delete(t.id); };
   if (logs.length > 0) {
     const collapseBtn = pjMk('button', 'row-btn');
     const setChevron = (expanded) => {
@@ -1220,10 +1277,10 @@ function buildLinkedTaskCard(t, handlers) {
       collapseBtn.querySelector('svg').style.transform = expanded ? 'rotate(180deg)' : '';
       collapseBtn.title = expanded ? 'Collapse sessions' : 'Expand sessions';
     };
-    setChevron(!collapsedTaskCards.has(t.id));
+    setChevron(!isCollapsed());
     collapseBtn.addEventListener('click', () => {
-      const collapsed = collapsedTaskCards.has(t.id);
-      if (collapsed) collapsedTaskCards.delete(t.id); else collapsedTaskCards.add(t.id);
+      const collapsed = isCollapsed();
+      setCollapsed(!collapsed);
       if (sessionsTable) sessionsTable.style.display = collapsed ? '' : 'none';
       setChevron(collapsed);
     });
@@ -1309,13 +1366,23 @@ function buildLinkedTaskCard(t, handlers) {
   const summary = pjMk('div', 'pj-task-meta',
     (metaBits ? metaBits + '  ·  ' : '') + logCount + ' session' + (logCount === 1 ? '' : 's') +
     (mins ? '  ·  ' + mins + ' min (' + (mins / 60).toFixed(2) + ' h)' : ''));
-  card.appendChild(summary);
+  // Last day worked — the one fact a collapsed card would otherwise hide.
+  const lastDate = logs.reduce((max, w) => (w.date && w.date > max ? w.date : max), '');
+  if (lastDate) {
+    summary.appendChild(document.createTextNode('  ·  '));
+    summary.appendChild(pjMk('span', 'pj-task-last',
+      window.ctI18n?.t?.('worked {date}', { date: lastDate }) || ('worked ' + lastDate)));
+  }
   // Milestone 9 — only shown where the card doesn't already imply its own
-  // container (see the All Tasks call site's showContainerTag flag).
+  // container (see the All Tasks call site's showContainerTag flag). It sits
+  // on the meta line, so a card is two lines, not three.
+  const metaRow = pjMk('div', 'pj-task-meta-row');
+  metaRow.appendChild(summary);
   if (handlers.showContainerTag) {
     const containerTag = projectRowTag(t.projectId) || departmentRowTag(t.departmentId);
-    if (containerTag) card.appendChild(containerTag);
+    if (containerTag) metaRow.appendChild(containerTag);
   }
+  card.appendChild(metaRow);
 
   if (logs.length === 0) {
     const empty = pjMk('div', 'pj-task-empty', 'No sessions yet');
@@ -1323,11 +1390,13 @@ function buildLinkedTaskCard(t, handlers) {
   } else {
     const table = document.createElement('table');
     sessionsTable = table;
-    table.style.cssText = 'width:100%;margin-top:8px' + (collapsedTaskCards.has(t.id) ? ';display:none' : '');
+    table.className = 'pj-sessions';
+    table.style.cssText = 'width:100%;margin-top:8px' + (isCollapsed() ? ';display:none' : '');
+    // The first four columns size to their content (see .pj-sessions in app.css);
+    // "What was done" takes the rest and is the only one that wraps.
     table.innerHTML = '<thead><tr>' +
-      '<th style="width:110px">Date</th><th style="width:100px">Time</th>' +
-      '<th style="width:100px">Natural</th>' +
-      '<th style="width:70px;text-align:right">Min</th><th>What was done</th>' +
+      '<th>Date</th><th>Time</th><th>Natural</th>' +
+      '<th style="text-align:right">Min</th><th class="pj-sessions-desc">What was done</th>' +
       '<th style="width:44px"></th></tr></thead><tbody></tbody>';
     const tb = table.querySelector('tbody');
     logs.forEach(w => {
@@ -1642,9 +1711,6 @@ async function doDeleteProjectTask(task) {
 let allTasksList = [];        // Task[] (with nested workLogs) from tasks:list — CLIENT tasks only
 let atProjectsIdx = [];       // for the Project filter dropdown (all statuses, not just ACTIVE)
 let atStatuses = new Set();   // active ENTRY_STATUS filter chips
-// Client Tasks is a client-only page since migration 053 (tasks:list
-// itself only ever returns CLIENT tasks) — '' (All) | 'project' | 'unassigned'.
-let atTypeFilter = '';
 // Milestone 11 — the IntersectionObserver an in-progress incremental render
 // created, if any. Every call to renderAllTasksCards() disconnects this
 // before building a new one, so a superseded render's observer (e.g. from
@@ -1668,7 +1734,7 @@ function persistAllTasksFilters() {
     system: document.getElementById('at-system')?.value || '',
     project: document.getElementById('at-project')?.value || '',
     statuses: Array.from(atStatuses),
-    type: atTypeFilter,
+    sort: atSort,
   };
   saveUiStateDebounced();
 }
@@ -1684,7 +1750,7 @@ async function initAllTasksModule() {
   const savedFilters = uiState.filters.allTasks;
   if (savedFilters) {
     atStatuses = new Set(savedFilters.statuses || []);
-    atTypeFilter = savedFilters.type || '';
+    if (savedFilters.sort && AT_COLUMNS.some(c => c.key && c.key === savedFilters.sort.key)) atSort = savedFilters.sort;
     atRestoreFilter = savedFilters;
   }
   renderAllTasksPanel();
@@ -1697,26 +1763,8 @@ function renderAllTasksPanel() {
   const host = document.getElementById('at-panel');
   host.innerHTML = '';
 
-  // A top-level type split (All / Project tasks / Unassigned), separate from
-  // the Project dropdown below (which narrows to one specific project; this
-  // narrows to a whole population). Client Tasks is client-only since
-  // No Internal segment here any more; this is the client-only page.
-  const typeCtl = document.createElement('div'); typeCtl.className = 'seg-ctl'; typeCtl.id = 'at-type-ctl';
-  typeCtl.style.marginBottom = 'var(--space-4)';
-  [['', 'All'], ['project', 'Project tasks'], ['unassigned', 'Unassigned']].forEach(([val, label]) => {
-    const btn = document.createElement('button');
-    btn.type = 'button'; btn.className = 'seg-btn' + (atTypeFilter === val ? ' active' : ''); btn.dataset.type = val;
-    btn.textContent = label;
-    btn.addEventListener('click', () => {
-      atTypeFilter = val;
-      typeCtl.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b.dataset.type === val));
-      renderAllTasksCards();
-      persistAllTasksFilters();
-    });
-    typeCtl.appendChild(btn);
-  });
-  host.appendChild(typeCtl);
-
+  // No All / Project tasks / Unassigned switch any more: every client task
+  // belongs to a project, so "Unassigned" would always be empty.
   const bar = document.createElement('div'); bar.className = 'cp-filter-bar';
   const mkField = (labelText, el) => {
     const f = document.createElement('div'); f.className = 'cp-filter-field';
@@ -1741,21 +1789,30 @@ function renderAllTasksPanel() {
     return sel;
   };
 
+  // Company / System changes narrow the Project list to related projects first.
+  const onScopeChange = () => { refreshAllTasksProjectOptions(); renderAllTasksCards(); };
   bar.appendChild(mkField('Company', mkSelect('at-company', 'All companies',
-    lkOptions('COMPANY').map(o => ({ value: o.label, label: companyDisplayName(o) })))));
+    lkOptions('COMPANY').map(o => ({ value: o.label, label: companyDisplayName(o) })), onScopeChange)));
   bar.appendChild(mkField('System', mkSelect('at-system', 'All systems',
-    lkOptions('SYSTEM').map(o => ({ value: o.label, label: lookupDisplayName(o) })))));
+    lkOptions('SYSTEM').map(o => ({ value: o.label, label: lookupDisplayName(o) })), onScopeChange)));
   bar.appendChild(mkField('Project', mkSelect('at-project', 'All projects',
-    [{ value: 'none', label: 'Unlinked' }, ...atProjectsIdx.map(p => ({ value: String(p.id), label: p.name }))])));
+    atProjectsIdx.map(p => ({ value: String(p.id), label: p.name })))));
+
+  const chipsField = document.createElement('div'); chipsField.className = 'cp-filter-field';
+  const chipsLabel = document.createElement('label'); chipsLabel.textContent = 'Status';
+  const chipsWrap = document.createElement('div'); chipsWrap.className = 'filter-chips'; chipsWrap.id = 'at-status-chips';
+  chipsField.appendChild(chipsLabel); chipsField.appendChild(chipsWrap);
+  bar.appendChild(chipsField);
 
   const clearBtn = document.createElement('button'); clearBtn.className = 'cp-filter-clear';
-  clearBtn.innerHTML = ic('x') + ' Clear filters';
+  clearBtn.type = 'button';
+  clearBtn.innerHTML = ic('x');
+  clearBtn.title = 'Clear filters';
   clearBtn.addEventListener('click', () => {
     atStatuses.clear();
-    atTypeFilter = '';
-    typeCtl.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b.dataset.type === ''));
     searchInp.value = '';
     ['at-company', 'at-system', 'at-project'].forEach(id => { document.getElementById(id).value = ''; });
+    refreshAllTasksProjectOptions();
     renderAllTasksStatusChips();
     renderAllTasksCards();
     persistAllTasksFilters();
@@ -1781,12 +1838,8 @@ function renderAllTasksPanel() {
     if (preset.system) document.getElementById('at-system').value = preset.system;
     if (preset.projectId != null) document.getElementById('at-project').value = String(preset.projectId);
   }
+  refreshAllTasksProjectOptions();
 
-  const chipsField = document.createElement('div'); chipsField.className = 'cp-filter-field';
-  const chipsLabel = document.createElement('label'); chipsLabel.textContent = 'Status';
-  const chipsWrap = document.createElement('div'); chipsWrap.className = 'filter-chips'; chipsWrap.id = 'at-status-chips';
-  chipsField.appendChild(chipsLabel); chipsField.appendChild(chipsWrap);
-  host.appendChild(chipsField);
   renderAllTasksStatusChips();
 
   const cardsHost = document.createElement('div'); cardsHost.id = 'at-cards';
@@ -1812,14 +1865,40 @@ function renderAllTasksStatusChips() {
   });
 }
 
+// A project is related to a company/system when it's linked to it on the
+// project profile, or when any of its tasks carries that company/system.
+function atProjectMatchesScope(p, company, system) {
+  const tasks = allTasksList.filter(t => String(t.projectId) === String(p.id));
+  if (company && !(p.companies || []).some(c => c.label === company)
+      && !tasks.some(t => t.company === company)) return false;
+  if (system && !(p.systems || []).some(s => s.label === system)
+      && !tasks.some(t => t.system === system)) return false;
+  return true;
+}
+
+// Rebuild the Project dropdown to only the projects related to the selected
+// Company / System. A selected project that drops out resets to All projects.
+function refreshAllTasksProjectOptions() {
+  const sel = document.getElementById('at-project');
+  if (!sel) return;
+  const company = document.getElementById('at-company').value;
+  const system = document.getElementById('at-system').value;
+  const current = sel.value;
+  const projects = atProjectsIdx.filter(p => atProjectMatchesScope(p, company, system));
+  while (sel.options.length > 1) sel.remove(1);
+  projects.forEach(p => {
+    const opt = document.createElement('option'); opt.dataset.userContent = '';
+    opt.value = String(p.id); opt.textContent = p.name;
+    sel.appendChild(opt);
+  });
+  sel.value = projects.some(p => String(p.id) === current) ? current : '';
+}
+
 function atTaskMatchesFilters(t, q, company, system, projectSel) {
-  if (atTypeFilter === 'project' && t.projectId == null) return false;
-  if (atTypeFilter === 'unassigned' && t.projectId != null) return false;
   if (atStatuses.size && !atStatuses.has(t.status)) return false;
   if (company && t.company !== company) return false;
   if (system && t.system !== system) return false;
-  if (projectSel === 'none') { if (t.projectId != null) return false; }
-  else if (projectSel && String(t.projectId) !== projectSel) return false;
+  if (projectSel && String(t.projectId) !== projectSel) return false;
   if (q) {
     const hay = [t.name, t.company, t.companyCode, t.companyNameEn, t.companyNameAr,
       t.system, t.source, t.allSourceText].filter(Boolean).join(' ').toLowerCase();
@@ -1859,44 +1938,158 @@ function renderAllTasksCards() {
     return;
   }
 
-  // Milestone 11 — incremental rendering: measured ~177ms to build all 322
-  // cards against the real production dataset (well above the ~100ms
-  // interaction-latency budget from this milestone's own micro-jank pass),
-  // so render the first AT_CHUNK_SIZE cards immediately and load the rest in
-  // chunks as an IntersectionObserver sentinel scrolls into view. Browse and
-  // Task Detail were measured too (63ms/26ms) and left as plain full renders —
-  // no premature optimization beyond what the measurement actually showed.
-  const AT_CHUNK_SIZE = 40;
-  const cardOpts = (t) => ({
-    onEdit: () => openAllTasksEditTask(t.id),
-    onDelete: () => doDeleteAllTasksTask(t),
-    onSessionSaved: reloadAllTasksModule,
-    onConvert: () => openConvertTaskModal(t, reloadAllTasksModule),
-    convertTitle: 'Convert to internal task',
-    // Shows the Project pill when the task has one (unlike Projects' own
-    // detail view, where the container is already implied by the page itself).
-    showContainerTag: true,
+  // One table row per task (title, status, client, project, sessions, hours,
+  // last worked). Clicking a row opens Task Detail, where the sessions live.
+  const rows = atSortTasks(filtered);
+  const wrap = pjMk('div', 'cp-table-wrap at-table-wrap');
+  const table = document.createElement('table'); table.className = 'at-table';
+  const thead = document.createElement('thead'); const hr = document.createElement('tr');
+  AT_COLUMNS.forEach(col => {
+    const th = document.createElement('th');
+    if (col.cls) th.className = col.cls;
+    if (!col.key) { hr.appendChild(th); return; }
+    const btn = pjMk('button', 'at-sort' + (atSort.key === col.key ? ' active' : ''));
+    btn.type = 'button';
+    btn.appendChild(pjMk('span', null, col.label));
+    if (atSort.key === col.key) btn.insertAdjacentHTML('beforeend', ic(atSort.dir === 'asc' ? 'chevron-up' : 'chevron-down'));
+    btn.addEventListener('click', () => {
+      atSort = atSort.key === col.key
+        ? { key: col.key, dir: atSort.dir === 'asc' ? 'desc' : 'asc' }
+        : { key: col.key, dir: col.firstDir || 'asc' };
+      renderAllTasksCards();
+      persistAllTasksFilters();
+    });
+    th.appendChild(btn);
+    hr.appendChild(th);
   });
+  thead.appendChild(hr); table.appendChild(thead);
+  const tbody = document.createElement('tbody'); table.appendChild(tbody);
+  wrap.appendChild(table);
+  host.appendChild(wrap);
 
+  // Milestone 11 — incremental rendering: building every row at once against
+  // the real dataset blew the ~100ms interaction budget, so render the first
+  // chunk now and the rest as a sentinel below the table scrolls into view.
+  const AT_CHUNK_SIZE = 80;
   const sentinel = document.createElement('div'); sentinel.className = 'at-load-sentinel';
   host.appendChild(sentinel);
   let renderedCount = 0;
   const renderChunk = () => {
-    filtered.slice(renderedCount, renderedCount + AT_CHUNK_SIZE)
-      .forEach(t => host.insertBefore(buildLinkedTaskCard(t, cardOpts(t)), sentinel));
-    renderedCount = Math.min(renderedCount + AT_CHUNK_SIZE, filtered.length);
-    if (renderedCount >= filtered.length) {
+    rows.slice(renderedCount, renderedCount + AT_CHUNK_SIZE)
+      .forEach(t => tbody.appendChild(buildAllTasksRow(t)));
+    renderedCount = Math.min(renderedCount + AT_CHUNK_SIZE, rows.length);
+    if (renderedCount >= rows.length) {
       if (atCardsObserver) { atCardsObserver.disconnect(); atCardsObserver = null; }
       sentinel.remove();
     }
   };
   renderChunk();
-  if (renderedCount < filtered.length) {
+  if (renderedCount < rows.length) {
     atCardsObserver = new IntersectionObserver((entries) => {
       if (entries[0].isIntersecting) renderChunk();
     }, { root: host.closest('.cp-records-panel'), rootMargin: '400px' });
     atCardsObserver.observe(sentinel);
   }
+}
+
+// Client Tasks table columns. `key` makes a header sortable; `firstDir` is the
+// direction a first click sorts in (numbers and dates start biggest/newest).
+const AT_COLUMNS = [
+  { key: 'name', label: 'Task', cls: 'at-col-task' },
+  { key: 'status', label: 'Status' },
+  { key: 'client', label: 'Client' },
+  { key: 'project', label: 'Project' },
+  { key: 'sessions', label: 'Sessions', cls: 'at-col-num', firstDir: 'desc' },
+  { key: 'hours', label: 'Hours', cls: 'at-col-num', firstDir: 'desc' },
+  { key: 'last', label: 'Last worked', firstDir: 'desc' },
+  { key: null, cls: 'at-col-acts' },
+];
+let atSort = { key: 'last', dir: 'desc' };   // newest work first
+
+function atLastDate(t) {
+  return (Array.isArray(t.workLogs) ? t.workLogs : [])
+    .reduce((max, w) => (w.date && w.date > max ? w.date : max), '');
+}
+function atSortTasks(list) {
+  const value = {
+    name: t => (t.name || '').toLowerCase(),
+    status: t => lkLabel('ENTRY_STATUS', t.status) || '',
+    client: t => companyDisplayName(t.company) || '',
+    project: t => projectNameById(t.projectId) || '',
+    sessions: t => t.logCount || 0,
+    hours: t => t.totalMinutes || 0,
+    last: t => atLastDate(t),
+  }[atSort.key] || (t => atLastDate(t));
+  const dir = atSort.dir === 'asc' ? 1 : -1;
+  return list.slice().sort((a, b) => {
+    const va = value(a), vb = value(b);
+    const c = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), rptLanguage());
+    return c * dir || (b.id - a.id);
+  });
+}
+
+// One Client Tasks row. Actions: mark done (with undo), edit, convert to
+// internal, and delete for a task with no sessions (inline confirm + undo).
+function buildAllTasksRow(t) {
+  const tr = document.createElement('tr');
+  tr.className = 'at-row';
+  tr.addEventListener('click', (e) => {
+    if (e.target.closest('button, a, .row-project-tag, .del-confirm')) return;
+    openTaskDetail(t.id);
+  });
+  const td = (child, cls) => {
+    const c = document.createElement('td');
+    if (cls) c.className = cls;
+    if (child instanceof Node) c.appendChild(child);
+    else c.textContent = child ?? '';
+    tr.appendChild(c);
+    return c;
+  };
+  const name = pjMk('span', 'at-task-name', t.name || '(untitled task)');
+  name.dataset.userContent = '';
+  name.title = t.name || '';
+  td(name, 'at-col-task');
+  td(pjMk('span', 'status-badge ' + statusClass(t.status), lkLabel('ENTRY_STATUS', t.status) || '—'));
+  const client = pjMk('span', 'at-muted', companyDisplayName(t.company) || '—');
+  client.dataset.userContent = '';
+  td(client, 'at-nowrap');
+  td(projectRowTag(t.projectId) || pjMk('span', 'at-muted', '—'), 'at-col-project');
+  td(String(t.logCount || 0), 'at-col-num');
+  const mins = t.totalMinutes || 0;
+  td(mins ? (mins / 60).toFixed(2) : '—', 'at-col-num');
+  td(atLastDate(t) || '—', 'at-nowrap at-muted');
+
+  const acts = pjMk('div', 'row-actions at-acts');
+  const restoreActs = () => {
+    acts.innerHTML = '';
+    const btn = (icon, title, onClick, cls) => {
+      const b = pjMk('button', 'row-btn' + (cls ? ' ' + cls : ''));
+      b.type = 'button'; b.innerHTML = ic(icon); b.title = title;
+      b.addEventListener('click', onClick);
+      acts.appendChild(b);
+    };
+    if (t.status !== 'DONE') btn('check', 'Mark done', () => atMarkDone(t), 'done-btn');
+    btn('pencil', 'Edit task', () => openAllTasksEditTask(t.id));
+    btn('arrow-right', 'Convert to internal task', () => openConvertTaskModal(t, reloadAllTasksModule));
+    if (!(t.logCount > 0)) {
+      btn('trash-2', 'Delete task', () => showDeleteConfirm(acts, () => doDeleteAllTasksTask(t), restoreActs), 'del');
+    }
+  };
+  restoreActs();
+  td(acts, 'at-col-acts');
+  return tr;
+}
+
+async function atMarkDone(t) {
+  const prevStatus = t.status;
+  try { await updateTaskInDomain(t, { status: 'DONE' }); }
+  catch { toast('Could not mark task done'); return; }
+  await reloadAllTasksModule();
+  showGenericUndo('Marked done', async () => {
+    try { await updateTaskInDomain(t, { status: prevStatus }); }
+    catch { toast('Could not undo'); return; }
+    await reloadAllTasksModule();
+  });
 }
 
 function openAllTasksEditTask(taskId) {
@@ -2026,6 +2219,8 @@ function renderDeptTasksPanel(dept) {
   tTitle.appendChild(document.createTextNode('Tasks (' + list.length + ')'));
   tHead.appendChild(tTitle);
   const tActions = pjMk('div', 'pj-section-actions');
+  const foldBtn = buildCollapseAllBtn(list, () => renderDeptTasksPanel(dept));
+  if (foldBtn) tActions.appendChild(foldBtn);
   const newBtn = pjMk('button', 'btn primary');
   newBtn.innerHTML = ic('plus') + ' New Task';
   newBtn.title = 'Create a new internal task already linked to this department';
@@ -2179,6 +2374,8 @@ function renderInternalWorkAllCards() {
   title.textContent = 'Internal Tasks (' + filtered.length +
     (filtered.length !== iwAllList.length ? ' of ' + iwAllList.length : '') + ')';
   head.appendChild(title);
+  const foldBtn = buildCollapseAllBtn(filtered, renderInternalWorkAllCards);
+  if (foldBtn) { foldBtn.style.marginInlineStart = 'auto'; head.appendChild(foldBtn); }
   host.appendChild(head);
 
   if (!filtered.length) {

@@ -570,6 +570,11 @@
     .status-progress .status-badge { background: var(--prog);   color: var(--prog-text); }
     .status-open .status-badge     { background: var(--open);   color: var(--open-text); }
     .status-blocked .status-badge  { background: var(--blocked); color: var(--blocked-text); }
+    /* Same colours when the status class sits on the badge itself (task cards). */
+    .status-badge.status-done     { background: var(--done);   color: var(--done-text); }
+    .status-badge.status-progress { background: var(--prog);   color: var(--prog-text); }
+    .status-badge.status-open     { background: var(--open);   color: var(--open-text); }
+    .status-badge.status-blocked  { background: var(--blocked); color: var(--blocked-text); }
 
     /* Renewal badges (Subscriptions) */
     .renew-badge {
@@ -1047,6 +1052,62 @@
     .pj-task-title { font-weight: 600; color: var(--text); }
     .pj-task-meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
     .pj-task-empty { color: var(--muted); font-size: 12px; font-style: italic; margin-top: 8px; }
+    /* sessions under a project task card: short columns never wrap */
+    .pj-sessions td .cell { padding: 10px 14px; }
+    .pj-sessions th:nth-child(-n+4),
+    .pj-sessions td:nth-child(-n+4) .cell { white-space: nowrap; }
+    .pj-sessions td:nth-child(1) .cell { font-variant-numeric: tabular-nums; }
+    .pj-sessions-desc { width: 100%; }
+    .pj-task-last { white-space: nowrap; }
+
+    /* Client Tasks filter row: labels on top, controls share one baseline;
+       the status chips sit inline instead of a full-width strip. */
+    #at-panel .cp-filter-bar { align-items: flex-end; gap: 10px; margin-bottom: 4px; }
+    #at-panel .filter-chips { align-self: flex-start; }
+    #at-panel .cp-filter-clear { width: 34px; height: 34px; }
+    /* Client Tasks table: one row per task, the whole row opens Task Detail. */
+    .at-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .at-table thead th {
+      position: sticky; top: 0; z-index: 1; background: var(--surface2);
+      text-align: start; padding: 0; white-space: nowrap; border-bottom: 1px solid var(--border);
+    }
+    .at-sort {
+      display: inline-flex; align-items: center; gap: 4px; width: 100%;
+      padding: 9px 12px; border: 0; background: none; cursor: pointer;
+      font-family: inherit; font-size: 12px; font-weight: 600; color: var(--muted); text-align: start;
+    }
+    .at-sort:hover, .at-sort.active { color: var(--text); }
+    .at-sort .lic { width: 13px; height: 13px; }
+    .at-table th.at-col-num .at-sort { justify-content: flex-end; }
+    .at-table tbody td { padding: 8px 12px; border-top: 1px solid var(--border); vertical-align: middle; }
+    .at-row { cursor: pointer; }
+    .at-row:hover td { background: color-mix(in srgb, var(--primary) 5%, transparent); }
+    .at-col-task { width: 100%; min-width: 240px; }
+    .at-task-name { font-weight: 600; color: var(--text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .at-row:hover .at-task-name { color: var(--primary); }
+    .at-col-num { text-align: end; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .at-nowrap { white-space: nowrap; }
+    .at-muted { color: var(--muted); }
+    /* The task column takes the spare width, so the project cell needs its own
+       floor or its pill shrinks to a two-letter stub; long names ellipsize
+       (the pill's tooltip has the full name). */
+    .at-col-project { min-width: 190px; max-width: 280px; }
+    .at-col-project .row-project-tag { margin-top: 0; align-items: center; }
+    .at-col-project .row-project-tag .lic { margin-top: 0; }
+    .at-col-project .row-tag-text { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px; }
+    .at-col-acts { width: 1%; white-space: nowrap; }
+    .at-acts { justify-content: flex-end; opacity: .35; transition: opacity .12s; }
+    .at-row:hover .at-acts, .at-acts:focus-within { opacity: 1; }
+    .at-table .status-badge { cursor: default; }
+    .at-table .status-badge:hover, .at-table .status-badge:active { opacity: 1; transform: none; }
+    /* Status chips the same height and type size as the selects beside them. */
+    #at-panel .filter-chip { font-family: inherit; font-size: 13px; padding: 5px 14px; }
+    /* Meta text and the project pill share one line. */
+    .pj-task-meta-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px; }
+    .pj-task-meta-row .pj-task-meta { margin-top: 0; }
+    .pj-task-meta-row .row-project-tag, .pj-task-meta-row .row-department-tag { margin-top: 0; }
+    .pj-task-title.clickable { cursor: pointer; }
+    .pj-task-title.clickable:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
 
     /* ══ COMPANY DOCUMENTS ══ */
     .cd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px; }
@@ -1710,12 +1771,23 @@
     .cint-subsvc-row input:first-child { flex: 0 0 30%; }
 
     /* ── Task Sources (structured, repeatable source list) ── */
-    .ts-row { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--space-3); margin-bottom: var(--space-2); background: var(--elevate); }
-    .ts-row-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-    .ts-row-head select { flex: 1; }
-    .ts-row-fields { display: flex; flex-wrap: wrap; gap: 8px; }
-    .ts-row-fields > div { flex: 1; min-width: 160px; }
-    .ts-row-fields label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+    /* One card per source. Line 1: [type] [title / URL] [remove]. Line 2: the
+       date sits under the type and any other field spans the rest, so extra
+       fields get the full card width instead of the narrow middle column. */
+    .ts-row {
+      display: grid; grid-template-columns: minmax(130px, 150px) minmax(0, 1fr) auto; gap: 8px;
+      align-items: center; margin-bottom: 8px; padding: 10px;
+      border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface);
+    }
+    .ts-row:last-child { margin-bottom: 0; }
+    .ts-row-head { display: contents; }
+    .ts-row-head select { grid-column: 1; grid-row: 1; width: 100%; min-width: 0; }
+    .ts-row-head .row-btn { grid-column: 3; grid-row: 1; }
+    .ts-row-fields { display: contents; }
+    .ts-row-fields > .ts-field { min-width: 0; }
+    .ts-row-fields > .ts-field:first-child { grid-column: 2; grid-row: 1; }
+    .ts-row-fields > .ts-field-date { grid-column: 1; }
+    .ts-row-fields > .ts-field:not(:first-child):not(.ts-field-date) { grid-column: 2 / -1; }
     .ts-row-fields input { width: 100%; }
     /* The row styles its own fields: in Task Detail it sits outside a
        .form-group, so nothing else would. */
@@ -1732,7 +1804,6 @@
     .ts-row .ts-row-fields input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
     .ts-row .ts-row-fields input::placeholder { color: var(--muted); opacity: .7; }
     .ts-row-head .row-btn:hover { background: color-mix(in srgb, var(--bad) 12%, transparent); border-color: color-mix(in srgb, var(--bad) 28%, transparent); color: var(--bad); }
-    .ts-row-fields label { font-weight: 600; }
     .ts-empty-hint { font-size: 12.5px; color: var(--muted); margin-bottom: 8px; }
     .ts-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary-strong); font-weight: 600; }
     .ts-badge-more { color: var(--muted); font-weight: 500; }
@@ -2069,26 +2140,79 @@
     #sub-settings-modal { width: 380px; }
     #project-modal { width: 520px; }
     #link-task-modal { width: 540px; }
-    #modal, #backlog-modal, #sub-modal,
+    #modal, #sub-modal,
     #client-vpn-modal,
     #client-server-modal, #client-internal-modal { width: 640px; max-width: 94vw; }
+    /* Task modals with a Sources list get extra room for the source cards. */
+    #backlog-modal, #internal-task-modal { width: 760px; max-width: 94vw; }
     #task-detail-modal { width: 960px; max-width: 94vw; max-height: 90vh; }
     #task-detail-overlay { z-index: 150; }
     /* One spacing step between the popup's blocks, a smaller one inside them. */
     #td-body { gap: var(--space-6); padding: var(--space-5) var(--space-7) var(--space-7); }
     #task-detail-modal .modal-header { padding-inline: var(--space-7); }
-    #td-body .pj-profile-grid { gap: var(--space-5) var(--space-6); }
     #td-body .pj-field-label { margin-bottom: var(--space-2); }
     #td-body .td-sources-head { margin-bottom: var(--space-2); }
-    #td-body .ts-list-compact { gap: var(--space-2); }
-    #td-body .ts-badge { padding: 4px 10px; }
-    .td-stats .total-chip { padding: var(--space-4) var(--space-5); gap: var(--space-1); }
+    /* Info strip: the task's fixed fields side by side in one bordered band. */
+    /* Cells draw their dividers as a 1px shadow on the end and bottom; the
+       container clips the ones on its outer edge, so a wrapped row stays tidy. */
+    .td-info {
+      display: flex; flex-wrap: wrap; overflow: hidden;
+      border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface2);
+    }
+    .td-info-cell { flex: 1 1 170px; padding: var(--space-2) var(--space-4); min-width: 0; box-shadow: 1px 1px 0 var(--border); }
+    /* The project chip is the widest value; giving its cell twice the share
+       keeps the chip on one line, so the strip stays one short row. */
+    .td-info-cell.td-info-project { flex: 2 1 260px; }
+    .td-info-project .pj-field-val > * { max-width: 100%; }
+    .td-info .row-project-tag, .td-info .row-department-tag { margin-top: 0; font-size: 13px; padding: 2px 8px; }
+    .td-info .row-project-tag .lic, .td-info .row-department-tag .lic { width: 13px; height: 13px; margin-top: 3px; }
+    #td-body .td-info .pj-field-label { margin-bottom: var(--space-1); }
+    .td-info-head { display: flex; align-items: center; gap: 6px; }
+    .td-info-head .pj-field-label { margin-bottom: 0 !important; }
+    .td-info-edit { width: 22px; height: 22px; }
+    .td-info-edit .lic { width: 12px; height: 12px; }
+    .td-count {
+      display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px;
+      padding: 0 5px; margin-inline-start: 6px; border-radius: 999px; box-sizing: border-box;
+      background: var(--surface2); border: 1px solid var(--border); color: var(--muted);
+      font-size: 11px; font-weight: 700; letter-spacing: 0; font-variant-numeric: tabular-nums;
+    }
+    /* Sources grouped by type, one entry per line. */
+    .td-src-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: start; gap: var(--space-3); }
+    .td-src-group { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--space-3) var(--space-4); min-width: 0; }
+    .td-src-group-head { display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm); font-weight: 700; color: var(--text); margin-bottom: var(--space-2); }
+    .td-src-group-head .lic { width: 15px; height: 15px; color: var(--primary); }
+    .td-src-group-head .td-count { margin-inline-start: 0; }
+    .td-src-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+    .td-src-items li { display: flex; align-items: baseline; gap: 8px; min-width: 0; padding: 3px 0; font-size: 13px; }
+    .td-src-items li + li { border-top: 1px dashed var(--border); }
+    .td-src-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+    button.td-src-text {
+      flex: 0 1 auto; display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; background: none;
+      font: inherit; color: var(--primary-strong); font-weight: 600; cursor: pointer; text-align: start;
+    }
+    button.td-src-text span { overflow: hidden; text-overflow: ellipsis; }
+    button.td-src-text:hover { text-decoration: underline; }
+    button.td-src-text .lic { width: 12px; height: 12px; flex: none; }
+    .td-src-extra { flex: 0 1 auto; min-width: 0; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* Summary: session count and hours by time type in one slim row. */
+    .td-summary {
+      display: flex; flex-wrap: wrap; align-items: stretch; overflow: hidden;
+      border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface);
+    }
+    .td-summary-item { flex: 1 1 140px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; padding: var(--space-3) var(--space-4); }
+    .td-summary-item { box-shadow: 1px 1px 0 var(--border); }
+    .td-summary-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+    .td-summary-value { font-size: 18px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+    .td-summary-meta { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .td-summary-item.is-overtime .td-summary-value { color: var(--bad); }
+    .td-total-row td { border-top: 2px solid var(--border); background: var(--surface2); font-weight: 700; }
+    /* Project page Time Tracking: the same summary row, with a Period cell. */
+    .pj-time-period { flex-basis: 220px; }
+    .pj-time-period .td-summary-value { font-size: 15px; }
     /* Status at the start, the task-level actions at the end. */
     .td-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
     .td-toolbar-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
-    /* Equal-width stat cards that fill the row, whatever their count. */
-    .td-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--space-3); }
-    .td-stats .total-chip { min-height: 0; }
     .td-section-head { margin-bottom: 0; }
     .td-section-head .btn { height: var(--control-h); min-height: 0; padding-block: 0; box-sizing: border-box; }
     /* Narrower fixed columns than the Timesheet's, so the description — the
@@ -3954,8 +4078,13 @@
     .tsg-add .lic { width: 13px; height: 13px; }
     .tsg-card table { width: 100%; table-layout: fixed; }
     .tsg-card tbody { box-shadow: none; }
-    .tsg-card thead th { position: static; background: var(--surface); font-size: var(--fs-caption); padding: 9px var(--space-4); }
-    .tsg-card td .cell { padding: 10px var(--space-4); }
+    .tsg-card thead th {
+      position: static; background: var(--surface); font-size: var(--fs-caption);
+      padding: 6px var(--space-4); color: var(--muted); font-weight: 600;
+      border-bottom: 1px solid var(--border);
+    }
+    .tsg-card td .cell { padding: 8px var(--space-4); }
+    .tsg-card tbody tr:hover td { background: color-mix(in srgb, var(--primary) 4%, transparent); }
     /* Column widths live here, not inline, and every header shares its cells'
        alignment: text columns at the start edge, number columns at the end. */
     .tsg-card .tsg-col-time { width: 124px; }
